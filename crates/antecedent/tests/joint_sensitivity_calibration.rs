@@ -1,8 +1,12 @@
-//! Coverage of the 2.2B X3 conservative endpoint percentile bootstrap.
+//! Coverage of the 2.2B X3 conservative endpoint percentile bootstrap (record
+//! `2.2B.X3.joint_sensitivity_uncertainty`, carried forward from 2.2).
 //!
 //! The registered surrogate formula's cited joint is `P(W) P(X) P(Y | W, X)`
 //! under `do(Z = 0)` with a W-dependent effect. The truth is `psi(delta0)` at
-//! the true deviation `delta0 = 0`, which lies in every declared box.
+//! the EXTREMAL deviation of the declared box: the vertex that attains the
+//! upper end `U` of the exact range on the true law (the tight side of the
+//! one-sided target; an interior point such as `delta0 = 0` is the easiest
+//! point and would not test it). At the zero box that vertex is `delta0 = 0`.
 //!
 //! * `z_joint_sensitivity_zero_box`: the zero box, where the composition is
 //!   exactly the ordinary percentile bootstrap; a two-sided nominal record.
@@ -12,8 +16,12 @@
 //!   named boundary and the one-sided floor is asserted here; it never counts
 //!   as a nominal pass.
 //!
-//! Both are wired, not measured: they run only from `scripts/gate_calibration.sh`
-//! at the 2.2 cut. The estimator is compiled only under `calibration-internal`.
+//! NOT REGISTERED: neither test is in `scripts/gate_calibration.sh`, so nothing
+//! is measured at the 2.2 cut. Re-register them (`run_js`, and the
+//! `grid_group`/`calibration_groups.py` grid entries) once the harness has a
+//! one-sided coverage role (`crates/antecedent/tests/common/calibration.rs`,
+//! `scripts/gate_parity_schema.sh`, `scripts/collect_coverage_records.py`).
+//! The estimator is compiled only under `calibration-internal`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -73,9 +81,19 @@ fn probabilities() -> Vec<f64> {
     out
 }
 
-/// `psi(0) = sum_w P(w) [P(y | w, 1) - P(y | w, 0)]`, from the generating model.
-fn truth() -> f64 {
-    0.65 * (p_y1(false, true) - p_y1(false, false)) + 0.35 * (p_y1(true, true) - p_y1(true, false))
+/// `psi(delta0)` at the maximizing vertex of the box with both fractions
+/// `fraction`, built from the generating model as an explicit contaminated
+/// target: the kernel replacement puts all mass on `y = 1` in the active arm
+/// and on `y = 0` in the control arm, and the parent replacement puts all mass
+/// on `argmax_w D+(w)` (here `w = 1`, whose effect is larger). At `fraction = 0`
+/// this is `psi(0) = sum_w P(w) [P(y | w, 1) - P(y | w, 0)]`.
+fn truth(fraction: f64) -> f64 {
+    let e = fraction;
+    let q_y1 = |w: bool, x: bool| (1.0 - e) * p_y1(w, x) + e * if x { 1.0 } else { 0.0 };
+    let p_w1 = 0.35;
+    let q_w1 = (1.0 - e) * p_w1 + e;
+    let effect = |w: bool| q_y1(w, true) - q_y1(w, false);
+    (1.0 - q_w1) * effect(false) + q_w1 * effect(true)
 }
 
 fn diagram() -> SelectionDiagram {
@@ -242,15 +260,55 @@ fn measure(tally: &mut CoverageTally, fraction: f64, n: usize) {
                         unidentified_mass: 0.0,
                     },
                 );
-                tally.record(Some(band), truth());
+                tally.record(Some(band), truth(fraction));
             }
             None => tally.skip(),
         }
     }
 }
 
+/// The coverage truths are the extremal vertex of the exact range on the true
+/// law: the upper end `U` the joint evaluator computes, and the baseline at the
+/// zero box.
 #[test]
-#[ignore = "coverage: measure with scripts/gate_calibration.sh at the 2.2 cut"]
+fn the_calibration_truths_are_the_extremal_vertex_of_the_true_law() {
+    let ctx = ExecutionContext::for_tests(1);
+    let law = ExactDiscreteLaw::try_new(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [W, X, Y].map(|variable| DiscreteAxis {
+            variable,
+            values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+        }),
+        probabilities(),
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap();
+    let exact = ExactTransportData::try_new([law], 64).unwrap();
+    for fraction in [0.0, 0.05, 0.3] {
+        let result = antecedent_validate::z_transport_joint_mechanism_sensitivity(
+            &diagram(),
+            &functional(),
+            &exact,
+            &box_spec(fraction),
+            &ctx,
+        )
+        .unwrap();
+        assert!((result.range.maximum - truth(fraction)).abs() <= 1e-12, "fraction {fraction}");
+        if fraction > 0.0 {
+            assert_eq!(result.range.maximizing_parent_level, Some(1));
+            assert!(truth(fraction) > result.baseline, "the vertex is not the interior point");
+        } else {
+            assert_eq!(result.range.maximum.to_bits(), result.baseline.to_bits());
+            assert_eq!(result.range.maximizing_parent_level, None);
+        }
+    }
+}
+
+#[test]
+#[ignore = "coverage: not registered in gate_calibration.sh until the harness has a one-sided role"]
 fn z_joint_sensitivity_zero_box() {
     let n = grid_n(400);
     let mut tally = CoverageTally::for_record(
@@ -266,7 +324,7 @@ fn z_joint_sensitivity_zero_box() {
 }
 
 #[test]
-#[ignore = "coverage: measure with scripts/gate_calibration.sh at the 2.2 cut"]
+#[ignore = "coverage: not registered in gate_calibration.sh until the harness has a one-sided role"]
 fn z_joint_sensitivity_positive_box() {
     let n = grid_n(400);
     let mut tally = CoverageTally::for_record(

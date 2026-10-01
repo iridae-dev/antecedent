@@ -168,6 +168,12 @@ impl TransportPyErr for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtif
         use antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError as E;
         match self {
             E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            // A replay the consumer cancelled is a cancellation, still reason-coded.
+            E::ReplayRefused { code, message }
+                if code == reason_code!("transport_budget_cancel") =>
+            {
+                crate::with_reason_code(crate::CausalCancelledError::new_err(message), code)
+            }
             // A replay the request no longer passes carries the record's reason code.
             E::ReplayRefused { code, message } => {
                 crate::with_reason_code(serialization_error(message), code)

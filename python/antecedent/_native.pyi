@@ -5183,6 +5183,8 @@ def consume_smoothed_dose(
     *,
     max_rows: int | None = None,
     max_features: int | None = None,
+    max_memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
 ) -> str: ...
 def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
 def open_provider_result(

@@ -279,3 +279,125 @@ def test_a_budget_stop_is_a_receipt_never_a_verdict():
             max_operations=2,
         )
     assert refused.value.reason_code == "transport_budget_cancel"
+
+
+def test_a_candidate_level_label_colliding_with_a_base_regime_is_refused():
+    # The base already holds a regime labelled like trial_y's first level.
+    clash = [*BASE, ("trial_y#0", "cohort", (), ("x", "z"), "joint", "snap-clash")]
+    with pytest.raises(CausalUnsupportedError, match="study_plan.invalid_candidate") as refused:
+        transport.plan_studies(
+            graph=graph(), query=query(), catalog=catalog(clash), candidates=CANDIDATES
+        )
+    assert refused.value.reason_code == "invalid_argument"
+    assert "trial_y#0" in str(refused.value)
+
+
+# R-443 Figure 1(c,d) on the mz route: z1 -> x -> z2 -> y, z1 <-> x, z1 <-> z2, z1 <-> y.
+MZ_NAMES = ["z1", "x", "z2", "y"]
+
+
+def mz_graph():
+    return Admg.from_edges(
+        MZ_NAMES,
+        [("z1", "x"), ("x", "z2"), ("z2", "y")],
+        [("z1", "x"), ("z1", "z2"), ("z1", "y")],
+    )
+
+
+def mz_query():
+    return transport.MultiSourceZTransportQuery(
+        target="target",
+        outcomes=["y"],
+        treatments=["x"],
+        sources=[
+            transport.ZTransportSource("a", controllable=["z2"], selections=["z1", "z2"]),
+            transport.ZTransportSource(
+                "b", controllable=["z1"], selections=["z1", "y"], experiment_assignment={"z1": 0.0}
+            ),
+        ],
+    )
+
+
+def mz_catalog(delivered=(), snapshot="arrival"):
+    """The target's observational law, plus each delivered regime bound to ``snapshot``."""
+    coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in MZ_NAMES)
+    regimes = [transport.EvidenceRegime("obs", "target", measured=MZ_NAMES)]
+    bindings = [transport.RegimeBinding("obs", "snap-obs", sampling="independent")]
+    for d in delivered:
+        regimes.append(
+            transport.EvidenceRegime(
+                d["regime"],
+                d["population"],
+                kind="experimental" if d["interventions"] else "observational",
+                interventions=d["interventions"],
+                intervention_values=d["levels"],
+                measured=d["measured"],
+                study=d["study"],
+            )
+        )
+        bindings.append(transport.RegimeBinding(d["regime"], snapshot, sampling="independent"))
+    return transport.EvidenceCatalog(
+        environments=tuple(
+            transport.Environment(population, coordinates) for population in ("target", "a", "b")
+        ),
+        regimes=tuple(regimes),
+        bindings=tuple(bindings),
+    )
+
+
+MZ_CANDIDATES = [
+    transport.StudyCandidate(
+        "a_do_z2",
+        "a",
+        ["z1", "x", "y"],
+        3,
+        "one arm per level",
+        interventions=["z2"],
+        levels=[{"z2": 0.0}, {"z2": 1.0}],
+    ),
+    transport.StudyCandidate(
+        "b_do_z1",
+        "b",
+        ["x", "z2", "y"],
+        2,
+        "one arm",
+        interventions=["z1"],
+        levels=[{"z1": 0.0}],
+    ),
+    transport.StudyCandidate("b_observe", "b", ["z1", "x", "z2", "y"], 1, "cohort"),
+]
+
+
+def test_a_multi_level_mz_plan_receives_by_level_labels_and_replays():
+    stage = transport.plan_studies(
+        graph=mz_graph(), query=mz_query(), catalog=mz_catalog(), candidates=MZ_CANDIDATES
+    )
+    assert stage.outcome == "sufficient"
+    live = stage.plan()
+    assert live["route"] == "mz"
+    top = live["proposals"][0]
+    assert top["candidates"] == ["a_do_z2", "b_do_z1"]
+    assert top["stage"] == "mz_transport:combined"
+    assert live["minimal"] is True
+    deliver = top["deliver"]
+    assert [(d["regime"], d["levels"]) for d in deliver] == [
+        ("a_do_z2#0", {"z2": 0.0}),
+        ("a_do_z2#1", {"z2": 1.0}),
+        ("b_do_z1#0", {"z1": 0.0}),
+    ]
+    assert top["cited_regimes"] == ["a_do_z2#0", "a_do_z2#1", "b_do_z1#0"]
+    # The arrival is matched to the proposal through the id#k labels alone.
+    received = stage.receive(0, mz_catalog(deliver), "arrival")
+    assert received["outcome"] == "identified" and received["route"] == "mz"
+    assert received["cited_regimes"] == ["a_do_z2#0", "a_do_z2#1", "b_do_z1#0"]
+    # One level missing, or a preview snapshot, is refused.
+    with pytest.raises(CausalUnsupportedError, match="study_plan.arrival_mismatch"):
+        stage.receive(0, mz_catalog(deliver[1:]), "arrival")
+    with pytest.raises(CausalUnsupportedError, match="study_plan.arrival_mismatch"):
+        stage.receive(0, mz_catalog(deliver, "hypothetical:1"), "hypothetical:1")
+    # Export and an independent replay reproduce the plan.
+    artifact = stage.export()
+    del stage
+    replayed = json.loads(transport.replay_study_plan(artifact))
+    for key in ("route", "failure", "subsets", "proposals", "minimal", "operations_consumed"):
+        assert replayed[key] == live[key], key

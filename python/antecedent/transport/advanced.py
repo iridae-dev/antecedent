@@ -80,8 +80,8 @@ from ._joint_sensitivity import (
     consume_joint_mechanism_sensitivity_artifact,
     export_joint_mechanism_sensitivity,
     joint_mechanism_sensitivity,
-    joint_mechanism_sensitivity_interval,
 )
+from ._joint_sensitivity_uncertainty import joint_mechanism_sensitivity_interval
 from ._learned_continuous import (
     EstimatorMenu,
     EstimatorMenuEntry,

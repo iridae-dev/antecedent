@@ -241,6 +241,22 @@ def test_out_of_scope_requests_refuse_with_reason_codes():
             transport.joint_mechanism_sensitivity(prepared, deviation)
         assert caught.value.reason_code == code, detail
         assert detail in str(caught.value)
+    # The factor cap is two: a third declaration of any kind refuses by count.
+    for third in ("treatment_mechanism", "fixed_graph_parent", "source_target_discrepancy"):
+        deviation = transport.JointDeviation(
+            {"outcome_kernel": 0.1, "shared_parent_marginal": 0.1, third: 0.1}
+        )
+        with pytest.raises(
+            CausalUnsupportedError, match="joint_sensitivity.factor_count"
+        ) as caught:
+            transport.joint_mechanism_sensitivity(prepared, deviation)
+        assert caught.value.reason_code == "route_not_supported"
+    # A non-finite threshold refuses at construction with the same reason code and
+    # detail as the Rust contract (invalid_argument / joint_sensitivity.invalid_threshold).
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(CausalValueError, match="joint_sensitivity.invalid_threshold") as caught:
+            transport.JointDeviation({"outcome_kernel": 0.1}, decision_threshold=bad)
+        assert caught.value.reason_code == "invalid_argument"
 
 
 def test_tampered_joint_artifact_fails_with_typed_errors():

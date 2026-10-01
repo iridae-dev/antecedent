@@ -178,6 +178,28 @@ impl LatentScm {
         out
     }
 
+    /// `P(Y_{x = active} = level, X = observed)` for every active level, observed
+    /// level and outcome level (`[active][observed][level]`), from one pass over
+    /// the exogenous states.
+    pub fn ett_numerator_table(&self, x: usize, y: usize) -> Vec<Vec<Vec<f64>>> {
+        let natural = vec![None; self.cards.len()];
+        let mut out = vec![vec![vec![0.0; self.cards[y]]; self.cards[x]]; self.cards[x]];
+        for (p, latent, types) in self.states() {
+            let observed = self.solve(&latent, &types, &natural)[x];
+            for active in 0..self.cards[x] {
+                let mut treated = natural.clone();
+                treated[x] = Some(active);
+                out[active][observed][self.solve(&latent, &types, &treated)[y]] += p;
+            }
+        }
+        out
+    }
+
+    /// Number of exogenous states `states()` enumerates.
+    pub fn state_count(&self) -> usize {
+        self.types.iter().map(Vec::len).product::<usize>() << self.latents.len()
+    }
+
     /// `P(Y_{x = active} = y, X = observed)`.
     pub fn ett_numerator(
         &self,

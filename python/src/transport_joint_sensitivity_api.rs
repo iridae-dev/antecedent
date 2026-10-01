@@ -256,8 +256,8 @@ fn consume_z_transport_joint_sensitivity_artifact(
         JointSensitivityArtifactWire::consume_with_limits(&bytes, limits, &ctx)
             .map_err(joint_py_err)
     })?;
-    let mut value = serde_json::to_value(&wire.body)
-        .map_err(crate::transport_common::serialization_error)?;
+    let mut value =
+        serde_json::to_value(&wire.body).map_err(crate::transport_common::serialization_error)?;
     if let Some(map) = value.as_object_mut() {
         map.insert("version".into(), json!(wire.version));
         map.insert("premises_digest".into(), json!(wire.premises_digest));

@@ -196,7 +196,9 @@ impl StudyPlanStage {
     /// Accept arriving evidence for the proposal at `rank`: the catalog must
     /// keep the frozen base and hold every proposed regime (by its label) as
     /// available evidence of exactly the proposed shape, bound to
-    /// `provider_snapshot`; the public route then decides the real catalog.
+    /// `provider_snapshot` (a `hypothetical:` snapshot is a planning preview
+    /// and is refused); the public route then decides the real catalog, and a
+    /// stop there is `study_plan.budget`, never "not identified".
     fn receive(
         &self,
         py: Python<'_>,

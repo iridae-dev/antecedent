@@ -6,6 +6,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent.errors import (
+    CausalCancelledError,
     CausalResourceError,
     CausalSerializationError,
     CausalUnsupportedError,
@@ -220,17 +221,19 @@ def test_refusals_carry_their_reason_codes():
         with pytest.raises(CausalUnsupportedError, match=detail) as info:
             advanced.prepare_smoothed_dose(query, data, options=options(), target=target)
         assert info.value.reason_code == "route_not_supported"
-    with pytest.raises(CausalUnsupportedError, match="dose_response.kernel_not_supported"):
+    with pytest.raises(CausalUnsupportedError, match="dose_response.kernel_not_supported") as info:
         advanced.prepare_smoothed_dose(
             dataclasses.replace(query, kernel="gaussian"), data, options=options()
         )
+    assert info.value.reason_code == "route_not_supported"
     with pytest.raises(CausalUnsupportedError, match="dose_response.non_iid_design") as info:
         advanced.prepare_smoothed_dose(
             query, dataclasses.replace(data, sampling="clustered"), options=options()
         )
     assert info.value.reason_code == "sampling_dependence_unknown"
-    with pytest.raises(CausalUnsupportedError, match="dose_response.bounds_exceeded"):
+    with pytest.raises(CausalUnsupportedError, match="dose_response.bounds_exceeded") as info:
         advanced.prepare_smoothed_dose(query, data, options=options(quadrature_nodes=64))
+    assert info.value.reason_code == "route_not_supported"
     with pytest.raises(CausalValueError):
         advanced.SmoothedDoseOptions(min_membership_probability=0.7)
     # Weak membership overlap refuses rather than extrapolating.
@@ -244,6 +247,91 @@ def test_refusals_carry_their_reason_codes():
         query, data, options=options(bootstrap=50), seed=2
     ).estimate()
     assert below.uncertainty["detail"] == "dose_response.bootstrap_below_floor"
+
+
+def _with_source_edit(data, field, edit):
+    """A copy of ``data`` with ``edit(values, first_source_row)`` applied to one field."""
+    values = np.array(getattr(data, field), dtype=float)
+    edit(values, data.source.index(True))
+    return dataclasses.replace(data, **{field: values})
+
+
+def _refusal(call):
+    """Run a refused call and return its (reason code, namespaced detail)."""
+    with pytest.raises(CausalUnsupportedError, match="dose_response[.]") as info:
+        call()
+    detail = next(w for w in str(info.value).split() if w.startswith("dose_response."))
+    return info.value.reason_code, detail.rstrip(":")
+
+
+def test_support_learner_and_quadrature_refusals_carry_code_and_detail():
+    query, data = fixture()
+
+    def prepare(data=data, **kwargs):
+        return lambda: advanced.prepare_smoothed_dose(query, data, options=options(**kwargs))
+
+    def floor(values, row):
+        values[row] = 1e-4
+
+    def invalid(values, row):
+        values[row] = 0.0
+
+    assert _refusal(prepare(_with_source_edit(data, "dose_density", floor))) == (
+        "transport_support_failure",
+        "dose_response.dose_density_floor",
+    )
+    assert _refusal(prepare(_with_source_edit(data, "dose_density", invalid))) == (
+        "transport_support_failure",
+        "dose_response.dose_density_invalid",
+    )
+    assert _refusal(prepare(min_local_ess=1e6)) == (
+        "transport_support_failure",
+        "dose_response.local_dose_ess",
+    )
+    rounded = dataclasses.replace(
+        data, dose=[round(a) if s else a for a, s in zip(data.dose, data.source, strict=True)]
+    )
+    assert _refusal(prepare(rounded)) == (
+        "treatment_support_too_discrete",
+        "dose_response.dose_too_discrete",
+    )
+    assert _refusal(prepare(outcome=ac.learners.NeuralNet())) == (
+        "route_not_supported",
+        "dose_response.learner_not_portable",
+    )
+    # A tree learner's fitted curve is not piecewise polynomial in the dose: the two
+    # quadrature rules are compared on every target row and a tight tolerance refuses.
+    trees = ac.learners.GradientBoostedTrees(trees=5, depth=2)
+    study = advanced.prepare_smoothed_dose(
+        query, data, options=options(outcome=trees, quadrature_tolerance=1e-12), seed=3
+    )
+    assert _refusal(study.estimate) == (
+        "transport_numerical_failure",
+        "dose_response.quadrature_tolerance",
+    )
+    # A linear fit is integrated exactly, so the same tolerance is never gated.
+    exact = advanced.prepare_smoothed_dose(
+        query, data, options=options(quadrature_tolerance=1e-300), seed=3
+    ).estimate()
+    assert all(p.quadrature["exact"] and p.quadrature["pieces"] == 1 for p in exact.grid)
+
+
+def test_consumer_limits_cancellation_and_replay_refusals_are_typed():
+    query, data = fixture()
+    study = advanced.prepare_smoothed_dose(query, data, options=options(), seed=7)
+    study.estimate()
+    artifact = study.export()
+    assert advanced.consume_smoothed_dose(artifact, max_memory_bytes=512 * 1024 * 1024).grid
+    with pytest.raises(CausalResourceError, match="replay workspace above the memory limit"):
+        advanced.consume_smoothed_dose(artifact, max_memory_bytes=1024)
+    with pytest.raises(CausalValueError, match="max_memory_bytes"):
+        advanced.consume_smoothed_dose(artifact, max_memory_bytes=-1)
+    # A cancelled token reaches the replay: a reason-coded replay refusal.
+    token = ac.state.CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalCancelledError, match="cancelled") as info:
+        advanced.consume_smoothed_dose(artifact, cancel=token)
+    assert info.value.reason_code == "transport_budget_cancel"
 
 
 def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_errors():
@@ -267,6 +355,14 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
     # A foreign learned-continuous frame is not a smoothed-dose artifact.
     with pytest.raises(CausalSerializationError, match="smoothed dose"):
         advanced.consume_smoothed_dose(b"ANTECEDENT-LEARNED-CONTINUOUS\x01" + artifact[25:])
+    # The frame carries the variable names as a CBOR array right after the prefix; swapping
+    # "z" and "y" there (same length) leaves the inner artifact intact, and consumption
+    # refuses the names against the verified name mapping.
+    names = b"\x83\x61z\x61a\x61y"
+    assert artifact.count(names) == 1
+    relabelled = artifact.replace(names, b"\x83\x61y\x61a\x61z")
+    with pytest.raises(CausalSerializationError, match="variable names do not match"):
+        advanced.consume_smoothed_dose(relabelled)
 
 
 def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():

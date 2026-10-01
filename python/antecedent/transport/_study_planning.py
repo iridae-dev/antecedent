@@ -13,7 +13,12 @@ sufficient proposal says that if the studies deliver exactly the declared
 regimes (with mass at every level the formula reads), the same route would
 identify the query. ``none_certified`` means nothing in this universe was
 certified, never that the query is impossible. Minimality is claimed only when
-every strictly cheaper subset was decided without a stop.
+every strictly cheaper subset was decided without a stop or an over-cap
+decision, and means cost-minimal among the verified-derivable subsets of at most
+three candidates of this declared universe, under this search and rule set: a
+cheaper subset of four or more candidates is never examined, and a cheaper
+subset the route refuses keeps the claim (it is only not sufficient under this
+search).
 """
 
 from __future__ import annotations
@@ -110,10 +115,15 @@ def plan_studies(
     ``export()`` yields an artifact :func:`replay_study_plan` replays.
 
     Refusals carry their reason code: ``invalid_argument`` for an invalid
-    candidate or a base that already identifies, ``route_not_supported`` for a
-    bound, ``transport_proven_non_transportable`` when the base is a checked
-    obstruction over the declared controllable sets, and
+    candidate (including a level label ``id#k`` a base regime already uses) or
+    a base that already identifies, ``route_not_supported`` for a bound
+    (checked before any candidate compiles),
+    ``transport_proven_non_transportable`` when the base is a checked
+    obstruction over the declared controllable sets (a new population or a
+    wider controllable set is outside this universe), and
     ``transport_budget_cancel`` when the budget stops the base decision.
+    ``receive`` refuses a ``hypothetical:`` provider snapshot (a planning
+    preview) and reports a stop of the public route as ``study_plan.budget``.
     """
     if not isinstance(graph, Admg):
         raise CausalTypeError("plan_studies requires graph=Admg(...)")
@@ -180,10 +190,13 @@ def replay_study_plan(
 
     The consumer refuses stored limits above its own before any work, checks
     every digest, then re-plans under the stored limits and accepts only an
-    identical plan (``study_plan.invalid_artifact`` otherwise). Replay does not
-    protect against a producer that states another base catalog or candidate
-    universe and re-seals honestly: the artifact is then a correct plan of
-    those stated inputs.
+    identical plan (``study_plan.invalid_artifact`` otherwise); a cancelled
+    replay is ``study_plan.budget``, never a verdict. Replay does not protect
+    against a producer that states another base catalog or candidate universe
+    and re-seals honestly: the artifact is then a correct plan of those stated
+    inputs. Lineage (the base catalog's bindings and snapshots) is stored and
+    digested, but replay does not exercise it: an artifact re-sealed with every
+    base binding cleared replays. Only ``receive`` checks lineage.
     """
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

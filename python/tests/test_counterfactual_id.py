@@ -144,8 +144,9 @@ def test_refusals_carry_reason_codes() -> None:
             outcome_level=1.0,
         )
     )
-    assert error.reason_code == "cross_world_not_identified"
+    assert error.reason_code == "route_not_supported"
     assert "counterfactual_id.conflicting_subscripts" in str(error)
+    assert "not a proof of non-identifiability" in str(error)
 
     def ett(graph=None, **overrides):
         arguments = dict(treatment="x", active=1.0, observed=0.0, outcome="y", outcome_level=1.0)
@@ -177,6 +178,38 @@ def test_refusals_carry_reason_codes() -> None:
     )
     assert error.reason_code == "invalid_argument"
     assert "counterfactual_id.positivity_violation" in str(error)
+
+
+def test_the_binary_complement_answers_where_id_star_stops() -> None:
+    """The audit's counterexample: ID* conflicts, P(y | do(x)) is identified, X is binary."""
+    names = ["a", "b", "x", "y", "c"]
+    graph = Admg.from_edges(
+        names,
+        [("a", "b"), ("b", "x"), ("b", "c"), ("x", "y"), ("x", "c"), ("y", "c")],
+        [("a", "x"), ("a", "y")],
+    )
+    levels = {name: [0.0, 1.0] for name in names}
+    prepared = prepare_effect_on_treated(
+        graph, levels, treatment="x", active=1.0, observed=0.0, outcome="y", outcome_level=1.0
+    )
+    assert "complement(" in prepared.derivation
+    # On a law with every variable independent, P_x(y) = P(y) = 0.8 and the
+    # complement is 0.8 - P(y = 1, x = 1) = 0.8 * 0.7, so the ETT is 0.8.
+    cells = [
+        0.25 * (0.3 if x else 0.7) * (0.8 if y else 0.2) * 0.5
+        for _a, _b, x, y, _c in itertools.product((0, 1), repeat=5)
+    ]
+    effect = prepared.evaluate(probabilities=cells)
+    assert effect.probability == pytest.approx(0.8, abs=1e-12)
+    consumed = consume_counterfactual_id_artifact(effect.artifact)
+    assert consumed.independently_verified
+    # With a three-level treatment the ID* refusal stands (not a verdict).
+    levels["x"] = [0.0, 1.0, 2.0]
+    with pytest.raises(CausalError, match="counterfactual_id.conflicting_subscripts") as caught:
+        prepare_effect_on_treated(
+            graph, levels, treatment="x", active=1.0, observed=0.0, outcome="y", outcome_level=1.0
+        )
+    assert caught.value.reason_code == "route_not_supported"
 
 
 def test_prepare_decides_once_and_reports_the_search() -> None:

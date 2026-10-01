@@ -15,11 +15,22 @@ re-derives the artifact under its stored limits, requires the identical
 derivation and point, and recomputes the point with a separate direct-sum
 evaluator.
 
-The claim is a point: ``uncertainty`` must be ``None``. A query that is not
-identified refuses with ``cross_world_not_identified`` and names the conflicting
-pair; path-specific queries on ADMGs are deferred to 2.3; accepted, uncertain,
-equivalence-class and temporal structures are refused. This is not general
-counterfactual identification.
+When ID* stops and the treatment has two levels, the consistency identity
+``P(Y_x = y, X = x') = P_x(y) - P(y, X = x)`` answers wherever ID identifies
+``P_x(y)``.
+
+The claim is a point: ``uncertainty`` must be ``None``. A query that neither
+route identifies refuses with ``route_not_supported``
+(``counterfactual_id.conflicting_subscripts``) and names the conflicting pair: it
+is not identified by ID*, which is NOT a proof of non-identifiability.
+Accepted, uncertain, equivalence-class and temporal structures are refused.
+This is not general counterfactual identification.
+
+This module builds only the effect-on-the-treated query, so the Rust route's
+``counterfactual_id.query_outside_contract`` (other conjunctions),
+``counterfactual_id.path_specific_deferred`` (worlds that route edges) and
+``counterfactual_id.counterfactual_hedge`` (unreached on this shape) refusals
+are not reachable from Python; they are tested in Rust only.
 """
 
 from __future__ import annotations
@@ -227,7 +238,9 @@ def consume_counterfactual_id_artifact(artifact: bytes, *, seed: int = 1) -> Eff
 
     It detects corruption and re-sealed edits that change the derivation or the
     point, and recomputes the point with a separate direct-sum evaluator; it does
-    not detect a producer that seals a wrong graph, query or law on purpose.
+    not detect a producer that seals a wrong graph, query or law on purpose, nor
+    a bug shared by the engine and the consumer (which re-derives with the same
+    engine, so such a bug replays identically).
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
