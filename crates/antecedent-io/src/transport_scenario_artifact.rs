@@ -14,6 +14,20 @@
 //! laws, provider, sample summaries), so refreshed data replaces only the
 //! latter. A report cut short by cancellation is never exported: nothing
 //! recorded lets a consumer reproduce where the interruption fell.
+//!
+//! Format version 2 (2.2B B1) is the same artifact for a conditional question
+//! `P*(y | do(x), w)`: the question carries `conditioned_on`, an identified
+//! scenario carries its checked conditional record (rule-2 moves, remaining
+//! conditioned set and the reduced joint's sID record) in place of `proof`, a
+//! not-certified scenario carries its inspection-only obstruction candidate, and
+//! a structurally unidentified one its verified two-model witness.
+//! Every version-2 field is absent from a classical artifact, which the writer
+//! still emits as version 1 byte for byte (its digests are unchanged), so a
+//! version-1-only reader keeps reading every classical artifact and refuses a
+//! conditional one by its version (`UnsupportedVersion { version: 2 }`) before
+//! decoding anything else. This reader accepts both and refuses a version-1
+//! artifact that carries a version-2 field, and a version-2 artifact without a
+//! conditional question.
 
 use crate::{
     IoError, admg_from_wire, admg_to_wire, exact_law_wire::ExactLawWire,
@@ -28,11 +42,12 @@ use antecedent_estimate::transport_scenarios::{
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData, LawOrigin};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    ClassicalTransportQuery, SidLimits,
+    ClassicalTransportQuery, ConditionalNonTransportabilityRecord, ConditionalObstructionRecord,
+    ConditionalTransportQuery, ConditionalTransportRecord, SidLimits,
     sid::SidDerivationRecord,
     sid::scenarios::{
-        ScenarioCoordinate, ScenarioOutcome, ScenarioSetRefusal, TransportScenario,
-        TransportScenarioSet, decide_transport_scenarios,
+        ScenarioCoordinate, ScenarioOutcome, ScenarioQuestion, ScenarioSetRefusal,
+        TransportScenario, TransportScenarioSet, decide_scenario_question,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -42,6 +57,11 @@ use std::sync::Arc;
 pub const TRANSPORT_SCENARIO_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TRANSPORT_SCENARIO_ARTIFACT_FEATURE: &str = "transport_scenario_envelope_v1";
+/// The format version of an artifact whose question is conditional (2.2B B1).
+pub const TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION: u32 = 2;
+/// The feature marker a version-2 artifact requires beside
+/// [`TRANSPORT_SCENARIO_ARTIFACT_FEATURE`].
+pub const TRANSPORT_SCENARIO_CONDITIONAL_FEATURE: &str = "transport_scenario_admg_conditional_v2";
 
 /// Why a scenario artifact was refused.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -194,6 +214,10 @@ pub struct ScenarioQueryWire {
     pub source: String,
     /// Target population.
     pub target: String,
+    /// Conditioned variables of a conditional question (version 2 only;
+    /// absent, and not encoded, for a classical question).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conditioned_on: Option<Vec<u32>>,
 }
 
 /// One scenario's stored result.
@@ -212,6 +236,18 @@ pub struct ScenarioResultWire {
     pub proof: Option<SidDerivationRecord>,
     /// Point of an identified, evaluated scenario.
     pub point: Option<MzTransportPointWire>,
+    /// Checked conditional record of an identified conditional scenario
+    /// (version 2 only; not encoded when absent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conditional_proof: Option<ConditionalTransportRecord>,
+    /// Inspection-only obstruction candidate of a not-certified conditional
+    /// scenario (version 2 only; not encoded when absent). Never a proof.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub candidate: Option<ConditionalObstructionRecord>,
+    /// Exactly verified two-model witness of a structurally unidentified
+    /// conditional scenario (version 2 only; not encoded when absent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub non_transportability: Option<ConditionalNonTransportabilityRecord>,
 }
 
 /// One outcome's envelope.
@@ -309,8 +345,19 @@ impl ScenarioReportWire {
             .decisions
             .iter()
             .map(|d| match &d.outcome {
-                ScenarioOutcome::Identified(f) => Some(f.derivation().to_record()),
-                _ => None,
+                ScenarioOutcome::Identified(f) => {
+                    (Some(f.derivation().to_record()), None, None, None)
+                }
+                ScenarioOutcome::ConditionalIdentified(f) => {
+                    (None, Some(f.derivation().to_record()), None, None)
+                }
+                ScenarioOutcome::ConditionalNotCertified { candidate, .. } => {
+                    (None, None, candidate.as_ref().map(|c| c.to_record()), None)
+                }
+                ScenarioOutcome::ConditionalProvenNonTransportable(proof) => {
+                    (None, None, None, Some(proof.to_record()))
+                }
+                _ => (None, None, None, None),
             })
             .collect::<Vec<_>>();
         Self {
@@ -318,13 +365,18 @@ impl ScenarioReportWire {
                 .scenarios
                 .iter()
                 .zip(proofs)
-                .map(|(s, proof)| ScenarioResultWire {
-                    name: s.name.to_string(),
-                    weight: s.weight,
-                    status: s.status.into(),
-                    detail: s.detail.clone(),
-                    proof,
-                    point: s.distribution.as_ref().map(MzTransportPointWire::from_distribution),
+                .map(|(s, (proof, conditional_proof, candidate, non_transportability))| {
+                    ScenarioResultWire {
+                        name: s.name.to_string(),
+                        weight: s.weight,
+                        status: s.status.into(),
+                        detail: s.detail.clone(),
+                        proof,
+                        point: s.distribution.as_ref().map(MzTransportPointWire::from_distribution),
+                        conditional_proof,
+                        candidate,
+                        non_transportability,
+                    }
                 })
                 .collect(),
             masses: report.masses.iter().map(|m| (m.status.to_owned(), m.count, m.mass)).collect(),
@@ -549,12 +601,34 @@ fn check_provider(
     Ok(())
 }
 
-fn query_wire(query: &ClassicalTransportQuery) -> ScenarioQueryWire {
+fn query_wire(question: &ScenarioQuestion) -> ScenarioQueryWire {
+    let query = question.base();
     ScenarioQueryWire {
         outcomes: query.outcomes.iter().map(|v| v.raw()).collect(),
         treatments: query.treatments.iter().map(|v| v.raw()).collect(),
         source: query.source.to_string(),
         target: query.target.to_string(),
+        conditioned_on: question
+            .is_conditional()
+            .then(|| question.conditioned_on().iter().map(|v| v.raw()).collect()),
+    }
+}
+
+/// The stored question: classical, or conditional when it names a conditioned set.
+fn question_of(wire: &ScenarioQueryWire) -> ScenarioQuestion {
+    let ids = |raw: &[u32]| raw.iter().copied().map(VariableId::from_raw).collect::<Arc<[_]>>();
+    let base = ClassicalTransportQuery {
+        outcomes: ids(&wire.outcomes),
+        treatments: ids(&wire.treatments),
+        source: Arc::from(wire.source.as_str()),
+        target: Arc::from(wire.target.as_str()),
+    };
+    match &wire.conditioned_on {
+        None => ScenarioQuestion::Classical(base),
+        Some(conditioned) => ScenarioQuestion::Conditional(ConditionalTransportQuery {
+            base,
+            conditioned_on: ids(conditioned),
+        }),
     }
 }
 
@@ -591,7 +665,6 @@ impl TransportScenarioArtifactWire {
     /// ([`TransportScenarioArtifactError::CancelledNotReplayable`]).
     pub fn checked(
         prepared: &PreparedScenarioSet,
-        query: &ClassicalTransportQuery,
         catalog: &antecedent_core::EvidenceCatalog,
         report: &ScenarioSetReport,
     ) -> Result<Self, IoError> {
@@ -607,9 +680,21 @@ impl TransportScenarioArtifactWire {
             .map(|input| input.samples.iter().map(SampleSummary::from_sample).collect())
             .transpose()?
             .unwrap_or_default();
+        let conditional = decision.question.is_conditional();
         let mut wire = Self {
-            version: TRANSPORT_SCENARIO_ARTIFACT_VERSION,
-            required_features: vec![TRANSPORT_SCENARIO_ARTIFACT_FEATURE.into()],
+            version: if conditional {
+                TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION
+            } else {
+                TRANSPORT_SCENARIO_ARTIFACT_VERSION
+            },
+            required_features: if conditional {
+                vec![
+                    TRANSPORT_SCENARIO_ARTIFACT_FEATURE.into(),
+                    TRANSPORT_SCENARIO_CONDITIONAL_FEATURE.into(),
+                ]
+            } else {
+                vec![TRANSPORT_SCENARIO_ARTIFACT_FEATURE.into()]
+            },
             scenarios: scenario_wires(&decision.set)?,
             coordinates: decision
                 .set
@@ -617,7 +702,7 @@ impl TransportScenarioArtifactWire {
                 .iter()
                 .map(ScenarioCoordinateWire::from_coordinate)
                 .collect(),
-            query: query_wire(query),
+            query: query_wire(&decision.question),
             scenario_operations: decided.budget.operations,
             scenario_depth: decided.budget.depth,
             scenario_memory_bytes: decided.memory_limit_bytes,
@@ -661,18 +746,42 @@ impl TransportScenarioArtifactWire {
 
     /// Decode, refusing any other version first.
     ///
+    /// Version 1 (classical) and version 2 (conditional) are accepted, each
+    /// with exactly its own feature markers. A version-1 artifact carrying a
+    /// conditioned set, a conditional record or a candidate, or a version-2
+    /// artifact without a conditioned set, is refused as unsupported semantics.
+    ///
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != TRANSPORT_SCENARIO_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
+        let conditional = match peek.version {
+            TRANSPORT_SCENARIO_ARTIFACT_VERSION => false,
+            TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION => true,
+            version => return Err(IoError::UnsupportedVersion { version }),
+        };
         let wire: Self = crate::from_cbor(bytes)?;
-        if wire.required_features != [TRANSPORT_SCENARIO_ARTIFACT_FEATURE] {
-            return Err(
-                TransportScenarioArtifactError::UnsupportedSemantics("required features").into()
-            );
+        let unsupported =
+            |what| Err(TransportScenarioArtifactError::UnsupportedSemantics(what).into());
+        let features: &[&str] = if conditional {
+            &[TRANSPORT_SCENARIO_ARTIFACT_FEATURE, TRANSPORT_SCENARIO_CONDITIONAL_FEATURE]
+        } else {
+            &[TRANSPORT_SCENARIO_ARTIFACT_FEATURE]
+        };
+        if wire.required_features != features {
+            return unsupported("required features");
+        }
+        let carries_conditional = wire.query.conditioned_on.is_some()
+            || wire.report.scenarios.iter().any(|s| {
+                s.conditional_proof.is_some()
+                    || s.candidate.is_some()
+                    || s.non_transportability.is_some()
+            });
+        if !conditional && carries_conditional {
+            return unsupported("a version 1 artifact carries a conditional question or record");
+        }
+        if conditional && wire.query.conditioned_on.as_ref().is_none_or(Vec::is_empty) {
+            return unsupported("a version 2 artifact needs a conditioned set");
         }
         Ok(wire)
     }
@@ -751,12 +860,7 @@ impl TransportScenarioArtifactWire {
             })
             .collect::<Result<Vec<_>, IoError>>()?;
         let set = TransportScenarioSet::try_new(scenarios).map_err(scenario_refusal)?;
-        let query = ClassicalTransportQuery {
-            outcomes: ids(&wire.query.outcomes).into(),
-            treatments: ids(&wire.query.treatments).into(),
-            source: Arc::from(wire.query.source.as_str()),
-            target: Arc::from(wire.query.target.as_str()),
-        };
+        let question = question_of(&wire.query);
         let catalog = wire.catalog.to_catalog()?;
         let laws = wire
             .laws
@@ -777,13 +881,22 @@ impl TransportScenarioArtifactWire {
         let request = Assignment::from_pairs(
             wire.request.iter().map(|(v, x)| (VariableId::from_raw(*v), x.to_value())),
         );
-        let decision = decide_transport_scenarios(
+        let decision = decide_scenario_question(
             &set,
-            &query,
+            &question,
             &catalog,
             SearchLimits { operations: wire.scenario_operations, depth: wire.scenario_depth },
             ctx,
-        )?;
+        )
+        .map_err(|error| {
+            if question.is_conditional() {
+                crate::admg_conditional_transport_artifact::admg_conditional_identification_error(
+                    error,
+                )
+            } else {
+                error.into()
+            }
+        })?;
         let prepared = antecedent_estimate::transport_scenarios::prepare_transport_scenarios(
             decision,
             data,

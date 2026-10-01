@@ -9,6 +9,13 @@
 //! outcome's declared domain (from the set's shared coordinate schema, not from
 //! the atoms the identified distributions happen to carry).
 //!
+//! A conditional question (2.2B B1) compiles each identified scenario through
+//! the existing ADMG conditional prepared path: the reduced joint's exact plan
+//! at `do(x, w')`, normalized at the requested `w''`. A zero-mass conditioning
+//! event is that scenario's `support_failure`. Counted laws are refused for a
+//! conditional set (`cell_not_licensed`, `admg_transport.interval_withheld`),
+//! as the standalone route refuses them: it publishes exact-law points only.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::sync::Arc;
@@ -216,6 +223,9 @@ pub const SCENARIO_STATUSES: [&str; 7] = [
 enum ScenarioPlan {
     /// Identified and compiled against the supplied laws.
     Executable(antecedent_expr::ExactEvaluationPlan),
+    /// A conditional question, identified and compiled: the reduced joint's
+    /// plan and the levels it is normalized at.
+    Conditional(crate::AdmgConditionalExactPlan),
     /// Identified, but the supplied providers cannot evaluate it.
     Refused { status: &'static str, detail: String },
     /// Not identified; the decision says why.
@@ -301,6 +311,59 @@ fn compile_scenario(
     }
 }
 
+/// Compile one identified conditional scenario through the ADMG conditional
+/// prepared path. A request that does not bind exactly the treatments and the
+/// conditioned variables refuses the whole call (every scenario shares it).
+fn compile_conditional(
+    functional: &antecedent_identify::BoundConditionalTransportFunctional,
+    data: &antecedent_expr::ExactTransportData,
+    request: &antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ScenarioPlan, EstimationError> {
+    if let Some(detail) = uncovered_regime(functional.joint(), data) {
+        return Ok(ScenarioPlan::Refused { status: "unsupported_provider", detail });
+    }
+    let (joint_request, conditioning) =
+        crate::admg_conditional_transport::split_request(functional, request)?;
+    match crate::transport::prepare_exact_transport(
+        functional.joint(),
+        data.clone(),
+        joint_request,
+        limits,
+        ctx,
+    ) {
+        Ok(joint) => Ok(ScenarioPlan::Conditional(
+            crate::admg_conditional_transport::assemble_plan(functional, joint, conditioning),
+        )),
+        Err(error) => classify(&error)
+            .map(|status| ScenarioPlan::Refused { status, detail: error.to_string() }),
+    }
+}
+
+/// Evaluate a compiled conditional scenario: the reduced joint, then its
+/// normalization at `w''`. A zero-mass conditioning event is the scenario's
+/// support failure; any other conditioning refusal is an error of the call.
+fn evaluate_conditional(
+    plan: &crate::AdmgConditionalExactPlan,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<(&'static str, Option<String>, Option<ExactDistribution>), EstimationError> {
+    let joint = match plan.joint_plan().evaluate(ctx) {
+        Ok(joint) => joint,
+        Err(error) => return Ok((classify(&error)?, Some(error.to_string()), None)),
+    };
+    let outcomes: Arc<[VariableId]> = Arc::from(plan.outcomes());
+    match crate::admg_conditional_transport::condition(&joint, &outcomes, plan.conditioning()) {
+        Ok(distribution) => Ok(("identified", None, Some(distribution))),
+        Err(error @ EstimationError::Refused { code, .. })
+            if code == antecedent_core::reason_code!("transport_support_failure") =>
+        {
+            Ok(("support_failure", Some(error.to_string()), None))
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// The first regime a bound leaf cites that no supplied law realizes. The
 /// evaluator would otherwise report the gap as a missing table entry, which
 /// reads as a support failure rather than a missing provider.
@@ -365,6 +428,9 @@ fn compile_all(
         .map(|d| match &d.outcome {
             ScenarioOutcome::Identified(functional) => {
                 compile_scenario(functional, data, request, limits, ctx)
+            }
+            ScenarioOutcome::ConditionalIdentified(functional) => {
+                compile_conditional(functional, data, request, limits, ctx)
             }
             _ => Ok(ScenarioPlan::NotIdentified),
         })
@@ -440,6 +506,24 @@ fn check_schema(
     Ok(())
 }
 
+/// The conditional route publishes exact-law points only: counted laws (an
+/// empirical plug-in) are refused before anything compiles, as the standalone
+/// conditional preparation refuses them.
+fn refuse_counted_laws(data: &antecedent_expr::ExactTransportData) -> Result<(), EstimationError> {
+    if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
+        return Err(conditional_counts_refusal());
+    }
+    Ok(())
+}
+
+fn conditional_counts_refusal() -> EstimationError {
+    EstimationError::refused(
+        antecedent_core::reason_code!("cell_not_licensed"),
+        "admg_transport.interval_withheld: counted laws are not licensed for a conditional \
+         scenario question; the route publishes exact-law points only",
+    )
+}
+
 /// Compile each identified scenario of a decided set once against supplied
 /// exact laws.
 ///
@@ -455,6 +539,9 @@ pub fn prepare_transport_scenarios(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
     check_schema(&decision, &data, &request)?;
+    if decision.question.is_conditional() {
+        refuse_counted_laws(&data)?;
+    }
     let plans = compile_all(&decision, &data, &request, limits, ctx)?;
     Ok(PreparedScenarioSet { decision, data, empirical: None, request, limits, plans })
 }
@@ -479,6 +566,9 @@ pub fn prepare_empirical_transport_scenarios(
     limits: antecedent_expr::ExactEvaluationLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<PreparedScenarioSet, EstimationError> {
+    if decision.question.is_conditional() {
+        return Err(conditional_counts_refusal());
+    }
     check_samples(&decision, &input)?;
     let options = crate::EmpiricalTableOptions {
         estimator: crate::EmpiricalTableEstimator::Plugin,
@@ -554,7 +644,9 @@ impl PreparedScenarioSet {
             .zip(&self.plans)
             .map(|(d, plan)| {
                 let kind = match plan {
-                    ScenarioPlan::Executable(_) => "compiled".to_owned(),
+                    ScenarioPlan::Executable(_) | ScenarioPlan::Conditional(_) => {
+                        "compiled".to_owned()
+                    }
                     ScenarioPlan::Refused { status, .. } => (*status).to_owned(),
                     ScenarioPlan::NotIdentified => format!("not_identified:{}", d.outcome.status()),
                 };
@@ -619,6 +711,7 @@ impl PreparedScenarioSet {
                     Ok(distribution) => ("identified", None, Some(distribution)),
                     Err(error) => (classify(&error)?, Some(error.to_string()), None),
                 },
+                (ScenarioPlan::Conditional(plan), _) => evaluate_conditional(plan, ctx)?,
                 (ScenarioPlan::Refused { status, detail }, _) => {
                     (*status, Some(detail.clone()), None)
                 }
@@ -656,7 +749,7 @@ fn outcome_detail(
         named.join(", ")
     };
     match outcome {
-        ScenarioOutcome::Identified(_) => String::new(),
+        ScenarioOutcome::Identified(_) | ScenarioOutcome::ConditionalIdentified(_) => String::new(),
         ScenarioOutcome::StructurallyUnidentified(hedge) => {
             format!(
                 "verified s-hedge: forest {{{}}} inside {{{}}}",
@@ -666,6 +759,33 @@ fn outcome_detail(
         }
         ScenarioOutcome::MissingEvidence { obligations }
         | ScenarioOutcome::NotCertified { obligations } => obligations.join("; "),
+        ScenarioOutcome::ConditionalNotCertified { obligations, candidate } => {
+            let mut detail = obligations.join("; ");
+            if let Some(candidate) = candidate {
+                let hedge = candidate.s_hedge().to_record();
+                detail.push_str(&format!(
+                    "; inspection-only candidate (not a proof): reduced-joint s-hedge forest \
+                     {{{}}} inside {{{}}}",
+                    names(&hedge.smaller.nodes),
+                    names(&hedge.larger.nodes)
+                ));
+            }
+            detail
+        }
+        ScenarioOutcome::ConditionalProvenNonTransportable(proof) => {
+            let mut detail = "admg_transport.proven_non_transportable: exactly verified two-model \
+                              witness"
+                .to_owned();
+            if let Some(candidate) = proof.candidate() {
+                let hedge = candidate.s_hedge().to_record();
+                detail.push_str(&format!(
+                    "; reduced-joint s-hedge forest {{{}}} inside {{{}}}",
+                    names(&hedge.smaller.nodes),
+                    names(&hedge.larger.nodes)
+                ));
+            }
+            detail
+        }
         ScenarioOutcome::Unevaluated { stop } => format!(
             "{}: {}",
             antecedent_identify::sid::scenarios::SCENARIO_UNEVALUATED_DETAIL,
@@ -708,6 +828,9 @@ fn report(
             .iter()
             .find_map(|d| match &d.outcome {
                 ScenarioOutcome::Identified(f) => Some(f.derivation().query().outcomes.to_vec()),
+                ScenarioOutcome::ConditionalIdentified(f) => {
+                    Some(f.derivation().query().base.outcomes.to_vec())
+                }
                 _ => None,
             })
             .unwrap_or_default()

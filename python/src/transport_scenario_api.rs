@@ -10,7 +10,7 @@ use antecedent_estimate::transport_scenarios::ScenarioSetReport;
 use antecedent_expr::ExactEvaluationLimits;
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    ClassicalTransportQuery,
+    ClassicalTransportQuery, ConditionalTransportQuery,
     sid::scenarios::{ScenarioCoordinate, TransportScenario, TransportScenarioSet},
 };
 use antecedent_io::IoError;
@@ -261,9 +261,11 @@ impl PreparedTransportScenariosStage {
 /// must declare the same variable names, and each scenario's coordinates (its
 /// own, or the set's `coordinates`) must agree. Weights are given for every
 /// scenario or none. `laws` are supplied exact laws or `StatisticalTransportData`
-/// for empirical plug-in points.
+/// for empirical plug-in points. A non-empty `conditioned_on` asks the
+/// conditional question `P*(y | do(x), w)` of the bounded ADMG conditional row
+/// (2.2B B1) in every scenario; it takes exact laws only.
 #[pyfunction]
-#[pyo3(signature=(scenarios, coordinates, outcomes, treatments, source, target, catalog, laws, assignments, *, max_steps=100_000, max_depth=256, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(scenarios, coordinates, outcomes, treatments, source, target, catalog, laws, assignments, *, conditioned_on=Vec::new(), max_steps=100_000, max_depth=256, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_transport_scenarios_stage(
     py: Python<'_>,
@@ -276,6 +278,7 @@ fn prepare_transport_scenarios_stage(
     catalog: &Bound<'_, PyAny>,
     laws: &Bound<'_, PyAny>,
     assignments: BTreeMap<String, f64>,
+    conditioned_on: Vec<String>,
     max_steps: usize,
     max_depth: usize,
     max_operations: usize,
@@ -329,8 +332,17 @@ fn prepare_transport_scenarios_stage(
         source: source.into(),
         target: target.into(),
     };
+    let conditioned =
+        (!conditioned_on.is_empty()).then(|| resolved(&conditioned_on)).transpose()?;
     let catalog = parse_catalog(catalog, &named)?;
     let provider = parse_provider(laws, &catalog, &named, max_support_rows)?;
+    if conditioned.is_some() && matches!(provider, Provider::Empirical(_)) {
+        return Err(crate::refusal(
+            reason_code!("cell_not_licensed"),
+            "admg_transport.interval_withheld: counted laws are not licensed for a conditional \
+             scenario question; the route publishes exact-law points only",
+        ));
+    }
     let request = assignment_from_pairs(&names, assignments)?;
     let stage_catalog = catalog.clone();
     let inner = crate::detach_catch(py, move || {
@@ -338,21 +350,35 @@ fn prepare_transport_scenarios_stage(
         let budget = SearchLimits { operations: max_steps, depth: max_depth };
         let evaluation =
             ExactEvaluationLimits { operations: max_operations, depth: max_evaluation_depth };
-        match provider {
-            Provider::Exact(data) => antecedent::StudyBuilder::transport_scenarios(
+        match (provider, conditioned) {
+            (Provider::Exact(data), Some(conditioned_on)) => {
+                antecedent::StudyBuilder::conditional_transport_scenarios(
+                    &set,
+                    ConditionalTransportQuery { base: query, conditioned_on },
+                    catalog,
+                    budget,
+                    data,
+                    request,
+                    evaluation,
+                    &ctx,
+                )
+            }
+            (Provider::Exact(data), None) => antecedent::StudyBuilder::transport_scenarios(
                 &set, query, catalog, budget, data, request, evaluation, &ctx,
             ),
-            Provider::Empirical(input) => antecedent::StudyBuilder::transport_scenarios_empirical(
-                &set,
-                query,
-                catalog,
-                budget,
-                input,
-                max_support_rows,
-                request,
-                evaluation,
-                &ctx,
-            ),
+            (Provider::Empirical(input), _) => {
+                antecedent::StudyBuilder::transport_scenarios_empirical(
+                    &set,
+                    query,
+                    catalog,
+                    budget,
+                    input,
+                    max_support_rows,
+                    request,
+                    evaluation,
+                    &ctx,
+                )
+            }
         }
         .map_err(scenario_error)
     })?;

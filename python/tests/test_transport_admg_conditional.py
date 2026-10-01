@@ -566,3 +566,93 @@ def test_consumer_mismatches_carry_their_reason_codes():
     consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
     assert consumed["probabilities"] == produced["probabilities"]
 
+
+def scenario_set():
+    """The fixture graph (``chain``), a graph where rule 2 moves ``w`` (``parent``:
+    ``w -> y``) and the fixture graph with ``y``'s mechanism selected instead
+    (``shifted``: the reduced joint has an s-hedge)."""
+    coordinates = [transport.VariableCoordinate(name, "binary") for name in NAMES]
+    parent = Admg.from_edges(NAMES, [("x", "y"), ("w", "y")], [("x", "y")])
+    return transport.TransportScenarioSet(
+        [
+            transport.TransportScenario("chain", graph(), ["w"]),
+            transport.TransportScenario("parent", parent, ["w"]),
+            transport.TransportScenario("shifted", graph(), ["y"]),
+        ],
+        coordinates,
+    )
+
+
+def prepare_scenarios(at, **options):
+    return transport.prepare_transport_scenarios(
+        scenario_set(),
+        outcomes=["y"],
+        treatments=["x"],
+        conditioned_on=["w"],
+        source="source",
+        target="target",
+        catalog=catalog(selected=()),
+        laws=laws(),
+        at=at,
+        **options,
+    )
+
+
+def test_conditional_questions_enter_the_scenario_envelope():
+    prepared = prepare_scenarios({"x": 1.0, "w": 1.0})
+    report = json.loads(prepared.estimate())
+    rows = {row["name"]: row for row in report["scenarios"]}
+    negative = rows["shifted"]["status"]
+    assert {name: row["status"] for name, row in rows.items()} == {
+        "chain": "identified",
+        "parent": "identified",
+        "shifted": negative,
+    }
+    # The s-hedge scenario is not certified (inspection-only candidate) unless a
+    # verified two-model witness proves it; it is never identified.
+    assert rows["chain"]["identification_status"] == "identified"
+    if negative == "not_certified":
+        assert rows["shifted"]["identification_status"] == "not_certified"
+        assert rows["shifted"]["detail"].startswith("admg_transport.not_certified")
+        assert "inspection-only candidate (not a proof)" in rows["shifted"]["detail"]
+    else:
+        assert negative == "structurally_unidentified"
+        assert rows["shifted"]["identification_status"] == "proven_non_transportable"
+        assert rows["shifted"]["detail"].startswith("admg_transport.proven_non_transportable")
+    assert rows["shifted"]["point"] is None
+    # The true scenario's point is the enumerated truth, inside the envelope.
+    expected = truth(1, 1)
+    assert rows["chain"]["point"]["means"]["y"] == pytest.approx(expected, abs=1e-12)
+    envelope = report["envelope"]
+    assert envelope["scenarios"] == ["chain", "parent"]
+    mean = envelope["means"][0]
+    assert mean["lower"] <= expected <= mean["upper"]
+    counts = {m["status"]: m["count"] for m in report["masses"]}
+    assert counts[negative] == 1 and counts["identified"] == 2
+    # The artifact replays independently.
+    artifact = prepared.export()
+    consumed = json.loads(transport.consume_transport_scenarios_artifact(artifact))
+    assert [row["status"] for row in consumed["scenarios"]] == [
+        row["status"] for row in report["scenarios"]
+    ]
+    with pytest.raises(CausalUnsupportedError, match="scenarios.shared_data_aggregate"):
+        prepared.aggregate_interval()
+
+
+def test_conditional_scenario_requests_bind_the_conditioned_variables():
+    with pytest.raises((CausalValueError, CausalUnsupportedError)) as info:
+        prepare_scenarios({"x": 1.0})
+    assert info.value.reason_code == "invalid_argument"
+    assert "admg_transport.invalid_request" in str(info.value)
+    with pytest.raises(CausalTypeError):
+        transport.prepare_transport_scenarios(
+            scenario_set(),
+            outcomes=["y"],
+            treatments=["x"],
+            conditioned_on="w",
+            source="source",
+            target="target",
+            catalog=catalog(selected=()),
+            laws=laws(),
+            at={"x": 1.0, "w": 1.0},
+        )

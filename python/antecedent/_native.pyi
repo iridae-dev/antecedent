@@ -4388,6 +4388,7 @@ def prepare_transport_scenarios_stage(
     laws: Any,
     assignments: dict[str, float],
     *,
+    conditioned_on: list[str] = ...,
     max_steps: int = 100_000,
     max_depth: int = 256,
     max_operations: int = 10_000_000,

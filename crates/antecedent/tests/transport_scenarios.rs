@@ -647,6 +647,7 @@ fn a_not_certified_scenario_is_reported_and_carries_its_obligations() {
             .map(|s| ScenarioDecision { scenario: s.clone(), outcome: outcome(s) })
             .collect(),
         set,
+        question: query().into(),
         receipt: None,
         limits: ScenarioDecisionLimits { budget: BUDGET, memory_limit_bytes: None },
     };

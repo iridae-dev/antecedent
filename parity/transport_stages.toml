@@ -696,7 +696,7 @@ evidence = "one_catalog_bound_independently_per_scenario"
 functional = "per_scenario_target_interventional_distribution"
 observation = "exact_or_empirical_plugin_laws"
 guarantee = "each_scenario_decided_once_by_the_licensed_classical_catalog_route_and_compiled_once"
-limits = "One to 64 scenarios over the same named variables (at most 12) and one shared coordinate schema (names, domains, cardinalities, units; disagreement refuses schema_mismatch), each a fixed selection ADMG; one search budget (operations, depth, memory, cancellation) shared by every scenario entered and its search and proof replay, whose stop is reported unevaluated with a receipt. Supplied exact laws or empirical plug-in points; no interval. Not CPDAG/PAG-native transport. Only a verified s-hedge is a per-scenario impossibility claim."
+limits = "One to 64 scenarios over the same named variables (at most 12) and one shared coordinate schema (names, domains, cardinalities, units; disagreement refuses schema_mismatch), each a fixed selection ADMG; one search budget (operations, depth, memory, cancellation) shared by every scenario entered and its search and proof replay, whose stop is reported unevaluated with a receipt. Supplied exact laws or empirical plug-in points; no interval. Not CPDAG/PAG-native transport. Only a verified s-hedge is a per-scenario impossibility claim. With conditioned_on, every scenario asks the conditional question P*(y | do(x), w) of the 2.2B B1 route instead (at most 6 variables, exact laws only; a reduced-joint s-hedge is not_certified, never an impossibility claim)."
 evidence_test = "python/tests/test_transport_scenarios.py"
 evidence_assertion = "test_prepare_retains_checked_scenario_plans_after_builder_disposal"
 
@@ -747,6 +747,42 @@ guarantee = "each_scenario_decided_once_by_the_licensed_classical_catalog_route_
 limits = "Rust identify entry: one to 64 scenarios over at most 12 shared variables, one SearchBudget for every scenario entered; each scenario keeps its status and a budget stop leaves the rest unevaluated with a receipt. Scope of each decision is the classical catalog row's, unchanged."
 evidence_test = "crates/antecedent/tests/transport_scenarios.rs"
 evidence_assertion = "identified_scenarios_disagree_and_the_envelope_spans_them"
+
+[[routes]]
+route = "antecedent_identify.decide_conditional_transport_scenarios"
+stage = "prepare"
+status = "licensed"
+graph = "finite_supplied_latent_confounded_selection_admg_scenarios_within_the_b1_conditional_class"
+evidence = "one_catalog_bound_independently_per_scenario"
+functional = "per_scenario_target_conditional_interventional_distribution_decision"
+guarantee = "each_scenario_decided_once_by_the_b1_conditional_route_under_one_shared_budget"
+limits = "Rust identify entry for a conditional question P*(y | do(x), w) (2.2B B1 promoted into A2): one to 64 scenarios over at most 6 shared variables, 0-3 treatments and 1-3 conditioned variables (route_not_supported / admg_transport.bounds_exceeded for the whole set otherwise); every stage of every scenario's rule-2 reduction, reduced-joint sID decision and catalog binding is charged to the one SearchBudget, whose stop leaves the rest unevaluated with a receipt. A reduced-joint s-hedge is not_certified with an inspection-only candidate, never structurally_unidentified."
+evidence_test = "crates/antecedent/tests/transport_scenarios_conditional.rs"
+evidence_assertion = "the_shared_budget_stops_conditional_scenarios_with_one_receipt"
+
+[[routes]]
+route = "antecedent_identify.decide_scenario_question"
+stage = "prepare"
+status = "licensed"
+graph = "finite_supplied_fixed_selection_admg_scenarios_over_shared_coordinates"
+evidence = "one_catalog_bound_independently_per_scenario"
+functional = "per_scenario_target_interventional_or_conditional_distribution_decision"
+guarantee = "routes_a_classical_question_to_the_classical_catalog_route_and_a_conditional_one_to_the_b1_route"
+limits = "Rust identify entry taking a ScenarioQuestion; each route's scope and refusals unchanged (decide_transport_scenarios, decide_conditional_transport_scenarios)."
+evidence_test = "crates/antecedent/tests/transport_scenarios_conditional.rs"
+evidence_assertion = "conditional_scenarios_enter_the_envelope_and_the_truth_lies_inside_it"
+
+[[routes]]
+route = "antecedent.StudyBuilder.conditional_transport_scenarios"
+stage = "prepare"
+status = "licensed"
+graph = "finite_supplied_latent_confounded_selection_admg_scenarios_within_the_b1_conditional_class"
+evidence = "catalog_bound_exact_laws_per_scenario"
+functional = "per_scenario_target_conditional_interventional_distribution"
+guarantee = "each_identified_scenario_compiled_once_through_the_b1_exact_prepared_path"
+limits = "Exact finite laws only (counted laws refuse cell_not_licensed / admg_transport.interval_withheld); the request binds exactly the treatments and the conditioned variables (admg_transport.invalid_request); a zero-mass conditioning event is that scenario's support_failure. Points only; the envelope, masses, receipt and artifact (format v2) are A2's."
+evidence_test = "crates/antecedent/tests/transport_scenarios_conditional.rs"
+evidence_assertion = "each_identified_scenario_matches_its_own_enumerated_truth"
 
 [[routes]]
 route = "antecedent_estimate.prepare_transport_scenarios"

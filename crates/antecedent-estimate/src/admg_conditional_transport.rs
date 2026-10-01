@@ -74,7 +74,7 @@ fn same_level(atom: &Value, level: &Value) -> bool {
 }
 
 /// Condition an evaluated joint over `outcomes ++ w''` on the levels `conditioning`.
-fn condition(
+pub(crate) fn condition(
     joint: &ExactDistribution,
     outcomes: &Arc<[VariableId]>,
     conditioning: &[(VariableId, Value)],
@@ -146,6 +146,23 @@ pub fn prepare_exact_admg_conditional_transport(
             "admg_transport.interval_withheld: counted laws are not licensed; the route publishes exact-law points only",
         ));
     }
+    let (joint_request, conditioning) = split_request(functional, request)?;
+    let joint =
+        crate::prepare_exact_transport(functional.joint(), data, joint_request, limits, ctx)
+            .map_err(|e| crate::refuse_eval(&e))?;
+    Ok(assemble_plan(functional, joint, conditioning))
+}
+
+/// Split a request binding exactly the query's treatments and conditioned
+/// variables into the reduced joint's `do(x, w')` request and the `w''` levels
+/// it is conditioned at.
+///
+/// # Errors
+/// `admg_transport.invalid_request` for a request that binds anything else.
+pub(crate) fn split_request(
+    functional: &BoundConditionalTransportFunctional,
+    request: &Assignment,
+) -> Result<(Assignment, Vec<(VariableId, Value)>), EstimationError> {
     let derivation = functional.derivation();
     let query = derivation.query();
     let bound: Vec<VariableId> =
@@ -166,8 +183,15 @@ pub fn prepare_exact_admg_conditional_transport(
         derivation.reduced_query().treatments.iter().map(level).collect::<Result<Vec<_>, _>>()?,
     );
     let conditioning = derivation.remaining().iter().map(level).collect::<Result<Vec<_>, _>>()?;
-    let joint =
-        crate::prepare_exact_transport(functional.joint(), data, joint_request, limits, ctx)
-            .map_err(|e| crate::refuse_eval(&e))?;
-    Ok(AdmgConditionalExactPlan { joint, outcomes: query.base.outcomes.clone(), conditioning })
+    Ok((joint_request, conditioning))
+}
+
+/// A conditional plan from the reduced joint's compiled plan.
+pub(crate) fn assemble_plan(
+    functional: &BoundConditionalTransportFunctional,
+    joint: ExactEvaluationPlan,
+    conditioning: Vec<(VariableId, Value)>,
+) -> AdmgConditionalExactPlan {
+    let outcomes = functional.derivation().query().base.outcomes.clone();
+    AdmgConditionalExactPlan { joint, outcomes, conditioning }
 }

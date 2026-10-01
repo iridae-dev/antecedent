@@ -78,9 +78,35 @@ produce `not_certified`. No random ADMG in the tests (4 to 11 variables, several
 outcomes and treatments, random selections; 2.15 million in a one-off run, about
 913 thousand s-hedges) reached it, so the status is exercised in the tests by a
 supplied decision and is retained for routes that can return an undecided
-scenario, such as the later 2.2B ADMG rows. The bounded
-ADMG transport class of a later row (2.2B B1) is separate and not part of this
-row.
+scenario, such as the conditional route below.
+
+Conditional questions (2.2B B1, promoted into the envelope). With
+`conditioned_on` (Rust: `StudyBuilder::conditional_transport_scenarios`,
+`decide_conditional_transport_scenarios`) every scenario asks the conditional
+question `P*(y | do(x), w)` and is decided by the
+[ADMG conditional transport](#admg-conditional-transport-22b-x2) route, with
+that route's scope unchanged: at most 6 observed variables, 0-3 treatments and
+1-3 conditioned variables, refused for the whole set with
+`route_not_supported` (`admg_transport.bounds_exceeded`) otherwise. Every stage
+of each scenario's decision (rule-2 reduction and its independent re-check,
+reduced-joint sID decision, catalog binding) is charged to the set's one shared
+budget, so entry charges, cumulative memory, receipts and `unevaluated`
+scenarios behave exactly as above. An identified scenario compiles through the
+route's exact prepared path (the reduced joint at `do(x, w')`, normalized at the
+requested `w''`); a zero-mass conditioning event is that scenario's
+`support_failure`. Here `not_certified` is reachable: a reduced joint with a
+verified s-hedge is reported `not_certified` with the inspection-only
+`ConditionalObstructionCandidate` in its detail, because lifting the s-hedge to
+the conditional is paper-inherited; the scenario is `structurally_unidentified`
+only when the route proves it with an exactly verified two-model witness, which
+the artifact carries. The request (`at`) binds exactly the treatments and the
+conditioned variables (`admg_transport.invalid_request`). Exact laws only:
+counted laws or `StatisticalTransportData` refuse with `cell_not_licensed`
+(`admg_transport.interval_withheld`). A conditional set exports artifact format
+version 2 (the question's `conditioned_on`, each identified scenario's checked
+conditional record, each not-certified scenario's candidate and each proven
+scenario's witness); a classical set still exports version 1 byte for byte, and
+a version-1-only reader refuses a version-2 artifact by its version.
 
 What it is:
 
@@ -597,6 +623,9 @@ it is not a second transport engine.
   consumer refuses an oversized graph, query or witness before hashing, then
   re-verifies the witness exactly and re-checks the moves and the s-hedge; any
   edit is refused (`premises_mismatch` unsealed, `invalid_derivation` re-sealed).
+- **Scenario envelope.** The row also runs inside the finite scenario envelope:
+  see [Finite scenario envelopes](#finite-scenario-envelopes) (conditional
+  questions).
 - **Not licensed.** Counted laws, an empirical plug-in and any interval
   (`cell_not_licensed`, `admg_transport.interval_withheld`); selection-bias
   (`S = 1` sampling) semantics; soft interventions; gID / g-transportability with

@@ -977,7 +977,7 @@ pub fn decide_admg_conditional_transport(
 }
 
 /// Every stage of a validated decision, charged to `search`.
-fn decide_charged(
+pub(super) fn decide_charged(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
     catalog: &EvidenceCatalog,

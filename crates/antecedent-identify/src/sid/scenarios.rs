@@ -40,8 +40,23 @@
 //! status: without a derivation the s-hedge is what gets reported. So the
 //! status is defined and tested with a supplied decision, but no admissible
 //! input of the classical catalog route reaches it today; it is kept for routes
-//! that can return an undecided scenario (for example the later bounded ADMG
-//! rows of 2.2B).
+//! that can return an undecided scenario.
+//!
+//! # Conditional scenario questions (2.2B B1)
+//!
+//! A set may instead ask the conditional question `P*(y | do(x), w)`
+//! ([`ScenarioQuestion::Conditional`], [`decide_conditional_transport_scenarios`]).
+//! Every scenario is then decided by the bounded ADMG conditional route
+//! (rule-2 reduction re-checked by the independent checker, the reduced joint
+//! through the classical sID engine, then the catalog binding), charged to the
+//! same one shared budget. That route does reach `not_certified`: a reduced
+//! joint with a verified s-hedge is [`ScenarioOutcome::ConditionalNotCertified`]
+//! carrying the inspection-only [`ConditionalObstructionCandidate`], never an
+//! impossibility claim, because lifting the s-hedge to the conditional is
+//! paper-inherited. Only an exactly verified two-model witness from the route's
+//! witness stage is an impossibility claim
+//! ([`ScenarioOutcome::ConditionalProvenNonTransportable`], status
+//! `structurally_unidentified`, for that scenario only).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -54,6 +69,10 @@ use antecedent_core::{
 };
 use antecedent_graph::SelectionDiagram;
 
+use super::conditional::{
+    BoundConditionalTransportFunctional, ConditionalNonTransportabilityProof,
+    ConditionalObstructionCandidate, ConditionalTransportDecision, ConditionalTransportQuery,
+};
 use super::{
     BoundTransportFunctional, CatalogTransportResult, ClassicalTransportQuery,
     ClassicalTransportResult, IdentificationError, SHedgeRecord, SearchCharge, SharedSearch,
@@ -476,6 +495,22 @@ impl TransportScenarioSet {
         }
     }
 
+    /// Check that a question's outcomes, treatments and (for a conditional
+    /// question) conditioned variables are shared coordinates.
+    ///
+    /// # Errors
+    /// `schema_mismatch` / `scenarios.coordinate_mismatch`.
+    pub fn check_question(&self, question: &ScenarioQuestion) -> Result<(), ScenarioSetRefusal> {
+        self.check_query(question.base())?;
+        match question.conditioned_on().iter().find(|v| self.coordinate(**v).is_none()) {
+            Some(v) => Err(ScenarioSetRefusal::coordinate_mismatch(format!(
+                "the question conditions on variable {} outside the shared schema",
+                v.raw()
+            ))),
+            None => Ok(()),
+        }
+    }
+
     /// Whether weights were declared.
     #[must_use]
     pub const fn weighted(&self) -> bool {
@@ -504,8 +539,58 @@ impl TransportScenarioSet {
     }
 }
 
-/// How one scenario was decided. Only [`Self::StructurallyUnidentified`] is an
-/// impossibility claim, and only for that scenario.
+/// The one transport question every scenario of a set is decided against.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ScenarioQuestion {
+    /// `P*(y | do(x))`, decided by the classical catalog sID route (2.2A A2).
+    Classical(ClassicalTransportQuery),
+    /// `P*(y | do(x), w)`, decided by the bounded ADMG conditional transport
+    /// route (2.2B B1): at most 6 observed variables, 0-3 treatments and 1-3
+    /// conditioned variables.
+    Conditional(ConditionalTransportQuery),
+}
+
+impl ScenarioQuestion {
+    /// The unconditional part: outcomes, treatments, source and target.
+    #[must_use]
+    pub const fn base(&self) -> &ClassicalTransportQuery {
+        match self {
+            Self::Classical(query) => query,
+            Self::Conditional(query) => &query.base,
+        }
+    }
+
+    /// Conditioned variables; empty for a classical question.
+    #[must_use]
+    pub fn conditioned_on(&self) -> &[VariableId] {
+        match self {
+            Self::Classical(_) => &[],
+            Self::Conditional(query) => &query.conditioned_on,
+        }
+    }
+
+    /// Whether the question conditions on observed variables.
+    #[must_use]
+    pub const fn is_conditional(&self) -> bool {
+        matches!(self, Self::Conditional(_))
+    }
+}
+
+impl From<ClassicalTransportQuery> for ScenarioQuestion {
+    fn from(query: ClassicalTransportQuery) -> Self {
+        Self::Classical(query)
+    }
+}
+
+impl From<ConditionalTransportQuery> for ScenarioQuestion {
+    fn from(query: ConditionalTransportQuery) -> Self {
+        Self::Conditional(query)
+    }
+}
+
+/// How one scenario was decided. Only [`Self::StructurallyUnidentified`] and
+/// [`Self::ConditionalProvenNonTransportable`] are impossibility claims, and
+/// only for that scenario.
 #[derive(Clone, Debug)]
 pub enum ScenarioOutcome {
     /// A checked derivation whose leaves bind to this scenario's own evidence.
@@ -529,6 +614,22 @@ pub enum ScenarioOutcome {
         /// The bound that stopped it.
         stop: SearchStop,
     },
+    /// A conditional question: a checked rule-2 reduction and reduced-joint
+    /// derivation whose leaves bind to this scenario's own evidence.
+    ConditionalIdentified(Box<BoundConditionalTransportFunctional>),
+    /// A conditional question the bounded route certified nothing for. Not an
+    /// impossibility claim: when the reduced joint has a verified s-hedge, the
+    /// candidate is kept for inspection only (lifting it to the conditional is
+    /// paper-inherited).
+    ConditionalNotCertified {
+        /// The `admg_transport.not_certified` detail and the stage outcomes.
+        obligations: Arc<[Arc<str>]>,
+        /// The reduced joint's verified s-hedge with the rule-2 moves, if any.
+        candidate: Option<Box<ConditionalObstructionCandidate>>,
+    },
+    /// A conditional question with an exactly verified two-model witness: the
+    /// question is not transportable under this scenario (this scenario only).
+    ConditionalProvenNonTransportable(Box<ConditionalNonTransportabilityProof>),
 }
 
 impl ScenarioOutcome {
@@ -539,12 +640,16 @@ impl ScenarioOutcome {
     #[must_use]
     pub const fn identification_status(&self) -> antecedent_core::TransportOutcomeKind {
         match self {
-            Self::Identified(_) => antecedent_core::TransportOutcomeKind::Identified,
-            Self::StructurallyUnidentified(_) => {
+            Self::Identified(_) | Self::ConditionalIdentified(_) => {
+                antecedent_core::TransportOutcomeKind::Identified
+            }
+            Self::StructurallyUnidentified(_) | Self::ConditionalProvenNonTransportable(_) => {
                 antecedent_core::TransportOutcomeKind::ProvenNonTransportable
             }
             Self::MissingEvidence { .. } => antecedent_core::TransportOutcomeKind::MissingEvidence,
-            Self::NotCertified { .. } => antecedent_core::TransportOutcomeKind::NotCertified,
+            Self::NotCertified { .. } | Self::ConditionalNotCertified { .. } => {
+                antecedent_core::TransportOutcomeKind::NotCertified
+            }
             Self::Unevaluated { .. } => antecedent_core::TransportOutcomeKind::BudgetCancel,
         }
     }
@@ -566,10 +671,12 @@ impl ScenarioOutcome {
     #[must_use]
     pub const fn status(&self) -> &'static str {
         match self {
-            Self::Identified(_) => "identified",
-            Self::StructurallyUnidentified(_) => "structurally_unidentified",
+            Self::Identified(_) | Self::ConditionalIdentified(_) => "identified",
+            Self::StructurallyUnidentified(_) | Self::ConditionalProvenNonTransportable(_) => {
+                "structurally_unidentified"
+            }
             Self::MissingEvidence { .. } => "missing_evidence",
-            Self::NotCertified { .. } => "not_certified",
+            Self::NotCertified { .. } | Self::ConditionalNotCertified { .. } => "not_certified",
             Self::Unevaluated { .. } => "unevaluated",
         }
     }
@@ -601,6 +708,8 @@ pub struct ScenarioDecisionLimits {
 pub struct ScenarioSetDecision {
     /// The validated set.
     pub set: TransportScenarioSet,
+    /// The question every scenario was decided against.
+    pub question: ScenarioQuestion,
     /// One decision per scenario, failed as well as successful.
     pub decisions: Vec<ScenarioDecision>,
     /// Present when the shared budget or cancellation stopped the set.
@@ -639,9 +748,66 @@ pub fn decide_transport_scenarios(
     budget: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<ScenarioSetDecision, IdentificationError> {
+    decide_scenario_question(set, &ScenarioQuestion::Classical(query.clone()), catalog, budget, ctx)
+}
+
+/// Decide every scenario independently against one conditional question
+/// `P*(y | do(x), w)` (2.2B B1) and the same catalog.
+///
+/// Each scenario is decided by the bounded ADMG conditional route (the rule-2
+/// reduction, re-checked by the independent checker; the reduced joint through
+/// the classical sID engine; the catalog binding), with every stage charged to
+/// the set's one shared [`SearchBudget`] exactly as
+/// [`decide_transport_scenarios`] charges the classical route: entry, memory
+/// accumulation, receipts and unevaluated scenarios are the same. A reduced
+/// joint with a verified s-hedge is
+/// [`ScenarioOutcome::ConditionalNotCertified`] with its inspection-only
+/// candidate, never [`ScenarioOutcome::StructurallyUnidentified`].
+///
+/// # Errors
+/// As [`decide_transport_scenarios`], plus the conditional route's bounds
+/// (`admg_transport.bounds_exceeded`: more than 6 observed variables, 3
+/// treatments or 3 conditioned variables) and query checks
+/// (`admg_transport.invalid_query`), refused for the whole set before any
+/// scenario is entered.
+pub fn decide_conditional_transport_scenarios(
+    set: &TransportScenarioSet,
+    query: &ConditionalTransportQuery,
+    catalog: &EvidenceCatalog,
+    budget: SearchLimits,
+    ctx: &ExecutionContext,
+) -> Result<ScenarioSetDecision, IdentificationError> {
+    decide_scenario_question(
+        set,
+        &ScenarioQuestion::Conditional(query.clone()),
+        catalog,
+        budget,
+        ctx,
+    )
+}
+
+/// Decide every scenario against `question`, routing a classical question
+/// through [`decide_transport_scenarios`]'s route and a conditional one through
+/// [`decide_conditional_transport_scenarios`]'s.
+///
+/// # Errors
+/// As the route's entry.
+pub fn decide_scenario_question(
+    set: &TransportScenarioSet,
+    question: &ScenarioQuestion,
+    catalog: &EvidenceCatalog,
+    budget: SearchLimits,
+    ctx: &ExecutionContext,
+) -> Result<ScenarioSetDecision, IdentificationError> {
     catalog.validate().map_err(|e| IdentificationError::invalid_catalog(e.to_string()))?;
     set.check_catalog(catalog)?;
-    set.check_query(query)?;
+    set.check_question(question)?;
+    if let ScenarioQuestion::Conditional(query) = question {
+        // Every scenario shares the variables, so the route's bounds and query
+        // checks are properties of the set, refused before any scenario.
+        super::conditional::validate(&set.scenarios()[0].diagram, query)?;
+    }
+    let query = question.base();
     let total = set.scenarios().len();
     let remaining = |from: usize| -> Vec<String> {
         set.scenarios()[from..].iter().map(|s| s.name.to_string()).collect()
@@ -668,11 +834,24 @@ pub fn decide_transport_scenarios(
         }
         let outcome = if let Some(active) = search.as_mut() {
             let bound = scenario_catalog(catalog, scenario, query);
-            match decide_one(&scenario.diagram, query, &bound, active, ctx) {
-                Ok(outcome) => {
+            let decided = match question {
+                ScenarioQuestion::Classical(_) => {
+                    decide_one(&scenario.diagram, query, &bound, active, ctx)
+                }
+                ScenarioQuestion::Conditional(conditional) => {
+                    decide_one_conditional(&scenario.diagram, conditional, &bound, active, ctx)
+                }
+            };
+            match decided {
+                Ok(Ok(outcome)) => {
                     explored.push(scenario.name.to_string());
                     retained = retained.saturating_add(active.peak_bytes());
                     outcome
+                }
+                Ok(Err(stop)) => {
+                    receipt = Some(active.receipt(stop, explored.clone(), remaining(index)));
+                    search = None;
+                    ScenarioOutcome::Unevaluated { stop }
                 }
                 Err(error) if error.is_budget_or_cancel() => {
                     let stop = active.stop_of(&error);
@@ -694,6 +873,7 @@ pub fn decide_transport_scenarios(
     }
     Ok(ScenarioSetDecision {
         set: set.clone(),
+        question: question.clone(),
         decisions,
         receipt,
         limits: ScenarioDecisionLimits { budget, memory_limit_bytes: ctx.memory.hard_limit_bytes },
@@ -724,6 +904,9 @@ fn scenario_catalog(
     bound
 }
 
+/// A decided scenario, or the bound that stopped it.
+type Decided = Result<ScenarioOutcome, SearchStop>;
+
 /// Decide one scenario on the shared budget. A budget or cancellation error is
 /// returned for the caller to record against the whole set.
 fn decide_one(
@@ -732,20 +915,58 @@ fn decide_one(
     catalog: &EvidenceCatalog,
     search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
-) -> Result<ScenarioOutcome, IdentificationError> {
-    Ok(match identify_catalog_transport_metered(diagram, query, catalog, search.meter(), ctx)? {
-        CatalogTransportResult::Identified(bound) => ScenarioOutcome::Identified(bound),
-        CatalogTransportResult::MissingEvidence { obligations, .. } => {
-            ScenarioOutcome::MissingEvidence { obligations }
-        }
-        CatalogTransportResult::NotCertified { obligations, .. } => {
-            match identify_classical_transport_metered(diagram, query, search.meter(), ctx)? {
-                ClassicalTransportResult::ProvenNonTransportable(hedge) => {
-                    ScenarioOutcome::StructurallyUnidentified(Box::new(hedge.to_record()))
-                }
-                _ => ScenarioOutcome::NotCertified { obligations },
+) -> Result<Decided, IdentificationError> {
+    Ok(Ok(
+        match identify_catalog_transport_metered(diagram, query, catalog, search.meter(), ctx)? {
+            CatalogTransportResult::Identified(bound) => ScenarioOutcome::Identified(bound),
+            CatalogTransportResult::MissingEvidence { obligations, .. } => {
+                ScenarioOutcome::MissingEvidence { obligations }
             }
+            CatalogTransportResult::NotCertified { obligations, .. } => {
+                match identify_classical_transport_metered(diagram, query, search.meter(), ctx)? {
+                    ClassicalTransportResult::ProvenNonTransportable(hedge) => {
+                        ScenarioOutcome::StructurallyUnidentified(Box::new(hedge.to_record()))
+                    }
+                    _ => ScenarioOutcome::NotCertified { obligations },
+                }
+            }
+        },
+    ))
+}
+
+/// Decide one scenario's conditional question by the bounded ADMG conditional
+/// route on the shared budget. A stop inside the route comes back as its bound.
+fn decide_one_conditional(
+    diagram: &SelectionDiagram,
+    query: &ConditionalTransportQuery,
+    catalog: &EvidenceCatalog,
+    search: &mut SharedSearch<'_>,
+    ctx: &ExecutionContext,
+) -> Result<Decided, IdentificationError> {
+    Ok(match super::conditional::decide_charged(diagram, query, catalog, search, ctx)? {
+        ConditionalTransportDecision::Identified(bound) => {
+            Ok(ScenarioOutcome::ConditionalIdentified(bound))
         }
+        ConditionalTransportDecision::ProvenNonTransportable(proof) => {
+            Ok(ScenarioOutcome::ConditionalProvenNonTransportable(proof))
+        }
+        ConditionalTransportDecision::MissingEvidence { obligations, .. } => {
+            Ok(ScenarioOutcome::MissingEvidence { obligations })
+        }
+        ConditionalTransportDecision::NotCertified(inspection) => {
+            let mut obligations: Vec<Arc<str>> = vec![Arc::from(inspection.detail)];
+            obligations.extend(
+                inspection
+                    .stages
+                    .iter()
+                    .map(|stage| Arc::from(format!("{}: {}", stage.stage, stage.outcome))),
+            );
+            Ok(ScenarioOutcome::ConditionalNotCertified {
+                obligations: obligations.into(),
+                candidate: inspection.candidate,
+            })
+        }
+        ConditionalTransportDecision::Exhausted(receipt) => Err(receipt.stop),
     })
 }
 

@@ -9,6 +9,12 @@ whatever its status, gives a structural envelope over the identified ones, and,
 only for declared weights, a report that never renormalizes over survivors. This
 is not equivalence-class (CPDAG/PAG) transport, and no inferential statement
 across scenarios is licensed.
+
+With ``conditioned_on`` the question is the conditional ``P*(y | do(x), w)`` of
+the bounded ADMG conditional transport row: every scenario is decided by that
+route on the same shared budget and enters the same envelope. A scenario it does
+not certify is ``not_certified`` (its detail names an inspection-only candidate,
+never a proof), not ``structurally_unidentified``.
 """
 
 from __future__ import annotations
@@ -139,6 +145,7 @@ def prepare_transport_scenarios(
     catalog: EvidenceCatalog,
     laws: Any,
     at: Mapping[str, float],
+    conditioned_on: Sequence[str] = (),
     max_steps: int = 100_000,
     max_depth: int = 256,
     max_operations: int = 10_000_000,
@@ -179,11 +186,26 @@ def prepare_transport_scenarios(
     recorded and the consumer replays the same prefix); one truncated by
     cancellation does not export, because no consumer could reproduce it.
     ``aggregate_interval()`` always refuses.
+
+    A non-empty ``conditioned_on`` asks ``P*(outcomes | do(treatments),
+    conditioned_on)`` in every scenario through the bounded ADMG conditional
+    route (at most 6 variables, 3 treatments and 3 conditioned variables;
+    ``route_not_supported`` / ``admg_transport.bounds_exceeded`` otherwise).
+    ``at`` then binds exactly the treatments and the conditioned variables; an
+    identified scenario's point is the reduced joint normalized at the
+    conditioning levels, and a zero-mass conditioning event is that scenario's
+    ``support_failure``. A reduced joint with an s-hedge is ``not_certified``
+    with an inspection-only candidate, never ``structurally_unidentified``.
+    Exact laws only: ``StatisticalTransportData`` or counted laws refuse with
+    ``cell_not_licensed``. Its artifact is format version 2; a classical
+    question still exports version 1.
     """
     if not isinstance(scenarios, TransportScenarioSet):
         raise CausalTypeError("scenarios must be a TransportScenarioSet")
     if not isinstance(catalog, EvidenceCatalog):
         raise CausalTypeError("catalog must be an EvidenceCatalog")
+    if isinstance(conditioned_on, str):
+        raise CausalTypeError("conditioned_on must be a sequence of variable names")
     return _prepare_transport_scenarios_stage(
         [
             (
@@ -203,6 +225,7 @@ def prepare_transport_scenarios(
         catalog,
         laws,
         dict(at),
+        conditioned_on=list(conditioned_on),
         max_steps=_non_negative("max_steps", max_steps),
         max_depth=_non_negative("max_depth", max_depth),
         max_operations=_non_negative("max_operations", max_operations),
