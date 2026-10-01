@@ -704,3 +704,51 @@ fn a_proven_obstruction_is_reverified_by_the_artifact_consumer() {
         .is_err()
     );
 }
+
+#[test]
+fn the_obstruction_wire_consumer_rebuilds_the_diagram_and_reverifies_the_witness() {
+    use antecedent::export_admg_conditional_obstruction;
+    use antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire;
+    let blocked = Scm { selected: vec![1], ..scm(0) };
+    let (catalog, _) = blocked.catalog_and_laws();
+    let ctx = ExecutionContext::for_tests(5);
+    let diagram = blocked.diagram();
+    let q = query(&[1], &[0], &[2]);
+    let ConditionalTransportDecision::ProvenNonTransportable(proof) =
+        decide_admg_conditional_transport(
+            &diagram,
+            &q,
+            &catalog,
+            ADMG_CONDITIONAL_DEFAULT_LIMITS,
+            &ctx,
+        )
+        .unwrap()
+    else {
+        panic!("proven");
+    };
+    let names: Vec<String> = ["x", "y", "w"].map(String::from).to_vec();
+    let bytes = export_admg_conditional_obstruction(&diagram, &proof, &names, &ctx).unwrap();
+    // The io consumer alone, with no producer state: the diagram it rebuilds
+    // is the producer's, and the proof it re-verifies is the exported one.
+    let consumed = AdmgConditionalObstructionWire::consume(&bytes, &ctx).unwrap();
+    assert_eq!(consumed.diagram.selection_targets(), diagram.selection_targets());
+    assert_eq!(
+        format!("{:?}", consumed.diagram.causal_graph()),
+        format!("{:?}", diagram.causal_graph())
+    );
+    assert_eq!(consumed.proof.to_record(), proof.to_record());
+    assert_eq!(consumed.wire, AdmgConditionalObstructionWire::decode(&bytes).unwrap());
+    // A re-sealed witness whose second model copies the first no longer
+    // separates the query, so the exact verifier refuses it.
+    let mut wire = consumed.wire.clone();
+    wire.proof.witness.second = wire.proof.witness.first.clone();
+    wire.proof.witness.second_value = wire.proof.witness.first_value.clone();
+    wire.premises_digest = wire.expected_premises_digest().unwrap();
+    match AdmgConditionalObstructionWire::consume(&wire.export().unwrap(), &ctx) {
+        Err(IoError::AdmgConditional(inner)) => assert_eq!(
+            inner.refusal(),
+            ("transport_not_certified", "admg_transport.invalid_derivation")
+        ),
+        other => panic!("typed refusal: {:?}", other.map(|c| c.proof.to_record())),
+    }
+}

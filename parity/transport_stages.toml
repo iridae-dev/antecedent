@@ -2176,7 +2176,7 @@ guarantee = "witness_reverified_by_exact_enumeration_same_implementation"
 reference = "https://causalai.net/r53.pdf"
 limits = "Obstruction artifact v1 (checked_admg_conditional_obstruction_v1): graph, query and witness size refused before the premises digest; the witness re-verified exactly, the moves and the s-hedge re-checked. No catalog or law: the witness refutes every formula over the complete family."
 evidence_test = "crates/antecedent/tests/admg_conditional_transport_lifecycle.rs"
-evidence_assertion = "a_proven_obstruction_is_reverified_by_the_artifact_consumer"
+evidence_assertion = "the_obstruction_wire_consumer_rebuilds_the_diagram_and_reverifies_the_witness"
 
 [[routes]]
 route = "antecedent.consume_admg_conditional_obstruction_artifact"
@@ -2215,7 +2215,7 @@ guarantee = "witness_reverified_by_exact_enumeration_same_implementation"
 reference = "https://causalai.net/r53.pdf"
 limits = "Python surface of antecedent.consume_admg_conditional_obstruction_artifact; the frame's names must equal the verified name mapping."
 evidence_test = "python/tests/test_transport_admg_conditional.py"
-evidence_assertion = "test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes"
+evidence_assertion = "test_the_obstruction_consumer_reverifies_the_exported_witness"
 
 [[routes]]
 route = "antecedent.transport.advanced.AdmgConditionalTransportStage.prepare_empirical"

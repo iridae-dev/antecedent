@@ -669,3 +669,21 @@ def test_a_cancelled_decision_is_a_receipt_never_a_verdict():
     receipt = stage.decision()["receipt"]
     assert receipt["stop"] == "search.cancelled"
     assert receipt["operations_consumed"] is None
+
+
+def test_the_obstruction_consumer_reverifies_the_exported_witness():
+    stage = decide(selected=("y",))
+    witness = stage.decision()["witness"]
+    artifact = stage.export_obstruction()
+    # The consumer needs only the bytes: it re-verifies the witness exactly
+    # and reports the same verdict and witness the producer held.
+    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    assert consumed["identification_status"] == "proven_non_transportable"
+    assert consumed["witness"] == witness
+    assert witness_holds(consumed["witness"], NAMES)
+    # A single flipped byte never consumes.
+    for offset in (-10, len(artifact) // 2):
+        tampered = bytearray(artifact)
+        tampered[offset] ^= 0xFF
+        with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
+            transport.consume_admg_conditional_obstruction_artifact(bytes(tampered))
