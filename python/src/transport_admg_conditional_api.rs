@@ -380,7 +380,7 @@ impl PreparedAdmgConditionalTransportStage {
         Ok(())
     }
 
-    /// The last execution as a framed, independently consumable artifact.
+    /// The last execution as a framed artifact a consumer re-derives and replays.
     fn export(&self, py: Python<'_>) -> PyResult<Py<pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             crate::refusal(
@@ -439,10 +439,21 @@ fn identify_admg_conditional_transport_stage(
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<AdmgConditionalTransportStage> {
+    // A name the graph does not carry is this route's invalid query, with its
+    // recorded (reason code, detail) pair, like every other invalid coordinate.
     let coordinates = |variables: &[String]| -> PyResult<Arc<[VariableId]>> {
         variables
             .iter()
-            .map(|name| resolve(&graph.names, name))
+            .map(|name| {
+                resolve(&graph.names, name).map_err(|_| {
+                    crate::refusal(
+                        antecedent_core::reason_code!("invalid_argument"),
+                        format!(
+                            "admg_transport.invalid_query: {name:?} is not a variable of the graph"
+                        ),
+                    )
+                })
+            })
             .collect::<PyResult<Vec<_>>>()
             .map(Arc::from)
     };
@@ -486,8 +497,8 @@ fn identify_admg_conditional_transport_stage(
     })
 }
 
-/// Independently recheck a framed conditional artifact under the consumer's
-/// limits and recompute every point.
+/// Re-check a framed conditional artifact under the consumer's limits and
+/// recompute every point (same search and evaluator as the producer).
 #[pyfunction]
 #[pyo3(signature=(artifact, *, max_search_operations=4096, max_search_depth=24, max_operations=10_000_000, max_depth=256, max_support_rows=None, max_laws=None, max_law_cells=None, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]

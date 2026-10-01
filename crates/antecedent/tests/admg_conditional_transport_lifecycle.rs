@@ -1,5 +1,7 @@
-//! Prepared lifecycle, refresh and independent artifact consumption of an ADMG
-//! conditional transport formula (2.2B B1, X2).
+//! Prepared lifecycle, refresh and artifact consumption of an ADMG conditional
+//! transport formula (2.2B B1, X2). The consumer is independent of the artifact
+//! (it re-derives everything), not of the implementation (it re-runs the same
+//! decision and evaluator); only its proof check is distinct code.
 //!
 //! The fixture is `X(0) -> Y(1) -> W(2)`, `X <-> Y`, with the target's `W`
 //! mechanism selected: `W` cannot move, so the query `P*(y | do(x), w)` is the
@@ -199,7 +201,7 @@ fn export(prepared: &PreparedAdmgConditionalTransport) -> Vec<u8> {
 }
 
 #[test]
-fn exported_point_is_recomputed_by_an_independent_consumer() {
+fn exported_point_is_recomputed_by_the_artifact_consumer() {
     let bytes = {
         let prepared = prepare(&scm(1));
         export(&prepared)
@@ -246,7 +248,7 @@ fn reseal(wire: &mut AdmgConditionalArtifactWire) -> Vec<u8> {
 
 #[test]
 #[allow(clippy::too_many_lines)] // One mutation per consumer check, each with its reason.
-fn a_mutated_artifact_fails_independent_consumption() {
+fn a_mutated_artifact_fails_consumption() {
     let bytes = export(&prepare(&scm(1)));
     let original = AdmgConditionalArtifactWire::decode(&bytes).unwrap();
     let pair = |error: AdmgConditionalArtifactError| error.refusal();
@@ -392,6 +394,72 @@ fn a_mutated_artifact_fails_independent_consumption() {
     assert_eq!(
         IoError::AdmgConditional(AdmgConditionalArtifactError::PremisesMismatch).reason_code(),
         Some("transport_not_certified")
+    );
+}
+
+/// An oversized graph or query is refused as a consumer limit before either
+/// digest is hashed: an unsealed oversized artifact (whose premises digest is
+/// also wrong) reports the size, never the digest.
+#[test]
+fn an_oversized_graph_or_query_refuses_before_any_digest() {
+    let bytes = export(&prepare(&scm(0)));
+    let original = AdmgConditionalArtifactWire::decode(&bytes).unwrap();
+    let limits = ("route_not_supported", "admg_transport.consumer_limits");
+    // Seven nodes (names dropped so the shape check passes).
+    let mut wire = original.clone();
+    wire.graph.node_count = 7;
+    wire.variable_names.clear();
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::LimitsExceeded("graph size")
+    );
+    let error = refusal(&reseal(&mut wire));
+    assert_eq!(error, AdmgConditionalArtifactError::LimitsExceeded("graph size"));
+    assert_eq!(error.refusal(), limits);
+    // An edge list longer than the node count allows.
+    let mut wire = original.clone();
+    wire.graph.directed = vec![(0, 1); 7];
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::LimitsExceeded("graph size")
+    );
+    // More outcomes than nodes, four treatments, four conditioned coordinates,
+    // and four conditioned coordinates in the proof.
+    let mut wire = original.clone();
+    wire.query.outcomes = vec![1, 1, 1, 1];
+    for result in &mut wire.results {
+        result.outcomes.clone_from(&wire.query.outcomes);
+    }
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::LimitsExceeded("query size")
+    );
+    let mut wire = original.clone();
+    wire.query.conditioned_on = vec![2, 2, 2, 2];
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::LimitsExceeded("query size")
+    );
+    let mut wire = original.clone();
+    wire.query.treatments = vec![0, 0, 0, 0];
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::LimitsExceeded("query size")
+    );
+    let mut wire = original.clone();
+    wire.proof.remaining = vec![2, 2, 2, 2];
+    assert_eq!(
+        refusal(&wire.export().unwrap()),
+        AdmgConditionalArtifactError::LimitsExceeded("query size")
+    );
+    // At the bounds the original still replays.
+    assert!(
+        AdmgConditionalArtifactWire::consume_with_limits(
+            &bytes,
+            AdmgConditionalConsumeLimits::default(),
+            &ExecutionContext::for_tests(4)
+        )
+        .is_ok()
     );
 }
 

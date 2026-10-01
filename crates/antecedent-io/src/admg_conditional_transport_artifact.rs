@@ -1,8 +1,9 @@
 //! Independent point-result artifacts for ADMG conditional transport (2.2B B1).
 //!
 //! Format version 1 (`checked_admg_conditional_point_v1`). A consumer trusts
-//! nothing in the artifact. Before any work it refuses stored limits above its
-//! own maxima. It then checks the premises digest (graph, selections, query,
+//! nothing in the artifact. Before any work (before either digest is hashed) it
+//! refuses stored limits above its own maxima and a graph or query above the
+//! route's size bounds. It then checks the premises digest (graph, selections, query,
 //! proof, expression arena, search and evaluation limits, requests, variable
 //! names) and the separate data-identity digest (the whole catalog and every
 //! law's snapshot), re-checks the proof with the independent checkers under the
@@ -12,10 +13,20 @@
 //! stored catalog and compares the cited leaves, re-validates the laws and
 //! recomputes every conditional point bit for bit.
 //!
+//! The consumer is independent of the artifact, not of the implementation: it
+//! re-runs the same decision procedure and the same exact evaluator as the
+//! producer. Only the proof check ([`ConditionalTransportDerivation::from_record_checked`]:
+//! the augmented-graph rule-2 criterion and the sID checker) is code distinct
+//! from the search that produced the proof. The reduction check in the
+//! consumer path only polls cancellation; it is at most a few separation
+//! tests over a graph already refused above the route's size bounds.
+//!
 //! What replay does NOT protect against: laws that are not the populations'
 //! real laws (the data digest names snapshots, it does not authenticate them),
 //! a causal graph or selection diagram that is wrong about the world (the
-//! identification is conditional on it), and a re-sealed artifact whose every
+//! identification is conditional on it), a bug shared by producer and consumer
+//! (in the search or in the evaluator: both sides compute the same wrong
+//! value, so it replays identically), and a re-sealed artifact whose every
 //! premise was consistently replaced: the digests are integrity checks, not
 //! signatures, so the consumer re-derives everything and a consistent forgery is
 //! simply a different, correctly checked analysis.
@@ -570,7 +581,31 @@ impl AdmgConditionalArtifactWire {
         &self,
         limits: &AdmgConditionalConsumeLimits,
     ) -> Result<(), AdmgConditionalArtifactError> {
+        use antecedent_identify::{
+            ADMG_CONDITIONAL_MAX_CONDITIONED, ADMG_CONDITIONAL_MAX_OBSERVED,
+            ADMG_CONDITIONAL_MAX_TREATMENTS,
+        };
         let exceeded = AdmgConditionalArtifactError::LimitsExceeded;
+        // The route's size bounds, checked before any digest is hashed: an
+        // oversized graph or query is never decoded further or re-checked.
+        let nodes = usize::try_from(self.graph.node_count).unwrap_or(usize::MAX);
+        let max_edges = nodes.saturating_mul(nodes.saturating_sub(1));
+        if nodes > ADMG_CONDITIONAL_MAX_OBSERVED
+            || self.graph.directed.len() > max_edges
+            || self.graph.bidirected.len() > max_edges
+            || self.selections.len() > nodes
+        {
+            return Err(exceeded("graph size"));
+        }
+        if self.query.outcomes.len() > nodes
+            || self.query.treatments.len() > ADMG_CONDITIONAL_MAX_TREATMENTS
+            || self.query.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
+            || self.proof.conditioned_on.len() > ADMG_CONDITIONAL_MAX_CONDITIONED
+            || self.proof.moves.len() + self.proof.remaining.len()
+                > ADMG_CONDITIONAL_MAX_CONDITIONED
+        {
+            return Err(exceeded("query size"));
+        }
         if self.search_operations > limits.search.operations {
             return Err(exceeded("search operation limit"));
         }

@@ -122,14 +122,17 @@ def consume_admg_conditional_transport_artifact(
     memory_bytes: int | None = None,
     cancel: Any = None,
 ) -> str:
-    """Independently verify an exported conditional result and recompute its points.
+    """Verify an exported conditional result and recompute its points.
 
-    Stored limits above the consumer's refuse before any work. The consumer then
+    Stored limits above the consumer's, or a graph or query above the route's
+    size bounds, refuse before any work. The consumer then
     checks the premises and data-identity digests, re-checks every rule-2 move,
     the maximality of the moved set and the reduced joint's proof under the
     producer's stored limits, re-decides the query under them, re-binds the
     leaves and recomputes every point bit for bit. Relabelled names or any other
-    edit is refused with a typed ``reason_code``.
+    edit is refused with a typed ``reason_code``. The replay re-runs the same
+    search and evaluator as the producer, so it is independent of the artifact,
+    not of the implementation: a bug they share replays identically.
     """
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

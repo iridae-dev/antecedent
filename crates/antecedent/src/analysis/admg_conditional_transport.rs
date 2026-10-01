@@ -46,8 +46,8 @@ impl AdmgConditionalResult {
     }
 
     /// Export this result with its checked proof, catalog, laws and requests, for
-    /// an independent consumer; `variable_names` (or empty) is bound into the
-    /// verified identity.
+    /// an artifact consumer that re-derives everything; `variable_names` (or
+    /// empty) is bound into the verified identity.
     ///
     /// # Errors
     /// The premises do not encode or exceed the route's bounds.
@@ -70,9 +70,11 @@ impl AdmgConditionalResult {
     }
 }
 
-/// Independently consume an ADMG conditional transport artifact: re-check the
-/// proof and replay the decision under the producer's stored limits, re-bind the
-/// joint and recompute every point bit for bit, without fetching data.
+/// Consume an ADMG conditional transport artifact: re-check the proof with the
+/// independent checkers and replay the decision under the producer's stored
+/// limits, re-bind the joint and recompute every point bit for bit, without
+/// fetching data. The replay re-runs the producer's own search and evaluator, so
+/// it is independent of the artifact, not of the implementation.
 ///
 /// # Errors
 /// Any reconstruction or replay failure.

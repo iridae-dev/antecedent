@@ -1165,6 +1165,11 @@ mod tests {
         let error =
             verify_search_reduction(&parent, &query, &[], &[v(2)], &mut fresh()).unwrap_err();
         assert_eq!(admg_conditional_refusal(&error), invalid);
+        // Its honest reduction moves W: the check charges the one move test.
+        let mut search = fresh();
+        let checked = verify_search_reduction(&parent, &query, &[v(2)], &[], &mut search).unwrap();
+        assert_eq!(checked, (vec![v(2)], vec![]));
+        assert_eq!(search.operations(), 1, "one move test, nothing left to keep");
         // The whole stage 1 of a decision is the search plus the check.
         let mut search = fresh();
         reduce_checked(&diagram, &query, &mut search).unwrap();

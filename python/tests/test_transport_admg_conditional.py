@@ -11,6 +11,8 @@ mechanism from the target law.
 
 import itertools
 import json
+import math
+import struct
 
 import pytest
 from antecedent import Admg
@@ -33,8 +35,11 @@ def mechanisms(shift):
     }
 
 
-def law_table(target, do, measured, shift=0.0):
-    """Exact joint over ``measured`` (first most significant) under ``do``."""
+def law_table(target, do, measured, shift=0.0, w_zero=False):
+    """Exact joint over ``measured`` (first most significant) under ``do``.
+
+    ``w_zero`` makes the target's ``w`` mechanism put no mass on ``w = 1``.
+    """
     table = [0.0] * (1 << len(measured))
     mech = mechanisms(shift)
     for u in (0, 1):
@@ -48,7 +53,7 @@ def law_table(target, do, measured, shift=0.0):
                     continue
                 p = mech[name](values, u)
                 if name == "w" and target:
-                    p += 0.25
+                    p = 0.0 if w_zero else p + 0.25
                 weight *= p if values[name] else 1.0 - p
             index = 0
             for name in measured:
@@ -76,7 +81,9 @@ def rid(do):
     return "s-" + ("".join(do) or "obs")
 
 
-def catalog(selected=("w",)):
+def catalog(selected=("w",), drop=()):
+    """Every source experiment (except those intervening on a name in ``drop``)
+    and the target observational joint."""
     coordinates = tuple(transport.VariableCoordinate(name, "binary") for name in NAMES)
     regimes = [
         transport.EvidenceRegime(
@@ -88,6 +95,7 @@ def catalog(selected=("w",)):
             distribution="joint",
         )
         for do in subsets()
+        if not set(do) & set(drop)
     ]
     regimes.append(
         transport.EvidenceRegime(
@@ -106,7 +114,7 @@ def catalog(selected=("w",)):
     )
 
 
-def laws(shift=0.0):
+def laws(shift=0.0, w_zero=False):
     out = []
     for do in subsets():
         measured = [n for n in NAMES if n not in do]
@@ -127,7 +135,7 @@ def laws(shift=0.0):
             "target",
             "t-obs",
             tuple((name, (0.0, 1.0)) for name in NAMES),
-            tuple(law_table(True, {}, NAMES, shift)),
+            tuple(law_table(True, {}, NAMES, shift, w_zero)),
             "snap-t-obs",
         )
     )
@@ -236,7 +244,7 @@ def test_export_requires_an_estimate_and_frames_the_names():
     assert b"\x83axayaw" in artifact
 
 
-def test_exported_result_is_recomputed_by_an_independent_consumer():
+def test_exported_result_is_recomputed_by_the_artifact_consumer():
     builder = decide()
     prepared = builder.prepare_exact(laws(), REQUESTS)
     del builder
@@ -307,15 +315,114 @@ def test_not_certified_bounds_and_invalid_queries_carry_reason_codes():
     with pytest.raises(CausalUnsupportedError, match="admg_transport.bounds_exceeded") as info:
         decide(max_operations=4097)
     assert info.value.reason_code == "route_not_supported"
-    # An unknown variable and overlapping roles are refused before native code.
-    with pytest.raises(CausalValueError):
+    # Overlapping roles are refused before native code.
+    with pytest.raises(CausalValueError, match="distinct and disjoint"):
         transport.ConditionalTransportQuery(
             diagram=transport.SelectionDiagram("source", "target", ["w"]),
             outcomes=["y"],
             treatments=["y"],
             conditioned_on=["w"],
         )
-    with pytest.raises(CausalTypeError):
+    with pytest.raises(CausalTypeError, match="ConditionalTransportQuery"):
         transport.identify_admg_conditional_transport(
             graph=graph(), query="P(y|do(x),w)", catalog=catalog()
         )
+
+
+def test_an_unknown_variable_reaches_native_code_as_an_invalid_query():
+    unknown = transport.ConditionalTransportQuery(
+        diagram=transport.SelectionDiagram("source", "target", ["w"]),
+        outcomes=["z"],
+        treatments=["x"],
+        conditioned_on=["w"],
+    )
+    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_query") as info:
+        transport.identify_admg_conditional_transport(
+            graph=graph(), query=unknown, catalog=catalog()
+        )
+    assert info.value.reason_code == "invalid_argument"
+    assert "not a variable of the graph" in str(info.value)
+
+
+def test_a_catalog_disagreeing_with_the_diagram_is_an_invalid_catalog():
+    # The source environment declares selection on y; the diagram selects w.
+    with pytest.raises(CausalUnsupportedError, match="admg_transport.invalid_catalog") as info:
+        transport.identify_admg_conditional_transport(
+            graph=graph(), query=query(("w",)), catalog=catalog(selected=("y",))
+        )
+    assert info.value.reason_code == "invalid_argument"
+    assert "source selections disagree with the diagram" in str(info.value)
+
+
+def test_a_missing_source_experiment_is_a_missing_evidence_stage():
+    # y's confounded factor needs a source experiment on x; drop all of them.
+    stage = transport.identify_admg_conditional_transport(
+        graph=graph(), query=query(), catalog=catalog(drop=("x",))
+    )
+    assert stage.outcome == "missing_evidence"
+    decision = stage.decision()
+    assert decision["reason_code"] == "transport_missing_evidence"
+    assert decision["detail"] == "admg_transport.missing_evidence"
+    assert decision["remaining"] == ["w"]
+    assert any("source" in o for o in decision["obligations"]), decision["obligations"]
+    with pytest.raises(CausalUnsupportedError, match="admg_transport.missing_evidence") as info:
+        stage.prepare_exact(laws(), REQUESTS)
+    assert info.value.reason_code == "transport_missing_evidence"
+
+
+def test_a_zero_mass_conditioning_event_is_a_support_failure():
+    # The target's w mechanism puts no mass on w = 1: P*(w = 1 | do(x)) = 0.
+    prepared = decide().prepare_exact(laws(w_zero=True), [{"x": 0.0, "w": 0.0}])
+    point = json.loads(prepared.estimate())
+    assert risk(point) == pytest.approx(truth_w_zero(0), abs=1e-12)
+    prepared = decide().prepare_exact(laws(w_zero=True), [{"x": 0.0, "w": 1.0}])
+    with pytest.raises(CausalUnsupportedError, match="admg_transport.support_failure") as info:
+        prepared.estimate()
+    assert info.value.reason_code == "transport_support_failure"
+    assert "zero mass" in str(info.value)
+
+
+def truth_w_zero(x):
+    """P*(y = 1 | do(x), w = 0) when the target never has w = 1."""
+    joint = law_table(True, {"x": x}, ["y", "w"], w_zero=True)
+    return joint[2] / (joint[0] + joint[2])
+
+
+def payload(raw):
+    """``raw`` artifact bytes as they appear in the Python frame, whose payload
+    is a CBOR array of unsigned integers (one per byte)."""
+    return b"".join(bytes([c]) if c < 24 else b"\x18" + bytes([c]) for c in raw)
+
+
+def edit_payload(artifact, old, new):
+    """Replace the one occurrence of the raw bytes ``old`` with ``new``."""
+    assert len(old) == len(new)
+    assert artifact.count(payload(old)) == 1, old
+    return artifact.replace(payload(old), payload(new))
+
+
+def test_consumer_mismatches_carry_their_reason_codes():
+    prepared = decide().prepare_exact(laws(), REQUESTS)
+    produced = json.loads(prepared.estimate())
+    artifact = prepared.export()
+    # A stored premise (the search operation limit, 4096 -> 4095, CBOR uint16)
+    # edited without re-sealing: the premises digest no longer matches.
+    key = b"\x71search_operations"
+    edited = edit_payload(artifact, key + b"\x19\x10\x00", key + b"\x19\x0f\xff")
+    with pytest.raises(CausalUnsupportedError, match="admg_transport.premises_mismatch") as info:
+        transport.consume_admg_conditional_transport_artifact(edited)
+    assert info.value.reason_code == "transport_not_certified"
+    assert "premises digest mismatch" in str(info.value)
+    # A stored point (outside both digests) moved by one ulp: the recomputed
+    # point differs bit for bit.
+    p = produced["requests"][0]["probabilities"][0]
+    old = b"\xfb" + struct.pack(">d", p)
+    new = b"\xfb" + struct.pack(">d", math.nextafter(p, 1.0))
+    edited = edit_payload(artifact, old, new)
+    with pytest.raises(CausalUnsupportedError, match="admg_transport.replay_mismatch") as info:
+        transport.consume_admg_conditional_transport_artifact(edited)
+    assert info.value.reason_code == "transport_not_certified"
+    assert "a point does not replay" in str(info.value)
+    # The unedited artifact still replays.
+    consumed = json.loads(transport.consume_admg_conditional_transport_artifact(artifact))
+    assert consumed["probabilities"] == produced["probabilities"]

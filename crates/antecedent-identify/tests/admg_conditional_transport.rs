@@ -465,8 +465,11 @@ fn a_tampered_record_fails_the_independent_checker() {
     assert_eq!(admg_conditional_refusal(&error), invalid);
 }
 
+/// Edge list `(from, to)` of one edge kind.
+type Edges = Vec<(u32, u32)>;
+
 /// Every three-node ADMG (edges low -> high) as `(directed, bidirected)` edge lists.
-fn three_node_admgs() -> Vec<(Vec<(u32, u32)>, Vec<(u32, u32)>)> {
+fn three_node_admgs() -> Vec<(Edges, Edges)> {
     let pairs = [(0u32, 1u32), (0, 2), (1, 2)];
     let edges = |mask: u32| -> Vec<(u32, u32)> {
         pairs.iter().enumerate().filter(|(i, _)| mask & (1 << i) != 0).map(|(_, e)| *e).collect()
@@ -621,7 +624,7 @@ fn the_moved_set_is_selection_independent() {
             }
         }
     }
-    assert!(compared > 10_000, "{compared}");
+    assert_eq!(compared, 64 * 15 * 8, "64 ADMGs, 15 queries, 8 selection patterns");
     assert!(selected_moved > 1_000, "a selection on a moved variable: {selected_moved}");
 }
 
