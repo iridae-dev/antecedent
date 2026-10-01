@@ -53,6 +53,18 @@ pub enum EstimationError {
         /// Explanation.
         message: &'static str,
     },
+    /// [`Self::Unsupported`] that also names what the caller can change to
+    /// proceed. The rendered message is the refusal alone, byte-identical to the
+    /// [`Self::Unsupported`] it replaces; the remedy is a separate structured
+    /// field read with [`Self::remedy`], never parsed out of the message. It
+    /// carries no reason code, as [`Self::Unsupported`] does not.
+    #[error("{message}")]
+    UnsupportedWithRemedy {
+        /// Explanation (the refusal).
+        message: &'static str,
+        /// What the caller can do instead.
+        remedy: &'static str,
+    },
     /// The estimator refused because identification was not certified for this query.
     ///
     /// Distinct from [`Self::Data`]: the inputs are well formed, and the refusal is about
@@ -104,6 +116,24 @@ impl EstimationError {
         Self::Unsupported { message }
     }
 
+    /// Fixed unsupported query option that names a remedy (see
+    /// [`Self::UnsupportedWithRemedy`]).
+    #[must_use]
+    pub const fn unsupported_with_remedy(message: &'static str, remedy: &'static str) -> Self {
+        Self::UnsupportedWithRemedy { message, remedy }
+    }
+
+    /// What the caller can change to get past this refusal, when the refusal
+    /// names one. Optional and additive: `None` for every error that names no
+    /// remedy, and the rendered message never includes it.
+    #[must_use]
+    pub const fn remedy(&self) -> Option<&'static str> {
+        match self {
+            Self::UnsupportedWithRemedy { remedy, .. } => Some(remedy),
+            _ => None,
+        }
+    }
+
     /// Refusal to estimate a quantity whose identification was not certified.
     #[must_use]
     pub fn not_certified(stage: &str, reason: &str, message: &str) -> Self {
@@ -130,5 +160,25 @@ impl EstimationError {
     #[must_use]
     pub fn stats_msg(message: impl Into<String>) -> Self {
         Self::Stats(StatsError::Backend(message.into()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EstimationError;
+
+    /// Only a refusal built with a remedy carries one; every other error reads
+    /// `None`, and attaching a remedy never changes the rendered message.
+    #[test]
+    fn remedy_is_absent_unless_named_and_never_changes_the_message() {
+        let plain = EstimationError::unsupported("refused");
+        assert_eq!(plain.remedy(), None);
+        assert_eq!(EstimationError::refused("route_not_supported", "no").remedy(), None);
+        assert_eq!(EstimationError::stats_msg("backend").remedy(), None);
+        assert_eq!(EstimationError::TargetPopulation.remedy(), None);
+        assert_eq!(EstimationError::not_certified("s", "r", "m").remedy(), None);
+        let remedied = EstimationError::unsupported_with_remedy("refused", "do this instead");
+        assert_eq!(remedied.remedy(), Some("do this instead"));
+        assert_eq!(remedied.to_string(), plain.to_string());
     }
 }

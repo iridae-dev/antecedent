@@ -51,8 +51,8 @@ mod support;
 mod transform;
 use band::{simultaneous_multiplier_band, simultaneous_posterior_band};
 use crossfit::{
-    CrossFitFold, ensure_crossfit_size, fit_additive, fit_additive_design, treatment_sigma,
-    treatment_sigma_train_weighted,
+    CrossFitFold, ensure_crossfit_size, fit_additive, fit_additive_design, require_converged_gam,
+    treatment_sigma, treatment_sigma_train_weighted,
 };
 use policy::{
     DiscreteAtom, additive_policy_rows, exact_discrete_intervention_rows,
@@ -155,6 +155,22 @@ struct AverageDerivativeScores {
     scores: Vec<f64>,
     riesz_weights: Vec<f64>,
 }
+
+/// Refusal of an unfinished plug-in target (unpenalized treatment smooths) backfit.
+const GAM_TARGET_NOT_CONVERGED: &str =
+    "additive GAM target did not converge; refuse rather than publish an unfinished fit";
+
+/// What a caller can do when a plug-in response Jacobian names more than
+/// [`MAX_NONPARAMETRIC_RESPONSE_DIM`] treatments.
+const JACOBIAN_TREATMENT_LIMIT_REMEDY: &str = "query the Jacobian over at most two treatments \
+     at a time (one ResponseJacobian per pair, with the remaining treatments in the adjustment \
+     set where the graph licenses it), or query an AverageDerivative per treatment";
+
+/// What a caller can do when a plug-in directional derivative names more than
+/// [`MAX_NONPARAMETRIC_RESPONSE_DIM`] treatments.
+const DIRECTIONAL_TREATMENT_LIMIT_REMEDY: &str = "restrict the direction to at most two \
+     treatments, or query a ResponseJacobian per pair of at most two treatments and take the \
+     inner product of the gradient with the direction yourself";
 
 /// Configuration for [`ContinuousResponseEstimator`].
 #[derive(Clone, Debug, PartialEq)]
@@ -1620,8 +1636,9 @@ impl ContinuousResponseEstimator {
         scale: DerivativeScale,
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         if treatments.len() > MAX_NONPARAMETRIC_RESPONSE_DIM {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_with_remedy(
                 "plug-in response Jacobian supports at most two treatments",
+                JACOBIAN_TREATMENT_LIMIT_REMEDY,
             ));
         }
         let samples =
@@ -1656,8 +1673,9 @@ impl ContinuousResponseEstimator {
         direction: &[f64],
     ) -> Result<(ResponseValue, ResponseUncertainty, SupportReport), EstimationError> {
         if treatments.len() > MAX_NONPARAMETRIC_RESPONSE_DIM {
-            return Err(EstimationError::unsupported(
+            return Err(EstimationError::unsupported_with_remedy(
                 "plug-in directional derivative supports at most two treatments",
+                DIRECTIONAL_TREATMENT_LIMIT_REMEDY,
             ));
         }
         let samples =
@@ -2071,10 +2089,7 @@ impl ContinuousResponseEstimator {
             &mut gam_ws,
         );
         match target {
-            Ok(fit) if fit.converged => Ok((fit, None)),
-            Ok(_) => Err(EstimationError::unsupported(
-                "additive GAM target did not converge; refuse rather than publish an unfinished fit",
-            )),
+            Ok(fit) => Ok((require_converged_gam(fit, GAM_TARGET_NOT_CONVERGED)?, None)),
             // A binary or low-cardinality treatment cannot support an unpenalized
             // cubic basis (singular Gram); keep the penalized nuisance fit there
             // and report why.
@@ -4210,5 +4225,90 @@ mod tests {
                 .any(|w| w.code.as_ref() == "response.clamped_basis_derivative"),
             "outside-support Jacobian must emit the clamped-basis warning"
         );
+    }
+
+    /// The plug-in derivative refusals over more than two treatments keep their
+    /// message (no reason code, same class) and name what to do instead in the
+    /// structured `remedy` field.
+    #[test]
+    fn plugin_derivatives_over_two_treatments_name_a_remedy() {
+        let n: usize = 60;
+        let col = |k: f64| (0..n).map(|i| (i as f64 * k).sin()).collect::<Vec<f64>>();
+        let (a, b, c, y, x) = (col(0.3), col(0.7), col(1.1), col(0.5), col(0.9));
+        let data = TabularData::from_f64_columns([
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+            ("c", c.as_slice()),
+            ("y", y.as_slice()),
+            ("x", x.as_slice()),
+        ])
+        .unwrap();
+        let treatments: Arc<[VariableId]> =
+            Arc::from([VariableId::from_raw(0), VariableId::from_raw(1), VariableId::from_raw(2)]);
+        let estimator = ContinuousResponseEstimator::new([VariableId::from_raw(4)]);
+        let refuse = |functional| {
+            estimator
+                .estimate_identified(
+                    &data,
+                    &ResponseQuery::new(functional),
+                    IdentificationStatus::IdentifiedUnderParametricRestrictions,
+                    AssumptionSet::new(),
+                )
+                .unwrap_err()
+        };
+        let jacobian = refuse(ResponseFunctional::Jacobian {
+            outcomes: Arc::from([VariableId::from_raw(3)]),
+            treatments: treatments.clone(),
+            at: Arc::from([0.0, 0.0, 0.0]),
+            scale: DerivativeScale::Identity,
+        });
+        assert_eq!(
+            jacobian.to_string(),
+            "plug-in response Jacobian supports at most two treatments"
+        );
+        assert!(!matches!(jacobian, EstimationError::Refused { .. }));
+        let remedy = jacobian.remedy().expect("the Jacobian refusal names a remedy");
+        assert!(remedy.contains("at most two treatments"), "{remedy}");
+        assert!(remedy.contains("AverageDerivative"), "{remedy}");
+
+        let directional = refuse(ResponseFunctional::DirectionalDerivative {
+            outcomes: Arc::from([VariableId::from_raw(3)]),
+            treatments,
+            at: Arc::from([0.0, 0.0, 0.0]),
+            direction: Arc::from([1.0, 0.0, 0.0]),
+        });
+        assert_eq!(
+            directional.to_string(),
+            "plug-in directional derivative supports at most two treatments"
+        );
+        let remedy = directional.remedy().expect("the directional refusal names a remedy");
+        assert!(remedy.contains("ResponseJacobian"), "{remedy}");
+    }
+
+    /// Every additive-GAM non-convergence refusal keeps its message and names
+    /// the options that let the backfit settle.
+    #[test]
+    fn unfinished_gam_fit_refusals_name_a_remedy() {
+        let n: usize = 80;
+        let x: Vec<f64> = (0..n).map(|i| i as f64 / n as f64).collect();
+        let y: Vec<f64> = x.iter().map(|v| 1.0 + 2.0 * v).collect();
+        let mut workspace = GamWorkspace::default();
+        let mut fit = fit_additive(&x, n, 1, &y, 6, 1.0, &mut workspace).unwrap();
+        assert!(fit.converged);
+        fit.converged = false;
+        for message in [
+            GAM_TARGET_NOT_CONVERGED,
+            crossfit::GAM_NUISANCE_NOT_CONVERGED,
+            crossfit::WEIGHTED_GAM_NUISANCE_NOT_CONVERGED,
+        ] {
+            let error = require_converged_gam(fit.clone(), message).unwrap_err();
+            assert_eq!(error.to_string(), message);
+            assert!(!matches!(error, EstimationError::Refused { .. }));
+            let remedy = error.remedy().expect("a GAM non-convergence refusal names a remedy");
+            assert!(remedy.contains("nuisance_lambda"), "{remedy}");
+            assert!(remedy.contains("nuisance_basis"), "{remedy}");
+        }
+        fit.converged = true;
+        assert!(require_converged_gam(fit, GAM_TARGET_NOT_CONVERGED).is_ok());
     }
 }

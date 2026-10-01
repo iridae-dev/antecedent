@@ -377,6 +377,19 @@ pub(crate) fn with_reason_code(err: PyErr, code: &str) -> PyErr {
     })
 }
 
+/// Attach a refusal's structured `remedy` (what the caller can change to proceed).
+///
+/// Additive: set only when the refusal names one, so every other exception reads the
+/// `remedy = None` class default `antecedent.errors` installs on `CausalError`.
+fn with_remedy(err: PyErr, remedy: Option<&str>) -> PyErr {
+    if let Some(remedy) = remedy {
+        Python::attach(|py| {
+            let _ = err.value(py).setattr("remedy", remedy);
+        });
+    }
+    err
+}
+
 /// [`with_reason_code`] unless the exception already carries a finer code.
 fn with_default_reason_code(err: PyErr, code: &str) -> PyErr {
     Python::attach(|py| {
@@ -650,7 +663,8 @@ fn reason_code_in_message(message: &str) -> Option<&str> {
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
-        let err = uncoded_py_err(self);
+        let remedy = self.remedy();
+        let err = with_remedy(uncoded_py_err(self), remedy);
         match code {
             Some(code) => with_default_reason_code(err, &code),
             None => err,
@@ -2633,6 +2647,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Every exception reads `remedy`: `None` unless the refusal names one (see
+    // [`with_remedy`]), so a caller never needs `getattr(err, "remedy", None)`.
+    m.py().get_type::<CausalError>().setattr("remedy", m.py().None())?;
     m.add("CausalError", m.py().get_type::<CausalError>())?;
     m.add("CausalIdentifyError", m.py().get_type::<CausalIdentifyError>())?;
     m.add("CausalEstimateError", m.py().get_type::<CausalEstimateError>())?;

@@ -40,12 +40,37 @@ pub(super) fn fit_additive(
     )?;
     // Observation logistics already call `GlmFit::require_ok`. An unfinished backfit after the
     // extended budget is refused rather than published into a Kennedy curve or ADE.
-    if !fit.converged {
-        return Err(EstimationError::unsupported(
-            "additive GAM nuisance did not converge; refuse rather than publish an unfinished fit",
-        ));
+    require_converged_gam(fit, GAM_NUISANCE_NOT_CONVERGED)
+}
+
+/// Refusal of an unfinished additive-GAM nuisance backfit.
+pub(super) const GAM_NUISANCE_NOT_CONVERGED: &str =
+    "additive GAM nuisance did not converge; refuse rather than publish an unfinished fit";
+
+/// Refusal of an unfinished row-weighted additive-GAM nuisance backfit.
+pub(super) const WEIGHTED_GAM_NUISANCE_NOT_CONVERGED: &str =
+    "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit";
+
+/// What a caller can change when an additive-GAM backfit does not settle within
+/// its budget. Every option named here is a `ContinuousResponseOptions` field
+/// (and a `response_options` key in Python).
+pub(super) const GAM_NOT_CONVERGED_REMEDY: &str = "standardize the treatment and adjustment \
+     columns, drop or coarsen near-collinear or near-constant adjustment covariates, or make \
+     the additive fit smoother: raise nuisance_lambda or lower nuisance_basis in the response \
+     options";
+
+/// `fit` when its backfit converged; otherwise the refusal `message`, naming
+/// [`GAM_NOT_CONVERGED_REMEDY`]. The one owner of the additive-GAM
+/// non-convergence refusal, so every such refusal carries the same remedy.
+pub(super) fn require_converged_gam(
+    fit: antecedent_stats::GamFit,
+    message: &'static str,
+) -> Result<antecedent_stats::GamFit, EstimationError> {
+    if fit.converged {
+        Ok(fit)
+    } else {
+        Err(EstimationError::unsupported_with_remedy(message, GAM_NOT_CONVERGED_REMEDY))
     }
-    Ok(fit)
 }
 
 /// [`fit_additive`] on a design expanded once ([`AdditiveDesign`]), under
@@ -64,14 +89,14 @@ pub(super) fn fit_additive_design(
         weights,
         workspace,
     )?;
-    if !fit.converged {
-        return Err(EstimationError::unsupported(if weights.is_some() {
-            "weighted additive GAM nuisance did not converge; refuse rather than publish an unfinished fit"
+    require_converged_gam(
+        fit,
+        if weights.is_some() {
+            WEIGHTED_GAM_NUISANCE_NOT_CONVERGED
         } else {
-            "additive GAM nuisance did not converge; refuse rather than publish an unfinished fit"
-        }));
-    }
-    Ok(fit)
+            GAM_NUISANCE_NOT_CONVERGED
+        },
+    )
 }
 
 /// One cross-fitting fold of a [`CompleteSample`], prepared once per

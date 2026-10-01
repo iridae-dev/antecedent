@@ -465,6 +465,17 @@ impl CausalError {
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
     }
 
+    /// What the caller can change to get past this refusal, when the refusal
+    /// names one (an estimator refusal built with a remedy). Additive and
+    /// optional: `None` for every other error, and never part of the message.
+    #[must_use]
+    pub const fn remedy(&self) -> Option<&'static str> {
+        match self {
+            Self::Estimate(error) => error.remedy(),
+            _ => None,
+        }
+    }
+
     /// Build a structured review-required error.
     ///
     /// `pending_edges` should carry the real edges blocking review whenever the
@@ -548,6 +559,19 @@ mod tests {
     // `except CausalCancelledError` (or `blocker_id().scientific`) would otherwise
     // never see it, and a `CausalValidateError`/`CausalDiscoveryError` would wrongly
     // read as a refutation/discovery finding.
+
+    /// The facade reads an estimator refusal's remedy through unchanged, and
+    /// every other error names none.
+    #[test]
+    fn remedy_reads_through_from_the_estimator_refusal() {
+        use antecedent_estimate::EstimationError;
+        let remedied = CausalError::from(EstimationError::unsupported_with_remedy("no", "do this"));
+        assert_eq!(remedied.remedy(), Some("do this"));
+        assert_eq!(remedied.reason_code(), None);
+        assert_eq!(remedied.to_string(), "no");
+        assert_eq!(CausalError::from(EstimationError::unsupported("no")).remedy(), None);
+        assert_eq!(CausalError::Unsupported { message: "no" }.remedy(), None);
+    }
 
     #[test]
     fn validate_cancelled_is_top_level_cancelled_not_validate() {

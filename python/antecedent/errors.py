@@ -104,13 +104,25 @@ class CausalUnsupportedError(_NativeUnsupported):
     (``parity/reason_codes.toml``, exposed as ``_native.runtime_refusal_codes()``);
     constructing the error with any other code raises ``ValueError`` so an
     unregistered code cannot be emitted.
+
+    ``remedy`` is optional text naming what the caller can change to proceed.
+    It is never part of the message; ``None`` (the default every
+    :class:`CausalError` reads) when the refusal names none.
     """
 
-    def __init__(self, message: str = "", *, reason_code: str | None = None) -> None:
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        reason_code: str | None = None,
+        remedy: str | None = None,
+    ) -> None:
         _registered_code(reason_code)
         text = f"reason={reason_code}: {message}" if reason_code else message
         super().__init__(text)
         self.reason_code = reason_code
+        if remedy is not None:
+            self.remedy = remedy
 
 
 class CausalValueError(CausalValidateError, ValueError):
