@@ -1001,3 +1001,25 @@ fn prepare_decides_once_and_matches_the_identification_route() {
     .unwrap();
     assert!(from_dag.derivation().counterfactual_graph.is_some());
 }
+
+#[test]
+fn a_budget_stop_reaches_the_facade_error_with_its_receipt() {
+    let options = CounterfactualIdOptions {
+        limits: SearchLimits { operations: 2, ..CounterfactualIdOptions::default().limits },
+        ..CounterfactualIdOptions::default()
+    };
+    let text = refusal_text(prepare_counterfactual_id(
+        admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
+        names(3),
+        levels(&[2, 2, 2]),
+        &CounterfactualEventQuery::effect_on_treated(v(0), 1.0, 0.0, v(2), 1.0).unwrap(),
+        options,
+        &ctx(),
+    ));
+    assert!(
+        text.starts_with("reason=transport_budget_cancel: counterfactual_id.budget: "),
+        "{text}"
+    );
+    assert!(text.contains("receipt: stop search.operations"), "{text}");
+    assert!(text.contains("unevaluated ["), "{text}");
+}

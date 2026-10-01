@@ -89,14 +89,10 @@ impl Default for CounterfactualIdOptions {
 }
 
 /// A reason-coded facade error from an identification refusal. Its text is
-/// `reason=<code>: <namespaced detail>: <message>`.
+/// `reason=<code>: <namespaced detail>: <message>`, followed by the search
+/// receipt's summary when the refusal is a budget or cancellation stop.
 fn refusal_error(refusal: &CounterfactualIdRefusal) -> CausalError {
-    CausalError::Compile {
-        message: format!(
-            "{REASON_PREFIX}{}: {}: {}",
-            refusal.code, refusal.detail, refusal.message
-        ),
-    }
+    CausalError::Compile { message: format!("{REASON_PREFIX}{refusal}") }
 }
 
 /// A decided query, ready to evaluate on any law of its variables and levels.
