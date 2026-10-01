@@ -272,7 +272,10 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
     w.uncertainty = "percentile_bootstrap".into();
     assert_eq!(b1_refusal(&b1_reseal(&mut w)), AdmgConditionalArtifactError::IntervalWithheld);
 
-    // A non-transportable diagram (selection on Y) is not certified, never proven.
+    // A non-transportable diagram (selection on Y): the decision never
+    // identifies (not certified, or proven non-transportable when an exact
+    // witness is verified), and a functional decided on the transportable
+    // diagram does not certify on it: `transport_not_certified`.
     let blocked = b1_model(1, 1);
     let (catalog, _) = blocked.catalog_and_laws();
     let decision = decide_admg_conditional_transport(
@@ -283,8 +286,41 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
         &ctx,
     )
     .unwrap();
-    assert!(matches!(decision, ConditionalTransportDecision::NotCertified(_)));
-    assert_eq!(decision.reason_code(), Some("transport_not_certified"));
+    assert!(!matches!(decision, ConditionalTransportDecision::Identified(_)));
+    assert!(
+        matches!(
+            decision.reason_code(),
+            Some("transport_not_certified" | "transport_proven_non_transportable")
+        ),
+        "{:?}",
+        decision.reason_code()
+    );
+    let model = b1_model(1, 2);
+    let (catalog, data) = model.catalog_and_laws();
+    let ConditionalTransportDecision::Identified(bound) = decide_admg_conditional_transport(
+        &model.diagram(),
+        &query(&[1], &[0], &[2]),
+        &catalog,
+        ADMG_CONDITIONAL_DEFAULT_LIMITS,
+        &ctx,
+    )
+    .unwrap() else {
+        panic!("identified on the transportable diagram");
+    };
+    let error = StudyBuilder::admg_conditional_transport(
+        blocked.diagram(),
+        *bound,
+        ADMG_CONDITIONAL_DEFAULT_LIMITS,
+        data,
+        vec![request(&[0], &[2], 0)],
+        ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!(
+        coded(&error),
+        ("transport_not_certified", "admg_transport.invalid_derivation".into())
+    );
 }
 
 // ---------------------------------------------------------------------------
