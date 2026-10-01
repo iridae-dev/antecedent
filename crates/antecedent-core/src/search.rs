@@ -241,6 +241,19 @@ mod tests {
     const LIMITS: SearchLimits = SearchLimits { operations: 3, depth: 2 };
 
     #[test]
+    fn a_tripping_token_cancels_a_search_in_the_middle() {
+        let mut ctx = ExecutionContext::for_tests(0);
+        ctx.cancellation = crate::CancellationToken::cancel_after_checks(2);
+        let limits = SearchLimits { operations: 10, depth: 2 };
+        // One observation at entry, one at the first charge; the second charge stops.
+        let mut budget = SearchBudget::new(limits, &ctx).unwrap();
+        assert_eq!(budget.charge(1, 0), Ok(()));
+        assert_eq!(budget.charge(1, 0), Err(SearchStop::Cancelled));
+        assert_eq!(budget.operations(), 1);
+        assert!(ctx.cancellation.is_cancelled());
+    }
+
+    #[test]
     fn the_summary_names_the_stop_and_every_region() {
         let ctx = ExecutionContext::for_tests(0);
         let mut budget = SearchBudget::new(LIMITS, &ctx).unwrap();

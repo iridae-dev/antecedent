@@ -656,3 +656,16 @@ def test_conditional_scenario_requests_bind_the_conditioned_variables():
             laws=laws(),
             at={"x": 1.0, "w": 1.0},
         )
+
+
+def test_a_cancelled_decision_is_a_receipt_never_a_verdict():
+    from antecedent.state import CancellationToken
+
+    token = CancellationToken()
+    token.cancel()
+    stage = decide(cancel=token)
+    assert stage.outcome == "exhausted"
+    assert stage.identification_status == "budget_cancel"
+    receipt = stage.decision()["receipt"]
+    assert receipt["stop"] == "search.cancelled"
+    assert receipt["operations_consumed"] is None

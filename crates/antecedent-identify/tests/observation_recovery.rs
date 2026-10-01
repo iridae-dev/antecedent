@@ -838,3 +838,37 @@ fn a_budget_stop_displays_its_receipt() {
     assert!(text.contains("search.operations"), "{text}");
     assert!(receipt.unevaluated.iter().all(|r| text.contains(r.as_str())), "{text}");
 }
+
+/// Cancellation observed in the middle of the decision (a token that trips
+/// after `checks` observations, one per budget charge) is a receipt, never a
+/// nonrecoverability claim; enough checks let the same decision recover.
+#[test]
+fn a_cancellation_in_the_middle_of_the_decision_is_a_receipt_never_a_verdict() {
+    let model = two_partial();
+    let mut mid_search = 0usize;
+    for checks in 1..20_000 {
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(checks);
+        match decide_observation_recovery(
+            &model.graph,
+            &model.query(),
+            &model.catalog(),
+            None,
+            RecoveryLimits::default(),
+            &ctx,
+        ) {
+            Err(error) => {
+                assert_eq!(error.detail, RecoveryDetail::Budget, "{error}");
+                let receipt = error.receipt.unwrap();
+                assert_eq!(receipt.stop, SearchStop::Cancelled);
+                if receipt.operations_consumed.is_some_and(|n| n > 0) {
+                    mid_search += 1;
+                }
+            }
+            Ok(RecoveryDecision::Recovered(_)) => break,
+            Ok(other) => panic!("a cancellation never yields a verdict: {other:?}"),
+        }
+        assert!(checks < 19_999, "the decision never finished");
+    }
+    assert!(mid_search > 0);
+}

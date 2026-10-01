@@ -1086,3 +1086,40 @@ fn forged_reductions_with_valid_joints_fail_the_independent_checker() {
     assert_eq!(admg_conditional_refusal(&error), invalid);
     forge(&parent, &[1], &[0, 2], vec![2], vec![]).unwrap();
 }
+
+/// Cancellation observed in the middle of the decision (a token that trips
+/// after `checks` observations, one per budget charge) is a receipt, never a
+/// verdict; enough checks let the same decision identify.
+#[test]
+fn a_cancellation_in_the_middle_of_the_decision_is_a_receipt_never_a_verdict() {
+    let diagram =
+        SelectionDiagram::try_new(graph(3, &[(0, 1), (1, 2)], &[(0, 1)]), [v(2)]).unwrap();
+    let q = query(&[1], &[0], &[2]);
+    let catalog = full_catalog(3, &[]);
+    let mut mid_search = 0usize;
+    for checks in 1..2_000 {
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(checks);
+        match decide_admg_conditional_transport(
+            &diagram,
+            &q,
+            &catalog,
+            ADMG_CONDITIONAL_DEFAULT_LIMITS,
+            &ctx,
+        )
+        .unwrap()
+        {
+            ConditionalTransportDecision::Exhausted(receipt) => {
+                assert_eq!(receipt.stop, SearchStop::Cancelled, "{receipt:?}");
+                if receipt.operations_consumed.is_some_and(|n| n > 0) {
+                    mid_search += 1;
+                    assert_eq!(receipt.explored.len() + receipt.unevaluated.len(), 3);
+                }
+            }
+            ConditionalTransportDecision::Identified(_) => break,
+            other => panic!("a cancellation never yields a verdict: {other:?}"),
+        }
+        assert!(checks < 1_999, "the decision never finished");
+    }
+    assert!(mid_search > 0);
+}

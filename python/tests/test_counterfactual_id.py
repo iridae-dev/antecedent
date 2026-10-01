@@ -242,3 +242,24 @@ def test_a_budget_stop_shows_its_receipt() -> None:
     assert stopped.value.reason_code == "transport_budget_cancel"
     assert "receipt: stop search.operations" in text
     assert "unevaluated [" in text
+
+
+def test_a_cancelled_search_is_a_budget_stop_with_its_receipt() -> None:
+    from antecedent.state import CancellationToken
+
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalError) as stopped:
+        prepare_effect_on_treated(
+            frontdoor(),
+            LEVELS,
+            treatment="x",
+            active=1.0,
+            observed=0.0,
+            outcome="y",
+            outcome_level=1.0,
+            cancel=token,
+        )
+    assert stopped.value.reason_code == "transport_budget_cancel"
+    assert "counterfactual_id.budget" in str(stopped.value)
+    assert "receipt: stop search.cancelled" in str(stopped.value)

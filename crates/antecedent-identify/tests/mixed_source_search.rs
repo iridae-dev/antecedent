@@ -963,3 +963,31 @@ fn a_query_the_rule_search_alone_misses_is_solved_by_the_named_route_on_a_full_j
         }
     }
 }
+
+/// Cancellation observed in the middle of the search (a token that trips after
+/// `checks` observations, one per budget charge) is a receipt of what was
+/// explored, never a verdict; enough checks let the same search identify.
+#[test]
+fn a_cancellation_in_the_middle_of_the_search_is_a_receipt_never_a_verdict() {
+    let g = chain();
+    let mut mid_search = 0usize;
+    for checks in 1..20_000 {
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.cancellation = antecedent_core::CancellationToken::cancel_after_checks(checks);
+        match decide_mixed_source(&g, &query(), &complementary(), MIXED_SOURCE_DEFAULT_LIMITS, &ctx)
+            .unwrap()
+        {
+            MixedSourceDecision::Exhausted(receipt) => {
+                assert_eq!(receipt.stop, SearchStop::Cancelled, "{receipt:?}");
+                if receipt.operations_consumed.is_some_and(|n| n > 0) {
+                    mid_search += 1;
+                    assert!(!receipt.unevaluated.is_empty(), "{receipt:?}");
+                }
+            }
+            MixedSourceDecision::Identified { .. } => break,
+            other => panic!("a cancellation never yields a verdict: {other:?}"),
+        }
+        assert!(checks < 19_999, "the search never finished");
+    }
+    assert!(mid_search > 0);
+}

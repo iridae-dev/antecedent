@@ -191,12 +191,16 @@ def prepare_effect_on_treated(
     operations: int = 20_000,
     depth: int = 48,
     seed: int = 1,
+    cancel: Any = None,
 ) -> PreparedEffectOnTreated:
     """Decide ``P(outcome_{treatment = active} = outcome_level | treatment = observed)``.
 
     ``levels`` maps every variable of ``graph`` to its levels. ``uncertainty``
     must be ``None``: the claim is point-only. ``operations`` and ``depth`` bound
-    the one search budget (at most 100000 and 64).
+    the one search budget (at most 100000 and 64). ``cancel`` is an optional
+    :class:`antecedent.state.CancellationToken`; a cancelled search stops with
+    ``transport_budget_cancel`` (``counterfactual_id.budget``) and its receipt,
+    never a verdict.
     """
     names, directed, bidirected = _graph_edges(graph)
     if not isinstance(levels, Mapping):
@@ -229,6 +233,7 @@ def prepare_effect_on_treated(
         depth=depth,
         interval_requested=uncertainty is not None,
         seed=seed,
+        cancel=cancel,
     )
     return PreparedEffectOnTreated(native, names, level_lists)
 

@@ -274,3 +274,31 @@ def test_tampered_joint_artifact_fails_with_typed_errors():
     # Truncation is a decoding failure.
     with pytest.raises(CausalSerializationError):
         transport.consume_joint_mechanism_sensitivity_artifact(artifact[:-7])
+
+
+def test_a_budget_or_cancellation_stop_keeps_the_exact_range_and_its_receipt():
+    from antecedent.errors import CausalError
+    from antecedent.state import CancellationToken
+
+    prepared = prepared_stage()
+    prepared.estimate()
+    full = transport.joint_mechanism_sensitivity(prepared, DEVIATION)
+    tight = transport.JointDeviation(
+        {"shared_parent_marginal": 0.3, "outcome_kernel": 0.2},
+        decision_threshold=0.5,
+        frontier_points=9,
+        max_operations=6,
+    )
+    stopped = transport.joint_mechanism_sensitivity(prepared, tight)
+    # The range is exact whatever the frontier budget; the frontier is not.
+    assert stopped["assumption_range"] == full["assumption_range"]
+    assert stopped["receipt"]["stop"] == "search.operations"
+    assert stopped["unresolved_detail"] == "joint_sensitivity.budget"
+    assert stopped["receipt"]["unevaluated"]
+    assert any(point["status"] == "unevaluated" for point in stopped["frontier"])
+    assert len(stopped["frontier"]) == len(full["frontier"])
+    token = CancellationToken()
+    token.cancel()
+    with pytest.raises(CausalError, match="joint_sensitivity.budget") as cancelled:
+        transport.joint_mechanism_sensitivity(prepared, DEVIATION, cancel=token)
+    assert cancelled.value.reason_code == "transport_budget_cancel"

@@ -354,6 +354,8 @@ impl Default for AdaptiveDrawBudget {
 #[derive(Clone, Debug, Default)]
 pub struct CancellationToken {
     cancelled: Arc<AtomicBool>,
+    /// Test hook: checks left before the token cancels itself.
+    trip_after: Option<Arc<AtomicUsize>>,
 }
 
 impl CancellationToken {
@@ -361,6 +363,15 @@ impl CancellationToken {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// A token that cancels itself on its `checks + 1`-th observation, so a
+    /// test can stop a search deterministically in the middle (every budget
+    /// charge observes the token once). Not for production use.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn cancel_after_checks(checks: usize) -> Self {
+        Self { cancelled: Arc::default(), trip_after: Some(Arc::new(AtomicUsize::new(checks))) }
     }
 
     /// Request cancellation.
@@ -371,6 +382,12 @@ impl CancellationToken {
     /// Whether cancellation was requested.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
+        if let Some(left) = &self.trip_after {
+            if left.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1)).is_err()
+            {
+                self.cancel();
+            }
+        }
         self.cancelled.load(Ordering::SeqCst)
     }
 }

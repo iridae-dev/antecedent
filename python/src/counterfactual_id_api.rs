@@ -172,7 +172,7 @@ fn law_of(
 
 /// Decide the effect of treatment on the treated once.
 #[pyfunction]
-#[pyo3(signature = (names, directed, bidirected, levels, treatment, active, observed, outcome, outcome_level, *, operations=20_000, depth=48, interval_requested=false, seed=0))]
+#[pyo3(signature = (names, directed, bidirected, levels, treatment, active, observed, outcome, outcome_level, *, operations=20_000, depth=48, interval_requested=false, seed=0, cancel=None))]
 #[allow(clippy::too_many_arguments, reason = "one native entry mirrors the Python signature")]
 fn prepare_counterfactual_id_native(
     py: Python<'_>,
@@ -189,6 +189,7 @@ fn prepare_counterfactual_id_native(
     depth: usize,
     interval_requested: bool,
     seed: u64,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<NativePreparedCounterfactualId> {
     let id = |name: &str| -> PyResult<u32> {
         names
@@ -230,7 +231,7 @@ fn prepare_counterfactual_id_native(
             levels,
             &query,
             options,
-            &py_execution_context(seed, 1),
+            &crate::py_execution_context_cancel(seed, 1, cancel),
         )
         .map_err(refused)
     })?;

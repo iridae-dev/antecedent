@@ -4505,6 +4505,7 @@ def prepare_counterfactual_id_native(
     depth: int = 48,
     interval_requested: bool = False,
     seed: int = 0,
+    cancel: CancellationToken | None = None,
 ) -> NativePreparedCounterfactualId: ...
 def consume_counterfactual_id_artifact_native(
     artifact: bytes,
