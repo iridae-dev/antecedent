@@ -199,6 +199,41 @@ fn fixed_budget_scores_match_exact_expected_information_gain() {
         let exact_target = case["expected_information_gain"].as_f64().expect("exact target");
         assert!((ranked.score - exact_target).abs() <= atol, "{name}: {ranked:?}");
     }
+
+    let ranking_fixture: Value = serde_json::from_str(RANKING_FIXTURE).expect("ranking JSON");
+    let expected_order: Vec<&str> = ranking_fixture["expected_native_order"]
+        .as_array()
+        .expect("expected native order")
+        .iter()
+        .map(|name| name.as_str().expect("candidate name"))
+        .collect();
+    let actual_order: Vec<&str> =
+        ranking.ranked.iter().map(|ranked| candidate_names()[ranked.candidate_index]).collect();
+    assert_eq!(actual_order, expected_order);
+}
+
+/// The exact targets are non-decreasing in the design amount within each candidate
+/// kind, so a larger design never ranks below a smaller one of the same kind.
+#[test]
+fn exact_targets_are_monotone_in_design_amount() {
+    let fixture: Value = serde_json::from_str(EIG_FIXTURE).expect("EIG fixture JSON");
+    let cases = fixture["cases"].as_array().expect("cases");
+    for left in cases {
+        for right in cases {
+            if left["candidate"] != right["candidate"] {
+                continue;
+            }
+            let (a, b) = (left["amount"].as_u64().unwrap(), right["amount"].as_u64().unwrap());
+            let (ga, gb) = (
+                left["expected_information_gain"].as_f64().unwrap(),
+                right["expected_information_gain"].as_f64().unwrap(),
+            );
+            assert!(ga >= 0.0, "{left}");
+            if a < b {
+                assert!(ga <= gb, "{left} vs {right}");
+            }
+        }
+    }
 }
 
 #[test]

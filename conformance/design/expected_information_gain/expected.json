@@ -1,20 +1,42 @@
 {
   "schema_version": 1,
   "oracle": {
-    "kind": "enumeration",
-    "project": "clean-room exact discrete-channel enumeration",
-    "algorithm": "sum_g p(g) sum_y p(y|g,d) [H(G)-H(G|y,d)]",
-    "pin": "fixture-algorithm-v1",
-    "python": "3.12.7",
-    "command": "python3 /tmp/antecedent_design_oracle.py", "generator_retained": false,
-    "generation_location": "temporary external harness; deleted after artifact import",
-    "dependencies": "Python standard library only"
+    "kind": "frozen_external_oracle",
+    "executed_here": true,
+    "project": "dit (discrete information theory)",
+    "package": {
+      "name": "dit",
+      "version": "2.3",
+      "source": "https://pypi.org/project/dit/2.3/",
+      "metadata_sha256": "0b46805c26c4ad49611aaa9f7b5883e3533f0bc3a253a0e5425b659fbcaaf2d0"
+    },
+    "apis": [
+      "dit.Distribution",
+      "dit.Distribution.set_base('e')",
+      "dit.shannon.mutual_information",
+      "dit.shannon.entropy"
+    ],
+    "cross_check": "scipy==1.18.1 scipy.stats.entropy: sum_y p(y)[H(G)-H(G|y)] agreed with dit's I(G;Y) to 1e-13 on every case",
+    "algorithm": "I(G;Y) = sum_g p(g) sum_y p(y|g,d) [H(G)-H(G|y,d)] on the joint law of graph and observation",
+    "note": "Every expected_information_gain below was produced by running the pinned released dit package on the recorded posterior, features and reliabilities in a temporary environment that was deleted after import: this version of dit, with these inputs, produced this output.",
+    "generation": {
+      "script": "<tmp>/eig_dit_harness.py (deleted after the artifact import)",
+      "script_sha256": {
+        "eig_dit_harness.py": "eb7220d738a7b4bb850aafd443343feb3ccd572bcde462350a1e35f57e3acdf5"
+      },
+      "env": "uv venv <tmp>/eigenv --python 3.12 && VIRTUAL_ENV=<tmp>/eigenv uv pip install dit && <tmp>/eigenv/bin/python eig_dit_harness.py",
+      "python": "3.12.7",
+      "resolved_dependencies": "numpy==2.5.3, scipy==1.18.1, networkx==3.7, xarray==2026.9.0, boltons==26.2.0, debtcollector==3.1.0, lattices==0.5.1, pltable==1.1.0, loguru==0.7.3, pandas==3.0.6",
+      "generator_retained": false,
+      "reproducible_from_repo": false,
+      "generated": "2026-10-01"
+    }
   },
   "normalization": {
     "entropy": "natural logarithm",
     "graph_weights": "normalized to unit mass",
     "categories": "sorted unique feature labels",
-    "off_category_probability": "(1-reliability)/(category_count-1)",
+    "observation_channel": "p(y|g) = reliability*1[y = feature(g)] + (1-reliability)/category_count; reliability 0 is uninformative, 1 is perfect",
     "information_gain": "expectation is taken before any non-negativity check; individual entropy reductions are not clipped"
   },
   "posterior": {
@@ -28,42 +50,42 @@
       "candidate": "measure",
       "amount": 1,
       "reliability": 0.5276334472589853,
-      "expected_information_gain": 0.0736929868888847
+      "expected_information_gain": 0.2381806855885391
     },
     {
       "name": "measure_two",
       "candidate": "measure",
       "amount": 2,
       "reliability": 0.7768698398515702,
-      "expected_information_gain": 0.3826550217889961
+      "expected_information_gain": 0.5334433443021092
     },
     {
       "name": "intervene_one",
       "candidate": "intervene",
       "amount": 1,
       "reliability": 0.6321205588285577,
-      "expected_information_gain": 0.1719455582574009
+      "expected_information_gain": 0.34405938560422533
     },
     {
       "name": "observe_fifty",
       "candidate": "observe",
       "amount": 50,
       "reliability": 0.5,
-      "expected_information_gain": 0.05212203882242212
+      "expected_information_gain": 0.2138204040455749
     },
     {
       "name": "sample_one",
       "candidate": "sample",
       "amount": 1,
       "reliability": 0.0196078431372549,
-      "expected_information_gain": 0.3065672244603991
+      "expected_information_gain": 0.00035513919357033075
     },
     {
       "name": "sample_one_hundred",
       "candidate": "sample",
       "amount": 100,
       "reliability": 0.6666666666666667,
-      "expected_information_gain": 0.21382040404557492
+      "expected_information_gain": 0.38429478199988765
     }
   ],
   "acceptance": {

@@ -19,13 +19,17 @@ papers = [
 
 implementation_deviations = [
  "Uses a synthetic categorical graph-label channel whose candidate reliability is a hand-coded saturating heuristic rather than the experiment-specific likelihood p(y | G, design) required by Lindley expected information gain.",
+ "The channel is p(y | G) = r * 1[y = feature(G)] + (1 - r) / k: reliability r = 0 is the uninformative point and a lower r is a garbling of a higher one, so the score is zero for a no-op design and non-decreasing in the design amount. (Before 2.2 the off-category mass was (1 - r) / (k - 1), uninformative at r = 1/k, so small designs could outrank larger ones.)",
 ]
 
-upstream_implementations_observed = []
+upstream_implementations_observed = [
+ { project = "dit", exposure = "black-box comparison only" },
+]
 
 test_sources = [
  "crates/antecedent-design/src/ranker.rs::eig_graph_entropy unit tests",
- "crates/antecedent-design/tests/design_oracle.rs (fixed_budget_scores_match_exact_expected_information_gain, candidate_ranking_replays_and_calibrates_across_seed_grid)",
+ "crates/antecedent-design/src/ranker.rs (entropy_channel_gain_is_zero_at_noop_and_monotone_in_design_amount, entropy_channel_zero_reliability_is_uninformative)",
+ "crates/antecedent-design/tests/design_oracle.rs (fixed_budget_scores_match_exact_expected_information_gain, exact_targets_are_monotone_in_design_amount, candidate_ranking_replays_and_calibrates_across_seed_grid)",
  "conformance/design/expected_information_gain",
  "conformance/design/candidate_ranking",
 ]

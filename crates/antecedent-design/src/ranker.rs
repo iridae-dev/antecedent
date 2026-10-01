@@ -724,35 +724,66 @@ impl EntropyChannel {
     fn draw(&self, candidate: &CandidateDesign, graph_idx: usize, rng: &mut CausalRng) -> f64 {
         let k = self.k;
         let reliability = observation_reliability(candidate);
-        // A zero-information design must not enter the soft channel: reliability 0 would
-        // zero the matched-category likelihood and invent anti-information.
+        // Zero reliability is the channel's uninformative point: y is then independent of
+        // the graph and the posterior equals the prior, so the gain is exactly zero.
         if reliability <= 0.0 {
             return 0.0;
         }
         let true_cat = self.cat_of[graph_idx];
 
-        // Sample soft observation of the true graph's categorical feature.
+        // Sample the soft observation of the true graph's categorical feature: with
+        // probability `reliability` the true category is reported, otherwise a category
+        // drawn uniformly from all `k` (the true one included).
         let y = if rng.next_f64() < reliability {
             true_cat
         } else {
             #[allow(
                 clippy::cast_possible_truncation,
                 clippy::cast_sign_loss,
-                reason = "the floored value lies in [0, k - 1) because next_f64 is in [0, 1)"
+                reason = "the floored value lies in [0, k) because next_f64 is in [0, 1)"
             )]
-            let mut u = (rng.next_f64() * (k - 1) as f64).floor() as usize;
-            if u >= true_cat {
-                u += 1;
-            }
+            let u = (rng.next_f64() * k as f64).floor() as usize;
             u.min(k - 1)
         };
 
-        let off = (1.0 - reliability) / (k - 1) as f64;
+        self.prior_h - self.posterior_entropy(reliability, y)
+    }
+
+    /// `p(y | category, reliability)` for the symmetric channel: the reliability-weighted
+    /// mixture of a perfect report and a uniform one,
+    /// `reliability·1[y = category] + (1 − reliability)/k`. Reliability 0 is uninformative
+    /// and 1 is perfect; a lower reliability is a garbling of a higher one, so the
+    /// expected information gain is non-decreasing in reliability.
+    fn likelihood(&self, reliability: f64, y: usize, cat: usize) -> f64 {
+        let uniform = (1.0 - reliability) / self.k as f64;
+        if cat == y { reliability + uniform } else { uniform }
+    }
+
+    /// Entropy of the graph posterior after observing category `y`.
+    fn posterior_entropy(&self, reliability: f64, y: usize) -> f64 {
         let mut post = self.weights.clone();
         for (w, &cat) in post.iter_mut().zip(&self.cat_of) {
-            *w *= if cat == y { reliability } else { off };
+            *w *= self.likelihood(reliability, y, cat);
         }
-        self.prior_h - shannon_entropy(&post)
+        shannon_entropy(&post)
+    }
+
+    /// Exact expected information gain `Σ_g p(g) Σ_y p(y|g) [H(G) − H(G|y)]` by
+    /// enumerating the observation, for checking the Monte Carlo draw.
+    #[cfg(test)]
+    fn exact_gain(&self, reliability: f64) -> f64 {
+        let total: f64 = self.weights.iter().sum();
+        (0..self.k)
+            .map(|y| {
+                let p_y: f64 = self
+                    .weights
+                    .iter()
+                    .zip(&self.cat_of)
+                    .map(|(w, &cat)| w / total * self.likelihood(reliability, y, cat))
+                    .sum();
+                p_y * (self.prior_h - self.posterior_entropy(reliability, y))
+            })
+            .sum()
     }
 }
 
@@ -774,10 +805,9 @@ fn eig_graph_entropy(
 /// This is `1 − exp(−c · k)` (or a sample-size saturating map), not a likelihood
 /// `p(y | G, design)`. Scores that call this are heuristic channel entropy, not EIG.
 ///
-/// The symmetric channel carries no information at `reliability = 1/k` rather than
-/// at zero, so the score is not monotone in the design amount: a design whose
-/// reliability falls well below `1/k` (for example a one-row sampling increase)
-/// can outrank a larger one whose reliability sits near `1/k`.
+/// Each map is zero at zero design amount and non-decreasing in the amount, and the
+/// channel is uninformative at reliability 0, so the entropy score is monotone in the
+/// design amount.
 fn observation_reliability(candidate: &CandidateDesign) -> f64 {
     // Lower bound is 0, not a positive floor: clamping a no-op up to 0.05 made
     // zero-information designs score like weakly informative ones (attr-design-state-5).
@@ -1175,7 +1205,9 @@ impl<'a, O> DecisionScoring<'a, O> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::candidate::{DesignCost, EnvironmentPlan, MeasurementPlan, SamplingPlan};
+    use crate::candidate::{
+        DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
+    };
     use crate::decision::{DecisionConstraint, DecisionProblemId, Utility};
     use antecedent_core::{CausalRng, EnvironmentId, VariableId};
     use antecedent_prob::GraphIdentFlag;
@@ -1218,8 +1250,14 @@ mod tests {
 
     #[test]
     fn eig_draw_keeps_negative_entropy_reduction() {
-        let graphs = toy_graphs();
-        let features = [0_u32, 1, 2];
+        // A dominant graph observed as its rival moves the posterior toward uniform.
+        let graphs = WeightedGraphSamples::new(
+            vec![0.8, 0.2],
+            vec![GraphIdentFlag::Unidentified; 2],
+            vec![10, 20],
+        )
+        .expect("graphs");
+        let features = [0_u32, 1];
         let candidate = CandidateDesign::ObserveEnvironment(EnvironmentPlan {
             environment: EnvironmentId::from_raw(0),
             additional_rows: 50, // reliability = 0.5
@@ -1376,7 +1414,6 @@ mod tests {
 
     #[test]
     fn intervene_without_identifier_flags_does_not_fabricate_id() {
-        use crate::candidate::ExperimentPlan;
         let graphs = toy_graphs();
         let q = QueryId::from_raw(0);
         let candidates = vec![CandidateDesign::Intervene(ExperimentPlan {
@@ -1414,7 +1451,6 @@ mod tests {
 
     #[test]
     fn intervene_uses_identifier_flags() {
-        use crate::candidate::ExperimentPlan;
         let graphs = toy_graphs();
         let q = QueryId::from_raw(0);
         let flags =
@@ -1492,10 +1528,101 @@ mod tests {
         assert!(red > 0.0, "expected positive SE reduction, got {red}");
     }
 
+    /// The entropy channel's exact expected information gain must be zero at zero
+    /// design amount and non-decreasing in the amount for every candidate kind: more
+    /// rows, measured variables or intervention targets can never be worth less.
+    #[test]
+    fn entropy_channel_gain_is_zero_at_noop_and_monotone_in_design_amount() {
+        let graphs = toy_graphs();
+        let channel = EntropyChannel::new(&graphs, Some(&[0, 1, 2])).expect("channel");
+        let vars = |n: u32| -> Arc<[VariableId]> { (0..n).map(VariableId::from_raw).collect() };
+        let families: Vec<(&str, Vec<CandidateDesign>)> = vec![
+            (
+                "sampling",
+                [0_u64, 1, 2, 5, 10, 25, 50, 100, 1_000, 100_000]
+                    .into_iter()
+                    .map(|n| {
+                        CandidateDesign::IncreaseSamplingRate(SamplingPlan {
+                            additional_samples: n,
+                            cost: DesignCost::zero(),
+                            tag: 0,
+                        })
+                    })
+                    .collect(),
+            ),
+            (
+                "environment",
+                [0_u64, 1, 2, 5, 10, 25, 50, 100, 1_000, 100_000]
+                    .into_iter()
+                    .map(|n| {
+                        CandidateDesign::ObserveEnvironment(EnvironmentPlan {
+                            environment: EnvironmentId::from_raw(0),
+                            additional_rows: n,
+                            cost: DesignCost::zero(),
+                            tag: 0,
+                        })
+                    })
+                    .collect(),
+            ),
+            (
+                "measure",
+                (0..6)
+                    .map(|n| {
+                        CandidateDesign::Measure(MeasurementPlan {
+                            variables: vars(n),
+                            cost: DesignCost::zero(),
+                            tag: 0,
+                        })
+                    })
+                    .collect(),
+            ),
+            (
+                "intervene",
+                (0..6)
+                    .map(|n| {
+                        CandidateDesign::Intervene(ExperimentPlan {
+                            targets: vars(n),
+                            cost: DesignCost::zero(),
+                            tag: 0,
+                        })
+                    })
+                    .collect(),
+            ),
+        ];
+        for (family, designs) in families {
+            let gains: Vec<f64> =
+                designs.iter().map(|d| channel.exact_gain(observation_reliability(d))).collect();
+            assert!(
+                gains[0].abs() < 1e-12,
+                "{family}: zero amount must be uninformative, {gains:?}"
+            );
+            for pair in gains.windows(2) {
+                assert!(
+                    pair[1] >= pair[0] - 1e-12,
+                    "{family}: gain decreased with amount, {gains:?}"
+                );
+            }
+            assert!(gains[1] > 0.0, "{family}: a positive amount must be informative, {gains:?}");
+        }
+    }
+
+    /// Zero reliability is the uninformative point of the channel itself: the
+    /// observation is then independent of the graph and every draw leaves the
+    /// posterior unchanged, with no short-circuit needed.
+    #[test]
+    fn entropy_channel_zero_reliability_is_uninformative() {
+        let graphs = toy_graphs();
+        let channel = EntropyChannel::new(&graphs, Some(&[0, 1, 2])).expect("channel");
+        for y in 0..channel.k {
+            assert!((channel.posterior_entropy(0.0, y) - channel.prior_h).abs() < 1e-12);
+        }
+    }
+
     #[test]
     fn eig_is_nonnegative_and_measure_beats_weak_sampling() {
+        // Individual draws may be negative (MM-012); the expectation may not.
         let graphs = toy_graphs();
-        let mut rng = ExecutionContext::for_tests(99).rng.stream_for(StreamDomain::Design, 1);
+        let channel = EntropyChannel::new(&graphs, None).expect("channel");
         let measure = CandidateDesign::Measure(MeasurementPlan {
             variables: Arc::from([VariableId::from_raw(1), VariableId::from_raw(2)]),
             cost: DesignCost::zero(),
@@ -1506,21 +1633,14 @@ mod tests {
             cost: DesignCost::zero(),
             tag: 0,
         });
-        let mut eig_m = 0.0;
-        let mut eig_s = 0.0;
-        for g in 0..graphs.n_samples {
-            let em = eig_graph_entropy(&measure, &graphs, g, None, &mut rng);
-            let es = eig_graph_entropy(&sampling, &graphs, g, None, &mut rng);
-            assert!(em >= 0.0 && es >= 0.0);
-            eig_m += em;
-            eig_s += es;
-        }
+        let eig_m = channel.exact_gain(observation_reliability(&measure));
+        let eig_s = channel.exact_gain(observation_reliability(&sampling));
+        assert!(eig_m >= 0.0 && eig_s >= 0.0, "{eig_m} {eig_s}");
         assert!(eig_m > eig_s);
     }
 
     #[test]
     fn observe_environment_unlocks_identification() {
-        use crate::candidate::EnvironmentPlan;
         let graphs = toy_graphs();
         let q = QueryId::from_raw(0);
         let env = EnvironmentId::from_raw(7);
@@ -1562,7 +1682,6 @@ mod tests {
 
     #[test]
     fn observe_environment_gram_pooling_differs_from_sampling_rate() {
-        use crate::candidate::EnvironmentPlan;
         let env = EnvironmentId::from_raw(1);
         // Baseline orthogonal design; env gram doubles treatment information.
         let xtx = Arc::from([10.0_f64, 0.0, 0.0, 10.0]);

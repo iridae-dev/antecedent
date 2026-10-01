@@ -15,11 +15,11 @@
   },
   "expected_native_order": [
     "measure_two",
-    "sample_one",
     "sample_one_hundred",
     "intervene_one",
     "measure_one",
-    "observe_fifty"
+    "observe_fifty",
+    "sample_one"
   ],
   "acceptance": {
     "fixed_budget_samples": 100000,
