@@ -46,12 +46,19 @@
 //!
 //! # Numerical and smoothing error, kept apart
 //!
-//! Each grid dose records the quadrature (numerical) error estimate
-//! `|psi_hat_Q - psi_hat_2Q|` (the reported point uses the `2Q` rule) and refuses above
-//! the declared tolerance; and the smoothing-bias diagnostic, the plug-in difference
-//! `psi_hat_h - psi_hat_{h/2}` with its local-quadratic extrapolation `4/3` of it. Neither
-//! is ever added to the estimate or to an interval. The analytic influence-function
-//! standard error is a diagnostic only.
+//! Every integration window is split at the declared basis knots inside it, and each
+//! piece gets its own Gauss-Legendre rule. A linear-family fitted curve on the dose basis
+//! is then a polynomial of degree at most 3 on every piece, so both rules integrate it
+//! exactly up to rounding (`QuadratureRecord::exact`) and no tolerance is gated. For any
+//! other fitted curve (a tree learner) the `Q`-node and `2Q`-node rules are compared on
+//! every target row and the grid dose is refused when the largest row difference exceeds
+//! the declared tolerance; that difference is an error *estimate*, not a bound (a knot
+//! sweep in this module's tests shows the unsplit estimate missing the finer rule's true
+//! error). The reported point uses the `2Q` rule. The smoothing-bias diagnostic is the
+//! plug-in difference `psi_hat_h - psi_hat_{h/2}` with its local-quadratic extrapolation
+//! `4/3` of it; it sees only the fitted curve, so it is exactly zero for a fit linear in
+//! the dose whatever the true curvature. Neither record is ever added to the estimate or
+//! to an interval. The analytic influence-function standard error is a diagnostic only.
 //!
 //! # Claimed theorem
 //!
@@ -68,8 +75,12 @@
 //! # Bounded computation
 //!
 //! No search: the quadrature is a bounded loop over at most 16 grid doses, two node
-//! counts and chunks of target rows. Cancellation is polled on every chunk and a hard
-//! memory limit below the declared workspace refuses before any fit.
+//! counts and chunks of target rows. Cancellation is polled on every chunk. A mandatory
+//! workspace cap ([`SMOOTHED_DOSE_MAX_WORKSPACE_BYTES`], lowered by a context hard memory
+//! limit) refuses before any fit when the cumulative estimate of the rows, the designs
+//! actually allocated, one training-design copy and normal matrix per concurrently fitted
+//! fold and the concurrent quadrature chunks exceeds it. Learner internals beyond that
+//! copy (tree storage, boosting state) are not modelled.
 use crate::EstimationError;
 use crate::estimator_menu::{EstimatorMenu, EstimatorMenuEntry, MenuRefusal};
 use crate::learned_continuous::FoldProvenance;
@@ -77,8 +88,8 @@ use crate::learned_trial::TrialSampling;
 use antecedent_core::{ExecutionContext, SmoothedDoseTransportQuery, SmoothingKernel, VariableId};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
-    DesignView, FittedPredictor, LearnerProvenance, LearnerSpec, PortablePredictor, PredictionTask,
-    RowSelection, TargetView, resolve_for,
+    DesignView, FittedPredictor, LearnerProvenance, LearnerSpec, PortablePredictor, PredictionMap,
+    PredictionTask, RowSelection, TargetView, resolve_for,
 };
 use serde::{Deserialize, Serialize};
 
@@ -104,8 +115,13 @@ pub const SMOOTHED_DOSE_MAX_KNOTS: usize = 8;
 pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_round_robin_source_and_target";
 /// The one supported target of a request.
 pub const SMOOTHED_DOSE_TARGET: &str = "smoothed_dose_response";
-/// Target rows per quadrature chunk; cancellation is polled once per chunk.
+/// Most design rows per quadrature chunk; cancellation is polled once per chunk.
 const CHUNK_DESIGN_ROWS: usize = 1 << 14;
+/// Most design bytes per quadrature chunk; wide designs get fewer rows per chunk.
+const CHUNK_DESIGN_BYTES: usize = 8 << 20;
+/// Mandatory cap on the estimated workspace of one request or one replay (512 MiB, like
+/// the default search budget); a context hard memory limit lowers it, never raises it.
+pub const SMOOTHED_DOSE_MAX_WORKSPACE_BYTES: u64 = 536_870_912;
 
 /// The frozen bounds an artifact's premises bind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -129,6 +145,8 @@ pub struct SmoothedDoseBounds {
     pub max_basis_degree: u8,
     /// [`SMOOTHED_DOSE_MAX_KNOTS`].
     pub max_knots: usize,
+    /// [`SMOOTHED_DOSE_MAX_WORKSPACE_BYTES`].
+    pub max_workspace_bytes: u64,
 }
 
 /// The frozen bounds of this cell.
@@ -142,6 +160,7 @@ pub const SMOOTHED_DOSE_BOUNDS: SmoothedDoseBounds = SmoothedDoseBounds {
     max_features: SMOOTHED_DOSE_MAX_FEATURES,
     max_basis_degree: SMOOTHED_DOSE_MAX_BASIS_DEGREE,
     max_knots: SMOOTHED_DOSE_MAX_KNOTS,
+    max_workspace_bytes: SMOOTHED_DOSE_MAX_WORKSPACE_BYTES,
 };
 
 /// Point-only status: no interval was requested.
@@ -207,9 +226,11 @@ pub struct SmoothedDoseOptions {
     pub basis: DoseBasis,
     /// Shared cross-fit fold count, `2..=`[`SMOOTHED_DOSE_MAX_FOLDS`].
     pub folds: usize,
-    /// Gauss-Legendre nodes, one of [`SMOOTHED_DOSE_QUADRATURE_NODES`]; the check uses twice as many.
+    /// Gauss-Legendre nodes per window piece, one of [`SMOOTHED_DOSE_QUADRATURE_NODES`];
+    /// the check uses twice as many.
     pub quadrature_nodes: usize,
-    /// Largest accepted `|psi_hat_Q - psi_hat_2Q|` at any grid dose.
+    /// Largest accepted `|nu_hat_Q - nu_hat_2Q|` on any target row at any grid dose, gated
+    /// only for a fitted curve that is not piecewise polynomial in the dose.
     pub quadrature_tolerance: f64,
     /// Smallest out-of-fold membership probability accepted on any row, in `(0, 0.5)`.
     pub min_membership_probability: f64,
@@ -322,17 +343,28 @@ pub struct SmoothedDoseModels {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QuadratureRecord {
-    /// Gauss-Legendre nodes of the coarse rule.
+    /// Gauss-Legendre nodes of the coarse rule on each window piece.
     pub nodes: usize,
-    /// Nodes of the check rule (twice as many); the point uses it.
+    /// Nodes of the check rule on each piece (twice as many); the point uses it.
     pub check_nodes: usize,
+    /// Pieces of the window `[a - h, a + h]` after splitting at the basis knots inside it.
+    pub pieces: usize,
+    /// Every fold's fitted curve is a linear map of the dose basis, so it is a polynomial
+    /// of degree at most 3 on every piece and both rules are exact up to rounding; the
+    /// tolerance is then not gated.
+    pub exact: bool,
     /// `|psi_hat_Q - psi_hat_2Q|`: an estimate of the coarse rule's error, not a bound.
     pub estimate_error: f64,
-    /// Largest `|nu_hat_Q - nu_hat_2Q|` over target rows.
+    /// Largest `|nu_hat_Q - nu_hat_2Q|` over target rows: the gated quantity when the
+    /// curve is not exact. An estimate, not a bound.
     pub max_row_error: f64,
 }
 
 /// The smoothing-bias diagnostic of one grid dose; never added to the estimate.
+///
+/// It is computed from the fitted outcome curve alone, so it inherits the curve's
+/// misspecification: a fit linear in the dose gives exactly zero whatever the true
+/// curvature.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SmoothingBiasDiagnostic {
@@ -956,6 +988,46 @@ fn fit_models(
     Ok(SmoothedDoseModels { outcome, membership })
 }
 
+/// Design rows per quadrature chunk for a design of `width` columns: at most
+/// [`CHUNK_DESIGN_ROWS`] and at most [`CHUNK_DESIGN_BYTES`] of design.
+fn chunk_design_rows(width: usize) -> usize {
+    CHUNK_DESIGN_ROWS.min((CHUNK_DESIGN_BYTES / (8 * width.max(1))).max(1))
+}
+
+/// The composite Gauss-Legendre rule on `[-1, 1]` for the window `[a - h, a + h]`, split at
+/// every basis knot strictly inside it: the base rule mapped onto each piece. Without a
+/// knot inside the window it is the base rule itself, bit for bit.
+fn split_rule(
+    knots: &[f64],
+    (a, h): (f64, f64),
+    (nodes, weights): (&[f64], &[f64]),
+) -> (Vec<f64>, Vec<f64>) {
+    let mut edges = vec![-1.0];
+    let mut cuts: Vec<f64> =
+        knots.iter().map(|k| (k - a) / h).filter(|u| *u > -1.0 && *u < 1.0).collect();
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup_by(|x, y| x.total_cmp(y).is_eq());
+    edges.extend(cuts);
+    edges.push(1.0);
+    let pieces = edges.len() - 1;
+    let (mut u, mut w) = (Vec::with_capacity(pieces * nodes.len()), Vec::new());
+    w.reserve(pieces * nodes.len());
+    for pair in edges.windows(2) {
+        let (mid, half) = ((pair[0] + pair[1]) / 2.0, (pair[1] - pair[0]) / 2.0);
+        for (x, v) in nodes.iter().zip(weights) {
+            u.push(mid + half * x);
+            w.push(v * half);
+        }
+    }
+    (u, w)
+}
+
+/// Whether every fold's fitted outcome curve is a linear map of the dose basis, hence a
+/// polynomial of degree at most 3 in the dose between knots.
+fn piecewise_polynomial(models: &SmoothedDoseModels) -> bool {
+    models.outcome.iter().all(|m| matches!(m.model, PredictionMap::Linear { logistic: false, .. }))
+}
+
 /// Predicts `rows` design rows (column-major `design`) with fold `fold`'s outcome model.
 type FoldPredictor<'a> = dyn Fn(usize, &[f64], usize, &ExecutionContext) -> Result<Vec<f64>, EstimationError>
     + Sync
@@ -980,7 +1052,7 @@ fn smoothed_target_rows(
     let kernel_weights: Vec<f64> =
         nodes.iter().zip(weights).map(|(u, w)| w * kernel.density(*u)).collect();
     let mut nu = vec![0.0; target_rows.len()];
-    let chunk = (CHUNK_DESIGN_ROWS / q.max(1)).max(1);
+    let chunk = (chunk_design_rows(basis.width(input.features.len())) / q.max(1)).max(1);
     for fold in 0..fold_count {
         let positions: Vec<usize> = (0..target_rows.len())
             .filter(|p| usize::from(folds[target_rows[*p]]) == fold)
@@ -1011,7 +1083,8 @@ fn mean_in_order(values: &[f64]) -> f64 {
 
 /// Evaluate the point from stored fold models, rows and premises: out-of-fold
 /// membership and outcome predictions, the quadratures, the score, the diagnostics and
-/// every post-fit refusal (membership overlap, quadrature tolerance). The producer and
+/// every post-fit refusal (membership overlap on every row, source and target; quadrature
+/// tolerance on the largest target-row difference of a non-polynomial curve). The producer and
 /// the artifact consumer both call it, so the consumer's replay is bit for bit; its
 /// correctness is established separately by the known-truth and exact-integration
 /// fixtures.
@@ -1095,6 +1168,8 @@ pub fn evaluate_smoothed_dose_models(
     let n0 = target_rows.len() as f64;
     let coarse = antecedent_stats::special::gauss_legendre(options.quadrature_nodes);
     let fine = antecedent_stats::special::gauss_legendre(2 * options.quadrature_nodes);
+    let exact = piecewise_polynomial(models);
+    let knots = &options.basis.knots;
     let h = query.bandwidth;
     let predictor = |fold: usize, design: &[f64], rows: usize, c: &ExecutionContext| {
         predict(&models.outcome[fold], design, rows, c)
@@ -1102,6 +1177,7 @@ pub fn evaluate_smoothed_dose_models(
     let grid = ctx.map_indexed(query.grid.len(), |g, inner| -> Result<_, EstimationError> {
         let a = query.grid[g];
         let rule = |(nodes, weights): (&[f64], &[f64]), bandwidth: f64| {
+            let (nodes, weights) = split_rule(knots, (a, bandwidth), (nodes, weights));
             smoothed_target_rows(
                 &options.basis,
                 input,
@@ -1109,11 +1185,12 @@ pub fn evaluate_smoothed_dose_models(
                 folds,
                 (fold_count, &predictor),
                 (a, bandwidth),
-                (nodes, weights),
+                (&nodes, &weights),
                 &target_rows,
                 inner,
             )
         };
+        let pieces = split_rule(knots, (a, h), (&coarse.0, &coarse.1)).0.len() / coarse.0.len();
         let nu_coarse = rule((&coarse.0, &coarse.1), h)?;
         let nu_fine = rule((&fine.0, &fine.1), h)?;
         let nu_half = rule((&fine.0, &fine.1), h / 2.0)?;
@@ -1135,14 +1212,16 @@ pub fn evaluate_smoothed_dose_models(
             nu_coarse.iter().zip(&nu_fine).map(|(c, f)| (c - f).abs()).fold(0.0, f64::max);
         if !estimate.is_finite()
             || estimate_error.is_nan()
-            || estimate_error > options.quadrature_tolerance
+            || max_row_error.is_nan()
+            || (!exact && max_row_error > options.quadrature_tolerance)
         {
             return Err(refuse(
                 antecedent_core::reason_code!("transport_numerical_failure"),
                 "dose_response.quadrature_tolerance",
                 &format!(
-                    "at grid dose {a} the {}-node and {}-node quadratures differ by \
-                     {estimate_error}, above the declared tolerance {}",
+                    "at grid dose {a} the {}-node and {}-node quadratures of a target row's \
+                     fitted curve differ by up to {max_row_error}, above the declared tolerance \
+                     {} (the curve is not piecewise polynomial in the dose)",
                     coarse.0.len(),
                     fine.0.len(),
                     options.quadrature_tolerance
@@ -1160,6 +1239,8 @@ pub fn evaluate_smoothed_dose_models(
             quadrature: QuadratureRecord {
                 nodes: coarse.0.len(),
                 check_nodes: fine.0.len(),
+                pieces,
+                exact,
                 estimate_error,
                 max_row_error,
             },
@@ -1185,20 +1266,121 @@ pub fn evaluate_smoothed_dose_models(
     })
 }
 
-/// Workspace bytes of one request: the designs, the per-grid quadrature chunks and rows.
-fn workspace_bytes(
-    query: &SmoothedDoseTransportQuery,
+/// The sizes a workspace estimate depends on.
+#[derive(Clone, Copy, Debug)]
+struct WorkspaceShape {
+    rows: usize,
+    source: usize,
+    features: usize,
+    width: usize,
+    folds: usize,
+    grid: usize,
+    /// Most design rows one target row expands to in one quadrature call.
+    nodes_per_row: usize,
+    threads: usize,
+}
+
+/// Estimated live bytes: the rows, every design actually allocated and, when `fit`, one
+/// training-design copy, normal matrix and index set per concurrently fitted fold; the
+/// evaluation's per-fold designs and prediction vectors; and one quadrature chunk plus
+/// its per-row vectors per concurrently integrated grid dose. `None` on overflow.
+fn workspace(shape: WorkspaceShape, fit: bool) -> Option<u64> {
+    let WorkspaceShape {
+        rows: n,
+        source: n1,
+        features: d,
+        width: w,
+        folds,
+        grid,
+        nodes_per_row,
+        threads,
+    } = shape;
+    let n0 = n.checked_sub(n1)?;
+    let folds = folds.max(1);
+    let membership = n.checked_mul(d + 1)?;
+    let outcome = n1.checked_mul(w)?;
+    // Stored rows: covariates, outcome, dose, density and flags; fold labels.
+    let stored = n.checked_mul(d + 5)?;
+    let fitting = if fit {
+        let per_fold = membership
+            .checked_add(outcome)?
+            .checked_add((d + 1).checked_mul(d + 1)?)?
+            .checked_add(w.checked_mul(w)?)?
+            .checked_add(n.checked_mul(2)?)?;
+        membership
+            .checked_add(outcome)?
+            .checked_add(n.checked_mul(2)?)?
+            .checked_add(threads.clamp(1, folds).checked_mul(per_fold)?)?
+    } else {
+        0
+    };
+    let fold_designs =
+        n.div_ceil(folds).checked_mul(d + 1)?.checked_add(n1.div_ceil(folds).checked_mul(w)?)?;
+    let chunk = chunk_design_rows(w).max(nodes_per_row);
+    let per_grid = chunk
+        .checked_mul(w + 3)?
+        .checked_add(n0.checked_mul(4)?)?
+        .checked_add(n1.checked_mul(2)?)?;
+    let evaluation = membership
+        .checked_add(n.checked_mul(8)?)?
+        .checked_add(fold_designs)?
+        .checked_add(threads.clamp(1, grid.max(1)).checked_mul(per_grid)?)?;
+    let total = stored.checked_add(fitting)?.checked_add(evaluation)?.checked_mul(8)?;
+    u64::try_from(total).ok()
+}
+
+/// The estimated workspace of one request of `grid` grid doses under `ctx`'s thread
+/// budget: with `fit` for
+/// the producer (fits and evaluation), without for a consumer's replay (evaluation only).
+/// `None` on overflow.
+#[must_use]
+#[doc(hidden)]
+pub fn smoothed_dose_workspace_bytes(
+    grid: usize,
     input: &SmoothedDoseInput,
     options: &SmoothedDoseOptions,
+    ctx: &ExecutionContext,
+    fit: bool,
 ) -> Option<u64> {
-    let n = input.source.len();
-    let width = options.basis.width(input.features.len());
-    let per_grid = CHUNK_DESIGN_ROWS.checked_mul(width + 2)?.checked_add(n.checked_mul(4)?)?;
-    let total = n
-        .checked_mul(width + input.features.len() + 8)?
-        .checked_add(query.grid.len().checked_mul(per_grid)?)?
-        .checked_mul(8)?;
-    u64::try_from(total).ok()
+    workspace(
+        WorkspaceShape {
+            rows: input.source.len(),
+            source: input.source.iter().filter(|s| **s).count(),
+            features: input.features.len(),
+            width: options.basis.width(input.features.len()),
+            folds: options.folds,
+            grid,
+            nodes_per_row: 2 * options.quadrature_nodes * (options.basis.knots.len() + 1),
+            threads: ctx.parallelism.max_threads.get() as usize,
+        },
+        fit,
+    )
+}
+
+/// The memory cap in force: [`SMOOTHED_DOSE_MAX_WORKSPACE_BYTES`], lowered by a context
+/// hard memory limit.
+#[must_use]
+#[doc(hidden)]
+pub fn smoothed_dose_memory_cap(ctx: &ExecutionContext) -> u64 {
+    ctx.memory
+        .hard_limit_bytes
+        .map_or(SMOOTHED_DOSE_MAX_WORKSPACE_BYTES, |h| h.min(SMOOTHED_DOSE_MAX_WORKSPACE_BYTES))
+}
+
+/// Refuse a workspace estimate above the cap in force, before anything is allocated.
+fn check_workspace(bytes: Option<u64>, ctx: &ExecutionContext) -> Result<(), EstimationError> {
+    let cap = smoothed_dose_memory_cap(ctx);
+    match bytes {
+        Some(bytes) if bytes <= cap => Ok(()),
+        _ => Err(EstimationError::Refused {
+            code: antecedent_core::reason_code!("transport_budget_cancel"),
+            message: format!(
+                "the smoothed dose workspace estimate of {} bytes exceeds the memory cap of \
+                 {cap} bytes",
+                bytes.map_or_else(|| "more than u64::MAX".into(), |b| b.to_string())
+            ),
+        }),
+    }
 }
 
 /// Provenance of every fold model: membership folds, then outcome folds.
@@ -1222,9 +1404,9 @@ fn fit_and_evaluate(
 /// support and quadrature refusals and report the interval status of the closed route.
 ///
 /// # Errors
-/// Any [`validate_smoothed_dose`] refusal, a memory limit below the workspace or
-/// cancellation (`transport_budget_cancel`), a fit failure, membership overlap or
-/// quadrature tolerance.
+/// Any [`validate_smoothed_dose`] refusal, a workspace estimate above the mandatory cap
+/// or the context's lower hard memory limit, or cancellation (`transport_budget_cancel`),
+/// a fit failure, membership overlap or quadrature tolerance.
 pub fn estimate_smoothed_dose(
     id: &TransportIdentification,
     query: &SmoothedDoseTransportQuery,
@@ -1234,16 +1416,10 @@ pub fn estimate_smoothed_dose(
 ) -> Result<SmoothedDoseEstimate, EstimationError> {
     validate_smoothed_dose(id, query, input, options)?;
     cancelled(ctx)?;
-    let bytes = workspace_bytes(query, input, options)
-        .ok_or_else(|| EstimationError::data_msg("smoothed dose workspace overflow"))?;
-    if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes > limit) {
-        return Err(EstimationError::Refused {
-            code: antecedent_core::reason_code!("transport_budget_cancel"),
-            message: format!(
-                "the smoothed dose workspace of {bytes} bytes exceeds the hard memory limit"
-            ),
-        });
-    }
+    check_workspace(
+        smoothed_dose_workspace_bytes(query.grid.len(), input, options, ctx, true),
+        ctx,
+    )?;
     let folds = smoothed_dose_fold_assignment(input, options.folds);
     let (models, evaluation) = fit_and_evaluate(query, input, options, &folds, ctx)?;
     Ok(SmoothedDoseEstimate {
@@ -1607,6 +1783,31 @@ pub fn smoothed_dose_estimator_menu(
     EstimatorMenu { selection: "manual".into(), entries }
 }
 
+/// One bootstrap replicate's rows and fold labels: row `j` of the draw is input row
+/// `rows[j]` and keeps that row's fold label from the point run, so a row drawn twice
+/// sits in one fold twice (never on both sides of a cross-fit split). The labels are not
+/// recomputed from the draw.
+#[cfg(feature = "calibration-internal")]
+#[must_use]
+#[doc(hidden)]
+pub fn smoothed_dose_replicate(
+    input: &SmoothedDoseInput,
+    point_folds: &[u16],
+    rows: &[usize],
+) -> (SmoothedDoseInput, Vec<u16>) {
+    let pick = |values: &[f64]| rows.iter().map(|i| values[*i]).collect::<Vec<_>>();
+    let draw = SmoothedDoseInput {
+        features: input.features.clone(),
+        covariates: input.covariates.iter().map(|col| pick(col)).collect(),
+        outcome: pick(&input.outcome),
+        dose: pick(&input.dose),
+        dose_density: pick(&input.dose_density),
+        source: rows.iter().map(|i| input.source[*i]).collect(),
+        sampling: input.sampling,
+    };
+    (draw, rows.iter().map(|i| point_folds[*i]).collect())
+}
+
 /// The internal interval run the calibration harness measures.
 #[cfg(feature = "calibration-internal")]
 #[derive(Clone, Debug)]
@@ -1658,6 +1859,14 @@ pub fn smoothed_dose_interval_internal(
         ));
     }
     let point = estimate_smoothed_dose(id, query, input, options, ctx)?;
+    // Replicates run concurrently, each on a serial inner context: the cap covers one
+    // replicate workspace per concurrent replicate.
+    let concurrent =
+        (ctx.parallelism.max_threads.get() as usize).clamp(1, options.bootstrap as usize);
+    let replicate_bytes =
+        smoothed_dose_workspace_bytes(query.grid.len(), input, options, &ctx.serial_inner(), true)
+            .and_then(|b| b.checked_mul(concurrent as u64));
+    check_workspace(replicate_bytes, ctx)?;
     let groups = smoothed_dose_bootstrap_groups(input);
     let folds = &point.folds.assignment;
     let outcomes = ctx.map_indexed(
@@ -1666,17 +1875,7 @@ pub fn smoothed_dose_interval_internal(
             cancelled(inner)?;
             let replicate = u32::try_from(index).unwrap_or(u32::MAX);
             let rows = crate::learned_trial::bootstrap_rows(&groups, replicate, inner)?;
-            let pick = |values: &[f64]| rows.iter().map(|i| values[*i]).collect::<Vec<_>>();
-            let draw = SmoothedDoseInput {
-                features: input.features.clone(),
-                covariates: input.covariates.iter().map(|col| pick(col)).collect(),
-                outcome: pick(&input.outcome),
-                dose: pick(&input.dose),
-                dose_density: pick(&input.dose_density),
-                source: rows.iter().map(|i| input.source[*i]).collect(),
-                sampling: input.sampling,
-            };
-            let draw_folds: Vec<u16> = rows.iter().map(|i| folds[*i]).collect();
+            let (draw, draw_folds) = smoothed_dose_replicate(input, folds, &rows);
             let run = validate_smoothed_dose(id, query, &draw, options)
                 .and_then(|()| fit_and_evaluate(query, &draw, options, &draw_folds, inner));
             if let Ok((_, evaluation)) = run {
@@ -1751,6 +1950,8 @@ mod tests {
         }
     }
 
+    use antecedent_stats::special::gauss_legendre;
+
     #[test]
     fn requests_report_their_interval_status() {
         let none = SmoothedDoseUncertainty::for_request(0);
@@ -1815,6 +2016,116 @@ mod tests {
             stopped.unwrap_err(),
             EstimationError::Refused { code: "transport_budget_cancel", .. }
         ));
+    }
+
+    /// `integral_{-1}^{1} K(u) (u - c)_+ du` for the Epanechnikov kernel, `c` in `[-1, 1]`.
+    fn hinge_moment(c: f64) -> f64 {
+        0.75 * (0.25 - 2.0 * c / 3.0 + c * c / 2.0 - c.powi(4) / 12.0)
+    }
+
+    fn hinge_rule(nodes: &[f64], weights: &[f64], c: f64) -> f64 {
+        nodes
+            .iter()
+            .zip(weights)
+            .map(|(u, w)| w * SmoothingKernel::Epanechnikov.density(*u) * (u - c).max(0.0))
+            .sum()
+    }
+
+    /// What this shows: across a sweep of hinge-knot positions, the rule split at the knot
+    /// integrates `K(u) (u - c)_+` exactly for 16 and 32 nodes, while the unsplit rule's
+    /// doubling difference `|I_Q - I_2Q|` falls below the finer rule's own true error at a
+    /// visible fraction of positions: an estimate, not a bound, which is why a
+    /// piecewise-polynomial fit is split rather than gated.
+    #[test]
+    #[allow(clippy::cast_precision_loss, reason = "sweep indices are small")]
+    fn splitting_at_the_knot_makes_the_hinge_exact_where_the_doubling_estimate_misses() {
+        let positions = 20_000usize;
+        for q in [16usize, 32] {
+            let (base, fine) = (gauss_legendre(q), gauss_legendre(2 * q));
+            let (mut worst_split, mut misses, mut dangerous) = (0.0_f64, 0usize, 0usize);
+            for i in 0..positions {
+                let c = -1.0 + 2.0 * (i as f64 + 0.5) / positions as f64;
+                let exact = hinge_moment(c);
+                for rule in [&base, &fine] {
+                    let (u, w) = split_rule(&[c], (0.0, 1.0), (&rule.0, &rule.1));
+                    assert_eq!(u.len(), 2 * rule.0.len());
+                    worst_split = worst_split.max((hinge_rule(&u, &w, c) - exact).abs());
+                }
+                let coarse = hinge_rule(&base.0, &base.1, c);
+                let check = hinge_rule(&fine.0, &fine.1, c);
+                let (estimate, truth) = ((coarse - check).abs(), (check - exact).abs());
+                if estimate < truth {
+                    misses += 1;
+                }
+                if estimate <= 1e-6 && truth > 1e-6 {
+                    dangerous += 1;
+                }
+            }
+            eprintln!(
+                "Q = {q}: split worst error {worst_split:e}; unsplit |I_Q - I_2Q| below the \
+                 2Q rule's true error at {misses}/{positions} knot positions, passing a 1e-6 \
+                 tolerance while the true error exceeds it at {dangerous}"
+            );
+            assert!(worst_split < 1e-14, "Q = {q}: {worst_split:e}");
+            assert!(misses * 100 > positions, "Q = {q}: {misses}");
+        }
+        // Without a knot inside the window the split rule is the base rule, bit for bit.
+        let base = gauss_legendre(16);
+        let (u, w) = split_rule(&[2.5, -3.0], (0.0, 1.0), (&base.0, &base.1));
+        assert!(u.iter().zip(&base.0).all(|(a, b)| a.to_bits() == b.to_bits()));
+        assert!(w.iter().zip(&base.1).all(|(a, b)| a.to_bits() == b.to_bits()));
+        // Knots map through the window: (k - a) / h.
+        let (u, _) = split_rule(&[2.1, 2.1], (2.0, 0.5), (&base.0, &base.1));
+        assert_eq!(u.len(), 32);
+        assert!(u[..16].iter().all(|x| *x < 0.2) && u[16..].iter().all(|x| *x > 0.2));
+    }
+
+    /// What this shows: the workspace cap is mandatory, a hard limit only lowers it, the
+    /// estimate covers the designs actually allocated, and a request at every declared cap
+    /// is far above the default cap.
+    #[test]
+    fn the_workspace_cap_is_mandatory_and_a_hard_limit_only_lowers_it() {
+        let basis =
+            DoseBasis { degree: 3, knots: (1..=8).map(f64::from).collect(), interactions: true };
+        let width = basis.width(256);
+        assert_eq!(width, 3084);
+        let at_caps = WorkspaceShape {
+            rows: 200_000,
+            source: 120_000,
+            features: 256,
+            width,
+            folds: 20,
+            grid: 16,
+            nodes_per_row: 64 * 9,
+            threads: 1,
+        };
+        let producer = workspace(at_caps, true).unwrap();
+        let replay = workspace(at_caps, false).unwrap();
+        // The producer's outcome design of the source rows alone is 2.96 GB; a replay
+        // allocates one fold's outcome design at a time.
+        assert!(producer >= 8 * 120_000 * 3084 && replay >= 8 * 6000 * 3084);
+        assert!(producer > replay && replay > SMOOTHED_DOSE_MAX_WORKSPACE_BYTES);
+        assert!(workspace(WorkspaceShape { threads: 4, ..at_caps }, true).unwrap() > producer);
+        // A wide design gets fewer rows per chunk: at most 8 MiB of design.
+        assert!(chunk_design_rows(width) * width * 8 <= CHUNK_DESIGN_BYTES);
+        assert_eq!(chunk_design_rows(6), CHUNK_DESIGN_ROWS);
+        let cap = SMOOTHED_DOSE_MAX_WORKSPACE_BYTES;
+        let refused = |r: Result<(), EstimationError>| {
+            matches!(r, Err(EstimationError::Refused { code: "transport_budget_cancel", message })
+                if message.contains("memory cap") && !message.contains("cancel"))
+        };
+        let unlimited = ExecutionContext::for_tests(0);
+        assert!(refused(check_workspace(Some(producer), &unlimited)));
+        assert!(check_workspace(Some(cap), &unlimited).is_ok());
+        assert!(refused(check_workspace(Some(cap + 1), &unlimited)));
+        assert!(refused(check_workspace(None, &unlimited)));
+        let mut raised = ExecutionContext::for_tests(0);
+        raised.memory.hard_limit_bytes = Some(u64::MAX);
+        assert!(refused(check_workspace(Some(cap + 1), &raised)));
+        let mut lowered = ExecutionContext::for_tests(0);
+        lowered.memory.hard_limit_bytes = Some(4096);
+        assert!(check_workspace(Some(4096), &lowered).is_ok());
+        assert!(refused(check_workspace(Some(4097), &lowered)));
     }
 
     #[test]

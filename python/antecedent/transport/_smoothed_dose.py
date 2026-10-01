@@ -18,8 +18,9 @@ basis) and source membership are learned through ``antecedent.learners`` specs a
 cross-fitted on one shared fold assignment. The claim is model double robustness of
 each point (outcome curve or participation model correct, density known); no
 efficiency, rate, CATE, derivative or simultaneous claim is made. Each grid dose
-records its quadrature (numerical) error and a smoothing-bias diagnostic separately;
-neither is ever added to the estimate. The whole-estimator interval is not licensed:
+records its quadrature (numerical) error estimate and a smoothing-bias diagnostic
+separately; neither is ever added to the estimate. The smoothing-bias diagnostic is
+computed from the fitted curve alone (it is zero for a fit linear in the dose). The whole-estimator interval is not licensed:
 its route is closed with ``cell_not_licensed`` until its coverage records are measured.
 The derivation is in ``docs/smoothed-dose-response-transport.md``.
 """
@@ -73,8 +74,11 @@ class DoseBasis:
 class SmoothedDoseOptions:
     """Learners, basis, folds, quadrature, support thresholds and bootstrap request.
 
-    ``quadrature_nodes`` is 16 or 32 (checked against twice as many);
-    ``quadrature_tolerance`` bounds their disagreement at every grid dose.
+    ``quadrature_nodes`` is 16 or 32 per window piece (checked against twice as many);
+    every window is split at the basis knots, so a linear learner's fitted curve is
+    integrated exactly. ``quadrature_tolerance`` caps the largest target-row disagreement
+    of the two rules for any other fitted curve (a tree learner); the disagreement is an
+    error estimate, not a bound.
     ``bootstrap`` requests interval replicates (at most 2000, floor 199): the interval
     route is closed, so the request only changes the reported interval status.
     """
@@ -417,22 +421,46 @@ def prepare_smoothed_dose(
 
 
 def consume_smoothed_dose(
-    artifact: bytes, *, max_rows: int | None = None, max_features: int | None = None
+    artifact: bytes,
+    *,
+    max_rows: int | None = None,
+    max_features: int | None = None,
+    max_memory_bytes: int | None = None,
+    cancel: Any = None,
 ) -> SmoothedDoseEstimate:
     """Independently verify an exported grid and replay it.
 
     The consumer re-derives the certificate, recomputes the folds, re-predicts every
     nuisance from the stored portable fold models, re-integrates the quadrature and
     replays every grid dose bit for bit. It never fits a learner or resamples; it does
-    not establish that the stored models were fitted as recorded.
+    not establish that the stored models were fitted as recorded. Stored premises that
+    do not enter the point (the seed, the sampling design, support thresholds the stored
+    rows still pass) are bound only against unsealed edits.
+
+    ``max_rows`` and ``max_features`` cap the artifact's size; ``max_memory_bytes``
+    lowers the mandatory 512 MiB (536,870,912 bytes) cap on the replay workspace estimate (refused with
+    ``CausalResourceError`` before any replay work); ``cancel`` is polled before every
+    quadrature chunk of the replay.
     """
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
-    for label, value in (("max_rows", max_rows), ("max_features", max_features)):
-        if value is not None and (not isinstance(value, int) or value < 0):
+    for label, value in (
+        ("max_rows", max_rows),
+        ("max_features", max_features),
+        ("max_memory_bytes", max_memory_bytes),
+    ):
+        if value is not None and (
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+        ):
             raise CausalValueError(f"{label} must be a non-negative integer or None")
     return _estimate(
-        _native.consume_smoothed_dose(artifact, max_rows=max_rows, max_features=max_features)
+        _native.consume_smoothed_dose(
+            artifact,
+            max_rows=max_rows,
+            max_features=max_features,
+            max_memory_bytes=max_memory_bytes,
+            cancel=cancel,
+        )
     )
 
 

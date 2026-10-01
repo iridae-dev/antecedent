@@ -71,22 +71,29 @@ impl SmoothedDoseResult {
     /// # Errors
     /// Verification or encoding failure.
     pub fn export(&self) -> Result<Vec<u8>, IoError> {
-        self.wire.verify(SmoothedDoseConsumeLimits::default())?;
+        self.wire.verify(
+            SmoothedDoseConsumeLimits::default(),
+            &ExecutionContext::production_default(self.wire.seed),
+        )?;
         self.wire.export()
     }
 }
 
 /// Independently consume an artifact: re-derive the certificate, recompute the folds,
 /// re-predict every nuisance from the stored fold models and replay the grid bit for
-/// bit, without fitting or resampling.
+/// bit, without fitting or resampling. The replay runs under `limits` (rows, covariates
+/// and a memory limit below the mandatory cap) and `ctx`'s cancellation token and hard
+/// memory limit.
 ///
 /// # Errors
-/// Any decoding or verification failure.
+/// Any decoding or verification failure; a replay workspace above the memory limit;
+/// cancellation (`transport_budget_cancel`).
 pub fn consume_smoothed_dose_artifact(
     bytes: &[u8],
     limits: SmoothedDoseConsumeLimits,
+    ctx: &ExecutionContext,
 ) -> Result<SmoothedDoseResult, IoError> {
-    let consumed = SmoothedDoseArtifactWire::consume(bytes, limits)?;
+    let consumed = SmoothedDoseArtifactWire::consume(bytes, limits, ctx)?;
     let identity = consumed.wire.identity()?;
     Ok(SmoothedDoseResult { wire: consumed.wire, identity })
 }
@@ -153,7 +160,8 @@ impl PreparedSmoothedDose {
     ///
     /// # Errors
     /// Fit, support (`dose_response.membership_overlap`), quadrature
-    /// (`dose_response.quadrature_tolerance`), budget or cancellation failure.
+    /// (`dose_response.quadrature_tolerance`), a workspace estimate above the mandatory
+    /// memory cap or the context's lower hard limit, or cancellation.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<SmoothedDoseResult, IoError> {
         let mut ctx = ctx.clone();
         ctx.rng = antecedent_core::RngFactory::from_seed(self.seed);
@@ -175,6 +183,7 @@ impl PreparedSmoothedDose {
             options: &self.options,
             seed: self.seed,
             result: &result,
+            ctx: &ctx,
         })?;
         let identity = wire.identity()?;
         Ok(SmoothedDoseResult { wire, identity })

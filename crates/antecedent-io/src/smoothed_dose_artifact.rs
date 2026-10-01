@@ -1,9 +1,14 @@
 //! Independent point-result artifacts for the smoothed dose-response transport grid.
 //!
 //! Format version 1 of the 2.2B cell X4 artifact (`checked_smoothed_dose_transport_v1`).
-//! A consumer never fits a learner or resamples. It refuses stored bounds above its own
-//! compiled bounds and a request above its own row and covariate limits before any
-//! work; re-derives the transport certificate from the stored graph and smoothed-dose
+//! A consumer never fits a learner or resamples. Before any replay work it refuses a
+//! stored bound that is looser than this build's compiled bound (compared field by field:
+//! a larger cap, a lower replicate floor or a node count this build does not offer; an
+//! equal or tighter stored bound is accepted, so a v1 artifact stays readable after a
+//! future build raises a cap), a request above the stored bounds, a request above its own
+//! row and covariate limits, and a replay workspace estimate above its memory limit (the
+//! mandatory 512 MiB cap, lowered by the consumer's own limit or context hard memory
+//! limit). It then re-derives the transport certificate from the stored graph and smoothed-dose
 //! query and requires the stored certificate record to match; re-validates the request
 //! (bounds, known density, dose support, local support) exactly as the producer did;
 //! recomputes the shared fold assignment from the stored rows; checks every stored fold
@@ -11,6 +16,8 @@
 //! nuisance from the stored portable fold models, re-integrates every quadrature and
 //! replays the point, the quadrature errors, the smoothing-bias diagnostic, the local
 //! support, the held-out diagnostics, the overlap and the post-fit refusals bit for bit**.
+//! The consumer's cancellation token is polled before every quadrature chunk of the
+//! replay.
 //!
 //! # What replay does and does not establish
 //!
@@ -25,6 +32,16 @@
 //! consumes. The digests are integrity checks against accidental or partial edits, not
 //! authentication. Provider versions are not compared with the consuming build's.
 //!
+//! Some stored premises do not enter the replayed point, so a re-sealed edit of them
+//! consumes: the master **seed** (the fold assignment is deterministic in the source
+//! flags; the seed reaches only the fits, which are not replayed), the **sampling design**
+//! (it only groups the bootstrap, which is not replayed) and the support **thresholds**
+//! (`min_local_ess`, `min_distinct_doses`, `min_dose_density`, `min_membership_probability`):
+//! these are re-validated against the stored rows, so a re-sealed threshold the rows fail
+//! is refused, but one they still pass consumes. The premises digest binds them all
+//! against unsealed edits only. The smoothing-bias diagnostic is replayed from the fitted
+//! curve and so is only as good as the fit (zero for a fit linear in the dose).
+//!
 //! The verified identity is three digests: premises (graph, selections, smoothed-dose
 //! query, certificate, options, seed, fold scheme, frozen bounds, feature schema,
 //! sampling design, variable names), data (rows, doses, known densities) and evidence
@@ -36,6 +53,7 @@ use antecedent_core::{ExecutionContext, IdentityDomain, SmoothedDoseTransportQue
 use antecedent_estimate::smoothed_dose::{
     SMOOTHED_DOSE_BOUNDS, SMOOTHED_DOSE_FOLD_SCHEME, SmoothedDoseBounds,
     evaluate_smoothed_dose_models, parse_smoothing_kernel, smoothed_dose_fold_assignment,
+    smoothed_dose_memory_cap, smoothed_dose_workspace_bytes,
 };
 use antecedent_estimate::{
     EstimationError, SmoothedDoseEstimate, SmoothedDoseInput, SmoothedDoseOptions,
@@ -136,6 +154,10 @@ pub struct SmoothedDoseConsumeLimits {
     pub max_rows: usize,
     /// Most covariates an artifact may carry.
     pub max_features: usize,
+    /// Largest replay workspace estimate accepted, in bytes; the mandatory
+    /// `SMOOTHED_DOSE_MAX_WORKSPACE_BYTES` cap and the context's hard memory limit lower it
+    /// further, never raise it.
+    pub max_memory_bytes: u64,
 }
 
 impl Default for SmoothedDoseConsumeLimits {
@@ -143,6 +165,7 @@ impl Default for SmoothedDoseConsumeLimits {
         Self {
             max_rows: SMOOTHED_DOSE_BOUNDS.max_rows,
             max_features: SMOOTHED_DOSE_BOUNDS.max_features,
+            max_memory_bytes: SMOOTHED_DOSE_BOUNDS.max_workspace_bytes,
         }
     }
 }
@@ -263,6 +286,9 @@ pub struct SmoothedDoseArtifactInput<'a> {
     pub seed: u64,
     /// The executed estimate.
     pub result: &'a SmoothedDoseEstimate,
+    /// The producer's context: its cancellation and memory limit govern the
+    /// self-verification replay.
+    pub ctx: &'a ExecutionContext,
 }
 
 #[derive(Serialize)]
@@ -347,7 +373,7 @@ impl SmoothedDoseArtifactWire {
         wire.premises_digest = wire.expected_premises_digest()?;
         wire.data_digest = wire.expected_data_digest()?;
         wire.evidence_digest = wire.expected_evidence_digest()?;
-        wire.verify(SmoothedDoseConsumeLimits::default())?;
+        wire.verify(SmoothedDoseConsumeLimits::default(), input.ctx)?;
         Ok(wire)
     }
 
@@ -447,17 +473,65 @@ impl SmoothedDoseArtifactWire {
         crate::from_cbor(bytes)
     }
 
-    /// Decode and independently verify without fitting or resampling.
+    /// Decode and independently verify without fitting or resampling, under the caller's
+    /// limits, cancellation token and hard memory limit.
     ///
     /// # Errors
-    /// Any decoding or verification failure.
+    /// Any decoding or verification failure; cancellation during the replay is
+    /// `ReplayRefused` with `transport_budget_cancel`.
     pub fn consume(
         bytes: &[u8],
         limits: SmoothedDoseConsumeLimits,
+        ctx: &ExecutionContext,
     ) -> Result<ConsumedSmoothedDose, IoError> {
         let wire = Self::decode(bytes)?;
-        let identification = wire.verify(limits)?;
+        let identification = wire.verify(limits, ctx)?;
         Ok(ConsumedSmoothedDose { wire, identification })
+    }
+
+    /// The estimated workspace of replaying this artifact under `ctx`'s thread budget
+    /// (evaluation only, no fits); `None` on overflow.
+    #[must_use]
+    pub fn replay_workspace_bytes(&self, ctx: &ExecutionContext) -> Option<u64> {
+        smoothed_dose_workspace_bytes(self.query.grid.len(), &self.input, &self.options, ctx, false)
+    }
+
+    /// A stored bound looser than this build's compiled bound, named; `None` when every
+    /// stored bound is equal to or tighter than the compiled one.
+    fn looser_stored_bound(&self) -> Option<&'static str> {
+        let (stored, own) = (&self.bounds, &SMOOTHED_DOSE_BOUNDS);
+        [
+            (stored.max_grid > own.max_grid, "stored bound max_grid exceeds this build's"),
+            (
+                stored.quadrature_nodes.iter().any(|q| !own.quadrature_nodes.contains(q)),
+                "stored bound quadrature_nodes offers a node count this build does not",
+            ),
+            (stored.max_folds > own.max_folds, "stored bound max_folds exceeds this build's"),
+            (
+                stored.min_bootstrap < own.min_bootstrap,
+                "stored bound min_bootstrap is below this build's floor",
+            ),
+            (
+                stored.max_bootstrap > own.max_bootstrap,
+                "stored bound max_bootstrap exceeds this build's",
+            ),
+            (stored.max_rows > own.max_rows, "stored bound max_rows exceeds this build's"),
+            (
+                stored.max_features > own.max_features,
+                "stored bound max_features exceeds this build's",
+            ),
+            (
+                stored.max_basis_degree > own.max_basis_degree,
+                "stored bound max_basis_degree exceeds this build's",
+            ),
+            (stored.max_knots > own.max_knots, "stored bound max_knots exceeds this build's"),
+            (
+                stored.max_workspace_bytes > own.max_workspace_bytes,
+                "stored bound max_workspace_bytes exceeds this build's",
+            ),
+        ]
+        .into_iter()
+        .find_map(|(looser, name)| looser.then_some(name))
     }
 
     /// Everything that is checked before any replay work: the format, the consumer's
@@ -473,16 +547,19 @@ impl SmoothedDoseArtifactWire {
         if self.input.features.len() > limits.max_features {
             return Err(Refusal::LimitsExceeded("feature count"));
         }
-        if self.bounds != SMOOTHED_DOSE_BOUNDS {
-            return Err(Refusal::LimitsExceeded(
-                "stored bounds are not this build's frozen bounds",
-            ));
+        if let Some(bound) = self.looser_stored_bound() {
+            return Err(Refusal::LimitsExceeded(bound));
         }
         let o = &self.options;
-        if self.query.grid.len() > self.bounds.max_grid
-            || o.folds > self.bounds.max_folds
-            || o.bootstrap > self.bounds.max_bootstrap
-            || !self.bounds.quadrature_nodes.contains(&o.quadrature_nodes)
+        let b = &self.bounds;
+        if self.query.grid.len() > b.max_grid
+            || o.folds > b.max_folds
+            || o.bootstrap > b.max_bootstrap
+            || !b.quadrature_nodes.contains(&o.quadrature_nodes)
+            || n > b.max_rows
+            || self.input.features.len() > b.max_features
+            || o.basis.degree > b.max_basis_degree
+            || o.basis.knots.len() > b.max_knots
         {
             return Err(Refusal::LimitsExceeded("request above the stored frozen bounds"));
         }
@@ -540,18 +617,25 @@ impl SmoothedDoseArtifactWire {
         Ok(())
     }
 
-    /// Verify every stored claim against a replay from the stored models.
+    /// Verify every stored claim against a replay from the stored models, under the
+    /// caller's limits, cancellation token and hard memory limit.
     ///
     /// # Errors
     /// The first failing check, as a typed [`SmoothedDoseArtifactError`].
     pub fn verify(
         &self,
         limits: SmoothedDoseConsumeLimits,
+        ctx: &ExecutionContext,
     ) -> Result<TransportIdentification, IoError> {
         if self.version != SMOOTHED_DOSE_ARTIFACT_VERSION {
             return Err(IoError::UnsupportedVersion { version: self.version });
         }
         self.check_shape(&limits)?;
+        // The replay workspace is refused before anything is allocated for it.
+        let cap = smoothed_dose_memory_cap(ctx).min(limits.max_memory_bytes);
+        if self.replay_workspace_bytes(ctx).is_none_or(|bytes| bytes > cap) {
+            return Err(Refusal::LimitsExceeded("replay workspace above the memory limit").into());
+        }
         if self.premises_digest != self.expected_premises_digest()? {
             return Err(Refusal::PremisesMismatch.into());
         }
@@ -586,14 +670,17 @@ impl SmoothedDoseArtifactWire {
             return Err(Refusal::FoldMismatch.into());
         }
         self.check_provenance()?;
-        let ctx = ExecutionContext::production_default(self.seed);
+        let mut replay_ctx = ExecutionContext::production_default(self.seed);
+        replay_ctx.parallelism = ctx.parallelism;
+        replay_ctx.memory = ctx.memory;
+        replay_ctx.cancellation = ctx.cancellation.clone();
         let replay = evaluate_smoothed_dose_models(
             &query,
             &self.input,
             &self.options,
             &r.folds.assignment,
             &r.models,
-            &ctx,
+            &replay_ctx,
         )
         .map_err(replay_refusal)?;
         for (stored, replayed) in r.grid.iter().zip(&replay.grid) {
@@ -648,5 +735,6 @@ mod tests {
             (b.max_rows, b.max_features, b.max_basis_degree, b.max_knots),
             (200_000, 256, 3, 8)
         );
+        assert_eq!(b.max_workspace_bytes, 512 * 1024 * 1024);
     }
 }

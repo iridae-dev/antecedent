@@ -22,7 +22,8 @@ use antecedent_core::{
     ExecutionContext, NonZeroThreadCount, Parallelism, SmoothedDoseTransportQuery,
 };
 use antecedent_estimate::smoothed_dose::{
-    DoseBasis, SmoothedDoseEstimate, smoothed_dose_bootstrap_groups, smoothed_dose_fold_assignment,
+    DoseBasis, SmoothedDoseEstimate, evaluate_smoothed_dose_models, smoothed_dose_bootstrap_groups,
+    smoothed_dose_fold_assignment, smoothed_dose_replicate, smoothed_dose_workspace_bytes,
 };
 use antecedent_estimate::{
     EstimationError, LearnerSpec, LinearSpec, SmoothedDoseInput, SmoothedDoseOptions,
@@ -33,7 +34,7 @@ use antecedent_io::IoError;
 use antecedent_io::smoothed_dose_artifact::{
     SmoothedDoseArtifactError as Refusal, SmoothedDoseArtifactWire, SmoothedDoseConsumeLimits,
 };
-use antecedent_learn::PredictionMap;
+use antecedent_learn::{PredictionMap, PredictionNode};
 use dgp::{Design, Scenario, diagram, draw, query};
 
 const DESIGNS: [Design; 2] = [Design::NestedCohort, Design::IndependentSamples];
@@ -136,6 +137,40 @@ fn known_truth_curve_under_both_designs() {
         assert!(
             result.diagnostics.outcome_rmse < 1.2 && result.diagnostics.membership_logloss > 0.0
         );
+        // The augmentation is exactly the inverse-odds, inverse-density residual sum over
+        // the source rows, recomputed here from the fitted out-of-fold nuisances and the
+        // design's own density function (not the stored densities): a constant odds weight
+        // or a wrong density moves it.
+        let rows = &plan.wire().input;
+        let q = query(&GRID, H);
+        let fitted = evaluate_smoothed_dose_models(
+            &q,
+            rows,
+            &options(),
+            &result.folds.assignment,
+            &result.models,
+            &ExecutionContext::for_tests(11),
+        )
+        .unwrap();
+        let n0 = rows.source.iter().filter(|s| !**s).count() as f64;
+        for point in &result.grid {
+            let mut sum = 0.0;
+            for i in (0..rows.source.len()).filter(|i| rows.source[*i]) {
+                let (p, z, dose) = (fitted.membership[i], rows.covariates[0][i], rows.dose[i]);
+                let u = (dose - point.dose) / H;
+                let k = if u.abs() <= 1.0 { 0.75 * (1.0 - u * u) / H } else { 0.0 };
+                sum += (1.0 - p) / p * k / dgp::dose_density(dose, z)
+                    * (rows.outcome[i] - fitted.mu_observed[i]);
+            }
+            let recomputed = sum / n0;
+            assert!(
+                (recomputed - point.augmentation).abs() < 1e-9 * (1.0 + recomputed.abs()),
+                "{design:?} a={}: {recomputed} vs {}",
+                point.dose,
+                point.augmentation
+            );
+            assert!(point.augmentation.abs() > 1e-4, "a non-trivial augmentation");
+        }
     }
 }
 
@@ -221,11 +256,18 @@ fn quadrature_matches_exact_integration_and_the_oracle_score_is_centred() {
         }
     }
     // (b) The estimator's quadrature of every stored fold model equals the model's exact
-    // kernel integral (Gauss-Legendre with 32 nodes is exact for this polynomial basis).
+    // kernel integral. Every window is split at the knots inside it, so each piece is a
+    // polynomial of degree at most 3 and both rules are exact; with knots inside every
+    // window (and every half-bandwidth window) the hinge integral is exact too.
     let input = draw(Design::IndependentSamples, Scenario::Good, 2000, 1500, 3);
-    for basis in [DoseBasis::default(), DoseBasis { degree: 3, knots: vec![], interactions: true }]
-    {
-        let opts = SmoothedDoseOptions { basis: basis.clone(), ..options() };
+    for basis in [
+        DoseBasis::default(),
+        DoseBasis { degree: 3, knots: vec![], interactions: true },
+        DoseBasis { degree: 2, knots: vec![0.8, 2.1, 2.9], interactions: true },
+        DoseBasis { degree: 1, knots: vec![1.1, 1.95, 2.05, 3.3], interactions: false },
+    ] {
+        let opts =
+            SmoothedDoseOptions { basis: basis.clone(), quadrature_tolerance: 1e-300, ..options() };
         let q = query(&GRID, H);
         let result = antecedent_estimate::estimate_smoothed_dose(
             &identify(&q),
@@ -236,6 +278,9 @@ fn quadrature_matches_exact_integration_and_the_oracle_score_is_centred() {
         )
         .unwrap();
         for point in &result.grid {
+            let inside = basis.knots.iter().filter(|k| (**k - point.dose).abs() < H).count();
+            assert_eq!(point.quadrature.pieces, inside + 1, "{basis:?}");
+            assert!(point.quadrature.exact && point.quadrature.max_row_error < 1e-12);
             let exact = exact_plug_in(&result, &input, &basis, point.dose, H);
             assert!(
                 (point.plug_in - exact).abs() < 1e-10,
@@ -308,72 +353,119 @@ fn smoothing_bias_is_reported_apart_and_the_estimate_targets_psi_h() {
     }
 }
 
-/// The trial-only kernel-weighted comparator: `mean_trial K_h(a - A) Y / pi`, an estimator
-/// that ignores source membership (it converges to the trial population's `psi_h`).
-fn trial_only(input: &SmoothedDoseInput, a: f64, h: f64) -> f64 {
-    let rows: Vec<usize> = (0..input.source.len()).filter(|i| input.source[*i]).collect();
-    rows.iter()
-        .map(|&i| {
+/// The weighting-only comparator with the fitted out-of-fold odds:
+/// `(1/n_0) sum_S omega_hat K_h(a - A) Y / pi`, which relies on the membership model alone.
+fn weighting_only(input: &SmoothedDoseInput, membership: &[f64], a: f64, h: f64) -> f64 {
+    let n0 = input.source.iter().filter(|s| !**s).count() as f64;
+    (0..input.source.len())
+        .filter(|i| input.source[*i])
+        .map(|i| {
             let u = (input.dose[i] - a) / h;
             let k = if u.abs() <= 1.0 { 0.75 * (1.0 - u * u) / h } else { 0.0 };
-            k * input.outcome[i] / input.dose_density[i]
+            (1.0 - membership[i]) / membership[i] * k * input.outcome[i] / input.dose_density[i]
         })
         .sum::<f64>()
-        / rows.len() as f64
+        / n0
 }
 
+/// What this shows: model double robustness, one nuisance wrong at a time, at off-centre
+/// grid doses where both the covariate shift and the dose-density tilt matter, with a
+/// tolerance of four influence-function standard errors.
+///
+/// * Outcome wrong, membership right (`Robust`: the truth has a `z a^2` term, the fit is
+///   linear in the dose with interactions, so the fit's error `(1 + z) r(t)` varies with
+///   `z`). The composed estimator is within tolerance; the plug-in is not. Here a
+///   constant odds weight (membership ignored) or a constant dose density in the
+///   residual weight misses by several standard errors, so this case sees both.
+/// * Membership wrong, outcome right (`RobustVarianceShift`: a linear logistic against
+///   log odds quadratic in `z`). The composed estimator is within tolerance while the
+///   weighting-only estimator that uses the same fitted odds is visibly wrong, so the
+///   odds really are wrong.
+///
+/// Both wrong at once is outside the claim and is not asserted.
 #[test]
+#[allow(clippy::too_many_lines, reason = "two robustness cases under two designs")]
 fn misspecified_nuisance_cases_match_only_the_claimed_robustness() {
-    // Model double robustness: one nuisance family wrong, the other right, each with a
-    // real target shift. Both wrong at once is outside the claim and is not asserted.
-    const TOLERANCE: f64 = 0.35;
+    let grid = [0.75, 1.5, 2.5, 3.25];
+    let q = query(&grid, H);
+    let id = identify(&q);
     for design in DESIGNS {
-        // Outcome family wrong (linear in the dose; the truth is quadratic), membership
-        // right. The outcome plug-in misses the curvature over the window (about 1.28 at
-        // a = 2) and the trial-only comparator misses the covariate shift (0.7 * 2).
-        let scenario = Scenario::ShiftedFar;
+        // Outcome family wrong, membership right.
+        let scenario = Scenario::Robust;
         let wrong_outcome = SmoothedDoseOptions {
             basis: DoseBasis { degree: 1, knots: vec![], interactions: true },
-            min_membership_probability: 0.02,
+            min_membership_probability: 0.01,
             ..options()
         };
-        let input = draw(design, scenario, 4000, 3000, 5);
+        let input = draw(design, scenario, 60_000, 45_000, 41);
+        let ctx = ExecutionContext::for_tests(41);
         let result =
-            estimate(design, scenario, &[2.0], H, (4000, 3000), &wrong_outcome, 5).unwrap();
-        let point = &result.grid[0];
-        let truth = scenario.truth(2.0, H);
-        assert!(
-            (point.estimate - truth).abs() < TOLERANCE,
-            "{design:?}: {} vs {truth}",
-            point.estimate
-        );
-        let trial = trial_only(&input, 2.0, H);
-        for (name, alternative) in [("plug-in", point.plug_in), ("trial-only", trial)] {
-            assert!(
-                (alternative - truth).abs() > 2.5 * TOLERANCE,
-                "{design:?}: the {name} alternative {alternative} is not visibly wrong ({truth})"
-            );
-        }
-        assert!((trial - Scenario::trial_only(2.0, H)).abs() < 0.4, "{design:?}: {trial}");
-
-        // Membership family wrong (variance-shifted target: quadratic log odds against a
-        // linear logistic), outcome right. Ignoring membership misses 0.5 (1 + a/2).
-        let scenario = Scenario::VarianceShift;
-        let input = draw(design, scenario, 4000, 3000, 6);
-        let result =
-            estimate(design, scenario, &[2.5, 3.0], H, (4000, 3000), &options(), 6).unwrap();
+            antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &wrong_outcome, &ctx)
+                .unwrap();
+        let mut plug_in_misses = 0;
         for point in &result.grid {
             let truth = scenario.truth(point.dose, H);
+            let se = point.influence_se_diagnostic;
+            assert!(se > 0.0 && se < 0.08, "{design:?} a={}: se {se}", point.dose);
+            let tolerance = 4.0 * se;
+            eprintln!(
+                "outcome-wrong {design:?} a={}: estimate {:+.4} plug-in {:+.4} se {se:.4}",
+                point.dose,
+                point.estimate - truth,
+                point.plug_in - truth
+            );
             assert!(
-                (point.estimate - truth).abs() < 0.3,
-                "{design:?} a={}: {} vs {truth}",
+                (point.estimate - truth).abs() < tolerance,
+                "{design:?} a={}: {} vs {truth} (tolerance {tolerance})",
                 point.dose,
                 point.estimate
             );
-            let trial = trial_only(&input, point.dose, H);
+            if (point.plug_in - truth).abs() > 2.5 * tolerance {
+                plug_in_misses += 1;
+            }
+            // The smoothing-bias diagnostic sees only the fitted curve: it is exactly zero
+            // for a fit linear in the dose although the true curve bends ((1 + z) a^2).
+            assert!(point.smoothing_bias.half_bandwidth_difference.abs() < 1e-9);
+        }
+        assert!(plug_in_misses >= 3, "{design:?}: the outcome plug-in is visibly wrong");
+
+        // Membership family wrong, outcome right.
+        let scenario = Scenario::RobustVarianceShift;
+        let input = draw(design, scenario, 20_000, 15_000, 42);
+        let ctx = ExecutionContext::for_tests(42);
+        let result =
+            antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &ctx).unwrap();
+        let fitted = evaluate_smoothed_dose_models(
+            &q,
+            &input,
+            &options(),
+            &result.folds.assignment,
+            &result.models,
+            &ctx,
+        )
+        .unwrap();
+        for point in &result.grid {
+            let truth = scenario.truth(point.dose, H);
+            let se = point.influence_se_diagnostic;
+            assert!(se > 0.0 && se < 0.25, "{design:?} a={}: se {se}", point.dose);
+            let tolerance = 4.0 * se;
+            let weighted = weighting_only(&input, &fitted.membership, point.dose, H);
+            eprintln!(
+                "membership-wrong {design:?} a={}: estimate {:+.4} weighting-only {:+.4} se {se:.4}",
+                point.dose,
+                point.estimate - truth,
+                weighted - truth
+            );
             assert!(
-                (trial - truth).abs() > 2.5 * 0.3,
-                "{design:?}: ignoring membership ({trial}) is not visibly wrong ({truth})"
+                (point.estimate - truth).abs() < tolerance,
+                "{design:?} a={}: {} vs {truth} (tolerance {tolerance})",
+                point.dose,
+                point.estimate
+            );
+            assert!(
+                (weighted - truth).abs() > 2.0 * tolerance,
+                "{design:?} a={}: the fitted odds ({weighted}) are not visibly wrong ({truth})",
+                point.dose
             );
         }
     }
@@ -584,15 +676,35 @@ fn requests_outside_the_cell_refuse_with_their_details() {
     };
     assert!(validate(&q, &rows(200_000), &options()).is_ok());
     assert!(bounds_refused(validate(&q, &rows(200_001), &options())));
-    // Covariates: 256 pass the bound (and then fail the certificate), 257 are refused by it.
-    let widen = |k: usize| {
-        let mut wide = base.clone();
-        wide.features = (0..k as u32).collect();
-        wide.covariates = vec![base.covariates[0].clone(); k];
-        wide
+    // Covariates: a certificate that really standardizes over 256 covariates validates;
+    // one over 257 is refused by the bound.
+    let wide = |k: usize| {
+        let mut graph = antecedent_graph::Admg::with_variables(k as u32 + 2);
+        for from in 0..=k {
+            graph
+                .insert_directed(
+                    antecedent_graph::DenseNodeId::from_raw(from as u32),
+                    antecedent_graph::DenseNodeId::from_raw(k as u32 + 1),
+                )
+                .unwrap();
+        }
+        let selected: Vec<_> = (0..k as u32).map(antecedent_core::VariableId::from_raw).collect();
+        let diagram = antecedent_graph::SelectionDiagram::try_new(graph, selected).unwrap();
+        let wide_query = SmoothedDoseTransportQuery {
+            dose: antecedent_core::VariableId::from_raw(k as u32),
+            outcome: antecedent_core::VariableId::from_raw(k as u32 + 1),
+            ..query(&GRID, H)
+        };
+        let id =
+            TransportIdentifier::new().identify(&diagram, &wide_query.transport_query()).unwrap();
+        let mut rows = base.clone();
+        rows.features = (0..k as u32).collect();
+        rows.covariates =
+            (0..k).map(|j| base.covariates[0].iter().map(|z| z + j as f64).collect()).collect();
+        antecedent_estimate::validate_smoothed_dose(&id, &wide_query, &rows, &options())
     };
-    assert!(!bounds_refused(validate(&q, &widen(256), &options())));
-    assert!(bounds_refused(validate(&q, &widen(257), &options())));
+    assert!(wide(256).is_ok(), "{:?}", wide(256));
+    assert!(bounds_refused(wide(257)));
     // A replicate request below the floor keeps the point and withholds the interval.
     let below = SmoothedDoseOptions { bootstrap: 50, ..options() };
     let result = prepare(query(&GRID, H), base.clone(), below.clone(), 2)
@@ -608,6 +720,45 @@ fn requests_outside_the_cell_refuse_with_their_details() {
     assert_eq!(estimation_refusal(&error).0, "estimator_inference_mismatch");
 }
 
+/// A portable regression tree over the hinge design `[1, t, (t - 2.1)_+, z]`: for `z <= 0`
+/// a step in the dose at `1.93` (not a knot, so splitting the window does not remove it),
+/// for `z > 0` a constant.
+fn step_tree(
+    provenance: antecedent_learn::LearnerProvenance,
+) -> antecedent_learn::PortablePredictor {
+    let split = |feature, threshold, left, right| PredictionNode::Split {
+        feature,
+        threshold,
+        inclusive: true,
+        left,
+        right,
+        missing: right,
+    };
+    antecedent_learn::PortablePredictor {
+        version: 1,
+        columns: 4,
+        provenance,
+        model: PredictionMap::Trees {
+            trees: vec![vec![
+                split(3, 0.0, 1, 4),
+                split(1, 1.93, 2, 3),
+                PredictionNode::Leaf { value: Some(0.0) },
+                PredictionNode::Leaf { value: Some(3.0) },
+                PredictionNode::Leaf { value: Some(1.0) },
+            ]],
+            base: 0.0,
+            average: false,
+            logistic: false,
+            probability: false,
+        },
+    }
+}
+
+/// What this shows: (a) a linear fit on a hinge basis is integrated exactly once every
+/// window is split at the knot, so a kinked fitted curve never needs a tolerance; (b) a
+/// fitted curve that is not piecewise polynomial between the split points (a step, as a
+/// tree learner fits) is gated on the largest target-row difference of the two rules,
+/// which refuses at a tolerance the grid-averaged difference would pass.
 #[test]
 fn a_kinked_fitted_curve_surfaces_its_quadrature_error_and_refuses_at_a_tight_tolerance() {
     let input = draw(Design::IndependentSamples, Scenario::Kinked, 3000, 2000, 31);
@@ -629,50 +780,54 @@ fn a_kinked_fitted_curve_surfaces_its_quadrature_error_and_refuses_at_a_tight_to
             &ExecutionContext::for_tests(31),
         )
     };
-    // A tight tolerance refuses: the kink inside the window defeats the 16-node rule.
-    let error = run(16, 1e-6).unwrap_err();
-    let (code, message) = estimation_refusal(&error);
-    assert_eq!(code, "transport_numerical_failure");
-    assert!(message.starts_with("dose_response.quadrature_tolerance"), "{message}");
-    // A loose one passes and records the error, separate from the point.
-    let coarse = run(16, 1e-2).unwrap();
-    let fine = run(32, 1e-2).unwrap();
-    let (c, f) = (&coarse.grid[0], &fine.grid[0]);
-    assert!(c.quadrature.estimate_error > 1e-5, "{:?}", c.quadrature);
-    // The error shrinks as Q grows, and it tracks the exact integration error of the
-    // coarse rule on the fitted hinge curve (closed-form hinge moment).
-    assert!(
-        f.quadrature.estimate_error < c.quadrature.estimate_error,
-        "{:?} {:?}",
-        c.quadrature,
-        f.quadrature
-    );
-    // Both runs fit the same models (same rows, folds and seed); only the rules differ.
-    assert_eq!(coarse.models, fine.models);
-    let exact = exact_plug_in(&coarse, &input, &hinge, 2.0, H);
-    // `c.plug_in` is the 32-node rule and `f.plug_in` the 64-node rule: each is closer to
-    // the exact integral than the one before, and the recorded 16-vs-32 difference
-    // exceeds the 32-node rule's own error (it estimates the coarse rule's error).
-    let error_32 = (c.plug_in - exact).abs();
-    let error_64 = (f.plug_in - exact).abs();
-    assert!(error_64 < error_32, "{error_64} vs {error_32}");
-    assert!(error_32 < c.quadrature.estimate_error, "{error_32} vs {:?}", c.quadrature);
-    assert!(error_32 > 1e-7, "the kink is visible to the 32-node rule: {error_32}");
-    assert!(c.quadrature.max_row_error >= c.quadrature.estimate_error);
-    // The truth of the kinked curve at a = 2 is recovered by the fitted hinge curve.
-    let truth = 2.0 + 3.0 * kernel_hinge(2.0, H, 2.1) + 0.6;
-    assert!((f.estimate - truth).abs() < 0.2, "{} vs {truth}", f.estimate);
-    // A polynomial fitted curve needs no tolerance: both rules agree to rounding.
-    let smooth = SmoothedDoseOptions { quadrature_tolerance: 1e-9, ..options() };
-    let polynomial = antecedent_estimate::estimate_smoothed_dose(
-        &id,
-        &q,
-        &draw(Design::IndependentSamples, Scenario::Good, 3000, 2000, 31),
-        &smooth,
-        &ExecutionContext::for_tests(31),
-    )
-    .unwrap();
-    assert!(polynomial.grid[0].quadrature.estimate_error < 1e-12);
+    // (a) The kink at 2.1 lies inside the window [1.5, 2.5]: two pieces, both rules exact,
+    // the point equal to the closed-form hinge integral, no tolerance gated.
+    for nodes in [16, 32] {
+        let result = run(nodes, 1e-300).unwrap();
+        let point = &result.grid[0];
+        assert!(point.quadrature.exact, "{:?}", point.quadrature);
+        assert_eq!(point.quadrature.pieces, 2);
+        assert!(point.quadrature.max_row_error < 1e-12, "{:?}", point.quadrature);
+        let exact = exact_plug_in(&result, &input, &hinge, 2.0, H);
+        assert!((point.plug_in - exact).abs() < 1e-10, "{} vs {exact}", point.plug_in);
+        let truth = 2.0 + 3.0 * kernel_hinge(2.0, H, 2.1) + 0.6;
+        assert!((point.estimate - truth).abs() < 0.2, "{} vs {truth}", point.estimate);
+    }
+    // (b) Replace every fold's outcome model with a step-shaped tree and evaluate.
+    let fitted = run(16, 1e-6).unwrap();
+    let mut models = fitted.models.clone();
+    for model in &mut models.outcome {
+        *model = step_tree(model.provenance.clone());
+    }
+    let evaluate = |tolerance: f64| {
+        let opts = SmoothedDoseOptions {
+            basis: hinge.clone(),
+            quadrature_tolerance: tolerance,
+            ..options()
+        };
+        evaluate_smoothed_dose_models(
+            &q,
+            &input,
+            &opts,
+            &fitted.folds.assignment,
+            &models,
+            &ExecutionContext::for_tests(31),
+        )
+    };
+    let loose = evaluate(1.0).unwrap();
+    let record = &loose.grid[0].quadrature;
+    assert!(!record.exact && record.pieces == 2, "{record:?}");
+    // Rows with z > 0 see a constant curve and no error, so the grid-averaged difference
+    // is strictly below the largest row difference.
+    assert!(record.max_row_error > 1e-4, "{record:?}");
+    assert!(record.estimate_error < 0.8 * record.max_row_error, "{record:?}");
+    for tolerance in [(record.estimate_error + record.max_row_error) / 2.0, 1e-9] {
+        let error = evaluate(tolerance).unwrap_err();
+        let (code, message) = estimation_refusal(&error);
+        assert_eq!(code, "transport_numerical_failure");
+        assert!(message.starts_with("dose_response.quadrature_tolerance"), "{message}");
+    }
+    assert!(evaluate(record.max_row_error).is_ok());
 }
 
 #[test]
@@ -956,7 +1111,11 @@ fn exported(design: Design) -> (Vec<u8>, SmoothedDoseArtifactWire) {
 }
 
 fn refused(bytes: &[u8]) -> Refusal {
-    match consume_smoothed_dose_artifact(bytes, SmoothedDoseConsumeLimits::default()) {
+    match consume_smoothed_dose_artifact(
+        bytes,
+        SmoothedDoseConsumeLimits::default(),
+        &ExecutionContext::for_tests(0),
+    ) {
         Err(IoError::SmoothedDose(kind)) => kind,
         other => {
             panic!("expected a typed refusal, got {:?}", other.map(|r| r.identity().to_owned()))
@@ -968,8 +1127,12 @@ fn refused(bytes: &[u8]) -> Refusal {
 fn the_exported_grid_is_replayed_by_an_independent_consumer() {
     for design in DESIGNS {
         let (bytes, wire) = exported(design);
-        let consumed =
-            consume_smoothed_dose_artifact(&bytes, SmoothedDoseConsumeLimits::default()).unwrap();
+        let consumed = consume_smoothed_dose_artifact(
+            &bytes,
+            SmoothedDoseConsumeLimits::default(),
+            &ExecutionContext::for_tests(0),
+        )
+        .unwrap();
         assert_eq!(consumed.estimate(), &wire.result);
         assert_eq!(consumed.identity(), wire.identity().unwrap());
         assert_eq!(wire.certificate.formula, "standardize");
@@ -1218,6 +1381,7 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     let error = consume_smoothed_dose_artifact(
         &mutate(&original, |w| w.input.dose_density[row] = 0.0, true),
         SmoothedDoseConsumeLimits::default(),
+        &ExecutionContext::for_tests(0),
     )
     .unwrap_err();
     assert_eq!(error.reason_code(), Some("transport_support_failure"));
@@ -1229,7 +1393,8 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     assert!(matches!(
         consume_smoothed_dose_artifact(
             &bytes,
-            SmoothedDoseConsumeLimits { max_rows: 10, ..Default::default() }
+            SmoothedDoseConsumeLimits { max_rows: 10, ..Default::default() },
+            &ExecutionContext::for_tests(0)
         ),
         Err(IoError::SmoothedDose(Refusal::LimitsExceeded("row count")))
     ));
@@ -1238,14 +1403,23 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     entries.push((ciborium::Value::Text("interval".into()), ciborium::Value::Array(vec![])));
     let mut with_interval = Vec::new();
     ciborium::into_writer(&ciborium::Value::Map(entries), &mut with_interval).unwrap();
-    assert!(
-        consume_smoothed_dose_artifact(&with_interval, SmoothedDoseConsumeLimits::default())
-            .is_err()
-    );
+    // An interval field is an unknown field of the v1 wire: a typed CBOR decode failure
+    // naming it, before any verification.
+    match consume_smoothed_dose_artifact(
+        &with_interval,
+        SmoothedDoseConsumeLimits::default(),
+        &ExecutionContext::for_tests(0),
+    ) {
+        Err(IoError::Cbor(message)) => {
+            assert!(message.contains("unknown field") && message.contains("interval"), "{message}");
+        }
+        other => panic!("expected a CBOR unknown-field error, got {:?}", other.err()),
+    }
     assert!(matches!(
         consume_smoothed_dose_artifact(
             &mutate(&original, |w| w.version = 2, false),
-            SmoothedDoseConsumeLimits::default()
+            SmoothedDoseConsumeLimits::default(),
+            &ExecutionContext::for_tests(0)
         ),
         Err(IoError::UnsupportedVersion { version: 2 })
     ));
@@ -1272,50 +1446,266 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
     forged.result.diagnostics = replay.diagnostics;
     forged.result.overlap = replay.overlap;
     let forged = mutate(&forged, |_| {}, true);
-    assert!(consume_smoothed_dose_artifact(&forged, SmoothedDoseConsumeLimits::default()).is_ok());
+    assert!(
+        consume_smoothed_dose_artifact(
+            &forged,
+            SmoothedDoseConsumeLimits::default(),
+            &ExecutionContext::for_tests(0)
+        )
+        .is_ok()
+    );
+    // Premises that do not enter the replayed point consume when re-sealed: the seed (the
+    // folds are deterministic in the source flags and the fits are not replayed), the
+    // sampling design (it only groups the bootstrap) and a support threshold the stored
+    // rows still pass. A threshold the rows fail is refused by re-validation.
+    let replays = |edit: fn(&mut SmoothedDoseArtifactWire)| {
+        consume_smoothed_dose_artifact(
+            &mutate(&original, edit, true),
+            SmoothedDoseConsumeLimits::default(),
+            &ExecutionContext::for_tests(0),
+        )
+    };
+    for edit in [
+        (|w: &mut SmoothedDoseArtifactWire| w.seed += 1) as fn(&mut SmoothedDoseArtifactWire),
+        |w| w.input.sampling = antecedent_estimate::TrialSampling::IndependentSamples,
+        |w| w.options.min_local_ess = 2.0,
+        |w| w.options.min_distinct_doses = 2,
+        |w| w.options.min_dose_density = 1e-6,
+        |w| w.options.min_membership_probability = 0.01,
+    ] {
+        assert!(replays(edit).is_ok());
+    }
+    assert!(matches!(
+        replays(|w| w.options.min_local_ess = 1e9),
+        Err(IoError::SmoothedDose(Refusal::ReplayRefused { code: "transport_support_failure", ref message }))
+            if message.starts_with("dose_response.local_dose_ess")
+    ));
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "one limit per assertion group")]
 fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
     let (bytes, original) = exported(Design::IndependentSamples);
     let limits = SmoothedDoseConsumeLimits::default();
-    let consumed = SmoothedDoseArtifactWire::consume(&bytes, limits).unwrap();
+    let ctx = ExecutionContext::for_tests(0);
+    let consumed = SmoothedDoseArtifactWire::consume(&bytes, limits, &ctx).unwrap();
     assert_eq!(consumed.wire.result, original.result);
     assert_eq!(consumed.identification, identify(&query(&GRID, H)));
-    let coded = |bytes: &[u8], limits| match SmoothedDoseArtifactWire::consume(bytes, limits) {
-        Err(IoError::SmoothedDose(kind)) => kind,
-        Err(other) => panic!("expected a typed refusal, got {other}"),
-        Ok(_) => panic!("expected a refusal"),
-    };
+    let coded =
+        |bytes: &[u8], limits, ctx: &ExecutionContext| match SmoothedDoseArtifactWire::consume(
+            bytes, limits, ctx,
+        ) {
+            Err(IoError::SmoothedDose(kind)) => kind,
+            Err(other) => panic!("expected a typed refusal, got {other}"),
+            Ok(_) => panic!("expected a refusal"),
+        };
     let rows = original.input.source.len();
     assert_eq!(
-        coded(&bytes, SmoothedDoseConsumeLimits { max_rows: rows - 1, ..limits }),
+        coded(&bytes, SmoothedDoseConsumeLimits { max_rows: rows - 1, ..limits }, &ctx),
         Refusal::LimitsExceeded("row count")
     );
     assert_eq!(
-        coded(&bytes, SmoothedDoseConsumeLimits { max_features: 0, ..limits }),
+        coded(&bytes, SmoothedDoseConsumeLimits { max_features: 0, ..limits }, &ctx),
         Refusal::LimitsExceeded("feature count")
     );
     assert!(
         SmoothedDoseArtifactWire::consume(
             &bytes,
-            SmoothedDoseConsumeLimits { max_rows: rows, ..limits }
+            SmoothedDoseConsumeLimits { max_rows: rows, ..limits },
+            &ctx
         )
         .is_ok()
     );
-    // The stored bounds must be this build's: a forged, larger bound is a limits refusal
-    // before any replay work.
-    let forged = mutate(&original, |w| w.bounds.max_rows = 10_000_000, true);
-    assert_eq!(
-        coded(&forged, limits),
-        Refusal::LimitsExceeded("stored bounds are not this build's frozen bounds")
+    // Stored bounds are compared field by field with this build's: a looser stored bound
+    // (a larger cap, a lower replicate floor, a node count this build lacks) is a named
+    // limits refusal before any replay work.
+    for (edit, name) in [
+        (
+            (|w: &mut SmoothedDoseArtifactWire| w.bounds.max_rows = 10_000_000)
+                as fn(&mut SmoothedDoseArtifactWire),
+            "stored bound max_rows exceeds this build's",
+        ),
+        (|w| w.bounds.max_grid = 17, "stored bound max_grid exceeds this build's"),
+        (|w| w.bounds.min_bootstrap = 99, "stored bound min_bootstrap is below this build's floor"),
+        (
+            |w| w.bounds.quadrature_nodes = [16, 64],
+            "stored bound quadrature_nodes offers a node count this build does not",
+        ),
+        (
+            |w| w.bounds.max_workspace_bytes += 1,
+            "stored bound max_workspace_bytes exceeds this build's",
+        ),
+    ] {
+        assert_eq!(
+            coded(&mutate(&original, edit, true), limits, &ctx),
+            Refusal::LimitsExceeded(name)
+        );
+    }
+    // A tighter stored bound (a producer built with lower caps) is accepted and replays,
+    // as long as the stored request lies inside it; the bounds stay in the premises digest.
+    let tighter = mutate(
+        &original,
+        |w| {
+            w.bounds.max_rows = w.input.source.len();
+            w.bounds.max_grid = 3;
+            w.bounds.max_folds = 3;
+            w.bounds.quadrature_nodes = [16, 16];
+            w.bounds.max_workspace_bytes = 64 << 20;
+        },
+        true,
     );
+    let replayed = SmoothedDoseArtifactWire::consume(&tighter, limits, &ctx).unwrap();
+    assert_eq!(replayed.wire.result, original.result);
+    assert_ne!(replayed.wire.premises_digest, original.premises_digest);
+    assert_eq!(
+        coded(
+            &mutate(&original, |w| w.bounds.max_rows = w.input.source.len() - 1, true),
+            limits,
+            &ctx
+        ),
+        Refusal::LimitsExceeded("request above the stored frozen bounds")
+    );
+    assert_eq!(
+        refused(&mutate(&original, |w| w.bounds.max_rows = w.input.source.len(), false)),
+        Refusal::PremisesMismatch
+    );
+    // The replay workspace estimate is capped: at the limit it replays, one byte below it
+    // is refused before any replay work, through the consumer's own limit or its
+    // context's hard memory limit.
+    let workspace = original.replay_workspace_bytes(&ctx).unwrap();
+    assert!(workspace < limits.max_memory_bytes);
+    assert!(
+        SmoothedDoseArtifactWire::consume(
+            &bytes,
+            SmoothedDoseConsumeLimits { max_memory_bytes: workspace, ..limits },
+            &ctx
+        )
+        .is_ok()
+    );
+    assert_eq!(
+        coded(
+            &bytes,
+            SmoothedDoseConsumeLimits { max_memory_bytes: workspace - 1, ..limits },
+            &ctx
+        ),
+        Refusal::LimitsExceeded("replay workspace above the memory limit")
+    );
+    let mut tight = ExecutionContext::for_tests(0);
+    tight.memory.hard_limit_bytes = Some(workspace - 1);
+    assert_eq!(
+        coded(&bytes, limits, &tight),
+        Refusal::LimitsExceeded("replay workspace above the memory limit")
+    );
+    // A consumer limit above the mandatory cap does not raise it.
+    assert!(
+        SmoothedDoseArtifactWire::consume(
+            &bytes,
+            SmoothedDoseConsumeLimits { max_memory_bytes: u64::MAX, ..limits },
+            &ctx
+        )
+        .is_ok()
+    );
+    // The consumer's cancellation token reaches the replay: every pre-replay check passes,
+    // then the replay's first chunk poll refuses with the registered reason code.
+    let cancelled = ExecutionContext::for_tests(0);
+    cancelled.cancellation.cancel();
+    let refusal = coded(&bytes, limits, &cancelled);
+    assert!(
+        matches!(&refusal, Refusal::ReplayRefused { code: "transport_budget_cancel", message } if message.contains("cancelled")),
+        "{refusal:?}"
+    );
+    assert_eq!(refusal.reason_code(), Some("transport_budget_cancel"));
+    // A certificate forgery is still reported as such under the cancelled token: the
+    // cancellation is observed inside the replay, after the proof check.
+    assert!(matches!(
+        coded(
+            &mutate(&original, |w| w.certificate.rule = "forged".into(), true),
+            limits,
+            &cancelled
+        ),
+        Refusal::ProofMismatch(_)
+    ));
     let foreign = mutate(&original, |w| w.required_features = vec!["other_v9".into()], false);
-    assert!(matches!(coded(&foreign, limits), Refusal::UnsupportedSemantics(_)));
+    assert!(matches!(coded(&foreign, limits, &ctx), Refusal::UnsupportedSemantics(_)));
     assert!(!matches!(
-        SmoothedDoseArtifactWire::consume(&bytes[..bytes.len() / 2], limits),
+        SmoothedDoseArtifactWire::consume(&bytes[..bytes.len() / 2], limits, &ctx),
         Err(IoError::SmoothedDose(_))
     ));
+}
+
+/// What this shows: a bootstrap replicate keeps every drawn row in the fold the point
+/// run gave it (a row drawn twice sits in one fold twice), rather than dealing the
+/// replicate's rows afresh.
+#[test]
+fn a_bootstrap_replicate_reuses_the_point_run_fold_of_every_drawn_row() {
+    let ctx = ExecutionContext::for_tests(5);
+    for design in DESIGNS {
+        let input = draw(design, Scenario::Good, 300, 200, 5);
+        let point_folds = smoothed_dose_fold_assignment(&input, 3);
+        let groups = smoothed_dose_bootstrap_groups(&input);
+        for replicate in 0..5 {
+            let rows = antecedent_estimate::learned_trial::bootstrap_rows(&groups, replicate, &ctx)
+                .unwrap();
+            let (sample, folds) = smoothed_dose_replicate(&input, &point_folds, &rows);
+            assert_eq!((sample.source.len(), folds.len()), (rows.len(), rows.len()));
+            for (j, i) in rows.iter().enumerate() {
+                assert_eq!(folds[j], point_folds[*i], "row {i} drawn at {j}");
+                assert_eq!(sample.outcome[j].to_bits(), input.outcome[*i].to_bits());
+                assert_eq!(sample.source[j], input.source[*i]);
+            }
+            // A duplicated row keeps one fold across its copies.
+            let mut seen = std::collections::BTreeMap::new();
+            let mut duplicates = 0;
+            for (j, i) in rows.iter().enumerate() {
+                if let Some(previous) = seen.insert(*i, folds[j]) {
+                    assert_eq!(previous, folds[j]);
+                    duplicates += 1;
+                }
+            }
+            assert!(duplicates > 50, "{duplicates}");
+            // Dealing the replicate's rows afresh would move rows to other folds.
+            assert_ne!(folds, smoothed_dose_fold_assignment(&sample, 3));
+        }
+    }
+}
+
+/// What this shows: overlap is gated on every row, target rows included. One target row
+/// far outside the source covariate range drives its out-of-fold membership below the
+/// floor while every source row stays above it, and the estimate refuses.
+#[test]
+fn a_target_row_below_the_membership_floor_refuses_even_when_every_source_row_clears_it() {
+    let q = query(&GRID, H);
+    let id = identify(&q);
+    let ctx = ExecutionContext::for_tests(19);
+    let mut input = draw(Design::IndependentSamples, Scenario::Good, 1500, 1000, 19);
+    let target = input.source.iter().position(|s| !*s).unwrap();
+    input.covariates[0][target] = 9.0;
+    let error =
+        antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &ctx).unwrap_err();
+    let (code, message) = estimation_refusal(&error);
+    assert_eq!(code, "transport_support_failure");
+    assert!(message.starts_with("dose_response.membership_overlap"), "{message}");
+    // The same fold models under a negligible floor: every source row clears 0.05, the
+    // edited target row does not.
+    let loose = SmoothedDoseOptions { min_membership_probability: 1e-300, ..options() };
+    let fitted =
+        antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &loose, &ctx).unwrap();
+    let evaluation = evaluate_smoothed_dose_models(
+        &q,
+        &input,
+        &loose,
+        &fitted.folds.assignment,
+        &fitted.models,
+        &ctx,
+    )
+    .unwrap();
+    let source_min = (0..input.source.len())
+        .filter(|i| input.source[*i])
+        .map(|i| evaluation.membership[i])
+        .fold(f64::INFINITY, f64::min);
+    assert!(source_min > 0.05, "{source_min}");
+    assert!(evaluation.membership[target] < 0.05, "{}", evaluation.membership[target]);
+    assert_eq!(evaluation.overlap.probability_min, evaluation.membership[target]);
 }
 
 #[test]
@@ -1351,12 +1741,28 @@ fn the_estimator_layer_returns_the_grid_and_refuses_directly() {
     // The seeded estimator layer and the prepared facade agree bit for bit.
     let facade = prepare(q.clone(), input.clone(), options(), 21).unwrap().estimate(&ctx).unwrap();
     assert_eq!(facade.estimate(), &direct);
-    // A hard memory limit below the workspace refuses before any fit.
+    // The mandatory workspace cap: a hard memory limit equal to the workspace estimate
+    // runs, one byte below it refuses before any fit (a resource refusal, not a
+    // cancellation).
+    let workspace =
+        smoothed_dose_workspace_bytes(q.grid.len(), &input, &options(), &ctx, true).unwrap();
+    assert!(workspace < 512 * 1024 * 1024);
+    // The estimate covers the rows and the designs actually allocated.
+    let (n, n1) = (input.source.len(), input.source.iter().filter(|s| **s).count());
+    assert!(workspace >= 8 * (n * 2 + 2 * n1 * 6) as u64, "{workspace}");
+    let mut exact = ExecutionContext::for_tests(21);
+    exact.memory.hard_limit_bytes = Some(workspace);
+    assert_eq!(
+        antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &exact).unwrap(),
+        direct
+    );
     let mut tight = ExecutionContext::for_tests(21);
-    tight.memory.hard_limit_bytes = Some(1 << 16);
+    tight.memory.hard_limit_bytes = Some(workspace - 1);
     let error = antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &tight)
         .unwrap_err();
-    assert_eq!(estimation_refusal(&error).0, "transport_budget_cancel");
+    let (code, message) = estimation_refusal(&error);
+    assert_eq!(code, "transport_budget_cancel");
+    assert!(message.contains("memory cap") && !message.contains("cancel"), "{message}");
     // Cancellation before execution refuses too.
     let cancelled = ExecutionContext::for_tests(21);
     cancelled.cancellation.cancel();

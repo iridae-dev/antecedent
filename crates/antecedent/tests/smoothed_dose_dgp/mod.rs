@@ -24,11 +24,14 @@
 //!
 //! * `Good`: target `z ~ N(0.6, 1)`; both nuisance families correct with a degree-2
 //!   dose basis with interactions and a linear logistic membership (equal variances).
-//! * `ShiftedFar`: target `z ~ N(0.7, 1)`; used with a degree-1 outcome basis (linear in
-//!   the dose while the truth is quadratic), so the outcome family is wrong and the
-//!   membership family is right.
-//! * `VarianceShift`: target `z ~ N(0.5, 1.4^2)`; the log sample odds are quadratic in
-//!   `z`, outside a linear logistic model; the outcome family is right.
+//! * `Robust`: target `z ~ N(0.8, 1)` and the outcome `y = a^2 + z (1 + a/2) + z a^2 + e`,
+//!   whose smoothed target is `psi_h(a) = (a^2 + h^2/5)(1 + m_T) + m_T (1 + a/2)`. A fit
+//!   linear in the dose (degree-1 basis, interactions kept) misses `(1 + z)` times the
+//!   curvature, an error that varies with `z`, so neither a constant odds weight nor a
+//!   wrong dose density can repair it; the linear logistic membership is right.
+//! * `RobustVarianceShift`: the `Robust` outcome with target `z ~ N(0.5, 1.4^2)`; the log
+//!   sample odds are quadratic in `z`, outside a linear logistic model, so the fitted odds
+//!   are wrong; the degree-2 basis with interactions is the right outcome family.
 //! * `WeakOverlap`: target `z ~ N(3, 1)`; membership probabilities vanish in the tail.
 //! * `Kinked`: target `z ~ N(0.6, 1)`, hinge outcome at `2.1`; `psi_h` is not needed, only
 //!   the quadrature of the fitted hinge curve.
@@ -63,8 +66,8 @@ impl Design {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Scenario {
     Good,
-    ShiftedFar,
-    VarianceShift,
+    Robust,
+    RobustVarianceShift,
     WeakOverlap,
     Kinked,
 }
@@ -74,27 +77,26 @@ impl Scenario {
     pub const fn target_law(self) -> (f64, f64) {
         match self {
             Self::Good | Self::Kinked => (0.6, 1.0),
-            Self::ShiftedFar => (0.7, 1.0),
-            Self::VarianceShift => (0.5, 1.4),
+            Self::Robust => (0.8, 1.0),
+            Self::RobustVarianceShift => (0.5, 1.4),
             Self::WeakOverlap => (3.0, 1.0),
         }
     }
 
-    /// The closed-form smoothed target `psi_h(a)` of the quadratic outcome.
+    /// The closed-form smoothed target `psi_h(a)` of the quadratic outcome (and of the
+    /// `Robust` outcome, whose `z a^2` term adds `m_T (a^2 + h^2/5)`).
     pub fn truth(self, a: f64, h: f64) -> f64 {
         let (mean, _) = self.target_law();
-        a * a + h * h / 5.0 + mean * (1.0 + a / 2.0)
+        let curvature = match self {
+            Self::Robust | Self::RobustVarianceShift => 1.0 + mean,
+            _ => 1.0,
+        };
+        (a * a + h * h / 5.0) * curvature + mean * (1.0 + a / 2.0)
     }
 
     /// The point curve `psi_0(a)`.
     pub fn point_curve(self, a: f64) -> f64 {
         self.truth(a, 0.0)
-    }
-
-    /// What the trial-only kernel-weighted comparator converges to: `E_trial[nu_h]`,
-    /// the smoothed response in the trial population (`E_trial[z] = 0`).
-    pub fn trial_only(a: f64, h: f64) -> f64 {
-        a * a + h * h / 5.0
     }
 }
 
@@ -107,6 +109,9 @@ pub fn dose_density(dose: f64, z: f64) -> f64 {
 pub fn mean_outcome(scenario: Scenario, dose: f64, z: f64) -> f64 {
     match scenario {
         Scenario::Kinked => dose + 3.0 * (dose - 2.1).max(0.0) + z,
+        Scenario::Robust | Scenario::RobustVarianceShift => {
+            dose * dose + z * (1.0 + dose / 2.0) + z * dose * dose
+        }
         _ => dose * dose + z * (1.0 + dose / 2.0),
     }
 }

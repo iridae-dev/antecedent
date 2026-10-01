@@ -247,23 +247,29 @@ fn smoothed_dose_estimator_menu(
 }
 
 /// Independently recheck a framed artifact: re-derive the certificate, recompute the
-/// folds, re-predict from the stored fold models and replay the grid.
+/// folds, re-predict from the stored fold models and replay the grid, under the row,
+/// covariate and memory limits and the cancellation token.
 #[pyfunction]
-#[pyo3(signature=(artifact, *, max_rows=None, max_features=None))]
+#[pyo3(signature=(artifact, *, max_rows=None, max_features=None, max_memory_bytes=None, cancel=None))]
 fn consume_smoothed_dose(
     py: Python<'_>,
     artifact: &[u8],
     max_rows: Option<usize>,
     max_features: Option<usize>,
+    max_memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let (names, bytes) = unframe_named_artifact(PREFIX, artifact, "smoothed dose")?;
     let defaults = SmoothedDoseConsumeLimits::default();
     let limits = SmoothedDoseConsumeLimits {
         max_rows: max_rows.unwrap_or(defaults.max_rows),
         max_features: max_features.unwrap_or(defaults.max_features),
+        max_memory_bytes: max_memory_bytes.unwrap_or(defaults.max_memory_bytes),
     };
+    let ctx = execution_context(0, None, cancel);
     crate::detach_catch(py, move || {
-        let result = antecedent::consume_smoothed_dose_artifact(&bytes, limits).map_err(error)?;
+        let result =
+            antecedent::consume_smoothed_dose_artifact(&bytes, limits, &ctx).map_err(error)?;
         result.wire().check_variable_names(&names).map_err(error)?;
         Ok(estimate_json(&result, &names))
     })
