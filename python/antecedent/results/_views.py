@@ -661,9 +661,17 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: Bayesian counterfactuals publish the equal-tailed posterior quantiles of
     #: each unit's ITE draws (``"unit_posterior_quantile"``): a credible interval for
     #: that observed unit's contrast under the fitted mechanism, carrying
-    #: mechanism-refit uncertainty only. Frequentist counterfactuals have no
-    #: per-unit construction and leave all three ``None``
-    #: (``gcm.counterfactual.uncertainty_unavailable``).
+    #: mechanism-refit uncertainty only. Frequentist counterfactuals leave all
+    #: three ``None`` by design (``gcm.counterfactual.uncertainty_unavailable``):
+    #: a unit's ITE is not identified from data, only computed under the fitted
+    #: SCM; it depends jointly on every path mechanism and on disturbances
+    #: abducted with the same fitted parameters (or one seeded noise draw
+    #: downstream of a discrete mechanism), and mechanism families are selected
+    #: on the same data. The refit construction that carries this uncertainty is
+    #: the Bayesian one above (``inference=Bayesian(...)``). For a frequentist
+    #: pointwise interval on the conditional average effect ``tau(x)`` rather
+    #: than a unit ITE, see the Rust ``DrLearner::fit_pointwise_profiles``
+    #: (uncalibrated; ``docs/dr-pointwise-cate.md``).
     unit_effect_intervals: list[tuple[float, float]] | None = None
     unit_effect_intervals_level: float | None = None
     unit_effect_intervals_method: str | None = None

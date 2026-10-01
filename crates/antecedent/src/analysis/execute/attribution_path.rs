@@ -312,7 +312,7 @@ fn execute_checked_counterfactual_plan(
                 "gcm.counterfactual.uncertainty_unavailable",
                 DiagnosticKind::Scientific,
                 DiagnosticSeverity::Info,
-                "Unit effects condition on fitted mechanisms and abducted disturbances; sampling uncertainty is unavailable.",
+                "Unit effects condition on fitted mechanisms and abducted disturbances; sampling uncertainty is unavailable. No Frequentist per-unit interval is published (counterfactual.unit_effect_intervals is None): a unit's ITE Y_i(a)-Y_i(a0) is not identified from data, only computed under the fitted SCM; its value depends jointly on every path mechanism's parameters and on disturbances abducted with those same parameters (or, downstream of a discrete mechanism, on one seeded noise draw); and each mechanism family is selected on this data, so a delta-method interval conditional on the selected family would ignore selection. The refit construction that does carry this uncertainty is the Bayesian cell's Dirichlet mechanism-refit posterior, whose per-unit unit_posterior_quantile intervals are published under inference=Bayesian. For a frequentist pointwise interval on the conditional average effect tau(x) rather than a unit ITE, see DrLearner::fit_pointwise_profiles (uncalibrated).",
             )
         },
     ];

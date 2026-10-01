@@ -562,8 +562,25 @@ pub struct IteResult {
     /// Shared exogenous state.
     pub exogenous: ExogenousPosterior,
     /// Per-unit posterior intervals, when the inference mode produced per-unit
-    /// draws (Bayesian). `None` for Frequentist results, which carry no
-    /// per-unit construction.
+    /// draws (Bayesian: `unit_posterior_quantile`, a credible interval for the
+    /// observed unit's contrast under the fitted mechanism, mechanism-refit
+    /// uncertainty only, not a predictive interval for a new unit).
+    ///
+    /// `None` for Frequentist results, deliberately. The unit effect
+    /// `Y_i(a) - Y_i(a0)` is not identified from data; it is computed under the
+    /// fitted SCM. Its value depends jointly on every path mechanism's
+    /// parameters and on disturbances abducted with those same parameters (or,
+    /// downstream of a discrete mechanism, on one seeded noise draw under a
+    /// rank-preserving coupling, which no sampling interval describes), and
+    /// each mechanism family is selected on the same data, so a delta-method
+    /// interval conditional on the selected family would ignore selection. The
+    /// refit construction that carries this uncertainty is the Bayesian
+    /// Dirichlet mechanism-refit posterior, already published and calibrated
+    /// under `InferenceMode::Bayesian`; a frequentist copy of it would target
+    /// the same object. A pointwise interval for the conditional average effect
+    /// `tau(x)` (not a unit ITE) is `DrLearner::fit_pointwise_profiles`
+    /// (uncalibrated). The diagnostic `gcm.counterfactual.uncertainty_unavailable`
+    /// carries this reason on the result.
     pub unit_effect_intervals: Option<UnitEffectIntervals>,
     /// Per-unit extrapolation flags, aligned with [`Self::unit_effects`]: `true`
     /// when the unit's prediction into the arm it did not receive leaves that

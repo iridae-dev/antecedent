@@ -1334,7 +1334,17 @@ Counterfactual primitives exist:
 validation `none`, Frequentist and Bayesian, as a two-world GCM ITE. Unit ITEs
 are exact only for invertible additive-noise mechanisms; downstream of a
 discrete or state-space mechanism a unit effect is one sampled counterfactual
-that varies with the seed. Nested counterfactuals, temporal trajectories,
+that varies with the seed. Per-unit intervals (`IteResult::unit_effect_intervals`)
+are published only under Bayesian inference, as the posterior quantiles of each
+unit's mechanism-refit draws (`unit_posterior_quantile`). Frequentist unit effects
+carry none, by design: a unit ITE is not identified from data, it depends jointly
+on every fitted path mechanism and on disturbances abducted with those same
+parameters, and mechanism families are selected on the same data, so a
+delta-method interval would ignore selection (diagnostic
+`gcm.counterfactual.uncertainty_unavailable`). A pointwise interval for the
+conditional average effect tau(x), a different estimand, is
+[`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md) (uncalibrated).
+Nested counterfactuals, temporal trajectories,
 graph-posterior structure, and cheap/full validation remain refused. The public license is the
 [support matrix](support-matrix.md).
 
