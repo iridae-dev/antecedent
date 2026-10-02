@@ -44,7 +44,9 @@
 //! the witness is the whole proof, no completeness theorem is used. Otherwise
 //! the decision is [`ConditionalTransportDecision::NotCertified`] with an
 //! inspection-only [`ConditionalObstructionCandidate`] (the reduced joint's
-//! s-hedge), never an impossibility claim. That an s-hedge for the reduced
+//! s-hedge), never an impossibility claim; a budget or cancellation stop inside
+//! the search is an [`ConditionalTransportDecision::Exhausted`] receipt like a
+//! stop in any other stage. That an s-hedge for the reduced
 //! joint with a maximal moved set always makes the conditional
 //! non-transportable is Theorem 1 of Lee, Correa and Bareinboim (AAAI 2020),
 //! read but not relied on.
@@ -126,8 +128,8 @@ const INVALID_DERIVATION: &str = "admg_transport.invalid_derivation";
 /// Stage names, in evaluation order.
 const STAGES: [&str; 3] = ["rule_two_reduction", "classical_sid", "catalog_binding"];
 /// The stage that runs instead of catalog binding when sID does not certify the
-/// reduced joint: the two-model witness search. It is not one of [`STAGES`]
-/// (receipts list the three identification stages).
+/// reduced joint: the two-model witness search. It is not one of [`STAGES`]: a
+/// receipt lists it as the unevaluated stage only when the stop landed in it.
 const WITNESS_STAGE: &str = "conditional_witness";
 
 /// The frozen `(reason code, admg_transport.* detail)` pair of an error the
@@ -928,12 +930,14 @@ fn check_reduction(
 /// and its independent re-check (one charge per separation test of either),
 /// the classical sID decision of the reduced
 /// joint (every engine step and the witness check), and the classical catalog
-/// search binding it. A stop anywhere is [`ConditionalTransportDecision::Exhausted`],
-/// never a verdict. When sID does not certify the reduced joint, the two-model
-/// witness search runs instead of the binding (one charge per attempt); a
-/// verified witness is [`ConditionalTransportDecision::ProvenNonTransportable`],
-/// and no witness or a stop inside that search is
-/// [`ConditionalTransportDecision::NotCertified`].
+/// search binding it. When sID does not certify the reduced joint, the two-model
+/// witness search runs instead of the binding (one charge per parameter block
+/// and one per null-space direction tried, each with the attempt's live-state
+/// estimate); a verified witness is
+/// [`ConditionalTransportDecision::ProvenNonTransportable`], and no witness is
+/// [`ConditionalTransportDecision::NotCertified`]. A stop anywhere, the witness
+/// search included, is [`ConditionalTransportDecision::Exhausted`] with a
+/// receipt of explored and unevaluated stages, never a verdict.
 ///
 /// # Errors
 /// Limits above [`ADMG_CONDITIONAL_DEFAULT_LIMITS`] or a query outside the bounds
@@ -1079,11 +1083,16 @@ pub(super) fn decide_charged(
 
 /// The witness stage of a decision whose reduced joint sID did not certify:
 /// search for an exactly verified two-model witness of the conditional query
-/// ([`super::conditional_witness`]), one charge of `search` per attempt. A
-/// verified witness is [`ConditionalTransportDecision::ProvenNonTransportable`];
-/// no witness, or a budget or cancellation stop inside this stage, keeps the
-/// decision `not_certified` (nothing is claimed either way) and names the stage
-/// outcome (`no_witness`, `out_of_scope` above the search bounds, or `stopped`).
+/// ([`super::conditional_witness`]), one charge of `search` per parameter block
+/// and one per null-space direction tried, each with the attempt's own
+/// live-state estimate. A verified witness is
+/// [`ConditionalTransportDecision::ProvenNonTransportable`]; no witness keeps
+/// the decision `not_certified` (nothing is claimed either way) and names the
+/// stage outcome (`no_witness`, or `out_of_scope` above the search bounds). A
+/// budget or cancellation stop inside this stage is
+/// [`ConditionalTransportDecision::Exhausted`] like a stop in any other stage:
+/// its receipt lists the two finished stages as explored and this one as
+/// unevaluated, so a stop is never read as a search that ran out of ideas.
 #[allow(clippy::too_many_arguments)] // The decision's state at the hand-off.
 fn witness_stage(
     diagram: &SelectionDiagram,
@@ -1096,15 +1105,16 @@ fn witness_stage(
     ctx: &ExecutionContext,
 ) -> Result<ConditionalTransportDecision, IdentificationError> {
     use super::SearchCharge;
-    let bytes = u64::try_from(sid_memory_bytes(diagram, 1)).unwrap_or(u64::MAX);
+    search.begin_stage();
     let found = search_conditional_witness(
         diagram,
         query,
-        &mut || search.charge(1, bytes).map_err(super::stop_error),
+        &mut |bytes| search.charge(1, bytes).map_err(super::stop_error),
         ctx,
     );
     let outcome = match found {
         Ok(WitnessSearch::Found(witness, check)) => {
+            search.end_stage();
             let witness = *witness;
             return Ok(ConditionalTransportDecision::ProvenNonTransportable(Box::new(
                 ConditionalNonTransportabilityProof {
@@ -1119,9 +1129,17 @@ fn witness_stage(
         }
         Ok(WitnessSearch::NotFound) => "no_witness",
         Ok(WitnessSearch::OutOfScope) => "out_of_scope",
-        Err(error) if error.is_budget_or_cancel() => "stopped",
+        Err(error) if error.is_budget_or_cancel() => {
+            let receipt = search.receipt(
+                search.stop_of(&error),
+                STAGES[..2].iter().map(|s| format!("stage:{s}")).collect(),
+                vec![format!("stage:{WITNESS_STAGE}")],
+            );
+            return Ok(ConditionalTransportDecision::Exhausted(receipt));
+        }
         Err(error) => return Err(error),
     };
+    search.end_stage();
     stages.push(ConditionalStageRecord { stage: WITNESS_STAGE, outcome });
     Ok(ConditionalTransportDecision::NotCertified(ConditionalTransportInspection {
         detail: NOT_CERTIFIED,
@@ -1471,5 +1489,96 @@ mod tests {
             "the stop lands in the catalog binding, after both stages were retained"
         );
         assert!(matches!(at(cumulative), ConditionalTransportDecision::Identified(_)));
+    }
+
+    /// A budget stop inside the witness search is an exhausted receipt naming the
+    /// two finished stages and the witness stage, never a `not_certified`
+    /// verdict; the witness attempts charge their own live-state estimate (more
+    /// than the diagram's sID estimate), and a memory cap between the two stops
+    /// the decision in the witness stage.
+    #[test]
+    fn a_stop_inside_the_witness_search_is_a_receipt_never_not_certified() {
+        // X(0) -> Y(1) -> W(2), X <-> Y, selection on Y: the reduced joint has
+        // an s-hedge and the witness search proves the query.
+        let mut graph = Admg::with_variables(3);
+        graph.insert_directed(d(0), d(1)).unwrap();
+        graph.insert_directed(d(1), d(2)).unwrap();
+        graph.insert_bidirected(d(0), d(1)).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [v(1)]).unwrap();
+        let query = ConditionalTransportQuery {
+            base: ClassicalTransportQuery {
+                outcomes: Arc::from([v(1)]),
+                treatments: Arc::from([v(0)]),
+                source: Arc::from("source"),
+                target: Arc::from("target"),
+            },
+            conditioned_on: Arc::from([v(2)]),
+        };
+        let catalog = full_catalog();
+        let ctx = ExecutionContext::for_tests(1);
+        let limits = ADMG_CONDITIONAL_DEFAULT_LIMITS;
+        let mut full = SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
+        let decided = decide_charged(&diagram, &query, &catalog, &mut full, &ctx).unwrap();
+        assert!(matches!(decided, ConditionalTransportDecision::ProvenNonTransportable(_)));
+        let total = full.operations();
+        let witness_peak = full.peak_bytes();
+        // The last charge is a witness attempt: one operation short stops there.
+        let short = SearchLimits { operations: total - 1, depth: limits.depth };
+        let ConditionalTransportDecision::Exhausted(receipt) =
+            decide_admg_conditional_transport(&diagram, &query, &catalog, short, &ctx).unwrap()
+        else {
+            panic!("a stop inside the witness search is a receipt");
+        };
+        assert_eq!(receipt.stop, antecedent_core::SearchStop::Operations);
+        assert_eq!(receipt.operations_consumed, Some(total - 1));
+        assert_eq!(receipt.explored, ["stage:rule_two_reduction", "stage:classical_sid"]);
+        assert_eq!(receipt.unevaluated, ["stage:conditional_witness"]);
+        // The witness stage charges its own live-state estimate on top of the
+        // two retained stages, and that estimate exceeds the sID one.
+        let mut alone = SharedSearch::new(SearchBudget::new(limits, &ctx).unwrap());
+        alone.begin_stage();
+        let (moves, remaining) = reduce_checked(&diagram, &query, &mut alone).unwrap();
+        alone.end_stage();
+        alone.begin_stage();
+        let reduced = reduced_query(&query, &moves, &remaining);
+        identify_classical_transport_metered(&diagram, &reduced, alone.meter(), &ctx).unwrap();
+        alone.end_stage();
+        let before_witness = alone.peak_bytes();
+        let attempt = witness_peak - before_witness;
+        assert!(
+            attempt > u64::try_from(sid_memory_bytes(&diagram, 1)).unwrap(),
+            "the witness attempt charges {attempt} bytes"
+        );
+        let mut tight = ExecutionContext::for_tests(1);
+        tight.memory =
+            MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(witness_peak - 1) };
+        let ConditionalTransportDecision::Exhausted(receipt) =
+            decide_admg_conditional_transport(&diagram, &query, &catalog, limits, &tight).unwrap()
+        else {
+            panic!("a memory stop inside the witness search is a receipt");
+        };
+        assert_eq!(receipt.stop, antecedent_core::SearchStop::Memory);
+        assert_eq!(receipt.unevaluated, ["stage:conditional_witness"]);
+        // A cancellation observed inside the witness search is a cancellation
+        // receipt naming that stage; enough checks let the decision prove.
+        let mut inside_witness = 0usize;
+        for checks in 1..5_000 {
+            let mut cancelled = ExecutionContext::for_tests(1);
+            cancelled.cancellation =
+                antecedent_core::CancellationToken::cancel_after_checks(checks);
+            match decide_admg_conditional_transport(&diagram, &query, &catalog, limits, &cancelled)
+                .unwrap()
+            {
+                ConditionalTransportDecision::Exhausted(receipt) => {
+                    assert_eq!(receipt.stop, antecedent_core::SearchStop::Cancelled);
+                    inside_witness +=
+                        usize::from(receipt.unevaluated == ["stage:conditional_witness"]);
+                }
+                ConditionalTransportDecision::ProvenNonTransportable(_) => break,
+                other => panic!("a cancellation never yields not_certified: {other:?}"),
+            }
+            assert!(checks < 4_999, "the decision never finished");
+        }
+        assert!(inside_witness > 0, "a cancellation landed inside the witness search");
     }
 }

@@ -511,7 +511,9 @@ fn level(
     Ok(Level { x_mask, x_bits, w_mask, w_bits, y_mask, y_bits })
 }
 
-/// `P*(y | do(x), w)` at `level` in `model`.
+/// `P*(y | do(x), w)` at `level` in `model`; `None` on overflow or when the
+/// conditioning event has no mass (impossible for a strictly positive model,
+/// still refused rather than divided).
 fn query_value(shape: &Shape, model: &Integral, at: &Level) -> Option<Q> {
     let (mut num, mut den) = (Q::ZERO, Q::ZERO);
     for world in 0..(1usize << shape.n) {
@@ -556,8 +558,9 @@ fn evaluate(
         }
     }
     let at = level(shape, query, record)?;
-    let a = query_value(shape, &first, &at).ok_or_else(overflow)?;
-    let b = query_value(shape, &second, &at).ok_or_else(overflow)?;
+    let no_value = || rejected("arithmetic overflow or a zero-mass conditioning event");
+    let a = query_value(shape, &first, &at).ok_or_else(no_value)?;
+    let b = query_value(shape, &second, &at).ok_or_else(no_value)?;
     Ok((a, b, compared))
 }
 
@@ -998,22 +1001,37 @@ fn model_record(shape: &Shape, model: &Model) -> WitnessModelRecord {
     }
 }
 
+/// Live-state estimate (bytes) of one search attempt on a block of `columns`
+/// parameters: the base model's tables (row, source and target factors per
+/// node, world and latent configuration) and the two Jacobians (every supplied
+/// law cell, and every query cell, by every column).
+fn attempt_bytes(shape: &Shape, configs: usize, law_cells: usize, columns: usize) -> u64 {
+    let word = std::mem::size_of::<u64>() as u64;
+    let worlds = 1u64 << shape.n;
+    let tables =
+        3u64.saturating_mul(shape.n as u64).saturating_mul(worlds).saturating_mul(configs as u64);
+    let jacobians = (law_cells as u64).saturating_add(worlds).saturating_mul(columns as u64);
+    tables.saturating_add(jacobians).saturating_mul(word)
+}
+
 /// Search for a verified two-model witness of `query`'s non-transportability.
 ///
 /// Deterministic and bounded: at most three latent cardinalities times two
-/// seeds times one attempt per parameter block, each attempt preceded by
-/// `charge` (the caller's budget), and nothing is attempted when one model's
-/// enumeration exceeds an internal bound. Returns `Ok(None)` when no attempt
-/// produced a pair the exact verifier accepts (`NotFound`) and `OutOfScope`
-/// when the diagram is too large to attempt; a found record has been verified
-/// by [`verify_conditional_witness`].
+/// seeds times one parameter block at a time, with one `charge` (the caller's
+/// budget, carrying the live-state estimate in bytes) for each block's linear
+/// algebra and one more for every null-space direction tried, so every unit
+/// of work is metered; nothing is attempted when one model's enumeration
+/// exceeds an internal bound. Returns `NotFound` when no attempt produced a pair the exact
+/// verifier accepts and `OutOfScope` when the diagram is too large to attempt;
+/// a found record has been accepted by [`verify_conditional_witness`], whose
+/// check travels with it.
 ///
 /// # Errors
 /// Whatever `charge` returns (budget or cancellation), or an invalid query.
 pub fn search_conditional_witness(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
-    charge: &mut dyn FnMut() -> Result<(), IdentificationError>,
+    charge: &mut dyn FnMut(u64) -> Result<(), IdentificationError>,
     ctx: &ExecutionContext,
 ) -> Result<WitnessSearch, IdentificationError> {
     validate(diagram, query)?;
@@ -1050,8 +1068,11 @@ pub fn search_conditional_witness(
                 .map(|&(t, mask, world)| tables.cell(shape.n, t, mask, world, &latent))
                 .collect();
             for block in blocks {
-                charge()?;
                 let columns = block_columns(&shape, &base, block);
+                let bytes = attempt_bytes(&shape, tables.configs, cells.len(), columns.len());
+                // One charge for the block's linear algebra (its Jacobians and
+                // null space) ...
+                charge(bytes)?;
                 if columns.is_empty() || columns.len() > SEARCH_MAX_BLOCK_PARAMETERS {
                     continue;
                 }
@@ -1067,9 +1088,9 @@ pub fn search_conditional_witness(
                     jacobian(&shape, &base.cards, &tables, block, &columns, &cells)
                 };
                 for direction in null_space(jac, columns.len()) {
-                    if ctx.cancellation.is_cancelled() {
-                        return Err(IdentificationError::Cancelled);
-                    }
+                    // ... and one for every null-space direction tried (its
+                    // screening, lifting, perturbation and exact check).
+                    charge(bytes)?;
                     // The query's change along the direction, modulo P.
                     let q1: Vec<u64> = gradient
                         .iter()
@@ -1097,16 +1118,14 @@ pub fn search_conditional_witness(
                         first_value: String::new(),
                         second_value: String::new(),
                     };
-                    // The exact verifier is the only certificate.
+                    // The exact verifier is the only certificate: the pair's
+                    // values are read off once, and the record then passes
+                    // through the public verifier exactly as a consumer runs it.
                     match evaluate(&shape, query, &record, ctx) {
-                        Ok((a, b, cells_compared)) if a != b => {
+                        Ok((a, b, _)) if a != b => {
                             record.first_value = a.to_text();
                             record.second_value = b.to_text();
-                            let check = ConditionalWitnessCheck {
-                                cells_compared,
-                                first_value: record.first_value.clone(),
-                                second_value: record.second_value.clone(),
-                            };
+                            let check = verify_conditional_witness(diagram, query, &record, ctx)?;
                             return Ok(WitnessSearch::Found(Box::new(record), check));
                         }
                         Err(IdentificationError::Cancelled) => {

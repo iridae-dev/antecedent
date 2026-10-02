@@ -279,7 +279,7 @@ fn every_three_node_conditional_query_matches_the_enumerated_truth() {
                                             let search = search_conditional_witness(
                                                 &scm.diagram(),
                                                 &query(&[y], &treatments, &[w]),
-                                                &mut || Ok(()),
+                                                &mut |_| Ok(()),
                                                 &ctx,
                                             )
                                             .unwrap();

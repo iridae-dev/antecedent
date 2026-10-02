@@ -687,3 +687,38 @@ def test_the_obstruction_consumer_reverifies_the_exported_witness():
         tampered[offset] ^= 0xFF
         with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
             transport.consume_admg_conditional_obstruction_artifact(bytes(tampered))
+
+
+def test_an_exported_obstruction_replays_after_its_builder_is_discarded():
+    builder = decide(selected=("y",))
+    witness = builder.decision()["witness"]
+    artifact = builder.export_obstruction()
+    del builder
+    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    assert consumed["witness"] == witness
+    assert witness_holds(consumed["witness"], NAMES)
+    # An obstruction retains no plan to execute: the proven stage refuses to
+    # prepare one, while an identified stage's retained plan estimates normally.
+    with pytest.raises(CausalUnsupportedError, match="proven_non_transportable"):
+        decide(selected=("y",)).prepare_exact(laws(), REQUESTS)
+    prepared = decide().prepare_exact(laws(), REQUESTS)
+    assert prepared.plan()["compiled_plans"] == len(REQUESTS)
+    assert prepared.estimate()
+
+
+def test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data():
+    builder = decide(selected=("y",))
+    artifact = builder.export_obstruction()
+    del builder
+    # Bytes alone: no catalog, law or plan is supplied, and a point artifact is
+    # not an obstruction (the retained plan of a point route is a different format).
+    consumed = json.loads(transport.consume_admg_conditional_obstruction_artifact(artifact))
+    assert consumed["identification_status"] == "proven_non_transportable"
+    assert consumed["remaining"] == ["w"]
+    prepared = decide().prepare_exact(laws(), REQUESTS)
+    assert prepared.estimate()
+    prepared.estimate()
+    point = prepared.plan()
+    assert point["compiled_plans"] == len(REQUESTS)
+    with pytest.raises((CausalSerializationError, CausalUnsupportedError)):
+        transport.consume_admg_conditional_obstruction_artifact(artifact[:-10])

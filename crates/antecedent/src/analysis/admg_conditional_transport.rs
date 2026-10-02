@@ -117,17 +117,6 @@ pub fn consume_admg_conditional_obstruction_artifact(
     Ok(AdmgConditionalObstructionWire::consume(bytes, ctx)?.proof)
 }
 
-/// Counted laws have no sampling theory on this route: refused before compiling.
-fn refuse_counted_laws(data: &ExactTransportData) -> Result<(), IoError> {
-    if data.laws().iter().any(|law| law.empirical_counts().is_some()) {
-        return Err(IoError::Refused {
-            code: antecedent_core::reason_code!("cell_not_licensed"),
-            message: "admg_transport.interval_withheld: counted laws are not licensed; the route publishes exact-law points only".into(),
-        });
-    }
-    Ok(())
-}
-
 impl StudyBuilder {
     /// Prepare exact-law evaluation of a decided conditional functional for
     /// `requests` (each binding exactly the treatments and conditioned
@@ -157,7 +146,6 @@ impl StudyBuilder {
             .derivation()
             .recheck(&diagram, search, ctx)
             .map_err(admg_conditional_identification_error)?;
-        refuse_counted_laws(&data)?;
         let plans = compile(&functional, &data, &requests, limits, ctx)?;
         Ok(PreparedAdmgConditionalTransport {
             diagram,
@@ -171,6 +159,9 @@ impl StudyBuilder {
     }
 }
 
+/// One plan per request. Counted laws are refused here by the estimate-level
+/// preparation (`cell_not_licensed`, `admg_transport.interval_withheld`) before
+/// anything compiles: this route has no sampling theory.
 fn compile(
     functional: &BoundConditionalTransportFunctional,
     data: &ExactTransportData,
@@ -222,7 +213,6 @@ impl PreparedAdmgConditionalTransport {
     ) -> Result<Self, IoError> {
         antecedent_estimate::refuse_cancelled(ctx, "admg conditional transport refresh")
             .map_err(estimate_err)?;
-        refuse_counted_laws(&data)?;
         let plans = compile(&self.functional, &data, &self.requests, self.limits, ctx)?;
         Ok(Self { data, plans, ..self.clone() })
     }

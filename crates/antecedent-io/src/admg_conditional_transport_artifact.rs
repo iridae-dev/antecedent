@@ -411,6 +411,25 @@ struct VersionPeek {
     version: u32,
 }
 
+/// Refuse any format version but `expected` before the payload is interpreted.
+fn peek_version(bytes: &[u8], expected: u32) -> Result<(), IoError> {
+    let peek: VersionPeek = crate::from_cbor(bytes)?;
+    if peek.version == expected {
+        Ok(())
+    } else {
+        Err(AdmgConditionalArtifactError::UnsupportedVersion { version: peek.version }.into())
+    }
+}
+
+/// A stored name mapping is empty or names every one of `nodes` coordinates
+/// once, with no blank name.
+fn variable_names_valid(names: &[String], nodes: u32) -> bool {
+    names.is_empty()
+        || (u32::try_from(names.len()).ok() == Some(nodes)
+            && names.iter().all(|name| !name.trim().is_empty())
+            && names.iter().collect::<std::collections::BTreeSet<_>>().len() == names.len())
+}
+
 /// The checked premises and results an artifact is built from.
 pub struct AdmgConditionalArtifactInput<'a> {
     /// The selection diagram the functional was decided on.
@@ -542,13 +561,7 @@ impl AdmgConditionalArtifactWire {
         }) {
             return Err(unsupported("point result shape"));
         }
-        let nodes = self.graph.node_count;
-        if !self.variable_names.is_empty()
-            && (u32::try_from(self.variable_names.len()).ok() != Some(nodes)
-                || self.variable_names.iter().any(|name| name.trim().is_empty())
-                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len()
-                    != self.variable_names.len())
-        {
+        if !variable_names_valid(&self.variable_names, self.graph.node_count) {
             return Err(unsupported("variable names"));
         }
         Ok(())
@@ -584,10 +597,7 @@ impl AdmgConditionalArtifactWire {
     /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != ADMG_CONDITIONAL_ARTIFACT_VERSION {
-            return Err(AdmgConditionalArtifactError::UnsupportedVersion { version: peek.version }.into());
-        }
+        peek_version(bytes, ADMG_CONDITIONAL_ARTIFACT_VERSION)?;
         let wire: Self = crate::from_cbor(bytes)?;
         wire.validate_shape()?;
         Ok(wire)
@@ -851,13 +861,7 @@ impl AdmgConditionalObstructionWire {
         if self.required_features != [ADMG_CONDITIONAL_OBSTRUCTION_FEATURE] {
             return Err(unsupported("required features"));
         }
-        let nodes = self.graph.node_count;
-        if !self.variable_names.is_empty()
-            && (u32::try_from(self.variable_names.len()).ok() != Some(nodes)
-                || self.variable_names.iter().any(|name| name.trim().is_empty())
-                || self.variable_names.iter().collect::<std::collections::BTreeSet<_>>().len()
-                    != self.variable_names.len())
-        {
+        if !variable_names_valid(&self.variable_names, self.graph.node_count) {
             return Err(unsupported("variable names"));
         }
         Ok(())
@@ -919,10 +923,7 @@ impl AdmgConditionalObstructionWire {
     /// [`AdmgConditionalArtifactError::UnsupportedVersion`] for another
     /// version, or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != ADMG_CONDITIONAL_OBSTRUCTION_VERSION {
-            return Err(AdmgConditionalArtifactError::UnsupportedVersion { version: peek.version }.into());
-        }
+        peek_version(bytes, ADMG_CONDITIONAL_OBSTRUCTION_VERSION)?;
         let wire: Self = crate::from_cbor(bytes)?;
         wire.validate_shape()?;
         Ok(wire)
