@@ -355,12 +355,15 @@ def evaluate(
             )
             rows.extend(extra)
             continue
-        rec = live[0]
-        status = rec.get("status")
-        if status == "frozen":
-            rows.append((label, "PENDING_IMPLEMENTATION", "record frozen"))
+        # Every live record of the package must be promoted for a PASS: a package
+        # whose sibling record is still frozen or in_progress is not finished.
+        unpromoted = [r for r in live if r.get("status") != "promoted"]
+        if any(r.get("status") == "frozen" for r in live):
+            frozen_ids = ", ".join(r["id"] for r in live if r.get("status") == "frozen")
+            rows.append((label, "PENDING_IMPLEMENTATION", f"record frozen ({frozen_ids})"))
             rows.extend(extra)
             continue
+        status = unpromoted[0].get("status") if unpromoted else "promoted"
         state, detail = story_state(pkg, entry, runs, recs, root)
         if state == "FAIL":
             rows.append((label, "FAIL", detail))
@@ -386,9 +389,13 @@ def evaluate(
             rows.append((label, "FAIL", f"interval calibration: {cal_fail}"))
         elif cal_pending is not None:
             rows.append((label, "PENDING_CALIBRATION", f"{detail}; {cal_pending}"))
-        elif status != "promoted":
+        elif unpromoted:
             rows.append(
-                (label, "PENDING_IMPLEMENTATION", f"{detail}; record still {status}")
+                (
+                    label,
+                    "PENDING_IMPLEMENTATION",
+                    f"{detail}; record still {status} ({unpromoted[0]['id']})",
+                )
             )
         else:
             rows.append((label, "PASS", detail))
@@ -692,6 +699,34 @@ def self_test() -> int:
                 iv_ok,
                 0,
                 "no story test registered",
+            )
+            # A package is not finished while a sibling live record is unpromoted.
+            sibling = [rec("B1", "promoted"), rec("B1", "in_progress", rid="2.2B.B1.sibling")]
+            expect(
+                "a promoted record with an in_progress sibling is pending, not a pass",
+                {"B1": sibling},
+                runs(),
+                iv_ok,
+                0,
+                "record still in_progress (2.2B.B1.sibling)",
+            )
+            expect(
+                "... and fails --require-implemented",
+                {"B1": sibling},
+                runs(),
+                iv_ok,
+                1,
+                "not accepted",
+                False,
+                True,
+            )
+            expect(
+                "a frozen sibling is pending implementation",
+                {"B1": [rec("B1", "promoted"), rec("B1", "frozen", rid="2.2B.B1.sibling")]},
+                runs(),
+                iv_ok,
+                0,
+                "record frozen (2.2B.B1.sibling)",
             )
             expect("interval violation fails", {}, {}, iv_fail, 1, "verdict: FAIL")
             expect(

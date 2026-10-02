@@ -104,32 +104,72 @@ _LIT = re.compile(
 )
 
 
-def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
-    """Every string literal in non-test Rust source: plain, byte, raw (`r"…"`,
-    `r#"…"#`) and `\\`-continued (joined to one value)."""
-    code, _ = nontest_pair(path, in_crate=in_crate)
-    if not code:
-        return []
-    _, items = rust_items(path.resolve())
-    consts = [it for it in items if it.kind == "const"]
-    out: list[Lit] = []
-    i = 0
+def _scan_literals(code: str, lo: int = 0, hi: int | None = None) -> list[tuple[int, str]]:
+    """(offset, value) of every string literal in comment-free `code[lo:hi]`:
+    plain, byte, raw (`r"…"`, `r#"…"#`) and `\\`-continued (joined to one value)."""
+    hi = len(code) if hi is None else hi
+    out: list[tuple[int, str]] = []
+    i = lo
     while True:
-        m = _LIT.search(code, i)
+        m = _LIT.search(code, i, hi)
         if not m:
             break
         if m.group("hash") is not None:
             hashes = m.group("hash")
-            end = code.find('"' + hashes, m.end())
-            end = len(code) if end == -1 else end
+            end = code.find('"' + hashes, m.end(), hi)
+            end = hi if end == -1 else end
             value, i = code[m.end() : end], end + 1 + len(hashes)
         elif m.group("str") is not None:
             value, i = re.sub(r"\\\r?\n\s*", "", m.group("str")), m.end()
         else:
             i = m.end()
             continue
-        const = next((c.name for c in consts if c.body[0] <= m.start() < c.body[1]), None)
-        out.append(Lit(code.count("\n", 0, m.start()) + 1, value, const))
+        out.append((m.start(), value))
+    return out
+
+
+def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
+    """Every string literal in non-test Rust source, with the const it initialises."""
+    code, _ = nontest_pair(path, in_crate=in_crate)
+    if not code:
+        return []
+    _, items = rust_items(path.resolve())
+    consts = [it for it in items if it.kind == "const"]
+    out: list[Lit] = []
+    for at, value in _scan_literals(code):
+        const = next((c.name for c in consts if c.body[0] <= at < c.body[1]), None)
+        out.append(Lit(code.count("\n", 0, at) + 1, value, const))
+    return out
+
+
+def ignored_test_literals(path: Path) -> dict[str, list[str]]:
+    """Test name -> string literals in the body of every `#[ignore]`d fn of a Rust
+    test file, comments excluded (the coverage-record ids a calibration test emits)."""
+    masked, items = rust_items(path.resolve())
+    out: dict[str, list[str]] = {}
+    for it in items:
+        if it.kind != "fn" or not any(re.sub(r"\s+", "", a).startswith("#[ignore") for a in it.attrs):
+            continue
+        lo, hi = it.body
+        out.setdefault(it.name, []).extend(value for _, value in _scan_literals(masked.code, lo, hi))
+    return out
+
+
+def python_fn_literals(path: Path) -> dict[str, list[str]]:
+    """Function name -> string constants in its body, for every def of a Python file."""
+    try:
+        tree = ast.parse(path.read_text(errors="ignore"))
+    except SyntaxError:
+        return {}
+    out: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            out.setdefault(node.name, []).extend(
+                sub.value
+                for stmt in node.body
+                for sub in ast.walk(stmt)
+                if isinstance(sub, ast.Constant) and isinstance(sub.value, str)
+            )
     return out
 
 
@@ -217,20 +257,12 @@ def _self_type(head: str) -> tuple[str | None, bool]:
     return (m.group(1) if m else None), trait
 
 
-def rust_pub_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
-    """`rust_pub_items` keyed by name (the first item of a name wins)."""
-    out: dict[str, Symbol] = {}
-    for sym in rust_pub_items(path, in_crate=in_crate):
-        out.setdefault(sym.name, sym)
-    return out
-
-
 def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
-    """Public non-test `pub fn/struct/enum/trait` items: top-level, in public
-    modules, and methods of inherent `impl` blocks of public types (each carries
-    its owner type, so two types' same-named methods stay distinct). Items in fn
-    bodies, in private modules and in impls of non-public or trait types are not
-    public API and are skipped."""
+    """Public non-test `pub fn/struct/enum/trait` items and `pub use` re-exports:
+    top-level, in public modules, and methods of inherent `impl` blocks of public
+    types (each carries its owner type, so two types' same-named methods stay
+    distinct). Items in fn bodies, in private modules and in impls of non-public
+    or trait types are not public API and are skipped."""
     code, skel = nontest_pair(path, in_crate=in_crate)
     if not code:
         return []
@@ -281,11 +313,43 @@ def rust_pub_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
                 owner,
             )
         )
+    # `pub use a::b::{X, y as z};` re-exports public API under the names it binds
+    # (a glob `*` binds names this scan cannot see and is skipped).
+    for m in _PUB_USE.finditer(skel):
+        pos = m.start()
+        if _inside(fn_bodies, pos) or _inside(private_mods, pos) or any(lo < pos < hi for lo, hi, *_ in impls):
+            continue
+        hidden = _hidden(_attrs_before(skel, code, m.start(1)))
+        for name in _use_names(m.group("tree")):
+            if (name, None) in seen:
+                continue
+            seen.add((name, None))
+            out.append(Symbol(name, "type" if name[:1].isupper() else "function", hidden, "top"))
     return out
 
 
+_PUB_USE = re.compile(r"(?<![\w])pub(?!\s*\()\s+(use)\s+(?P<tree>[^;]*);")
+
+
+def _use_names(tree: str) -> list[str]:
+    """Names a `use` tree binds: the last path segment, or the `as` alias."""
+    names = []
+    for leaf in re.split(r"[{},]", tree):
+        leaf = leaf.strip()
+        if not leaf or leaf == "*" or leaf.endswith("::*"):
+            continue
+        alias = re.search(r"\bas\s+([A-Za-z_]\w*)\s*$", leaf)
+        name = alias.group(1) if alias else leaf.rsplit("::", 1)[-1]
+        if name in ("self", "super", "crate", "_") or not re.fullmatch(r"[A-Za-z_]\w*", name):
+            continue
+        if re.fullmatch(r"[A-Z][A-Z0-9_]*", name):
+            continue  # a const/static: `pub const` items are not scanned either
+        names.append(name)
+    return names
+
+
 _PY_FN = re.compile(
-    r"#\[pyfunction[^\]]*\](?P<attrs>(?:\s*#\[[^\]]*\])*)\s*(?:pub(?:\([^)]*\))?\s+)?fn\s+(?P<name>\w+)"
+    r"#\[pyfunction(?P<args>[^\]]*)\](?P<attrs>(?:\s*#\[[^\]]*\])*)\s*(?:pub(?:\([^)]*\))?\s+)?fn\s+(?P<name>\w+)"
 )
 _PY_CLASS = re.compile(
     r"#\[pyclass(?P<args>[^\]]*)\](?P<attrs>(?:\s*#\[[^\]]*\])*)\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum)\s+(?P<name>\w+)"
@@ -318,7 +382,11 @@ def pyo3_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
 
     classes: dict[str, str] = {}  # rust struct name -> exposed class name
     for m in _PY_FN.finditer(code):
-        add(m.group("name"), "function", m.group("attrs"))
+        # Every outer attribute of the fn: `#[pyfunction(name = "x")]` itself and a
+        # `#[pyo3(name = "x")]` placed before or after it all rename the export.
+        fn_at = skel.rfind("fn", m.end("attrs"), m.start("name"))
+        attrs = "".join(_attrs_before(skel, code, fn_at)) if fn_at >= 0 else m.group("args") + m.group("attrs")
+        add(m.group("name"), "function", attrs)
     for m in _PY_CLASS.finditer(code):
         add(m.group("name"), "type", m.group("args") + m.group("attrs"))
         renamed = _PY_NAME.search(m.group("args") + m.group("attrs"))
@@ -340,14 +408,6 @@ def pyo3_items(path: Path, *, in_crate: bool = True) -> list[Symbol]:
                     continue
                 attrs = "".join(_attrs_before(skel, code, lo + fm.start()))
                 add(name, "function", attrs, owner)
-    return out
-
-
-def pyo3_symbols(path: Path, *, in_crate: bool = True) -> dict[str, Symbol]:
-    """`pyo3_items` keyed by exposed name (the first item of a name wins)."""
-    out: dict[str, Symbol] = {}
-    for sym in pyo3_items(path, in_crate=in_crate):
-        out.setdefault(sym.name, sym)
     return out
 
 
@@ -536,18 +596,107 @@ def assertion_texts(path: Path, name: str) -> list[str]:
 _LOOP = re.compile(r"\b(?:for|while|loop)\b|\.(?:try_for_each|for_each|try_fold|fold|map|filter_map|flat_map)\s*\(")
 
 
+_FN_QUALIFIER = re.compile(r"(?:async|const|unsafe|extern|\"C\")\Z")
+
+
+def _fn_is_pub(skel: str, start: int) -> bool:
+    """Whether the `fn` keyword at `start` carries a `pub` / `pub(...)` visibility."""
+    k = start
+    while True:
+        while k > 0 and skel[k - 1].isspace():
+            k -= 1
+        if k == 0:
+            return False
+        if skel[k - 1] == ")":
+            j, depth = k - 1, 0
+            while j >= 0:
+                depth += 1 if skel[j] == ")" else -1 if skel[j] == "(" else 0
+                if depth == 0:
+                    break
+                j -= 1
+            w = j
+            while w > 0 and (skel[w - 1].isalnum() or skel[w - 1] == "_"):
+                w -= 1
+            return skel[w:j] == "pub"
+        w = k
+        while w > 0 and (skel[w - 1].isalnum() or skel[w - 1] in '_"'):
+            w -= 1
+        word = skel[w:k]
+        if word == "pub":
+            return True
+        if _FN_QUALIFIER.match(word):
+            k = w
+            continue
+        return False
+
+
+def _trait_impl_ranges(skel: str) -> list[tuple[int, int]]:
+    """Body spans of `impl Trait for Type` blocks: their fns are callable from
+    outside the file without being `pub`."""
+    out = []
+    for m in _IMPL.finditer(skel):
+        _, trait = _self_type(m.group("head"))
+        if trait:
+            out.append((m.end() - 1, _match_bracket(skel, m.end() - 1)))
+    return out
+
+
+def _referenced_elsewhere(name: str, path: Path) -> bool:
+    """Whether another non-test file of `path`'s crate calls `name(`: a private fn
+    reached from a child module (`super::name`) is live even without `pub`."""
+    src = crate_src(path)
+    if src is None:
+        return False
+    pattern = re.compile(rf"(?<![\w]){re.escape(name)}\s*(?:\(|::<)")
+    for other in sorted(src.glob("**/*.rs")):
+        if other.resolve() == path.resolve():
+            continue
+        if name not in other.read_text(errors="ignore"):
+            continue
+        if pattern.search(nontest_pair(other, in_crate=True)[1]):
+            return True
+    return False
+
+
 def charge_in_loop(path: Path, *, in_crate: bool = True) -> list[str]:
     """Names of non-test fns of `path` that call `.charge(` and either loop, call
-    themselves, or are called by a fn that loops or recurses."""
+    themselves, or are called by a fn that loops or recurses, and that live code
+    can reach: the fn or one of its in-file callers is `pub`, a trait-impl
+    method, or called by name from another file of the crate. A dead private fn
+    that charges in a loop meters nothing."""
     code, skel = nontest_pair(path, in_crate=in_crate)
     if not code:
         return []
     fns = [it for it in rust_items(path.resolve())[1] if it.kind == "fn"]
-    bodies = {}
+    trait_impls = _trait_impl_ranges(skel)
+    bodies: dict[str, list[str]] = {}
+    roots: set[str] = set()
     for it in fns:
         body = skel[it.body[0] : it.body[1]]
-        if body.strip():
-            bodies.setdefault(it.name, []).append(body)
+        if not body.strip():
+            continue
+        bodies.setdefault(it.name, []).append(body)
+        if _fn_is_pub(skel, it.start) or _inside(trait_impls, it.start):
+            roots.add(it.name)
+    callers: dict[str, set[str]] = {name: set() for name in bodies}
+    for caller, bs in bodies.items():
+        for callee in bodies:
+            if callee != caller and any(re.search(rf"\b{re.escape(callee)}\s*\(", b) for b in bs):
+                callers[callee].add(caller)
+
+    def reachable(name: str) -> bool:
+        seen, todo = set(), [name]
+        while todo:
+            nm = todo.pop()
+            if nm in seen:
+                continue
+            seen.add(nm)
+            if nm in roots or (in_crate and _referenced_elsewhere(nm, path)):
+                roots.add(nm)
+                return True
+            todo.extend(callers[nm])
+        return False
+
     looping = {
         name
         for name, bs in bodies.items()
@@ -557,12 +706,7 @@ def charge_in_loop(path: Path, *, in_crate: bool = True) -> list[str]:
     for name, bs in bodies.items():
         if not any(".charge(" in b for b in bs):
             continue
-        called = any(
-            re.search(rf"\b{re.escape(name)}\s*\(", b)
-            for caller in looping
-            if caller != name
-            for b in bodies[caller]
-        )
-        if name in looping or called:
+        called = any(caller in looping for caller in callers[name])
+        if (name in looping or called) and reachable(name):
             out.append(name)
     return out

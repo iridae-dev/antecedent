@@ -24,7 +24,10 @@ For docs/release-notes/v2.2.0.md (or --notes PATH) this checks:
      whose coverage records are not all in parity/coverage_records.toml is point_only (the
      interval is withheld) and its entry may not use the word calibrated or `statistical
      interval` at all, and must say the interval is `withheld`; `nominal` never appears
-     affirmatively (negations such as "no nominal" are fine);
+     affirmatively (negations such as "no nominal" are fine); an entry whose effective claim
+     is not `calibrated` may not promise a confidence / credible / bootstrap / prediction /
+     percentile / sampling-uncertainty interval in prose either (negated or withheld
+     mentions are fine);
   4. every 2.2B work package of B_PACKAGES has either a record entry or a
      `<!-- todo-cell: <package> -->` marker (the draft skeleton);
   5. X7 (GPU lane) is stated as carried forward with its rationale (CPU-only 2.1 baseline);
@@ -142,6 +145,15 @@ NEVER_CI = re.compile(
     r"(never|not)\s+(a|an)\s+(confidence|statistical)\s+interval|never\s+a\s+CI", re.I
 )
 WITHHELD = re.compile(r"withheld|not offered", re.I)
+# An interval a cell whose effective claim is not `calibrated` may not promise, however it is
+# worded: "a 95% bootstrap interval is reported" is a calibrated claim in other words. Negated
+# forms ("not a confidence interval", "never a CI", "no credible interval") are fine.
+INTERVAL_PROMISE = re.compile(
+    r"(?<!not a )(?<!not an )(?<!never a )(?<!no )(?<!without a )"
+    r"\b(?:confidence|credible|bootstrap|prediction|percentile|sampling-uncertainty|sampling uncertainty)"
+    r"\s+intervals?\b(?!\s+(?:is|are)\s+(?:not|never|withheld))",
+    re.I,
+)
 
 
 def load(root: Path, rel: str) -> dict:
@@ -420,6 +432,13 @@ def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
             errors.append(
                 f"{label}: coverage records are absent; the entry must say the interval is withheld"
             )
+        if want != "calibrated":
+            promise = INTERVAL_PROMISE.search(re.sub(r"<!--.*?-->", "", body, flags=re.S))
+            if promise:
+                errors.append(
+                    f"{label}: entry promises a '{promise.group(0)}' but the cell's claim is {want!r}; "
+                    "a cell without a measured coverage record publishes no interval"
+                )
         # 6-7. the entry restates the record's bounds, status, guarantee and interval stance
         bounds_lines = BOUNDS_LINE.findall(body)
         if numeric_bounds(rec) != "none declared" or bounds_lines:
@@ -695,6 +714,37 @@ def self_test() -> int:
                 lambda s: s.replace(
                     "### X5: cell x5",
                     "### X5: cell x5\n\nThere is no nominal interval here.",
+                )
+            ),
+            None,
+        )
+        expect(
+            "a point_only entry promising a bootstrap interval in prose fails",
+            run(
+                lambda s: s.replace(
+                    "### X5: cell x5",
+                    "### X5: cell x5\n\nA 95% bootstrap interval is reported.",
+                )
+            ),
+            "promises a 'bootstrap interval'",
+        )
+        expect(
+            "a point_only entry promising a credible interval in prose fails",
+            run(
+                lambda s: s.replace(
+                    "### X5: cell x5",
+                    "### X5: cell x5\n\nBayesian inference publishes credible intervals.",
+                )
+            ),
+            "promises a 'credible intervals'",
+        )
+        expect(
+            "a negated or withheld interval mention is fine",
+            run(
+                lambda s: s.replace(
+                    "### X5: cell x5",
+                    "### X5: cell x5\n\nThis is not a confidence interval; the bootstrap interval "
+                    "is withheld and no credible interval is offered.",
                 )
             ),
             None,

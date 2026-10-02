@@ -133,7 +133,8 @@ SUITE_SECONDS = {
 WHOLE_FILE = {"v19_temporal_response_calibration", "v110_panel_calibration"}
 
 # Sample-size grid points of a record-emitting group (`GRID_POINTS` in
-# crates/antecedent/tests/common/calibration.rs; `grid_group` in the gate).
+# crates/antecedent/tests/common/calibration.rs). Which groups are grid groups is
+# the gate's `grid_group`, printed as `grid <index>` lines by its dry run.
 GRID_POINTS = (0, 1, 2)
 # Cost of the three points relative to the base point for a design whose run
 # time is linear in n: `SampleGrid::STANDARD` is n/2 + n + 2n. The heavy grid
@@ -148,31 +149,12 @@ def threads_per_job(jobs: int) -> int:
     return max(1, math.ceil(CORES / jobs))
 
 
-def is_grid(label: str) -> bool:
-    """Is `label` measured over the sample-size grid (the gate's `grid_group`)?"""
-    if label.startswith("antecedent-estimate: bayesian_"):
-        return False
-    if label.startswith("learned_continuous_calibration:"):
-        return label.endswith("_mean_contrast")  # the two X4 coverage records only
-    if label.startswith("smoothed_dose_calibration:"):
-        return label.endswith("_psi_h")  # the two 2.2B X4 coverage records only
-    return label.startswith(
-        (
-            "antecedent-estimate:",
-            "v19_",
-            "v110_",
-            "v20_",
-            "mz_transport_calibration:",
-            "joint_sensitivity_calibration:",  # 2.2B X3: both tests emit records
-        )
-    )
-
-
 @dataclass
 class Group:
     index: int  # 1-based position in the gate
     label: str
     long: bool
+    grid: bool  # measured over the sample-size grid (the gate's `grid_group`, read from its dry run)
 
     @property
     def head(self) -> str:
@@ -185,7 +167,7 @@ class Group:
     @property
     def points(self) -> tuple[int | None, ...]:
         """The grid points the gate measures this group at (`None`: run once)."""
-        return GRID_POINTS if is_grid(self.label) else (None,)
+        return GRID_POINTS if self.grid else (None,)
 
     @property
     def safe(self) -> str:
@@ -204,10 +186,12 @@ def gate_groups() -> list[Group]:
         ["bash", str(GATE)], cwd=ROOT, env=env, capture_output=True, text=True, check=True
     ).stdout
     groups = []
+    grid = {int(m.group(1)) for m in re.finditer(r"^grid (\d+)$", out, re.M)}
     for line in out.splitlines():
         m = re.fullmatch(r"group (\d+): (.+)", line)
         if m:
-            groups.append(Group(int(m.group(1)), m.group(2), is_long(m.group(2))))
+            index = int(m.group(1))
+            groups.append(Group(index, m.group(2), is_long(m.group(2)), index in grid))
     if not groups or [g.index for g in groups] != list(range(1, len(groups) + 1)):
         raise SystemExit("could not read the group list from the gate's dry run")
     return groups

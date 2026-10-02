@@ -69,6 +69,8 @@ fn helper_asserts() { check(); }
 fn check() { assert_eq!(2, 2); }
 #[test]
 fn expects_err() { let r: Result<u8, u8> = Err(1); r.unwrap_err(); }
+#[test]
+fn names_reason_substring() { assert_eq!(code(), "route_not_supported_extended"); }
 """
 SYNTH_PY = """\
 import pytest
@@ -206,6 +208,28 @@ SEARCH_OK = (
     "pub fn search(limits: SearchLimits, ctx: &ExecutionContext) {\n"
     "    let budget = SearchBudget::new(limits, ctx);\n"
     "    for state in 0..3 {\n        budget.charge(1, state).unwrap();\n    }\n}\n"
+)
+# The looping charge moved into a private fn nothing calls; the pub fn charges once.
+SEARCH_DEAD = (
+    "pub fn search(limits: SearchLimits, ctx: &ExecutionContext) {\n"
+    "    let budget = SearchBudget::new(limits, ctx);\n"
+    "    budget.charge(1, 0).unwrap();\n}\n"
+    "fn dead_walk(budget: &SearchBudget) {\n"
+    "    for state in 0..3 {\n        budget.charge(1, state).unwrap();\n    }\n}\n"
+)
+# The looping charge sits in a private helper a pub fn calls, and in a trait impl.
+SEARCH_HELPER = (
+    "pub fn search(limits: SearchLimits, ctx: &ExecutionContext) {\n"
+    "    let budget = SearchBudget::new(limits, ctx);\n    walk(&budget);\n}\n"
+    "fn walk(budget: &SearchBudget) {\n"
+    "    for state in 0..3 {\n        budget.charge(1, state).unwrap();\n    }\n}\n"
+)
+SEARCH_TRAIT = (
+    "pub struct Walker;\n"
+    "impl Search for Walker {\n"
+    "    fn run(&self, limits: SearchLimits, ctx: &ExecutionContext) {\n"
+    "        let budget = SearchBudget::new(limits, ctx);\n"
+    "        for state in 0..3 {\n            budget.charge(1, state).unwrap();\n        }\n    }\n}\n"
 )
 CODE_RS = (
     "pub fn refuse(kind: u8) -> (&'static str, &'static str) {\n    match kind {\n"
@@ -375,6 +399,9 @@ cases = [
      [("search_ok.rs", "    for state in 0..3 {\n        budget.charge(1, state).unwrap();\n    }\n",
        "    budget.charge(1, 0).unwrap();\n")],
      "no search_impl fn charges a SearchBudget/SharedSearch inside a loop or recursion", None),
+    ("search_charge_loop", "a looping charge in a dead private fn meters nothing",
+     [("search_ok.rs", SEARCH_OK, SEARCH_DEAD)],
+     "no search_impl fn charges a SearchBudget/SharedSearch inside a loop or recursion", None),
     # -- refusals
     ("refusal_code", "unregistered refusal code", [rec('code = "transport_not_certified"', 'code = "no_such_code"')],
      "refusal code 'no_such_code' is not a registered", None),
@@ -501,6 +528,10 @@ cases = [
     ("closed_refusal_reason_named", "refusal test that never names the reason",
      [rec(UNC_CLOSED, UNC_CLOSED.replace(f'refusal_assertion = "{PY_REFUSAL}"', f'refusal_assertion = "{PY_OTHER}"'))],
      f"uncertainty_route: refusal test {PY_TEST}::{PY_OTHER} never names", None),
+    ("closed_refusal_reason_named", "refusal test that names the reason only as a longer identifier",
+     [rec(UNC_CLOSED, UNC_CLOSED.replace(f'refusal_test = "{PY_TEST}", refusal_assertion = "{PY_REFUSAL}"',
+                                         f'refusal_test = "{SYN_RS}", refusal_assertion = "names_reason_substring"'))],
+     "synth_tests.rs::names_reason_substring never names the route's reason_code route_not_supported", None),
     ("closed_refusal_required", "closed route without refusal evidence",
      [rec(UNC_CLOSED, unc_without(REFUSAL_TEST + REFUSAL_ASSERT))],
      "uncertainty_route: closed route of a record at status in_progress needs refusal_test", None),
@@ -590,6 +621,15 @@ cases = [
      "surface symbol hidden_free", None),
     ("surface_symbol", "pyo3 function without a route", [("pyo3_api.rs", None, "#[pyfunction]\nfn self_test_unrouted_py() {}\n")],
      "surface symbol self_test_unrouted_py", None),
+    ("surface_symbol", "a renamed pyo3 function is exposed under its #[pyfunction(name)] name",
+     [("pyo3_api.rs", "#[pyfunction]\nfn point_route() {}\n", '#[pyfunction(name = "self_test_renamed")]\nfn point_route() {}\n')],
+     "surface symbol self_test_renamed", "surface symbol point_route"),
+    ("surface_symbol", "a #[pyo3(name)] before #[pyfunction] renames the export too",
+     [("pyo3_api.rs", "#[pyfunction]\nfn point_route() {}\n", '#[pyo3(name = "self_test_renamed")]\n#[pyfunction]\nfn point_route() {}\n')],
+     "surface symbol self_test_renamed", "surface symbol point_route"),
+    ("surface_symbol", "a pub use re-export is a public symbol of a surface_rust file",
+     [("surface_api.rs", None, "pub use crate::other::{self_test_reexport, SelfTestValue as SelfTestAlias};\n")],
+     "surface symbol self_test_reexport", "surface symbol SelfTestValue"),
     ("surface_symbol", "pyo3 method without a route",
      [("pyo3_api.rs", None, PY_PLAIN)],
      "surface symbol self_test_plain_getter", "surface symbol new"),
@@ -683,6 +723,13 @@ positives = [
     ("an impl of a listed value type in a non-scanned file is not scanned",
      [("unscanned_impl.rs", UNSCANNED_IMPL, UNSCANNED_IMPL + "\n")]),
     ("a python helper's assert counts", [rec(POS, syn("xt.point_a.positive", "positive", SYN_PY, "test_helper_asserts"))]),
+    ("a looping charge in a private helper a pub fn calls, or in a trait impl, is metered",
+     [("search_ok.rs", SEARCH_OK, SEARCH_HELPER + SEARCH_TRAIT)]),
+    ("a renamed pyo3 function is covered under its exposed name; a pub(crate) use or a re-export of a routed name needs nothing",
+     [("pyo3_api.rs", "#[pyfunction]\nfn point_route() {}\n", '#[pyfunction(name = "point_route")]\nfn point_route_py() {}\n'),
+      ("surface_api.rs", None, "pub use crate::other::identify_route;\npub(crate) use crate::other::self_test_crate_reexport;\n")]),
+    ("a Rust file listed as a facade `surface` is scanned for its top-level items only",
+     [rec('surface = ["{D}/surface.py"]', 'surface = ["{D}/surface.py", "{D}/surface_api.rs"]')]),
     ("a const detail used by live code",
      [rec(FIRST_REFUSAL, FIRST_REFUSAL + '  { code = "invalid_argument", detail = "self_test_cell.live_detail", when = "self-test" },\n'),
       ("code.rs", None, 'const LIVE: &str = "self_test_cell.live_detail";\npub fn live() -> (&\'static str, &\'static str) { ("invalid_argument", LIVE) }\n')]),

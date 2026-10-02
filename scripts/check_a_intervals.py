@@ -48,6 +48,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("A_INTERVALS_ROOT", REPO))
+sys.path.insert(0, str(REPO / "scripts"))
+from promotion_source import closure_code  # noqa: E402  (the one reader of test bodies for the gates)
+
 NOMINAL = "estimator_grid_not_measured"
 # Closed reasons an interval or an aggregate can be refused with; their refusal tests are the
 # runtime proof that the unmeasured coordinate is withheld.
@@ -122,15 +125,20 @@ def coverage_ids() -> set[str]:
     return {r.get("id") for r in load("parity/coverage_records.toml").get("record", [])}
 
 
-def function_text(source: str, name: str, python: bool) -> str | None:
-    """The body of test function `name`, up to the next test."""
-    pattern = rf"^\s*def {re.escape(name)}\(" if python else rf"^\s*fn {re.escape(name)}\("
-    match = re.search(pattern, source, re.M)
-    if not match:
+def refusal_closure(path: Path, name: str) -> str | None:
+    """Comment-free code of test `name` in `path` plus the helpers it reaches
+    (scripts/promotion_source.py); None when no such function exists. A reason
+    code in a comment, or in an unrelated function that merely follows the test
+    in the file, is not the test naming it."""
+    try:
+        return closure_code(path, name) or None
+    except (ValueError, SyntaxError, OSError):
         return None
-    rest = source[match.end() :]
-    boundary = re.search(r"^\s*def test_" if python else r"^#\[test\]", rest, re.M)
-    return rest[: boundary.start()] if boundary else rest
+
+
+def names_reason(body: str, reason: str) -> bool:
+    """Whether `body` names `reason` as a whole token (not as part of a longer one)."""
+    return re.search(rf"(?<![A-Za-z0-9_]){re.escape(reason)}(?![A-Za-z0-9_])", body) is not None
 
 
 def attested() -> tuple[bool, str]:
@@ -227,11 +235,10 @@ def check() -> dict:
                 if not path.is_file():
                     errors.append(f"{rid}: {name}: refusal test file {test} is missing")
                     continue
-                python = test.endswith(".py")
-                body = function_text(path.read_text(), assertion, python)
+                body = refusal_closure(path, assertion)
                 if body is None:
                     errors.append(f"{rid}: {name}: refusal test {test}::{assertion} does not exist")
-                elif route.get("reason_code") not in body:
+                elif not names_reason(body, str(route.get("reason_code"))):
                     errors.append(
                         f"{rid}: {name}: refusal test {test}::{assertion} never names "
                         f"{route.get('reason_code')!r}"

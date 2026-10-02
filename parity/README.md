@@ -217,8 +217,14 @@ population semantics, evidence family, provider, estimand, inference claim,
 bounds, refusal codes, identity inputs, wire changes, fixture ids, coverage-record
 ids) before implementation. Its routes stay closed until the record is
 `promoted` with executed positive, negative and artifact fixtures (budget for a
-search, calibration for an interval); `gate_promotion.sh` enforces this, and no
+search, calibration for an interval); while a record is `in_progress` it may
+license only a non-uncertainty route claiming `point_only` or `none`, and only
+once those same fixture roles cite executed evidence. `gate_promotion.sh`
+enforces this (`check_promotion_records.py` resolves every cited test, then
+`run_evidence_rows.py` executes each one and requires it to pass: exactly one
+Rust test, at least one collected Python test, none failing), and no
 2.2 interval may cite `estimator_grid_not_measured`. Every new bounded search
 runs under `antecedent_core::SearchBudget` (operation and depth limits, plus the
-context's cancellation and hard memory limit on every charge), and a promoted
-search's budget fixture must exercise it.
+context's cancellation and hard memory limit on every charge), charged inside a
+loop or recursion that live code reaches, and a promoted search's budget fixture
+must exercise it.

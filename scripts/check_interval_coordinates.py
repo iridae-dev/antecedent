@@ -14,7 +14,7 @@ parity/promotion_2_2.toml (milestone A and B), importing its helpers read-only. 
       measurement can actually produce it at the cut;
       Emission means the id (or its last component, or a `...<component>` composed form) is a STRING
       LITERAL in the body of an `#[ignore]` test function (Rust; comments do not count) or of a
-      function (Python); wiring means the component is a registered group name on a `run_*` call line
+      function (Python), read through scripts/promotion_source.py; wiring means the component is a registered group name on a `run_*` call line
       of scripts/gate_calibration.sh (a comment does not count; a `carried_forward` record is not
       measured at the cut, so only its emission is required). The same holds for every record that
       allocates ids, whatever its claim or status (`carried_forward` included);
@@ -62,6 +62,7 @@ if os.environ.get("INTERVALS_22_SKIP_ATTEST") == "1":
     os.environ["A_INTERVALS_SKIP_ATTEST"] = "1"
 sys.path.insert(0, str(REPO / "scripts"))
 import check_a_intervals as cai  # noqa: E402  (read-only reuse)
+from promotion_source import ignored_test_literals, python_fn_literals  # noqa: E402
 
 NOMINAL = cai.NOMINAL
 WITHHOLD_REASONS = cai.WITHHOLD_REASONS
@@ -85,105 +86,6 @@ def surfaces_of(record: dict) -> list[str]:
 COV_ID = re.compile(r"cov\.[a-z_.0-9]+")
 
 
-def rust_view(text: str) -> tuple[str, list[tuple[int, int, str]]]:
-    """(text with comments blanked to spaces, string literal spans (start, end, content))."""
-    out = list(text)
-    spans: list[tuple[int, int, str]] = []
-    i, n = 0, len(text)
-    while i < n:
-        c = text[i]
-        if text.startswith("//", i):
-            j = text.find("\n", i)
-            j = n if j < 0 else j
-            for k in range(i, j):
-                out[k] = " "
-            i = j
-        elif text.startswith("/*", i):
-            depth, j = 1, i + 2
-            while j < n and depth:
-                if text.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif text.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            for k in range(i, j):
-                if text[k] != "\n":
-                    out[k] = " "
-            i = j
-        elif c == "r" and re.match(r'r#*"', text[i:]):
-            hashes = len(re.match(r"r(#*)", text[i:]).group(1))  # type: ignore[union-attr]
-            close = '"' + "#" * hashes
-            start = i + 2 + hashes
-            j = text.find(close, start)
-            j = n if j < 0 else j
-            spans.append((start, j, text[start:j]))
-            i = j + len(close)
-        elif c == '"':
-            j = i + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            spans.append((i + 1, j, text[i + 1 : j]))
-            i = j + 1
-        elif c == "'" and re.match(r"'(\\.|[^\\'])'", text[i:]):
-            i += len(re.match(r"'(\\.|[^\\'])'", text[i:]).group(0))  # type: ignore[union-attr]
-        else:
-            i += 1
-    return "".join(out), spans
-
-
-def ignored_test_literals(source: str, name: str) -> list[str] | None:
-    """String literals in the body of the `#[ignore]` test function `name` (None: no such test)."""
-    view, spans = rust_view(source)
-    lit_at = {(a, b): c for a, b, c in spans}
-    in_string = [False] * (len(view) + 1)
-    for a, b, _ in spans:
-        for k in range(a, min(b, len(view))):
-            in_string[k] = True
-    for m in re.finditer(rf"\bfn {re.escape(name)}\s*[(<]", view):
-        head = view[: m.start()].splitlines()
-        attrs = []
-        for line in reversed(head):
-            if not line.strip() or line.strip().startswith("#["):
-                attrs.append(line)
-            else:
-                break
-        if not any("#[ignore" in a for a in attrs):
-            continue
-        j = view.find("{", m.end())
-        if j < 0:
-            continue
-        depth, k = 0, j
-        while k < len(view):
-            if not in_string[k]:
-                if view[k] == "{":
-                    depth += 1
-                elif view[k] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        break
-            k += 1
-        return [lit_at[(a, b)] for a, b, _ in spans if j < a and b <= k]
-    return None
-
-
-def py_def_literals(source: str, name: str) -> list[str] | None:
-    """String literals in the body of function `name` of a Python test file, comments excluded."""
-    lines = source.splitlines()
-    for idx, line in enumerate(lines):
-        m = re.match(rf"(\s*)(?:async )?def {re.escape(name)}\(", line)
-        if not m:
-            continue
-        body = []
-        for later in lines[idx + 1 :]:
-            if later.strip() and len(later) - len(later.lstrip()) <= len(m.group(1)):
-                break
-            body.append(later)
-        text = "\n".join(ln for ln in body if not ln.lstrip().startswith("#"))
-        return [a or b for a, b in re.findall(r'"([^"\n]*)"|\'([^\'\n]*)\'', text)]
-    return None
-
-
 def emitted_by_a_test(coverage_id: str) -> bool:
     """The id, its last component (the claim/test name) or a `...<component>` composed form is a
     string literal in an `#[ignore]` test body (Rust) or a function body (Python); a comment or a
@@ -194,21 +96,15 @@ def emitted_by_a_test(coverage_id: str) -> bool:
         return lit in (comp, coverage_id) or lit.endswith("." + comp)
 
     for p in ROOT.glob("crates/*/tests/**/*.rs"):
-        text = p.read_text()
-        if comp not in text:
+        if comp not in p.read_text():
             continue
-        for m in re.finditer(r"\bfn (\w+)\s*[(<]", text):
-            lits = ignored_test_literals(text, m.group(1))
-            if lits and any(hit(lit) for lit in lits):
-                return True
+        if any(hit(lit) for lits in ignored_test_literals(p).values() for lit in lits):
+            return True
     for p in ROOT.glob("python/tests/**/*.py"):
-        text = p.read_text()
-        if comp not in text:
+        if comp not in p.read_text():
             continue
-        for m in re.finditer(r"^\s*(?:async )?def (\w+)\(", text, re.M):
-            lits = py_def_literals(text, m.group(1))
-            if lits and any(hit(lit) for lit in lits):
-                return True
+        if any(hit(lit) for lits in python_fn_literals(p).values() for lit in lits):
+            return True
     return False
 
 
@@ -400,14 +296,12 @@ def check() -> dict:
                 if not path.is_file():
                     errors.append(f"{rid}: {name}: refusal test file {test} is missing")
                     continue
-                body = cai.function_text(
-                    path.read_text(), assertion, test.endswith(".py")
-                )
+                body = cai.refusal_closure(path, assertion)
                 if body is None:
                     errors.append(
                         f"{rid}: {name}: refusal test {test}::{assertion} does not exist"
                     )
-                elif route.get("reason_code") not in body:
+                elif not cai.names_reason(body, str(route.get("reason_code"))):
                     errors.append(
                         f"{rid}: {name}: refusal test {test}::{assertion} never names {route.get('reason_code')!r}"
                     )
@@ -463,8 +357,7 @@ def check() -> dict:
         if not reg["header"].startswith("2.2") or reg["name"] in owned:
             continue
         for p in ROOT.glob(f"crates/*/tests/**/{reg['target']}.rs"):
-            lits = ignored_test_literals(p.read_text(), reg["name"])
-            if lits and reg["name"] in lits:
+            if reg["name"] in ignored_test_literals(p).get(reg["name"], []):
                 errors.append(
                     f"scripts/gate_calibration.sh registers {reg['name']} (under '== {reg['header']}') "
                     "and its test emits that coverage record, but no 2.2 record lists it in "

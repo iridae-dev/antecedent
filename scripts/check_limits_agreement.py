@@ -884,12 +884,17 @@ class Reader:
     def find_const(
         self, name: str, near: str, depth: int = 0
     ) -> tuple[int | float | None, str]:
-        """Value of `const NAME: ty = <int|ALIAS>;`, searching `near` first then crates/*/src."""
-        files = [near] + sorted(
-            str(p.relative_to(self.root))
-            for p in (self.root / "crates").glob("*/src/**/*.rs")
-            if str(p.relative_to(self.root)) != near
-        )
+        """Value of `const NAME: ty = <int|ALIAS>;`. The mapped constant must live in
+        `near` (the cell's own file): a same-named constant of another cell would
+        otherwise satisfy the mapping. An alias it names is followed from `near` into
+        the rest of crates/*/src."""
+        files = [near]
+        if depth:
+            files += sorted(
+                str(p.relative_to(self.root))
+                for p in (self.root / "crates").glob("*/src/**/*.rs")
+                if str(p.relative_to(self.root)) != near
+            )
         pat = re.compile(
             rf"\bconst {re.escape(name)}\s*:\s*[\w<>\[\]]+\s*=\s*([\w.\-]+)\s*;"
         )
@@ -1441,6 +1446,17 @@ def self_test() -> int:
             mapping=SYN_MAPPING
             + (Bound("2.2Z.C1", "max_c", rust=(C(SYN_RS_PATH, "SYN_MAX_C"),)),),
         )
+        # A same-named constant in another file does not satisfy a mapping to this file.
+        d = Path(t) / "const_elsewhere"
+        shutil.copytree(base, d)
+        rs = d / SYN_RS_PATH
+        rs.write_text(rs.read_text().replace("pub const SYN_MAX_C: usize = 3;\n", "", 1))
+        (d / "crates/synth/src/other.rs").write_text("pub const SYN_MAX_C: usize = 3;\n")
+        errs, _, _ = run(d)
+        if not any("SYN_MAX_C not found" in e for e in errs):
+            failures.append(
+                f"const_elsewhere: a constant moved to another file must not satisfy the mapping, got {errs[:3]}"
+            )
         d = Path(t) / "stale_row"
         shutil.copytree(base, d)
         errs, _, _ = run(

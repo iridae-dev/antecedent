@@ -126,7 +126,7 @@ RULES = {
     "search_impl_file": "each search_impl file is a Rust source file",
     "search_impl_names_budget": "each search_impl file names SearchBudget in non-test source",
     "search_impl_charge": "search_impl files call .charge( in non-test source",
-    "search_charge_loop": "a .charge( on the budget sits in a looping or recursive fn",
+    "search_charge_loop": "a .charge( on the budget sits in a looping or recursive fn that live code reaches",
     # refusals
     "refusal_code": "a refusal code is a registered runtime_refusal code",
     "refusal_when": "a refusal states its condition",
@@ -599,8 +599,9 @@ for rec in records:
         fail(
             "search_charge_loop",
             f"{rid}: no search_impl fn charges a SearchBudget/SharedSearch inside a loop or recursion "
-            f"(.charge( in a fn that loops, recurses, or is called from one); a single charge is a "
-            f"pre-flight, not a metered search",
+            f"that live code reaches (.charge( in a fn that loops, recurses, or is called from one, and "
+            f"is itself pub, a trait-impl method, or called from a pub fn or another file); a single "
+            f"charge is a pre-flight and a dead private fn meters nothing",
         )
 
     # A registered top-level code plus a unique, namespaced detail code: callers
@@ -789,7 +790,8 @@ for rec in records:
                     check_evidence_body(f"{rid}: {name}: refusal evidence", rpath, rassert)
                 if not problems and reason:
                     body = closure_code(root / rpath, rassert)
-                    if reason not in body and camel(reason) not in body:
+                    named = re.compile(rf"(?<![A-Za-z0-9_])(?:{re.escape(reason)}|{re.escape(camel(reason))})(?![A-Za-z0-9_])")
+                    if not named.search(body):
                         fail(
                             "closed_refusal_reason_named",
                             f"{rid}: {name}: refusal test {rpath}::{rassert} never names the "
@@ -949,16 +951,10 @@ for rec in records:
             continue
         surface_files.append(src)
         if path.suffix == ".py":
-            symbols = python_symbols(path)
-        else:  # a Rust facade: top-level public items only
-            code = nontest_rust(path, in_crate=in_crate_of(path))
-            symbols = {
-                name: Symbol(
-                    name, "function" if item == "fn" else "type" if item in ("struct", "enum") else "other", False, "top"
-                )
-                for item, name in re.findall(r"^pub\s+(fn|struct|enum|trait)\s+([A-Za-z_]\w*)", code, re.M)
-            }
-        checked += [(src, sym) for sym in symbols.values()]
+            symbols = list(python_symbols(path).values())
+        else:  # a Rust facade: top-level public items and re-exports, not methods
+            symbols = [s for s in rust_pub_items(path, in_crate=in_crate_of(path)) if s.where == "top"]
+        checked += [(src, sym) for sym in symbols]
     for keyname, files, scan in (
         ("surface_rust", surface_rust, rust_pub_items),
         ("surface_pyo3", surface_pyo3, pyo3_items),

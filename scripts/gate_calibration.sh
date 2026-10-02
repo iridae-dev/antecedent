@@ -197,6 +197,11 @@ check() {
   fi
   if [ -n "${ANTECEDENT_CALIBRATION_DRY_RUN:-}" ]; then
     echo "group ${GROUP_INDEX}: ${label}"
+    # scripts/calibration_groups.py reads which groups are measured over the grid
+    # from here, so the two never carry separate copies of grid_group.
+    if grid_group "$label"; then
+      echo "grid ${GROUP_INDEX}"
+    fi
     return 0
   fi
   local safe point shown
