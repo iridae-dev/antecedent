@@ -88,7 +88,8 @@ impl PreparedTemporalTransport {
         data: ExactTransportData,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        Ok(Self { inner: self.inner.refresh(data, ctx).map_err(estimate_err)?, ..self.clone() })
+        let inner = self.inner.refresh(data, ctx).map_err(estimate_err)?;
+        Ok(Self { inner, catalog: self.catalog.clone() })
     }
 
     /// An interval is not licensed: temporal sampling and initial-state

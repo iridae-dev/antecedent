@@ -260,7 +260,9 @@ fn conditioning_has_mass(
 /// The history/horizon-local support report of `data` for a decided sequence.
 ///
 /// Step 1 rows are initial states: reached when the target's initial-state law
-/// gives them mass, supported when the first action also has target mass there.
+/// gives them mass, supported when the first action also has target mass there
+/// whenever the proof reads the target's law over the first action (otherwise
+/// reached is supported).
 /// Step 2 rows are complete histories: outside support unless the supplied laws
 /// serve every leaf the identified proof cites at the history and the sequence
 /// (the evaluator reads them for every history of the lattice, reached or not),
@@ -278,6 +280,18 @@ pub fn history_support(
     // Only an identified decision has a proof to read requirements from; any
     // other certifies nothing, so no history is supported.
     let requirements = Requirements::of(decision);
+    // The first action's target mass at an initial state is a condition of the
+    // proof only when a target leaf reads the target's law over that action
+    // (its factors then condition on it there); a proof that reads only the
+    // target's initial-state law, as a baseline-only selection with an action
+    // experiment does, needs no such mass. Read from the leaves, not assumed.
+    let first_action_read = requirements.as_ref().is_none_or(|r| {
+        r.leaves.iter().any(|leaf| {
+            leaf.binding.population == decision.query.target
+                && (leaf.variables.contains(&slots.actions[0])
+                    || leaf.conditioned_on.contains(&slots.actions[0]))
+        })
+    });
     let initial_coordinates = slots.initial_state();
     let history_coordinates = slots.history_coordinates();
     let key = |values: &[Value]| values.iter().map(|v| bits(v).unwrap_or(0)).collect::<Vec<_>>();
@@ -290,7 +304,7 @@ pub fn history_support(
         let reached = masses.is_none() || mass.unwrap_or(0.0) > 0.0;
         let status = if !reached {
             "unreached"
-        } else if masses.is_none() || first.unwrap_or(0.0) > 0.0 {
+        } else if masses.is_none() || !first_action_read || first.unwrap_or(0.0) > 0.0 {
             "supported"
         } else {
             "outside_support"

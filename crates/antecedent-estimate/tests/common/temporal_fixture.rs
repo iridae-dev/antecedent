@@ -196,6 +196,32 @@ pub fn target_law(scm: &Scm) -> ExactDiscreteLaw {
     .unwrap()
 }
 
+/// The target observational law of `scm` with every cell `zero` names (over
+/// `b, l1, a1, l2, a2, y`) removed and the rest renormalised: a target that
+/// never shows those cells.
+pub fn target_law_without(scm: &Scm, zero: impl Fn([u8; 6]) -> bool) -> ExactDiscreteLaw {
+    let mut probabilities = clamp(scm.law(&[], &[B, L1, A1, L2, A2, Y]));
+    for (cell, p) in probabilities.iter_mut().enumerate() {
+        // Axes b, l1, a1, l2, a2, y with the last fastest.
+        let values = [5, 4, 3, 2, 1, 0].map(|shift| u8::from((cell >> shift) & 1 == 1));
+        if zero(values) {
+            *p = 0.0;
+        }
+    }
+    let total: f64 = probabilities.iter().sum();
+    probabilities.iter_mut().for_each(|p| *p /= total);
+    ExactDiscreteLaw::try_new(
+        "target",
+        RegimeId::from_raw(0),
+        [],
+        (0..6).map(axis).collect::<Vec<_>>(),
+        probabilities,
+        "target-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+}
+
 /// The source's outcome law under `do(b, l1, a1, l2, a2)`.
 pub fn history_law(scm: &Scm, history: [u8; 5]) -> ExactDiscreteLaw {
     let order = [B, L1, A1, L2, A2];

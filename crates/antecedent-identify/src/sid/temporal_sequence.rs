@@ -699,9 +699,7 @@ impl TemporalOutcome {
             Self::Stopped { .. } => antecedent_core::TransportOutcomeKind::BudgetCancel,
         }
     }
-}
 
-impl TemporalOutcome {
     /// Stable status name.
     #[must_use]
     pub const fn status(&self) -> &'static str {
@@ -759,9 +757,28 @@ fn dense(diagram: &SelectionDiagram, variable: VariableId) -> Option<DenseNodeId
         .and_then(|i| DenseNodeId::try_from_usize(i).ok())
 }
 
+/// Whether a directed path from `from` reaches `to` without passing through
+/// `avoid`: a cause of `to` that is not merely mediated by `avoid`.
+fn reaches_avoiding(graph: &Admg, from: DenseNodeId, to: DenseNodeId, avoid: DenseNodeId) -> bool {
+    let mut seen = vec![false; graph.node_count()];
+    let mut stack = vec![from];
+    while let Some(node) = stack.pop() {
+        if node == to {
+            return true;
+        }
+        if node == avoid || std::mem::replace(&mut seen[node.as_usize()], true) {
+            continue;
+        }
+        stack.extend(graph.children(node).iter().copied());
+    }
+    false
+}
+
 /// Covariates of step 2 that confound the second action and the outcome while
 /// lying downstream of the first action: the time-varying confounders that a
-/// sequence-wise identification must handle jointly.
+/// sequence-wise identification must handle jointly. A covariate whose only
+/// route to the outcome runs through the second action mediates it and
+/// confounds nothing.
 fn time_varying_confounders(spec: &TemporalSequenceSpec) -> Vec<VariableId> {
     let graph = spec.diagram().causal_graph();
     let slots = spec.slots();
@@ -781,7 +798,7 @@ fn time_varying_confounders(spec: &TemporalSequenceSpec) -> Vec<VariableId> {
             let affects_second =
                 graph.parents(a2).contains(&id) || graph.bidirected_neighbors(a2).contains(&id);
             let affects_outcome =
-                graph.reaches(id, y) || graph.bidirected_neighbors(y).contains(&id);
+                reaches_avoiding(graph, id, y, a2) || graph.bidirected_neighbors(y).contains(&id);
             after_first && affects_second && affects_outcome
         })
         .collect()

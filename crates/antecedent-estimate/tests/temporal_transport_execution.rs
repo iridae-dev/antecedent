@@ -24,7 +24,7 @@ use antecedent_identify::sid::temporal_sequence::{
 use common::temporal_fixture::{
     A1, A2, B, L1, L2, Y, action_catalog, action_law, baseline_only_spec, baseline_shift_source,
     catalog, catalog_with_unused_regime, data_of, laws, observational_source_law, sequence,
-    source_scm, spec, target_law, target_scm, truth, unrolled, v,
+    source_scm, spec, target_law, target_law_without, target_scm, truth, unrolled, v,
 };
 
 const BUDGET: SearchLimits = SearchLimits { operations: 100_000, depth: 256 };
@@ -178,7 +178,7 @@ fn time_varying_confounding_and_every_invariance_are_explicit() {
     assert_eq!(touching(0), ["source", "target"]);
     assert_eq!(touching(2), ["source", "target"]);
     // Without l2 -> a2 the second action has no time-varying confounder.
-    let mut edges = vec![
+    let edges = vec![
         (B, L1),
         (L1, A1),
         (B, L2),
@@ -190,19 +190,27 @@ fn time_varying_confounding_and_every_invariance_are_explicit() {
         (L2, Y),
         (A2, Y),
     ];
-    edges.retain(|e| *e != (L2, A2));
-    let plain = unrolled(&[B, L2], &edges);
-    let decision = decide_temporal_transport_sequence(
-        &plain,
-        &sequence(1.0, 0.0),
-        "source",
-        "target",
-        &catalog(),
-        BUDGET,
-        &ctx(),
-    )
-    .unwrap();
-    assert!(decision.time_varying_confounders.is_empty());
+    let without = |dropped: (usize, usize)| {
+        let mut kept = edges.clone();
+        kept.retain(|e| *e != dropped);
+        decide_temporal_transport_sequence(
+            &unrolled(&[B, L2], &kept),
+            &sequence(1.0, 0.0),
+            "source",
+            "target",
+            &catalog(),
+            BUDGET,
+            &ctx(),
+        )
+        .unwrap()
+        .time_varying_confounders
+    };
+    assert!(without((L2, A2)).is_empty());
+    // Without l2 -> y the covariate reaches the outcome only through a2: it
+    // mediates the second action and confounds nothing.
+    assert!(without((L2, Y)).is_empty());
+    // Without a1 -> l2 it is a confounder, but not a time-varying one.
+    assert!(without((A1, L2)).is_empty());
 }
 
 #[test]
@@ -252,36 +260,64 @@ fn a_history_the_target_never_reaches_still_needs_source_support() {
 fn a_first_action_the_target_never_takes_at_an_initial_state_refuses() {
     // Zero the target cells with (b = 1, l1 = 1, a1 = 1): the initial state stays
     // reached but the first action has no target support there.
+    // The fixture proof reads the target's joint law over the first action (its
+    // step-2 covariate factor conditions on it), so the mass is required.
     let decision = decide(&sequence(1.0, 0.0), BUDGET);
+    let never_first = |c: [u8; 6]| c[..3] == [1, 1, 1];
     let full = laws(&source_scm(), &target_scm(), &[]);
-    let target = full.laws().iter().find(|l| l.population() == "target").unwrap();
-    let mut probabilities = target.probabilities().to_vec();
-    for (cell, p) in probabilities.iter_mut().enumerate() {
-        // Axes b, l1, a1, l2, a2, y with the last fastest.
-        if (cell >> 5) & 1 == 1 && (cell >> 4) & 1 == 1 && (cell >> 3) & 1 == 1 {
-            *p = 0.0;
-        }
-    }
-    let total: f64 = probabilities.iter().sum();
-    probabilities.iter_mut().for_each(|p| *p /= total);
-    let edited = antecedent_expr::ExactDiscreteLaw::try_new(
-        "target",
-        target.regime(),
-        [],
-        target.axes().to_vec(),
-        probabilities,
-        target.snapshot_identity(),
-        antecedent_expr::LawTolerance::default(),
-    )
-    .unwrap();
-    let mut all = vec![edited];
+    let mut all = vec![target_law_without(&target_scm(), never_first)];
     all.extend(full.laws().iter().filter(|l| l.population() != "target").cloned());
     let data = antecedent_expr::ExactTransportData::try_new(all, 4096).unwrap();
+    assert_report_matches_evaluator(&decision, &data);
     let result =
         prepare_temporal_sequence(decision, data, ExactEvaluationLimits::default(), &ctx());
     let (code, message) = refusal(result);
     assert_eq!(code, "transport_support_failure");
     assert!(message.contains("step 1") && message.contains("b=1, l1=1"), "{message}");
+    // A proof that reads only the target's initial-state law (selection at the
+    // baseline, action experiment) needs no first-action mass: the same target
+    // law is no support failure there, the report says so, the evaluator agrees
+    // and the point is the truth of a target that never takes a1 = 1 at b = 1.
+    let decision = decide_temporal_transport_sequence(
+        &baseline_only_spec(),
+        &sequence(1.0, 0.0),
+        "source",
+        "target",
+        &action_catalog(),
+        BUDGET,
+        &ctx(),
+    )
+    .unwrap();
+    let data = data_of(vec![
+        target_law_without(&target_scm(), never_first),
+        action_law(&baseline_shift_source(), [1, 0]),
+    ]);
+    let report = history_support(&decision, &data);
+    assert!(report.outside().is_empty(), "{:?}", report.outside());
+    assert!(report.rows.iter().filter(|r| r.step == 1).all(|r| r.status == "supported"));
+    assert!(
+        report.rows.iter().any(|r| r.step == 2
+            && r.history[..2] == [Value::f64(1.0), Value::f64(1.0)]
+            && r.status == "unreached"),
+        "{:?}",
+        report.rows
+    );
+    assert_report_matches_evaluator(&decision, &data);
+    let point = prepare_temporal_sequence(decision, data, ExactEvaluationLimits::default(), &ctx())
+        .unwrap()
+        .evaluate(&ctx())
+        .unwrap();
+    // The proof is sum_b P*(b) P^s(y | b, do(a1, a2)); removing the (1, 1, 1)
+    // cells moves P*(b), so the truth is enumerated under that moved baseline.
+    let b1 = report
+        .rows
+        .iter()
+        .filter(|r| r.step == 1 && r.history[0] == Value::f64(1.0))
+        .map(|r| r.target_mass.unwrap())
+        .sum::<f64>();
+    let mut moved = target_scm();
+    moved.exo_p[0] = b1;
+    assert!((point.mean - truth(&moved, [1, 0])).abs() < 1e-12, "{} vs truth", point.mean);
 }
 
 #[test]
