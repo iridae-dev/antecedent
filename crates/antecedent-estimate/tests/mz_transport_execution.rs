@@ -3,7 +3,8 @@
 //! The graph is Bareinboim & Pearl (`NeurIPS` 2014, R-443) Figure 1(c,d):
 //! `Z1 -> X -> Z2 -> Y` with `Z1 <-> X`, `Z1 <-> Z2`, `Z1 <-> Y`. Source `a`
 //! changes the `Z1` and `Z2` mechanisms and can experiment on `Z2`; source `b`
-//! changes `Z1` and `Y` and can experiment on `Z1`. Every law is enumerated from
+//! changes `Z1` and `Y` (one selection node more than the paper's (d), see
+//! `common::mz_fixture`) and can experiment on `Z1`. Every law is enumerated from
 //! each population's structural model, so the formula is checked against the
 //! target's own interventional truth.
 //!
@@ -548,6 +549,125 @@ fn fig_2_analogue_obstruction_is_real_two_models_agree_on_every_experiment() {
     let MzTransportDecision::ProvenNonTransportable(obstruction) = decision else {
         panic!("the Figure 2 analogue is non-transportable, got {decision:?}");
     };
+    verify_mz_transport_obstruction(
+        &graph,
+        &obstruction,
+        antecedent_identify::SidLimits::default(),
+        &ctx,
+    )
+    .unwrap();
+}
+
+/// R-443 Figure 2(a,b) exactly (`X -> Y <- Z`, `X <-> Y`, `Z <-> Y`; source `a`
+/// has `S_a -> Z` and runs `do(X)`, source `b` has `S_b -> Y` and runs `do(Z)`),
+/// with the paper's own two structural models `M1`, `M2` (its Eqs. 3-4):
+/// `U1..U6` fair coins, `S_a`, `S_b` the domain indicators, and
+///
+/// * `M1`: `X = U1`, `Z = U2 ⊕ (U3 ∧ S_a)`,
+///   `Y = ((X ⊕ Z ⊕ U1 ⊕ U2 ⊕ (U4 ∧ S_b)) ∧ U5) ∨ (¬U5 ∧ U6)`;
+/// * `M2`: `X = U1`, `Z = U2 ⊕ (U3 ∧ S_a)`,
+///   `Y = ((Z ⊕ U2 ⊕ (U4 ∧ S_b)) ∧ U5) ⊕ (¬U5 ∧ U6)`.
+///
+/// Both agree on `P^a(x, z, y)`, `P^b(x, z, y)`, `P^a(z, y | do(x))`,
+/// `P^b(x, y | do(z))` and `P*(x, z, y)` (Eq. 3) yet disagree on
+/// `P*(y | do(x))` (Eq. 4), which is the paper's witness that the effect is not
+/// mz-transportable; the search certifies the same obstruction and replays it.
+#[test]
+fn fig_2_obstruction_is_real_the_papers_two_models_agree_on_every_experiment() {
+    const XV: usize = 0;
+    const Z: usize = 1;
+    const YV: usize = 2;
+    // Exogenous bits e[0..6] are U1..U6; every one a fair coin.
+    let model = |second: bool| -> [Scm; 3] {
+        let scm = |s_a: u8, s_b: u8| {
+            let y: Mechanism = if second {
+                Box::new(move |v: &[u8], e: &[u8]| {
+                    ((v[Z] ^ e[1] ^ (e[3] & s_b)) & e[4]) ^ ((1 - e[4]) & e[5])
+                })
+            } else {
+                Box::new(move |v: &[u8], e: &[u8]| {
+                    ((v[XV] ^ v[Z] ^ e[0] ^ e[1] ^ (e[3] & s_b)) & e[4]) | ((1 - e[4]) & e[5])
+                })
+            };
+            Scm {
+                n: 3,
+                exo_p: vec![0.5; 6],
+                f: vec![Box::new(|_, e| e[0]), Box::new(move |_, e| e[1] ^ (e[2] & s_a)), y],
+            }
+        };
+        // target (S_a = S_b = 0), source a (S_a = 1), source b (S_b = 1)
+        [scm(0, 0), scm(1, 0), scm(0, 1)]
+    };
+    let evidence_of = |second: bool| {
+        let [target, a, b] = model(second);
+        let specs = [
+            Spec { population: "target", kind: RegimeKind::Observational, assignments: vec![] },
+            Spec { population: "a", kind: RegimeKind::Observational, assignments: vec![] },
+            Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(XV, 0)] },
+            Spec { population: "a", kind: RegimeKind::Experimental, assignments: vec![(XV, 1)] },
+            Spec { population: "b", kind: RegimeKind::Observational, assignments: vec![] },
+            Spec { population: "b", kind: RegimeKind::Experimental, assignments: vec![(Z, 0)] },
+            Spec { population: "b", kind: RegimeKind::Experimental, assignments: vec![(Z, 1)] },
+        ];
+        let scm_for = |population: &str| -> &Scm {
+            match population {
+                "a" => &a,
+                "b" => &b,
+                _ => &target,
+            }
+        };
+        let evidence = build(&scm_for, 3, &specs, &["target", "a", "b"]);
+        let truth = |x: u8| model(second)[0].risk(&[(XV, x)], YV);
+        (evidence, truth(0), truth(1))
+    };
+    let ((catalog, data_1), t1_0, t1_1) = evidence_of(false);
+    let ((_, data_2), t2_0, t2_1) = evidence_of(true);
+
+    // Eq. 3: every supplied law is identical across the two models ...
+    assert_eq!(data_1.laws().len(), data_2.laws().len());
+    for (l1, l2) in data_1.laws().iter().zip(data_2.laws()) {
+        assert_eq!((l1.population(), l1.regime()), (l2.population(), l2.regime()));
+        let worst = l1
+            .probabilities()
+            .iter()
+            .zip(l2.probabilities())
+            .map(|(p, q)| (p - q).abs())
+            .fold(0.0, f64::max);
+        assert!(
+            worst < 1e-15,
+            "{} regime {}: laws differ by {worst}",
+            l1.population(),
+            l1.regime().raw()
+        );
+    }
+    // ... and Eq. 4: the target's interventional effect is not.
+    assert!((t1_0 - 0.5).abs() < 1e-12 && (t1_1 - 0.5).abs() < 1e-12, "{t1_0} {t1_1}");
+    assert!((t2_0 - 0.25).abs() < 1e-12 && (t2_1 - 0.25).abs() < 1e-12, "{t2_0} {t2_1}");
+
+    // The search certifies exactly this obstruction, and the checker replays it.
+    let graph = diagram(3, &[(XV, YV), (Z, YV)], &[(XV, YV), (Z, YV)], &[]).causal_graph().clone();
+    let source = |name: &str, controllable: usize, target: usize| ZTransportSourceSpec {
+        population: Arc::from(name),
+        controllable: Arc::from([vid(controllable)]),
+        experiment_assignment: Arc::from([InterventionAssignment {
+            variable: vid(controllable),
+            value: Value::Bool(false),
+        }]),
+        selection_targets: Arc::from([vid(target)]),
+    };
+    let q = antecedent_identify::MzTransportQuery {
+        outcomes: Arc::from([vid(YV)]),
+        treatments: Arc::from([vid(XV)]),
+        target: Arc::from("target"),
+        sources: Arc::from([source("a", XV, Z), source("b", Z, YV)]),
+    };
+    let ctx = ExecutionContext::for_tests(1);
+    let decision =
+        decide_mz_transport(&graph, &q, &catalog, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
+    let MzTransportDecision::ProvenNonTransportable(obstruction) = decision else {
+        panic!("R-443 Figure 2 is non-transportable, got {decision:?}");
+    };
+    assert_eq!(obstruction.c0(), [u32::try_from(Z).unwrap(), u32::try_from(YV).unwrap()]);
     verify_mz_transport_obstruction(
         &graph,
         &obstruction,

@@ -1638,12 +1638,11 @@ fn z_interval_over_draws(
     if data.laws().iter().any(|law| law.empirical_counts().is_none()) {
         return Ok(Err("exact_supplied_law_no_sampling_uncertainty"));
     }
+    validate_draw_spec(spec)?;
     let regimes = data.laws().iter().map(antecedent_expr::ExactDiscreteLaw::regime);
     if !licensed_iid_regimes(functional.catalog(), regimes) {
-        validate_draw_spec(spec)?;
         return Ok(Err("transport.unsupported_dependence"));
     }
-    validate_draw_spec(spec)?;
     crate::transport::validate_exact_laws(functional.catalog(), data)
         .map_err(|error| refuse_eval(&error))?;
     let tables = CitedTables::new(functional, data, AliasPolicy::Identical)?
@@ -1758,27 +1757,49 @@ fn z_draws(
     let mut columns = requests.iter().map(|_| ReplicateColumns::new(&outcomes)).collect::<Vec<_>>();
     let mut failed = 0u32;
     let mut drawer = TableDrawer::new(tables, max_support_rows);
-    'replicates: for replicate in 0..spec.replicates {
+    for replicate in 0..spec.replicates {
         crate::transport::refuse_cancelled(ctx, spec.stage)?;
         let Some(drawn) = drawer.draw(spec, replicate, ctx, &mut draw)? else {
             failed += 1;
-            continue 'replicates;
+            continue;
         };
-        let mut evaluated = Vec::with_capacity(requests.len());
-        for request in requests {
-            let Some(distribution) =
-                evaluate_z_draw(functional, drawn.clone(), request, limits, ctx)?
-            else {
-                failed += 1;
-                continue 'replicates;
-            };
-            evaluated.push(distribution);
-        }
+        let Some(evaluated) = evaluate_z_requests(functional, drawn, requests, limits, ctx)? else {
+            failed += 1;
+            continue;
+        };
         for (column, distribution) in columns.iter_mut().zip(&evaluated) {
             column.record(distribution)?;
         }
     }
     Ok(ZDraws { columns, failed })
+}
+
+/// Evaluate every request on one drawn law set, in request order; `None` when
+/// any request is a counted support failure. Compilation consumes the law set,
+/// so only the last request takes it by move and the others read a clone.
+fn evaluate_z_requests(
+    functional: &dyn crate::transport::BoundZFormula,
+    drawn: antecedent_expr::ExactTransportData,
+    requests: &[Assignment],
+    limits: ExactEvaluationLimits,
+    ctx: &ExecutionContext,
+) -> Result<Option<Vec<ExactDistribution>>, EstimationError> {
+    let mut evaluated = Vec::with_capacity(requests.len());
+    let Some((last, head)) = requests.split_last() else {
+        return Ok(Some(evaluated));
+    };
+    for request in head {
+        let Some(distribution) = evaluate_z_draw(functional, drawn.clone(), request, limits, ctx)?
+        else {
+            return Ok(None);
+        };
+        evaluated.push(distribution);
+    }
+    let Some(distribution) = evaluate_z_draw(functional, drawn, last, limits, ctx)? else {
+        return Ok(None);
+    };
+    evaluated.push(distribution);
+    Ok(Some(evaluated))
 }
 
 /// Evaluate one resampled or drawn law set; `None` is a counted support failure.

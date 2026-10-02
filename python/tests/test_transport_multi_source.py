@@ -3,7 +3,8 @@
 The fixture is Bareinboim & Pearl (NeurIPS 2014, R-443) Figure 1(c,d):
 ``z1 -> x -> z2 -> y`` with ``z1 <-> x``, ``z1 <-> z2``, ``z1 <-> y``. Source ``a``
 changes the ``z1`` and ``z2`` mechanisms and experiments on ``z2``; source ``b``
-changes ``z1`` and ``y`` and experiments on ``z1``. Neither identifies
+changes ``z1`` and ``y`` (one selection node more than the paper's (d), which
+``do(z1)`` cuts) and experiments on ``z1``. Neither identifies
 ``P*(y | do(x))`` alone; together they do. Every law and the truth are enumerated
 here from each population's structural equations, independently of the library.
 """

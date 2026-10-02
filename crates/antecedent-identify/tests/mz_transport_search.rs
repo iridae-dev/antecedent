@@ -3,7 +3,10 @@
 //! The positive fixture is Bareinboim & Pearl (`NeurIPS` 2014, R-443) Figure 1(c,d):
 //! neither source transports `P*(y | do(x))` alone, but experiments on `{Z2}` in
 //! one source and `{Z1}` in the other do, through
-//! `Σ_z2 P^b(z2 | x, do(z1)) P^a(y | do(z2))`.
+//! `Σ_z2 P^b(z2 | x, do(z1)) P^a(y | do(z2))` (the paper's Eq. 2). Source `b`'s
+//! diagram here also puts a selection node into `Z1`, which the paper's (d) lacks
+//! (its only selection node is into `Y`): a stricter diagram that `do(Z1)` cuts,
+//! so the same formula transports.
 
 use std::sync::Arc;
 
@@ -54,8 +57,9 @@ fn source_a() -> ZTransportSourceSpec {
     source("a", &[Z2], &[Z1, Z2])
 }
 
-/// Figure 1(d): source `b`, selection on {Z1, Y}, experiments on {Z1}. The formula
-/// is constant in `z1`, so `do(Z1)` is cited at one declared level.
+/// Figure 1(d) with an extra selection node into `Z1`: source `b`, selection on
+/// {Z1, Y}, experiments on {Z1}. The formula is constant in `z1`, so `do(Z1)` is
+/// cited at one declared level.
 fn source_b() -> ZTransportSourceSpec {
     ZTransportSourceSpec {
         experiment_assignment: Arc::from([InterventionAssignment {
@@ -946,10 +950,10 @@ fn fig_1ef_split_is_non_transportable_in_the_paper_but_deliberately_not_certifie
 /// `a` experiments on `X` but its selection node points into `Y`, source `b`
 /// experiments on `Z` and its selection node points into `X`. Neither experiment
 /// set transports `P*(y | do(x))`, and no combination helps: the obstruction is a
-/// forced line-11 terminal with no active experiment. The exact Figure 2 graph
-/// was not available offline, so this is the closest analogue; its two-model
-/// counterexample is executed in `antecedent-estimate`'s `mz_transport_execution`
-/// (`fig_2_analogue_obstruction_is_real_two_models_agree_on_every_experiment`).
+/// forced line-11 terminal with no active experiment. The paper's own Figure 2
+/// graph is `fig_2_graph_exact` below; this analogue is kept as a second
+/// obstruction of the same shape. Both two-model counterexamples are executed in
+/// `antecedent-estimate`'s `mz_transport_execution`.
 const FIG2_Z: u32 = 0;
 const FIG2_X: u32 = 1;
 const FIG2_Y: u32 = 2;
@@ -1020,6 +1024,78 @@ fn fig_2_analogue_with_an_x_experiment_and_a_z_experiment_is_a_replayed_obstruct
                 .iter()
                 .all(|(_, active, separated)| active.is_empty() || !separated)
         );
+        // The independent checker replays the same terminal.
+        verify_mz_transport_obstruction(&graph, obstruction, SidLimits::default(), &ctx).unwrap();
+        signatures.push(outcome_signature(&decision));
+    }
+    assert_eq!(signatures[0], signatures[1]);
+}
+
+/// R-443 Figure 2(a,b) exactly: `X -> Y <- Z` with `X <-> Y` and `Z <-> Y`;
+/// source `a` (diagram (a), `S_a -> Z`) experiments on `{X}`, source `b`
+/// (diagram (b), `S_b -> Y`) experiments on `{Z}`. The paper states that
+/// `P*(y | do(x))` is not mz-transportable here (Theorem 3's worked example:
+/// `F' = {Y, Z}`, `F = F' ∪ {X}` with a selection node into `F'` in both
+/// domains), and the search certifies exactly that as a forced line-11 terminal.
+const FIG2_EXACT_X: u32 = 0;
+const FIG2_EXACT_Z: u32 = 1;
+const FIG2_EXACT_Y: u32 = 2;
+
+fn fig_2_graph_exact() -> Admg {
+    let mut g = Admg::with_variables(3);
+    for (a, b) in [(FIG2_EXACT_X, FIG2_EXACT_Y), (FIG2_EXACT_Z, FIG2_EXACT_Y)] {
+        g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    for (a, b) in [(FIG2_EXACT_X, FIG2_EXACT_Y), (FIG2_EXACT_Z, FIG2_EXACT_Y)] {
+        g.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+    }
+    g
+}
+
+fn fig_2_sources_exact() -> Vec<ZTransportSourceSpec> {
+    vec![
+        assigned(source("a", &[FIG2_EXACT_X], &[FIG2_EXACT_Z]), &[(FIG2_EXACT_X, 0.0)]),
+        assigned(source("b", &[FIG2_EXACT_Z], &[FIG2_EXACT_Y]), &[(FIG2_EXACT_Z, 0.0)]),
+    ]
+}
+
+#[test]
+fn fig_2_with_an_x_experiment_and_a_z_experiment_is_a_replayed_obstruction() {
+    let on = |id, population: &str, on: &[u32]| regime_over(3, id, population, on);
+    // The paper's information family: the target's observational law, source a's
+    // do(X) and source b's do(Z).
+    let evidence = catalog(vec![
+        on(0, "target", &[]),
+        on(1, "a", &[FIG2_EXACT_X]),
+        on(2, "b", &[FIG2_EXACT_Z]),
+    ]);
+    let graph = fig_2_graph_exact();
+    let ctx = ExecutionContext::for_tests(1);
+    let mut reversed = fig_2_sources_exact();
+    reversed.reverse();
+    let mut signatures = Vec::new();
+    for sources in [fig_2_sources_exact(), reversed] {
+        let q = MzTransportQuery {
+            outcomes: Arc::from([v(FIG2_EXACT_Y)]),
+            treatments: Arc::from([v(FIG2_EXACT_X)]),
+            target: Arc::from("target"),
+            sources: sources.into(),
+        };
+        let decision =
+            decide_mz_transport(&graph, &q, &evidence, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
+        let MzTransportDecision::ProvenNonTransportable(obstruction) = &decision else {
+            panic!("R-443 Figure 2 is non-transportable, got {decision:?}");
+        };
+        assert_eq!(decision.reason_code(), Some("transport_proven_non_transportable"));
+        assert_eq!(decision.detail_code(), Some("mz_transport.checked_obstruction"));
+        // The failing c-component is the paper's F' = {Y, Z}, inside F = {X, Y, Z}.
+        assert_eq!(obstruction.c0(), [FIG2_EXACT_Z, FIG2_EXACT_Y]);
+        // No source can exchange at the terminal: a holds the active X but
+        // S_a -> Z -> Y stays open given X; b's Z never meets the treatments and
+        // S_b -> Y is not separated either.
+        let mut per_source = obstruction.sources();
+        per_source.sort();
+        assert_eq!(per_source, [("a", &[FIG2_EXACT_X][..], false), ("b", &[][..], false)]);
         // The independent checker replays the same terminal.
         verify_mz_transport_obstruction(&graph, obstruction, SidLimits::default(), &ctx).unwrap();
         signatures.push(outcome_signature(&decision));

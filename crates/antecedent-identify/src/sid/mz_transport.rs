@@ -688,10 +688,7 @@ fn decide_bounded(
     {
         return Err(bounds_exceeded());
     }
-    let validated = validate_mz_transport_query(graph, query, catalog)?;
-    catalog.validate().map_err(|error| {
-        IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
-    })?;
+    let validated = validated_input(graph, query, catalog)?;
     match SearchBudget::with_memory(limits, memory_limit_bytes, ctx) {
         Ok(budget) => {
             decide_charged(graph, validated, catalog, &mut SharedSearch::new(budget), ctx)
@@ -721,11 +718,24 @@ pub(super) fn decide_mz_transport_shared(
     search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportDecision, IdentificationError> {
+    decide_charged(graph, validated_input(graph, query, catalog)?, catalog, search, ctx)
+}
+
+/// The query validated against the graph and catalog, and the catalog validated
+/// on its own, as every decision entry requires.
+fn validated_input(
+    graph: &antecedent_graph::Admg,
+    query: &MzTransportQuery,
+    catalog: &EvidenceCatalog,
+) -> Result<ValidatedMzTransportQuery, IdentificationError> {
     let validated = validate_mz_transport_query(graph, query, catalog)?;
-    catalog.validate().map_err(|error| {
-        IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
-    })?;
-    decide_charged(graph, validated, catalog, search, ctx)
+    catalog.validate().map_err(invalid_catalog)?;
+    Ok(validated)
+}
+
+/// A catalog that fails its own validation, reported under this route's detail.
+fn invalid_catalog(error: impl std::fmt::Display) -> IdentificationError {
+    IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
 }
 
 /// Stage names in evaluation order.
@@ -1107,21 +1117,32 @@ fn bind(
     catalog: &EvidenceCatalog,
     query: &MzTransportQuery,
 ) -> Result<Arc<[RegimeId]>, Result<String, IdentificationError>> {
+    match bind_recursive(derivation, catalog, query) {
+        Ok((_, _, cited)) => Ok(cited),
+        Err(error @ IdentificationError::MissingEvidence { .. }) => Err(Ok(error.to_string())),
+        Err(error) => Err(Err(error)),
+    }
+}
+
+/// Bind the leaves of a recursive (target-only or combined) derivation to the
+/// catalog: the bound arena, its root and the cited regimes.
+fn bind_recursive(
+    derivation: &MzTransportDerivation,
+    catalog: &EvidenceCatalog,
+    query: &MzTransportQuery,
+) -> Result<(CausalExprArena, ExprId, Arc<[RegimeId]>), IdentificationError> {
     let mut arena = derivation.arena.clone();
     let mut memo = std::collections::HashMap::new();
     let mut cited = Vec::new();
-    match bind_recursive_expression(
+    let root = bind_recursive_expression(
         derivation.root,
         &mut arena,
         catalog,
         &query.treatments,
         &mut memo,
         &mut cited,
-    ) {
-        Ok(_) => Ok(cited_regimes(cited)),
-        Err(error @ IdentificationError::MissingEvidence { .. }) => Err(Ok(error.to_string())),
-        Err(error) => Err(Err(error)),
-    }
+    )?;
+    Ok((arena, root, cited_regimes(cited)))
 }
 
 /// A checked mz derivation whose every factor leaf is bound to the catalog
@@ -1202,9 +1223,7 @@ pub fn bind_mz_transport_catalog(
     if super::graph_signature(&shared) != derivation.graph_signature {
         return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
     }
-    catalog.validate().map_err(|error| {
-        IdentificationError::invalid_catalog(format!("mz_transport.invalid_catalog: {error}"))
-    })?;
+    catalog.validate().map_err(invalid_catalog)?;
     let query = &derivation.query;
     let (arena, root, cited) = if let Some(single) = &derivation.single {
         let MzTransportRoute::SingleSource { population } = &derivation.route else {
@@ -1222,18 +1241,7 @@ pub fn bind_mz_transport_catalog(
             bind_z_transport_catalog(&diagram, &query.source_query(source), single, catalog)?;
         (bound.arena().clone(), bound.root(), Arc::from(bound.cited_regimes()))
     } else {
-        let mut arena = derivation.arena.clone();
-        let mut memo = std::collections::HashMap::new();
-        let mut cited = Vec::new();
-        let root = bind_recursive_expression(
-            derivation.root,
-            &mut arena,
-            catalog,
-            &query.treatments,
-            &mut memo,
-            &mut cited,
-        )?;
-        (arena, root, cited_regimes(cited))
+        bind_recursive(derivation, catalog, query)?
     };
     Ok(BoundMzTransportFunctional {
         derivation: derivation.clone(),

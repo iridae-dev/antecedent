@@ -1,9 +1,11 @@
 //! The R-443 Figure 1(c,d) multi-source fixture shared by the mz-transport tests.
 //!
 //! `Z1 -> X -> Z2 -> Y` with `Z1 <-> X`, `Z1 <-> Z2`, `Z1 <-> Y`. Source `a` changes
-//! the `Z1` and `Z2` mechanisms and can experiment on `Z2`; source `b` changes `Z1`
-//! and `Y` and can experiment on `Z1`. Every law is enumerated from each
-//! population's structural model.
+//! the `Z1` and `Z2` mechanisms and can experiment on `Z2` (diagram (c)); source
+//! `b` changes `Z1` and `Y` and can experiment on `Z1` (diagram (d) plus a
+//! selection node into `Z1`, which the paper's (d) lacks; `do(Z1)` cuts it, so
+//! the paper's transport formula still applies). Every law is enumerated from
+//! each population's structural model.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(dead_code)]
