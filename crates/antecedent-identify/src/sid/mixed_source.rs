@@ -581,7 +581,8 @@ pub struct MixedSearchSummary {
 /// One stage of the decision and how it ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MixedStageRecord {
-    /// `target_first_sid`, `z_transport`, `mz_transport` or `rule_search`.
+    /// `target_first_sid`, `z_transport`, `mz_transport`, `meta_transport` or
+    /// `rule_search`.
     pub stage: String,
     /// `identified`, `missing_evidence`, `not_certified`, `obstruction` or `exhausted`.
     pub outcome: &'static str,
@@ -933,6 +934,11 @@ struct Engine<'g> {
     inputs: Vec<MixedInput>,
     target: Key,
     ws: DSeparationWorkspace,
+    /// Mutilated graphs by `(over, under)`: a rule application reuses the one its
+    /// side condition needs instead of rebuilding it.
+    graphs: HashMap<(Mask, Mask), Admg>,
+    /// Decided side conditions by `(over, under, a, b, cond)`.
+    separations: HashMap<(Mask, Mask, Mask, Mask, Mask), bool>,
     steps: Vec<Raw>,
     known: HashMap<Key, usize>,
     by_dz: HashMap<(Mask, Mask), Vec<usize>>,
@@ -944,6 +950,28 @@ struct Engine<'g> {
     completed: usize,
     unexpanded: usize,
     rule_counts: BTreeMap<&'static str, usize>,
+}
+
+/// `graph` (over `n` dense nodes) with every edge into `over` and every directed
+/// edge out of `under` removed (bidirected edges at an `over` node are edges into it).
+fn mutilated(graph: &Admg, n: usize, over: Mask, under: Mask) -> Admg {
+    let mut out = Admg::with_variables(u32::try_from(n).unwrap_or(0));
+    let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
+    for from in 0..n {
+        for to in graph.children(dense(from)) {
+            let to = to.as_usize();
+            if over & bit(to) == 0 && under & bit(from) == 0 {
+                let _ = out.insert_directed(dense(from), dense(to));
+            }
+        }
+        for to in graph.bidirected_neighbors(dense(from)) {
+            let to = to.as_usize();
+            if from < to && over & (bit(from) | bit(to)) == 0 {
+                let _ = out.insert_bidirected(dense(from), dense(to));
+            }
+        }
+    }
+    out
 }
 
 impl<'g> Engine<'g> {
@@ -976,6 +1004,8 @@ impl<'g> Engine<'g> {
             inputs: Vec::new(),
             target,
             ws: DSeparationWorkspace::default(),
+            graphs: HashMap::new(),
+            separations: HashMap::new(),
             steps: Vec::new(),
             known: HashMap::new(),
             by_dz: HashMap::new(),
@@ -1011,10 +1041,18 @@ impl<'g> Engine<'g> {
         out
     }
 
+    /// Live state: every step and alternative, plus the cached mutilated graphs
+    /// and decided side conditions (an estimate of each entry's footprint).
     fn live_bytes(&self) -> u64 {
         let per_step = std::mem::size_of::<Raw>() + 96;
-        u64::try_from(self.steps.len() * per_step + self.alternatives.len() * per_step)
-            .unwrap_or(u64::MAX)
+        let per_graph = 64 + 16 * self.n * self.n;
+        let per_separation = std::mem::size_of::<(Mask, Mask, Mask, Mask, Mask)>() + 8;
+        u64::try_from(
+            (self.steps.len() + self.alternatives.len()) * per_step
+                + self.graphs.len() * per_graph
+                + self.separations.len() * per_separation,
+        )
+        .unwrap_or(u64::MAX)
     }
 
     fn charge(
@@ -1058,28 +1096,6 @@ impl<'g> Engine<'g> {
         self.steps.push(raw);
     }
 
-    /// `G` with every edge into `over` and every directed edge out of `under` removed
-    /// (bidirected edges at an `over` node are edges into it).
-    fn mutilated(&self, over: Mask, under: Mask) -> Admg {
-        let mut graph = Admg::with_variables(u32::try_from(self.n).unwrap_or(0));
-        let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
-        for from in 0..self.n {
-            for to in self.graph.children(dense(from)) {
-                let to = to.as_usize();
-                if over & bit(to) == 0 && under & bit(from) == 0 {
-                    let _ = graph.insert_directed(dense(from), dense(to));
-                }
-            }
-            for to in self.graph.bidirected_neighbors(dense(from)) {
-                let to = to.as_usize();
-                if from < to && over & (bit(from) | bit(to)) == 0 {
-                    let _ = graph.insert_bidirected(dense(from), dense(to));
-                }
-            }
-        }
-        graph
-    }
-
     /// Ancestors of `seeds` (inclusive) within `G` without the edges into `over`.
     fn ancestors_without_into(&self, seeds: Mask, over: Mask) -> Mask {
         let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
@@ -1101,16 +1117,28 @@ impl<'g> Engine<'g> {
     }
 
     /// `a` is m-separated from `b` given `cond` in `G` without the edges into
-    /// `over` and out of `under`.
+    /// `over` and out of `under`. Each mutilated graph is built once and each
+    /// decided side condition is remembered.
     fn separated(&mut self, over: Mask, under: Mask, a: Mask, b: Mask, cond: Mask) -> bool {
-        let graph = self.mutilated(over, under);
+        if let Some(&decided) = self.separations.get(&(over, under, a, b, cond)) {
+            return decided;
+        }
+        let graph = match self.graphs.entry((over, under)) {
+            std::collections::hash_map::Entry::Occupied(cached) => cached.into_mut(),
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                let graph = mutilated(self.graph, self.n, over, under);
+                slot.insert(graph)
+            }
+        };
         let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
         let conditions = members(cond).map(dense).collect::<Vec<_>>();
-        members(a).all(|x| {
+        let decided = members(a).all(|x| {
             members(b).all(|y| {
                 graph.is_m_separated(dense(x), dense(y), &conditions, &mut self.ws).unwrap_or(false)
             })
-        })
+        });
+        self.separations.insert((over, under, a, b, cond), decided);
+        decided
     }
 
     /// Apply every searched rule to step `q`: marginalize, condition, rules 1 and
@@ -1125,8 +1153,10 @@ impl<'g> Engine<'g> {
         generation: usize,
     ) -> Result<(), SearchStop> {
         self.charge(search, generation)?;
-        let base = self.steps[q].clone();
-        let (y, d, z, free) = (base.y, base.d, base.z, base.free);
+        let (y, d, z, free) = {
+            let base = &self.steps[q];
+            (base.y, base.d, base.z, base.free)
+        };
         let unary = |rule, params, y, d, z, free| Raw {
             rule,
             premises: vec![q],
@@ -1139,17 +1169,21 @@ impl<'g> Engine<'g> {
             relaxed: false,
         };
         if size(y) > 1 {
-            for w in subsets(y, MIXED_SOURCE_MAX_MOVE).into_iter().filter(|w| *w != y) {
+            let moves = subsets(y, MIXED_SOURCE_MAX_MOVE)
+                .into_iter()
+                .filter(|w| *w != y)
+                .collect::<Vec<_>>();
+            for &w in &moves {
                 self.charge(search, generation)?;
                 self.add(unary(MixedRule::Marginalize, w, y & !w, d, z, free & !w));
             }
-            for w in subsets(y, MIXED_SOURCE_MAX_MOVE).into_iter().filter(|w| *w != y) {
+            for &w in &moves {
                 self.charge(search, generation)?;
                 self.add(unary(MixedRule::Condition, w, y & !w, d, z | w, free));
             }
         }
-        let outside = self.universe & !(y | d | z);
-        for w in subsets(outside, MIXED_SOURCE_MAX_MOVE) {
+        let outside = subsets(self.universe & !(y | d | z), MIXED_SOURCE_MAX_MOVE);
+        for &w in &outside {
             self.charge(search, generation)?;
             if self.separated(d, 0, y, w, d | z) {
                 self.add(unary(MixedRule::Rule1Insert, w, y, d, z | w, free));
@@ -1170,12 +1204,14 @@ impl<'g> Engine<'g> {
                 self.add(unary(MixedRule::Rule2ToObservation, w, y, d & !w, z | w, free));
             }
         }
-        for w in subsets(outside, MIXED_SOURCE_MAX_MOVE) {
+        // Pearl's `W(Z)`: the inserted actions that are ancestors of the observed
+        // set in `G` without the edges into the existing actions keep their edges.
+        let past = self.ancestors_without_into(z, d);
+        for &w in &outside {
             if size(d) + size(w) > MIXED_SOURCE_MAX_DO {
                 continue;
             }
             self.charge(search, generation)?;
-            let past = self.ancestors_without_into(z, d);
             if self.separated(d | (w & !past), 0, y, w, d | z) {
                 self.add(unary(MixedRule::Rule3Insert, w, y, d | w, z, free));
             }
@@ -1184,7 +1220,7 @@ impl<'g> Engine<'g> {
         for b in subsets(z, size(z)) {
             if let Some(&j) = self.known.get(&(b, d, z & !b)) {
                 self.charge(search, generation)?;
-                let marginal = self.steps[j].clone();
+                let marginal_free = self.steps[j].free;
                 self.add(Raw {
                     rule: MixedRule::Product,
                     premises: vec![q, j],
@@ -1192,7 +1228,7 @@ impl<'g> Engine<'g> {
                     y: y | b,
                     d,
                     z: z & !b,
-                    free: free | marginal.free,
+                    free: free | marginal_free,
                     input: None,
                     relaxed: false,
                 });
@@ -1202,15 +1238,15 @@ impl<'g> Engine<'g> {
         let partners = self.by_dz.get(&(d, z | y)).cloned().unwrap_or_default();
         for j in partners {
             self.charge(search, generation)?;
-            let conditional = self.steps[j].clone();
+            let (conditional_y, conditional_free) = (self.steps[j].y, self.steps[j].free);
             self.add(Raw {
                 rule: MixedRule::Product,
                 premises: vec![j, q],
                 params: 0,
-                y: conditional.y | y,
+                y: conditional_y | y,
                 d,
                 z,
-                free: conditional.free | free,
+                free: conditional_free | free,
                 input: None,
                 relaxed: false,
             });
@@ -1220,8 +1256,9 @@ impl<'g> Engine<'g> {
 
     /// Chain generation by generation until the target is found, no new quantity
     /// appears, or the shared budget stops. A found target keeps its generation
-    /// running so alternative last steps can be collected; a stop there is not
-    /// a failure.
+    /// running so alternative last steps can be collected; a stop there is a
+    /// stop like any other, because the proof's check still has to be charged to
+    /// the same budget and can no longer be.
     fn run(&mut self, search: &mut SharedSearch<'_>) -> RunEnd {
         if self.found.is_some() {
             return RunEnd::Found;
@@ -1238,11 +1275,7 @@ impl<'g> Engine<'g> {
             for q in start..end {
                 if let Err(stop) = self.expand(search, q, generation) {
                     self.unexpanded = end - q;
-                    return if self.found.is_some() {
-                        RunEnd::Found
-                    } else {
-                        RunEnd::Stopped(stop)
-                    };
+                    return RunEnd::Stopped(stop);
                 }
             }
             self.completed = generation;
@@ -1286,7 +1319,9 @@ impl<'g> Engine<'g> {
             }
         }
         let order = needed.into_iter().collect::<Vec<_>>();
-        let position = |old: usize| order.iter().position(|o| *o == old);
+        let renumbered =
+            order.iter().enumerate().map(|(new, old)| (*old, new)).collect::<BTreeMap<_, _>>();
+        let position = |old: usize| renumbered.get(&old).copied();
         let mut arena = CausalExprArena::new();
         let mut steps: Vec<MixedStep> = Vec::with_capacity(order.len() + 1);
         for raw in order.iter().map(|i| &self.steps[*i]).chain([last]) {
@@ -1849,7 +1884,7 @@ pub struct MixedSearchInspection {
 pub enum MixedSourceDecision {
     /// A theorem-scoped route identifies the query; use it.
     NamedRoute {
-        /// `target_first_sid`, `z_transport` or `mz_transport`.
+        /// `target_first_sid`, `z_transport`, `mz_transport` or `meta_transport`.
         route: &'static str,
         /// Stages evaluated before it and including it.
         stages: Vec<MixedStageRecord>,
@@ -1955,7 +1990,8 @@ fn stage_names(query: &MixedSourceQuery, meta: bool) -> Vec<&'static str> {
 ///
 /// Stages run in a fixed order, each only when the earlier ones do not identify:
 /// target-first sID over the catalog's target evidence, the declared z (one
-/// source) or mz (two or more) route, then the generic rule search over the
+/// source) or mz (two or more) route, classical meta-transport when two or more
+/// declared sources are unrestricted, then the generic rule search over the
 /// target population's distributions and, when it fails, the relaxed pass that
 /// names the exact missing joint. One [`SearchBudget`] under `limits` is charged
 /// by every step of every stage, so the limits bound the whole decision. A stop

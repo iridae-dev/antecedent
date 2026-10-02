@@ -35,7 +35,8 @@ class MixedSourceQuery:
 
     The inputs are the target population's available, measured, whole-population
     regimes in the catalog. ``sources`` are optional: they feed only the
-    theorem-scoped z (one source) and mz (two to four) routes that run first.
+    theorem-scoped z (one source), mz (two to four) and meta (two or more
+    unrestricted sources) routes that run first.
     """
 
     target: str

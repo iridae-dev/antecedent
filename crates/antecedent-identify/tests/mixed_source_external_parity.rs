@@ -21,6 +21,12 @@
 //! transportability nodes) are recorded out of scope and are not compared. The
 //! generator scripts were deleted after the import, per convention: their hashes
 //! are provenance only and the outputs are not reproducible from this repository.
+//!
+//! Citing the same distributions is not the same as computing the same number, so
+//! every proof this route returns on an agreed case is also executed: its
+//! expression is evaluated by the exact provider on laws enumerated from random
+//! binary structural models of the case's graph and must equal the model's
+//! `P(outcomes | do(treatments))` at every level of the treatments.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -29,10 +35,14 @@ use antecedent_core::{
     DependenceGroup, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
     ExecutionContext, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, VariableId,
 };
+use antecedent_expr::{
+    Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, ExactEvaluationPlan,
+    ExactTransportData, InterventionAssignment, LawTolerance,
+};
 use antecedent_graph::{Admg, DenseNodeId};
 use antecedent_identify::{
-    MIXED_SOURCE_DEFAULT_LIMITS, MixedSourceDecision, MixedSourceQuery, decide_mixed_source,
-    verify_mixed_source_derivation,
+    MIXED_SOURCE_DEFAULT_LIMITS, MixedSourceDecision, MixedSourceDerivation, MixedSourceQuery,
+    decide_mixed_source, verify_mixed_source_derivation,
 };
 use serde_json::Value;
 
@@ -190,9 +200,19 @@ fn cited_by_proof(
         .collect()
 }
 
-/// `Some(outcome)` for a case this route can express; `None` when its inputs
-/// (selection or transportability nodes) are outside the route.
-fn run(case: &Value) -> Option<(String, Vec<String>, BTreeSet<Cited>)> {
+/// One case's graph, inputs and query: `(regime id, intervened, measured)` of
+/// every input in catalog order, with the variable names.
+struct Case {
+    nodes: Vec<String>,
+    graph: Admg,
+    inputs: Vec<(RegimeId, Vec<usize>, Vec<usize>)>,
+    catalog: EvidenceCatalog,
+    query: MixedSourceQuery,
+}
+
+/// `Some` for a case this route can express; `None` when its inputs (selection
+/// or transportability nodes) are outside the route.
+fn build_case(case: &Value) -> Option<Case> {
     let nodes = strings(&case["nodes"]);
     let id = |name: &str| {
         VariableId::from_raw(u32::try_from(nodes.iter().position(|n| n == name).unwrap()).unwrap())
@@ -209,23 +229,30 @@ fn run(case: &Value) -> Option<(String, Vec<String>, BTreeSet<Cited>)> {
             .insert_bidirected(dense(edge[0].as_str().unwrap()), dense(edge[1].as_str().unwrap()))
             .unwrap();
     }
-    let inputs = case["inputs"].as_array()?;
     let mut regimes = Vec::new();
-    for (k, input) in inputs.iter().enumerate() {
+    let mut inputs = Vec::new();
+    for (k, input) in case["inputs"].as_array()?.iter().enumerate() {
+        let regime_id = RegimeId::from_raw(u32::try_from(k + 1).unwrap());
         let on = strings(&input["do"]).iter().map(|n| id(n)).collect::<Vec<_>>();
+        let measured = strings(&input["measured"]).iter().map(|n| id(n)).collect::<Vec<_>>();
         let mut regime = EvidenceRegime::try_new(
-            RegimeId::from_raw(u32::try_from(k + 1).unwrap()),
+            regime_id,
             if on.is_empty() { RegimeKind::Observational } else { RegimeKind::Experimental },
             EvidenceKind::Available,
-            on,
+            on.clone(),
             [],
-            strings(&input["measured"]).iter().map(|n| id(n)).collect::<Vec<_>>(),
+            measured.clone(),
             "target",
             DistributionAvailability::Joint,
         )
         .unwrap();
         regime.study = Some(Arc::from(input["study"].as_str().unwrap()));
         regimes.push(regime);
+        inputs.push((
+            regime_id,
+            on.iter().map(|v| v.as_usize()).collect(),
+            measured.iter().map(|v| v.as_usize()).collect(),
+        ));
     }
     let bindings = regimes
         .iter()
@@ -254,6 +281,12 @@ fn run(case: &Value) -> Option<(String, Vec<String>, BTreeSet<Cited>)> {
         target: Arc::from("target"),
         sources: Arc::from([]),
     };
+    Some(Case { nodes, graph, inputs, catalog, query })
+}
+
+/// The case's decision: its outcome, the studies and distributions a proof cites.
+fn run(case: &Value) -> Option<(String, Vec<String>, BTreeSet<Cited>)> {
+    let Case { nodes, graph, catalog, query, .. } = build_case(case)?;
     let ctx = ExecutionContext::for_tests(1);
     Some(
         match decide_mixed_source(&graph, &query, &catalog, MIXED_SOURCE_DEFAULT_LIMITS, &ctx)
@@ -342,6 +375,235 @@ fn ananke_gid_and_aid_cases_agree_and_every_disagreement_is_recorded() {
         }
     }
     assert!(agreed >= 3 && named == 2, "{agreed} proofs agree, {named} named routes");
+}
+
+/// A binary structural model consistent with an ADMG: every node is a random
+/// function of its parents and the latent bits of its bidirected edges, flipped by
+/// independent noise so every configuration has positive mass.
+struct Model {
+    n: usize,
+    exo_p: Vec<f64>,
+    tables: Vec<(Vec<usize>, Vec<usize>, Vec<u8>)>,
+}
+
+impl Model {
+    fn random(seed: u64, graph: &Admg) -> Self {
+        let n = graph.node_count();
+        let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap());
+        // SplitMix64: consecutive seeds give unrelated streams.
+        let mut state = seed;
+        let mut next = || {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut z = state;
+            z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            usize::try_from((z ^ (z >> 31)) >> 8).unwrap()
+        };
+        let mut bidirected = Vec::new();
+        for a in 0..n {
+            for b in graph.bidirected_neighbors(dense(a)) {
+                if a < b.as_usize() {
+                    bidirected.push((a, b.as_usize()));
+                }
+            }
+        }
+        let mut exo_p =
+            (0..n).map(|_| 0.15 + 0.2 * (next() % 1000) as f64 / 1000.0).collect::<Vec<_>>();
+        exo_p.extend(bidirected.iter().map(|_| 0.3 + 0.4 * (next() % 1000) as f64 / 1000.0));
+        let tables = (0..n)
+            .map(|i| {
+                let parents =
+                    graph.parents(dense(i)).iter().map(|p| p.as_usize()).collect::<Vec<_>>();
+                let latents = bidirected
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, (a, b))| *a == i || *b == i)
+                    .map(|(k, _)| n + k)
+                    .collect::<Vec<_>>();
+                let width = parents.len() + latents.len();
+                let table = (0..1usize << width).map(|_| u8::from(next() % 2 == 1)).collect();
+                (parents, latents, table)
+            })
+            .collect();
+        Self { n, exo_p, tables }
+    }
+
+    /// Exact joint law over `measured` (first variable most significant) under `do_`.
+    fn law(&self, do_: &[(usize, u8)], measured: &[usize]) -> Vec<f64> {
+        let mut out = vec![0.0; 1 << measured.len()];
+        let m = self.exo_p.len();
+        for mask in 0..(1usize << m) {
+            let exo = (0..m).map(|bit| u8::from((mask >> bit) & 1 == 1)).collect::<Vec<_>>();
+            let weight = self
+                .exo_p
+                .iter()
+                .enumerate()
+                .map(|(bit, p)| if exo[bit] == 1 { *p } else { 1.0 - *p })
+                .product::<f64>();
+            let mut values = vec![0u8; self.n];
+            for i in 0..self.n {
+                values[i] = if let Some((_, level)) = do_.iter().find(|(v, _)| *v == i) {
+                    *level
+                } else {
+                    let (parents, latents, table) = &self.tables[i];
+                    let key = parents
+                        .iter()
+                        .map(|p| values[*p])
+                        .chain(latents.iter().map(|l| exo[*l]))
+                        .fold(0usize, |acc, bit| (acc << 1) | usize::from(bit));
+                    table[key] ^ exo[i]
+                };
+            }
+            let index = measured.iter().fold(0usize, |acc, v| (acc << 1) | usize::from(values[*v]));
+            out[index] += weight;
+        }
+        out
+    }
+}
+
+/// Exact laws of every input of `case`, enumerated from `model`, one per level of
+/// each input's intervention set.
+fn enumerated_laws(case: &Case, model: &Model) -> ExactTransportData {
+    let axis = |v: usize| DiscreteAxis {
+        variable: VariableId::from_raw(u32::try_from(v).unwrap()),
+        values: Arc::from([
+            antecedent_core::Value::Bool(false),
+            antecedent_core::Value::Bool(true),
+        ]),
+    };
+    let mut laws = Vec::new();
+    for (regime, on, measured) in &case.inputs {
+        for levels in 0..(1usize << on.len()) {
+            let do_ = on
+                .iter()
+                .enumerate()
+                .map(|(bit, v)| (*v, u8::from((levels >> bit) & 1 == 1)))
+                .collect::<Vec<_>>();
+            laws.push(
+                ExactDiscreteLaw::try_new(
+                    "target",
+                    *regime,
+                    do_.iter()
+                        .map(|(v, level)| {
+                            InterventionAssignment::concrete(
+                                VariableId::from_raw(u32::try_from(*v).unwrap()),
+                                antecedent_core::Value::Bool(*level == 1),
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                    measured.iter().map(|v| axis(*v)).collect::<Vec<_>>(),
+                    model.law(&do_, measured),
+                    format!("snapshot-{}", regime.raw()),
+                    LawTolerance::default(),
+                )
+                .unwrap(),
+            );
+        }
+    }
+    ExactTransportData::try_new(laws, 4096).unwrap()
+}
+
+/// Evaluate `derivation` on the model's laws at every treatment level and compare
+/// with the model's own `P(outcomes | do(treatments))`.
+fn assert_proof_computes_the_truth(
+    case: &Case,
+    model: &Model,
+    derivation: &MixedSourceDerivation,
+    label: &str,
+) {
+    let ctx = ExecutionContext::for_tests(1);
+    let data = enumerated_laws(case, model).with_world_bound_leaves(derivation.cited_regimes());
+    let treatments = case.query.treatments.iter().map(|v| v.as_usize()).collect::<Vec<_>>();
+    let outcomes = case.query.outcomes.iter().map(|v| v.as_usize()).collect::<Vec<_>>();
+    for levels in 0..(1usize << treatments.len()) {
+        let do_ = treatments
+            .iter()
+            .enumerate()
+            .map(|(bit, v)| (*v, u8::from((levels >> bit) & 1 == 1)))
+            .collect::<Vec<_>>();
+        let request = Assignment::from_pairs(do_.iter().map(|(v, level)| {
+            (
+                VariableId::from_raw(u32::try_from(*v).unwrap()),
+                antecedent_core::Value::Bool(*level == 1),
+            )
+        }));
+        let plan = ExactEvaluationPlan::compile(
+            derivation.arena(),
+            derivation.root(),
+            data.clone(),
+            case.query.outcomes.to_vec(),
+            request,
+            ExactEvaluationLimits::default(),
+            LawTolerance::default(),
+            &ctx,
+        )
+        .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let got = plan.evaluate(&ctx).unwrap_or_else(|e| panic!("{label}: {e:?}"));
+        let truth = model.law(&do_, &outcomes);
+        assert_eq!(got.outcomes.as_ref(), case.query.outcomes.as_ref(), "{label}");
+        for (atom, p) in got.atoms.iter().zip(got.probabilities.iter()) {
+            let index = atom.iter().fold(0usize, |acc, value| {
+                (acc << 1) | usize::from(*value == antecedent_core::Value::Bool(true))
+            });
+            assert!(
+                (p - truth[index]).abs() < 1e-9,
+                "{label}: do{do_:?} atom {atom:?}: formula {p}, truth {}",
+                truth[index]
+            );
+        }
+    }
+}
+
+/// Agreement on the cited distributions is backed by the number: every proof this
+/// route returns on an agreed case computes the enumerated structural model's
+/// interventional truth at every treatment level, over several random models of
+/// the case's graph, and so does every alternative derivation.
+#[test]
+fn every_agreed_proof_computes_the_enumerated_truth_of_its_case() {
+    let fixture = fixture();
+    let ctx = ExecutionContext::for_tests(1);
+    let mut proofs = 0usize;
+    for case_value in fixture["cases"].as_array().unwrap() {
+        if case_value["agreement"] != "agree" {
+            continue;
+        }
+        let id = case_value["id"].as_str().unwrap();
+        let case =
+            build_case(case_value).unwrap_or_else(|| panic!("{id}: an agreed case is expressible"));
+        let MixedSourceDecision::Identified { derivation, alternatives, .. } = decide_mixed_source(
+            &case.graph,
+            &case.query,
+            &case.catalog,
+            MIXED_SOURCE_DEFAULT_LIMITS,
+            &ctx,
+        )
+        .unwrap() else {
+            panic!("{id}: an agreed case is identified");
+        };
+        let treatments = case.query.treatments.iter().map(|v| v.as_usize()).collect::<Vec<_>>();
+        let outcomes = case.query.outcomes.iter().map(|v| v.as_usize()).collect::<Vec<_>>();
+        let mut with_effect = 0usize;
+        for seed in 0..8u64 {
+            let model = Model::random(0x9A71_7E57 + seed, &case.graph);
+            for (k, candidate) in std::iter::once(&*derivation).chain(&alternatives).enumerate() {
+                assert_proof_computes_the_truth(
+                    &case,
+                    &model,
+                    candidate,
+                    &format!("{id} proof {k} model {seed}"),
+                );
+                proofs += 1;
+            }
+            // The comparison is not trivial: in some model the interventional truth
+            // is not constant in the treatments.
+            let at = |level: u8| {
+                model.law(&treatments.iter().map(|t| (*t, level)).collect::<Vec<_>>(), &outcomes)
+            };
+            with_effect += usize::from((at(0)[1] - at(1)[1]).abs() > 1e-3);
+        }
+        assert!(with_effect >= 1, "{id}: no model of 8 has an effect");
+    }
+    assert!(proofs >= 24, "{proofs} proofs executed");
 }
 
 /// The comparison is not vacuous: tampered verbatim output, an altered formula
