@@ -590,17 +590,41 @@ fn bounds_refusal(message: &str) -> EstimationError {
     unsupported("dose_response.bounds_exceeded", message)
 }
 
-fn check_bounds(
-    query: &SmoothedDoseTransportQuery,
-    input: &SmoothedDoseInput,
-    options: &SmoothedDoseOptions,
-) -> Result<(), EstimationError> {
+/// The grid-count bound of a query (`dose_response.bounds_exceeded`).
+fn check_grid_bound(query: &SmoothedDoseTransportQuery) -> Result<(), EstimationError> {
     if query.grid.len() > SMOOTHED_DOSE_MAX_GRID {
         return Err(bounds_refusal(&format!(
             "{} grid doses; at most {SMOOTHED_DOSE_MAX_GRID}",
             query.grid.len()
         )));
     }
+    Ok(())
+}
+
+/// Every grid window `[a - h, a + h]` lies inside the declared dose support; there are
+/// no boundary kernels (`dose_response.grid_outside_dose_support`).
+fn check_grid_windows(query: &SmoothedDoseTransportQuery) -> Result<(), EstimationError> {
+    let (lo, hi) = query.dose_support;
+    let h = query.bandwidth;
+    for &a in query.grid.iter() {
+        if a - h < lo || a + h > hi {
+            return Err(support_refusal(
+                "dose_response.grid_outside_dose_support",
+                &format!(
+                    "window [{}, {}] of grid dose {a} leaves the declared dose support \
+                     [{lo}, {hi}]; boundary kernels are not supported",
+                    a - h,
+                    a + h
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The option bounds: node count, folds, bootstrap replicates, basis degree and knots
+/// (`dose_response.bounds_exceeded`).
+fn check_option_bounds(options: &SmoothedDoseOptions) -> Result<(), EstimationError> {
     if !SMOOTHED_DOSE_QUADRATURE_NODES.contains(&options.quadrature_nodes) {
         return Err(bounds_refusal(&format!(
             "{} quadrature nodes; one of {SMOOTHED_DOSE_QUADRATURE_NODES:?}",
@@ -613,13 +637,6 @@ fn check_bounds(
              bootstrap replicates"
         )));
     }
-    if input.source.len() > SMOOTHED_DOSE_MAX_ROWS
-        || input.features.len() > SMOOTHED_DOSE_MAX_FEATURES
-    {
-        return Err(bounds_refusal(&format!(
-            "at most {SMOOTHED_DOSE_MAX_ROWS} rows and {SMOOTHED_DOSE_MAX_FEATURES} covariates"
-        )));
-    }
     if options.basis.degree == 0
         || options.basis.degree > SMOOTHED_DOSE_MAX_BASIS_DEGREE
         || options.basis.knots.len() > SMOOTHED_DOSE_MAX_KNOTS
@@ -627,6 +644,24 @@ fn check_bounds(
         return Err(bounds_refusal(&format!(
             "basis degree 1..={SMOOTHED_DOSE_MAX_BASIS_DEGREE} and at most \
              {SMOOTHED_DOSE_MAX_KNOTS} knots"
+        )));
+    }
+    Ok(())
+}
+
+/// Every frozen bound of a request: the grid, the options and the rows.
+fn check_bounds(
+    query: &SmoothedDoseTransportQuery,
+    input: &SmoothedDoseInput,
+    options: &SmoothedDoseOptions,
+) -> Result<(), EstimationError> {
+    check_grid_bound(query)?;
+    check_option_bounds(options)?;
+    if input.source.len() > SMOOTHED_DOSE_MAX_ROWS
+        || input.features.len() > SMOOTHED_DOSE_MAX_FEATURES
+    {
+        return Err(bounds_refusal(&format!(
+            "at most {SMOOTHED_DOSE_MAX_ROWS} rows and {SMOOTHED_DOSE_MAX_FEATURES} covariates"
         )));
     }
     Ok(())
@@ -805,20 +840,7 @@ pub fn validate_smoothed_dose(
             "the source and target samples each need at least one row per fold",
         ));
     }
-    let h = query.bandwidth;
-    for &a in query.grid.iter() {
-        if a - h < lo || a + h > hi {
-            return Err(support_refusal(
-                "dose_response.grid_outside_dose_support",
-                &format!(
-                    "window [{}, {}] of grid dose {a} leaves the declared dose support \
-                     [{lo}, {hi}]; boundary kernels are not supported",
-                    a - h,
-                    a + h
-                ),
-            ));
-        }
-    }
+    check_grid_windows(query)?;
     for &a in query.grid.iter() {
         let support = local_support(query, input, a);
         if support.effective_sample_size < options.min_local_ess {
@@ -1494,22 +1516,11 @@ fn dose_structural_refusal(
             other.to_string(),
         )),
     };
-    if let Err(error) = parse_dose_density_provenance(&query.density_provenance) {
+    if let Err(error) = parse_dose_density_provenance(&query.density_provenance)
+        .and_then(|()| check_grid_bound(query))
+        .and_then(|()| check_grid_windows(query))
+    {
         return refused(error);
-    }
-    if query.grid.len() > SMOOTHED_DOSE_MAX_GRID {
-        return refused(bounds_refusal(&format!(
-            "{} grid doses; at most {SMOOTHED_DOSE_MAX_GRID}",
-            query.grid.len()
-        )));
-    }
-    let (lo, hi) = query.dose_support;
-    let h = query.bandwidth;
-    if let Some(a) = query.grid.iter().find(|a| **a - h < lo || **a + h > hi) {
-        return refused(support_refusal(
-            "dose_response.grid_outside_dose_support",
-            &format!("the window of grid dose {a} leaves the declared dose support [{lo}, {hi}]"),
-        ));
     }
     match id {
         TransportIdentification::Transportable {
@@ -1542,19 +1553,7 @@ fn dose_structural_refusal(
 
 /// The refusal the learners and options put on the smoothed estimator.
 fn dose_provider_refusal(options: &SmoothedDoseOptions) -> Option<MenuRefusal> {
-    let error = check_learners(options).err().or_else(|| {
-        (!SMOOTHED_DOSE_QUADRATURE_NODES.contains(&options.quadrature_nodes)
-            || options.folds > SMOOTHED_DOSE_MAX_FOLDS
-            || options.bootstrap > SMOOTHED_DOSE_MAX_BOOTSTRAP
-            || options.basis.degree == 0
-            || options.basis.degree > SMOOTHED_DOSE_MAX_BASIS_DEGREE
-            || options.basis.knots.len() > SMOOTHED_DOSE_MAX_KNOTS)
-            .then(|| {
-                bounds_refusal(
-                    "the request's folds, quadrature, bootstrap or basis leave the frozen bounds",
-                )
-            })
-    })?;
+    let error = check_learners(options).and_then(|()| check_option_bounds(options)).err()?;
     Some(match error {
         EstimationError::Refused { code, message } => MenuRefusal {
             code: code.into(),
@@ -1923,20 +1922,6 @@ pub fn smoothed_dose_interval_internal(
 mod tests {
     use super::*;
 
-    fn query(grid: &[f64]) -> SmoothedDoseTransportQuery {
-        SmoothedDoseTransportQuery {
-            outcome: VariableId::from_raw(2),
-            dose: VariableId::from_raw(1),
-            source_population: "trial".into(),
-            target_population: "target".into(),
-            grid: grid.into(),
-            bandwidth: 0.5,
-            kernel: SmoothingKernel::Epanechnikov,
-            dose_support: (0.0, 4.0),
-            density_provenance: "known".into(),
-        }
-    }
-
     fn input(n: usize) -> SmoothedDoseInput {
         let covariate: Vec<f64> = (0..n).map(|i| ((i as f64) * 0.37).sin()).collect();
         SmoothedDoseInput {
@@ -2035,12 +2020,15 @@ mod tests {
     /// integrates `K(u) (u - c)_+` exactly for 16 and 32 nodes, while the unsplit rule's
     /// doubling difference `|I_Q - I_2Q|` falls below the finer rule's own true error at a
     /// visible fraction of positions: an estimate, not a bound, which is why a
-    /// piecewise-polynomial fit is split rather than gated.
+    /// piecewise-polynomial fit is split rather than gated. The counts asserted here are
+    /// the ones `docs/smoothed-dose-response-transport.md` and the promotion record cite:
+    /// 1440 (Q = 16) and 1368 (Q = 32) of 20,000 positions, and 56 and 76 positions where
+    /// the estimate passes a `1e-6` tolerance that the true error exceeds.
     #[test]
     #[allow(clippy::cast_precision_loss, reason = "sweep indices are small")]
     fn splitting_at_the_knot_makes_the_hinge_exact_where_the_doubling_estimate_misses() {
         let positions = 20_000usize;
-        for q in [16usize, 32] {
+        for (q, cited_misses, cited_dangerous) in [(16usize, 1440usize, 56usize), (32, 1368, 76)] {
             let (base, fine) = (gauss_legendre(q), gauss_legendre(2 * q));
             let (mut worst_split, mut misses, mut dangerous) = (0.0_f64, 0usize, 0usize);
             for i in 0..positions {
@@ -2068,6 +2056,8 @@ mod tests {
             );
             assert!(worst_split < 1e-14, "Q = {q}: {worst_split:e}");
             assert!(misses * 100 > positions, "Q = {q}: {misses}");
+            // The sweep is deterministic: the cited counts are the measured ones.
+            assert_eq!((misses, dangerous), (cited_misses, cited_dangerous), "Q = {q}");
         }
         // Without a knot inside the window the split rule is the base rule, bit for bit.
         let base = gauss_legendre(16);
@@ -2141,6 +2131,5 @@ mod tests {
         edited.dose.reverse();
         edited.covariates[0].reverse();
         assert_eq!(smoothed_dose_fold_assignment(&edited, 3), folds);
-        let _ = query(&[2.0]);
     }
 }

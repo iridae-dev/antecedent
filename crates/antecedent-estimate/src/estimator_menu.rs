@@ -145,46 +145,92 @@ fn ids(vars: &[antecedent_core::VariableId]) -> String {
     vars.iter().map(|v| format!("v{}", v.raw())).collect::<Vec<_>>().join(", ")
 }
 
-/// The certificate-derived requirement lines: `(laws, graph conditions)`.
-fn certificate_requirements(id: &TransportIdentification) -> (Vec<String>, Vec<String>) {
+/// The certificate-derived requirement lines of the two trial estimators.
+struct CertificateRequirements {
+    /// Laws the learned augmented estimator needs: outcome mean per arm, membership
+    /// probability and the known randomization.
+    learned_laws: Vec<String>,
+    /// Laws the supplied-probability IPW estimator needs: the supplied membership
+    /// probability and the known randomization (no outcome regression).
+    ipw_laws: Vec<String>,
+    /// Graph conditions the certificate establishes.
+    conditions: Vec<String>,
+}
+
+/// What the certificate requires. A standardization certificate conditions every law
+/// on its standardizers, which must be exactly the supplied baseline covariates; a
+/// direct certificate has no standardizer and admits no covariates
+/// ([`crate::validate_trial_aipw`] refuses any), so its membership and randomization
+/// laws are marginal.
+fn certificate_requirements(id: &TransportIdentification) -> CertificateRequirements {
     match id {
+        TransportIdentification::Transportable {
+            formula: TransportFormula::RecursiveFactorization { .. },
+            certificate,
+        } => CertificateRequirements {
+            learned_laws: strings(&[
+                "not derivable by a trial estimator: the certificate is a recursive \
+                 factorization (identify-only), not a direct or standardization formula",
+            ]),
+            ipw_laws: strings(&[
+                "not derivable by a trial estimator: the certificate is a recursive \
+                 factorization (identify-only), not a direct or standardization formula",
+            ]),
+            conditions: vec![format!(
+                "certificate rule '{}' (recursive factorization): no trial estimator evaluates it",
+                certificate.rule
+            )],
+        },
         TransportIdentification::Transportable { formula, certificate } => {
-            let (kind, covariates, outcome_law) = match formula {
-                TransportFormula::Standardize { over, .. } => {
-                    let x = ids(over);
-                    (
-                        "baseline standardization",
-                        format!("the certified standardizers [{x}]"),
-                        format!("source outcome mean E(Y | X=[{x}], A, S=1) per randomized arm"),
-                    )
-                }
-                _ => (
-                    "direct transport",
-                    "the supplied baseline covariates".to_owned(),
-                    "source outcome mean E(Y | A, S=1) per randomized arm (no standardizer)"
-                        .to_owned(),
-                ),
-            };
-            let laws = vec![
-                outcome_law,
-                format!("source-membership probability P(S=1 | X) over {covariates}"),
-                "known randomization probabilities P(A=1 | X, S=1)".to_owned(),
-            ];
+            let (kind, outcome_law, membership_law, randomization_law, covariate_condition) =
+                match formula {
+                    TransportFormula::Standardize { over, .. } => {
+                        let x = ids(over);
+                        (
+                            "baseline standardization",
+                            format!(
+                                "source outcome mean E(Y | X=[{x}], A, S=1) per randomized arm"
+                            ),
+                            format!("source-membership probability P(S=1 | X=[{x}])"),
+                            format!("known randomization probabilities P(A=1 | X=[{x}], S=1)"),
+                            format!(
+                                "the certified standardizers [{x}] equal the supplied baseline \
+                                 covariates"
+                            ),
+                        )
+                    }
+                    _ => (
+                        "direct transport",
+                        "source outcome mean E(Y | A, S=1) per randomized arm (no standardizer)"
+                            .to_owned(),
+                        "marginal source-membership probability P(S=1) (no standardizer)"
+                            .to_owned(),
+                        "known randomization probabilities P(A=1 | S=1)".to_owned(),
+                        "no baseline covariates are supplied (a direct certificate admits none)"
+                            .to_owned(),
+                    ),
+                };
             let mut conditions = vec![
                 format!("certificate rule '{}' ({kind})", certificate.rule),
                 format!("selection acts on [{}] only", ids(&certificate.selection_targets)),
             ];
             conditions.extend(certificate.premises.iter().map(|p| format!("premise: {p}")));
-            if matches!(formula, TransportFormula::Standardize { .. }) {
-                conditions.push(format!("{covariates} equal the supplied baseline covariates"));
+            conditions.push(covariate_condition);
+            CertificateRequirements {
+                ipw_laws: vec![format!("supplied {membership_law}"), randomization_law.clone()],
+                learned_laws: vec![outcome_law, membership_law, randomization_law],
+                conditions,
             }
-            (laws, conditions)
         }
-        _ => (
-            strings(&["not derivable: no certificate (source outcome mean per arm, membership \
-                 probability and known randomization would be required)"]),
-            strings(&["not derivable: the graph and query carry no certificate"]),
-        ),
+        _ => CertificateRequirements {
+            learned_laws: strings(&[
+                "not derivable: no certificate (source outcome mean per arm, \
+                 membership probability and known randomization would be required)",
+            ]),
+            ipw_laws: strings(&["not derivable: no certificate (supplied membership probability \
+                 and known randomization would be required)"]),
+            conditions: strings(&["not derivable: the graph and query carry no certificate"]),
+        },
     }
 }
 
@@ -241,7 +287,8 @@ pub fn transport_estimator_menu_with(
         || strings(&["nested_cohort", "independent_samples"]),
         |sampling| vec![sampling_name(sampling).to_owned()],
     );
-    let (laws, graph_conditions) = certificate_requirements(id);
+    let CertificateRequirements { learned_laws: laws, ipw_laws, conditions: graph_conditions } =
+        certificate_requirements(id);
     let learned_refusal = structural.clone().or_else(|| provider_refusal(learners));
     let uncertainty = LearnedContinuousUncertainty::for_request(options.bootstrap);
     let detail = uncertainty.detail.as_deref().map_or_else(String::new, |d| format!(" ({d})"));
@@ -263,7 +310,7 @@ pub fn transport_estimator_menu_with(
         EstimatorMenuEntry {
             estimator: "learned_trial_aipw".into(),
             eligible: learned_refusal.is_none(),
-            required_laws: laws.clone(),
+            required_laws: laws,
             required_graph_conditions: graph_conditions.clone(),
             nuisance_tasks: vec![
                 learner_line(
@@ -297,13 +344,7 @@ pub fn transport_estimator_menu_with(
         EstimatorMenuEntry {
             estimator: "trial_ipw_supplied_probabilities".into(),
             eligible: structural.is_none(),
-            required_laws: laws
-                .iter()
-                .skip(1)
-                .map(|l| {
-                    l.replace("source-membership probability", "supplied source-membership probability")
-                })
-                .collect(),
+            required_laws: ipw_laws,
             required_graph_conditions: graph_conditions,
             nuisance_tasks: strings(&["none: membership probabilities are supplied by the caller"]),
             support_requirements: strings(&[

@@ -173,8 +173,9 @@ weights `(u_q, v_q)` (`antecedent_stats::special::gauss_legendre`).
   unsplit window (`splitting_at_the_knot_makes_the_hinge_exact_where_the_doubling_estimate_misses`)
   finds `|I_Q - I_2Q|` below the `2Q` rule's own true error at about 7% of positions
   (1440 of 20,000 at `Q = 16`, 1368 at `Q = 32`), and passing a `1e-6` tolerance while
-  the true error exceeds it at 56 and 76 positions. That is why a polynomial fit is split
-  rather than gated.
+  the true error exceeds it at 56 and 76 positions; the sweep is deterministic and the
+  test asserts these four counts. That is why a polynomial fit is split rather than
+  gated.
 - **Which rule the point uses.** The `2Q` rule.
 - **Refusal.** A non-exact grid dose whose `max_row_error` exceeds the declared
   tolerance is refused (`dose_response.quadrature_tolerance`).

@@ -331,6 +331,29 @@ fn menu_lists_refused_estimators_with_reasons_consistent_with_the_graph() {
             direct_entry.required_laws
         );
         assert_ne!(direct_entry.required_laws, menu.entries[0].required_laws);
+        // A direct certificate admits no covariates (validate_trial_aipw refuses any), so
+        // its membership and randomization laws are marginal and the graph condition says so.
+        assert!(
+            direct_entry.required_laws[1].contains("marginal")
+                && direct_entry.required_laws[2]
+                    == "known randomization probabilities P(A=1 | S=1)",
+            "{:?}",
+            direct_entry.required_laws
+        );
+        assert!(
+            direct_entry.required_graph_conditions.iter().any(|c| c.contains("admits none")),
+            "{:?}",
+            direct_entry.required_graph_conditions
+        );
+        assert!(
+            !direct_entry.required_graph_conditions.iter().any(|c| c.contains("standardizers"))
+        );
+        let direct_ipw = &direct_menu.entries[1];
+        assert_eq!(
+            direct_ipw.required_laws[0],
+            format!("supplied {}", direct_entry.required_laws[1])
+        );
+        assert_eq!(direct_ipw.required_laws.len(), 2);
     }
     // A graph whose selection acts on the outcome certifies no estimator.
     let mut graph = antecedent_graph::Admg::with_variables(3);
@@ -352,6 +375,9 @@ fn menu_lists_refused_estimators_with_reasons_consistent_with_the_graph() {
         let entry = menu.entries.iter().find(|e| e.estimator == name).unwrap();
         assert!(!entry.eligible, "{name}");
         assert_eq!(entry.refusal.as_ref().unwrap().code, "transport_not_certified");
+        // An uncertified graph still names what each estimator would require.
+        assert!(entry.required_laws.iter().all(|l| l.starts_with("not derivable")), "{name}");
+        assert!(!entry.required_laws.is_empty() && !entry.required_graph_conditions.is_empty());
     }
     // An unsupported learner refuses only the learned entry.
     let bad = LearnerSpec::Ridge(antecedent_estimate::RidgeSpec { lambda: -1.0 });
