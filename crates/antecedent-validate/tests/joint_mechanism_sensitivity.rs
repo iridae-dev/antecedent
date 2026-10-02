@@ -591,7 +591,10 @@ fn axis_tipping_points_match_the_2_1_analytic_values() {
         assert_close(analytic, independent, 1e-12, "parent-axis tipping");
         let bracket = parent_axis.bracket.unwrap();
         assert!(bracket.lower - 1e-12 <= analytic && analytic <= bracket.upper + 1e-12);
-        // Every frontier bracket is certified against the independent closed form.
+        // Every frontier bracket is certified against the independent closed
+        // form and against brute-force vertex enumeration: some admissible
+        // joint deviation reaches the threshold at the upper end, and none does
+        // below the lower end.
         for point in &result.frontier {
             match point.status {
                 TippingStatus::Bracketed => {
@@ -607,6 +610,19 @@ fn axis_tipping_points_match_the_2_1_analytic_values() {
                     assert!(reached(b.upper));
                     assert!(!reached(b.lower - 1e-9) || b.lower == 0.0);
                     assert!(b.upper - b.lower <= 1e-12);
+                    let enumerated = |k: f64| {
+                        let (l, u) = model.vertex_extrema(k, point.parent_fraction);
+                        if threshold > baseline {
+                            u >= threshold - 1e-12
+                        } else {
+                            l <= threshold + 1e-12
+                        }
+                    };
+                    assert!(enumerated(b.upper), "a vertex attains the threshold at upper");
+                    assert!(
+                        !enumerated(b.lower - 1e-9) || b.lower == 0.0,
+                        "no vertex reaches the threshold below lower"
+                    );
                 }
                 TippingStatus::ReachedAtOrigin => {
                     let (l, u) = model.closed_form(0.0, point.parent_fraction);

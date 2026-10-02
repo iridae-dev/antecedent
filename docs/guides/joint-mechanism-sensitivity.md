@@ -151,8 +151,10 @@ On the axes the 2.1 one-factor analytic values are reported:
 - the parent axis uses it on `P_W` with the outcome values `Delta(w)`, which is
   the 2.1 root-mechanism construction.
 
-Tests check that each value lies in its bracket. A threshold below the baseline
-is symmetric, using `L`.
+Tests check that each value lies in its bracket, and that each frontier bracket
+is certified by brute-force vertex enumeration as well as by the closed form
+(some admissible joint deviation reaches the threshold at `upper`; none does
+below `lower`). A threshold below the baseline is symmetric, using `L`.
 
 **Budget.** All charges go to one `antecedent_core::SearchBudget`. It carries
 cumulative live-state bytes, a memory cap that is always present, and

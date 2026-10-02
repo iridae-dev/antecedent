@@ -43,8 +43,9 @@ use antecedent_graph::SelectionDiagram;
 use antecedent_identify::BoundZTransportFunctional;
 
 use crate::mechanism_sensitivity::{
-    DiscreteKernelSensitivity, DiscreteKernelSensitivityError, ScanStop, ZSurrogateKernels,
-    ZTransportSensitivityError, z_surrogate_kernels_metered,
+    DiscreteKernelSensitivity, DiscreteKernelSensitivityError, DiscreteKernelSensitivityResult,
+    DiscreteKernelSlopes, ScanStop, ZSurrogateKernels, ZTransportSensitivityError,
+    z_surrogate_kernels_metered,
 };
 
 /// Hard cap on declared factors: the two factors of the surrogate formula (a
@@ -689,9 +690,12 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
 }
 
 /// The surrogate formula's factors in the form the joint evaluator reads.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct JointFactors {
     kernels: ZSurrogateKernels,
+    /// The 2.1 kernel stage read once: its baseline, extremal slopes and
+    /// witnesses, evaluated at any kernel fraction without copying the kernel.
+    kernel: DiscreteKernelSlopes,
     /// `Delta(w) = m(w, 1) - m(w, 0)` under the source kernel.
     deltas: Vec<f64>,
     /// Shared parent marginal as read (unit mass checked, not renormalized).
@@ -738,7 +742,21 @@ impl JointFactors {
         let parent = kernels.parent_marginal.clone();
         let high = kernels.outcome_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         let low = kernels.outcome_values.iter().copied().fold(f64::INFINITY, f64::min);
-        Ok(Self { kernels, deltas, parent, spread: high - low })
+        let kernel = DiscreteKernelSensitivity {
+            source_kernel: kernels.kernels.clone(),
+            outcome_values: kernels.outcome_values.clone(),
+            stratum_contrast_weights: kernels.weights.clone(),
+            max_fraction: 0.0,
+            decision_threshold: None,
+        }
+        .slopes()
+        .map_err(|error| kernel_error(&ZTransportSensitivityError::InvalidSensitivity(error)))?;
+        Ok(Self { kernels, kernel, deltas, parent, spread: high - low })
+    }
+
+    /// Response under the unmodified source factors (the 2.1 baseline).
+    fn baseline(&self) -> f64 {
+        self.kernel.baseline()
     }
 
     /// Live-state bytes of the factors held by the evaluator.
@@ -746,22 +764,16 @@ impl JointFactors {
         factor_bytes(self.deltas.len(), self.kernels.outcome_values.len())
     }
 
-    /// The 2.1 kernel stage at `fraction`.
+    /// The 2.1 kernel stage at `fraction` (bit-equal to
+    /// [`crate::z_transport_mechanism_sensitivity`]).
     fn kernel_stage(
         &self,
         fraction: f64,
         threshold: Option<f64>,
-    ) -> Result<crate::mechanism_sensitivity::DiscreteKernelSensitivityResult, JointSensitivityError>
-    {
-        DiscreteKernelSensitivity {
-            source_kernel: self.kernels.kernels.clone(),
-            outcome_values: self.kernels.outcome_values.clone(),
-            stratum_contrast_weights: self.kernels.weights.clone(),
-            max_fraction: fraction,
-            decision_threshold: threshold,
-        }
-        .evaluate()
-        .map_err(|error| kernel_error(&ZTransportSensitivityError::InvalidSensitivity(error)))
+    ) -> Result<DiscreteKernelSensitivityResult, JointSensitivityError> {
+        self.kernel
+            .at(fraction, threshold)
+            .map_err(|error| kernel_error(&ZTransportSensitivityError::InvalidSensitivity(error)))
     }
 
     /// The 2.1 one-factor root-mechanism stage for the parent marginal alone.
@@ -769,8 +781,7 @@ impl JointFactors {
         &self,
         fraction: f64,
         threshold: Option<f64>,
-    ) -> Result<crate::mechanism_sensitivity::DiscreteKernelSensitivityResult, JointSensitivityError>
-    {
+    ) -> Result<DiscreteKernelSensitivityResult, JointSensitivityError> {
         DiscreteKernelSensitivity {
             source_kernel: vec![self.parent.clone()],
             outcome_values: self.deltas.clone(),
@@ -782,29 +793,19 @@ impl JointFactors {
         .map_err(|error| kernel_error(&ZTransportSensitivityError::InvalidSensitivity(error)))
     }
 
-    /// Exact `(L, U)` at the box corner `(kernel, parent)` with its witnesses.
+    /// Exact `(L, U)` at the box corner `(kernel, parent)` with the parent
+    /// vertices that attain them (`None` when the parent is not perturbed).
     ///
     /// `U = A + e_W max(max_w D+(w) - A, 0)` where `A` is the 2.1 kernel-stage
     /// maximum (`sum_w P_W(w) D+(w)`), which equals the closed form
     /// `(1 - e_W) A + e_W max_w D+(w)`; `max_w D+ >= A` holds exactly, so the
     /// clamp only removes rounding. At `e_W = 0` the kernel stage is returned
-    /// unchanged, which makes a single kernel factor bit-equal to 2.1.
-    fn bounds_at(
-        &self,
-        kernel: f64,
-        parent: f64,
-    ) -> Result<JointSensitivityRange, JointSensitivityError> {
-        let stage = self.kernel_stage(kernel, None)?;
-        let mut range = JointSensitivityRange {
-            minimum: stage.minimum,
-            maximum: stage.maximum,
-            minimizing_outcome_by_stratum: stage.receipt.minimizing_outcome_by_stratum,
-            maximizing_outcome_by_stratum: stage.receipt.maximizing_outcome_by_stratum,
-            minimizing_parent_level: None,
-            maximizing_parent_level: None,
-        };
+    /// unchanged, which makes a single kernel factor bit-equal to 2.1. Nothing
+    /// is allocated: this is the bisection step of every frontier line.
+    fn extrema_at(&self, kernel: f64, parent: f64) -> (f64, f64, Option<usize>, Option<usize>) {
+        let (stage_min, stage_max) = self.kernel.extrema(kernel);
         if parent <= 0.0 {
-            return Ok(range);
+            return (stage_min, stage_max, None, None);
         }
         let (mut high_level, mut high) = (0, f64::NEG_INFINITY);
         let (mut low_level, mut low) = (0, f64::INFINITY);
@@ -818,11 +819,31 @@ impl JointFactors {
                 (low_level, low) = (level, down);
             }
         }
-        range.maximum = stage.maximum + parent * (high - stage.maximum).max(0.0);
-        range.minimum = stage.minimum + parent * (low - stage.minimum).min(0.0);
-        range.maximizing_parent_level = Some(high_level);
-        range.minimizing_parent_level = Some(low_level);
-        Ok(range)
+        (
+            stage_min + parent * (low - stage_min).min(0.0),
+            stage_max + parent * (high - stage_max).max(0.0),
+            Some(low_level),
+            Some(high_level),
+        )
+    }
+
+    /// [`Self::extrema_at`] with the 2.1 kernel witnesses.
+    fn bounds_at(
+        &self,
+        kernel: f64,
+        parent: f64,
+    ) -> Result<JointSensitivityRange, JointSensitivityError> {
+        let stage = self.kernel_stage(kernel, None)?;
+        let (minimum, maximum, minimizing_parent_level, maximizing_parent_level) =
+            self.extrema_at(kernel, parent);
+        Ok(JointSensitivityRange {
+            minimum,
+            maximum,
+            minimizing_outcome_by_stratum: stage.receipt.minimizing_outcome_by_stratum,
+            maximizing_outcome_by_stratum: stage.receipt.maximizing_outcome_by_stratum,
+            minimizing_parent_level,
+            maximizing_parent_level,
+        })
     }
 }
 
@@ -845,56 +866,50 @@ struct Bracketing<'b, 'c> {
 }
 
 impl Bracketing<'_, '_> {
-    fn reached(&self, line: Line, t: f64) -> Result<bool, JointSensitivityError> {
-        let range = match line {
-            Line::Kernel { parent } => self.factors.bounds_at(t, parent)?,
-            Line::Parent => self.factors.bounds_at(0.0, t)?,
+    /// Whether the response reaches the threshold at `t` along `line`, on the
+    /// same closed-form floating-point evaluation that reports the range.
+    fn reached(&self, line: Line, t: f64) -> bool {
+        let (minimum, maximum, ..) = match line {
+            Line::Kernel { parent } => self.factors.extrema_at(t, parent),
+            Line::Parent => self.factors.extrema_at(0.0, t),
         };
-        Ok(if self.upward {
-            range.maximum >= self.threshold
-        } else {
-            range.minimum <= self.threshold
-        })
+        if self.upward { maximum >= self.threshold } else { minimum <= self.threshold }
     }
 
     /// Certified bisection of the first crossing on `[0, extent]`, charging
-    /// every iteration (depth = iteration) with the cumulative live state.
+    /// every iteration (depth = iteration) with the cumulative live state;
+    /// `Err` is the budget stop that left the line unresolved.
     fn bracket(
         &mut self,
         line: Line,
         extent: f64,
-    ) -> Result<Result<(TippingStatus, Option<TippingBracket>), SearchStop>, JointSensitivityError>
-    {
-        if let Err(stop) = self.budget.charge(0, self.bytes) {
-            return Ok(Err(stop));
-        }
-        if self.reached(line, 0.0)? {
-            return Ok(Ok((
+    ) -> Result<(TippingStatus, Option<TippingBracket>), SearchStop> {
+        self.budget.charge(0, self.bytes)?;
+        if self.reached(line, 0.0) {
+            return Ok((
                 TippingStatus::ReachedAtOrigin,
                 Some(TippingBracket { lower: 0.0, upper: 0.0, iterations: 0 }),
-            )));
+            ));
         }
-        if extent <= 0.0 || !self.reached(line, extent)? {
-            return Ok(Ok((TippingStatus::NotReachedInBox, None)));
+        if extent <= 0.0 || !self.reached(line, extent) {
+            return Ok((TippingStatus::NotReachedInBox, None));
         }
         let (mut lower, mut upper) = (0.0_f64, extent);
         let mut iterations = 0;
         while upper - lower > self.tolerance {
             iterations += 1;
-            if let Err(stop) = self.budget.charge(iterations, self.bytes) {
-                return Ok(Err(stop));
-            }
+            self.budget.charge(iterations, self.bytes)?;
             let middle = lower + (upper - lower) / 2.0;
             if middle <= lower || middle >= upper {
                 break;
             }
-            if self.reached(line, middle)? {
+            if self.reached(line, middle) {
                 upper = middle;
             } else {
                 lower = middle;
             }
         }
-        Ok(Ok((TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations }))))
+        Ok((TippingStatus::Bracketed, Some(TippingBracket { lower, upper, iterations })))
     }
 }
 
@@ -940,7 +955,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
     let factors = read_factors(diagram, functional, data, ctx, Some(&mut budget))?;
     let (kernel, parent) = (joint_box.kernel(), joint_box.parent());
     let bytes = factors.bytes();
-    let baseline = factors.kernel_stage(0.0, None)?.baseline;
+    let baseline = factors.baseline();
     let range = factors.bounds_at(kernel, parent)?;
     let mut explored = vec!["range".to_owned()];
     let mut unevaluated = Vec::new();
@@ -991,7 +1006,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
             line_bytes += LINE_BYTES;
             peak_bytes = line_bytes;
             bracketing.bytes = line_bytes;
-            match bracketing.bracket(*line, *extent)? {
+            match bracketing.bracket(*line, *extent) {
                 Ok(outcome) => {
                     explored.push(name.clone());
                     outcomes.push(outcome);
@@ -1165,8 +1180,7 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
         let evaluated = draw.and_then(|draw| {
             let factors = read_factors(diagram, functional, &draw, ctx, None).ok()?;
             let range = factors.bounds_at(joint_box.kernel(), joint_box.parent()).ok()?;
-            let zero = factors.kernel_stage(0.0, None).ok()?.baseline;
-            Some((range.minimum, range.maximum, zero))
+            Some((range.minimum, range.maximum, factors.baseline()))
         });
         match evaluated {
             Some((low, high, zero)) => {

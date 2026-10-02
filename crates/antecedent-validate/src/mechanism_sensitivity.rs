@@ -1518,6 +1518,83 @@ fn expression_uses_source_outcome_factor(
     false
 }
 
+/// The fraction-independent part of a [`DiscreteKernelSensitivity`]
+/// evaluation: the baseline and the two extremal slopes with their vertex
+/// witnesses, read once from the kernel so that the response can be evaluated
+/// at any fraction (a bisection step of the joint route) without re-reading
+/// or copying the kernel. [`DiscreteKernelSensitivity::evaluate`] is exactly
+/// [`Self::at`] on these slopes at the declared fraction.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct DiscreteKernelSlopes {
+    baseline: f64,
+    low_slope: f64,
+    high_slope: f64,
+    low_witness: Vec<usize>,
+    high_witness: Vec<usize>,
+}
+
+fn check_fraction(max_fraction: f64) -> Result<(), DiscreteKernelSensitivityError> {
+    if !max_fraction.is_finite() || !(0.0..=1.0).contains(&max_fraction) {
+        return Err(DiscreteKernelSensitivityError::InvalidFraction);
+    }
+    Ok(())
+}
+
+impl DiscreteKernelSlopes {
+    /// Response under the unmodified source kernel.
+    pub(crate) const fn baseline(&self) -> f64 {
+        self.baseline
+    }
+
+    /// Exact `(minimum, maximum)` at `max_fraction` (assumed in `[0, 1]`),
+    /// the endpoints of [`Self::at`] without its witnesses or allocation.
+    pub(crate) fn extrema(&self, max_fraction: f64) -> (f64, f64) {
+        let end_low = self.baseline + max_fraction * self.low_slope;
+        let end_high = self.baseline + max_fraction * self.high_slope;
+        (self.baseline.min(end_low), self.baseline.max(end_high))
+    }
+
+    /// The exact range at `max_fraction` with its witnesses and, given a
+    /// threshold, the analytic tipping fraction.
+    pub(crate) fn at(
+        &self,
+        max_fraction: f64,
+        decision_threshold: Option<f64>,
+    ) -> Result<DiscreteKernelSensitivityResult, DiscreteKernelSensitivityError> {
+        check_fraction(max_fraction)?;
+        if decision_threshold.is_some_and(|x| !x.is_finite()) {
+            return Err(DiscreteKernelSensitivityError::InvalidContrast);
+        }
+        let baseline = self.baseline;
+        let (minimum, maximum) = self.extrema(max_fraction);
+        let tipping_fraction = decision_threshold.and_then(|threshold| {
+            if !(minimum..=maximum).contains(&threshold) {
+                return None;
+            }
+            if exact_threshold_matches_baseline(threshold, baseline) {
+                return Some(0.0);
+            }
+            let slope = if threshold < baseline { self.low_slope } else { self.high_slope };
+            let fraction = (threshold - baseline) / slope;
+            (fraction >= 0.0 && fraction <= max_fraction).then_some(fraction)
+        });
+
+        Ok(DiscreteKernelSensitivityResult {
+            baseline,
+            minimum,
+            maximum,
+            tipping_fraction,
+            interval_interpretation: "assumption range under declared discrete outcome-kernel contamination; not a sampling interval",
+            receipt: DiscreteKernelOptimizationReceipt {
+                minimizing_outcome_by_stratum: self.low_witness.clone(),
+                maximizing_outcome_by_stratum: self.high_witness.clone(),
+                fraction_domain: [0.0, max_fraction],
+                method: "linear objective over product of outcome simplexes; exact simplex-vertex extrema",
+            },
+        })
+    }
+}
+
 impl DiscreteKernelSensitivity {
     /// Evaluate exact extrema over all replacement distributions in each stratum.
     ///
@@ -1527,6 +1604,12 @@ impl DiscreteKernelSensitivity {
     pub fn evaluate(
         &self,
     ) -> Result<DiscreteKernelSensitivityResult, DiscreteKernelSensitivityError> {
+        self.check_dimensions()?;
+        check_fraction(self.max_fraction)?;
+        self.slopes()?.at(self.max_fraction, self.decision_threshold)
+    }
+
+    fn check_dimensions(&self) -> Result<(), DiscreteKernelSensitivityError> {
         let strata = self.source_kernel.len();
         let categories = self.outcome_values.len();
         if strata == 0
@@ -1536,9 +1619,15 @@ impl DiscreteKernelSensitivity {
         {
             return Err(DiscreteKernelSensitivityError::InvalidDimensions);
         }
-        if !self.max_fraction.is_finite() || !(0.0..=1.0).contains(&self.max_fraction) {
-            return Err(DiscreteKernelSensitivityError::InvalidFraction);
-        }
+        Ok(())
+    }
+
+    /// Validate the kernel and contrast and read the baseline, the extremal
+    /// slopes and their vertex witnesses once; `max_fraction` is checked by
+    /// [`DiscreteKernelSlopes::at`].
+    pub(crate) fn slopes(&self) -> Result<DiscreteKernelSlopes, DiscreteKernelSensitivityError> {
+        self.check_dimensions()?;
+        let strata = self.source_kernel.len();
         if self.outcome_values.iter().any(|x| !x.is_finite())
             || self.stratum_contrast_weights.iter().any(|x| !x.is_finite())
             || self.decision_threshold.is_some_and(|x| !x.is_finite())
@@ -1597,35 +1686,7 @@ impl DiscreteKernelSensitivity {
                 high_witness.push(low_i);
             }
         }
-        let end_low = baseline + self.max_fraction * low_slope;
-        let end_high = baseline + self.max_fraction * high_slope;
-        let minimum = baseline.min(end_low);
-        let maximum = baseline.max(end_high);
-        let tipping_fraction = self.decision_threshold.and_then(|threshold| {
-            if !(minimum..=maximum).contains(&threshold) {
-                return None;
-            }
-            if exact_threshold_matches_baseline(threshold, baseline) {
-                return Some(0.0);
-            }
-            let slope = if threshold < baseline { low_slope } else { high_slope };
-            let fraction = (threshold - baseline) / slope;
-            (fraction >= 0.0 && fraction <= self.max_fraction).then_some(fraction)
-        });
-
-        Ok(DiscreteKernelSensitivityResult {
-            baseline,
-            minimum,
-            maximum,
-            tipping_fraction,
-            interval_interpretation: "assumption range under declared discrete outcome-kernel contamination; not a sampling interval",
-            receipt: DiscreteKernelOptimizationReceipt {
-                minimizing_outcome_by_stratum: low_witness,
-                maximizing_outcome_by_stratum: high_witness,
-                fraction_domain: [0.0, self.max_fraction],
-                method: "linear objective over product of outcome simplexes; exact simplex-vertex extrema",
-            },
-        })
+        Ok(DiscreteKernelSlopes { baseline, low_slope, high_slope, low_witness, high_witness })
     }
 }
 
