@@ -47,7 +47,7 @@ use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, ExprId, ExprNode, LawOrigi
 use antecedent_graph::Admg;
 use antecedent_identify::counterfactual_id::{
     COUNTERFACTUAL_ID_CONTRACT, COUNTERFACTUAL_ID_DEFAULT_LIMITS, COUNTERFACTUAL_ID_MAX_DEPTH,
-    COUNTERFACTUAL_ID_MAX_OPERATIONS, COUNTERFACTUAL_ID_MEMORY_BYTES, CfTerm, CfValue,
+    COUNTERFACTUAL_ID_MAX_OPERATIONS, COUNTERFACTUAL_ID_MEMORY_BYTES, CfSymbol, CfTerm, CfValue,
     CounterfactualFunctional, CounterfactualIdDerivation, CounterfactualIdProblem,
     CounterfactualIdRefusal, CounterfactualIdShape, decide_counterfactual_id,
     evaluate_counterfactual_functional,
@@ -660,31 +660,38 @@ impl WireCells {
                 (value >= -1e-12 * (1.0 + interventional.abs())).then_some(value.max(0.0))
             }
             CounterfactualFunctional::Sum { symbols: summed, factors } => {
-                let Some((first, rest)) = summed.split_first() else {
-                    // A zero factor ends the product: a later factor on a null
-                    // event is not read (the compiled evaluation's convention).
-                    let mut product = 1.0;
-                    for factor in factors {
-                        product *= self.functional(factor, symbols)?;
-                        if product == 0.0 {
-                            break;
-                        }
-                    }
-                    return Some(product);
-                };
-                let mut total = 0.0;
-                for &bits in self.levels.get(&first.variable)? {
-                    symbols.insert(first.id, bits);
-                    let inner = CounterfactualFunctional::Sum {
-                        symbols: rest.to_vec(),
-                        factors: factors.clone(),
-                    };
-                    total += self.functional(&inner, symbols)?;
-                }
-                symbols.remove(&first.id);
-                Some(total)
+                self.sum(summed, factors, symbols)
             }
         }
+    }
+
+    /// `sum_{symbols} prod(factors)`: the symbols' levels are bound in declared
+    /// order, innermost last.
+    fn sum(
+        &self,
+        summed: &[CfSymbol],
+        factors: &[CounterfactualFunctional],
+        symbols: &mut BTreeMap<u32, u64>,
+    ) -> Option<f64> {
+        let Some((first, rest)) = summed.split_first() else {
+            // A zero factor ends the product: a later factor on a null event is
+            // not read (the compiled evaluation's convention).
+            let mut product = 1.0;
+            for factor in factors {
+                product *= self.functional(factor, symbols)?;
+                if product == 0.0 {
+                    break;
+                }
+            }
+            return Some(product);
+        };
+        let mut total = 0.0;
+        for &bits in self.levels.get(&first.variable)? {
+            symbols.insert(first.id, bits);
+            total += self.sum(rest, factors, symbols)?;
+        }
+        symbols.remove(&first.id);
+        Some(total)
     }
 
     fn term(&self, term: &CfTerm, symbols: &BTreeMap<u32, u64>) -> Option<f64> {

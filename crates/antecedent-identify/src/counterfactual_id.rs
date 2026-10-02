@@ -195,12 +195,6 @@ impl CounterfactualIdRefusal {
         )
     }
 
-    /// A consumed artifact that does not replay.
-    #[must_use]
-    pub fn invalid_artifact(message: impl Into<String>) -> Self {
-        Self::plain("invalid_argument", "counterfactual_id.invalid_artifact", message.into())
-    }
-
     fn outside_contract(message: impl Into<String>) -> Self {
         Self::plain(
             "route_not_supported",
@@ -422,26 +416,7 @@ impl CounterfactualIdProblem {
     }
 
     fn topological_order(&self) -> Option<Vec<u32>> {
-        let n = self.levels.len();
-        let mut indegree = vec![0usize; n];
-        for &(_, b) in &self.directed {
-            indegree[b as usize] += 1;
-        }
-        let mut order = Vec::with_capacity(n);
-        let mut ready: BTreeSet<u32> =
-            (0..n).filter(|&v| indegree[v] == 0).map(|v| u32::try_from(v).unwrap_or(0)).collect();
-        while let Some(v) = ready.pop_first() {
-            order.push(v);
-            for &(a, b) in &self.directed {
-                if a == v {
-                    indegree[b as usize] -= 1;
-                    if indegree[b as usize] == 0 {
-                        ready.insert(b);
-                    }
-                }
-            }
-        }
-        (order.len() == n).then_some(order)
+        crate::cross_world::topological_order(self.levels.len(), &self.directed)
     }
 
     fn confounded(&self, a: u32, b: u32) -> bool {
@@ -1524,7 +1499,11 @@ impl Engine<'_, '_> {
         reason = "the parallel-worlds construction, merge and restriction in order"
     )]
     fn make_cg(&mut self, event: &[Atom], depth: usize) -> Result<Option<Cg>, Halt> {
-        let n = self.problem.node_count();
+        // Disjoint borrows: the budget is charged while the graph's parents and
+        // order are read, so neither is copied per call.
+        let Engine { problem, parents: graph_parents, topo, search, retained_bytes, .. } = self;
+        let problem: &CounterfactualIdProblem = problem;
+        let n = problem.node_count();
         let worlds: Vec<BTreeMap<u32, CfValue>> =
             event.iter().map(|a| a.sub.clone()).collect::<BTreeSet<_>>().into_iter().collect();
         // Parallel-world nodes: (world, variable) for every variable a world does not set.
@@ -1539,7 +1518,6 @@ impl Engine<'_, '_> {
                 }
             }
         }
-        let graph_parents = self.parents.clone();
         let parent_refs = |w: usize, v: u32| -> Vec<ParentRef> {
             graph_parents[v as usize]
                 .iter()
@@ -1551,12 +1529,9 @@ impl Engine<'_, '_> {
         };
         // Union-find, merged in topological order.
         let mut root: Vec<usize> = (0..pw.len()).collect();
-        let topo = self.topo.clone();
-        for &v in &topo {
-            self.charge(
-                depth,
-                (pw.len() as u64).saturating_mul(64).saturating_add(event_bytes(event)),
-            )?;
+        for &v in topo.iter() {
+            let bytes = (pw.len() as u64).saturating_mul(64).saturating_add(event_bytes(event));
+            search.charge(depth, retained_bytes.saturating_add(bytes)).map_err(Halt::Stop)?;
             let copies: Vec<usize> =
                 (0..worlds.len()).filter_map(|w| index.get(&(w, v)).copied()).collect();
             for (i, &a) in copies.iter().enumerate() {
@@ -1678,7 +1653,7 @@ impl Engine<'_, '_> {
         for i in 0..nodes.len() {
             for j in i + 1..nodes.len() {
                 let (a, b) = (nodes[i].var, nodes[j].var);
-                if a == b || self.problem.confounded(a, b) {
+                if a == b || problem.confounded(a, b) {
                     bidirected[i].push(j);
                     bidirected[j].push(i);
                 }

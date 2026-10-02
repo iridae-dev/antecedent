@@ -340,7 +340,10 @@ fn every_identified_ett_on_random_admgs_matches_the_enumerated_truth() {
     assert!(identified >= 60, "identified {identified}");
     assert!(conflicts >= 20, "conflicts {conflicts}");
     assert!(checked >= 200, "checked {checked}");
-    // Recorded: no ID hedge was ever reached on the effect-on-the-treated shape.
+    // Recorded: every identified ETT of this sweep is identified by ID* alone
+    // (the binary complement answers none), and no ID hedge was ever reached
+    // on the effect-on-the-treated shape.
+    assert_eq!(complement, 0, "the binary complement answered a sweep graph: record it");
     assert_eq!(hedges, 0, "an ID hedge on the ETT shape: record it");
 }
 

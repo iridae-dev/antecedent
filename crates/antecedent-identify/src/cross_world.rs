@@ -45,7 +45,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{CrossWorldQuery, ExogenousCoupling, VariableId, WorldId, WorldObservation};
+use antecedent_core::{CrossWorldQuery, ExogenousCoupling, WorldId, WorldObservation};
 use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 
@@ -124,14 +124,6 @@ pub struct CounterfactualNode {
     pub world: u8,
     /// `(parent, world read)` for every parent; empty for a hard-set variable.
     pub reads: Vec<(u32, u8)>,
-}
-
-impl CounterfactualNode {
-    /// The variable this node names, for callers holding [`VariableId`]s.
-    #[must_use]
-    pub fn variable_id(&self) -> VariableId {
-        VariableId::from_raw(self.variable)
-    }
 }
 
 /// The machine-checkable derivation of a cross-world estimand.
@@ -217,9 +209,12 @@ pub fn check_cross_world_edges(
         )));
     }
     let n = u32::try_from(node_count).unwrap_or(u32::MAX);
-    if edges.iter().any(|&(a, b)| a >= n || b >= n || a == b) || !is_acyclic(node_count, edges) {
+    if edges.iter().any(|&(a, b)| a >= n || b >= n || a == b) {
         return Err(CrossWorldRefusal::graph("the edge list is not a DAG over the variables"));
     }
+    let Some(order) = topological_order(node_count, edges) else {
+        return Err(CrossWorldRefusal::graph("the edge list is not a DAG over the variables"));
+    };
     let mut sorted = edges.to_vec();
     sorted.sort_unstable();
     sorted.dedup();
@@ -307,8 +302,6 @@ pub fn check_cross_world_edges(
     // A variable takes a different value in world 1 than in world 0 only through
     // an edge reading world 1 from a variable that does.
     let mut differs: BTreeMap<u32, bool> = BTreeMap::new();
-    let mut order: Vec<u32> = (0..n).collect();
-    order.sort_by_key(|&v| depth(v, edges));
     for &v in &order {
         let d = v == treatment.raw()
             || (v != treatment.raw()
@@ -354,35 +347,39 @@ pub fn check_cross_world_edges(
     })
 }
 
-fn is_acyclic(n: usize, edges: &[(u32, u32)]) -> bool {
-    let mut indegree = vec![0usize; n];
+/// A topological order of variables `0..node_count` under `edges` (Kahn's
+/// algorithm, smallest ready variable first, so the order is canonical), or
+/// `None` when the edges contain a directed cycle. Every edge must name
+/// variables below `node_count`. Shared with the counterfactual-identification
+/// route.
+pub(crate) fn topological_order(node_count: usize, edges: &[(u32, u32)]) -> Option<Vec<u32>> {
+    let mut indegree = vec![0usize; node_count];
     for &(_, b) in edges {
         indegree[b as usize] += 1;
     }
-    let mut ready: Vec<usize> = (0..n).filter(|&v| indegree[v] == 0).collect();
-    let mut removed = 0;
-    while let Some(v) = ready.pop() {
-        removed += 1;
+    let mut order = Vec::with_capacity(node_count);
+    let mut ready: BTreeSet<u32> = (0..node_count)
+        .filter(|&v| indegree[v] == 0)
+        .map(|v| u32::try_from(v).unwrap_or(u32::MAX))
+        .collect();
+    while let Some(v) = ready.pop_first() {
+        order.push(v);
         for &(a, b) in edges {
-            if a as usize == v {
+            if a == v {
                 indegree[b as usize] -= 1;
                 if indegree[b as usize] == 0 {
-                    ready.push(b as usize);
+                    ready.insert(b);
                 }
             }
         }
     }
-    removed == n
-}
-
-/// Longest directed path ending at `v`; a topological sort key.
-fn depth(v: u32, edges: &[(u32, u32)]) -> usize {
-    edges.iter().filter(|e| e.1 == v).map(|e| 1 + depth(e.0, edges)).max().unwrap_or(0)
+    (order.len() == node_count).then_some(order)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use antecedent_core::VariableId;
 
     fn v(i: u32) -> VariableId {
         VariableId::from_raw(i)

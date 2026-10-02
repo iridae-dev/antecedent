@@ -74,7 +74,8 @@ impl WorldSpec {
             .into_iter()
             .map(|(variable, value)| {
                 if value.is_finite() {
-                    Ok((variable, value.to_bits()))
+                    // One level, one spelling: -0.0 and 0.0 are the same value.
+                    Ok((variable, (value + 0.0).to_bits()))
                 } else {
                     Err(QueryError::InvalidIntervention(
                         "cross-world intervention values must be finite".into(),
@@ -274,7 +275,10 @@ impl CrossWorldQuery {
                 "treatment and outcome must be distinct".into(),
             ));
         }
-        if !control.is_finite() || !active.is_finite() || control.to_bits() == active.to_bits() {
+        if !control.is_finite()
+            || !active.is_finite()
+            || (control + 0.0).to_bits() == (active + 0.0).to_bits()
+        {
             return Err(QueryError::InvalidIntervention(
                 "treatment levels must be finite and distinct".into(),
             ));
@@ -448,5 +452,14 @@ mod tests {
                 .is_err()
         );
         assert!(WorldSpec::new([(v(0), f64::NAN)], []).is_err());
+        // -0.0 and 0.0 are one level: not two distinct treatment levels, and one
+        // canonical spelling in the world.
+        assert!(
+            CrossWorldQuery::path_specific(v(0), v(2), -0.0, 0.0, &[(v(0), v(2))], &[]).is_err()
+        );
+        assert_eq!(
+            WorldSpec::new([(v(0), -0.0)], []).unwrap(),
+            WorldSpec::new([(v(0), 0.0)], []).unwrap()
+        );
     }
 }

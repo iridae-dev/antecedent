@@ -421,7 +421,9 @@ impl CounterfactualIdArtifactWire {
     pub fn decode(bytes: &[u8]) -> Result<Self, CounterfactualIdArtifactError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
         if peek.version != COUNTERFACTUAL_ID_ARTIFACT_VERSION {
-            return Err(CounterfactualIdArtifactError::UnsupportedVersion { version: peek.version });
+            return Err(CounterfactualIdArtifactError::UnsupportedVersion {
+                version: peek.version,
+            });
         }
         let wire: Self = crate::from_cbor(bytes)?;
         if wire.required_features != [COUNTERFACTUAL_ID_ARTIFACT_FEATURE] {
