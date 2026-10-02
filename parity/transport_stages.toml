@@ -994,7 +994,7 @@ evidence = "certified_graph_query_and_learner_configuration"
 functional = "estimator_eligibility_inspection"
 guarantee = "inspection_only_no_estimator_recommended"
 reference = "https://doi.org/10.1002/sim.8426"
-limits = "Lists learned_trial_aipw, trial_ipw_supplied_probabilities, dr_learner_cate and exact_finite_law_evaluator with eligibility, required laws, graph conditions, nuisance tasks, support, sampling design, uncertainty status and refusal. Selection stays manual; no entry is ranked or recommended. Fits nothing."
+limits = "Lists learned_trial_aipw, trial_ipw_supplied_probabilities, dr_learner_cate, exact_finite_law_evaluator and smoothed_dose_transport_aipw (refused: a binary contrast never runs the dose-response grid) with eligibility, required laws, graph conditions, nuisance tasks, support, sampling design, uncertainty status and refusal. Selection stays manual; no entry is ranked or recommended. Fits nothing."
 evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
 evidence_assertion = "the_free_menu_function_follows_its_learner_argument_without_the_builder"
 
@@ -1992,7 +1992,7 @@ evidence = "classical_complete_source_family_and_target_observational_law"
 functional = "target_conditional_interventional_distribution"
 guarantee = "sound_incomplete"
 reference = "https://arxiv.org/abs/1312.7485v1"
-limits = "One SearchBudget (at most 4096 operations, depth 24, memory cap) over the rule-2 reduction, the sID decision, the catalog binding and the witness search (one charge per attempt); at most 6 observed, 3 treatments, 1-3 conditioned. A reduced-joint s-hedge is proven_non_transportable only with an exactly verified two-model witness; otherwise not_certified, never proven."
+limits = "One SearchBudget (at most 4096 operations, depth 24, memory cap) over the rule-2 reduction, the sID decision, the catalog binding and the witness search (one charge per parameter block and one per null-space direction tried, each with its live-state estimate; a stop inside it is a budget receipt); at most 6 observed, 3 treatments, 1-3 conditioned. A reduced-joint s-hedge is proven_non_transportable only with an exactly verified two-model witness; otherwise not_certified, never proven."
 evidence_test = "crates/antecedent-identify/tests/admg_conditional_transport.rs"
 evidence_assertion = "a_non_movable_conditioning_variable_is_normalized_out_of_the_joint"
 
@@ -2154,7 +2154,7 @@ evidence_assertion = "test_exported_result_is_recomputed_by_the_artifact_consume
 
 [[routes]]
 route = "antecedent_identify.verify_conditional_witness"
-stage = "identify"
+stage = "consume"
 status = "licensed"
 graph = "selection_admg_at_most_6_observed"
 evidence = "classical_complete_source_family_and_target_observational_law"
@@ -2202,7 +2202,7 @@ guarantee = "witness_reverified_by_exact_enumeration_same_implementation"
 reference = "https://causalai.net/r53.pdf"
 limits = "Framed obstruction artifact v1 with the variable names; any outcome other than proven_non_transportable refuses with its own reason code."
 evidence_test = "python/tests/test_transport_admg_conditional.py"
-evidence_assertion = "test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes"
+evidence_assertion = "test_an_exported_obstruction_replays_after_its_builder_is_discarded"
 
 [[routes]]
 route = "antecedent.transport.advanced.consume_admg_conditional_obstruction_artifact"
@@ -2215,7 +2215,7 @@ guarantee = "witness_reverified_by_exact_enumeration_same_implementation"
 reference = "https://causalai.net/r53.pdf"
 limits = "Python surface of antecedent.consume_admg_conditional_obstruction_artifact; the frame's names must equal the verified name mapping."
 evidence_test = "python/tests/test_transport_admg_conditional.py"
-evidence_assertion = "test_the_obstruction_consumer_reverifies_the_exported_witness"
+evidence_assertion = "test_the_obstruction_artifact_consumer_needs_no_builder_plan_or_data"
 
 [[routes]]
 route = "antecedent.transport.advanced.AdmgConditionalTransportStage.prepare_empirical"

@@ -258,8 +258,10 @@ standardizers (a direct or baseline-standardization certificate, the
   `cell_not_licensed`). The prepared study computes its menu from its own options; the
   standalone call uses the release defaults and marks nuisance tasks as default. Each
   entry lists its `static_fields`: descriptions that are fixed text rather than derived
-  (all requirement fields of the refused `dr_learner_cate` and
-  `exact_finite_law_evaluator`, and three of the supplied-probability IPW entry).
+  (all requirement fields of the refused `dr_learner_cate`,
+  `exact_finite_law_evaluator` and `smoothed_dose_transport_aipw`, and three of the
+  supplied-probability IPW entry). A direct certificate admits no covariates, so its
+  membership and randomization laws are listed as marginal.
   Selection stays manual; nothing is recommended.
 - **Bounds.** At most 20 cross-fitting folds and a bootstrap cap of 2000 replicates
   (floor 199); a consumer admits at most 1,000,000 rows and 256 features.
@@ -346,8 +348,11 @@ interval request refuses (`temporal_transport.interval_requested`,
   evaluator enumerates the whole lattice, so this holds whether or not the target
   reaches the history (an unreached, served history is reported `unreached`). A first
   action the target never takes at a reached initial state also refuses
-  (`temporal_transport.history_outside_support`) instead of extrapolating. The report
-  is never more optimistic than the evaluator.
+  (`temporal_transport.history_outside_support`) instead of extrapolating, but only
+  when the proof reads the target's law over that action (as the fixture diagram's
+  does); a proof reading only the target's initial-state law needs no such mass, and
+  this too is read from the proof's leaves. The report is never more optimistic than
+  the evaluator.
 - **Budget.** One `SearchBudget` covers the identification search, its verification
   replays and the growth of the history lattice (charged per state with the live bytes
   retained). A stop is a receipt (`temporal_transport.history_budget`), never a
@@ -390,11 +395,12 @@ by an executed test (`crates/antecedent-identify/tests/mz_transport_search.rs`,
 - R-443 Fig. 1(e,f), an experiment on `Z2` in one source and on `Z1` in another, is not
   transportable in the paper; here it is `not_certified` with `mz_transport.fabricated_joint`
   and never an obstruction, because the failure is reached after an exchange.
-- The paper's own non-transportable example type, an `X`-experiment in one source and a
-  `Z`-experiment in the other (R-443 Fig. 2), is a checked obstruction; the exact paper
-  graph was not available offline, so the test uses the closest analogue (`Z -> X -> Y`,
-  `X <-> Y`) and exhibits two SCMs that agree on the target observational law and every
-  supplied experiment but differ on `P*(y | do(x))`.
+- The paper's own non-transportable example, an `X`-experiment in one source and a
+  `Z`-experiment in the other on R-443 Fig. 2(a,b) (`X -> Y <- Z`, `X <-> Y`, `Z <-> Y`,
+  `S_a` into `Z`, `S_b` into `Y`), is a checked obstruction, and the paper's two models
+  `M1`, `M2` (its Eqs. 3-4) are executed: they agree on the target observational law and
+  every supplied experiment but differ on `P*(y | do(x))`. A three-node analogue
+  (`Z -> X -> Y`, `X <-> Y`) is kept as a second obstruction with its own two-model witness.
 - A paper FAIL reached after an exchange whose every candidate line-10 branch fails is
   `not_certified` with `mz_transport.search_incomplete`, never an obstruction.
 - Fig. 3 line 10 fires only with no active experiment (one exchange per branch); the search
@@ -591,7 +597,7 @@ it is not a second transport engine.
   rational reconstruction); only the exact verifier certifies. It is incomplete:
   with no verified pair, or above its work bound, the decision stays
   `not_certified` (`admg_transport.not_certified`, stage `conditional_witness`:
-  `no_witness`, `out_of_scope` or `stopped`) with the inspection-only
+  `no_witness` or `out_of_scope`) with the inspection-only
   `ConditionalObstructionCandidate` (`"proof": false`). On every three-node
   selection ADMG and query, all 984 reduced-joint s-hedges carry a verified
   witness, each re-checked by an independent verifier in the tests. The paper's
@@ -601,7 +607,8 @@ it is not a second transport engine.
 - **Budget.** One `SearchBudget` (at most 4096 operations, depth 24, a memory cap
   that is never absent) is charged by every rule-2 separation test of the search
   and of its re-check, every sID step, the catalog binding and each witness-search
-  attempt (a stop inside the witness search leaves the decision `not_certified`). Live-state memory
+  block and null-space direction tried, charged with the attempt's own live-state estimate (a stop inside the
+  witness search is an `exhausted` receipt naming that stage, never `not_certified`). Live-state memory
   is cumulative: each finished stage's peak is retained by every later charge. A
   stop is `exhausted` with a receipt of explored and unevaluated stages, never a
   verdict.
