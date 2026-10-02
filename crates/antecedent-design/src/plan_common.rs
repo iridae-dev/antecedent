@@ -18,7 +18,9 @@ use antecedent_core::{
 
 /// Every proposed regime is present in `actual` as available evidence with
 /// exactly the proposed kind, population, interventions, levels, measured set,
-/// conditioning and availability, and is bound to some provider snapshot.
+/// conditioning, sampling selection, law origin and availability, and is bound
+/// to some provider snapshot. A selected-sample law or a fitted-model artifact
+/// is therefore never the proposed regime unless it was proposed.
 pub(crate) fn validate_actual_delta(
     delta: &EvidenceCatalogDelta,
     actual: &EvidenceCatalog,
@@ -33,7 +35,9 @@ pub(crate) fn validate_actual_delta(
             || !same_vars(&found.interventions, &expected.interventions)
             || !same_assignments(&found.intervention_values, &expected.intervention_values)
             || !same_vars(&found.measured, &expected.measured)
-            || found.conditioned_on != expected.conditioned_on
+            || !same_vars(&found.conditioned_on, &expected.conditioned_on)
+            || found.selection != expected.selection
+            || found.origin != expected.origin
             || found.distribution != expected.distribution
         {
             return Err(format!("arriving regime {} differs from proposal", expected.id.raw()));

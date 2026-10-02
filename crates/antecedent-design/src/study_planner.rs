@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceRegime,
-    ExecutionContext, InterventionAssignment, LawOrigin, NodeRef, RegimeId, RegimeKind,
-    SamplingSelection, SearchReceipt, VariableId, reason_code,
+    ExecutionContext, InterventionAssignment, NodeRef, RegimeId, RegimeKind, SearchReceipt,
+    VariableId, reason_code,
 };
 use antecedent_graph::Admg;
 use antecedent_identify::{
@@ -292,18 +292,6 @@ impl StudyPlanProposal {
         validate_actual_delta(&self.delta, actual).map_err(StudyPlanError::arrival_mismatch)?;
         let proposed =
             |regime: RegimeId| self.delta.proposed_regimes.iter().any(|r| r.id == regime);
-        // The plan verified a measured, whole-population law: a selected-sample
-        // law or a fitted-model artifact of the same shape is not the proposed
-        // regime (the shared shape check above does not look at these two).
-        if let Some(regime) = actual.regimes.iter().find(|r| {
-            proposed(r.id)
-                && (r.selection != SamplingSelection::Population || r.origin != LawOrigin::Measured)
-        }) {
-            return Err(StudyPlanError::arrival_mismatch(format!(
-                "arriving regime {} is not a measured whole-population law as proposed",
-                regime.id.raw()
-            )));
-        }
         let provider_snapshot = provider_snapshot.into();
         if provider_snapshot.starts_with(PLACEHOLDER_SNAPSHOT_PREFIX)
             || actual.bindings.iter().any(|binding| {
