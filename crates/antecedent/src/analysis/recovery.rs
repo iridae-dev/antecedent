@@ -12,13 +12,15 @@ use antecedent_core::{EvidenceCatalog, ExecutionContext};
 use antecedent_estimate::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
 use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits};
 use antecedent_graph::Admg;
+use antecedent_identify::recovery::m_graph_signature;
 use antecedent_identify::{
     ObservationRecoveryQuery, RecoveredEffectQuery, RecoveryDecision, RecoveryDerivation,
     RecoveryDetail, RecoveryError, RecoveryLimits, decide_observation_recovery,
 };
 use antecedent_io::IoError;
 use antecedent_io::recovery_artifact::{
-    RecoveryArtifactInput, RecoveryArtifactWire, RecoveryConsumeLimits, recovery_io_error,
+    RecoveredEffectWire, RecoveryArtifactInput, RecoveryArtifactWire, RecoveryConsumeLimits,
+    recovery_io_error,
 };
 
 /// A prepared recovery: frozen derivation, catalog, observed law and requests.
@@ -127,12 +129,6 @@ impl StudyBuilder {
         limits: ExactEvaluationLimits,
         ctx: &ExecutionContext,
     ) -> Result<PreparedObservationRecovery, IoError> {
-        if effect.is_none() && !requests.is_empty() {
-            return Err(refused(&RecoveryError::new(
-                RecoveryDetail::InvalidQuery,
-                "effect requests need a downstream effect query",
-            )));
-        }
         let derivation = match decide_observation_recovery(
             &graph,
             query,
@@ -154,20 +150,72 @@ impl StudyBuilder {
                 )));
             }
         };
-        evaluate_exact_recovery(&derivation, &observed, ctx).map_err(|e| refused(&e))?;
-        Ok(PreparedObservationRecovery {
-            graph,
-            catalog,
-            effect,
-            derivation,
-            observed,
-            requests,
-            limits,
-        })
+        PreparedObservationRecovery::from_derivation(
+            graph, catalog, effect, derivation, observed, requests, limits, ctx,
+        )
     }
 }
 
 impl PreparedObservationRecovery {
+    /// Prepare from a derivation already decided on `graph`, `catalog` and
+    /// `effect` (a surface that holds a decision prepares through this, so the
+    /// decision is never repeated). The inputs are checked against the
+    /// derivation's record (m-graph signature, observed distribution, effect
+    /// query) before the named observed law is validated against it.
+    ///
+    /// # Errors
+    /// Inputs that are not the derivation's, requests without an effect, or an
+    /// observed law that is not the named one.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_derivation(
+        graph: Admg,
+        catalog: EvidenceCatalog,
+        effect: Option<RecoveredEffectQuery>,
+        derivation: RecoveryDerivation,
+        observed: ExactDiscreteLaw,
+        requests: Vec<Assignment>,
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        let invalid = |message: &str| {
+            refused(&RecoveryError::new(RecoveryDetail::InvalidDerivation, message))
+        };
+        if effect.is_none() && !requests.is_empty() {
+            return Err(refused(&RecoveryError::new(
+                RecoveryDetail::InvalidQuery,
+                "effect requests need a downstream effect query",
+            )));
+        }
+        let record = derivation.record();
+        if m_graph_signature(&graph) != record.graph_signature {
+            return Err(invalid("the m-graph is not the one the derivation was decided on"));
+        }
+        if catalog.distribution(derivation.query().observed_regime).as_ref()
+            != Some(derivation.observed())
+        {
+            return Err(invalid("the catalog does not name the derivation's observed law"));
+        }
+        match (&effect, &record.effect) {
+            (None, None) => {}
+            (Some(effect), Some(stored)) => {
+                let wire = RecoveredEffectWire::from_query(effect)?;
+                let mut outcomes = wire.outcomes;
+                outcomes.sort_unstable();
+                let mut treatments = wire.treatments;
+                treatments.sort_unstable();
+                if wire.directed != stored.edges
+                    || outcomes != stored.outcomes
+                    || treatments != stored.treatments
+                {
+                    return Err(invalid("the effect query is not the derivation's"));
+                }
+            }
+            _ => return Err(invalid("the effect query is not the derivation's")),
+        }
+        evaluate_exact_recovery(&derivation, &observed, ctx).map_err(|e| refused(&e))?;
+        Ok(Self { graph, catalog, effect, derivation, observed, requests, limits })
+    }
+
     /// Evaluate the retained derivation: the recovered law, then every effect
     /// request. Never decides again. Exact laws are point-only.
     ///

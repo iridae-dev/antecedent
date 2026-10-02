@@ -359,6 +359,32 @@ fn observed_laws_outside_the_contract_are_refused() {
     )
     .unwrap();
     assert_eq!(refuse(&na).detail, RecoveryDetail::InvalidObservedLaw);
+    // A non-binary substantive axis (a third level on R0's response coordinate
+    // would also do): the binary bound is enforced on the table, not only on the
+    // declared domain.
+    let mut axes = law.axes().to_vec();
+    axes[0] = DiscreteAxis {
+        variable: axes[0].variable,
+        values: Arc::from([Value::f64(0.0), Value::f64(1.0), Value::f64(2.0)]),
+    };
+    let mut wide = vec![0.0; law.probabilities().len() / 2 * 3];
+    // Axes R0 (now 3 levels), R1, X*0, X*1: the old cells keep their mass at R0 in {0, 1}.
+    for (i, p) in law.probabilities().iter().enumerate() {
+        wide[i] = *p;
+    }
+    let ternary = ExactDiscreteLaw::try_new(
+        POPULATION,
+        law.regime(),
+        Vec::new(),
+        axes,
+        wide,
+        law.snapshot_identity(),
+        LawTolerance::default(),
+    )
+    .unwrap();
+    let error = refuse(&ternary);
+    assert_eq!(error.detail, RecoveryDetail::InvalidObservedLaw);
+    assert!(error.message.contains("outside its domain"), "{error}");
     // A law consistent with the proxies that is no law of the m-graph: the
     // recovered masses do not normalize.
     let mut rng = Rng::new(99);

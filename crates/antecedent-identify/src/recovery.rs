@@ -1060,7 +1060,11 @@ fn graph_bytes(graph: &Admg) -> u64 {
     u64::try_from(graph.node_count()).unwrap_or(u64::MAX).saturating_mul(256)
 }
 
-fn signature(graph: &Admg) -> String {
+/// The m-graph identity a derivation record stores (`graph_signature`): sorted
+/// nodes and directed edges by variable id.
+#[must_use]
+#[doc(hidden)]
+pub fn m_graph_signature(graph: &Admg) -> String {
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
     for i in 0..graph.node_count() {
@@ -1191,7 +1195,7 @@ fn build_formula(
     margin_records.sort_by_key(|m| m.expression);
     let record = RecoveryDerivationRecord {
         rule_version: RECOVERY_RULE_VERSION.to_owned(),
-        graph_signature: signature(graph),
+        graph_signature: m_graph_signature(graph),
         population: query.population.to_string(),
         observed_regime: query.observed_regime.raw(),
         observed_identity: observed.canonical_identity(),
@@ -1299,7 +1303,6 @@ fn check_formula(
         return Err(bad("one propensity per response indicator is required"));
     }
     let mut ws = DSeparationWorkspace::default();
-    let mut used = 1 + list.len();
     for (p, factor) in query.partially_observed.iter().zip(list) {
         charge_step(64)?;
         let r = *node_of.get(&p.response).ok_or_else(|| bad("unknown response"))?;
@@ -1340,7 +1343,6 @@ fn check_formula(
             joint.push(p.response);
             expect_leaf(*numerator, &joint)?;
             expect_leaf(*denominator, &cond)?;
-            used += 2;
         }
     }
     // Every recorded margin is a leaf the formula uses: nothing extra is bound.
@@ -1350,7 +1352,6 @@ fn check_formula(
     {
         return Err(bad("a recorded margin is not a leaf of the formula"));
     }
-    let _ = used;
     Ok(())
 }
 

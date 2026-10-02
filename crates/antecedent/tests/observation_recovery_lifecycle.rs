@@ -14,7 +14,10 @@ use antecedent::{
 use antecedent_core::{ExecutionContext, Value};
 use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, LawTolerance};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
-use antecedent_identify::{RecoveredEffectQuery, RecoveryDetail, RecoveryLimits};
+use antecedent_identify::{
+    RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits,
+    decide_observation_recovery,
+};
 use antecedent_io::recovery_artifact::{
     RecoveryArtifactError, RecoveryArtifactWire, RecoveryConsumeLimits,
 };
@@ -99,6 +102,78 @@ fn estimate_runs_the_retained_derivation_after_builder_disposal() {
     assert_eq!(plan.record().factors.len(), 2);
     assert!(plan.effect().is_some());
     assert_eq!(prepared.requests().len(), 2);
+}
+
+/// A surface that already holds a decision prepares from it without deciding
+/// again, and only with the inputs the derivation was decided on.
+#[test]
+fn preparing_from_a_decided_derivation_never_decides_again_and_checks_its_inputs() {
+    let model = model();
+    let effect_query = effect(&model);
+    let RecoveryDecision::Recovered(derivation) = decide_observation_recovery(
+        &model.graph,
+        &model.query(),
+        &model.catalog(),
+        Some(&effect_query),
+        RecoveryLimits::default(),
+        &ctx(),
+    )
+    .unwrap() else {
+        panic!("recoverable");
+    };
+    let prepare = |graph: Admg, catalog, effect, requests: Vec<Assignment>| {
+        PreparedObservationRecovery::from_derivation(
+            graph,
+            catalog,
+            effect,
+            (*derivation).clone(),
+            model.observed_law(),
+            requests,
+            ExactEvaluationLimits::default(),
+            &ctx(),
+        )
+    };
+    let prepared =
+        prepare(model.graph.clone(), model.catalog(), Some(effect_query.clone()), requests())
+            .unwrap();
+    // The retained derivation is the decided one, and the result equals the
+    // deciding constructor's bit for bit.
+    assert_eq!(prepared.derivation().identity(), derivation.identity());
+    let direct = self::prepare(&model).estimate(&ctx()).unwrap();
+    let result = prepared.estimate(&ctx()).unwrap();
+    let bits = |p: &[f64]| p.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+    assert_eq!(
+        bits(result.recovered().law().probabilities()),
+        bits(direct.recovered().law().probabilities())
+    );
+    for (a, b) in result.effects().iter().zip(direct.effects()) {
+        assert_eq!(bits(&a.probabilities), bits(&b.probabilities));
+    }
+    // Another m-graph (an extra edge), another catalog snapshot, a dropped or
+    // different effect query, or requests without an effect: refused, each with
+    // the derivation's own reason, never prepared.
+    let mut other_graph = model.graph.clone();
+    other_graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(4)).unwrap();
+    let mut other_catalog = model.catalog();
+    Arc::make_mut(&mut other_catalog.bindings)[0].snapshot_identity = Arc::from("snap-other");
+    let other_effect = RecoveredEffectQuery {
+        outcomes: Arc::from([v(0)]),
+        treatments: Arc::from([v(1)]),
+        ..effect_query.clone()
+    };
+    for (graph, catalog, effect) in [
+        (other_graph, model.catalog(), Some(effect_query.clone())),
+        (model.graph.clone(), other_catalog, Some(effect_query.clone())),
+        (model.graph.clone(), model.catalog(), None),
+        (model.graph.clone(), model.catalog(), Some(other_effect)),
+    ] {
+        let error = prepare(graph, catalog, effect, Vec::new()).unwrap_err();
+        assert_eq!(error.reason_code(), Some("transport_not_certified"), "{error}");
+        assert!(error.to_string().contains("recovery.invalid_derivation"), "{error}");
+    }
+    let error = prepare(model.graph.clone(), model.catalog(), None, requests()).unwrap_err();
+    assert_eq!(error.reason_code(), Some("invalid_argument"));
+    assert!(error.to_string().contains("recovery.invalid_query"), "{error}");
 }
 
 #[test]

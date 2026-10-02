@@ -262,7 +262,6 @@ struct ObservationRecoveryStage {
     query: ObservationRecoveryQuery,
     catalog: EvidenceCatalog,
     effect: Option<RecoveredEffectQuery>,
-    limits: RecoveryLimits,
     memory_bytes: Option<u64>,
 }
 
@@ -316,24 +315,26 @@ impl ObservationRecoveryStage {
                 ),
             )));
         }
+        let RecoveryDecision::Recovered(derivation) = &self.decision else {
+            unreachable!("a nonrecoverable decision refused above");
+        };
         let observed = parse_observed(law, &self.graph.names, &self.catalog)?;
         let requests = parse_requests(&self.graph.names, requests)?;
-        let (shared, query, catalog, effect, limits, memory_bytes) = (
+        // The retained derivation is prepared as decided: never decided again.
+        let (shared, catalog, effect, derivation, memory_bytes) = (
             self.shared.clone(),
-            self.query.clone(),
             self.catalog.clone(),
             self.effect.clone(),
-            self.limits,
+            (**derivation).clone(),
             self.memory_bytes,
         );
         let inner = crate::detach_catch(py, move || {
             let ctx = execution_context(seed, memory_bytes, cancel);
-            antecedent::StudyBuilder::observation_recovery(
+            antecedent::PreparedObservationRecovery::from_derivation(
                 shared,
-                &query,
                 catalog,
                 effect,
-                limits,
+                derivation,
                 observed,
                 requests,
                 ExactEvaluationLimits { operations: max_operations, depth: max_depth },
@@ -591,7 +592,6 @@ fn identify_observation_recovery_stage(
         query,
         catalog,
         effect,
-        limits,
         memory_bytes,
     })
 }
