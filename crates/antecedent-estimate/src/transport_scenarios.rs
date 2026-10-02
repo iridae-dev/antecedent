@@ -148,31 +148,21 @@ pub(crate) fn structural_envelope(
 
 /// Declared-weight report. `points` are the identified scenarios with their
 /// weights; `outcomes` are the queried outcomes with the limits of their
-/// declared domains (`None` for a domain that is not finite);
-/// `unaccounted_mass` is one minus the identified weight (other scenarios plus
-/// residual).
+/// declared domains (`None` for a domain that is not finite). The unaccounted
+/// mass is one minus the identified weight (other scenarios plus residual),
+/// zero within [`SCENARIO_WEIGHT_TOLERANCE`] of one.
 ///
 /// # Errors
 /// Invalid masses, distributions over different outcomes, or a non-numeric outcome.
 pub(crate) fn weighted_scenario_report(
     points: &[(Arc<str>, f64, &ExactDistribution)],
     outcomes: &[(VariableId, Option<(f64, f64)>)],
-    unaccounted_mass: f64,
 ) -> Result<WeightedScenarioReport, EstimationError> {
     let identified_mass = mass_sum(points.iter().map(|(_, w, _)| *w));
-    // Mass within the declared-weight tolerance of zero is zero, the same
-    // tolerance `TransportScenarioSet::try_new` accepts weights under.
-    let unaccounted_mass = if (0.0..=SCENARIO_WEIGHT_TOLERANCE).contains(&unaccounted_mass) {
-        0.0
-    } else {
-        unaccounted_mass
-    };
-    if !unaccounted_mass.is_finite()
-        || unaccounted_mass < 0.0
-        || (identified_mass + unaccounted_mass - 1.0).abs() > 1e-9
-    {
-        return Err(EstimationError::data_msg("scenario masses must sum to one"));
+    if !(0.0..=1.0 + SCENARIO_WEIGHT_TOLERANCE).contains(&identified_mass) {
+        return Err(EstimationError::data_msg("scenario masses must sum to at most one"));
     }
+    let unaccounted_mass = unaccounted_after(identified_mass);
     let named = points.iter().map(|(n, _, d)| (Arc::clone(n), *d)).collect::<Vec<_>>();
     check_outcomes(&named)?;
     // Each sum is order independent, so renaming scenarios cannot move it.
@@ -822,7 +812,6 @@ fn report(
             .iter()
             .map(|(n, w, d)| (Arc::clone(n), w.unwrap_or(0.0), *d))
             .collect::<Vec<_>>();
-        let identified_mass = mass_sum(points.iter().map(|(_, w, _)| *w));
         let outcomes = decision
             .decisions
             .iter()
@@ -844,7 +833,7 @@ fn report(
                 )
             })
             .collect::<Vec<_>>();
-        Some(weighted_scenario_report(&points, &outcomes, unaccounted_after(identified_mass))?)
+        Some(weighted_scenario_report(&points, &outcomes)?)
     } else {
         None
     };
@@ -889,15 +878,19 @@ mod tests {
         let (a, b) = (binary(0.2), binary(0.6));
         let points = vec![(Arc::from("a"), 0.3, &a), (Arc::from("b"), 0.2, &b)];
         let outcomes = [(VariableId::from_raw(3), Some((0.0, 1.0)))];
-        let report = weighted_scenario_report(&points, &outcomes, 0.5).unwrap();
+        let report = weighted_scenario_report(&points, &outcomes).unwrap();
+        assert!((report.identified_mass - 0.5).abs() < 1e-12);
+        assert!((report.unaccounted_mass - 0.5).abs() < 1e-12);
         let sum = report.identified_weighted_sums[0].1;
         assert!((sum - (0.3 * 0.2 + 0.2 * 0.6)).abs() < 1e-12);
         // The renormalized value (0.18 / 0.5 = 0.36) is not reported; the range
         // lets the unaccounted half sit anywhere in {0, 1}.
         let (_, lo, hi) = report.ranges.unwrap()[0];
         assert!((lo - 0.18).abs() < 1e-12 && (hi - 0.68).abs() < 1e-12);
-        assert!(weighted_scenario_report(&points, &outcomes, 0.4).is_err());
-        let none = weighted_scenario_report(&[], &outcomes, 1.0).unwrap();
+        let over = vec![(Arc::from("a"), 0.7, &a), (Arc::from("b"), 0.4, &b)];
+        assert!(weighted_scenario_report(&over, &outcomes).is_err());
+        let none = weighted_scenario_report(&[], &outcomes).unwrap();
+        assert!((none.unaccounted_mass - 1.0).abs() < 1e-12);
         assert!(none.ranges.is_none());
     }
 
@@ -908,15 +901,13 @@ mod tests {
         let (a, b) = (binary(0.2), binary(0.6));
         let points = vec![(Arc::from("a"), 0.3, &a), (Arc::from("b"), 0.2, &b)];
         let declared = [(VariableId::from_raw(3), Some((0.0, 2.0)))];
-        let (_, lo, hi) =
-            weighted_scenario_report(&points, &declared, 0.5).unwrap().ranges.unwrap()[0];
+        let (_, lo, hi) = weighted_scenario_report(&points, &declared).unwrap().ranges.unwrap()[0];
         assert!((lo - 0.18).abs() < 1e-12 && (hi - (0.18 + 0.5 * 2.0)).abs() < 1e-12);
         // An unbounded declared domain withholds the range while mass is unaccounted.
         let unbounded = [(VariableId::from_raw(3), None)];
-        assert!(weighted_scenario_report(&points, &unbounded, 0.5).unwrap().ranges.is_none());
+        assert!(weighted_scenario_report(&points, &unbounded).unwrap().ranges.is_none());
         let full = vec![(Arc::from("a"), 0.5, &a), (Arc::from("b"), 0.5, &b)];
-        let (_, lo, hi) =
-            weighted_scenario_report(&full, &unbounded, 0.0).unwrap().ranges.unwrap()[0];
+        let (_, lo, hi) = weighted_scenario_report(&full, &unbounded).unwrap().ranges.unwrap()[0];
         assert!((lo - 0.4).abs() < 1e-12 && (hi - 0.4).abs() < 1e-12);
     }
 }

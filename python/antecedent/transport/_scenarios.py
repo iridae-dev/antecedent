@@ -14,7 +14,8 @@ With ``conditioned_on`` the question is the conditional ``P*(y | do(x), w)`` of
 the bounded ADMG conditional transport row: every scenario is decided by that
 route on the same shared budget and enters the same envelope. A scenario it does
 not certify is ``not_certified`` (its detail names an inspection-only candidate,
-never a proof), not ``structurally_unidentified``.
+never a proof); it is ``structurally_unidentified`` only when the route's witness
+stage proves it with an exactly verified two-model witness.
 """
 
 from __future__ import annotations
@@ -195,7 +196,8 @@ def prepare_transport_scenarios(
     identified scenario's point is the reduced joint normalized at the
     conditioning levels, and a zero-mass conditioning event is that scenario's
     ``support_failure``. A reduced joint with an s-hedge is ``not_certified``
-    with an inspection-only candidate, never ``structurally_unidentified``.
+    with an inspection-only candidate, and ``structurally_unidentified`` only
+    when the route's witness stage finds an exactly verified two-model witness.
     Exact laws only: ``StatisticalTransportData`` or counted laws refuse with
     ``cell_not_licensed``. Its artifact is format version 2; a classical
     question still exports version 1.

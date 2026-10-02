@@ -538,9 +538,26 @@ def test_a_memory_truncated_report_replays_but_a_cancelled_one_is_not_exported()
 
 
 def test_the_frozen_scenario_bound_refuses_65_scenarios():
-    many = [transport.TransportScenario(f"s{i:02}", graph(), []) for i in range(65)]
+    # Six variables give 64 distinct selection sets: the three of the fixture
+    # plus three isolated ones, so each scenario differs in its selections.
+    names = [*NAMES, "u", "v", "w"]
+    wide = Admg.from_edges(names, [("z", "x"), ("z", "y"), ("x", "y")], [("x", "y")])
+    schema = [*coordinates(), *(transport.VariableCoordinate(n, "binary") for n in names[3:])]
+    distinct = [
+        transport.TransportScenario(
+            f"s{i:02}", wide, [n for b, n in enumerate(names) if i & (1 << b)]
+        )
+        for i in range(65)
+    ]
+    # 64 are admitted and every one of them is decided and reported.
+    report = json.loads(prepare(transport.TransportScenarioSet(distinct[:64], schema)).estimate())
+    assert [s["name"] for s in report["scenarios"]] == sorted(s.name for s in distinct[:64])
+    assert report["receipt"] is None
+    counts = {m["status"]: m["count"] for m in report["masses"]}
+    assert counts["identified"] + counts["structurally_unidentified"] == 64
+    # The 65th refuses with the frozen code before any scenario is decided.
     with pytest.raises(CausalUnsupportedError, match="scenarios.count") as refused:
-        transport.TransportScenarioSet(many, coordinates())
+        transport.TransportScenarioSet(distinct, schema)
     assert refused.value.reason_code == "route_not_supported"
 
 

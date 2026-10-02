@@ -12,8 +12,13 @@
 //! premises: the scientific premises digest (scenarios, weights, schema,
 //! question, request, budgets) and a separate data-identity digest (catalog,
 //! laws, provider, sample summaries), so refreshed data replaces only the
-//! latter. A report cut short by cancellation is never exported: nothing
-//! recorded lets a consumer reproduce where the interruption fell.
+//! latter. For an empirical provider the artifact stores the fitted plug-in
+//! tables and summaries of the samples, not the sample rows: the consumer
+//! re-decides, recompiles and re-evaluates every scenario from those tables
+//! and checks each table against exactly one sample summary of the same
+//! world, snapshot and size, but it does not refit the tables. A report cut
+//! short by cancellation is never exported: nothing recorded lets a consumer
+//! reproduce where the interruption fell.
 //!
 //! Format version 2 (2.2B B1) is the same artifact for a conditional question
 //! `P*(y | do(x), w)`: the question carries `conditioned_on`, an identified

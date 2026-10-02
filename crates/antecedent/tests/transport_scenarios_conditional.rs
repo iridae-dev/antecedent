@@ -352,6 +352,43 @@ fn the_shared_budget_stops_conditional_scenarios_with_one_receipt() {
         TransportOutcomeKind::BudgetCancel
     );
     assert!(explored(&inside).unwrap().0.is_empty());
+    // The s-hedge scenario alone runs every stage of the route, the witness
+    // search included: under every budget short of the one that decides it the
+    // scenario is unevaluated with the set's receipt, never a verdict (neither
+    // not_certified nor structurally_unidentified).
+    let shifted_under = |operations: usize| {
+        let (catalog, _) = scm_of("chain", 0).catalog_and_laws();
+        decide_conditional_transport_scenarios(
+            &TransportScenarioSet::try_new(scenarios(&["shifted"], None)).unwrap(),
+            &query(&[1], &[0], &[2]),
+            &catalog,
+            SearchLimits { operations, depth: 256 },
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap()
+    };
+    let decides = (1..10_000).find(|ops| shifted_under(*ops).receipt.is_none()).unwrap();
+    assert!(matches!(
+        shifted_under(decides).decisions[0].outcome,
+        ScenarioOutcome::ConditionalNotCertified { .. }
+            | ScenarioOutcome::ConditionalProvenNonTransportable(_)
+    ));
+    for operations in 1..decides {
+        let stopped = shifted_under(operations);
+        assert!(
+            matches!(
+                stopped.decisions[0].outcome,
+                ScenarioOutcome::Unevaluated { stop: SearchStop::Operations }
+            ),
+            "{operations} of {decides} operations: {}",
+            stopped.decisions[0].outcome.status()
+        );
+        let receipt = stopped.receipt.as_ref().unwrap();
+        assert_eq!(
+            (&receipt.explored[..], &receipt.unevaluated[..]),
+            (&[][..], &["shifted".to_owned()][..])
+        );
+    }
     // A stopped report still exports and replays its identical prefix.
     let (catalog, data) = scm_of("chain", 0).catalog_and_laws();
     let prepared = try_prepare(

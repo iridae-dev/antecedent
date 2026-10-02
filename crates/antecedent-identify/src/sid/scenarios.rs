@@ -762,7 +762,11 @@ pub fn decide_transport_scenarios(
 /// accumulation, receipts and unevaluated scenarios are the same. A reduced
 /// joint with a verified s-hedge is
 /// [`ScenarioOutcome::ConditionalNotCertified`] with its inspection-only
-/// candidate, never [`ScenarioOutcome::StructurallyUnidentified`].
+/// candidate unless the route's witness stage finds an exactly verified
+/// two-model witness, which alone makes the scenario
+/// [`ScenarioOutcome::ConditionalProvenNonTransportable`] (status
+/// `structurally_unidentified`); the classical
+/// [`ScenarioOutcome::StructurallyUnidentified`] is never returned here.
 ///
 /// # Errors
 /// As [`decide_transport_scenarios`], plus the conditional route's bounds
@@ -935,7 +939,10 @@ fn decide_one(
 }
 
 /// Decide one scenario's conditional question by the bounded ADMG conditional
-/// route on the shared budget. A stop inside the route comes back as its bound.
+/// route on the shared budget. A stop inside any stage of the route, the
+/// witness search included, comes back as its bound (the route's
+/// `Exhausted` receipt), so the scenario is recorded unevaluated, never with
+/// a verdict.
 fn decide_one_conditional(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,

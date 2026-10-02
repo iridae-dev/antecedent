@@ -95,9 +95,11 @@ impl StudyBuilder {
     /// compile each identified scenario through that route's exact prepared
     /// path. The request binds exactly the treatments and the conditioned
     /// variables. The shared budget, envelope, masses, receipts and artifact
-    /// behave as in [`Self::transport_scenarios`]; a not-certified scenario
-    /// carries the inspection-only obstruction candidate and is never
-    /// structurally unidentified. Exact laws only: counted laws are refused
+    /// behave as in [`Self::transport_scenarios`]; a scenario whose reduced
+    /// joint has an s-hedge is `not_certified` carrying the inspection-only
+    /// obstruction candidate, and `structurally_unidentified` only when the
+    /// route's witness stage proves it with an exactly verified two-model
+    /// witness. Exact laws only: counted laws are refused
     /// (`cell_not_licensed`).
     ///
     /// # Errors

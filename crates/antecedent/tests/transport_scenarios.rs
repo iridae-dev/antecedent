@@ -380,8 +380,12 @@ fn estimate_after_refresh_keeps_decisions_and_moves_points() {
 #[test]
 fn inference_across_scenarios_is_refused() {
     let prepared = prepare(three(None), catalog(true), laws(SOURCE, true), BUDGET);
-    let refusal = prepared.aggregate_interval().unwrap_err();
-    assert!(refusal.to_string().contains("scenario_aggregate_not_licensed"), "{refusal}");
+    let (code, message) = match prepared.aggregate_interval().unwrap_err() {
+        IoError::Refused { code, message } => (code, message),
+        other => panic!("expected a coded refusal, got {other:?}"),
+    };
+    assert_eq!(code, "scenario_aggregate_not_licensed");
+    assert!(message.starts_with("scenarios.shared_data_aggregate"), "{message}");
 }
 
 #[test]
