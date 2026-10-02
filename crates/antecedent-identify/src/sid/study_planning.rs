@@ -437,8 +437,10 @@ pub struct StudyRepair {
     /// Every formula factor that reads it.
     pub factors: Vec<StudyFactor>,
     /// The margin the proof actually reads from it: the union of its factors'
-    /// variables and conditioning variables. A smaller declared margin
-    /// containing it is not verified unless declared as its own candidate.
+    /// variables and conditioning variables, or the whole declared margin when
+    /// the proof reads the regime only as an X9 input step (no factor of its
+    /// own). A smaller declared margin containing it is not verified unless
+    /// declared as its own candidate.
     pub required_margin: Vec<VariableId>,
     /// The margin the candidate declared.
     pub declared_margin: Vec<VariableId>,
@@ -572,6 +574,10 @@ fn validate_candidates(
         return Err(R::invalid_candidate("candidate ids must be unique"));
     }
     let mut regimes = catalog.regimes.iter().map(|r| r.id).collect::<BTreeSet<_>>();
+    // Labels are unique per catalog: a label two candidates share would make
+    // their joint preview fail after the plan started, so it is refused here.
+    let mut labels =
+        catalog.regimes.iter().filter_map(|r| r.label.clone()).collect::<BTreeSet<_>>();
     let target = route.target();
     for candidate in &sorted {
         let who = &candidate.id;
@@ -614,6 +620,15 @@ fn validate_candidates(
                     "regime {} of candidate {who} repeats a base or candidate regime id",
                     regime.id.raw()
                 )));
+            }
+            if let Some(label) = &regime.label {
+                if !labels.insert(Arc::clone(label)) {
+                    return Err(R::invalid_candidate(format!(
+                        "regime {} of candidate {who} repeats the label {label:?} of a base or \
+                         candidate regime",
+                        regime.id.raw()
+                    )));
+                }
             }
             if regime.measured.is_empty()
                 || !regime.conditioned_on.is_empty()
@@ -864,14 +879,15 @@ fn plan_with_caps(
         }
         let pending =
             || order[index..].iter().map(|(m, _, _)| subset_label(&ids_of(m))).collect::<Vec<_>>();
-        let delta = EvidenceCatalogDelta::try_new(
-            catalog,
-            members
+        let label = subset_label(&ids);
+        // Every candidate previews alone and no two share a regime id or label
+        // (validated above), so the subset's preview validates its union once.
+        let delta = EvidenceCatalogDelta {
+            proposed_regimes: members
                 .iter()
                 .flat_map(|&i| candidates[i].delta.proposed_regimes.iter().cloned())
-                .collect::<Vec<_>>(),
-        )
-        .map_err(|e| StudyPlanRefusal::invalid_candidate(e.to_string()))?;
+                .collect(),
+        };
         let preview = delta
             .preview_catalog(catalog)
             .and_then(|preview| delta.with_placeholder_bindings(&preview))
@@ -883,7 +899,7 @@ fn plan_with_caps(
             records.push(record(StudySubsetOutcome::Unevaluated));
             continue;
         }
-        let decision_cap = (caps.decision_cap)(&subset_label(&ids), route.decision_operations());
+        let decision_cap = (caps.decision_cap)(&label, route.decision_operations());
         let before = search.operations();
         let outcome = match decide_preview(graph, &route, &preview, &mut search, ctx, before) {
             Ok(Preview::Identified(found)) => {
@@ -933,7 +949,7 @@ fn plan_with_caps(
             Err(error) => StudySubsetOutcome::Refused { message: error.to_string() },
         };
         if outcome.conclusive() || matches!(outcome, StudySubsetOutcome::OverDecisionCap { .. }) {
-            explored.push(subset_label(&ids));
+            explored.push(label);
         }
         records.push(record(outcome));
         if let Some(progress) = &ctx.progress {
@@ -1042,9 +1058,6 @@ fn base_failure(
     search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
 ) -> Result<StudyBaseFailure, BaseEnd> {
-    let stages = |stages: &[(String, &'static str)]| {
-        stages.iter().map(|(stage, outcome)| format!("stage:{stage}={outcome}")).collect::<Vec<_>>()
-    };
     match route {
         StudyPlanRoute::Mz(query) => {
             let decision = match decide_mz_transport_shared(graph, query, catalog, search, ctx) {
@@ -1074,13 +1087,9 @@ fn base_failure(
                     }));
                 }
                 MzTransportDecision::MissingEvidence { detail, .. } => vec![detail.clone()],
-                MzTransportDecision::NotCertified(inspection) => stages(
-                    &inspection
-                        .stages
-                        .iter()
-                        .map(|s| (s.stage.clone(), s.outcome))
-                        .collect::<Vec<_>>(),
-                ),
+                MzTransportDecision::NotCertified(inspection) => {
+                    stage_facts(inspection.stages.iter().map(|s| (s.stage.as_str(), s.outcome)))
+                }
             };
             Ok(StudyBaseFailure {
                 code: code.unwrap_or_default(),
@@ -1115,21 +1124,13 @@ fn base_failure(
                             raw(&leaf.intervened)
                         )
                     })
-                    .chain(stages(
-                        &missing
-                            .stages
-                            .iter()
-                            .map(|s| (s.stage.clone(), s.outcome))
-                            .collect::<Vec<_>>(),
+                    .chain(stage_facts(
+                        missing.stages.iter().map(|s| (s.stage.as_str(), s.outcome)),
                     ))
                     .collect(),
-                MixedSourceDecision::NotCertified(inspection) => stages(
-                    &inspection
-                        .stages
-                        .iter()
-                        .map(|s| (s.stage.clone(), s.outcome))
-                        .collect::<Vec<_>>(),
-                ),
+                MixedSourceDecision::NotCertified(inspection) => {
+                    stage_facts(inspection.stages.iter().map(|s| (s.stage.as_str(), s.outcome)))
+                }
             };
             Ok(StudyBaseFailure {
                 code: code.unwrap_or_default(),
@@ -1142,6 +1143,11 @@ fn base_failure(
 
 fn raw(variables: &[VariableId]) -> Vec<u32> {
     variables.iter().map(|v| v.raw()).collect()
+}
+
+/// `stage:<stage>=<outcome>` for each stage of a base decision, in order.
+fn stage_facts<'a>(stages: impl IntoIterator<Item = (&'a str, &'a str)>) -> Vec<String> {
+    stages.into_iter().map(|(stage, outcome)| format!("stage:{stage}={outcome}")).collect()
 }
 
 /// A re-run decision on a preview catalog that identified and re-checked.
@@ -1267,7 +1273,8 @@ fn rerun_named(
     search: &mut SharedSearch<'_>,
     ctx: &ExecutionContext,
 ) -> Result<Option<(CausalExprArena, ExprId)>, IdentificationError> {
-    let query = query.canonical();
+    // `query` is the plan's canonical route (sources by population), the form
+    // the mixed decision ran its named stage on.
     let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
         .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
     let bound = |result: CatalogTransportResult| match result {

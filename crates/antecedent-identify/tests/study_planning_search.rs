@@ -575,6 +575,23 @@ fn bounds_and_impossible_designs_refuse_by_detail() {
         candidate(&base, "x2", 1, vec![proposed(3, "a", &[])]),
     ];
     assert_eq!(refuse(clash, StudyPlanLimits::default()), invalid);
+    // Two candidates whose regimes share a label: each previews alone, their
+    // union would not, so the universe is refused before any work.
+    let labelled = |id: &str, regime: u32| {
+        let mut r = proposed(regime, "b", &[]);
+        r.label = Some(Arc::from("shared"));
+        candidate(&base, id, 1, vec![r])
+    };
+    let refusal = plan(
+        &route,
+        &base,
+        &[labelled("x1", 3), labelled("x2", 4)],
+        StudyPlanLimits::default(),
+        &ctx,
+    )
+    .unwrap_err();
+    assert_eq!((refusal.code, refusal.detail), invalid);
+    assert!(refusal.message.contains("label"), "{}", refusal.message);
     // A value-restricted study on the mixed route, and a depth above its 16.
     let mixed = StudyPlanRoute::Mixed(MixedSourceQuery {
         outcomes: Arc::from([v(Y)]),

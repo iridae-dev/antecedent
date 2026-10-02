@@ -21,8 +21,8 @@ use antecedent::design::{
 };
 use antecedent_core::{
     DependenceGroup, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
-    ExecutionContext, InterventionAssignment, RegimeBinding, RegimeId, RegimeKind, SamplingDesign,
-    SearchLimits, Value,
+    ExecutionContext, InterventionAssignment, LawOrigin, RegimeBinding, RegimeId, RegimeKind,
+    SamplingDesign, SamplingSelection, SearchLimits, Value,
 };
 use antecedent_estimate::{evaluate_exact_mixed_source, evaluate_exact_mz_transport};
 use antecedent_expr::{
@@ -282,6 +282,16 @@ fn arriving_data_of_another_shape_or_without_support_are_refused() {
     // Bound to another provider snapshot than the one claimed.
     let (actual, _) = arrive(&mz_base(), None, &regimes, "arrival-1", &scm_for, &|_, p| p);
     assert_eq!(refuse(&actual, "arrival-2"), mismatch);
+    // The right shape, but a selected-sample law or a fitted-model artifact:
+    // not the measured whole-population law the plan verified.
+    let mut selected = regimes.clone();
+    selected[2].selection = SamplingSelection::SelectedOn { variables: Arc::from([vid(Y)]) };
+    let (actual, _) = arrive(&mz_base(), None, &selected, "arrival-1", &scm_for, &|_, p| p);
+    assert_eq!(refuse(&actual, "arrival-1"), mismatch);
+    let mut fitted = regimes.clone();
+    fitted[2].origin = LawOrigin::ModelArtifact { artifact: Arc::from("posterior-7") };
+    let (actual, _) = arrive(&mz_base(), None, &fitted, "arrival-1", &scm_for, &|_, p| p);
+    assert_eq!(refuse(&actual, "arrival-1"), mismatch);
     // The right shape with no mass at X = 1 in b's trial: arrival re-identifies
     // (support is not structural), and the ordinary evaluator refuses the point.
     let (actual, data) =

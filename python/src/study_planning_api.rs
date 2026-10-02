@@ -67,16 +67,27 @@ fn labels(result: &StudyPlanResult) -> BTreeMap<RegimeId, String> {
         .collect()
 }
 
+/// `sufficient` (a proposal exists), `exhausted` (a budget stop before any
+/// proposal: nothing decided, never a verdict) or `none_certified` (every
+/// feasible subset decided, nothing certified within the universe; never an
+/// impossibility claim).
+fn outcome_name(plan: &StudyPlan) -> &'static str {
+    match plan.status() {
+        None => "sufficient",
+        Some((_, "study_plan.budget")) => "exhausted",
+        Some(_) => "none_certified",
+    }
+}
+
 fn plan_json(result: &StudyPlanResult, names: &[String]) -> serde_json::Value {
     let plan: &StudyPlan = result.plan();
     let label = labels(result);
     let regime = |id: &RegimeId| label.get(id).cloned().unwrap_or_else(|| id.raw().to_string());
     let deliver = |candidates: &[Arc<str>]| {
         result
-            .compiled()
+            .delta_for(candidates)
+            .proposed_regimes
             .iter()
-            .filter(|c| candidates.contains(&c.id))
-            .flat_map(|c| c.delta.proposed_regimes.iter())
             .map(|r| {
                 serde_json::json!({
                     "regime": regime(&r.id),
@@ -94,11 +105,7 @@ fn plan_json(result: &StudyPlanResult, names: &[String]) -> serde_json::Value {
     let status = plan.status();
     serde_json::json!({
         "route": plan.route.name(),
-        "outcome": match status {
-            None => "sufficient",
-            Some((_, "study_plan.budget")) => "exhausted",
-            Some(_) => "none_certified",
-        },
+        "outcome": outcome_name(plan),
         "reason": status.map(|(code, _)| code),
         "detail": status.map(|(_, detail)| detail),
         "inference_claim": "none",
@@ -181,11 +188,7 @@ impl StudyPlanStage {
     /// proposal).
     #[getter]
     fn outcome(&self) -> &'static str {
-        match self.result.plan().status() {
-            None => "sufficient",
-            Some((_, "study_plan.budget")) => "exhausted",
-            Some(_) => "none_certified",
-        }
+        outcome_name(self.result.plan())
     }
 
     /// The whole plan as a dictionary spelled in variable names and regime labels.
@@ -210,8 +213,8 @@ impl StudyPlanStage {
             .result
             .proposal(rank)
             .ok_or_else(|| crate::value_err(format!("the plan has no proposal of rank {rank}")))?;
-        let actual = relabel(&parse_catalog(catalog, &self.graph)?, &labels(&self.result))?;
         let label = labels(&self.result);
+        let actual = relabel(&parse_catalog(catalog, &self.graph)?, &label)?;
         let regime = |id: &RegimeId| label.get(id).cloned().unwrap_or_else(|| id.raw().to_string());
         let arrival = crate::detach_catch(py, move || {
             let ctx = execution_context(0, None, None);
@@ -268,7 +271,8 @@ fn relabel(
     known: &BTreeMap<RegimeId, String>,
 ) -> PyResult<EvidenceCatalog> {
     let by_label = known.iter().map(|(id, l)| (l.clone(), *id)).collect::<BTreeMap<_, _>>();
-    let mut next = known.keys().map(|id| id.raw() + 1).max().unwrap_or(0);
+    // Fresh ids for regimes the plan does not know start after its largest.
+    let mut next = known.keys().map(|id| id.raw()).max().unwrap_or(0);
     let mut map = BTreeMap::new();
     let mut regimes = Vec::with_capacity(actual.regimes.len());
     for regime in actual.regimes.iter() {

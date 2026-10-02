@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use antecedent_core::{
     DistributionAvailability, EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind, EvidenceRegime,
-    ExecutionContext, InterventionAssignment, NodeRef, RegimeId, RegimeKind, SearchReceipt,
-    VariableId, reason_code,
+    ExecutionContext, InterventionAssignment, LawOrigin, NodeRef, RegimeId, RegimeKind,
+    SamplingSelection, SearchReceipt, VariableId, reason_code,
 };
 use antecedent_graph::Admg;
 use antecedent_identify::{
@@ -191,21 +191,29 @@ impl StudyPlanResult {
         &self.catalog
     }
 
+    /// The regimes the named candidates would deliver, in candidate-id order:
+    /// what a subset of them proposes as one hypothetical delta.
+    #[must_use]
+    pub fn delta_for(&self, candidates: &[Arc<str>]) -> EvidenceCatalogDelta {
+        EvidenceCatalogDelta {
+            proposed_regimes: self
+                .compiled
+                .iter()
+                .filter(|c| candidates.contains(&c.id))
+                .flat_map(|c| c.delta.proposed_regimes.iter().cloned())
+                .collect(),
+        }
+    }
+
     /// The proposal at `rank` (0 is the cheapest), ready to receive evidence.
     #[must_use]
     pub fn proposal(&self, rank: usize) -> Option<StudyPlanProposal> {
         let proposal = self.plan.proposals.get(rank)?.clone();
-        let regimes = self
-            .compiled
-            .iter()
-            .filter(|c| proposal.candidates.contains(&c.id))
-            .flat_map(|c| c.delta.proposed_regimes.iter().cloned())
-            .collect::<Vec<_>>();
         Some(StudyPlanProposal {
             graph: self.graph.clone(),
             route: self.plan.route.clone(),
             catalog: self.catalog.clone(),
-            delta: EvidenceCatalogDelta { proposed_regimes: regimes.into() },
+            delta: self.delta_for(&proposal.candidates),
             proposal,
         })
     }
@@ -282,9 +290,21 @@ impl StudyPlanProposal {
         validate_base_preserved(&canonical(&self.catalog)?, &canonical(actual)?)
             .map_err(StudyPlanError::arrival_mismatch)?;
         validate_actual_delta(&self.delta, actual).map_err(StudyPlanError::arrival_mismatch)?;
-        let provider_snapshot = provider_snapshot.into();
         let proposed =
             |regime: RegimeId| self.delta.proposed_regimes.iter().any(|r| r.id == regime);
+        // The plan verified a measured, whole-population law: a selected-sample
+        // law or a fitted-model artifact of the same shape is not the proposed
+        // regime (the shared shape check above does not look at these two).
+        if let Some(regime) = actual.regimes.iter().find(|r| {
+            proposed(r.id)
+                && (r.selection != SamplingSelection::Population || r.origin != LawOrigin::Measured)
+        }) {
+            return Err(StudyPlanError::arrival_mismatch(format!(
+                "arriving regime {} is not a measured whole-population law as proposed",
+                regime.id.raw()
+            )));
+        }
+        let provider_snapshot = provider_snapshot.into();
         if provider_snapshot.starts_with(PLACEHOLDER_SNAPSHOT_PREFIX)
             || actual.bindings.iter().any(|binding| {
                 proposed(binding.regime)
