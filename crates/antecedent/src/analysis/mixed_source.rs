@@ -7,7 +7,7 @@
 //! laws only for the snapshots the frozen catalog binds, so the proof is unchanged;
 //! evidence under another snapshot, regime or catalog needs a new decision.
 use super::StudyBuilder;
-use super::transport_common::{err, estimate_err};
+use super::transport_common::{compile_plans, err, estimate_err, eval_err, evaluate_plans};
 use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
@@ -139,19 +139,16 @@ fn compile(
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<Vec<ExactEvaluationPlan>, IoError> {
-    requests
-        .iter()
-        .map(|request| {
-            antecedent_estimate::prepare_exact_mixed_source(
-                functional,
-                data.clone(),
-                request.clone(),
-                limits,
-                ctx,
-            )
-            .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))
-        })
-        .collect()
+    compile_plans(requests, |request| {
+        antecedent_estimate::prepare_exact_mixed_source(
+            functional,
+            data.clone(),
+            request.clone(),
+            limits,
+            ctx,
+        )
+        .map_err(|e| eval_err(&e))
+    })
 }
 
 impl PreparedMixedSource {
@@ -160,15 +157,9 @@ impl PreparedMixedSource {
     /// # Errors
     /// Cancellation or an evaluation refusal.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<MixedSourceResult, IoError> {
-        antecedent_estimate::refuse_cancelled(ctx, "mixed-source estimate")
-            .map_err(estimate_err)?;
-        let distributions = self
-            .plans
-            .iter()
-            .map(|plan| {
-                plan.evaluate(ctx).map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let distributions = evaluate_plans("mixed-source estimate", &self.plans, ctx, |plan| {
+            plan.evaluate(ctx).map_err(|e| eval_err(&e))
+        })?;
         Ok(MixedSourceResult { distributions })
     }
 

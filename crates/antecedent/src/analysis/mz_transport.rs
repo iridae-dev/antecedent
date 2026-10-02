@@ -14,7 +14,7 @@
 //! `antecedent_estimate::mz_transport_bootstrap_interval`, which exists only under that
 //! crate's `calibration-internal` feature (dev-dependencies alone; no normal or Python build).
 use super::StudyBuilder;
-use super::transport_common::{err, estimate_err};
+use super::transport_common::{compile_plans, err, estimate_err, eval_err, evaluate_plans};
 use antecedent_core::{ExecutionContext, SearchLimits, TheoremScope};
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan, ExactTransportData,
@@ -223,19 +223,16 @@ fn compile(
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<Vec<ExactEvaluationPlan>, IoError> {
-    requests
-        .iter()
-        .map(|request| {
-            antecedent_estimate::prepare_exact_mz_transport(
-                functional,
-                data.clone(),
-                request.clone(),
-                limits,
-                ctx,
-            )
-            .map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))
-        })
-        .collect()
+    compile_plans(requests, |request| {
+        antecedent_estimate::prepare_exact_mz_transport(
+            functional,
+            data.clone(),
+            request.clone(),
+            limits,
+            ctx,
+        )
+        .map_err(|e| eval_err(&e))
+    })
 }
 
 fn require_counts(data: &ExactTransportData) -> Result<(), IoError> {
@@ -264,15 +261,9 @@ impl PreparedMzTransport {
     /// # Errors
     /// Cancellation or an evaluation refusal.
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<MzTransportResult, IoError> {
-        antecedent_estimate::refuse_cancelled(ctx, "mz-transport estimate")
-            .map_err(estimate_err)?;
-        let distributions = self
-            .plans
-            .iter()
-            .map(|plan| {
-                plan.evaluate(ctx).map_err(|e| estimate_err(antecedent_estimate::refuse_eval(&e)))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let distributions = evaluate_plans("mz-transport estimate", &self.plans, ctx, |plan| {
+            plan.evaluate(ctx).map_err(|e| eval_err(&e))
+        })?;
         let contrasts = mz_point_contrasts(&distributions)?;
         let uncertainty = if self.data.laws().iter().any(|law| law.empirical_counts().is_none()) {
             MzUncertaintyWire::point_only()

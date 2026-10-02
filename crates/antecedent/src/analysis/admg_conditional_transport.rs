@@ -8,7 +8,7 @@
 //! accepted. Refresh replaces laws only for the snapshots the frozen catalog
 //! binds; the proof is unchanged.
 use super::StudyBuilder;
-use super::transport_common::estimate_err;
+use super::transport_common::{compile_plans, estimate_err, evaluate_plans};
 use antecedent_core::{ExecutionContext, SearchLimits};
 use antecedent_estimate::AdmgConditionalExactPlan;
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
@@ -169,19 +169,16 @@ fn compile(
     limits: ExactEvaluationLimits,
     ctx: &ExecutionContext,
 ) -> Result<Vec<AdmgConditionalExactPlan>, IoError> {
-    requests
-        .iter()
-        .map(|request| {
-            antecedent_estimate::prepare_exact_admg_conditional_transport(
-                functional,
-                data.clone(),
-                request,
-                limits,
-                ctx,
-            )
-            .map_err(estimate_err)
-        })
-        .collect()
+    compile_plans(requests, |request| {
+        antecedent_estimate::prepare_exact_admg_conditional_transport(
+            functional,
+            data.clone(),
+            request,
+            limits,
+            ctx,
+        )
+        .map_err(estimate_err)
+    })
 }
 
 impl PreparedAdmgConditionalTransport {
@@ -191,13 +188,10 @@ impl PreparedAdmgConditionalTransport {
     /// Cancellation, an evaluation refusal, or a zero-mass conditioning event
     /// (`transport_support_failure`).
     pub fn estimate(&self, ctx: &ExecutionContext) -> Result<AdmgConditionalResult, IoError> {
-        antecedent_estimate::refuse_cancelled(ctx, "admg conditional transport estimate")
-            .map_err(estimate_err)?;
-        let distributions = self
-            .plans
-            .iter()
-            .map(|plan| plan.evaluate(ctx).map_err(estimate_err))
-            .collect::<Result<Vec<_>, _>>()?;
+        let distributions =
+            evaluate_plans("admg conditional transport estimate", &self.plans, ctx, |plan| {
+                plan.evaluate(ctx).map_err(estimate_err)
+            })?;
         Ok(AdmgConditionalResult { distributions })
     }
 
