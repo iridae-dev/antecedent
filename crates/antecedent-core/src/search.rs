@@ -59,8 +59,10 @@ impl SearchStop {
 /// What a stopped search consumed against the limits it ran under.
 ///
 /// `operations_consumed` and `depth_reached` are `None` when the search stopped
-/// before it was entered (a zero limit, or cancellation or memory observed at
-/// construction); no accounting is fabricated.
+/// before it was entered (a zero limit, or cancellation observed at
+/// construction); no accounting is fabricated. `depth_reached` is the deepest
+/// level any charge was attempted at, including the one a depth stop refused,
+/// so a depth stop reports the level that exceeded `depth_limit`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SearchReceipt {
     /// Which bound stopped the search.
@@ -200,7 +202,7 @@ impl<'a> SearchBudget<'a> {
         self.operations
     }
 
-    /// Deepest level charged so far.
+    /// Deepest level any charge was attempted at so far (a refused charge counts).
     #[must_use]
     pub const fn depth_reached(&self) -> usize {
         self.depth_reached

@@ -2482,8 +2482,9 @@ pub(crate) struct SharedSearch<'c> {
     /// scenario set, the earlier scenarios' results): added to every charge so
     /// memory is cumulative across the decision, not restarted per engine.
     base_bytes: u64,
-    /// Largest live-state estimate charged since the last [`Self::retain`],
-    /// excluding [`Self::base_bytes`].
+    /// Largest live-state estimate charged since the last [`Self::begin`]: the
+    /// charge plus the stages retained since then, excluding the `retained`
+    /// bytes `begin` was given.
     peak_bytes: u64,
     /// Largest live-state estimate charged since [`Self::begin_stage`], for
     /// stage-to-stage retention.

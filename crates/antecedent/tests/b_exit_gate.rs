@@ -654,7 +654,7 @@ fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_ra
     let mut w = original.clone();
     w.body.provenance.source_regime = 7;
     assert_eq!(refused(&w), data);
-    assert!(b3_consume(&b3_reseal(w)).is_err(), "re-sealed source regime");
+    assert_eq!(refused(&b3_reseal(w)), replay, "re-sealed source regime");
     // Data identity: the provider snapshot.
     let mut w = original.clone();
     w.body.provenance.provider_snapshots[0].push('x');
