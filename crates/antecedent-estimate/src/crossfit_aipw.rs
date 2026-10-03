@@ -21,7 +21,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{AverageEffectQuery, OutcomeFunctional, VariableId};
+use antecedent_core::{AverageEffectQuery, ExecutionContext, OutcomeFunctional, VariableId};
 use antecedent_stats::{
     FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity, predict_propensity,
 };
@@ -29,8 +29,8 @@ use antecedent_stats::{
 use crate::aipw::{AipwWorkspace, fit_outcome_models, predict_colmajor, select_rows_colmajor};
 use crate::error::EstimationError;
 use crate::propensity::{
-    PreparedPropensityProblem, clamp_scores, clip_of, gather, require_interior_propensities,
-    split_by_treatment,
+    PreparedPropensityProblem, PropensityPenalty, RidgeFoldInput, RidgeFoldSelection, clamp_scores,
+    clip_of, fit_ridge_fold, gather, require_interior_propensities, split_by_treatment,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::util::stats_err;
@@ -84,23 +84,19 @@ pub fn build_binary_scores(
     glm_options: &GlmOptions,
     backend: FaerBackend,
 ) -> Result<ScoreTable, EstimationError> {
-    build_binary_scores_impl(problem, treatment, thresholds, folds, glm_options, backend, true)
+    build_binary_scores_in(problem, treatment, thresholds, folds, glm_options, backend, true, None)
+        .map(|(table, _)| table)
 }
 
-/// [`build_binary_scores`] that never reads or fills a shared nuisance cache (bootstrap
-/// replicates: their resampled inputs are never shared and would only fill the cache).
-pub(crate) fn build_binary_scores_unshared(
-    problem: &PreparedPropensityProblem,
-    treatment: VariableId,
-    thresholds: &[Option<f64>],
-    folds: usize,
-    glm_options: &GlmOptions,
-    backend: FaerBackend,
-) -> Result<ScoreTable, EstimationError> {
-    build_binary_scores_impl(problem, treatment, thresholds, folds, glm_options, backend, false)
-}
-
-fn build_binary_scores_impl(
+/// The score-table builder behind every public entry point.
+///
+/// With a ridge-penalized propensity declared on `problem`, each fold's penalty is chosen on
+/// that fold's training rows (see [`crate::propensity::PropensityNuisance`]) and returned
+/// beside the table; the fit is never served from or stored in a shared nuisance cache. `ctx`
+/// carries cancellation and parallelism into penalty selection (`None`: a serial context
+/// seeded from the problem's fold seed).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_binary_scores_in(
     problem: &PreparedPropensityProblem,
     treatment: VariableId,
     thresholds: &[Option<f64>],
@@ -108,7 +104,17 @@ fn build_binary_scores_impl(
     glm_options: &GlmOptions,
     backend: FaerBackend,
     share: bool,
-) -> Result<ScoreTable, EstimationError> {
+    ctx: Option<&ExecutionContext>,
+) -> Result<(ScoreTable, Vec<RidgeFoldSelection>), EstimationError> {
+    problem.propensity.validate_for_execution()?;
+    let ridge = match problem.propensity.penalty() {
+        PropensityPenalty::RidgeLogistic(tuning) => Some(tuning),
+        PropensityPenalty::None | PropensityPenalty::Lasso => None,
+    };
+    let share = share && ridge.is_none();
+    let local_ctx = (ridge.is_some() && ctx.is_none())
+        .then(|| ExecutionContext::production(problem.fold_seed, 1));
+    let ridge = ridge.zip(ctx.or(local_ctx.as_ref()));
     if folds < 2 {
         return Err(EstimationError::unsupported("AIPW cross-fitting requires at least two folds"));
     }
@@ -155,6 +161,7 @@ fn build_binary_scores_impl(
 
     let mut prop_ws = PropensityWorkspace::default();
     let mut out_ws = AipwWorkspace::default();
+    let mut selections: Vec<RidgeFoldSelection> = Vec::new();
 
     // Shared nuisance slots (batch scope only). The propensity lease is held until the
     // table is built, so a query with the same key waits and then reuses the finished fit;
@@ -218,6 +225,25 @@ fn build_binary_scores_impl(
         select_rows_colmajor(&problem.design_matrix, n, ncols, &valid, &mut design_valid);
         let mut e_valid = if let Some(shared) = shared_e.as_deref() {
             gather(shared, &valid)
+        } else if let Some((tuning, ridge_ctx)) = ridge {
+            let units: Vec<u32> = train.iter().map(|&i| problem.row_index[i]).collect();
+            let (predicted, selection) = fit_ridge_fold(
+                tuning,
+                &RidgeFoldInput {
+                    design_train: &design_train,
+                    n_train: train.len(),
+                    design_valid: &design_valid,
+                    n_valid: valid.len(),
+                    ncols,
+                    t_train: &t_train,
+                    units: &units,
+                    fold,
+                    seed: problem.fold_seed,
+                },
+                ridge_ctx,
+            )?;
+            selections.push(selection);
+            predicted
         } else {
             let fit = fit_propensity(
                 &design_train,
@@ -228,9 +254,12 @@ fn build_binary_scores_impl(
                 &mut prop_ws,
                 glm_options,
             )
-            .map_err(stats_err)?;
-
-            fit.glm.require_ok().map_err(stats_err)?;
+            .map_err(stats_err)
+            .and_then(|fit| {
+                fit.glm.require_ok().map_err(stats_err)?;
+                Ok(fit)
+            })
+            .map_err(|error| problem.propensity.record_failed_fit(error))?;
             let mut e_valid = vec![0.0; valid.len()];
             predict_propensity(&design_valid, valid.len(), ncols, &fit.coefficients, &mut e_valid)
                 .map_err(stats_err)?;
@@ -312,7 +341,16 @@ fn build_binary_scores_impl(
     drop(outcome_slots);
     drop(prop_slot);
 
-    Ok(ScoreTable {
+    let provenance = format!(
+        "{}{}",
+        if problem.shared_design {
+            "aipw.crossfit.v1;batch.shared_design"
+        } else {
+            AIPW_CROSSFIT_PROVENANCE
+        },
+        problem.propensity.provenance_suffix(&selections)
+    );
+    let table = ScoreTable {
         observed_arm: problem
             .treatment
             .iter()
@@ -328,15 +366,12 @@ fn build_binary_scores_impl(
         scores: Arc::from(scores),
         columns: Arc::from(columns),
         adjustment_set: Arc::clone(&problem.adjustment_set),
-        nuisance_provenance: Arc::from(if problem.shared_design {
-            "aipw.crossfit.v1;batch.shared_design"
-        } else {
-            AIPW_CROSSFIT_PROVENANCE
-        }),
+        nuisance_provenance: Arc::from(provenance),
         propensity_clip: clip,
         treatment,
         intervened: Arc::from([]),
-    })
+    };
+    Ok((table, selections))
 }
 
 /// Map an outcome functional to score-table thresholds (`None` = mean).

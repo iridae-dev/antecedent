@@ -5158,6 +5158,11 @@ impl PreparedStudy {
             _ => return Err(CausalError::Unsupported { message: "unsupported retarget query" }),
         };
         let cdf = self.score_table.as_ref().and_then(|t| exceedance_cdf_values(&out.summary, t));
+        // Scores of a penalized propensity retarget to a point; their covariance is not a
+        // licensed sampling distribution, so no standard error, joint covariance or band.
+        let interval_withheld =
+            antecedent_estimate::provenance_withholds_interval(&table.nuisance_provenance);
+        let se = if interval_withheld { f64::NAN } else { se };
         let mut estimate = EffectEstimate::new(
             ate,
             se,
@@ -5165,10 +5170,10 @@ impl PreparedStudy {
             OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None },
         )
         .with_score_table(self.score_table.clone())
-        .with_joint_covariance(Some(out.covariance.clone()))
+        .with_joint_covariance((!interval_withheld).then(|| out.covariance.clone()))
         .with_exceedance_cdf(cdf)
         .with_monotone_rearranged(out.monotone_rearranged);
-        estimate.score_inference = Some(inference);
+        estimate.score_inference = (!interval_withheld).then_some(inference);
         if let Some((value, influence)) = quantile.as_ref() {
             estimate.ate = *value;
             estimate.se_analytic =
@@ -5188,6 +5193,14 @@ impl PreparedStudy {
             }
         };
         let mut diagnostics = out.diagnostics;
+        if interval_withheld {
+            diagnostics.push(antecedent_core::Diagnostic::new(
+                "estimate.aipw.penalized_interval_withheld",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "the prepared scores come from a penalized propensity; the retargeted point is reported without a standard error, covariance or band because no interval is licensed for that nuisance",
+            ));
+        }
         if quantile.is_some() {
             diagnostics.push(antecedent_core::Diagnostic::new(
                 "estimate.functional.quantile", antecedent_core::DiagnosticKind::Scientific,

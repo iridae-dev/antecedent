@@ -724,6 +724,8 @@ fn fit_binomial_ridge(
     let mut beta = vec![0.0; ncols];
     let mut xtwx = vec![0.0; ncols * ncols];
     let mut xtwz = vec![0.0; ncols];
+    // One gathered design row, so the rank-one update below runs over contiguous memory.
+    let mut row = vec![0.0; ncols];
     let mut converged = false;
     let mut iterations = 0u32;
 
@@ -733,9 +735,12 @@ fn fit_binomial_ridge(
         xtwx.fill(0.0);
         xtwz.fill(0.0);
         for r in 0..nrows {
+            for c in 0..ncols {
+                row[c] = x_colmajor[c * nrows + r];
+            }
             let mut eta = 0.0;
             for c in 0..ncols {
-                eta += x_colmajor[c * nrows + r] * beta[c];
+                eta += row[c] * beta[c];
             }
             let (_mu, w_fisher, working) = match family {
                 GlmFamily::BinomialLogit => {
@@ -754,10 +759,12 @@ fn fit_binomial_ridge(
                 _ => unreachable!("ridge fallback is binomial-only"),
             };
             for i in 0..ncols {
-                let xi = x_colmajor[i * nrows + r];
+                let xi = row[i];
                 xtwz[i] += xi * w_fisher * working;
+                let xiw = xi * w_fisher;
+                let out = &mut xtwx[i * ncols..(i + 1) * ncols];
                 for j in 0..ncols {
-                    xtwx[i * ncols + j] += xi * w_fisher * x_colmajor[j * nrows + r];
+                    out[j] += xiw * row[j];
                 }
             }
         }

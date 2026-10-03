@@ -100,6 +100,8 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "panel_times",
             "glm_options",
             "overlap",
+            "propensity_penalty",
+            "nuisance_fallback",
         ],
     ),
     (
@@ -150,6 +152,9 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
 
 /// Valid `glm_options` sub-dict keys (see [`build_glm_options`]).
 const GLM_OPTION_KEYS: &[&str] = &["max_iter", "tol", "ridge_on_separation"];
+
+/// Valid `propensity_penalty` sub-dict keys (see [`build_propensity_nuisance`]).
+const PROPENSITY_PENALTY_KEYS: &[&str] = &["kind", "lambdas", "inner_folds"];
 
 fn valid_keys_for(estimator_id: &str) -> Option<&'static [&'static str]> {
     ESTIMATOR_KEYS.iter().find(|(id, _)| *id == estimator_id).map(|(_, keys)| *keys)
@@ -588,6 +593,80 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     Ok(Some(opts))
 }
 
+/// Build the declared binary-propensity nuisance of `aipw` from `propensity_penalty`
+/// (`{"kind": "ridge_logistic" | "lasso", "lambdas": [float], "inner_folds": int}`) and
+/// `nuisance_fallback` (`"none"` | `"ml"`). Absent keys keep the unpenalized, no-fallback default.
+///
+/// `lasso` and an `ml` fallback are accepted here and refused with their registered reason
+/// codes when the analysis runs: they are declarable but closed.
+fn build_propensity_nuisance(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent_estimate::PropensityNuisance>> {
+    use antecedent_estimate::{NuisanceFallback, PropensityNuisance, RidgeTuning};
+    let fallback = match get_string(dict, "nuisance_fallback")?.as_deref() {
+        None | Some("none") => NuisanceFallback::None,
+        Some("ml") => NuisanceFallback::Ml,
+        Some(other) => {
+            return Err(invalid(format!(
+                "estimator_config['nuisance_fallback'] {other:?} is not recognized; use none|ml"
+            )));
+        }
+    };
+    let Some(value) = dict.get_item("propensity_penalty")? else {
+        return Ok((fallback != NuisanceFallback::None)
+            .then(|| PropensityNuisance::default().with_fallback(fallback)));
+    };
+    let sub = value.cast::<PyDict>().map_err(|_| {
+        invalid(format!(
+            "estimator_config['propensity_penalty'] must be a dict, got {}",
+            type_name(&value)
+        ))
+    })?;
+    for (key_obj, _val) in sub.iter() {
+        let key: String = key_obj.extract().map_err(|_| {
+            invalid("estimator_config['propensity_penalty'] keys must be str".to_string())
+        })?;
+        if !PROPENSITY_PENALTY_KEYS.contains(&key.as_str()) {
+            return Err(invalid(format!(
+                "unknown estimator_config['propensity_penalty'] key {key:?}; valid keys are: {}",
+                PROPENSITY_PENALTY_KEYS.join(", "),
+            )));
+        }
+    }
+    let kind = get_string(sub, "kind")?.unwrap_or_else(|| "ridge_logistic".to_string());
+    let nuisance = match kind.as_str() {
+        "ridge_logistic" => {
+            let lambdas = match sub.get_item("lambdas")? {
+                Some(raw) => raw.extract::<Vec<f64>>().map_err(|_| {
+                    invalid(
+                        "estimator_config['propensity_penalty']['lambdas'] must be a list of \
+                         floats"
+                            .to_string(),
+                    )
+                })?,
+                None => antecedent_estimate::DEFAULT_RIDGE_GRID.to_vec(),
+            };
+            let inner_folds = get_u32(sub, "inner_folds")?
+                .map_or(antecedent_estimate::DEFAULT_RIDGE_INNER_FOLDS, |folds| folds as usize);
+            let tuning = RidgeTuning::new(&lambdas, inner_folds).map_err(|error| {
+                let message = error.to_string();
+                let tail = antecedent_core::reason_code::split_prefix(&message)
+                    .map_or(message.as_str(), |(_, tail)| tail);
+                invalid(tail.to_string())
+            })?;
+            PropensityNuisance::ridge_logistic(tuning)
+        }
+        "lasso" => PropensityNuisance::lasso(),
+        other => {
+            return Err(invalid(format!(
+                "estimator_config['propensity_penalty']['kind'] {other:?} is not recognized; \
+                 use ridge_logistic|lasso"
+            )));
+        }
+    };
+    Ok(Some(nuisance.with_fallback(fallback)))
+}
+
 /// Build the caller-configured [`EstimatorSpec`] for one of the ten estimators
 /// [`ESTIMATOR_KEYS`] covers (excluding `rd.sharp`, handled separately in
 /// [`parse_estimator_config`]). By the time this runs, every key in `dict` has already been
@@ -795,6 +874,9 @@ fn build_configured_spec(
             }
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
+            }
+            if let Some(nuisance) = build_propensity_nuisance(dict)? {
+                est = est.with_propensity_nuisance(nuisance);
             }
             est.into()
         }

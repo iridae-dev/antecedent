@@ -226,9 +226,10 @@ pub use observation::{
 pub use overlap::{ClipSensitivity, IpwTarget, OverlapPolicy, OverlapReport, PropensityInterval};
 pub use prediction::TemporalLinearPredictor;
 pub use propensity::{
-    CaliperScale, DistanceMatching, PreparedPropensityProblem, PropensityEstimationWorkspace,
-    PropensityMatching, PropensityModel, PropensityStratification, PropensityWeighting,
-    default_propensity_overlap,
+    CaliperScale, DEFAULT_RIDGE_GRID, DEFAULT_RIDGE_INNER_FOLDS, DistanceMatching,
+    NuisanceFallback, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
+    PropensityModel, PropensityNuisance, PropensityPenalty, PropensityStratification,
+    PropensityWeighting, RidgeTuning, default_propensity_overlap, provenance_withholds_interval,
 };
 pub use quantile::{MIN_QUANTILE_DENSITY, empirical_threshold_grid, invert_cdf_quantile};
 pub use rd::{

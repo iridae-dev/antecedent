@@ -63,6 +63,8 @@ SeKind = Literal[
     "panel_cluster_hac",
 ]
 FitKind = Literal["ols", "ridge", "lasso", "huber"]
+PropensityPenaltyKind = Literal["ridge_logistic", "lasso"]
+NuisanceFallbackName = Literal["none", "ml"]
 GlmFamilyName = Literal[
     "binomial_logit",
     "binomial_probit",
@@ -216,6 +218,73 @@ class GlmOptions:
             out["tol"] = self.tol
         if not isinstance(self.ridge_on_separation, _Unset):
             out["ridge_on_separation"] = self.ridge_on_separation
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class PropensityPenalty:
+    """Explicit penalized binary propensity for :class:`Aipw` (``propensity_penalty=``).
+
+    ``kind="ridge_logistic"`` fits a ridge-penalized logistic propensity on each cross-fit
+    fold's *training rows only*. The penalty is the member of ``lambdas`` (a fixed grid,
+    default ``(0.01, 0.1, 1, 10, 100, 1000)``) with the smallest ``inner_folds``-fold
+    cross-validated log loss on those training rows (default 5 folds, seeded by the
+    analysis seed and replayable); the evaluation rows never inform it. Penalties are on a
+    sum-scale log likelihood with each non-intercept covariate standardized by the training
+    rows. This is a declared nuisance choice, distinct from
+    ``GlmOptions.ridge_on_separation`` (a rescue that estimation paths refuse to keep).
+
+    The route publishes the cross-fitted **point estimate and score table** (row identity,
+    overlap report and retargeting preserved) and **no interval**: no analytic or bootstrap
+    interval is licensed, so ``Aipw(bootstrap=0, propensity_penalty=...)`` is required.
+    Outcome models stay arm-wise OLS.
+
+    ``kind="lasso"`` is declarable but closed: variable selection changes the inference
+    contract, so execution is refused with ``selection_inference_not_licensed``.
+    """
+
+    kind: PropensityPenaltyKind = "ridge_logistic"
+    lambdas: Sequence[float] | None = None
+    inner_folds: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in ("ridge_logistic", "lasso"):
+            raise CausalValueError(
+                f"PropensityPenalty.kind must be 'ridge_logistic' or 'lasso', got {self.kind!r}"
+            )
+        if self.kind == "lasso" and (self.lambdas is not None or self.inner_folds is not None):
+            raise CausalValueError(
+                "PropensityPenalty(kind='lasso') takes no lambdas or inner_folds"
+            )
+        if self.lambdas is not None:
+            values = list(self.lambdas)
+            if not values:
+                raise CausalValueError("PropensityPenalty.lambdas must not be empty")
+            for value in values:
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not float(value) > 0.0
+                    or float(value) == float("inf")
+                ):
+                    raise CausalValueError(
+                        f"PropensityPenalty.lambdas must be finite and positive, got {value!r}"
+                    )
+        if self.inner_folds is not None and (
+            isinstance(self.inner_folds, bool)
+            or not isinstance(self.inner_folds, int)
+            or not 2 <= self.inner_folds <= 20
+        ):
+            raise CausalValueError(
+                f"PropensityPenalty.inner_folds must be an int in [2, 20], got {self.inner_folds!r}"
+            )
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"kind": self.kind}
+        if self.lambdas is not None:
+            out["lambdas"] = [float(value) for value in self.lambdas]
+        if self.inner_folds is not None:
+            out["inner_folds"] = int(self.inner_folds)
         return out
 
 
@@ -540,6 +609,13 @@ class Aipw:
     nonparametric nuisances, and for ATT/ATC is not robust to a misspecified
     propensity or outcome model. The default inference is the bootstrap, which
     refits the nuisance models on every resample.
+
+    ``propensity_penalty`` declares a ridge-logistic propensity chosen on each fold's
+    training rows (:class:`PropensityPenalty`); it requires ``bootstrap=0`` and publishes
+    the cross-fitted point estimate and score table with no interval.
+    ``nuisance_fallback="ml"`` declares a fallback from a failed GLM nuisance fit to a
+    flexible learner; it is closed (``nuisance_fallback_not_licensed``): a failed fit is
+    refused with the failure recorded and nothing is silently substituted.
     """
 
     bootstrap: int | None = None
@@ -550,6 +626,8 @@ class Aipw:
     panel_times: Sequence[int] | None = None
     glm_options: GlmOptions | None = None
     overlap: Overlap | None = None
+    propensity_penalty: PropensityPenalty | None = None
+    nuisance_fallback: NuisanceFallbackName | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -559,6 +637,23 @@ class Aipw:
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
         )
+        if self.propensity_penalty is not None:
+            if not isinstance(self.propensity_penalty, PropensityPenalty):
+                raise CausalValueError(
+                    "propensity_penalty must be a PropensityPenalty, "
+                    f"got {self.propensity_penalty!r}"
+                )
+            if self.propensity_penalty.kind == "ridge_logistic" and (
+                self.bootstrap != 0 or self.se not in (None, "homoskedastic")
+            ):
+                raise CausalValueError(
+                    "Aipw(propensity_penalty=...) publishes no interval: pass bootstrap=0 and "
+                    "leave se unset (reason=penalized_interval_not_licensed)"
+                )
+        if self.nuisance_fallback not in (None, "none", "ml"):
+            raise CausalValueError(
+                f"nuisance_fallback must be 'none' or 'ml', got {self.nuisance_fallback!r}"
+            )
 
     @property
     def estimator_id(self) -> str:
@@ -575,6 +670,10 @@ class Aipw:
         )
         out.update(_wire_glm_options(self.glm_options))
         out.update(_wire_overlap(self.overlap))
+        if self.propensity_penalty is not None:
+            out["propensity_penalty"] = self.propensity_penalty._wire()
+        if self.nuisance_fallback is not None:
+            out["nuisance_fallback"] = self.nuisance_fallback
         return _omit_empty(out)
 
 
@@ -880,6 +979,7 @@ __all__ = [
     "LinearAdjustment",
     "Overlap",
     "PropensityMatching",
+    "PropensityPenalty",
     "PropensityStratification",
     "PropensityWeighting",
     "SeKind",

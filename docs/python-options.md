@@ -207,6 +207,18 @@ the weights, and `trim` drops units whose propensity lies outside
 identity and is part of the calibration key, so it reports
 `scope_not_assessed` unless a coverage record measured that policy.
 
+## Penalize the AIPW propensity
+
+`Aipw(bootstrap=0, propensity_penalty=PropensityPenalty())` fits a ridge-logistic
+propensity on each cross-fit fold's training rows, with the penalty chosen from a
+fixed grid by seeded inner cross-validation on those rows only. It reports the
+cross-fitted point and keeps the score table and retargeting, but publishes no
+interval: a bootstrap or a non-default `se` is refused with
+`penalized_interval_not_licensed`. `PropensityPenalty(kind="lasso")`
+(`selection_inference_not_licensed`) and `nuisance_fallback="ml"`
+(`nuisance_fallback_not_licensed`) are declarable and closed. This is distinct from
+`GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
+
 ## Read identification details
 
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,

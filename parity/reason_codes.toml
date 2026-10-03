@@ -319,3 +319,19 @@ meaning = "An opt-in rank-deficiency drop would remove a column the query needs 
 id = "arm_not_populated"
 applies_to = ["runtime_refusal"]
 meaning = "A treatment arm or joint cell has no complete-case rows, so no contrast against it is estimable; the refusal names the arm and its counts."
+
+# 2.2 E2 penalized AIPW (promotion record: aipw.penalized_propensity in parity/promotion_2_2.toml).
+[[code]]
+id = "penalized_interval_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A penalized cross-fitted propensity publishes the point estimate and score table only; no analytic or bootstrap interval is licensed because the nuisance remainder is not shown negligible, so a requested interval is refused rather than ignored."
+
+[[code]]
+id = "selection_inference_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "The nuisance learner selects variables from the data (lasso), which changes the inference contract; an ordinary influence-function interval is not valid after selection, so the option is closed."
+
+[[code]]
+id = "nuisance_fallback_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A declared fallback from a failed GLM nuisance fit to a flexible learner has no support or uncertainty license on this route; the failed fit is reported and no fallback result is produced."

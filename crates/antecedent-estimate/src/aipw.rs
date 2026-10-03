@@ -21,6 +21,13 @@
 //! table's covariance and simultaneous bands are exported only under the iid SE. ATT/ATC,
 //! trimmed, and predicate-target fits stay on the full-sample path and do not export that table.
 //!
+//! An explicit penalized propensity ([`PropensityNuisance`]) is a separate, narrower route:
+//! the untrimmed `AllObserved` mean ATE only, with the ridge-logistic penalty chosen on each
+//! cross-fit fold's training rows. It keeps the score table, row identity, overlap report and
+//! retargetability, and publishes the cross-fitted point estimate with **no** analytic or
+//! bootstrap interval (`penalized_interval_not_licensed`); `docs/guides/penalized-aipw.md` derives
+//! why the standard influence-function variance is not licensed there.
+//!
 //! Analytic SEs on the full-sample path correct ψ for parametric nuisances:
 //! ATE-type targets add the exact stacked-M terms for the logistic and the two arm OLS fits
 //! (valid under a misspecified propensity too); ATT/ATC use the
@@ -65,8 +72,9 @@ use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::propensity::{
-    PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
-    gather, gather_into, prepare_propensity_problem_with_registry, split_by_treatment, trim_of,
+    PreparedPropensityProblem, PropensityModel, PropensityNuisance, RidgeFoldSelection,
+    clamp_scores, clip_of, default_propensity_overlap, gather, gather_into,
+    prepare_propensity_problem_with_registry, refuse, split_by_treatment, trim_of,
     trim_retained_rows,
 };
 use crate::se::AnalyticSeKind;
@@ -156,6 +164,9 @@ pub struct CheckedAipwLowering {
     pub se_kind: AnalyticSeKind,
     /// Bootstrap replicate count (zero disables bootstrap uncertainty).
     pub bootstrap_replicates: u32,
+    /// Declared binary-propensity nuisance. A penalized one keeps the cross-fitted
+    /// `procedure` but withholds every interval; the configuration is part of the receipt.
+    pub propensity: PropensityNuisance,
     /// Complete-case source row identities bound during preparation.
     pub rows: Arc<[u32]>,
 }
@@ -230,6 +241,9 @@ pub struct AipwAte {
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for [`AnalyticSeKind::PanelClusterHac`].
     pub panel_times: Option<Vec<i64>>,
+    /// Declared binary-propensity nuisance: the unpenalized logistic by default, or an
+    /// explicit ridge-logistic penalty (distinct from `glm_options.ridge_on_separation`).
+    pub propensity: PropensityNuisance,
 }
 
 /// Per-row influence of the control-to-treated score contrast: the plain score difference
@@ -275,7 +289,19 @@ impl AipwAte {
             population_registry: None,
             multiway_ids: None,
             panel_times: None,
+            propensity: PropensityNuisance::default(),
         }
+    }
+
+    /// Declare the binary-propensity nuisance (see [`PropensityNuisance`]).
+    ///
+    /// A ridge-logistic penalty is licensed for the untrimmed `AllObserved` mean ATE with
+    /// `bootstrap_replicates == 0`; it publishes the cross-fitted point estimate and score
+    /// table and withholds every interval. Lasso and an ML fallback are declarable but closed.
+    #[must_use]
+    pub fn with_propensity_nuisance(mut self, propensity: PropensityNuisance) -> Self {
+        self.propensity = propensity;
+        self
     }
 
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
@@ -347,6 +373,14 @@ impl AipwAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
+        self.propensity.validate_for_execution()?;
+        if self.propensity.is_penalized() {
+            self.require_penalized_scope(
+                query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+                &query.target_population,
+                self.overlap,
+            )?;
+        }
         if let TargetPopulation::CustomDistribution(id) = query.target_population {
             let depends = self.population_registry.as_ref().and_then(|r| r.distribution_dependencies(id))
                 .ok_or_else(|| EstimationError::unsupported("AIPW custom weights require declared depends_on via insert_distribution_with_dependence"))?;
@@ -357,13 +391,58 @@ impl AipwAte {
                 ));
             }
         }
-        prepare_propensity_problem_with_registry(
+        let mut problem = prepare_propensity_problem_with_registry(
             data,
             estimand,
             query,
             self.overlap,
             self.population_registry.as_ref(),
-        )
+        )?;
+        problem.propensity = self.propensity.clone();
+        Ok(problem)
+    }
+
+    /// A penalized propensity is licensed for one construction only: the untrimmed
+    /// `AllObserved` mean ATE, whose cross-fitted scores keep the table, row identity,
+    /// overlap report and retargetability, and for which no interval is requested.
+    fn require_penalized_scope(
+        &self,
+        mean_functional: bool,
+        population: &TargetPopulation,
+        overlap: OverlapPolicy,
+    ) -> Result<(), EstimationError> {
+        if !mean_functional
+            || !matches!(population, TargetPopulation::AllObserved)
+            || trim_of(overlap).is_some()
+        {
+            return Err(refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                "penalized_propensity.scope",
+                "a penalized propensity is licensed only for the untrimmed AllObserved mean \
+                ATE: other functionals and populations, and trimmed fits, refit full-sample \
+                nuisances and have no cross-fitted penalized route",
+            ));
+        }
+        self.require_no_interval_request()
+    }
+
+    /// The penalized cross-fitted route publishes no interval, so a request for one (a
+    /// bootstrap, or a non-default analytic kind) is refused instead of ignored.
+    fn require_no_interval_request(&self) -> Result<(), EstimationError> {
+        if self.propensity.is_penalized()
+            && (self.bootstrap_replicates != 0
+                || !matches!(self.se_kind, AnalyticSeKind::Homoskedastic))
+        {
+            return Err(refuse(
+                antecedent_core::reason_code!("penalized_interval_not_licensed"),
+                "penalized_propensity.interval_withheld",
+                "no analytic or bootstrap interval is licensed for a penalized cross-fitted \
+                propensity (the nuisance remainder is not shown negligible and a resample \
+                would not remove the penalty bias); set bootstrap_replicates to 0 and keep \
+                the default se_kind to receive the point estimate and score table",
+            ));
+        }
+        Ok(())
     }
 
     /// Prepare the licensed logistic/OLS AIPW route from one identified mean ATE claim.
@@ -477,6 +556,7 @@ impl AipwAte {
             folds: procedure.folds(),
             se_kind: self.se_kind,
             bootstrap_replicates: self.bootstrap_replicates,
+            propensity: self.propensity.clone(),
             rows: Arc::clone(&problem.row_index),
         };
         Ok(CheckedAipwPreparation {
@@ -516,6 +596,7 @@ impl AipwAte {
             || checked.lowering.folds != checked.lowering.procedure.folds()
             || checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
+            || checked.lowering.propensity != self.propensity
         {
             return Err(EstimationError::data_msg(
                 "checked AIPW target, procedure, bindings, or semantic schema changed",
@@ -536,6 +617,7 @@ impl AipwAte {
     ) -> Result<EffectEstimate, EstimationError> {
         if checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
+            || checked.lowering.propensity != self.propensity
             || checked.lowering.overlap != self.overlap
             || checked.problem.overlap != self.overlap
             || checked.lowering.procedure != CheckedAipwProcedure::for_overlap(self.overlap)
@@ -561,7 +643,9 @@ impl AipwAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
-        let point = self.fit_point(problem, workspace, ctx, assumptions)?;
+        let point = self
+            .fit_point(problem, workspace, ctx, assumptions)
+            .map_err(|error| self.propensity.record_failed_fit(error))?;
         self.attach_bootstrap(problem, workspace, ctx, point)
     }
 
@@ -580,6 +664,7 @@ impl AipwAte {
         ctx: &ExecutionContext,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.require_no_interval_request()?;
         if self.bootstrap_replicates == 0 {
             return Ok(point);
         }
@@ -607,6 +692,15 @@ impl AipwAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        if problem.propensity != self.propensity {
+            return Err(EstimationError::data_msg(
+                "AIPW propensity nuisance differs from the one the problem was prepared with",
+            ));
+        }
+        self.propensity.validate_for_execution()?;
+        if self.propensity.is_penalized() {
+            self.require_penalized_scope(true, &problem.target_population, problem.overlap)?;
+        }
         if !matches!(
             problem.target_population,
             TargetPopulation::AllObserved
@@ -776,7 +870,8 @@ impl AipwAte {
     ) -> Result<EffectEstimate, EstimationError> {
         let seeded = Self::crossfit_problem(problem, ctx);
         let problem = &seeded;
-        let table = self.crossfit_table(problem, true)?;
+        let (table, selections) = self.crossfit_table(problem, true, ctx)?;
+        let n_folds = table.n_folds as usize;
         let summary = table.summarize(weights)?;
         let contrast = table.linear_contrast(&summary, &[-1.0, 1.0])?;
         let iid_se = matches!(self.se_kind, AnalyticSeKind::Homoskedastic);
@@ -821,6 +916,19 @@ impl AipwAte {
                 .with_influence(Some(influence.into()))
                 .with_score_table(Some(table));
         result.score_inference = iid_se.then_some(inference);
+        if self.propensity.is_penalized() {
+            // The penalized route publishes scores and a point estimate, never an interval:
+            // the iid covariance and influence values of these scores are not a licensed
+            // sampling distribution (see `docs/guides/penalized-aipw.md`).
+            result.se_analytic = f64::NAN;
+            result.se_kind = None;
+            result.joint_covariance = None;
+            result.score_inference = None;
+            result.influence = None;
+            result.crossfit_folds = Some(n_folds);
+            result.crossfit_seed = Some(problem.fold_seed);
+            result.learner_provenance = selections.into_iter().map(|s| s.provenance).collect();
+        }
         Ok(result)
     }
 
@@ -836,23 +944,22 @@ impl AipwAte {
 
     /// `share`: whether a batch's shared nuisance cache may serve this table (the
     /// point fit) or not (bootstrap replicates).
+    /// A ridge-penalized propensity's per-fold selections come back beside the table.
     fn crossfit_table(
         &self,
         p: &PreparedPropensityProblem,
         share: bool,
-    ) -> Result<crate::scores::ScoreTable, EstimationError> {
-        let build = if share {
-            crate::crossfit_aipw::build_binary_scores
-        } else {
-            crate::crossfit_aipw::build_binary_scores_unshared
-        };
-        build(
+        ctx: &ExecutionContext,
+    ) -> Result<(crate::scores::ScoreTable, Vec<RidgeFoldSelection>), EstimationError> {
+        crate::crossfit_aipw::build_binary_scores_in(
             p,
             p.treatment_id,
             &[None],
             crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
             &self.glm_options,
             self.backend,
+            share,
+            Some(ctx),
         )
     }
 
@@ -889,7 +996,7 @@ impl AipwAte {
             if let Some(w) = weights {
                 p.target_weights = Some(gather(w, idx).into());
             }
-            let Ok(t) = self.crossfit_table(&p, false) else {
+            let Ok((t, _)) = self.crossfit_table(&p, false, ctx) else {
                 return Ok(None);
             };
             let ss = t.summarize(p.target_weights.as_deref())?;

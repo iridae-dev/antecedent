@@ -86,6 +86,10 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
         }
         EstimatorSpec::Aipw(cfg) => EstimatorSpecWire::Aipw(EstimatorConfigWire {
             glm: Some(glm_options(&cfg.glm_options)),
+            // The declared propensity nuisance (penalty grid, inner folds, fallback) changes
+            // the science; the default is omitted so existing digests are unchanged.
+            treatment_config: (!cfg.propensity.is_default())
+                .then(|| cfg.propensity.canonical_key()),
             se_kind: Some(se_kind(cfg.se_kind)),
             cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
             multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),

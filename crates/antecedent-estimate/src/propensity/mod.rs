@@ -34,12 +34,18 @@
 
 mod distance;
 mod matching;
+mod penalized;
 mod prepare;
 mod stratification;
 pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
 pub use matching::{CaliperScale, PropensityMatching};
+pub use penalized::{
+    DEFAULT_RIDGE_GRID, DEFAULT_RIDGE_INNER_FOLDS, NuisanceFallback, PropensityNuisance,
+    PropensityPenalty, RidgeTuning, provenance_withholds_interval,
+};
+pub(crate) use penalized::{RidgeFoldInput, RidgeFoldSelection, fit_ridge_fold, refuse};
 pub use prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap,

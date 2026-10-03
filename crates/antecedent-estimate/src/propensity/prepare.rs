@@ -69,6 +69,11 @@ pub struct PreparedPropensityProblem {
     /// (every query draws its own `crossfit_fold_plan`), so this reflects covariate sharing
     /// only.
     pub shared_design: bool,
+    /// Declared binary-propensity nuisance: the unpenalized logistic by default, or an
+    /// explicit penalty the cross-fitted AIPW fits on each fold's training rows. It is part
+    /// of the problem so every score-table build over it, however it is reached, fits the
+    /// nuisance it was prepared for.
+    pub propensity: crate::propensity::PropensityNuisance,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -404,6 +409,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         fold_assignment: None,
         fold_seed: 0,
         shared_design: false,
+        propensity: crate::propensity::PropensityNuisance::default(),
     })
 }
 
