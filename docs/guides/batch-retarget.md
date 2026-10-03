@@ -71,7 +71,7 @@ and the family covariance is the Gram matrix `Sigma_kl = sum_r xi_kr xi_lr`.
 - A contrast `sum c_k theta_k` has value `c'theta` and plug-in variance `c'Sigma c`; it has a
   standard error only when every term carries covariance.
 
-Validity as a sampling covariance needs the single-claim retarget's conditions: iid rows,
+Validity as a sampling covariance needs the single-claim retarget's conditions (a DML, DR-Learner or CausalForest plan joins on the same terms, see [DML scores](dml-scores.md)): iid rows,
 weights that are fixed functions of certified covariates, positivity and nuisance
 convergence. Selection and weight-estimation uncertainty and dependence between rows are
 excluded. A standard error is not an interval.

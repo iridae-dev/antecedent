@@ -3730,6 +3730,63 @@ status = "closed"
 reason_code = "score_table_unavailable"
 notes = "A plan with no score table (prepared or after an estimate) fails its members; prepare-time rows are never substituted for an estimate's rows."
 
+# ---- 2.2E.E3.dml_score_covariance -----------------------------------------------------------
+# Cross-fitted AIPW score tables of the DML, DR-Learner and CausalForest average effect, retargeted
+# through the E3 family (parity/promotion_2_2.toml). Point-only; no interval.
+
+[[routes]]
+route = "antecedent_estimate.DmlAte.score_table"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "out_of_fold_nuisances_of_the_dml_aipw_fit"
+functional = "retargeted_mean_contrasts_of_the_dml_ate"
+guarantee = "cross_fitted_aipw_scores_point_only_no_interval"
+reference = "docs/guides/dml-scores.md"
+limits = "The untrimmed AllObserved AIPW score only: a partially linear or trimmed fit keeps no table; plug-in covariance under iid rows, positivity and the nuisance-rate assumption, no interval."
+evidence_test = "crates/antecedent-estimate/src/dml.rs"
+evidence_assertion = "the_dml_score_table_averages_to_the_fitted_ate_with_the_iid_score_covariance"
+
+[[routes]]
+route = "antecedent_estimate.DrLearner.score_table"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "out_of_fold_nuisances_of_the_dr_learner_fit"
+functional = "retargeted_mean_contrasts_of_the_dr_learner_marginal_ate"
+guarantee = "cross_fitted_aipw_scores_point_only_no_interval"
+reference = "docs/guides/dml-scores.md"
+limits = "The marginal AIPW score of the reported ATE, never a score derived from the fitted CATE; untrimmed AllObserved only; no interval."
+evidence_test = "crates/antecedent/tests/dml_scores_retarget.rs"
+evidence_assertion = "dr_learner_retargets_its_marginal_scores"
+
+[[routes]]
+route = "antecedent_estimate.CausalForest.score_table"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "out_of_fold_nuisances_of_the_forest_marginal_ate"
+functional = "retargeted_mean_contrasts_of_the_forest_marginal_ate"
+guarantee = "cross_fitted_aipw_scores_point_only_no_interval"
+reference = "docs/guides/dml-scores.md"
+limits = "The forest's marginal ATE is the DML AIPW score, so the table is DML's; the forest's CATE contributes no score; untrimmed AllObserved only; no interval."
+evidence_test = "crates/antecedent/tests/dml_scores_retarget.rs"
+evidence_assertion = "causal_forest_retargets_its_marginal_scores"
+
+[[routes]]
+route = "antecedent_estimate.DmlAte.partially_linear_scores"
+stage = "evaluate"
+status = "closed"
+reason_code = "score_table_unavailable"
+notes = "The partially linear (Robinson) score has no per-arm score; a retarget of such a fit fails its members with score_table_unavailable."
+
+[[routes]]
+route = "antecedent_estimate.DmlAte.trimmed_scores"
+stage = "evaluate"
+status = "closed"
+reason_code = "score_table_unavailable"
+notes = "Trimming redefines the estimand to the retained rows, so a trimmed fit keeps no score table and a retarget fails its members with score_table_unavailable."
+
 # 2.2 E1 rank-drop estimation (parity/promotion_2_2.toml, 2.2E.E1.preflight_rank_drop_estimation). Point-only; no interval is returned or requestable.
 
 [[routes]]

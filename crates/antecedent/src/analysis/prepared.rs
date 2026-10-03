@@ -10327,6 +10327,68 @@ impl Study {
         )?))
     }
 
+    /// Cross-fitted AIPW scores of the marginal ATE a DML, DR-Learner or CausalForest plan
+    /// reports (the estimator's own out-of-fold nuisances and fold plan, so a retarget under
+    /// uniform weights returns the route's point). `None` where the route keeps no such
+    /// table: a partially linear score, trimming, a non-mean functional or a non-`AllObserved`
+    /// target. A CATE prediction contributes no score.
+    fn prepare_learner_score_table(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::AverageEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<ScoreTable>, CausalError> {
+        use crate::estimator_spec::EstimatorSpec;
+        if !query.outcome_functional.is_mean()
+            || !matches!(query.target_population, TargetPopulation::AllObserved)
+        {
+            return Ok(None);
+        }
+        let Some(cache) = self.identification_cache.as_ref() else {
+            return Ok(None);
+        };
+        let method = cache.estimand.method.as_ref();
+        if !(method.contains("adjustment")
+            || method.contains("backdoor")
+            || method.starts_with("tiered."))
+        {
+            return Ok(None);
+        }
+        let estimand = &cache.estimand;
+        let spec = self.estimator_spec.as_ref();
+        let table = match self.estimator {
+            Some(EstimatorId::Dml) => {
+                let mut est = match spec {
+                    Some(EstimatorSpec::Dml(config)) => (**config).clone(),
+                    _ => antecedent_estimate::DmlAte::new(),
+                };
+                if let Some(overlap) = self.overlap_policy {
+                    est.overlap = overlap;
+                }
+                let problem = est.prepare(data, estimand, query)?;
+                est.score_table(&problem, ctx)?
+            }
+            Some(EstimatorId::DrLearner) => {
+                let mut est = match spec {
+                    Some(EstimatorSpec::DrLearner(config)) => (**config).clone(),
+                    _ => antecedent_estimate::DrLearner::new(),
+                };
+                if let Some(overlap) = self.overlap_policy {
+                    est.overlap = overlap;
+                }
+                let problem = est.prepare(data, estimand, query)?;
+                est.score_table(&problem, ctx)?
+            }
+            _ => {
+                // The forest's marginal ATE is the DML AIPW score; no forest option enters it.
+                let est = antecedent_estimate::CausalForest::new();
+                let problem = est.prepare(data, estimand, query)?;
+                est.score_table(&problem, ctx)?
+            }
+        };
+        Ok(table)
+    }
+
     /// Cross-fitted AIPW scores for retarget / exceedance / joint cells.
     pub(crate) fn prepare_score_table(
         &self,
@@ -10357,6 +10419,14 @@ impl Study {
             return Ok(None);
         }
         match &self.query {
+            CausalQuery::AverageEffect(query)
+                if matches!(
+                    self.estimator,
+                    Some(EstimatorId::Dml | EstimatorId::DrLearner | EstimatorId::CausalForest)
+                ) =>
+            {
+                self.prepare_learner_score_table(data, query, ctx)
+            }
             CausalQuery::AverageEffect(query) => {
                 // Score artifacts are an explicit AIPW execution contract; do not
                 // silently fit a second estimator for linear/IV/matching plans.

@@ -2089,6 +2089,52 @@ fixtures = [
 ]
 
 [[record]]
+id = "2.2E.E3.dml_score_covariance"
+workstream = "E3"
+milestone = "E"
+work_package = "E3"
+status = "in_progress"
+consumer_question = "For a DML, DR-Learner or CausalForest average effect, what are the row-identified cross-fitted scores behind the reported ATE, and what point and plug-in score covariance do declared retargeted populations of that estimate have?"
+theorem = "Derived in-repo (docs/guides/dml-scores.md). With out-of-fold mu_a(x) and e(x) the per-arm scores phi1_i = mu1_i + T_i (Y_i - mu1_i)/e_i and phi0_i = mu0_i + (1 - T_i)(Y_i - mu0_i)/(1 - e_i) are the formulas of the licensed AIPW table, so phi1 - phi0 is the DML AIPW score mu1 - mu0 + T(Y - mu1)/e - (1 - T)(Y - mu0)/(1 - e) row by row and the mean of the contrast is the fitted untrimmed ATE. A retargeted claim is the weighted mean of the contrast under fixed declared weights; its plug-in covariance is the E3 Gram matrix of weighted influence values. The covariance is a sampling covariance only under iid rows, positivity, cross-fitting with each row scored by nuisances fit on other folds, an outcome-propensity error product o_p(n^-1/2) and fixed weights; flexible learners are not shown to meet the rate, so the claim is point only. The partially linear (Robinson) score has no per-arm score and trimming redefines the population, so those fits keep no table. No score is derived from a CATE prediction."
+reference = "docs/guides/dml-scores.md"
+guarantee = "cross_fitted_aipw_scores_point_only_no_interval"
+graph_class = "Back-door adjustment DAG of the identified AllObserved mean ATE with binary treatment; the route takes the identification the estimator already holds."
+population_semantics = "All observed complete-case rows of the untrimmed AllObserved mean ATE; claims retarget that table to caller-declared fixed row weightings over one row snapshot."
+evidence_family = "Complete-case rows of a binary treatment, an outcome and the declared adjustment covariates; out-of-fold nuisance predictions of the estimator's own seeded fold plan."
+provider = "antecedent-learn cross-fitted nuisances through cached_aipw_nuisances (the bundle the fit already uses) and dml::aipw_score_table, one builder for DML, DR-Learner and CausalForest; the existing E3 retarget and Gram covariance. No second estimator and no second score implementation."
+estimand = "theta_k = weighted mean of mu1 - mu0 under declared row weights, with the joint plug-in covariance of the retargeted claims; uniform weights return the estimator's own ATE."
+inference_claim = "point_only"
+inference_notes = "Point only: values and a plug-in score covariance (a standard error is not an interval). No interval is published and no coverage record exists or was run. A DML fit with the partially linear score or with trimming keeps no table and refuses retarget with score_table_unavailable; DR-Learner CATE profiles and CausalForest CATE intervals are separate cells and are not extended."
+owners = ["antecedent-estimate", "antecedent"]
+identity_inputs = ["the estimator configuration (outcome and treatment learner identities, folds, overlap) in the estimator-spec identity", "the table's nuisance provenance dml.crossfit.v1;route=<dml|dr_learner>;outcome=<spec>;treatment=<spec>", "fold seed and the seeded arm-stratified fold plan", "complete-case row identities"]
+wire_changes = ["Additive: a DML, DR-Learner or CausalForest estimate carries the existing ScoreTable (same wire form) with a dml.crossfit.v1 provenance tag; no existing artifact changes."]
+compatibility = "The DML, DR-Learner and CausalForest point, standard error and diagnostics are unchanged; the estimate additionally carries its score table, and a prepared plan of those estimators prepares one for retarget."
+coverage_records = []
+search = false
+bounds = { cancellation = true, work = "one cross-fitted nuisance bundle (cancellation polled by the existing fit) and O(n) score arithmetic" }
+refusals = [
+]
+routes = [
+  { name = "antecedent_estimate.DmlAte.score_table", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_estimate.DrLearner.score_table", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_estimate.CausalForest.score_table", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_estimate.DmlAte.partially_linear_scores", stage = "evaluate", status = "closed", reason_code = "score_table_unavailable", refusal_test = "crates/antecedent/tests/dml_scores_retarget.rs", refusal_assertion = "a_dml_fit_without_scores_refuses_the_retarget" },
+  { name = "antecedent_estimate.DmlAte.trimmed_scores", stage = "evaluate", status = "closed", reason_code = "score_table_unavailable", refusal_test = "crates/antecedent/tests/dml_scores_retarget.rs", refusal_assertion = "a_dml_fit_without_scores_refuses_the_retarget" },
+]
+fixtures = [
+  { id = "e3.dml_score_mean.truth", role = "truth", intent = "The DML score table's contrast mean equals the fitted ATE, its iid contrast standard error equals sums written in the test and the published se_analytic, propensity columns are complementary and the table is the route's own cached nuisance bundle.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "the_dml_score_table_averages_to_the_fitted_ate_with_the_iid_score_covariance" },
+  { id = "e3.dml_hand_bundle.truth", role = "truth", intent = "On a fixed nuisance bundle (mu0 = 1, mu1 = 3, e = 0.5) the per-arm scores, the contrast mean and its covariance equal a hand calculation.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "the_score_table_formulas_match_a_hand_calculation_on_a_fixed_bundle" },
+  { id = "e3.dml_retarget.positive", role = "positive", intent = "A DML batch retargets its own estimate's scores: uniform weights return the DML ate and se, tilted weights, claim covariances and the cross-plan covariance equal independent sums over the raw score columns, and the prepare-time table equals the estimate's.", evidence_test = "crates/antecedent/tests/dml_scores_retarget.rs", evidence_assertion = "a_dml_batch_retargets_its_own_scores_with_the_joint_covariance" },
+  { id = "e3.dml_learners.positive", role = "positive", intent = "DR-Learner keeps the marginal AIPW score table of the ATE it reports; a uniform retarget returns that ATE and its iid standard error.", evidence_test = "crates/antecedent/tests/dml_scores_retarget.rs", evidence_assertion = "dr_learner_retargets_its_marginal_scores" },
+  { id = "e3.causal_forest.positive", role = "positive", intent = "CausalForest keeps the DML AIPW score table of its marginal ATE; a uniform retarget returns that ATE and its iid standard error.", evidence_test = "crates/antecedent/tests/dml_scores_retarget.rs", evidence_assertion = "causal_forest_retargets_its_marginal_scores" },
+  { id = "e3.dml_no_scores.negative", role = "negative", intent = "A partially linear or trimmed DML fit keeps no table and every retarget member fails score_table_unavailable before and after an estimate.", evidence_test = "crates/antecedent/tests/dml_scores_retarget.rs", evidence_assertion = "a_dml_fit_without_scores_refuses_the_retarget" },
+  { id = "e3.dml_fit_without_table.negative", role = "negative", intent = "At the estimator, a partially linear fit and a trimmed fit report no score table.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "fits_without_a_per_arm_score_keep_no_table" },
+  { id = "e3.dml_wire.artifact", role = "artifact", intent = "The DML score table round-trips its wire form unchanged.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "the_dml_score_table_round_trips_its_wire_form" },
+  { id = "e3.dml_replay.invariance", role = "invariance", intent = "The same seed and rows replay the same table to the bit; another seed deals another fold plan.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "the_dml_score_table_replays_under_its_seed_and_follows_it" },
+  { id = "e3.dml_learner_tables.truth", role = "truth", intent = "The DR-Learner table mean equals its reported ATE and the CausalForest table equals the DML table of the same nuisances.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "dr_learner_and_causal_forest_tables_are_the_marginal_aipw_scores" },
+]
+
+[[record]]
 id = "2.2E.E1.preflight_rank_drop_estimation"
 workstream = "E1"
 milestone = "E"

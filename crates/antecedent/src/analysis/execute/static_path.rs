@@ -244,7 +244,7 @@ impl super::Study {
         };
         let mut frontdoor_workspace = antecedent_estimate::FrontDoorWorkspace::default();
         let mut iv_workspace = antecedent_estimate::TwoStageLeastSquaresWorkspace::default();
-        let point = if let Some(operation) = prepared_iv {
+        let mut point = if let Some(operation) = prepared_iv {
             let (preparation, procedure) = match operation {
                 super::super::prepared::CheckedIvOperation::Wald { preparation, .. } => {
                     (preparation, "Wald")
@@ -375,6 +375,14 @@ impl super::Study {
                 &mut estimate_ws,
             )?
         };
+        // The estimator ran on the projected table, whose columns are renumbered: a score
+        // table it kept names the projected treatment and adjustment ids. Restore the original
+        // semantic ids (projection keeps the adjustment order) so the table agrees with the
+        // identified estimand and with the prepare-time table of the same plan.
+        if let Some(table) = point.score_table.as_mut() {
+            table.treatment = query.treatment;
+            table.adjustment_set = Arc::clone(&estimand.adjustment_set);
+        }
         clock.finish(super::super::stage::STAGE_ESTIMATE_POINT);
         super::super::stage::emit_stage(
             self.stage_sink.as_ref(),

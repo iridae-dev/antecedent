@@ -31,6 +31,18 @@ fn change_data(second_shift: f64) -> TabularData {
 
 #[test]
 fn all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused() {
+    // Debug builds of the shared prepared dispatcher carry frames close to the
+    // default test-thread stack, so the evidence body runs on its own thread.
+    std::thread::Builder::new()
+        .name("checked-frequentist-attribution-evidence".into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(frequentist_static_dag_attribution_plans_body)
+        .expect("spawn evidence thread")
+        .join()
+        .expect("evidence body panicked");
+}
+
+fn frequentist_static_dag_attribution_plans_body() {
     let ctx = ExecutionContext::for_tests(13);
 
     let anomaly = anomaly_data(200.0);

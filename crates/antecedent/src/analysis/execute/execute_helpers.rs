@@ -2192,7 +2192,13 @@ fn push_aipw_score_kind(
         return;
     }
     match estimator_id {
-        EstimatorId::CellAipw | EstimatorId::Aipw if estimate.score_table.is_some() => {
+        EstimatorId::CellAipw
+        | EstimatorId::Aipw
+        | EstimatorId::Dml
+        | EstimatorId::DrLearner
+        | EstimatorId::CausalForest
+            if estimate.score_table.is_some() =>
+        {
             push_unique_diagnostic(
                 diagnostics,
                 seen,

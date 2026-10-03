@@ -148,6 +148,40 @@ impl DrLearner {
         prepare_propensity_problem_with_registry(data, estimand, query, self.overlap, None)
     }
 
+    /// Row-identified cross-fitted AIPW score table of the marginal ATE this learner reports
+    /// (the mean of its pseudo-outcome), or `None` when trimming redefines the population.
+    /// It is the same table [`Self::fit`] attaches: the marginal AIPW score, never a score
+    /// derived from the fitted CATE.
+    ///
+    /// # Errors
+    ///
+    /// A target other than `AllObserved`, fewer than two folds, or a failed nuisance fit.
+    pub fn score_table(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<crate::scores::ScoreTable>, EstimationError> {
+        if !matches!(problem.target_population, TargetPopulation::AllObserved) {
+            return Err(EstimationError::TargetPopulation);
+        }
+        if self.folds < 2 {
+            return Err(EstimationError::data_msg("DRLearner requires at least two folds"));
+        }
+        if !crate::dml::scores_retargetable(problem) {
+            return Ok(None);
+        }
+        let nuisance =
+            cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
+        crate::dml::aipw_score_table(
+            problem,
+            &nuisance,
+            self.folds,
+            [self.outcome, self.treatment],
+            "dr_learner",
+        )
+        .map(Some)
+    }
+
     /// Fit OOF nuisances, the DR pseudo-outcome, and the final-stage CATE.
     ///
     /// # Errors
@@ -283,6 +317,15 @@ impl DrLearner {
         ));
         effect.crossfit_folds = Some(self.folds);
         effect.crossfit_seed = Some(ctx.rng.master_seed());
+        if crate::dml::scores_retargetable(problem) {
+            effect = effect.with_score_table(Some(crate::dml::aipw_score_table(
+                problem,
+                &nuisance,
+                self.folds,
+                [self.outcome, self.treatment],
+                "dr_learner",
+            )?));
+        }
         effect.learner_provenance.clone_from(&treat.model_provenance);
         effect.learner_provenance.push(fitted.provenance());
         match fitted.portable() {
