@@ -70,10 +70,6 @@ def allowed(path: Path) -> bool:
         return True
     if s.startswith("docs/conformance/") and s.endswith(".md"):
         return True
-    # The pre-calibration audit ledger is an internal working document (excluded from
-    # published docs by mkdocs.yml) whose findings discuss named external oracles.
-    if s == "docs/audits/2.0-pre-calibration-findings.md":
-        return True
     # The changelog records which external baseline a release was validated
     # against ("LPCMCI aligned to the pinned Tigramite reference behavior"),
     # which is provenance in the same category as the parity inventories --

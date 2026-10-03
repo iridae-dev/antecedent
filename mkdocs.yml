@@ -85,8 +85,6 @@ nav:
   - Evidence and development:
       - Development: development.md
       - Conformance: conformance/README.md
-      - 2.0 learner audit: audits/2.0-learner-audit.md
-      - 2.0 milestone audit: audits/2.0-milestone-audit.md
       - Hot paths: hot_paths.md
       - Practitioner acceptance: practitioner-acceptance.md
       - Security review: security_review.md

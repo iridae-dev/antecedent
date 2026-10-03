@@ -30,7 +30,7 @@ PAGES = (
     + sorted(str(p.relative_to(ROOT)) for p in (ROOT / "docs").rglob("*.md"))
     + sorted(str(p.relative_to(ROOT)) for p in (ROOT / "adr").glob("*.md"))
 )
-SKIPPED_PREFIXES = ("docs/audits/", "docs/release-notes/")
+SKIPPED_PREFIXES = ("docs/release-notes/",)
 
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 REPO_BLOB = re.compile(r"^https://github\.com/iridae-dev/antecedent/blob/([^/]+)/(.+)$")
