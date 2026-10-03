@@ -219,6 +219,18 @@ interval: a bootstrap or a non-default `se` is refused with
 (`nuisance_fallback_not_licensed`) are declarable and closed. This is distinct from
 `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
 
+## Declare the independence unit of the AIPW cross-fit
+
+`Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))` cross-fits
+with whole clusters owning folds (not an IID cross-fit followed by `se="cluster"`). It
+reports the cross-fitted point and keeps the score table, with no interval: a bootstrap or a
+non-default `se` is refused up front (`cluster_interval_not_licensed`), fewer clusters than
+`min_clusters` refuse `too_few_clusters`, and `ClusterDml(unit="dyad")` is declarable and
+closed (`dyadic_dependence_not_licensed`). `CandidateScreen.from_units(...)` builds a
+deterministic screen/estimate split from entity labels, or from dyad endpoints so that
+connected endpoints never cross the split, and records the seed and a unit digest in
+`screen_id`. See [the guide](guides/clustered-dml.md).
+
 ## Read identification details
 
 `identify(...)` returns an `Identification` whose `statement`, `verdict`,

@@ -335,3 +335,19 @@ meaning = "The nuisance learner selects variables from the data (lasso), which c
 id = "nuisance_fallback_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "A declared fallback from a failed GLM nuisance fit to a flexible learner has no support or uncertainty license on this route; the failed fit is reported and no fallback result is produced."
+
+# 2.2 E4 clustered DML (promotion record: 2.2E.E4.clustered_dml_aipw).
+[[code]]
+id = "cluster_interval_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "Cluster-DML AIPW publishes the cross-fitted point estimate, the score table and a cluster-sandwich receipt only; no analytic or bootstrap interval has a coverage record (and a row bootstrap would split clusters), so a requested interval is refused rather than ignored."
+
+[[code]]
+id = "too_few_clusters"
+applies_to = ["runtime_refusal"]
+meaning = "The number of independent clusters is below the declared minimum, so a sandwich over cluster sums and a whole-cluster cross-fit are not formed; the refusal states the count found and the minimum declared."
+
+[[code]]
+id = "dyadic_dependence_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "Rows share endpoints (dyads), so they are dependent through both endpoints and disjoint clusters do not describe them; dyadic fold ownership and two-way covariance are not licensed, only the screen/estimate split of connected endpoint components is."

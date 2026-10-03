@@ -135,6 +135,15 @@ pub(crate) fn build_binary_scores_in(
                 "shared fold assignment length must match complete-case rows",
             ));
         }
+        None if problem.fold_units.is_some() => {
+            let units = problem.fold_units.as_deref().unwrap_or_default();
+            if units.len() != n {
+                return Err(EstimationError::data_msg(
+                    "cluster fold units length must match complete-case rows",
+                ));
+            }
+            crate::cluster_dml_aipw::cluster_fold_plan(units, folds, problem.fold_seed)?
+        }
         None => {
             let arms: Vec<u32> = problem.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
             crate::learn_nuisance::crossfit_fold_plan(
@@ -350,6 +359,14 @@ pub(crate) fn build_binary_scores_in(
         },
         problem.propensity.provenance_suffix(&selections)
     );
+    // Whole-cluster folds change the dependence structure the scores support, so the table
+    // names them (and `provenance_withholds_interval` keeps its iid summaries unpublished).
+    let provenance = match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
+        (None, Some(units)) => {
+            format!("{provenance}{}", crate::cluster_dml_aipw::provenance_suffix(units))
+        }
+        _ => provenance,
+    };
     let table = ScoreTable {
         observed_arm: problem
             .treatment

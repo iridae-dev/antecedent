@@ -58,6 +58,10 @@ pub struct PreparedPropensityProblem {
     /// Optional complete-case fold ids. `None` draws a seeded, arm-stratified, unit-level
     /// plan from [`Self::fold_seed`] (see `learn_nuisance::crossfit_fold_plan`).
     pub fold_assignment: Option<Arc<[u32]>>,
+    /// Independence unit (cluster label) of each complete-case row. When set, the default
+    /// fold plan deals whole units to folds (`cluster_dml_aipw::cluster_fold_plan`) instead
+    /// of arm-stratified row units. Ignored when [`Self::fold_assignment`] is set.
+    pub fold_units: Option<Arc<[u32]>>,
     /// Seed of the cross-fit fold plan used when [`Self::fold_assignment`] is `None`.
     /// Callers holding an execution context set it to the master seed so the recorded
     /// cross-fit seed controls the folds as well as the learners.
@@ -407,6 +411,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         },
         treatment_id: treatment,
         fold_assignment: None,
+        fold_units: None,
         fold_seed: 0,
         shared_design: false,
         propensity: crate::propensity::PropensityNuisance::default(),

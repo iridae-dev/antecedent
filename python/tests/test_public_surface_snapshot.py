@@ -353,6 +353,7 @@ SNAPSHOT: dict[str, set[str]] = {
     "estimators": {
         "Aipw",
         "CausalForest",
+        "ClusterDml",
         "DML",
         "DRLearner",
         "DistanceMatching",
@@ -375,6 +376,7 @@ SNAPSHOT: dict[str, set[str]] = {
     "estimators.Overlap": {"clip", "trim"},
     "estimators.Aipw": {
         "bootstrap",
+        "cluster_dml",
         "cluster_ids",
         "estimator_id",
         "glm_options",

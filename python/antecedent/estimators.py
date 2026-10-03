@@ -65,6 +65,7 @@ SeKind = Literal[
 FitKind = Literal["ols", "ridge", "lasso", "huber"]
 PropensityPenaltyKind = Literal["ridge_logistic", "lasso"]
 NuisanceFallbackName = Literal["none", "ml"]
+IndependenceUnitName = Literal["cluster", "dyad"]
 GlmFamilyName = Literal[
     "binomial_logit",
     "binomial_probit",
@@ -285,6 +286,60 @@ class PropensityPenalty:
             out["lambdas"] = [float(value) for value in self.lambdas]
         if self.inner_folds is not None:
             out["inner_folds"] = int(self.inner_folds)
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class ClusterDml:
+    """Declared independence unit of a cross-fitted :class:`Aipw` (``cluster_dml=``).
+
+    ``cluster_ids`` is the cluster label of every *complete-case* row (aligned to the rows
+    the estimator uses, as for ``se="cluster"``). Whole clusters share a cross-fit fold, so
+    the nuisances scoring a cluster are fit on other clusters only; this is not an IID
+    cross-fit followed by a cluster standard error. ``min_clusters`` (default 20, at least
+    10) is the smallest cluster count accepted: fewer clusters refuse
+    ``too_few_clusters`` rather than forming a sandwich over a handful of cluster sums.
+
+    The route publishes the cross-fitted **point estimate and score table** and **no
+    interval** (``Aipw(bootstrap=0, cluster_dml=...)`` is required; a requested interval
+    refuses ``cluster_interval_not_licensed``). It is licensed for the untrimmed
+    ``AllObserved`` mean ATE and is not combined with ``propensity_penalty``.
+
+    ``unit="dyad"`` is declarable but closed: rows that share endpoints are dependent
+    through both endpoints, and execution refuses ``dyadic_dependence_not_licensed``.
+    """
+
+    cluster_ids: Sequence[int]
+    min_clusters: int | None = None
+    unit: IndependenceUnitName = "cluster"
+
+    def __post_init__(self) -> None:
+        if self.unit not in ("cluster", "dyad"):
+            raise CausalValueError(
+                f"ClusterDml.unit must be 'cluster' or 'dyad', got {self.unit!r}"
+            )
+        if len(self.cluster_ids) == 0:
+            raise CausalValueError("ClusterDml.cluster_ids must not be empty")
+        for label in self.cluster_ids:
+            if isinstance(label, bool) or not isinstance(label, int) or label < 0:
+                raise CausalValueError(
+                    f"ClusterDml.cluster_ids must be non-negative ints, got {label!r}"
+                )
+        if self.min_clusters is not None and (
+            isinstance(self.min_clusters, bool)
+            or not isinstance(self.min_clusters, int)
+            or self.min_clusters < 10
+        ):
+            raise CausalValueError(
+                f"ClusterDml.min_clusters must be an int of at least 10, got {self.min_clusters!r}"
+            )
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"cluster_ids": [int(label) for label in self.cluster_ids]}
+        if self.min_clusters is not None:
+            out["min_clusters"] = int(self.min_clusters)
+        if self.unit != "cluster":
+            out["unit"] = self.unit
         return out
 
 
@@ -616,6 +671,8 @@ class Aipw:
     ``nuisance_fallback="ml"`` declares a fallback from a failed GLM nuisance fit to a
     flexible learner; it is closed (``nuisance_fallback_not_licensed``): a failed fit is
     refused with the failure recorded and nothing is silently substituted.
+    ``cluster_dml`` declares whole-cluster cross-fitting (:class:`ClusterDml`); it requires
+    ``bootstrap=0`` and publishes the point estimate and score table with no interval.
     """
 
     bootstrap: int | None = None
@@ -628,6 +685,7 @@ class Aipw:
     overlap: Overlap | None = None
     propensity_penalty: PropensityPenalty | None = None
     nuisance_fallback: NuisanceFallbackName | None = None
+    cluster_dml: ClusterDml | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -637,6 +695,26 @@ class Aipw:
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
         )
+        if self.cluster_dml is not None:
+            if not isinstance(self.cluster_dml, ClusterDml):
+                raise CausalValueError(
+                    f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}"
+                )
+            if self.bootstrap != 0 or self.se not in (None, "homoskedastic"):
+                raise CausalValueError(
+                    "Aipw(cluster_dml=...) publishes no interval: pass bootstrap=0 and leave "
+                    "se unset (reason=cluster_interval_not_licensed)"
+                )
+            if self.cluster_ids is not None:
+                raise CausalValueError(
+                    "Aipw(cluster_dml=...) carries its own cluster_ids; do not also pass "
+                    "cluster_ids"
+                )
+            if self.propensity_penalty is not None:
+                raise CausalValueError(
+                    "Aipw(cluster_dml=...) is not combined with propensity_penalty "
+                    "(reason=route_not_supported)"
+                )
         if self.propensity_penalty is not None:
             if not isinstance(self.propensity_penalty, PropensityPenalty):
                 raise CausalValueError(
@@ -674,6 +752,8 @@ class Aipw:
             out["propensity_penalty"] = self.propensity_penalty._wire()
         if self.nuisance_fallback is not None:
             out["nuisance_fallback"] = self.nuisance_fallback
+        if self.cluster_dml is not None:
+            out["cluster_dml"] = self.cluster_dml._wire()
         return _omit_empty(out)
 
 
@@ -966,6 +1046,7 @@ class CausalForest:
 __all__ = [
     "Aipw",
     "CausalForest",
+    "ClusterDml",
     "DML",
     "DRLearner",
     "DistanceMatching",

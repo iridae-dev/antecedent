@@ -69,6 +69,7 @@ use antecedent_stats::{
 };
 
 use crate::adjustment::EffectEstimate;
+use crate::cluster_dml_aipw::ClusterDml;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::propensity::{
@@ -167,6 +168,8 @@ pub struct CheckedAipwLowering {
     /// Declared binary-propensity nuisance. A penalized one keeps the cross-fitted
     /// `procedure` but withholds every interval; the configuration is part of the receipt.
     pub propensity: PropensityNuisance,
+    /// Declared cluster-DML independence unit, when the cross-fit owns whole clusters.
+    pub cluster_dml: Option<ClusterDml>,
     /// Complete-case source row identities bound during preparation.
     pub rows: Arc<[u32]>,
 }
@@ -244,6 +247,9 @@ pub struct AipwAte {
     /// Declared binary-propensity nuisance: the unpenalized logistic by default, or an
     /// explicit ridge-logistic penalty (distinct from `glm_options.ridge_on_separation`).
     pub propensity: PropensityNuisance,
+    /// Declared cluster-DML independence unit over [`Self::cluster_ids`]: whole clusters are
+    /// cross-fit together and no interval is published (see [`ClusterDml`]).
+    pub cluster_dml: Option<ClusterDml>,
 }
 
 /// Per-row influence of the control-to-treated score contrast: the plain score difference
@@ -290,6 +296,7 @@ impl AipwAte {
             multiway_ids: None,
             panel_times: None,
             propensity: PropensityNuisance::default(),
+            cluster_dml: None,
         }
     }
 
@@ -301,6 +308,16 @@ impl AipwAte {
     #[must_use]
     pub fn with_propensity_nuisance(mut self, propensity: PropensityNuisance) -> Self {
         self.propensity = propensity;
+        self
+    }
+
+    /// Declare the independence unit of the cross-fit: whole clusters of [`Self::cluster_ids`]
+    /// (which this does not set) share a fold, and the route publishes the cross-fitted point
+    /// estimate and score table with no interval. Licensed for the untrimmed `AllObserved`
+    /// mean ATE with `bootstrap_replicates == 0`; see [`ClusterDml`].
+    #[must_use]
+    pub const fn with_cluster_dml(mut self, cluster_dml: ClusterDml) -> Self {
+        self.cluster_dml = Some(cluster_dml);
         self
     }
 
@@ -381,6 +398,19 @@ impl AipwAte {
                 self.overlap,
             )?;
         }
+        if let Some(cluster_dml) = &self.cluster_dml {
+            cluster_dml.validate_for_execution()?;
+            crate::cluster_dml_aipw::require_unpenalized(self.propensity.is_penalized())?;
+            crate::cluster_dml_aipw::require_scope(
+                query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+                &query.target_population,
+                self.overlap,
+            )?;
+            crate::cluster_dml_aipw::refuse_interval_request(
+                self.bootstrap_replicates,
+                self.se_kind,
+            )?;
+        }
         if let TargetPopulation::CustomDistribution(id) = query.target_population {
             let depends = self.population_registry.as_ref().and_then(|r| r.distribution_dependencies(id))
                 .ok_or_else(|| EstimationError::unsupported("AIPW custom weights require declared depends_on via insert_distribution_with_dependence"))?;
@@ -399,6 +429,10 @@ impl AipwAte {
             self.population_registry.as_ref(),
         )?;
         problem.propensity = self.propensity.clone();
+        if let Some(cluster_dml) = &self.cluster_dml {
+            problem.fold_units =
+                Some(cluster_dml.declare_units(self.cluster_ids.as_deref(), problem.nrows)?);
+        }
         Ok(problem)
     }
 
@@ -429,6 +463,12 @@ impl AipwAte {
     /// The penalized cross-fitted route publishes no interval, so a request for one (a
     /// bootstrap, or a non-default analytic kind) is refused instead of ignored.
     fn require_no_interval_request(&self) -> Result<(), EstimationError> {
+        if self.cluster_dml.is_some() {
+            crate::cluster_dml_aipw::refuse_interval_request(
+                self.bootstrap_replicates,
+                self.se_kind,
+            )?;
+        }
         if self.propensity.is_penalized()
             && (self.bootstrap_replicates != 0
                 || !matches!(self.se_kind, AnalyticSeKind::Homoskedastic))
@@ -557,6 +597,7 @@ impl AipwAte {
             se_kind: self.se_kind,
             bootstrap_replicates: self.bootstrap_replicates,
             propensity: self.propensity.clone(),
+            cluster_dml: self.cluster_dml,
             rows: Arc::clone(&problem.row_index),
         };
         Ok(CheckedAipwPreparation {
@@ -597,6 +638,7 @@ impl AipwAte {
             || checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
             || checked.lowering.propensity != self.propensity
+            || checked.lowering.cluster_dml != self.cluster_dml
         {
             return Err(EstimationError::data_msg(
                 "checked AIPW target, procedure, bindings, or semantic schema changed",
@@ -618,6 +660,7 @@ impl AipwAte {
         if checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
             || checked.lowering.propensity != self.propensity
+            || checked.lowering.cluster_dml != self.cluster_dml
             || checked.lowering.overlap != self.overlap
             || checked.problem.overlap != self.overlap
             || checked.lowering.procedure != CheckedAipwProcedure::for_overlap(self.overlap)
@@ -700,6 +743,24 @@ impl AipwAte {
         self.propensity.validate_for_execution()?;
         if self.propensity.is_penalized() {
             self.require_penalized_scope(true, &problem.target_population, problem.overlap)?;
+        }
+        if let Some(cluster_dml) = &self.cluster_dml {
+            cluster_dml.validate_for_execution()?;
+            crate::cluster_dml_aipw::require_unpenalized(self.propensity.is_penalized())?;
+            crate::cluster_dml_aipw::require_scope(
+                true,
+                &problem.target_population,
+                problem.overlap,
+            )?;
+            crate::cluster_dml_aipw::refuse_interval_request(
+                self.bootstrap_replicates,
+                self.se_kind,
+            )?;
+        }
+        if problem.fold_units.as_deref() != self.cluster_dml.and(self.cluster_ids.as_deref()) {
+            return Err(EstimationError::data_msg(
+                "AIPW cluster-DML declaration differs from the one the problem was prepared with",
+            ));
         }
         if !matches!(
             problem.target_population,
@@ -916,10 +977,11 @@ impl AipwAte {
                 .with_influence(Some(influence.into()))
                 .with_score_table(Some(table));
         result.score_inference = iid_se.then_some(inference);
-        if self.propensity.is_penalized() {
-            // The penalized route publishes scores and a point estimate, never an interval:
-            // the iid covariance and influence values of these scores are not a licensed
-            // sampling distribution (see `docs/guides/penalized-aipw.md`).
+        if self.propensity.is_penalized() || self.cluster_dml.is_some() {
+            // The penalized and the cluster-DML routes publish scores and a point estimate,
+            // never an interval: the iid covariance and influence values of these scores are
+            // not a licensed sampling distribution (see `docs/guides/penalized-aipw.md` and
+            // `docs/guides/clustered-dml.md`).
             result.se_analytic = f64::NAN;
             result.se_kind = None;
             result.joint_covariance = None;

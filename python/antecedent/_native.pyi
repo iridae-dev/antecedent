@@ -4658,6 +4658,17 @@ def replay_study_plan(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
+def candidate_screen_from_units(
+    screen_id: str,
+    procedure: str,
+    *,
+    screen_fraction: float,
+    seed: int,
+    entity_ids: list[int] | None = None,
+    first: list[int] | None = None,
+    second: list[int] | None = None,
+) -> tuple[str, list[int], list[int], int, str, int, int, int, str]: ...
+
 class ObservationRecoveryStage:
     @property
     def outcome(self) -> str: ...

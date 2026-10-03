@@ -95,6 +95,7 @@ pub use adjustment::{
     BlockResampling, CandidateSelectionRecord, CheckedLinearAdjustmentAte, EffectEstimate,
     EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
+pub mod cluster_dml_aipw;
 pub mod estimator_menu;
 pub mod learned_continuous;
 pub mod learned_trial;
@@ -154,6 +155,10 @@ pub use causal_forest::CausalForest;
 pub use cell_aipw::{
     CellSaturatedAipw, ContinuousCellSpec, MAX_JOINT_BINARY, POINT_CDE_UNLICENSED,
     cell_minus_control_contrast, contrast_named, family_cell_contrast, interaction_contrast,
+};
+pub use cluster_dml_aipw::{
+    ClusterDml, ClusterDmlReceipt, DEFAULT_MIN_CLUSTERS, IndependenceUnit, MIN_CLUSTERS_FLOOR,
+    cluster_fold_plan,
 };
 pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
 pub use crossfit_aipw::{

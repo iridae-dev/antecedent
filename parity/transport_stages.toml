@@ -3061,3 +3061,85 @@ stage = "evaluate"
 status = "closed"
 reason_code = "selection_inference_not_licensed"
 notes = "A lasso penalty declared through the Python dataclass is refused at execution."
+
+# ---- 2.2E.E4.clustered_dml_aipw ------------------------------------------------------------
+
+[[routes]]
+route = "antecedent_estimate.AipwAte.cluster_dml_cross_fit"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_declared_clusters"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "cross_fitted_point_only_no_interval"
+reference = "docs/guides/clustered-dml.md"
+limits = "Whole clusters own cross-fit folds (seeded plan over sorted cluster labels, one stratum); logistic propensity and arm-wise OLS outcomes; untrimmed AllObserved mean ATE with at least the declared minimum cluster count; no interval, covariance or band; not combined with a penalized propensity."
+evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs"
+evidence_assertion = "whole_clusters_own_their_folds_and_the_point_recovers_the_truth"
+
+[[routes]]
+route = "antecedent.estimators.Aipw.cluster_dml"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_declared_clusters"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "cross_fitted_point_only_no_interval"
+reference = "docs/guides/clustered-dml.md"
+limits = "Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=...)) reports the point and the score table with a NaN standard error; a retarget reports the point only."
+evidence_test = "python/tests/test_cluster_dml.py"
+evidence_assertion = "test_a_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interval"
+
+[[routes]]
+route = "antecedent_estimate.ClusterDml.receipt"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "cluster_dml_score_table"
+functional = "cluster_sandwich_standard_error_of_scores"
+guarantee = "variance_of_stored_scores_not_an_interval"
+reference = "docs/guides/clustered-dml.md"
+limits = "The cluster-sandwich standard error sqrt(G/(G-1) sum_g S_g^2)/n of a cluster-DML score table, with unit, counts and a label fingerprint; refuses a table whose clusters were split across folds; not an interval and not calibrated."
+evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs"
+evidence_assertion = "the_cluster_sandwich_equals_hand_computed_cluster_sums"
+
+[[routes]]
+route = "antecedent.CandidateScreen.from_units"
+stage = "prepare"
+status = "licensed"
+graph = "none"
+evidence = "caller_declared_entity_or_dyad_labels"
+functional = "disjoint_screen_estimate_row_split"
+guarantee = "no_unit_in_both_halves"
+reference = "docs/guides/clustered-dml.md"
+limits = "A seeded, row-order-free split of whole entities, clusters or connected dyad endpoint components into disjoint screen and estimate halves, recording the seed and a unit digest; a data-ownership guarantee about the split only, not an inference claim."
+evidence_test = "crates/antecedent/src/analysis/candidate_screen_units.rs"
+evidence_assertion = "dyads_sharing_an_endpoint_never_cross_the_split"
+
+[[routes]]
+route = "antecedent_estimate.AipwAte.cluster_dml_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cluster_interval_not_licensed"
+notes = "No analytic or bootstrap interval for cluster-DML AIPW: no coverage record exists and a row bootstrap would split clusters."
+
+[[routes]]
+route = "antecedent_estimate.ClusterDml.few_clusters"
+stage = "evaluate"
+status = "closed"
+reason_code = "too_few_clusters"
+notes = "Fewer independent clusters than the declared minimum: neither the whole-cluster cross-fit nor the sandwich is formed."
+
+[[routes]]
+route = "antecedent_estimate.ClusterDml.dyadic"
+stage = "evaluate"
+status = "closed"
+reason_code = "dyadic_dependence_not_licensed"
+notes = "Shared-endpoint fold ownership and two-way covariance are not licensed; a dyadic unit is declarable and refused."
+
+[[routes]]
+route = "antecedent.estimators.ClusterDml.dyad"
+stage = "evaluate"
+status = "closed"
+reason_code = "dyadic_dependence_not_licensed"
+notes = "A dyadic unit declared through the Python dataclass is refused at execution."

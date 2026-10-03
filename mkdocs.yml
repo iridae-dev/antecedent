@@ -54,6 +54,7 @@ nav:
       - Transport failures: guides/transport-failure.md
       - Transport theorem scope: guides/transport-scope.md
       - Penalized propensity for AIPW: guides/penalized-aipw.md
+      - Clustered DML and entity-owned screens: guides/clustered-dml.md
       - Preflight diagnostics and cost: guides/preflight-diagnostics.md
       - Transport names moved in 2.0: migrations/2.0-transport-day1.md
       - Prior bank: priors.md

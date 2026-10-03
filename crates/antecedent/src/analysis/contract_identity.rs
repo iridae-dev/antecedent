@@ -90,6 +90,9 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             // the science; the default is omitted so existing digests are unchanged.
             treatment_config: (!cfg.propensity.is_default())
                 .then(|| cfg.propensity.canonical_key()),
+            // The declared independence unit and minimum cluster count (the labels are
+            // digested as `cluster_ids`); omitted by default.
+            score: cfg.cluster_dml.as_ref().map(antecedent_estimate::ClusterDml::canonical_key),
             se_kind: Some(se_kind(cfg.se_kind)),
             cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
             multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),

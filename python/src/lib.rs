@@ -30,6 +30,7 @@ mod attribution_api;
 pub(crate) mod bayesian;
 mod bounds_api;
 mod callbacks;
+mod candidate_screen_api;
 mod counterfactual_id_api;
 mod cross_world_api;
 mod design_api;
@@ -2637,6 +2638,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     learned_trial_api::register(m)?;
     learned_continuous_api::register(m)?;
     smoothed_dose_api::register(m)?;
+    candidate_screen_api::register(m)?;
     preflight_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;

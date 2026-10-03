@@ -1747,6 +1747,42 @@ class CandidateScreen:
     screen_rows: Sequence[int]
     estimate_rows: Sequence[int]
 
+    @classmethod
+    def from_units(
+        cls,
+        screen_id: str,
+        procedure: Literal["max_t", "bh", "by", "unrecorded"],
+        *,
+        seed: int,
+        screen_fraction: float = 0.5,
+        entity_ids: Sequence[int] | None = None,
+        first: Sequence[int] | None = None,
+        second: Sequence[int] | None = None,
+    ) -> CandidateScreen:
+        """Deterministic split of whole entities, clusters or dyad components.
+
+        Declare ownership with ``entity_ids`` (one entity or cluster label per data row) or
+        with ``first`` and ``second`` (the two endpoint labels of each dyad row, in one label
+        namespace). Dyads that share an endpoint, directly or through a chain of rows, form a
+        connected component and always land in the same half, so no endpoint appears in both
+        halves; a single component is refused. The split is a seeded function of the set of
+        units, not of row order. ``screen_id`` is extended with the seed and a digest of the
+        sorted unit ids (``"<id>;seed=<hex>;units=<digest>"``), so every recorded selection
+        names them.
+        """
+        from ._native import candidate_screen_from_units
+
+        recorded_id, screen_rows, estimate_rows, *_receipt = candidate_screen_from_units(
+            screen_id,
+            procedure,
+            screen_fraction=float(screen_fraction),
+            seed=int(seed),
+            entity_ids=None if entity_ids is None else [int(i) for i in entity_ids],
+            first=None if first is None else [int(i) for i in first],
+            second=None if second is None else [int(i) for i in second],
+        )
+        return cls(recorded_id, procedure, screen_rows, estimate_rows)
+
 
 def _screen_kwargs(screen: CandidateScreen | None) -> dict[str, Any]:
     if screen is None:

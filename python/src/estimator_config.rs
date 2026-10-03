@@ -102,6 +102,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "overlap",
             "propensity_penalty",
             "nuisance_fallback",
+            "cluster_dml",
         ],
     ),
     (
@@ -155,6 +156,9 @@ const GLM_OPTION_KEYS: &[&str] = &["max_iter", "tol", "ridge_on_separation"];
 
 /// Valid `propensity_penalty` sub-dict keys (see [`build_propensity_nuisance`]).
 const PROPENSITY_PENALTY_KEYS: &[&str] = &["kind", "lambdas", "inner_folds"];
+
+/// Valid `cluster_dml` sub-dict keys (see [`build_cluster_dml`]).
+const CLUSTER_DML_KEYS: &[&str] = &["cluster_ids", "min_clusters", "unit"];
 
 fn valid_keys_for(estimator_id: &str) -> Option<&'static [&'static str]> {
     ESTIMATOR_KEYS.iter().find(|(id, _)| *id == estimator_id).map(|(_, keys)| *keys)
@@ -667,6 +671,57 @@ fn build_propensity_nuisance(
     Ok(Some(nuisance.with_fallback(fallback)))
 }
 
+/// Build the declared cluster-DML independence unit of `aipw` and its row labels from
+/// `cluster_dml` (`{"cluster_ids": [int], "min_clusters": int, "unit": "cluster" | "dyad"}`).
+///
+/// A `dyad` unit is accepted here and refused with its registered reason code when the
+/// analysis runs: it is declarable but closed.
+fn build_cluster_dml(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<(antecedent_estimate::ClusterDml, Vec<u32>)>> {
+    use antecedent_estimate::{ClusterDml, DEFAULT_MIN_CLUSTERS};
+    let Some(value) = dict.get_item("cluster_dml")? else {
+        return Ok(None);
+    };
+    let sub = value.cast::<PyDict>().map_err(|_| {
+        invalid(format!(
+            "estimator_config['cluster_dml'] must be a dict, got {}",
+            type_name(&value)
+        ))
+    })?;
+    for (key_obj, _val) in sub.iter() {
+        let key: String = key_obj
+            .extract()
+            .map_err(|_| invalid("estimator_config['cluster_dml'] keys must be str".to_string()))?;
+        if !CLUSTER_DML_KEYS.contains(&key.as_str()) {
+            return Err(invalid(format!(
+                "unknown estimator_config['cluster_dml'] key {key:?}; valid keys are: {}",
+                CLUSTER_DML_KEYS.join(", "),
+            )));
+        }
+    }
+    let ids = get_u32_list(sub, "cluster_ids")?.ok_or_else(|| {
+        invalid("estimator_config['cluster_dml'] requires cluster_ids".to_string())
+    })?;
+    let min_clusters = get_u32(sub, "min_clusters")?.map_or(DEFAULT_MIN_CLUSTERS, |m| m as usize);
+    let spec = match get_string(sub, "unit")?.as_deref().unwrap_or("cluster") {
+        "cluster" => ClusterDml::new(min_clusters).map_err(|error| {
+            let message = error.to_string();
+            let tail = antecedent_core::reason_code::split_prefix(&message)
+                .map_or(message.as_str(), |(_, tail)| tail);
+            invalid(tail.to_string())
+        })?,
+        "dyad" => ClusterDml::dyadic(min_clusters),
+        other => {
+            return Err(invalid(format!(
+                "estimator_config['cluster_dml']['unit'] {other:?} is not recognized; \
+                 use cluster|dyad"
+            )));
+        }
+    };
+    Ok(Some((spec, ids)))
+}
+
 /// Build the caller-configured [`EstimatorSpec`] for one of the ten estimators
 /// [`ESTIMATOR_KEYS`] covers (excluding `rd.sharp`, handled separately in
 /// [`parse_estimator_config`]). By the time this runs, every key in `dict` has already been
@@ -856,6 +911,14 @@ fn build_configured_spec(
             est.into()
         }
         "aipw" => {
+            let cluster_dml = build_cluster_dml(dict)?;
+            if cluster_dml.is_some() && cluster_ids.is_some() {
+                return Err(invalid(
+                    "estimator_config['cluster_dml'] carries its own cluster_ids; do not also \
+                     pass cluster_ids"
+                        .to_string(),
+                ));
+            }
             let mut est = AipwAte::new().with_bootstrap_replicates(bootstrap);
             if let Some(k) = se_kind {
                 est = est.with_se_kind(k);
@@ -877,6 +940,9 @@ fn build_configured_spec(
             }
             if let Some(nuisance) = build_propensity_nuisance(dict)? {
                 est = est.with_propensity_nuisance(nuisance);
+            }
+            if let Some((spec, ids)) = cluster_dml {
+                est = est.with_cluster_ids(ids).with_cluster_dml(spec);
             }
             est.into()
         }

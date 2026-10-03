@@ -7,6 +7,7 @@
 mod admg_conditional_transport;
 mod batch;
 mod builder;
+mod candidate_screen_units;
 mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
 mod checked_bayesian_temporal_class_effect;
@@ -124,6 +125,7 @@ pub use batch::{
     CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
 };
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
+pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub use contract::CausalContract;
 pub use execute::DagResponseOrigin;
 pub use execute::Study;

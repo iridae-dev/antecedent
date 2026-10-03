@@ -125,6 +125,7 @@ pub use analysis::{
 pub use analysis::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use analysis::{PreparedTemporalTransport, consume_temporal_transport_artifact};
 pub use analysis::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
+pub use analysis::{ScreenSplitReceipt, ScreenUnits};
 pub use class_prior::ClassPrior;
 pub use error::{CausalError, ReviewKind};
 pub use estimate::{CausalPosterior, EffectEstimate, EstimatorId, IdentifierId};
