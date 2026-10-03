@@ -53,6 +53,31 @@ its refusal visible; do not silently broaden the release claim.
 | **2.3 A — Population and time uncertainty** | Carry a licensed transport claim across more graph/selection assumptions, model a source and target jointly where justified, and report uncertainty for temporal transport; evaluate a model-based binary ADMG provider. | **X2:** additional selection-diagram or enumerated class-completion rows with scenario-specific evidence and shared-data covariance. **X4:** one Bayesian transport provider with a joint source/target model and calibrated posterior decisions; pilot a binary nested-Markov likelihood on a separately licensed ADMG row. Add further sampling designs only as separate rows. **X5:** dependence-preserving inference, initial-state uncertainty, and explicit refresh/invalidation for new periods. **X8:** temporal fixed-population counterfactuals with shared unit histories; transported counterfactuals only where both underlying transport and counterfactual rows are already licensed. **X10:** sampled observation recovery only after the exact formula and whole-path uncertainty pass. |
 | **2.3 B — Decisions and breadth** | Compare candidate studies using a licensed decision objective and extend the strongest earlier transport and counterfactual paths to additional supported evidence regimes. | **X6:** a prior-bank-compatible decision model and candidate signal feed the existing `ReduceDecisionRegret` objective, with an exact or Monte Carlo error receipt and source-overlap checks; retain verified structural/cost planning when that model is unavailable. **X4:** additional response grids, linked/clustered designs, or model providers one complete row at a time; treat incomplete observation and heterogeneous measurement as separate research contracts. **X5/X8:** additional finite sequences and transported counterfactual rows after the relevant time, transport, and cross-world gates. **X9/X10:** additional mixed-source and observation-recovery rows only with complete evidence and provider contracts. **X3:** discrepancy diagnostics and further sensitivity families only with a stated interpretation and evidence. **Reported by 2.1.1 users, one complete row at a time:** joint vector-treatment coefficients with covariance under one shared adjustment set; ordered and unordered categorical treatments with per-level contrasts and a monotonicity test; a compact runtime export (coefficients, covariance, declared support, refusal mask) with a verifier that refuses out-of-support queries; an inverse (target-quantile) query; nonlinear continuous-mediator mediation; latent-class or mixture effects for regimes. Each needs its own estimand, evidence and calibration record. An effect-constancy test across a declared partition, including a time partition, is scheduled with 2.3 A temporal inference (X5). |
 
+**2.2 expansion cells (reported by 2.1.1 users).** Alongside the A and B cells,
+2.2 carries a set of independently gated expansion cells. Each has its own promotion
+record and ships only if its fixtures pass; none claims an interval, and no calibration
+has been run for them.
+
+- Preflight diagnostics, structured refusal fields and count-only cost estimates for
+  prepared plans (no inferential claim).
+- Penalized propensity AIPW: ridge-logistic propensity with training-fold tuning; point
+  only. Lasso, a bootstrap interval and an ML fallback stay closed.
+- Configured estimators in batches, and batch retarget with the joint score covariance and
+  named contrasts of a claim family; a simultaneous interval stays closed until measured.
+- Clustered DML AIPW with whole-cluster cross-fitting (point only) and entity-owned
+  candidate screens; two-way and dyadic dependence stay refused.
+- Derived-treatment declarations and factorized joint cells (up to three binary
+  components); point only.
+- A finite-action inverse query on a **target mean** (`E[Y^do(a)] >= threshold`) over a
+  caller-supplied action grid. This is distinct from the inverse **target-quantile** query,
+  which remains on the 2.3 B row, as do probability targets and observational scenarios.
+- Matched case-control conditional odds ratio, and descriptive raw-versus-adjusted
+  comparison with tier-aware overlap and E-value diagnostics; point only.
+- Sparse or columnar ingest was measured and the dense path is retained.
+
+A narrow clustered DML cell does not displace the general linked or clustered sampling
+designs scheduled for 2.3 B.
+
 **Carried from the 2.1 line.** Known limitations recorded in 2.1.1 and
 scheduled for 2.2:
 
