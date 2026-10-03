@@ -21,7 +21,7 @@ use antecedent_stats::NORMAL_Q975 as CI_Z;
 
 /// E-value: the minimum strength of association, on the risk-ratio scale, that an
 /// unmeasured confounder would need with both treatment and outcome to fully explain away
-/// the observed effect, **and the same for the confidence-interval limit nearest the null**.
+/// the observed effect, **and the same for the effect-interval limit nearest the null**.
 ///
 /// The reported value ([`RefutationReport::comparison`]) is the smaller of the two, so a
 /// statistically null estimate (interval covering the null, E-value 1) cannot pass on the
@@ -41,6 +41,11 @@ use antecedent_stats::NORMAL_Q975 as CI_Z;
 ///   `R² = 0.75`).
 ///
 /// then `E = RR + sqrt(RR (RR − 1))` (inverted first if `RR < 1`).
+/// The limit conversion holds the estimated control risk (binary outcomes) or
+/// residual SD (continuous outcomes) fixed. It is a plug-in sensitivity
+/// diagnostic, not a confidence limit for the risk ratio: uncertainty in that
+/// nuisance estimate is not included. The configured pass threshold is likewise
+/// descriptive and has no calibrated error-rate interpretation.
 #[derive(Clone, Debug)]
 pub struct EValue {
     /// Pass if the computed E-value is at least this large.
@@ -125,7 +130,7 @@ impl EValue {
                 Some(Arc::from(match e_limit {
                     Some(limit) => format!(
                         "e-value {e_value} below threshold {} (point estimate {e_point}, \
-                         95% confidence-limit {limit})",
+                         plug-in transformed 95% effect-interval limit {limit})",
                         self.threshold
                     ),
                     None => format!(
