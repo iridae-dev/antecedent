@@ -61,8 +61,11 @@ This is the kernel-smoothed dose response of the target population.
 ### What changes with h
 
 The bandwidth and the kernel belong to the estimand: `psi_h` is a different target for
-each `h`, and `h` is never tuned. Expanding `mu` to second order in `t` around `a` gives
-`psi_h(a) = psi_0(a) + (h^2 / 10) E_target[d^2 mu / dt^2 (a, X)] + O(h^4)`. The factor
+each `h`, and `h` is never tuned. If the outcome curve has a fourth derivative uniformly
+bounded over target covariates and the window, a Taylor expansion gives
+`psi_h(a) = psi_0(a) + (h^2 / 10) E_target[d^2 mu / dt^2 (a, X)] + O(h^4)`.
+If the second derivative is uniformly continuous over target covariates and the
+window, the remainder is `o(h^2)`. The factor
 comes from the kernel's second moment, `integral u^2 K(u) du = 1/5`. The cell reports
 `psi_h` and keeps smoothing bias apart from it (see below).
 
