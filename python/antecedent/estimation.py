@@ -166,6 +166,12 @@ from .results import (
     TemporalMediationSliceView,
     ValidationView,
 )
+from .results._views import (
+    PenalizedFallback,
+    PenalizedFoldSupport,
+    RefitBootstrapReport,
+    ReplicatePenalties,
+)
 from .results.response import IntervalInterpretation, SupportStatus, UncertaintyKind
 from .survival import (
     CompetingRisksOutcome,
@@ -256,6 +262,40 @@ def _probability_interval_from_raw(raw: Any) -> ProbabilityIntervalView | None:
         lower=raw.lower,
         upper=raw.upper,
         unavailable=raw.unavailable,
+    )
+
+
+def _penalized_fallback_from_raw(raw: Any) -> PenalizedFallback | None:
+    """Native fallback tuple → view (``None`` passes through)."""
+    if raw is None:
+        return None
+    stage, fold, reason, message, destination = raw
+    return PenalizedFallback(
+        stage=str(stage),
+        fold=int(fold),
+        reason=str(reason),
+        message=str(message),
+        destination=str(destination),
+    )
+
+
+def _penalized_bootstrap_from_raw(raw: Any) -> RefitBootstrapReport | None:
+    """Native refit-bootstrap tuple → view (``None`` passes through)."""
+    if raw is None:
+        return None
+    kind, se, requested, ok, failed, cancelled, penalties, influence_se = raw
+    return RefitBootstrapReport(
+        uncertainty_kind=str(kind),
+        se=se,
+        replicates_requested=int(requested),
+        replicates_ok=int(ok),
+        replicates_failed=int(failed),
+        cancelled=bool(cancelled),
+        replicate_penalties=tuple(
+            ReplicatePenalties(replicate=int(r), lambdas=tuple(float(v) for v in lambdas))
+            for r, lambdas in penalties
+        ),
+        influence_se=float(influence_se),
     )
 
 
@@ -1337,6 +1377,16 @@ def _wrap_ate(
             crossfit_folds=getattr(sec_estimate, "crossfit_folds", None),
             crossfit_seed=getattr(sec_estimate, "crossfit_seed", None),
             learner_provenance=tuple(getattr(sec_estimate, "learner_provenance", ())),
+            penalized_fallback=_penalized_fallback_from_raw(
+                getattr(sec_estimate, "penalized_fallback", None)
+            ),
+            penalized_support=tuple(
+                PenalizedFoldSupport(fold=int(fold), names=tuple(str(n) for n in names))
+                for fold, names in getattr(sec_estimate, "penalized_support", ())
+            ),
+            penalized_bootstrap=_penalized_bootstrap_from_raw(
+                getattr(sec_estimate, "penalized_bootstrap", None)
+            ),
             cate=tuple(cate) if (cate := getattr(sec_estimate, "cate", None)) is not None else None,
             cate_se=tuple(cate_se)
             if (cate_se := getattr(sec_estimate, "cate_se", None)) is not None

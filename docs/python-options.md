@@ -216,15 +216,21 @@ identity and is part of the calibration key, so it reports
 
 ## Penalize the AIPW propensity
 
-`Aipw(bootstrap=0, propensity_penalty=PropensityPenalty())` fits a ridge-logistic
-propensity on each cross-fit fold's training rows, with the penalty chosen from a
-fixed grid by seeded inner cross-validation on those rows only. It reports the
-cross-fitted point and keeps the score table and retargeting, but publishes no
-interval: a bootstrap or a non-default `se` is refused with
-`penalized_interval_not_licensed`. `PropensityPenalty(kind="lasso")`
-(`selection_inference_not_licensed`) and `nuisance_fallback="ml"`
-(`nuisance_fallback_not_licensed`) are declarable and closed. This is distinct from
-`GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
+`Aipw(propensity_penalty=PropensityPenalty())` fits a ridge-logistic propensity on each
+cross-fit fold's training rows, with the penalty chosen from a fixed grid by seeded inner
+cross-validation on those rows only; `PropensityPenalty(kind="lasso")` fits an L1-penalized
+one and also selects its support on those rows (recorded per fold in
+`estimate.penalized_support`). The route keeps the score table and retargeting (with its
+covariance) and publishes the cross-fitted influence-function SE; with `bootstrap > 0` it
+publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
+fitting (`estimate.penalized_bootstrap` lists the penalties each replicate selected). Both
+rest on a stated remainder condition and are calibration-wired but not yet measured, so
+they report `scope_not_assessed`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
+`PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
+GLM fit fails and records the failed fit in `estimate.penalized_fallback`;
+`nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_licensed`) and a lasso outside
+the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_licensed`). This is
+distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
 
 ## Declare the independence unit of the AIPW cross-fit
 

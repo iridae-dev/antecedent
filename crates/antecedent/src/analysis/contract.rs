@@ -2149,10 +2149,19 @@ fn compile_with_payloads(
     let lagged = full_temporal_identification(study);
     let body =
         body_frame(&study.query, lagged.as_deref(), cached, study.population_registry.as_ref())?;
-    let functional = match overlap_label(study, resolved_estimator.as_deref()) {
+    let mut functional = match overlap_label(study, resolved_estimator.as_deref()) {
         Some(overlap) => format!("{}+{overlap}", functional_label(&study.query)),
         None => functional_label(&study.query),
     };
+    // A penalized propensity (or its fallback) changes the nuisance the interval is about, so
+    // the label binds it only to records measured under that nuisance.
+    if let Some(propensity) = study
+        .estimator_spec
+        .as_ref()
+        .and_then(crate::estimator_spec::EstimatorSpec::propensity_calibration_label)
+    {
+        functional = format!("{functional}+{propensity}");
+    }
     Ok((
         CausalContract {
             identities: payloads.identities,

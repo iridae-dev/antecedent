@@ -256,6 +256,13 @@ run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
 # runs about 3% short of the Monte Carlo SD at n = 600).
 run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
 run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
+# 2.2E E2 penalized propensity: the cross-fitted influence-function SE and the refit
+# bootstrap (penalty and support selection repeated in every replicate), ridge and lasso.
+# Wired, measured once at the 2.2 cut; records 2.2E.E2.penalized_propensity_aipw.
+run_ignored antecedent-estimate aipw_ridge_influence_ci_coverage
+run_ignored antecedent-estimate aipw_ridge_refit_bootstrap_ci_coverage
+run_ignored antecedent-estimate aipw_lasso_influence_ci_coverage
+run_ignored antecedent-estimate aipw_lasso_refit_bootstrap_ci_coverage
 run_ignored antecedent-estimate matching_homoskedastic_ci_coverage
 run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
 run_ignored antecedent-estimate wald_iv_hc1_ci_coverage

@@ -1,7 +1,10 @@
-//! Ridge-logistic propensity for cross-fitted AIPW (2.2 E2): the route fits and replays, tunes
-//! its penalty on training rows only, keeps the score table, row identity, overlap report and
-//! retargeting, publishes no interval, and refuses lasso, an unlicensed fallback, an interval
-//! request, an invalid penalty and a design the outcome stage cannot fit.
+//! Penalized-propensity cross-fitted AIPW (2.2 E2): the ridge and lasso routes fit and replay,
+//! tune their penalty (and a lasso's support) on training rows only, keep the score table, row
+//! identity, overlap report and retargeting, publish the cross-fitted influence-function SE and
+//! the refit-bootstrap SE (which repeats penalty selection in every replicate), and the
+//! declared GLM-to-penalized fallback runs and records the failed fit it replaced. A scope
+//! outside the license, a machine-learning fallback and a design the outcome stage cannot fit
+//! are refused with their reason codes.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -22,12 +25,13 @@ use antecedent_data::{
 };
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, AnalyticSeKind, EffectEstimate, EstimationError, NuisanceFallback,
-    OverlapPolicy, PropensityNuisance, RidgeTuning, ScoreTable, build_binary_scores,
-    provenance_withholds_interval, retarget,
+    OverlapPolicy, PROPENSITY_FIT_STAGE, PenalizedVarianceReport, PropensityNuisance,
+    REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePolicy, RidgeTuning, ScoreTable,
+    crossfit_influence_se, provenance_marks_penalized, provenance_withholds_interval, retarget,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
-use antecedent_stats::{FaerBackend, GlmOptions, StatsError};
+use antecedent_stats::StatsError;
 
 /// Raw columns of one synthetic data set.
 #[derive(Clone)]
@@ -133,8 +137,25 @@ fn ridge(grid: &[f64], inner_folds: usize) -> AipwAte {
     }
 }
 
+fn lasso(grid: &[f64], inner_folds: usize) -> AipwAte {
+    AipwAte {
+        bootstrap_replicates: 0,
+        propensity: PropensityNuisance::lasso_with(RidgeTuning::new(grid, inner_folds).unwrap()),
+        ..AipwAte::new()
+    }
+}
+
 fn plain() -> AipwAte {
     AipwAte { bootstrap_replicates: 0, ..AipwAte::new() }
+}
+
+fn with_bootstrap(est: AipwAte, replicates: u32) -> AipwAte {
+    AipwAte { bootstrap_replicates: replicates, ..est }
+}
+
+/// The plain GLM route with a declared fallback destination.
+fn glm_with_fallback(fallback: NuisanceFallback) -> AipwAte {
+    AipwAte { propensity: PropensityNuisance::default().with_fallback(fallback), ..plain() }
 }
 
 fn run(est: &AipwAte, raw: &Raw, seed: u64) -> Result<EffectEstimate, EstimationError> {
@@ -153,7 +174,7 @@ fn selected_lambdas(estimate: &EffectEstimate) -> Vec<f64> {
         .learner_provenance
         .iter()
         .map(|p| {
-            let bits = p.spec.strip_prefix("logistic:").expect("a penalized fold's spec");
+            let (_, bits) = p.spec.split_once(':').expect("a penalized fold's spec");
             f64::from_bits(bits.parse::<u64>().unwrap())
         })
         .collect()
@@ -161,6 +182,24 @@ fn selected_lambdas(estimate: &EffectEstimate) -> Vec<f64> {
 
 fn bits(values: &[f64]) -> Vec<u64> {
     values.iter().map(|v| v.to_bits()).collect()
+}
+
+/// The cross-fitted influence-function SE written from the table's scores: with
+/// `d_i = phi1_i - phi0_i`, `sqrt(sum (d_i - mean d)^2 / (n (n - 1)))`.
+fn hand_influence_se(table: &ScoreTable) -> f64 {
+    let d: Vec<f64> =
+        table.column(0).unwrap().iter().zip(table.column(1).unwrap()).map(|(c, t)| t - c).collect();
+    let n = d.len() as f64;
+    let m = d.iter().sum::<f64>() / n;
+    (d.iter().map(|x| (x - m) * (x - m)).sum::<f64>() / (n * (n - 1.0))).sqrt()
+}
+
+fn variance_of(estimate: &EffectEstimate) -> &PenalizedVarianceReport {
+    estimate
+        .penalized
+        .as_ref()
+        .and_then(|report| report.variance.as_ref())
+        .expect("the refit bootstrap's report")
 }
 
 // ---- independent score calculation (written here, not taken from the crate) ----------------
@@ -357,9 +396,11 @@ fn ridge_propensity_recovers_the_effect_where_the_unpenalized_fit_is_refused() {
 }
 
 /// What the route publishes: a point, the score table and its identity, the overlap report,
-/// the fold count and seed, and nothing from which an interval could be built.
+/// the fold count and seed, and the cross-fitted influence-function interval ingredients: an SE
+/// equal to the hand formula on the table's scores, the joint covariance, the score inference
+/// and the influence values. No bootstrap was requested, so no bootstrap SE and no report.
 #[test]
-fn a_penalized_fit_publishes_scores_and_a_point_but_no_interval() {
+fn a_penalized_fit_publishes_scores_a_point_and_the_cross_fitted_influence_interval() {
     let raw = draw(300, 4, 5, Regime::Moderate);
     let est = ridge(&[0.5, 5.0, 50.0], 4);
     let (data, estimand, query) = build(&raw);
@@ -373,20 +414,38 @@ fn a_penalized_fit_publishes_scores_and_a_point_but_no_interval() {
         )
         .unwrap();
     assert!(estimate.ate.is_finite());
-    assert!(estimate.se_analytic.is_nan());
+    let t = table(&estimate);
+    let hand = hand_influence_se(t);
+    assert!(hand.is_finite() && hand > 0.0);
+    assert!(
+        (estimate.se_analytic - hand).abs() <= 1e-12 * hand,
+        "{} vs {hand}",
+        estimate.se_analytic
+    );
+    assert!((crossfit_influence_se(t).unwrap() - hand).abs() <= 1e-12 * hand);
+    assert_eq!(estimate.se_kind, Some(AnalyticSeKind::Homoskedastic));
     assert!(estimate.se_bootstrap.is_none());
-    assert!(estimate.joint_covariance.is_none());
-    assert!(estimate.score_inference.is_none());
-    assert!(estimate.influence.is_none());
+    assert!(estimate.joint_covariance.is_some());
+    assert!(estimate.score_inference.is_some());
+    assert_eq!(estimate.influence.as_ref().map(|v| v.len()), Some(300));
     assert!(estimate.overlap_report.is_some());
     assert_eq!(estimate.crossfit_folds, Some(5));
     assert_eq!(estimate.crossfit_seed, Some(11));
     assert_eq!(estimate.learner_provenance.len(), 5);
-    let t = table(&estimate);
+    assert!(estimate.penalized.is_none(), "a ridge fit with no bootstrap has nothing to report");
     assert_eq!(t.row_index.as_ref(), problem.row_index.as_ref());
     assert_eq!(t.n_rows, 300);
     assert_eq!(t.n_folds, 5);
-    assert!(provenance_withholds_interval(&t.nuisance_provenance));
+    assert!(provenance_marks_penalized(&t.nuisance_provenance));
+    assert!(!provenance_withholds_interval(&t.nuisance_provenance));
+    // A dependence-robust analytic kind is accepted too, computed by the shared SE routine,
+    // and the iid-only joint covariance is then not published.
+    let hc1 = AipwAte { se_kind: AnalyticSeKind::Hc1, ..ridge(&[0.5, 5.0, 50.0], 4) };
+    let robust = run(&hc1, &raw, 11).unwrap();
+    assert_eq!(robust.ate.to_bits(), estimate.ate.to_bits());
+    assert_eq!(robust.se_kind, Some(AnalyticSeKind::Hc1));
+    assert!(robust.se_analytic.is_finite() && robust.se_analytic > 0.9 * hand);
+    assert!(robust.joint_covariance.is_none());
 }
 
 /// Seeded replay: the same seed gives the same folds, penalties and scores bit for bit; another
@@ -405,12 +464,9 @@ fn selected_penalties_replay_from_the_seed() {
     assert_ne!(table(&a).fold_ids, table(&c).fold_ids);
 }
 
-/// Tuning uses training rows only: with the fold plan held fixed, rewriting every row of fold 0
-/// (covariates, treatment and outcome) cannot move the penalty chosen for fold 0, whose
-/// training rows are the other folds; the held-out scores do move.
-#[test]
-fn penalty_is_chosen_on_training_rows_only() {
-    let raw = draw(250, 4, 13, Regime::Moderate);
+/// Rewriting every row of fold 0 (covariates, treatment, outcome) with the fold plan held fixed,
+/// returns the estimate before and after.
+fn rewrite_fold_zero(est: &AipwAte, raw: &Raw) -> (EffectEstimate, EffectEstimate) {
     let n = raw.t.len();
     let ids: Vec<u32> = (0..n).map(|i| u32::try_from(i % 5).unwrap()).collect();
     let mut changed = raw.clone();
@@ -421,7 +477,6 @@ fn penalty_is_chosen_on_training_rows_only() {
             column[i] += 3.0;
         }
     }
-    let est = ridge(&[0.05, 0.5, 5.0, 50.0], 4);
     let fit_with_fixed_folds = |data: &Raw| {
         let (frame, estimand, query) = build(data);
         let mut problem = est.prepare(&frame, &estimand, &query).unwrap();
@@ -434,8 +489,16 @@ fn penalty_is_chosen_on_training_rows_only() {
         )
         .unwrap()
     };
-    let before = fit_with_fixed_folds(&raw);
-    let after = fit_with_fixed_folds(&changed);
+    (fit_with_fixed_folds(raw), fit_with_fixed_folds(&changed))
+}
+
+/// Tuning uses training rows only: with the fold plan held fixed, rewriting every row of fold 0
+/// cannot move the penalty chosen for fold 0, whose training rows are the other folds; the
+/// held-out scores do move.
+#[test]
+fn penalty_is_chosen_on_training_rows_only() {
+    let raw = draw(250, 4, 13, Regime::Moderate);
+    let (before, after) = rewrite_fold_zero(&ridge(&[0.05, 0.5, 5.0, 50.0], 4), &raw);
     assert_eq!(before.learner_provenance[0], after.learner_provenance[0]);
     assert_ne!(bits(&table(&before).scores), bits(&table(&after).scores));
 }
@@ -494,87 +557,6 @@ fn scores_match_an_independent_calculation_and_retarget_exactly() {
     assert!((result.covariance.get(0, 1) - cov_one[0][1]).abs() < 1e-12);
 }
 
-/// A requested interval is refused with its reason code, never ignored: a bootstrap, a
-/// non-default analytic kind, and a direct bootstrap attach on a point.
-#[test]
-fn an_interval_request_is_refused_with_its_reason_code() {
-    let raw = draw(200, 3, 3, Regime::Moderate);
-    let (data, estimand, query) = build(&raw);
-    for requested in [
-        AipwAte { bootstrap_replicates: 50, ..ridge(&[1.0], 3) },
-        AipwAte { se_kind: AnalyticSeKind::Hc1, ..ridge(&[1.0], 3) },
-    ] {
-        let error = requested.prepare(&data, &estimand, &query).unwrap_err();
-        assert!(error.to_string().contains("penalized_interval_not_licensed"), "{error}");
-    }
-    let est = ridge(&[1.0, 10.0], 3);
-    let problem = est.prepare(&data, &estimand, &query).unwrap();
-    let ctx = ExecutionContext::for_tests(1);
-    let mut workspace = AipwWorkspace::default();
-    let point = est.fit(&problem, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
-    let boot = AipwAte { bootstrap_replicates: 5, ..est };
-    let error = boot.attach_bootstrap(&problem, &mut workspace, &ctx, point).unwrap_err();
-    assert!(error.to_string().contains("penalized_interval_not_licensed"), "{error}");
-}
-
-/// Outside the untrimmed `AllObserved` mean ATE the penalty has no route.
-#[test]
-fn a_scope_outside_the_license_is_refused() {
-    let raw = draw(200, 3, 4, Regime::Moderate);
-    let (data, estimand, query) = build(&raw);
-    let trimmed = AipwAte {
-        overlap: OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.05) },
-        ..ridge(&[1.0], 3)
-    };
-    let error = trimmed.prepare(&data, &estimand, &query).unwrap_err();
-    assert!(error.to_string().contains("route_not_supported"), "{error}");
-}
-
-/// Lasso is closed: refused at preparation, and again by the score-table builder itself.
-#[test]
-fn lasso_is_closed_with_a_typed_refusal() {
-    let raw = draw(200, 3, 6, Regime::Moderate);
-    let (data, estimand, query) = build(&raw);
-    let lasso = AipwAte { propensity: PropensityNuisance::lasso(), ..plain() };
-    let error = lasso.prepare(&data, &estimand, &query).unwrap_err();
-    assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
-
-    let mut problem = plain().prepare(&data, &estimand, &query).unwrap();
-    problem.propensity = PropensityNuisance::lasso();
-    let error = build_binary_scores(
-        &problem,
-        problem.treatment_id,
-        &[None],
-        5,
-        &GlmOptions::default(),
-        FaerBackend,
-    )
-    .unwrap_err();
-    assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
-}
-
-/// A declared ML fallback is closed: a failed GLM fit is refused with the failure recorded,
-/// a successful one is the plain GLM result bit for bit, and nothing is silently replaced.
-#[test]
-fn a_failed_fit_under_a_declared_fallback_is_recorded_and_never_replaced() {
-    let fallback = AipwAte {
-        propensity: PropensityNuisance::default().with_fallback(NuisanceFallback::Ml),
-        ..plain()
-    };
-    let separated = draw(300, 3, 8, Regime::Separated);
-    assert!(matches!(run(&plain(), &separated, 2).unwrap_err(), EstimationError::Stats(_)));
-    let error = run(&fallback, &separated, 2).unwrap_err();
-    let message = error.to_string();
-    assert!(message.contains("nuisance_fallback_not_licensed"), "{message}");
-    assert!(message.contains("primary nuisance fit failed"), "{message}");
-
-    let healthy = draw(300, 3, 8, Regime::Moderate);
-    let armed = run(&fallback, &healthy, 2).unwrap();
-    let glm = run(&plain(), &healthy, 2).unwrap();
-    assert_eq!(armed.ate.to_bits(), glm.ate.to_bits());
-    assert_eq!(bits(&table(&armed).scores), bits(&table(&glm).scores));
-}
-
 /// An exact duplicate column is a rank deficiency: the unpenalized route and the penalized one
 /// (whose propensity copes, but whose arm OLS does not) both refuse it with a typed error.
 #[test]
@@ -603,6 +585,380 @@ fn a_cancelled_fit_is_a_stop_never_a_verdict() {
     assert!(error.to_string().contains("cancelled_no_claim"), "{error}");
 }
 
+/// The refit bootstrap publishes its SE as the bootstrap SE, with the replicate accounting, the
+/// penalty every successful replicate selected on its own resample (one per fold of that
+/// replicate's fold plan, from the declared grid), the influence SE for comparison, and replays
+/// bit for bit from the seed.
+#[test]
+fn the_refit_bootstrap_publishes_its_se_and_the_penalties_it_selected_in_every_replicate() {
+    let raw = draw(200, 3, 41, Regime::Moderate);
+    let grid = [0.5, 5.0, 50.0];
+    let est = with_bootstrap(ridge(&grid, 3), 30);
+    let a = run(&est, &raw, 5).unwrap();
+    let b = run(&est, &raw, 5).unwrap();
+    let se = a.se_bootstrap.expect("a refit bootstrap SE");
+    assert!(se.is_finite() && se > 0.0, "{se}");
+    let variance = variance_of(&a);
+    assert_eq!(variance.uncertainty_kind, REFIT_BOOTSTRAP_UNCERTAINTY_KIND);
+    assert_eq!(variance.replicates_requested, 30);
+    assert_eq!(variance.replicates_ok + variance.replicates_failed, 30);
+    assert_eq!(a.bootstrap_replicates_ok, Some(variance.replicates_ok));
+    assert_eq!(a.bootstrap_replicates_failed, Some(variance.replicates_failed));
+    assert!(!variance.cancelled);
+    assert_eq!(variance.refit_bootstrap_se, Some(se));
+    assert_eq!(variance.replicate_penalties.len(), variance.replicates_ok as usize);
+    for replicate in &variance.replicate_penalties {
+        assert!(replicate.replicate < 30);
+        assert_eq!(replicate.lambdas.len(), 5, "one penalty per outer fold");
+        assert!(replicate.lambdas.iter().all(|l| grid.contains(l)), "{:?}", replicate.lambdas);
+    }
+    // The influence SE rides beside it and is both the analytic SE and the hand formula.
+    assert!((variance.influence_se - a.se_analytic).abs() <= 1e-12 * a.se_analytic);
+    assert!((variance.influence_se - hand_influence_se(table(&a))).abs() < 1e-10);
+    // Replay: same seed, same SE bits and penalty record; another seed resamples differently.
+    assert_eq!(a.se_bootstrap.map(f64::to_bits), b.se_bootstrap.map(f64::to_bits));
+    assert_eq!(a.penalized, b.penalized);
+    let c = run(&est, &raw, 6).unwrap();
+    assert_ne!(a.se_bootstrap.map(f64::to_bits), c.se_bootstrap.map(f64::to_bits));
+}
+
+/// The refit-bootstrap SE is close to an independent bootstrap written here: it resamples the
+/// rows with its own generator, builds a data set from each resample and calls the public fit
+/// (which re-tunes the penalty on the resample). The two differ only by Monte Carlo error and by
+/// the library keeping a copied row's unit identity inside one fold (copies in different folds
+/// leak). The tolerance is a ratio in [0.6, 1.6]: with 60 replicates each the SE of an SE is
+/// about `1 / sqrt(2 * 60)` = 9%, so the ratio of two independent estimates has sd near 13% and
+/// the band is about 3.5 sd either side of 1, with room for the leakage.
+#[test]
+fn the_refit_bootstrap_is_close_to_an_independent_bootstrap_through_the_public_fit() {
+    let raw = draw(250, 3, 47, Regime::Moderate);
+    let n = raw.t.len();
+    let grid = [0.5, 5.0, 50.0];
+    let library = run(&with_bootstrap(ridge(&grid, 3), 60), &raw, 9).unwrap();
+    let library_se = library.se_bootstrap.expect("a refit bootstrap SE");
+
+    let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+    let mut draw_index = |bound: usize| -> usize {
+        state =
+            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        usize::try_from((state >> 33) % bound as u64).unwrap()
+    };
+    let est = ridge(&grid, 3);
+    let mut estimates = Vec::new();
+    for replicate in 0..60 {
+        let idx: Vec<usize> = (0..n).map(|_| draw_index(n)).collect();
+        let resampled = Raw {
+            t: idx.iter().map(|&i| raw.t[i]).collect(),
+            y: idx.iter().map(|&i| raw.y[i]).collect(),
+            z: raw.z.iter().map(|c| idx.iter().map(|&i| c[i]).collect()).collect(),
+        };
+        if let Ok(estimate) = run(&est, &resampled, 100 + replicate) {
+            estimates.push(estimate.ate);
+        }
+    }
+    assert!(estimates.len() >= 50, "{} of 60 independent replicates fit", estimates.len());
+    let m = mean(&estimates);
+    let independent_se = (estimates.iter().map(|a| (a - m) * (a - m)).sum::<f64>()
+        / (estimates.len() as f64 - 1.0))
+        .sqrt();
+    let ratio = library_se / independent_se;
+    assert!((0.6..1.6).contains(&ratio), "library {library_se} vs independent {independent_se}");
+    // Both estimate the same sampling variability as the influence-function SE does.
+    let influence = library.se_analytic;
+    assert!((0.6..1.7).contains(&(library_se / influence)), "{library_se} vs IF {influence}");
+}
+
+/// A replicate that cannot be fit (a resample that leaves a fold's training rows without two
+/// distinct treated units) is counted as failed, never replaced: the successes and failures
+/// add up to the replicates attempted, the SE is published exactly when the shared replicate
+/// policy allows it, and each success still records its penalties.
+#[test]
+fn failed_replicates_are_counted_and_the_se_follows_the_failure_policy() {
+    let mut raw = draw(40, 2, 53, Regime::Moderate);
+    for i in 0..40 {
+        raw.t[i] = f64::from(u8::from(i % 7 == 0));
+        raw.y[i] = 2.0 * raw.t[i] + raw.z[0][i] + 0.3 * (((i * 7) % 13) as f64 / 13.0 - 0.5);
+    }
+    let est = with_bootstrap(ridge(&[0.5, 5.0], 2), 100);
+    let estimate = run(&est, &raw, 4).unwrap();
+    let variance = variance_of(&estimate);
+    assert_eq!(variance.replicates_requested, 100);
+    assert_eq!(variance.replicates_ok + variance.replicates_failed, 100);
+    assert!(variance.replicates_failed > 0, "a 6-treated sample must lose some resamples");
+    assert!(variance.replicates_ok > 0);
+    assert_eq!(variance.replicate_penalties.len(), variance.replicates_ok as usize);
+    let allowed = ReplicatePolicy::BOOTSTRAP
+        .decide(100, variance.replicates_ok, variance.replicates_failed)
+        .is_ok();
+    assert_eq!(estimate.se_bootstrap.is_some(), allowed);
+    assert_eq!(variance.refit_bootstrap_se.is_some(), allowed);
+    assert_eq!(estimate.bootstrap_replicates_failed, Some(variance.replicates_failed));
+}
+
+/// Cancellation of the bootstrap is a stop, never a verdict: the flag is reported, no SE is
+/// published from the partial run, and the point estimate is untouched.
+#[test]
+fn a_cancelled_refit_bootstrap_is_a_stop_with_no_se() {
+    let raw = draw(200, 3, 59, Regime::Moderate);
+    let est = with_bootstrap(ridge(&[1.0, 10.0], 3), 20);
+    let (data, estimand, query) = build(&raw);
+    let problem = est.prepare(&data, &estimand, &query).unwrap();
+    let ctx = ExecutionContext::for_tests(2);
+    let mut workspace = AipwWorkspace::default();
+    let point =
+        ridge(&[1.0, 10.0], 3).fit(&problem, &mut workspace, &ctx, AssumptionSet::new()).unwrap();
+    let ate = point.ate;
+    let cancelled = ExecutionContext::for_tests(2);
+    cancelled.cancellation.cancel();
+    let estimate = est.attach_bootstrap(&problem, &mut workspace, &cancelled, point).unwrap();
+    assert!(estimate.bootstrap_cancelled);
+    assert!(estimate.se_bootstrap.is_none());
+    assert_eq!(estimate.ate.to_bits(), ate.to_bits());
+    let variance = variance_of(&estimate);
+    assert!(variance.cancelled && variance.refit_bootstrap_se.is_none());
+    assert_eq!(variance.replicates_ok, 0);
+}
+
+/// Outside the untrimmed `AllObserved` mean ATE a penalty has no route: ridge is
+/// `route_not_supported`, and a lasso (which would select on the rows it scores outside the
+/// cross-fit) is `selection_inference_not_licensed`.
+#[test]
+fn a_scope_outside_the_license_is_refused() {
+    let raw = draw(200, 3, 4, Regime::Moderate);
+    let (data, estimand, query) = build(&raw);
+    let trim = OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: Some(0.05) };
+    let trimmed_ridge = AipwAte { overlap: trim, ..ridge(&[1.0], 3) };
+    let error = trimmed_ridge.prepare(&data, &estimand, &query).unwrap_err();
+    assert!(error.to_string().contains("route_not_supported"), "{error}");
+    let trimmed_lasso = AipwAte { overlap: trim, ..lasso(&[1.0], 3) };
+    let error = trimmed_lasso.prepare(&data, &estimand, &query).unwrap_err();
+    assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
+    // A fallback beside a penalized primary could never run, so it is refused, not ignored.
+    let incoherent = AipwAte {
+        propensity: PropensityNuisance::ridge_logistic(RidgeTuning::default())
+            .with_fallback(NuisanceFallback::Ml),
+        ..plain()
+    };
+    let error = incoherent.prepare(&data, &estimand, &query).unwrap_err();
+    assert!(error.to_string().contains("invalid_argument"), "{error}");
+}
+
+/// Sparse truth: the treatment depends on `z0` and `z1` among ten covariates. The lasso
+/// propensity keeps `z0` on every fold and `z1` on at least four, drops most noise columns,
+/// records the support per fold in the report and in the table's provenance, recovers the
+/// effect 2, publishes the influence SE and the retargetable table, and replays bit for bit.
+#[test]
+fn a_lasso_propensity_recovers_the_support_and_the_effect_and_records_it_per_fold() {
+    let raw = draw(600, 10, 61, Regime::Moderate);
+    let est = lasso(&[3.0, 10.0, 30.0, 100.0], 4);
+    let estimate = run(&est, &raw, 13).unwrap();
+    assert!((estimate.ate - 2.0).abs() < 0.35, "ate = {}", estimate.ate);
+    let report = estimate.penalized.as_ref().expect("a lasso records its selected support");
+    assert!(report.fallback.is_none() && report.variance.is_none());
+    assert_eq!(report.selected_support.len(), 5);
+    let kept = |name: &str| {
+        report.selected_support.iter().filter(|s| s.names.iter().any(|n| n == name)).count()
+    };
+    assert_eq!(kept("V2"), 5, "{:?}", report.selected_support);
+    assert!(kept("V3") >= 4, "{:?}", report.selected_support);
+    let noise: usize = report
+        .selected_support
+        .iter()
+        .map(|s| s.names.iter().filter(|n| !["V2", "V3"].contains(&n.as_str())).count())
+        .sum();
+    // A cross-validated lasso over-selects noise (its penalty minimizes prediction loss, not
+    // selection error), so the CV-chosen claim is only that the pooled selection is short of all
+    // 40 noise slots; sparsity proper is shown below with a declared strong penalty.
+    assert!(noise < 30, "{noise} of 40 noise slots selected: {:?}", report.selected_support);
+    let strong = run(&lasso(&[200.0], 4), &raw, 13).unwrap();
+    let strong_noise: usize = strong
+        .penalized
+        .as_ref()
+        .unwrap()
+        .selected_support
+        .iter()
+        .map(|s| s.names.iter().filter(|n| !["V2", "V3"].contains(&n.as_str())).count())
+        .sum();
+    assert!(
+        strong_noise < noise,
+        "a stronger declared penalty is sparser: {strong_noise} vs {noise}"
+    );
+    for (fold, support) in report.selected_support.iter().enumerate() {
+        assert_eq!(support.fold, fold);
+        assert_eq!(support.columns.len(), support.names.len());
+        assert!(support.columns.iter().all(|c| (1..=10).contains(c)));
+    }
+    // Score-mean identity, the influence SE, the joint covariance and the provenance.
+    let t = table(&estimate);
+    let contrast: Vec<f64> =
+        t.column(0).unwrap().iter().zip(t.column(1).unwrap()).map(|(a, b)| b - a).collect();
+    assert!((estimate.ate - mean(&contrast)).abs() < 1e-12);
+    let hand = hand_influence_se(t);
+    assert!((estimate.se_analytic - hand).abs() <= 1e-12 * hand);
+    assert!(estimate.joint_covariance.is_some() && estimate.score_inference.is_some());
+    assert_eq!(estimate.learner_provenance.len(), 5);
+    assert!(estimate.learner_provenance.iter().all(|p| p.spec.starts_with("lasso_logistic:")));
+    let provenance = t.nuisance_provenance.as_ref();
+    assert!(provenance.contains(";propensity=lasso.cv("), "{provenance}");
+    let support = provenance.split(";selected_support=").nth(1).expect("per-fold support");
+    assert_eq!(support.matches('|').count(), 4, "{support}");
+    assert!(support.starts_with("0:"), "{support}");
+    assert!(provenance_marks_penalized(provenance) && !provenance_withholds_interval(provenance));
+    // The frozen table retargets through the shared routine.
+    let ones = vec![1.0; raw.t.len()];
+    let (retargeted, overlap_failed) = retarget(t, &ones, &[], None, None, None).unwrap();
+    assert!(!overlap_failed);
+    assert!((retargeted.contrast.as_ref().unwrap().value - estimate.ate).abs() < 1e-12);
+    // Seeded replay is bit for bit, support included.
+    let again = run(&est, &raw, 13).unwrap();
+    assert_eq!(again.ate.to_bits(), estimate.ate.to_bits());
+    assert_eq!(again.penalized, estimate.penalized);
+    assert_eq!(bits(&table(&again).scores), bits(t.scores.as_ref()));
+}
+
+/// The lasso is cross-fitted on training rows only: rewriting fold 0 cannot move the penalty or
+/// the support chosen for fold 0, and the held-out scores do move.
+#[test]
+fn a_lasso_support_and_penalty_are_chosen_on_training_rows_only() {
+    let raw = draw(250, 5, 67, Regime::Moderate);
+    let (before, after) = rewrite_fold_zero(&lasso(&[1.0, 5.0, 20.0, 80.0], 4), &raw);
+    assert_eq!(before.learner_provenance[0], after.learner_provenance[0]);
+    let support = |e: &EffectEstimate| e.penalized.as_ref().unwrap().selected_support[0].clone();
+    assert_eq!(support(&before), support(&after));
+    assert_ne!(bits(&table(&before).scores), bits(&table(&after).scores));
+}
+
+/// Where the unpenalized logistic has no MLE (complete separation) the lasso propensity fits
+/// and its AIPW recovers the effect.
+#[test]
+fn a_lasso_propensity_fits_where_the_plain_logistic_is_refused() {
+    let raw = draw(400, 8, 31, Regime::Separated);
+    assert!(matches!(run(&plain(), &raw, 7).unwrap_err(), EstimationError::Stats(_)));
+    let estimate = run(&lasso(&[5.0, 20.0, 80.0], 4), &raw, 7).unwrap();
+    assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
+    assert!(estimate.se_analytic.is_finite() && estimate.se_analytic > 0.0);
+}
+
+/// The refit bootstrap repeats the lasso's penalty and support selection on every resample.
+#[test]
+fn the_lasso_refit_bootstrap_repeats_selection_and_records_each_replicate() {
+    let raw = draw(200, 4, 71, Regime::Moderate);
+    let grid = [2.0, 10.0, 40.0];
+    let estimate = run(&with_bootstrap(lasso(&grid, 3), 20), &raw, 3).unwrap();
+    let variance = variance_of(&estimate);
+    assert_eq!(variance.replicates_ok + variance.replicates_failed, 20);
+    assert!(variance.replicates_ok >= 2);
+    assert!(estimate.se_bootstrap.is_some_and(|se| se.is_finite() && se > 0.0));
+    for replicate in &variance.replicate_penalties {
+        assert_eq!(replicate.lambdas.len(), 5);
+        assert!(replicate.lambdas.iter().all(|l| grid.contains(l)));
+    }
+    assert!(!estimate.penalized.as_ref().unwrap().selected_support.is_empty());
+}
+
+/// A declared ML fallback stays closed: a failed GLM fit is refused with the failure recorded,
+/// a successful one is the plain GLM result bit for bit, and nothing is silently replaced.
+#[test]
+fn a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded() {
+    let fallback = glm_with_fallback(NuisanceFallback::Ml);
+    let separated = draw(300, 3, 8, Regime::Separated);
+    assert!(matches!(run(&plain(), &separated, 2).unwrap_err(), EstimationError::Stats(_)));
+    let error = run(&fallback, &separated, 2).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("nuisance_fallback_not_licensed"), "{message}");
+    assert!(message.contains("primary nuisance fit failed"), "{message}");
+
+    let healthy = draw(300, 3, 8, Regime::Moderate);
+    let armed = run(&fallback, &healthy, 2).unwrap();
+    let glm = run(&plain(), &healthy, 2).unwrap();
+    assert_eq!(armed.ate.to_bits(), glm.ate.to_bits());
+    assert_eq!(bits(&table(&armed).scores), bits(&table(&glm).scores));
+}
+
+/// A declared GLM-to-ridge fallback runs when the GLM propensity fit fails: the result is the
+/// destination route's (the same scores and point as declaring it directly) with the failed fit
+/// (stage, class, message) and the selected destination recorded on the result and in the
+/// table's provenance; a healthy GLM fit is untouched and records nothing.
+#[test]
+fn a_failed_glm_fit_runs_the_declared_ridge_fallback_and_records_both() {
+    let tuning = RidgeTuning::new(&[1.0, 10.0, 100.0], 3).unwrap();
+    let fallback = glm_with_fallback(NuisanceFallback::RidgeLogistic(tuning.clone()));
+    let separated = draw(300, 3, 8, Regime::Separated);
+    let estimate = run(&fallback, &separated, 2).unwrap();
+    assert!((estimate.ate - 2.0).abs() < 0.5, "ate = {}", estimate.ate);
+
+    let record = estimate.penalized.as_ref().and_then(|r| r.fallback.as_ref()).expect("a record");
+    assert_eq!(record.failed_fit.stage, PROPENSITY_FIT_STAGE);
+    assert!(
+        ["separated", "non_converged", "boundary_saturated"].contains(&record.failed_fit.reason),
+        "{}",
+        record.failed_fit.reason
+    );
+    assert!(record.failed_fit.fold < 5 && !record.failed_fit.message.is_empty());
+    let destination = PropensityNuisance::ridge_logistic(tuning.clone());
+    assert_eq!(record.destination, destination.canonical_key());
+
+    // The result is the destination's: identical to declaring the ridge route directly.
+    let direct = run(&ridge(&[1.0, 10.0, 100.0], 3), &separated, 2).unwrap();
+    assert_eq!(estimate.ate.to_bits(), direct.ate.to_bits());
+    assert_eq!(bits(&table(&estimate).scores), bits(&table(&direct).scores));
+    assert_eq!(estimate.se_analytic.to_bits(), direct.se_analytic.to_bits());
+    assert_eq!(estimate.learner_provenance, direct.learner_provenance);
+    assert_eq!(estimate.learner_provenance.len(), 5);
+
+    // Both identities are on the table: the destination's configuration, the failure and the
+    // declared fallback.
+    let provenance = table(&estimate).nuisance_provenance.as_ref();
+    assert!(provenance.contains(&destination.canonical_key()), "{provenance}");
+    assert!(provenance.contains(";nuisance_fallback=glm_failed:"), "{provenance}");
+    assert!(provenance.contains(&fallback.propensity.canonical_key()), "{provenance}");
+    assert_ne!(
+        table(&estimate).nuisance_provenance,
+        table(&direct).nuisance_provenance,
+        "a fallback result is never the same artifact as the declared route"
+    );
+    assert!(!provenance_withholds_interval(provenance));
+
+    // A healthy GLM fit under the same declaration is the plain GLM result and records nothing.
+    let healthy = draw(300, 3, 8, Regime::Moderate);
+    let armed = run(&fallback, &healthy, 2).unwrap();
+    let glm = run(&plain(), &healthy, 2).unwrap();
+    assert_eq!(armed.ate.to_bits(), glm.ate.to_bits());
+    assert!(armed.penalized.is_none());
+    assert!(!table(&armed).nuisance_provenance.as_ref().contains(";nuisance_fallback"));
+
+    // The lasso destination runs the same way and records its support.
+    let lasso_fallback = glm_with_fallback(NuisanceFallback::Lasso(
+        RidgeTuning::new(&[5.0, 20.0, 80.0], 3).unwrap(),
+    ));
+    let via_lasso = run(&lasso_fallback, &separated, 2).unwrap();
+    let report = via_lasso.penalized.as_ref().unwrap();
+    assert!(report.fallback.as_ref().unwrap().destination.starts_with("lasso.cv("));
+    assert_eq!(report.selected_support.len(), 5);
+}
+
+/// With a fallback that ran, the bootstrap replicates run the destination (the claim is the
+/// destination's) and a failed GLM fit is never retried inside them.
+#[test]
+fn the_bootstrap_of_a_fallback_result_runs_the_destination() {
+    let tuning = RidgeTuning::new(&[5.0, 50.0], 3).unwrap();
+    let est = with_bootstrap(glm_with_fallback(NuisanceFallback::RidgeLogistic(tuning)), 12);
+    let separated = draw(240, 3, 8, Regime::Separated);
+    let estimate = run(&est, &separated, 2).unwrap();
+    let report = estimate.penalized.as_ref().unwrap();
+    assert!(report.fallback.is_some());
+    let variance = report.variance.as_ref().expect("the destination's refit bootstrap");
+    assert_eq!(variance.replicates_ok + variance.replicates_failed, 12);
+    assert!(variance.replicates_ok >= 2);
+    assert!(
+        variance
+            .replicate_penalties
+            .iter()
+            .all(|r| r.lambdas.iter().all(|l| [5.0, 50.0].contains(l)))
+    );
+    assert!(estimate.se_bootstrap.is_some());
+}
+
 /// The score table is an artifact: its wire form round-trips, and its provenance carries the
 /// canonical penalty configuration and the penalties selected per fold, so a different grid
 /// never shares a score-reuse identity.
@@ -620,9 +976,37 @@ fn a_penalized_score_table_round_trips_with_its_penalty_identity() {
     let chosen: Vec<String> =
         selected_lambdas(&a).iter().map(|l| format!("{:016x}", l.to_bits())).collect();
     assert!(wire.nuisance_provenance.contains(&format!("selected_lambda={}", chosen.join(","))));
-    assert!(provenance_withholds_interval(&wire.nuisance_provenance));
+    assert!(provenance_marks_penalized(&wire.nuisance_provenance));
+    assert!(!provenance_withholds_interval(&wire.nuisance_provenance));
     assert_ne!(t.nuisance_provenance, table(&b).nuisance_provenance);
     // The unpenalized table carries no marker.
     let glm = run(&plain(), &raw, 8).unwrap();
-    assert!(!provenance_withholds_interval(&table(&glm).nuisance_provenance));
+    assert!(!provenance_marks_penalized(&table(&glm).nuisance_provenance));
+    // A lasso table with its selected support round-trips too.
+    let l = run(&lasso(&[2.0, 10.0], 3), &raw, 8).unwrap();
+    let lasso_wire = table(&l).to_wire();
+    assert_eq!(&ScoreTable::from_wire(lasso_wire.clone()).unwrap(), table(&l));
+    assert!(lasso_wire.nuisance_provenance.contains(";selected_support=0:"));
+}
+
+/// Repeated sampling on known truth (a test with fixed seeds, not a coverage record): over 100
+/// simulated data sets with both nuisances correctly specified, the 95% interval from the
+/// cross-fitted influence-function SE of the ridge and of the lasso route covers the effect 2.
+/// The bound is the nominal 0.95 minus about three Monte Carlo standard errors (0.022) and a
+/// finite-sample allowance; the measured coverage lives in the calibration suite.
+#[test]
+fn the_influence_interval_covers_the_known_effect_in_repeated_sampling() {
+    for (name, est) in [("ridge", ridge(&[0.5, 50.0], 3)), ("lasso", lasso(&[2.0, 20.0], 3))] {
+        let mut covered = 0u32;
+        let reps = 100u32;
+        for r in 0..reps {
+            let raw = draw(200, 3, 900 + u64::from(r), Regime::Moderate);
+            let estimate = run(&est, &raw, u64::from(r)).unwrap();
+            if (estimate.ate - 2.0).abs() <= 1.96 * estimate.se_analytic {
+                covered += 1;
+            }
+        }
+        let coverage = f64::from(covered) / f64::from(reps);
+        assert!((0.87..=0.995).contains(&coverage), "{name}: coverage {coverage}");
+    }
 }

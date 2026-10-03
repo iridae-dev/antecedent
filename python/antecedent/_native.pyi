@@ -669,6 +669,11 @@ class EstimateSection:
     treatment_oof_logloss: float | None
     crossfit_folds: int | None
     crossfit_seed: int | None
+    penalized_fallback: tuple[str, int, str, str, str] | None
+    penalized_support: list[tuple[int, list[str]]]
+    penalized_bootstrap: (
+        tuple[str, float | None, int, int, int, bool, list[tuple[int, list[float]]], float] | None
+    )
 
 class ProbabilityIntervalSection:
     """Bounded interval for one interventional probability, or why none exists."""

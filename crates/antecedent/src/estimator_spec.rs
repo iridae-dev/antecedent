@@ -128,6 +128,17 @@ impl EstimatorSpec {
             _ => None,
         }
     }
+
+    /// The suffix a declared non-default AIPW propensity nuisance (a ridge or lasso penalty,
+    /// or a GLM-to-penalized fallback) adds to the calibration key's functional label, so an
+    /// interval measured under one nuisance never binds to another; `None` otherwise.
+    #[must_use]
+    pub fn propensity_calibration_label(&self) -> Option<String> {
+        match self {
+            Self::Aipw(cfg) => cfg.propensity.calibration_label(),
+            _ => None,
+        }
+    }
 }
 
 impl From<EstimatorId> for EstimatorSpec {

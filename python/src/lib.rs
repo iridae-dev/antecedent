@@ -1397,7 +1397,25 @@ pub(crate) struct EstimateSection {
     crossfit_seed: Option<u64>,
     #[pyo3(get)]
     learner_provenance: Vec<(String, String, String)>,
+    /// A declared GLM-to-penalized fallback that ran: `(stage, fold, reason, message,
+    /// destination)` of the failed GLM propensity fit and the canonical key of the fallback
+    /// route that produced the result. `None` when no fallback ran.
+    #[pyo3(get)]
+    penalized_fallback: Option<(String, usize, String, String, String)>,
+    /// Covariates a lasso propensity kept on each cross-fit fold: `(fold, names)`. Empty for
+    /// ridge and for the unpenalized propensity.
+    #[pyo3(get)]
+    penalized_support: Vec<(usize, Vec<String>)>,
+    /// The refit bootstrap of a penalized propensity: `(uncertainty_kind, se, requested, ok,
+    /// failed, cancelled, penalties, influence_se)`, `penalties` holding `(replicate,
+    /// per-fold selected penalties)` of each successful replicate. `None` without one.
+    #[pyo3(get)]
+    penalized_bootstrap: Option<PenalizedBootstrapRecord>,
 }
+
+/// `(uncertainty_kind, se, requested, ok, failed, cancelled, penalties, influence_se)`.
+type PenalizedBootstrapRecord =
+    (String, Option<f64>, u32, u32, u32, bool, Vec<(u32, Vec<f64>)>, f64);
 
 /// Bounded interval for one interventional probability, or the reason none
 /// could be formed.
@@ -1704,6 +1722,39 @@ pub(crate) fn shared_study_sections(
             .iter()
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
+        penalized_fallback: estimate.penalized.as_ref().and_then(|report| {
+            report.fallback.as_ref().map(|f| {
+                (
+                    f.failed_fit.stage.to_string(),
+                    f.failed_fit.fold,
+                    f.failed_fit.reason.to_string(),
+                    f.failed_fit.message.clone(),
+                    f.destination.clone(),
+                )
+            })
+        }),
+        penalized_support: estimate.penalized.as_ref().map_or_else(Vec::new, |report| {
+            report.selected_support.iter().map(|s| (s.fold, s.names.clone())).collect()
+        }),
+        penalized_bootstrap: estimate
+            .penalized
+            .as_ref()
+            .and_then(|report| report.variance.as_ref())
+            .map(|v| {
+                (
+                    v.uncertainty_kind.to_string(),
+                    v.refit_bootstrap_se,
+                    v.replicates_requested,
+                    v.replicates_ok,
+                    v.replicates_failed,
+                    v.cancelled,
+                    v.replicate_penalties
+                        .iter()
+                        .map(|r| (r.replicate, r.lambdas.clone()))
+                        .collect(),
+                    v.influence_se,
+                )
+            }),
     };
     let (
         posterior_effect_mean,

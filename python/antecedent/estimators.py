@@ -64,7 +64,7 @@ SeKind = Literal[
 ]
 FitKind = Literal["ols", "ridge", "lasso", "huber"]
 PropensityPenaltyKind = Literal["ridge_logistic", "lasso"]
-NuisanceFallbackName = Literal["none", "ml"]
+NuisanceFallbackName = Literal["none", "ml", "ridge_logistic", "lasso"]
 IndependenceUnitName = Literal["cluster", "dyad"]
 GlmFamilyName = Literal[
     "binomial_logit",
@@ -227,21 +227,27 @@ class PropensityPenalty:
     """Explicit penalized binary propensity for :class:`Aipw` (``propensity_penalty=``).
 
     ``kind="ridge_logistic"`` fits a ridge-penalized logistic propensity on each cross-fit
-    fold's *training rows only*. The penalty is the member of ``lambdas`` (a fixed grid,
-    default ``(0.01, 0.1, 1, 10, 100, 1000)``) with the smallest ``inner_folds``-fold
-    cross-validated log loss on those training rows (default 5 folds, seeded by the
-    analysis seed and replayable); the evaluation rows never inform it. Penalties are on a
-    sum-scale log likelihood with each non-intercept covariate standardized by the training
-    rows. This is a declared nuisance choice, distinct from
-    ``GlmOptions.ridge_on_separation`` (a rescue that estimation paths refuse to keep).
+    fold's *training rows only*; ``kind="lasso"`` fits an L1-penalized one and also selects
+    its support (the covariates with a nonzero coefficient) on those training rows. The
+    penalty is the member of ``lambdas`` (a fixed grid; default ``(0.01, 0.1, 1, 10, 100,
+    1000)`` for ridge and ``(0.5, 1, 2, 5, 10, 20, 50, 100)`` for lasso) with the smallest
+    ``inner_folds``-fold cross-validated log loss on those training rows (default 5 folds,
+    seeded by the analysis seed and replayable); the evaluation rows never inform the
+    penalty or the support. Penalties are on a sum-scale log likelihood with each
+    non-intercept covariate standardized by the training rows. This is a declared nuisance
+    choice, distinct from ``GlmOptions.ridge_on_separation`` (a rescue that estimation paths
+    refuse to keep).
 
-    The route publishes the cross-fitted **point estimate and score table** (row identity,
-    overlap report and retargeting preserved) and **no interval**: no analytic or bootstrap
-    interval is licensed, so ``Aipw(bootstrap=0, propensity_penalty=...)`` is required.
-    Outcome models stay arm-wise OLS.
-
-    ``kind="lasso"`` is declarable but closed: variable selection changes the inference
-    contract, so execution is refused with ``selection_inference_not_licensed``.
+    The route publishes the cross-fitted point estimate, the score table (row identity,
+    overlap report and retargeting preserved, retarget covariance as for the unpenalized
+    route), the cross-fitted influence-function SE of the out-of-fold scores, and, with
+    ``bootstrap > 0``, a bootstrap SE whose every replicate repeats the fold plan, the
+    penalty (and lasso support) selection and all nuisance fits on the resample. A lasso
+    records the selected support of each fold on the estimate (``penalized_support``). Both
+    intervals rest on a stated remainder condition (``docs/guides/penalized-aipw.md``);
+    their coverage is what the calibration suite measures. Outcome models stay arm-wise OLS.
+    A lasso outside the cross-fitted untrimmed ``AllObserved`` mean ATE is refused with
+    ``selection_inference_not_licensed``.
     """
 
     kind: PropensityPenaltyKind = "ridge_logistic"
@@ -252,10 +258,6 @@ class PropensityPenalty:
         if self.kind not in ("ridge_logistic", "lasso"):
             raise CausalValueError(
                 f"PropensityPenalty.kind must be 'ridge_logistic' or 'lasso', got {self.kind!r}"
-            )
-        if self.kind == "lasso" and (self.lambdas is not None or self.inner_folds is not None):
-            raise CausalValueError(
-                "PropensityPenalty(kind='lasso') takes no lambdas or inner_folds"
             )
         if self.lambdas is not None:
             values = list(self.lambdas)
@@ -705,12 +707,17 @@ class Aipw:
     propensity or outcome model. The default inference is the bootstrap, which
     refits the nuisance models on every resample.
 
-    ``propensity_penalty`` declares a ridge-logistic propensity chosen on each fold's
-    training rows (:class:`PropensityPenalty`); it requires ``bootstrap=0`` and publishes
-    the cross-fitted point estimate and score table with no interval.
-    ``nuisance_fallback="ml"`` declares a fallback from a failed GLM nuisance fit to a
-    flexible learner; it is closed (``nuisance_fallback_not_licensed``): a failed fit is
-    refused with the failure recorded and nothing is silently substituted.
+    ``propensity_penalty`` declares a ridge- or lasso-logistic propensity chosen on each
+    fold's training rows (:class:`PropensityPenalty`); the cross-fitted influence-function
+    SE is published, and ``bootstrap > 0`` publishes a bootstrap SE that repeats penalty
+    selection and nuisance fitting on every resample.
+    ``nuisance_fallback`` declares the destination a failed GLM propensity fit falls back to:
+    ``"ridge_logistic"`` / ``"lasso"`` (default tuning) or a :class:`PropensityPenalty`
+    (its kind and tuning) re-run the whole cross-fitted route with that penalized propensity
+    and record the failed fit (``penalized_fallback``) beside the result; the claim is the
+    destination's and nothing is silently substituted. ``"ml"`` (a flexible learner) is
+    closed (``nuisance_fallback_not_licensed``): a failed fit is refused with the failure
+    recorded. A fallback is not combined with ``propensity_penalty``.
     ``cluster_dml`` declares whole-cluster cross-fitting (:class:`ClusterDml`); it requires
     ``bootstrap=0`` and publishes the point estimate and score table with no interval.
     """
@@ -724,7 +731,7 @@ class Aipw:
     glm_options: GlmOptions | None = None
     overlap: Overlap | None = None
     propensity_penalty: PropensityPenalty | None = None
-    nuisance_fallback: NuisanceFallbackName | None = None
+    nuisance_fallback: NuisanceFallbackName | PropensityPenalty | None = None
     cluster_dml: ClusterDml | None = None
 
     def __post_init__(self) -> None:
@@ -761,16 +768,17 @@ class Aipw:
                     "propensity_penalty must be a PropensityPenalty, "
                     f"got {self.propensity_penalty!r}"
                 )
-            if self.propensity_penalty.kind == "ridge_logistic" and (
-                self.bootstrap != 0 or self.se not in (None, "homoskedastic")
-            ):
+            if self.nuisance_fallback not in (None, "none"):
                 raise CausalValueError(
-                    "Aipw(propensity_penalty=...) publishes no interval: pass bootstrap=0 and "
-                    "leave se unset (reason=penalized_interval_not_licensed)"
+                    "Aipw(nuisance_fallback=...) replaces a failed GLM propensity fit and is not "
+                    "combined with propensity_penalty (reason=invalid_argument)"
                 )
-        if self.nuisance_fallback not in (None, "none", "ml"):
+        if isinstance(self.nuisance_fallback, PropensityPenalty):
+            pass
+        elif self.nuisance_fallback not in (None, "none", "ml", "ridge_logistic", "lasso"):
             raise CausalValueError(
-                f"nuisance_fallback must be 'none' or 'ml', got {self.nuisance_fallback!r}"
+                "nuisance_fallback must be 'none', 'ml', 'ridge_logistic', 'lasso' or a "
+                f"PropensityPenalty, got {self.nuisance_fallback!r}"
             )
 
     @property
@@ -790,7 +798,9 @@ class Aipw:
         out.update(_wire_overlap(self.overlap))
         if self.propensity_penalty is not None:
             out["propensity_penalty"] = self.propensity_penalty._wire()
-        if self.nuisance_fallback is not None:
+        if isinstance(self.nuisance_fallback, PropensityPenalty):
+            out["nuisance_fallback"] = self.nuisance_fallback._wire()
+        elif self.nuisance_fallback is not None:
             out["nuisance_fallback"] = self.nuisance_fallback
         if self.cluster_dml is not None:
             out["cluster_dml"] = self.cluster_dml._wire()

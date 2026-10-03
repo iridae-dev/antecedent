@@ -135,9 +135,12 @@ only the surviving members. `complete_family()` raises `cell_not_licensed`
 (`batch_retarget.partial_family`) naming the failed members: surviving members are never a
 complete-family claim.
 
-A penalized-propensity score table (`Aipw(propensity_penalty=...)`) retargets to a point only:
-its members are `point_only`, the family carries no covariance, and its contrasts have values
-and no standard error (`batch_retarget.point_only_member` for a complete-family request).
+A penalized-propensity score table (`Aipw(propensity_penalty=...)`) retargets like an
+unpenalized one: its members are `ok`, the family carries the plug-in score covariance and its
+contrasts have standard errors. Only a table whose interval is not licensed (a learner-supplied
+or factorized joint-cell table) retargets to a point: its members are `point_only`, the family
+carries no covariance, and a complete-family request refuses
+(`batch_retarget.point_only_member`).
 
 ### Tidy export
 

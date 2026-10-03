@@ -94,6 +94,14 @@ pub(crate) fn provenance_marks_learned(provenance: &str) -> bool {
     provenance.contains(LEARNED_PROVENANCE_TAG)
 }
 
+/// Whether a score table's provenance marks a factorized joint-cell fit (ridge or learner
+/// conditionals): a point-and-score artifact whose interval is never published from the
+/// table, whatever propensity penalty its conditionals carry.
+#[must_use]
+pub(crate) fn provenance_marks_joint_cells(provenance: &str) -> bool {
+    provenance.starts_with("joint_cell.factorized.crossfit.")
+}
+
 /// Declared tuning of one factorized joint-cell fit.
 #[derive(Clone, Debug)]
 pub struct FactorizedJointConfig {
@@ -192,7 +200,13 @@ pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, Es
         "ridge_logistic" => Ok(None),
         "random_forest" => Ok(Some(LearnerSpec::RandomForest(ForestSpec::default()))),
         "gradient_boosted_trees" => Ok(Some(LearnerSpec::GradientBoostedTrees(GbtSpec::default()))),
-        "lasso" => PropensityNuisance::lasso().validate_for_execution().map(|()| None),
+        "lasso" => Err(refuse(
+            antecedent_core::reason_code!("selection_inference_not_licensed"),
+            "penalized_propensity.selection_closed",
+            "a lasso conditional propensity is not a declared joint-cell nuisance: the \
+             prefix-stratum selections are not cross-fitted per cell, so the option is closed; \
+             declare ridge_logistic, random_forest or gradient_boosted_trees",
+        )),
         "ml" | "gradient_boosting" | "neural_network" | "forest" | "boosting" => Err(refuse(
             antecedent_core::reason_code!("ml_nuisance_not_licensed"),
             "joint_cells.ml_learner_not_declared",

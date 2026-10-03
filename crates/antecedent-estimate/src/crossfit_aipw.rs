@@ -29,8 +29,9 @@ use antecedent_stats::{
 use crate::aipw::{AipwWorkspace, fit_outcome_models, predict_colmajor, select_rows_colmajor};
 use crate::error::EstimationError;
 use crate::propensity::{
-    PreparedPropensityProblem, PropensityPenalty, RidgeFoldInput, RidgeFoldSelection, clamp_scores,
-    clip_of, fit_ridge_fold, gather, require_interior_propensities, split_by_treatment,
+    FailedFit, FallbackRecord, PreparedPropensityProblem, RidgeFoldInput, RidgeFoldSelection,
+    clamp_scores, clip_of, fallback_provenance, fit_penalized_fold, gather,
+    require_interior_propensities, split_by_treatment,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::util::stats_err;
@@ -88,13 +89,28 @@ pub fn build_binary_scores(
         .map(|(table, _)| table)
 }
 
+/// What the nuisance stage of a score-table build recorded beside the table.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct NuisanceFit {
+    /// Penalty (and, for a lasso, support) selected on each fold's training rows.
+    pub(crate) selections: Vec<RidgeFoldSelection>,
+    /// The declared GLM fallback, when the GLM propensity fit failed and it ran.
+    pub(crate) fallback: Option<FallbackRecord>,
+}
+
 /// The score-table builder behind every public entry point.
 ///
-/// With a ridge-penalized propensity declared on `problem`, each fold's penalty is chosen on
-/// that fold's training rows (see [`crate::propensity::PropensityNuisance`]) and returned
-/// beside the table; the fit is never served from or stored in a shared nuisance cache. `ctx`
-/// carries cancellation and parallelism into penalty selection (`None`: a serial context
-/// seeded from the problem's fold seed).
+/// With a ridge- or lasso-penalized propensity declared on `problem`, each fold's penalty (and
+/// support) is chosen on that fold's training rows (see
+/// [`crate::propensity::PropensityNuisance`]) and returned beside the table; the fit is never
+/// served from or stored in a shared nuisance cache. `ctx` carries cancellation and
+/// parallelism into penalty selection (`None`: a serial context seeded from the problem's fold
+/// seed).
+///
+/// With a GLM-to-penalized fallback declared, a GLM propensity fit that fails on any fold
+/// discards the partial table and rebuilds the *whole* table with the declared destination
+/// (no fold mixes the two nuisances); the failed fit and the destination are returned and the
+/// table's provenance names both. Any other failure is returned unchanged.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_binary_scores_in(
     problem: &PreparedPropensityProblem,
@@ -105,16 +121,68 @@ pub(crate) fn build_binary_scores_in(
     backend: FaerBackend,
     share: bool,
     ctx: Option<&ExecutionContext>,
+) -> Result<(ScoreTable, NuisanceFit), EstimationError> {
+    let mut failed: Option<FailedFit> = None;
+    let first = build_scores_pass(
+        problem,
+        treatment,
+        thresholds,
+        folds,
+        glm_options,
+        backend,
+        share,
+        ctx,
+        &mut failed,
+    );
+    let error = match first {
+        Ok((table, selections)) => return Ok((table, NuisanceFit { selections, fallback: None })),
+        Err(error) => error,
+    };
+    let Some(failed_fit) = failed else {
+        return Err(error);
+    };
+    let destination = problem.propensity.resolve_failed_fit(error)?;
+    let mut rerun = problem.clone();
+    rerun.propensity = destination;
+    let (mut table, selections) = build_scores_pass(
+        &rerun,
+        treatment,
+        thresholds,
+        folds,
+        glm_options,
+        backend,
+        share,
+        ctx,
+        &mut None,
+    )?;
+    table.nuisance_provenance = Arc::from(format!(
+        "{}{}",
+        table.nuisance_provenance,
+        fallback_provenance(&problem.propensity, &failed_fit)
+    ));
+    let record = FallbackRecord { failed_fit, destination: rerun.propensity.canonical_key() };
+    Ok((table, NuisanceFit { selections, fallback: Some(record) }))
+}
+
+/// One pass of the score-table builder; `failed` records the GLM propensity fit that failed.
+#[allow(clippy::too_many_arguments)]
+fn build_scores_pass(
+    problem: &PreparedPropensityProblem,
+    treatment: VariableId,
+    thresholds: &[Option<f64>],
+    folds: usize,
+    glm_options: &GlmOptions,
+    backend: FaerBackend,
+    share: bool,
+    ctx: Option<&ExecutionContext>,
+    failed: &mut Option<FailedFit>,
 ) -> Result<(ScoreTable, Vec<RidgeFoldSelection>), EstimationError> {
     problem.propensity.validate_for_execution()?;
-    let ridge = match problem.propensity.penalty() {
-        PropensityPenalty::RidgeLogistic(tuning) => Some(tuning),
-        PropensityPenalty::None | PropensityPenalty::Lasso => None,
-    };
-    let share = share && ridge.is_none();
-    let local_ctx = (ridge.is_some() && ctx.is_none())
+    let penalized = problem.propensity.fold_penalty();
+    let share = share && penalized.is_none();
+    let local_ctx = (penalized.is_some() && ctx.is_none())
         .then(|| ExecutionContext::production(problem.fold_seed, 1));
-    let ridge = ridge.zip(ctx.or(local_ctx.as_ref()));
+    let penalized = penalized.zip(ctx.or(local_ctx.as_ref()));
     if folds < 2 {
         return Err(EstimationError::unsupported("AIPW cross-fitting requires at least two folds"));
     }
@@ -234,9 +302,10 @@ pub(crate) fn build_binary_scores_in(
         select_rows_colmajor(&problem.design_matrix, n, ncols, &valid, &mut design_valid);
         let mut e_valid = if let Some(shared) = shared_e.as_deref() {
             gather(shared, &valid)
-        } else if let Some((tuning, ridge_ctx)) = ridge {
+        } else if let Some(((fold_penalty, tuning), ridge_ctx)) = penalized {
             let units: Vec<u32> = train.iter().map(|&i| problem.row_index[i]).collect();
-            let (predicted, selection) = fit_ridge_fold(
+            let (predicted, selection) = fit_penalized_fold(
+                fold_penalty,
                 tuning,
                 &RidgeFoldInput {
                     design_train: &design_train,
@@ -268,7 +337,7 @@ pub(crate) fn build_binary_scores_in(
                 fit.glm.require_ok().map_err(stats_err)?;
                 Ok(fit)
             })
-            .map_err(|error| problem.propensity.record_failed_fit(error))?;
+            .inspect_err(|error| *failed = Some(FailedFit::from_error(fold, error)))?;
             let mut e_valid = vec![0.0; valid.len()];
             predict_propensity(&design_valid, valid.len(), ncols, &fit.coefficients, &mut e_valid)
                 .map_err(stats_err)?;
@@ -357,7 +426,7 @@ pub(crate) fn build_binary_scores_in(
         } else {
             AIPW_CROSSFIT_PROVENANCE
         },
-        problem.propensity.provenance_suffix(&selections)
+        problem.propensity.provenance_suffix_with(&selections, &problem.adjustment_set)
     );
     // Whole-cluster folds change the dependence structure the scores support, so the table
     // names them (and `provenance_withholds_interval` keeps its iid summaries unpublished).

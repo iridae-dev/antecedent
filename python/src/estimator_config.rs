@@ -615,23 +615,96 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     Ok(Some(opts))
 }
 
+/// Kind and tuning of one declared penalty sub-dict (`propensity_penalty`, or a
+/// `nuisance_fallback` given as a dict): `{"kind": "ridge_logistic" | "lasso", "lambdas":
+/// [float], "inner_folds": int}`. Absent `lambdas` / `inner_folds` take the kind's defaults.
+fn penalty_declaration(
+    sub: &Bound<'_, PyDict>,
+    field: &str,
+) -> PyResult<(String, antecedent_estimate::RidgeTuning)> {
+    use antecedent_estimate::RidgeTuning;
+    for (key_obj, _val) in sub.iter() {
+        let key: String = key_obj
+            .extract()
+            .map_err(|_| invalid(format!("estimator_config['{field}'] keys must be str")))?;
+        if !PROPENSITY_PENALTY_KEYS.contains(&key.as_str()) {
+            return Err(invalid(format!(
+                "unknown estimator_config['{field}'] key {key:?}; valid keys are: {}",
+                PROPENSITY_PENALTY_KEYS.join(", "),
+            )));
+        }
+    }
+    let kind = get_string(sub, "kind")?.unwrap_or_else(|| "ridge_logistic".to_string());
+    let defaults = match kind.as_str() {
+        "ridge_logistic" => RidgeTuning::default(),
+        "lasso" => RidgeTuning::default_lasso(),
+        other => {
+            return Err(invalid(format!(
+                "estimator_config['{field}']['kind'] {other:?} is not recognized; use \
+                 ridge_logistic|lasso"
+            )));
+        }
+    };
+    let lambdas = match sub.get_item("lambdas")? {
+        Some(raw) => raw.extract::<Vec<f64>>().map_err(|_| {
+            invalid(format!("estimator_config['{field}']['lambdas'] must be a list of floats"))
+        })?,
+        None => defaults.lambdas().to_vec(),
+    };
+    let inner_folds =
+        get_u32(sub, "inner_folds")?.map_or(defaults.inner_folds(), |folds| folds as usize);
+    let tuning = RidgeTuning::new(&lambdas, inner_folds).map_err(|error| {
+        let message = error.to_string();
+        let tail = antecedent_core::reason_code::split_prefix(&message)
+            .map_or(message.as_str(), |(_, tail)| tail);
+        invalid(tail.to_string())
+    })?;
+    Ok((kind, tuning))
+}
+
 /// Build the declared binary-propensity nuisance of `aipw` from `propensity_penalty`
 /// (`{"kind": "ridge_logistic" | "lasso", "lambdas": [float], "inner_folds": int}`) and
-/// `nuisance_fallback` (`"none"` | `"ml"`). Absent keys keep the unpenalized, no-fallback default.
+/// `nuisance_fallback` (`"none"` | `"ml"` | `"ridge_logistic"` | `"lasso"`, or a penalty dict as
+/// for `propensity_penalty`, declaring the destination and its tuning). Absent keys keep the
+/// unpenalized, no-fallback default.
 ///
-/// `lasso` and an `ml` fallback are accepted here and refused with their registered reason
-/// codes when the analysis runs: they are declarable but closed.
+/// An `ml` fallback is accepted here and refused with its registered reason code when the GLM
+/// fit fails (a flexible destination has no cross-fitted license); a penalized fallback beside a
+/// penalized primary is refused by the estimator as an incoherent declaration.
 fn build_propensity_nuisance(
     dict: &Bound<'_, PyDict>,
 ) -> PyResult<Option<antecedent_estimate::PropensityNuisance>> {
     use antecedent_estimate::{NuisanceFallback, PropensityNuisance, RidgeTuning};
-    let fallback = match get_string(dict, "nuisance_fallback")?.as_deref() {
-        None | Some("none") => NuisanceFallback::None,
-        Some("ml") => NuisanceFallback::Ml,
-        Some(other) => {
-            return Err(invalid(format!(
-                "estimator_config['nuisance_fallback'] {other:?} is not recognized; use none|ml"
-            )));
+    let from_kind = |kind: &str, tuning: RidgeTuning| match kind {
+        "ridge_logistic" => NuisanceFallback::RidgeLogistic(tuning),
+        _ => NuisanceFallback::Lasso(tuning),
+    };
+    let fallback = match dict.get_item("nuisance_fallback")? {
+        None => NuisanceFallback::None,
+        Some(value) if value.is_none() => NuisanceFallback::None,
+        Some(value) => {
+            if let Ok(name) = value.extract::<String>() {
+                match name.as_str() {
+                    "none" => NuisanceFallback::None,
+                    "ml" => NuisanceFallback::Ml,
+                    "ridge_logistic" => from_kind("ridge_logistic", RidgeTuning::default()),
+                    "lasso" => from_kind("lasso", RidgeTuning::default_lasso()),
+                    other => {
+                        return Err(invalid(format!(
+                            "estimator_config['nuisance_fallback'] {other:?} is not recognized; \
+                             use none|ml|ridge_logistic|lasso or a penalty dict"
+                        )));
+                    }
+                }
+            } else if let Ok(sub) = value.cast::<PyDict>() {
+                let (kind, tuning) = penalty_declaration(sub, "nuisance_fallback")?;
+                from_kind(&kind, tuning)
+            } else {
+                return Err(invalid(format!(
+                    "estimator_config['nuisance_fallback'] must be a str or a dict, got {}",
+                    type_name(&value)
+                )));
+            }
         }
     };
     let Some(value) = dict.get_item("propensity_penalty")? else {
@@ -644,47 +717,10 @@ fn build_propensity_nuisance(
             type_name(&value)
         ))
     })?;
-    for (key_obj, _val) in sub.iter() {
-        let key: String = key_obj.extract().map_err(|_| {
-            invalid("estimator_config['propensity_penalty'] keys must be str".to_string())
-        })?;
-        if !PROPENSITY_PENALTY_KEYS.contains(&key.as_str()) {
-            return Err(invalid(format!(
-                "unknown estimator_config['propensity_penalty'] key {key:?}; valid keys are: {}",
-                PROPENSITY_PENALTY_KEYS.join(", "),
-            )));
-        }
-    }
-    let kind = get_string(sub, "kind")?.unwrap_or_else(|| "ridge_logistic".to_string());
+    let (kind, tuning) = penalty_declaration(sub, "propensity_penalty")?;
     let nuisance = match kind.as_str() {
-        "ridge_logistic" => {
-            let lambdas = match sub.get_item("lambdas")? {
-                Some(raw) => raw.extract::<Vec<f64>>().map_err(|_| {
-                    invalid(
-                        "estimator_config['propensity_penalty']['lambdas'] must be a list of \
-                         floats"
-                            .to_string(),
-                    )
-                })?,
-                None => antecedent_estimate::DEFAULT_RIDGE_GRID.to_vec(),
-            };
-            let inner_folds = get_u32(sub, "inner_folds")?
-                .map_or(antecedent_estimate::DEFAULT_RIDGE_INNER_FOLDS, |folds| folds as usize);
-            let tuning = RidgeTuning::new(&lambdas, inner_folds).map_err(|error| {
-                let message = error.to_string();
-                let tail = antecedent_core::reason_code::split_prefix(&message)
-                    .map_or(message.as_str(), |(_, tail)| tail);
-                invalid(tail.to_string())
-            })?;
-            PropensityNuisance::ridge_logistic(tuning)
-        }
-        "lasso" => PropensityNuisance::lasso(),
-        other => {
-            return Err(invalid(format!(
-                "estimator_config['propensity_penalty']['kind'] {other:?} is not recognized; \
-                 use ridge_logistic|lasso"
-            )));
-        }
+        "ridge_logistic" => PropensityNuisance::ridge_logistic(tuning),
+        _ => PropensityNuisance::lasso_with(tuning),
     };
     Ok(Some(nuisance.with_fallback(fallback)))
 }

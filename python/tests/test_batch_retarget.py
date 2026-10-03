@@ -285,7 +285,7 @@ def test_a_retarget_after_estimate_reads_that_estimates_rows():
     assert stale.claims[0].refusal_code == "invalid_argument"
 
 
-def test_a_penalized_family_retargets_to_points_with_no_covariance():
+def test_a_penalized_family_retargets_with_its_plug_in_score_covariance():
     data = frame()
     cfg = Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(lambdas=[0.5, 5.0, 50.0]))
     batch = prepare(data, estimator=cfg)
@@ -297,16 +297,18 @@ def test_a_penalized_family_retargets_to_points_with_no_covariance():
         ],
         [RetargetContrast("d", {"a": 1.0, "b": -1.0})],
     )
-    assert report.covariance is None and report.covariance_names == ()
-    assert report.point_only_members == ("a", "b")
-    assert all(m.status == "point_only" and m.std_error is None for m in report.claims)
+    # A penalized table retargets exactly like an unpenalized one: covariance, standard
+    # errors, contrast standard error and a complete family.
+    assert report.covariance is not None and report.covariance_names == ("a", "b")
+    assert report.point_only_members == ()
+    assert all(m.status == "ok" and m.std_error is not None for m in report.claims)
     assert all(math.isfinite(m.value) for m in report.claims)
-    assert report.contrasts[0].std_error is None
-    with pytest.raises(CausalUnsupportedError) as error:
-        report.complete_family()
-    assert error.value.reason_code == "cell_not_licensed"
-    with pytest.raises(CausalValueError):
-        report.covariance_between("a", "b")
+    assert report.contrasts[0].std_error is not None
+    assert report.complete_family() is report
+    cov = report.covariance
+    variance = cov[0][0] + cov[1][1] - 2 * cov[0][1]
+    assert report.contrasts[0].std_error == pytest.approx(math.sqrt(variance))
+    assert report.covariance_between("a", "b") == cov[0][1]
 
 
 def test_a_plan_without_scores_refuses_its_members_after_an_estimate():

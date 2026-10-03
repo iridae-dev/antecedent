@@ -616,7 +616,7 @@ fn a_plan_without_scores_refuses_instead_of_losing_the_retarget_silently() {
 }
 
 #[test]
-fn a_penalized_family_retargets_to_points_with_no_covariance() {
+fn a_penalized_family_retargets_with_its_plug_in_score_covariance() {
     let fx = fixture(500, 70);
     let ctx = ExecutionContext::for_tests(70);
     let prepared = BatchStudy::new(fx.data.clone(), fx.graph.clone())
@@ -637,20 +637,22 @@ fn a_penalized_family_retargets_to_points_with_no_covariance() {
         },
     )
     .unwrap();
-    assert!(report.covariance.is_none());
+    // The penalized table retargets exactly like an unpenalized one: points, the plug-in
+    // score covariance, contrast standard errors and a complete family.
+    assert!(report.covariance.is_some());
     let a = report.claims[0].outcome.as_ref().unwrap();
     let (theta, _) = oracle(scores.table(0).unwrap(), &w);
     close(a.value, theta, "penalized point");
-    assert!(a.std_error.is_none());
-    assert_eq!(a.uncertainty_kind.as_str(), "none");
+    assert!(a.std_error.is_some_and(|se| se.is_finite() && se > 0.0));
+    assert_eq!(a.uncertainty_kind.as_str(), "plug_in_score_covariance");
     assert!(a.nuisance_provenance.contains("ridge_logistic"));
     let diff = report.contrasts[0].outcome.as_ref().unwrap();
-    assert!(diff.std_error.is_none());
-    assert_eq!(report.point_only_members(), ["a", "b"]);
-    assert_eq!(report.complete_family().unwrap_err().detail, "batch_retarget.point_only_member");
+    assert!(diff.std_error.is_some_and(|se| se.is_finite() && se > 0.0));
+    assert!(report.point_only_members().is_empty());
+    assert!(report.complete_family().is_ok());
     let rows = report.tidy_rows();
-    assert!(rows.iter().all(|r| r.status == "point_only" && r.std_error.is_none()));
-    assert!(rows.iter().all(|r| !r.family_complete));
+    assert!(rows.iter().all(|r| r.status == "ok" && r.std_error.is_some()));
+    assert!(rows.iter().all(|r| r.family_complete));
 }
 
 #[test]

@@ -287,6 +287,11 @@ pub struct EffectEstimate {
     /// variance; `cate ± 1.96·cate_leaf_dispersion` is not a confidence interval.
     /// Read it as "how noisy the typical honest leaf around this row is".
     pub cate_leaf_dispersion: Option<Arc<[f64]>>,
+    /// What a penalized propensity (ridge or lasso) or a GLM-to-penalized fallback recorded
+    /// beside the point: the failed GLM fit and the fallback that replaced it, the support a
+    /// lasso kept on each fold, and the refit bootstrap's per-replicate penalties. `None` for
+    /// every other estimator and for an unpenalized AIPW that needed no fallback.
+    pub penalized: Option<Box<crate::propensity::PenalizedReport>>,
 }
 
 /// Circular-block geometry an estimator used for its one-series bootstrap SE.
@@ -373,6 +378,7 @@ impl EffectEstimate {
             fitted_effect: None,
             cate_se: None,
             cate_leaf_dispersion: None,
+            penalized: None,
         }
     }
 
@@ -442,6 +448,7 @@ impl EffectEstimate {
             fitted_effect: None,
             cate_se: None,
             cate_leaf_dispersion: None,
+            penalized: None,
         }
     }
 
