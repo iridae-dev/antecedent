@@ -54,6 +54,7 @@ nav:
       - Transport failures: guides/transport-failure.md
       - Transport theorem scope: guides/transport-scope.md
       - Penalized propensity for AIPW: guides/penalized-aipw.md
+      - Joint cells and derived treatments: guides/joint-cells.md
       - Clustered DML and entity-owned screens: guides/clustered-dml.md
       - Preflight diagnostics and cost: guides/preflight-diagnostics.md
       - Configured batches and batch retarget: guides/batch-retarget.md

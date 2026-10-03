@@ -3144,6 +3144,101 @@ status = "closed"
 reason_code = "dyadic_dependence_not_licensed"
 notes = "A dyadic unit declared through the Python dataclass is refused at execution."
 
+# 2.2 E5 factorized joint cells and derived treatments (parity/promotion_2_2.toml, 2.2E.E5.factorized_joint_cells). Point-only; intervals, covariance and machine-learning nuisances closed.
+
+[[routes]]
+route = "antecedent_estimate.fit_factorized_joint_cells"
+stage = "evaluate"
+status = "licensed"
+graph = "caller_certified_adjustment_set_no_graph_of_its_own"
+evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_derived_treatment_declaration"
+functional = "joint_cell_mean_outcome_do_cell"
+guarantee = "cross_fitted_point_only_per_cell_refusal"
+reference = "docs/guides/joint-cells.md"
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+evidence_test = "crates/antecedent-estimate/tests/joint_cell_factorized.rs"
+evidence_assertion = "factorized_propensities_and_means_match_the_enumerated_law"
+
+[[routes]]
+route = "antecedent_estimate.declared_joint_nuisance"
+stage = "evaluate"
+status = "closed"
+reason_code = "ml_nuisance_not_licensed"
+notes = "A machine-learning joint-cell nuisance has no cross-fitting and inference contract; lasso and unknown providers are refused too."
+
+[[routes]]
+route = "antecedent_estimate.refuse_joint_inference"
+stage = "uncertainty"
+status = "closed"
+reason_code = "penalized_interval_not_licensed"
+notes = "No interval or covariance over penalized factorized propensities."
+
+[[routes]]
+route = "antecedent.check_derived_treatment"
+stage = "prepare"
+status = "licensed"
+graph = "caller_certified_adjustment_set_no_graph_of_its_own"
+evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_derived_treatment_declaration"
+functional = "joint_cell_mean_outcome_do_cell"
+guarantee = "cross_fitted_point_only_per_cell_refusal"
+reference = "docs/guides/joint-cells.md"
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+evidence_test = "crates/antecedent/tests/derived_treatment.rs"
+evidence_assertion = "a_valid_declaration_reports_its_construction"
+
+[[routes]]
+route = "antecedent.estimate_derived_joint_cells"
+stage = "evaluate"
+status = "licensed"
+graph = "caller_certified_adjustment_set_no_graph_of_its_own"
+evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_derived_treatment_declaration"
+functional = "joint_cell_mean_outcome_do_cell"
+guarantee = "cross_fitted_point_only_per_cell_refusal"
+reference = "docs/guides/joint-cells.md"
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+evidence_test = "crates/antecedent/tests/derived_treatment.rs"
+evidence_assertion = "a_declared_joint_cell_is_estimated_on_a_known_law"
+
+[[routes]]
+route = "antecedent.derived.check_derived_treatment"
+stage = "prepare"
+status = "licensed"
+graph = "caller_certified_adjustment_set_no_graph_of_its_own"
+evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_derived_treatment_declaration"
+functional = "joint_cell_mean_outcome_do_cell"
+guarantee = "cross_fitted_point_only_per_cell_refusal"
+reference = "docs/guides/joint-cells.md"
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+evidence_test = "python/tests/test_derived_treatment.py"
+evidence_assertion = "test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_named"
+
+[[routes]]
+route = "antecedent.derived.factorized_joint_cells"
+stage = "evaluate"
+status = "licensed"
+graph = "caller_certified_adjustment_set_no_graph_of_its_own"
+evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_derived_treatment_declaration"
+functional = "joint_cell_mean_outcome_do_cell"
+guarantee = "cross_fitted_point_only_per_cell_refusal"
+reference = "docs/guides/joint-cells.md"
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+evidence_test = "python/tests/test_derived_treatment.py"
+evidence_assertion = "test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction"
+
+[[routes]]
+route = "antecedent.derived.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "penalized_interval_not_licensed"
+notes = "An interval request is refused at the Python surface."
+
+[[routes]]
+route = "antecedent.derived.ml_nuisance"
+stage = "evaluate"
+status = "closed"
+reason_code = "ml_nuisance_not_licensed"
+notes = "A machine-learning nuisance is refused at the Python surface."
+
 # ---- 2.2E.E3.batch_retarget_covariance_contrasts -------------------------------------------
 # Points, joint plug-in score covariance and named contrasts of retargeted claims over one
 # row snapshot (parity/promotion_2_2.toml). Point-only; the simultaneous interval is closed.

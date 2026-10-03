@@ -97,6 +97,7 @@ pub use adjustment::{
 };
 pub mod cluster_dml_aipw;
 pub mod estimator_menu;
+pub mod joint_cell_factorized;
 pub mod learned_continuous;
 pub mod learned_trial;
 pub mod longitudinal_regime;
@@ -217,6 +218,12 @@ pub use interference_saturation::{
 pub use iv::{
     CheckedIvLowering, CheckedIvPreparation, CheckedIvProcedure, PreparedIvProblem,
     TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv,
+};
+pub use joint_cell_factorized::{
+    CellEstimate, CellOrderingSpread, CellRefusal, CellStatus, FactorizedJointConfig,
+    FactorizedJointFit, JointCellReport, JointContrast, MAX_FACTORIZED_COMPONENTS, MAX_ORDERINGS,
+    NormalizationCheck, OrderingSensitivity, declared_joint_nuisance, fit_factorized_joint_cells,
+    orderings_for, refuse_joint_inference,
 };
 pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,

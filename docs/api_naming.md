@@ -91,7 +91,7 @@ Each of those seventeen modules has an explicit, separately frozen `__all__`
 surface. The 64-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**17** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**18** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -130,6 +130,10 @@ directly:
   package import does not scan or execute plugins.
 - ``antecedent.learners`` — typed nuisance learners shared by estimators and
   transport providers.
+- ``antecedent.derived`` — derived-treatment declarations (source roles, transformation,
+  legal values, causal-rule exclusions) and factorized-propensity AIPW over bounded
+  binary joint cells, point only (`check_derived_treatment`, `factorized_joint_cells`);
+  intervals, machine-learning nuisances and unsupported cells are typed refusals.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
   interference queries.
 - ``antecedent.intervention`` — typed intervention specifications for

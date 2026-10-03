@@ -4671,6 +4671,41 @@ def replay_study_plan(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
+def derived_treatment_check_json(
+    names: list[str],
+    columns: list[Any],
+    declaration: str,
+    outcome: str,
+    adjustment: list[str],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+def factorized_joint_cells_json(
+    names: list[str],
+    columns: list[Any],
+    declaration: str,
+    outcome: str,
+    adjustment: list[str],
+    *,
+    ordering: list[str] | None = None,
+    all_orderings: bool = True,
+    nuisance: str = "ridge_logistic",
+    penalties: list[float] | None = None,
+    inner_folds: int = 5,
+    folds: int = 5,
+    seed: int = 1,
+    clip: float = 0.01,
+    min_cell_ess: float = 10.0,
+    normalization_tolerance: float = 1e-9,
+    ordering_tolerance_sd: float = 0.05,
+    contrasts: list[str] | None = None,
+    interval: bool = False,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
 def candidate_screen_from_units(
     screen_id: str,
     procedure: str,

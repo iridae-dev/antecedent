@@ -116,6 +116,11 @@ pub use analysis::{
     ZTransportResult, ZTransportSensitivityArtifactWire, consume_z_transport_artifact,
 };
 pub use analysis::{
+    ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
+    ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,
+    check_derived_treatment, estimate_derived_joint_cells,
+};
+pub use analysis::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
     JointProvenanceWire, JointReceiptWire, JointSamplingWire, JointSensitivityArtifactWire,
     JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,

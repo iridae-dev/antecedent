@@ -121,6 +121,7 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "accepted_graph",
     "artifacts",
     "counterfactual",
+    "derived",
     "estimators",
     "handoff",
     "ids",

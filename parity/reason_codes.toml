@@ -336,6 +336,22 @@ id = "nuisance_fallback_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "A declared fallback from a failed GLM nuisance fit to a flexible learner has no support or uncertainty license on this route; the failed fit is reported and no fallback result is produced."
 
+# 2.2 E5 factorized joint cells and derived treatments (promotion record: 2.2E.E5.factorized_joint_cells).
+[[code]]
+id = "joint_cell_unsupported"
+applies_to = ["runtime_refusal"]
+meaning = "One discrete joint treatment cell cannot be evaluated (a conditional factor or outcome model is unsupported, or the cell's weights have too small an effective sample); the cell is refused individually with its reason and the rest of the family is kept."
+
+[[code]]
+id = "derived_treatment_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A derived-treatment declaration is inconsistent, a constituent column or forbidden descendant sits in the adjustment set without a declared causal exclusion rule, or an observed value is outside the declared legal values; nothing is dropped to repair it."
+
+[[code]]
+id = "ml_nuisance_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A flexible machine-learning nuisance provider was declared for a joint-cell route that has no cross-fitting and inference contract for it; the declaration is refused rather than silently replaced by the ridge-logistic factors."
+
 # 2.2 E4 clustered DML (promotion record: 2.2E.E4.clustered_dml_aipw).
 [[code]]
 id = "cluster_interval_not_licensed"

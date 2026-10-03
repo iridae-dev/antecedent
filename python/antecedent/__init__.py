@@ -26,11 +26,11 @@ not at the root. The eighteen root-exported stage modules are:
 ``antecedent.priors``, ``antecedent.quasi``, ``antecedent.regimes``,
 ``antecedent.state``, ``antecedent.survival``, and ``antecedent.validation``.
 
-Seventeen narrower modules are reachable but deliberately outside ``__all__``:
-``accepted_graph``, ``artifacts``, ``counterfactual``, ``estimators``, ``handoff``,
-``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
-``model``, ``observation``, ``population``, ``prediction``, ``query``,
-``results``, and ``transport``.
+Eighteen narrower modules are reachable but deliberately outside ``__all__``:
+``accepted_graph``, ``artifacts``, ``counterfactual``, ``derived``, ``estimators``,
+``handoff``, ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
+``model``, ``observation``, ``population``, ``prediction``, ``query``, ``results``, and
+``transport``.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -86,6 +86,7 @@ from . import (
 # ``__all__`` alongside its siblings rather than being added to it.
 # (``artifacts`` is also part of this family -- see the comment above.)
 from . import counterfactual as counterfactual
+from . import derived as derived
 from . import estimators as estimators
 from . import handoff as handoff
 from . import ids as ids

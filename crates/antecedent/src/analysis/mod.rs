@@ -27,6 +27,7 @@ mod checked_temporal_response;
 mod contract;
 mod contract_identity;
 mod cost;
+mod derived_treatment;
 mod exact;
 mod execute;
 mod joint_sensitivity;
@@ -69,6 +70,11 @@ pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
 };
 pub use cost::{BatchCostEstimate, CostEstimate, InferenceDefault};
+pub use derived_treatment::{
+    ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
+    ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,
+    check_derived_treatment, estimate_derived_joint_cells,
+};
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
