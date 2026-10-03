@@ -95,6 +95,12 @@ pub use analysis::{
     ScoreQuantile, fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
 pub use analysis::{
+    BATCH_RETARGET_SCOPE_NOTE, BatchRetargetError, BatchRetargetReport, BatchRetargetRequest,
+    BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport, FamilyCovariance,
+    FamilyRefusal, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource, TidyKind, TidyRow,
+    UncertaintyKind,
+};
+pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
     CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
     CheckedBayesianSpecialistInfo, CheckedGraphPosteriorResponseInfo, CheckedInterferenceInfo,

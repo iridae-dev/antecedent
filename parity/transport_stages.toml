@@ -3143,3 +3143,81 @@ stage = "evaluate"
 status = "closed"
 reason_code = "dyadic_dependence_not_licensed"
 notes = "A dyadic unit declared through the Python dataclass is refused at execution."
+
+# ---- 2.2E.E3.batch_retarget_covariance_contrasts -------------------------------------------
+# Points, joint plug-in score covariance and named contrasts of retargeted claims over one
+# row snapshot (parity/promotion_2_2.toml). Point-only; the simultaneous interval is closed.
+
+[[routes]]
+route = "antecedent.PreparedBatch.retarget"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "cross_fitted_score_tables_on_one_row_snapshot"
+functional = "retargeted_mean_contrasts_and_linear_contrasts"
+guarantee = "plug_in_score_covariance_point_only_no_interval"
+reference = "docs/guides/batch-retarget.md"
+limits = "AllObserved iid AIPW or cell-AIPW score tables on one complete-case row snapshot; fixed declared row weights that are functions of certified covariates; the mean functional only; plug-in covariance, no interval; a penalized propensity retargets to points with no covariance; a partial family is never a complete-family claim."
+evidence_test = "crates/antecedent/tests/batch_retarget.rs"
+evidence_assertion = "the_joint_score_covariance_matches_an_independent_calculation"
+
+[[routes]]
+route = "antecedent.PreparedBatch.estimate_scored"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "cross_fitted_score_tables_of_an_estimate"
+functional = "retargeted_mean_contrasts_and_linear_contrasts"
+guarantee = "plug_in_score_covariance_point_only_no_interval"
+reference = "docs/guides/batch-retarget.md"
+limits = "Returns the estimate's results with the score tables it produced so a retarget reweights that estimate's rows; a plan whose estimate keeps no table refuses its members instead of reusing prepare-time rows."
+evidence_test = "crates/antecedent/tests/batch_retarget.rs"
+evidence_assertion = "retarget_after_estimate_reweights_that_estimates_rows"
+
+[[routes]]
+route = "antecedent.estimation.PreparedBatch.retarget"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "cross_fitted_score_tables_on_one_row_snapshot"
+functional = "retargeted_mean_contrasts_and_linear_contrasts"
+guarantee = "plug_in_score_covariance_point_only_no_interval"
+reference = "docs/guides/batch-retarget.md"
+limits = "PreparedBatch.retarget(claims, contrasts) reads the last estimate's scores (else the prepare-time tables) and reports the points, joint plug-in covariance, contrasts, failed members and a closed simultaneous interval."
+evidence_test = "python/tests/test_batch_retarget.py"
+evidence_assertion = "test_a_batch_retarget_reports_points_covariance_contrasts_and_a_closed_interval"
+
+[[routes]]
+route = "antecedent.PreparedBatch.simultaneous_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "A family-level simultaneous (max-t) interval over retargeted claims is a nominal asymptotic construction no coverage record measures; it is closed rather than published as a nominal interval."
+
+[[routes]]
+route = "antecedent.estimation.BatchRetarget.simultaneous_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "simultaneous_interval() raises cell_not_licensed at the Python surface."
+
+[[routes]]
+route = "antecedent.PreparedBatch.partial_family"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "A family with any failed member is reported member by member and is never a complete-family claim."
+
+[[routes]]
+route = "antecedent.PreparedBatch.mixed_snapshot"
+stage = "evaluate"
+status = "closed"
+reason_code = "row_weights_bound_to_snapshot"
+notes = "Claims over score tables built on different complete-case rows have no shared covariance and are refused."
+
+[[routes]]
+route = "antecedent.PreparedBatch.scores_unavailable"
+stage = "evaluate"
+status = "closed"
+reason_code = "score_table_unavailable"
+notes = "A plan with no score table (prepared or after an estimate) fails its members; prepare-time rows are never substituted for an estimate's rows."

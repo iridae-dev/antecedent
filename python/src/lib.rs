@@ -27,6 +27,7 @@ include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
+mod batch_retarget_api;
 pub(crate) mod bayesian;
 mod bounds_api;
 mod callbacks;

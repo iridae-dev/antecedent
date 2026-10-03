@@ -158,6 +158,13 @@ read with `CausalUnsupportedError`, `reason_code="route_not_supported"`, and a
 `AverageEffectQuery`, and `prepare_cells` refuses any other response query with
 `route_not_supported`.
 
+**Configured batches and retarget.** The batch entry points take `estimator=` as a string
+id or a typed configuration (`Aipw(...)`) and the `estimator_config=` dict, exactly as
+`ant.analyze` does; one configuration governs the batch. `PreparedBatch.retarget` reports the
+points, joint score covariance and named contrasts of a declared family over one row snapshot
+(`point_only`; the simultaneous interval is closed). See
+[the guide](guides/batch-retarget.md).
+
 ## Configure response estimates
 
 `PulseEffect` and `SustainedEffect` take `control_level` as well as

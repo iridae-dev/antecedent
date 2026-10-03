@@ -1639,7 +1639,8 @@ def analyze_many(
     graph: Dag | TieredBackground | Sequence[tuple[str, str]],
     queries: Sequence[AverageEffect],
     identifier: str | None = None,
-    estimator: str | None = None,
+    estimator: str | Estimator | Any | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
     refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
@@ -1674,6 +1675,14 @@ def analyze_many(
         ``False`` or a suite name; leave unset (``None``) for the default
         suite. Explicit ``refute=True`` raises ``TypeError`` — see
         :func:`antecedent._coerce.coerce_refute`.
+    estimator, estimator_config:
+        A bare estimator id (``str`` or :class:`antecedent.Estimator`) or a typed estimator
+        configuration such as ``Aipw(bootstrap=0, propensity_penalty=...)``, exactly as
+        :func:`antecedent.analyze` takes them; one configuration governs every query. A
+        nuisance fit is shared only between queries whose fit inputs (rows, treatment coding,
+        adjustment design, folds, learner options) are identical, and a penalized propensity
+        is never shared. Each result's ``batch.shared_design`` diagnostic carries the
+        canonical ``estimator_config`` fingerprint.
     candidate_screen:
         Optional screen/estimate split recorded on every result.
     """
@@ -1681,6 +1690,7 @@ def analyze_many(
         raise CausalValueError("analyze_many requires at least one query")
     if not all(isinstance(q, AverageEffect) for q in queries):
         raise _batch_route_refusal("analyze_many", "AverageEffect queries")
+    estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
     resolved_refute = None if refute is None else coerce_refute(refute)
     names, columns = ingest_columns(data)
     from .query import coerce_outcome_functional
@@ -1699,6 +1709,7 @@ def analyze_many(
     kwargs: dict[str, Any] = dict(
         identifier=identifier,
         estimator=estimator,
+        estimator_config=estimator_config,
         refute=resolved_refute,
         seed=seed,
         bootstrap=bootstrap,
@@ -1860,6 +1871,138 @@ class SharedBatchDesign:
     shares_outcome_residualization: bool = False
 
 
+@dataclass(frozen=True)
+class RetargetClaim:
+    """One declared retargeted claim of a :meth:`PreparedBatch.retarget` family.
+
+    ``query`` is the index of a batch query or the query object itself. ``weights`` are the
+    target row weights aligned with :meth:`PreparedBatch.retarget_rows`; ``depends_on`` names
+    the covariates the weights are a function of (a subset of the certified adjustment set).
+    """
+
+    name: str
+    query: int | AverageEffect | InterventionResponse
+    weights: Any
+    depends_on: Sequence[str] = ()
+
+
+@dataclass(frozen=True)
+class RetargetContrast:
+    """A named linear contrast of declared claims, ``sum_k c_k * claim_k``.
+
+    ``route A minus route B`` is ``RetargetContrast("a_minus_b", {"a": 1.0, "b": -1.0})``.
+    """
+
+    name: str
+    coefficients: Mapping[str, float]
+
+
+@dataclass(frozen=True)
+class RetargetMember:
+    """One claim or contrast of a :class:`BatchRetarget`, failed members included."""
+
+    kind: Literal["claim", "contrast"]
+    name: str
+    estimand: str
+    status: Literal["ok", "point_only", "failed"]
+    value: float | None
+    std_error: float | None
+    uncertainty_kind: str
+    query_index: int | None = None
+    n_eff: float | None = None
+    support_status: str = "not_assessed"
+    refusal_code: str | None = None
+    refusal_detail: str | None = None
+    refusal_message: str | None = None
+
+
+@dataclass(frozen=True)
+class BatchRetarget:
+    """Points, joint score covariance and contrasts of a retargeted family.
+
+    The covariance is the plug-in joint covariance of the retargeted claims from the shared
+    row-aligned scores; a standard error is not an interval. The family-level simultaneous
+    interval is closed (:meth:`simultaneous_interval` raises ``cell_not_licensed``): it is a
+    nominal asymptotic interval no coverage record measures. A partial family (any failed or
+    point-only member) lists every member and is never a complete-family claim
+    (:meth:`complete_family` raises). Penalized-propensity scores retarget to points only.
+    """
+
+    family_id: str
+    snapshot_id: str | None
+    scores_source: Literal["prepared", "estimated"]
+    estimator_fingerprint: str
+    claims: tuple[RetargetMember, ...]
+    contrasts: tuple[RetargetMember, ...]
+    covariance_names: tuple[str, ...]
+    covariance: tuple[tuple[float, ...], ...] | None
+    complete: bool
+    failed_members: tuple[str, ...]
+    point_only_members: tuple[str, ...]
+    inference_claim: str
+    scope_note: str
+    _closed: Mapping[str, Any]
+    _complete_refusal: Mapping[str, Any] | None
+    _rows: tuple[Mapping[str, Any], ...]
+
+    def covariance_between(self, a: str, b: str) -> float:
+        """Entry of the joint covariance for two named claims."""
+        if self.covariance is None or a not in self.covariance_names:
+            raise CausalValueError(f"claim {a!r} carries no covariance in this family")
+        if b not in self.covariance_names:
+            raise CausalValueError(f"claim {b!r} carries no covariance in this family")
+        return self.covariance[self.covariance_names.index(a)][self.covariance_names.index(b)]
+
+    def simultaneous_interval(self) -> Any:
+        """Always raises: the family-level simultaneous interval is closed."""
+        closed = self._closed
+        raise _refused(closed["reason_code"], f"{closed['detail']}: {closed['message']}")
+
+    def complete_family(self) -> BatchRetarget:
+        """This report when it is a complete-family claim; otherwise a typed refusal."""
+        refusal = self._complete_refusal
+        if refusal is not None:
+            raise _refused(refusal["reason_code"], f"{refusal['detail']}: {refusal['message']}")
+        return self
+
+    def to_rows(self) -> list[dict[str, Any]]:
+        """Tidy export: one row per claim then contrast, failed members included, each with
+        its family identity, completeness, support and refusal status, uncertainty kind,
+        diagnostics and provenance."""
+        return [dict(row) for row in self._rows]
+
+
+def _retarget_member(raw: Mapping[str, Any], kind: str) -> RetargetMember:
+    failure = raw.get("failure") or {}
+    return RetargetMember(
+        kind=kind,  # type: ignore[arg-type]
+        name=raw["name"],
+        estimand=raw.get("estimand") or " ".join(f"{c:+}*{n}" for n, c in raw.get("terms", [])),
+        status=raw["status"],
+        value=raw.get("value"),
+        std_error=raw.get("std_error"),
+        uncertainty_kind=raw.get("uncertainty_kind", "none"),
+        query_index=raw.get("query_index"),
+        n_eff=raw.get("n_eff"),
+        support_status=(
+            "refused"
+            if failure.get("support_refused")
+            else ("not_assessed" if failure else "supported")
+        ),
+        refusal_code=failure.get("reason_code"),
+        refusal_detail=failure.get("detail"),
+        refusal_message=failure.get("message"),
+    )
+
+
+def _retarget_estimand(query: Any) -> str | None:
+    """Readable estimand of an average-effect query (joint cells keep the native label)."""
+    if not isinstance(query, AverageEffect):
+        return None
+    t, y = query.treatment, query.outcome
+    return f"E[{y}(do {t}={query.active_level})] - E[{y}(do {t}={query.control_level})]"
+
+
 @dataclass
 class PreparedBatch:
     """Compile-once batch of average-effect or joint-cell plans.
@@ -1939,7 +2082,8 @@ class PreparedBatch:
         graph: Dag | TieredBackground | Sequence[tuple[str, str]],
         queries: Sequence[AverageEffect],
         identifier: str | None = None,
-        estimator: str | None = None,
+        estimator: str | Estimator | Any | None = None,
+        estimator_config: Mapping[str, Any] | None = None,
         refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
         bootstrap: int | None = None,
@@ -1951,6 +2095,7 @@ class PreparedBatch:
             raise CausalValueError("PreparedBatch.prepare requires at least one query")
         if not all(isinstance(q, AverageEffect) for q in queries):
             raise _batch_route_refusal("PreparedBatch.prepare", "AverageEffect queries")
+        estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
         resolved_refute: bool | str | None = None if refute is None else coerce_refute(refute)
         names, columns = ingest_columns(data)
         from .query import coerce_outcome_functional
@@ -1969,6 +2114,7 @@ class PreparedBatch:
         kwargs: dict[str, Any] = dict(
             identifier=identifier,
             estimator=estimator,
+            estimator_config=estimator_config,
             refute=resolved_refute,
             seed=seed,
             bootstrap=bootstrap,
@@ -1999,7 +2145,8 @@ class PreparedBatch:
         graph: Dag | TieredBackground | Sequence[tuple[str, str]],
         queries: Sequence[InterventionResponse],
         identifier: str | None = None,
-        estimator: str | None = None,
+        estimator: str | Estimator | Any | None = None,
+        estimator_config: Mapping[str, Any] | None = None,
         refute: bool | Literal["full", "placebo", "none", "cheap"] | None = None,
         seed: int = 1,
         bootstrap: int | None = None,
@@ -2026,6 +2173,7 @@ class PreparedBatch:
             raise _batch_route_refusal(
                 "PreparedBatch.prepare_cells", "discrete joint InterventionResponse cells"
             )
+        estimator, estimator_config = _unwrap_estimator(estimator, estimator_config)
         if isinstance(graph, TieredBackground):
             if identifier not in (None, "generalized.adjustment"):
                 raise CausalUnsupportedError(
@@ -2039,6 +2187,7 @@ class PreparedBatch:
         kwargs: dict[str, Any] = dict(
             identifier=None if isinstance(graph, TieredBackground) else identifier,
             estimator=estimator,
+            estimator_config=estimator_config,
             refute=resolved_refute,
             seed=seed,
             bootstrap=bootstrap,
@@ -2069,9 +2218,116 @@ class PreparedBatch:
         seed: int = 1,
         threads: int | None = None,
     ) -> list[AnalysisResult]:
+        """Re-estimate every plan on ``data``.
+
+        The estimate's score tables are retained on this handle, so a later
+        :meth:`retarget` reweights this estimate's rows (see :meth:`retarget_rows`) rather
+        than the prepare-time rows; a plan whose estimate kept no table refuses its members
+        instead of silently losing the retarget.
+        """
         names, columns = ingest_columns(data)
         raws = self._native.estimate(names, columns, seed=seed, threads=threads)
         return [_wrap_ate(r, query=q) for r, q in zip(raws, self._queries, strict=True)]
+
+    def retarget_rows(self) -> tuple[int, ...] | None:
+        """Original-row index the weights of every claim must align with.
+
+        These are the rows of the scores a retarget now reads: the last :meth:`estimate`'s
+        (retained on this handle), else the prepare-time rows. ``None`` when no plan holds a
+        score table. Plans built on different rows raise
+        ``reason_code="row_weights_bound_to_snapshot"``.
+        """
+        rows = self._native.retarget_rows()
+        return None if rows is None else tuple(int(r) for r in rows)
+
+    def retarget_snapshot(self) -> str | None:
+        """Identity of the row snapshot the scores a retarget now reads share."""
+        return self._native.retarget_snapshot()
+
+    @describe_refusal
+    def retarget(
+        self,
+        claims: Sequence[RetargetClaim],
+        contrasts: Sequence[RetargetContrast] = (),
+        *,
+        expected_snapshot: str | None = None,
+    ) -> BatchRetarget:
+        """Retarget a declared family of claims over one row snapshot. No refit.
+
+        Each :class:`RetargetClaim` reweights one plan's cross-fitted score table (an
+        AllObserved iid AIPW or cell-AIPW plan) under row weights aligned with
+        :meth:`retarget_rows`. The result carries every point, the joint plug-in score
+        covariance (cross-claim terms come from the shared rows), the named
+        :class:`RetargetContrast` values with their standard errors, the failed members, and a
+        closed family-level simultaneous interval. After :meth:`estimate` the scores are that
+        estimate's; a plan whose estimate kept no score table fails its members with
+        ``reason_code="score_table_unavailable"`` rather than reusing prepare-time rows.
+        Mixed snapshots, an undeclared ``expected_snapshot`` and malformed families raise
+        typed refusals; a member that cannot be retargeted is reported, never dropped.
+        """
+        import numpy as np
+
+        native_claims = []
+        labels: dict[str, str] = {}
+        for claim in claims:
+            if isinstance(claim.query, int) and not isinstance(claim.query, bool):
+                index = claim.query
+            else:
+                matches = [i for i, q in enumerate(self._queries) if q == claim.query]
+                if not matches:
+                    raise CausalValueError(
+                        f"claim {claim.name!r} names a query that is not in this batch"
+                    )
+                index = matches[0]
+            if 0 <= index < len(self._queries):
+                label = _retarget_estimand(self._queries[index])
+                if label is not None:
+                    labels[claim.name] = label
+            native_claims.append(
+                (
+                    claim.name,
+                    index,
+                    np.asarray(claim.weights, dtype=float).tolist(),
+                    [str(n) for n in claim.depends_on],
+                )
+            )
+        native_contrasts = [
+            (c.name, [(str(n), float(v)) for n, v in c.coefficients.items()]) for c in contrasts
+        ]
+        raw = self._native.retarget_family(
+            native_claims, native_contrasts, expected_snapshot=expected_snapshot
+        )
+        members = []
+        for entry in raw["claims"]:
+            if entry["name"] in labels:
+                entry["estimand"] = labels[entry["name"]]
+            members.append(_retarget_member(entry, "claim"))
+        rows = []
+        for row in raw["rows"]:
+            if row["kind"] == "claim" and row["name"] in labels:
+                row["estimand"] = labels[row["name"]]
+            rows.append(row)
+        cov = raw["covariance"]
+        return BatchRetarget(
+            family_id=raw["family_id"],
+            snapshot_id=raw["snapshot_id"],
+            scores_source=raw["scores_source"],
+            estimator_fingerprint=raw["estimator_fingerprint"],
+            claims=tuple(members),
+            contrasts=tuple(_retarget_member(c, "contrast") for c in raw["contrasts"]),
+            covariance_names=tuple(cov["names"]) if cov else (),
+            covariance=tuple(tuple(float(v) for v in row) for row in cov["matrix"])
+            if cov
+            else None,
+            complete=bool(raw["complete"]),
+            failed_members=tuple(raw["failed_members"]),
+            point_only_members=tuple(raw["point_only_members"]),
+            inference_claim=raw["inference_claim"],
+            scope_note=raw["scope_note"],
+            _closed=raw["simultaneous_interval"],
+            _complete_refusal=raw["complete_refusal"],
+            _rows=tuple(rows),
+        )
 
 
 @dataclass(frozen=True)
@@ -5965,6 +6221,10 @@ __all__ = [
     "PredictiveCheckReport",
     "PreparedAnalysis",
     "PreparedBatch",
+    "BatchRetarget",
+    "RetargetClaim",
+    "RetargetContrast",
+    "RetargetMember",
     "SharedBatchDesign",
     "CandidateScreen",
     "PriorSensitivityReport",

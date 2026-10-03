@@ -75,10 +75,15 @@ use antecedent_graph::{Dag, TieredBackground};
 use crate::error::CausalError;
 use crate::result::StudyResult;
 
+use super::batch_retarget::{
+    BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, ScoreSource,
+    retarget_family,
+};
 use super::builder::{RefuteSuite, StudyBuilder};
 use super::execute::Study;
 use super::latency::LatencyMode;
 use super::prepared::PreparedStudy;
+use crate::estimator_spec::EstimatorSpec;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
 /// How a batch family picked its surfaced candidate.
@@ -389,6 +394,9 @@ pub struct BatchStudy {
     latency_mode: Option<LatencyMode>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
+    /// A fully configured estimator (the typed configuration single-query `analyze`
+    /// accepts). Supersedes [`Self::estimator`]'s bare id when set.
+    estimator_spec: Option<EstimatorSpec>,
     screen: Option<CandidateScreen>,
     family_contrast: Option<CellFamilyContrast>,
 }
@@ -405,6 +413,7 @@ impl BatchStudy {
             latency_mode: None,
             identifier: None,
             estimator: None,
+            estimator_spec: None,
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
         }
@@ -424,6 +433,7 @@ impl BatchStudy {
             latency_mode: None,
             identifier: None,
             estimator: None,
+            estimator_spec: None,
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
         }
@@ -468,11 +478,46 @@ impl BatchStudy {
 
     /// Optional estimator applied to every query.
     ///
-    /// Parse a wire name with `"propensity.weighting".parse::<EstimatorId>()?`.
+    /// Parse a wire name with `"propensity.weighting".parse::<EstimatorId>()?`. Replaces a
+    /// configuration declared earlier with [`Self::estimator_spec`].
     #[must_use]
-    pub const fn estimator(mut self, id: EstimatorId) -> Self {
+    pub fn estimator(mut self, id: EstimatorId) -> Self {
         self.estimator = Some(id);
+        self.estimator_spec = None;
         self
+    }
+
+    /// A fully configured estimator applied to every query, the typed configuration
+    /// single-query [`StudyBuilder::estimator`] takes (for example an
+    /// [`antecedent_estimate::AipwAte`] with a ridge propensity).
+    ///
+    /// One configuration governs the whole batch, so every nuisance fit a batch shares was
+    /// declared by it: a different penalty, learner option, outcome, treatment coding,
+    /// adjustment set, fold plan or overlap rule changes the fit's inputs and is never served
+    /// from another fit (a penalized propensity is never shared at all). As for a single
+    /// query, combining a configured estimator with [`Self::bootstrap_replicates`] is refused
+    /// when the study is built. [`Self::estimator_fingerprint`] names the configuration.
+    #[must_use]
+    pub fn estimator_spec(mut self, spec: impl Into<EstimatorSpec>) -> Self {
+        let spec = spec.into();
+        self.estimator = Some(spec.id());
+        self.estimator_spec = Some(spec);
+        self
+    }
+
+    /// Canonical fingerprint of the estimator configuration every query of this batch runs
+    /// under: the structured estimator-spec identity (the same one a study's contract
+    /// carries, including a non-default propensity nuisance), or the bare estimator id, or
+    /// `"default"` when none was chosen. Equal fingerprints mean one configuration.
+    #[must_use]
+    pub fn estimator_fingerprint(&self) -> String {
+        match (&self.estimator_spec, self.estimator) {
+            (Some(spec), _) => {
+                format!("{:?}", super::contract_identity::estimator_spec_identity(spec))
+            }
+            (None, Some(id)) => id.as_str().to_string(),
+            (None, None) => "default".to_string(),
+        }
     }
 
     /// Contrast used for family p-values on [`Self::prepare_cells`].
@@ -544,7 +589,13 @@ impl BatchStudy {
             })?;
         }
         attach_batch_joint_inference(&mut out, &data, queries, self.screen.as_ref());
-        attach_shared_design_diagnostics(&mut out, shared.as_ref(), &nuisances, &uses);
+        attach_shared_design_diagnostics(
+            &mut out,
+            shared.as_ref(),
+            &nuisances,
+            &uses,
+            &self.estimator_fingerprint(),
+        );
         Ok(out)
     }
 
@@ -582,6 +633,7 @@ impl BatchStudy {
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: None,
+            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
         })
     }
 
@@ -638,6 +690,7 @@ impl BatchStudy {
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: self.family_contrast,
+            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
         })
     }
 
@@ -659,7 +712,10 @@ impl BatchStudy {
         if let Some(id) = self.identifier {
             builder = builder.identifier(id);
         }
-        builder = builder.estimator(self.estimator.unwrap_or(EstimatorId::CellAipw));
+        builder = match &self.estimator_spec {
+            Some(spec) => builder.estimator(spec.clone()),
+            None => builder.estimator(self.estimator.unwrap_or(EstimatorId::CellAipw)),
+        };
         builder.build()
     }
 
@@ -729,7 +785,9 @@ impl BatchStudy {
         if let Some(id) = self.identifier {
             builder = builder.identifier(id);
         }
-        if let Some(est) = self.estimator {
+        if let Some(spec) = &self.estimator_spec {
+            builder = builder.estimator(spec.clone());
+        } else if let Some(est) = self.estimator {
             builder = builder.estimator(est);
         }
         builder.build()
@@ -805,6 +863,8 @@ pub struct PreparedBatch {
     screen: Option<CandidateScreen>,
     shared_design: Option<Arc<SharedBatchDesign>>,
     family_contrast: Option<CellFamilyContrast>,
+    /// [`BatchStudy::estimator_fingerprint`] of the batch this was prepared from.
+    estimator_fingerprint: Arc<str>,
 }
 
 impl PreparedBatch {
@@ -871,8 +931,86 @@ impl PreparedBatch {
             self.screen.as_ref(),
             self.family_contrast,
         );
-        attach_shared_design_diagnostics(&mut out, shared.as_ref(), &nuisances, &uses);
+        attach_shared_design_diagnostics(
+            &mut out,
+            shared.as_ref(),
+            &nuisances,
+            &uses,
+            &self.estimator_fingerprint,
+        );
         Ok(out)
+    }
+
+    /// Canonical fingerprint of the estimator configuration this batch was prepared under
+    /// (see [`BatchStudy::estimator_fingerprint`]).
+    #[must_use]
+    pub fn estimator_fingerprint(&self) -> &str {
+        &self.estimator_fingerprint
+    }
+
+    /// The score tables frozen at prepare, one slot per plan (empty where a plan prepared
+    /// none). A retarget of these reweights the prepare-time rows.
+    #[must_use]
+    pub fn prepared_scores(&self) -> BatchScores {
+        BatchScores::new(
+            ScoreSource::Prepared,
+            self.plans.iter().map(|plan| plan.score_table().cloned()).collect(),
+        )
+    }
+
+    /// [`Self::estimate`], plus the score tables that estimate produced.
+    ///
+    /// A retarget after an estimate must reweight the rows of that estimate, not the
+    /// prepare-time rows, so the tables travel with the results: retain the returned
+    /// [`BatchScores`] and pass it to [`Self::retarget`]. A plan whose estimate carries no
+    /// score table (a trimmed or non-iid AIPW, or a non-AIPW estimator) leaves its slot empty
+    /// and a retarget of it refuses with `scores_unavailable_after_estimate`; it never falls
+    /// back to the prepare-time rows.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::estimate`].
+    pub fn estimate_scored(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<StudyResult>, BatchScores), CausalError> {
+        let results = self.estimate(data, ctx)?;
+        let scores = BatchScores::new(
+            ScoreSource::Estimated,
+            results.iter().map(|r| r.estimate.score_table.clone()).collect(),
+        );
+        Ok((results, scores))
+    }
+
+    /// Retarget a declared family of claims over `scores`.
+    ///
+    /// Every claim names a plan (query index) and row-aligned target weights; the report
+    /// carries each point, the joint score covariance of the retargeted claims, the named
+    /// linear contrasts, the failed members, and a closed simultaneous interval. See
+    /// [`BatchRetargetRequest`] for the declaration and [`BatchRetargetReport`] for the
+    /// formulas.
+    ///
+    /// # Errors
+    ///
+    /// A malformed family (empty, duplicate or unknown names, scores that do not match the
+    /// plans), scores that do not share one row snapshot, or a cancelled `ctx`
+    /// (`cancelled_no_claim`, never a verdict). A member that cannot be retargeted is
+    /// reported as failed inside the report, never dropped.
+    pub fn retarget(
+        &self,
+        scores: &BatchScores,
+        request: &BatchRetargetRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<BatchRetargetReport, BatchRetargetError> {
+        retarget_family(
+            &self.plans,
+            &self.queries,
+            scores,
+            request,
+            &self.estimator_fingerprint,
+            ctx,
+        )
     }
 }
 
@@ -915,6 +1053,7 @@ fn attach_shared_design_diagnostics(
     shared: Option<&Arc<SharedBatchDesign>>,
     nuisances: &CrossfitNuisanceCache,
     uses: &[NuisanceScopeUse],
+    estimator_fingerprint: &str,
 ) {
     let Some(shared) = shared else {
         return;
@@ -941,6 +1080,7 @@ fn attach_shared_design_diagnostics(
             (Arc::from("shares_covariates"), flag(shares_covariates)),
             (Arc::from("shares_propensity"), flag(shares_propensity)),
             (Arc::from("shares_outcome_residualization"), flag(shares_outcome)),
+            (Arc::from("estimator_config"), Arc::from(estimator_fingerprint)),
         ]);
         // A prepared plan can carry the diagnostic from its prepare; this estimate's
         // sharing replaces it.

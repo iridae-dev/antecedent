@@ -6,6 +6,8 @@
 
 mod admg_conditional_transport;
 mod batch;
+mod batch_export;
+mod batch_retarget;
 mod builder;
 mod candidate_screen_units;
 mod checked_bayesian_class_conditional;
@@ -123,6 +125,12 @@ pub use antecedent_core::{
 pub use batch::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
     CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
+};
+pub use batch_export::{TidyKind, TidyRow};
+pub use batch_retarget::{
+    BATCH_RETARGET_SCOPE_NOTE, BatchRetargetError, BatchRetargetReport, BatchRetargetRequest,
+    BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport, FamilyCovariance,
+    FamilyRefusal, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource, UncertaintyKind,
 };
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};

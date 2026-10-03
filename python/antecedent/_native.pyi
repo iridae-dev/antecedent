@@ -2168,6 +2168,7 @@ def analyze_ate_many(
     *,
     identifier: str | None = None,
     estimator: str | None = None,
+    estimator_config: dict[str, object] | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
@@ -2205,6 +2206,16 @@ class PreparedBatch:
         seed: int = 1,
         threads: int | None = None,
     ) -> list[AteAnalysisResult]: ...
+    def retarget_rows(self) -> list[int] | None: ...
+    def retarget_scores_source(self) -> str: ...
+    def retarget_snapshot(self) -> str | None: ...
+    def retarget_family(
+        self,
+        claims: list[tuple[str, int, list[float], list[str]]],
+        contrasts: list[tuple[str, list[tuple[str, float]]]],
+        *,
+        expected_snapshot: str | None = None,
+    ) -> dict[str, Any]: ...
 
 def prepare_ate_batch(
     names: list[str],
@@ -2216,6 +2227,7 @@ def prepare_ate_batch(
     *,
     identifier: str | None = None,
     estimator: str | None = None,
+    estimator_config: dict[str, object] | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int | None = None,
@@ -2236,6 +2248,7 @@ def prepare_cells_batch(
     *,
     identifier: str | None = None,
     estimator: str | None = None,
+    estimator_config: dict[str, object] | None = None,
     refute: bool | str | None = None,
     seed: int = 1,
     bootstrap: int | None = None,

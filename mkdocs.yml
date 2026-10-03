@@ -56,6 +56,7 @@ nav:
       - Penalized propensity for AIPW: guides/penalized-aipw.md
       - Clustered DML and entity-owned screens: guides/clustered-dml.md
       - Preflight diagnostics and cost: guides/preflight-diagnostics.md
+      - Configured batches and batch retarget: guides/batch-retarget.md
       - Transport names moved in 2.0: migrations/2.0-transport-day1.md
       - Prior bank: priors.md
       - Graph uncertainty: graph_uncertainty.md

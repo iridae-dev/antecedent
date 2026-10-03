@@ -5052,6 +5052,15 @@ impl PreparedStudy {
     /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit or re-identify.
     ///
     /// `weights` must align with the score-table complete-case rows.
+    ///
+    /// **Score-table lifetime.** The table is the one frozen at prepare (or rebuilt by
+    /// [`Self::refresh`], which replaces the retained data and its scores together).
+    /// [`Self::estimate`] takes `&self` and never replaces it, so a retarget after an
+    /// `estimate` on new rows still reweights the prepare-time rows; retarget the estimate's
+    /// own rows through its result's `score_table` or, for a batch, through
+    /// [`super::PreparedBatch::estimate_scored`]. Where no table exists the refusal is
+    /// `score_table_unavailable`, never a silent fall back to another construction.
+    ///
     /// `depends_on` is the declared parent set of `w`; it must be a subset of
     /// the certified adjustment set and must not name the treatment, an
     /// intervened coordinate, or a descendant.
@@ -5068,6 +5077,24 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         let _ = ctx;
         let table = self.retarget_score_table()?;
+        let out = self.retarget_table(table, weights, depends_on)?;
+        let inference = table.inference(Some(weights))?;
+        self.retarget_to_result(out, inference, weights, depends_on)
+    }
+
+    /// Reweight `table` (this handle's prepare-time table, or the scores of a later
+    /// estimate on the same plan) under the declared target, with the handle's graph for the
+    /// `depends_on` check. The one gate behind [`Self::retarget`] and the batch retarget.
+    ///
+    /// # Errors
+    ///
+    /// Illegal `depends_on`, weight shape, or a weighted-overlap support refusal.
+    pub(crate) fn retarget_table(
+        &self,
+        table: &ScoreTable,
+        weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
+    ) -> Result<RetargetResult, CausalError> {
         let graph: Option<&dyn antecedent_estimate::DirectedAncestry> = self
             .analysis
             .graph
@@ -5089,8 +5116,7 @@ impl PreparedStudy {
                 message: antecedent_estimate::RetargetRefusal::WeightedOverlap.as_str(),
             });
         }
-        let inference = table.inference(Some(weights))?;
-        self.retarget_to_result(out, inference, weights, depends_on)
+        Ok(out)
     }
 
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
