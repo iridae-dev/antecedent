@@ -67,6 +67,8 @@ grid_group() {
     joint_sensitivity_calibration:*) return 0 ;;
     # 2.2E E3 batch retarget: the unpublished family-level max-t band (wired, unmeasured).
     batch_retarget_calibration:*) return 0 ;;
+    # 2.2E E4 clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
+    cluster_dml_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -825,6 +827,19 @@ run_br() {
     -- --ignored --exact --nocapture
 }
 run_br batch_retarget_max_t_simultaneous_band
+
+echo "== 2.2E clustered DML published t Wald interval (antecedent) =="
+# Record 2.2E.E4.clustered_dml_aipw. The cluster-sandwich interval estimate +- t_(G-1) se is
+# scored through the facade's published interval and measured once at the 2.2 cut; the
+# coverage record is the only missing piece.
+run_cd() {
+  local filter="$1"
+  echo "== antecedent: cluster_dml_calibration ${filter} =="
+  check "cluster_dml_calibration: ${filter}" \
+    cargo test --release -p antecedent --test cluster_dml_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_cd cluster_dml_t_wald_interval
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

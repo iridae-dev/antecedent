@@ -7,11 +7,14 @@
 //! cluster's rows train the nuisances that score its own rows, which the cluster sandwich
 //! cannot undo.
 //!
-//! The route publishes the cross-fitted point estimate and the score table and **no
-//! interval**. The cluster-sandwich standard error of the scores is returned only as a named
-//! [`ClusterDmlReceipt`] value (the derivation and its conditions are in
-//! `docs/guides/clustered-dml.md`); no coverage record exists for it, so it is never turned
-//! into an interval here. A cluster count below the declared minimum is a typed refusal.
+//! The route publishes the cross-fitted point estimate, the score table and the
+//! cluster-sandwich standard error of the scores (`se_analytic`, also the named
+//! [`ClusterDmlReceipt`]; the derivation and its conditions are in
+//! `docs/guides/clustered-dml.md`), with the few-cluster Student-t reference
+//! (`EffectEstimate::se_reference_df`). A retarget of the table uses the cluster-summed joint
+//! covariance ([`ClusterDml::influence_covariance`]). Its coverage is measured by the
+//! calibration harness, not asserted here. A cluster count below the declared minimum is a
+//! typed refusal.
 //!
 //! A *dyadic* (two-way) unit is the second supported declaration: rows carry two endpoint
 //! labels in separate namespaces, folds own whole connected components of the endpoint graph
@@ -28,6 +31,7 @@ use std::sync::Arc;
 use antecedent_core::TargetPopulation;
 
 use crate::error::{EstimationError, RefusalFields};
+use crate::joint_if::JointCovariance;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::{refuse, trim_of};
 use crate::scores::ScoreTable;
@@ -291,6 +295,81 @@ impl ClusterDml {
         Ok(())
     }
 
+    /// Few-cluster reference degrees of freedom of the declared labels: `G - 1` for a cluster
+    /// unit, `min(G_a, G_b) - 1` for a dyadic one (the receipt's `reference_df`).
+    #[must_use]
+    pub fn reference_df(&self, first: &[u32], second: Option<&[u32]>) -> usize {
+        let found = distinct_count(first);
+        second.map_or(found, |s| distinct_count(s).min(found)).saturating_sub(1)
+    }
+
+    /// Joint covariance of cluster-summed influence columns.
+    ///
+    /// Each column `psi_k` is a claim's per-row influence scaled so that its own
+    /// cluster-sandwich variance is the claim's variance (`psi_kr = n a_kr (phi_kr - theta_k)`
+    /// with `a_kr = w_kr / sum w`; uniform weights give the receipt's scores). The variance of
+    /// one column is the receipt's: `G/(G-1) n^-2 sum_g S_g^2` (cluster unit) or the
+    /// Cameron-Gelbach-Miller `V_a + V_b - V_ab` (dyadic). The cross-covariance of two columns
+    /// is the polarization `(V(psi_k + psi_l) - V(psi_k - psi_l)) / 4` of that quadratic form,
+    /// which is exactly the bilinear cluster-summed form.
+    ///
+    /// # Errors
+    ///
+    /// A label/column length mismatch, labels that do not match the declared unit, too few
+    /// clusters, or a materially negative two-way variance.
+    pub fn influence_covariance(
+        &self,
+        columns: &[&[f64]],
+        first: &[u32],
+        second: Option<&[u32]>,
+    ) -> Result<JointCovariance, EstimationError> {
+        let n = first.len();
+        if columns.iter().any(|c| c.len() != n) || second.is_some_and(|s| s.len() != n) {
+            return Err(EstimationError::data_msg(
+                "cluster labels must align with the influence columns",
+            ));
+        }
+        match (self.unit, second) {
+            (IndependenceUnit::Cluster, None) => {
+                self.require_cluster_count(distinct_count(first), "clusters")?;
+            }
+            (IndependenceUnit::Dyad, Some(second)) => {
+                self.require_cluster_count(distinct_count(first), "first-endpoint clusters")?;
+                self.require_cluster_count(distinct_count(second), "second-endpoint clusters")?;
+            }
+            _ => {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "cluster_dml.second_ids_unexpected",
+                    "the labels do not match the declared independence unit",
+                ));
+            }
+        }
+        let variance = |psi: &[f64]| -> Result<f64, EstimationError> {
+            let se = match second {
+                None => crate::se::cluster_influence_se(psi, first)?,
+                Some(second) => {
+                    crate::se::multiway_influence_se(psi, &[first.to_vec(), second.to_vec()])?
+                }
+            };
+            Ok(se * se)
+        };
+        let dim = columns.len();
+        let mut values = vec![0.0; dim * dim];
+        for j in 0..dim {
+            values[j * dim + j] = variance(columns[j])?;
+            for i in 0..j {
+                let sum: Vec<f64> = columns[i].iter().zip(columns[j]).map(|(a, b)| a + b).collect();
+                let diff: Vec<f64> =
+                    columns[i].iter().zip(columns[j]).map(|(a, b)| a - b).collect();
+                let cov = (variance(&sum)? - variance(&diff)?) / 4.0;
+                values[j * dim + i] = cov;
+                values[i * dim + j] = cov;
+            }
+        }
+        Ok(JointCovariance { dim, values: Arc::from(values) })
+    }
+
     /// The standard error of a cluster-DML score table with its receipt: the cluster
     /// sandwich for a cluster unit, the two-way Cameron-Gelbach-Miller variance for a dyadic
     /// one (`second` carries the second-endpoint labels; it must be `None` for a cluster
@@ -401,7 +480,8 @@ pub struct ClusterDmlReceipt {
     /// unit.
     pub n_components: Option<usize>,
     /// The few-cluster reference convention `min(G_a, G_b) - 1` (`G - 1` for a cluster
-    /// unit): the degrees of freedom a t reference would use. No interval is built from it.
+    /// unit): the degrees of freedom a t reference would use. The facade's published interval
+    /// uses this as its Student-t reference (`EffectEstimate::se_reference_df`).
     pub reference_df: usize,
     /// The declared minimum the count satisfied.
     pub min_clusters: usize,
@@ -498,8 +578,8 @@ fn refuse_counted(
     )
 }
 
-/// The route publishes no interval: a bootstrap (row resampling would break clusters) or an
-/// analytic SE kind is refused instead of ignored.
+/// The route's standard error is its own cluster sandwich: a bootstrap (row resampling would
+/// break clusters) or another analytic SE kind is refused instead of ignored.
 pub(crate) fn refuse_interval_request(
     bootstrap_replicates: u32,
     se_kind: AnalyticSeKind,
@@ -508,10 +588,10 @@ pub(crate) fn refuse_interval_request(
         return Err(refuse(
             antecedent_core::reason_code!("cluster_interval_not_licensed"),
             "cluster_dml.interval_withheld",
-            "no interval is licensed for cluster-DML AIPW (no coverage record exists, and a \
-             row bootstrap would split clusters); set bootstrap_replicates to 0 and keep the \
-             default se_kind to receive the point estimate, the score table and the \
-             cluster-sandwich receipt",
+            "cluster-DML AIPW reports its own cluster-sandwich standard error (a row \
+             bootstrap would split clusters and another se_kind is ambiguous); set \
+             bootstrap_replicates to 0 and keep the default se_kind to receive the point \
+             estimate, the score table and the cluster-sandwich standard error",
         ));
     }
     Ok(())

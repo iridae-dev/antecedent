@@ -196,6 +196,10 @@ pub struct EffectEstimate {
     pub first_stage_diagnostics: Option<FirstStageDiagnostics>,
     /// Estimated retained-memory cost of fitted scratch (bytes), when known.
     pub retained_memory_bytes: Option<u64>,
+    /// Degrees of freedom of the Student-t reference the analytic SE is published with
+    /// (`G - 1` for a cluster-DML result, `min(G_a, G_b) - 1` dyadic); `None` is the normal
+    /// reference.
+    pub se_reference_df: Option<f64>,
     /// Cross-fitted AIPW score table when the estimator exported one.
     pub score_table: Option<crate::scores::ScoreTable>,
     /// Simultaneous score-family bands and target-local support.
@@ -348,6 +352,7 @@ impl EffectEstimate {
             overlap_report: None,
             first_stage_diagnostics: None,
             retained_memory_bytes: None,
+            se_reference_df: None,
             score_table: None,
             score_inference: None,
             scenario_effects: None,
@@ -418,6 +423,7 @@ impl EffectEstimate {
             overlap_report,
             first_stage_diagnostics: None,
             retained_memory_bytes,
+            se_reference_df: None,
             score_table: None,
             score_inference: None,
             scenario_effects: None,

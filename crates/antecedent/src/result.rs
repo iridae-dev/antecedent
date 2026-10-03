@@ -765,7 +765,9 @@ pub struct ExecutedContract {
 ///
 /// An [`EffectEstimate`] carries a standard error, not endpoints; every
 /// rendering of it (Python views, HTML, the analysis-result artifact's
-/// `standard_error`) forms the two-sided `estimate ± 1.96·SE` interval.
+/// `standard_error`) forms the two-sided `estimate ± 1.96·SE` interval (a Student-t
+/// reference where the estimate declares `se_reference_df`, see
+/// [`PublishedScalarUncertainty::interval`]).
 /// Posterior summaries report the equal-tailed `q025` / `q975` interval at the
 /// same level.
 pub const REPORTED_SE_INTERVAL_LEVEL: f64 = 0.95;
@@ -972,6 +974,28 @@ impl PublishedScalarUncertainty {
             lower: None,
             upper: None,
         }
+    }
+
+    /// Two-sided critical value of the published interval for `estimate`: Student-t with
+    /// `se_reference_df` degrees of freedom for an analytic SE that declares one (the
+    /// cluster-DML few-cluster reference), the normal quantile otherwise.
+    #[must_use]
+    pub fn critical_value(&self, estimate: &EffectEstimate) -> f64 {
+        match (self.method, estimate.se_reference_df) {
+            (antecedent_core::IntervalMethod::AnalyticSe, Some(df)) if df > 0.0 => {
+                antecedent_stats::student_t_ppf(0.5 + self.level / 2.0, df)
+            }
+            _ => reported_se_interval_z(),
+        }
+    }
+
+    /// The published `estimate ± critical_value · SE` interval, when a scalar SE was
+    /// published.
+    #[must_use]
+    pub fn interval(&self, estimate: &EffectEstimate) -> Option<(f64, f64)> {
+        let se = self.standard_error?;
+        let half = self.critical_value(estimate) * se;
+        Some((estimate.ate - half, estimate.ate + half))
     }
 
     fn withhold_iv(reason: Option<&'static str>) -> Self {

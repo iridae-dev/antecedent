@@ -281,6 +281,10 @@ pub struct RetargetResult {
     pub monotone_rearranged: bool,
     /// Diagnostics (rearrangement, overlap).
     pub diagnostics: Vec<Diagnostic>,
+    /// `Some(df)` when [`Self::covariance`] and [`Self::contrast`] were replaced by their
+    /// cluster-summed counterparts (cluster-DML score table, labels declared on the plan);
+    /// `df` is the few-cluster reference degrees of freedom. `None`: the iid plug-in.
+    pub cluster_reference_df: Option<usize>,
 }
 
 /// Validate `depends_on` against the frozen certificate and graph.
@@ -431,6 +435,7 @@ pub fn retarget(
             depends_on: Arc::from(depends_on.to_vec()),
             monotone_rearranged,
             diagnostics,
+            cluster_reference_df: None,
         },
         overlap_failed,
     ))

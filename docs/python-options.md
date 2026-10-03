@@ -236,11 +236,12 @@ distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized
 
 `Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))` cross-fits
 with whole clusters owning folds (not an IID cross-fit followed by `se="cluster"`). It
-reports the cross-fitted point and keeps the score table, with no interval: a bootstrap or a
-non-default `se` is refused up front (`cluster_interval_not_licensed`), fewer clusters than
+reports the cross-fitted point, keeps the score table and reports the cluster-sandwich
+standard error of the scores as `se_analytic`: a bootstrap or a non-default `se` is refused
+up front (`cluster_interval_not_licensed`), fewer clusters than
 `min_clusters` refuse `too_few_clusters`. `ClusterDml(unit="dyad", cluster_ids=...,
 second_cluster_ids=...)` declares two-way dependence: folds own whole connected components of
-the endpoint graph (no endpoint crosses folds), still point only; an entity used in both
+the endpoint graph (no endpoint crosses folds) and `se_analytic` is the two-way sandwich; an entity used in both
 endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, and fewer
 than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML`,
 `DRLearner` and `CausalForest` take no cluster option: a `cluster_ids`/`cluster_dml`/

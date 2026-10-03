@@ -102,6 +102,7 @@ fn report_json(report: &BatchRetargetReport, simultaneous: serde_json::Value) ->
                 "propensity_range": point.propensity_range.map(|(lo, hi)| [lo, hi]),
                 "nuisance_provenance": point.nuisance_provenance,
                 "diagnostics": point.diagnostics,
+                "reference_df": point.reference_df,
                 "failure": serde_json::Value::Null,
             }),
             Err(failure) => serde_json::json!({

@@ -302,9 +302,12 @@ class ClusterDml:
     10) is the smallest cluster count accepted: fewer clusters refuse
     ``too_few_clusters`` rather than forming a sandwich over a handful of cluster sums.
 
-    The route publishes the cross-fitted **point estimate and score table** and **no
-    interval** (``Aipw(bootstrap=0, cluster_dml=...)`` is required; a requested interval
-    refuses ``cluster_interval_not_licensed``). It is licensed for the untrimmed
+    The route publishes the cross-fitted **point estimate, the score table and the
+    cluster-sandwich standard error** of those scores (``se_analytic``; ``se_kind`` is
+    ``cluster`` for one-way and ``multiway`` for dyadic units). ``Aipw(bootstrap=0,
+    cluster_dml=...)`` is required: a row bootstrap would split clusters and a different
+    ``se`` kind is ambiguous, so either refuses ``cluster_interval_not_licensed``. The iid
+    joint covariance and influence values stay withheld. It is licensed for the untrimmed
     ``AllObserved`` mean ATE and is not combined with ``propensity_penalty``.
 
     ``unit="dyad"`` declares two-way (dyadic) dependence: ``cluster_ids`` are the first
@@ -749,8 +752,8 @@ class Aipw:
                 )
             if self.bootstrap != 0 or self.se not in (None, "homoskedastic"):
                 raise CausalValueError(
-                    "Aipw(cluster_dml=...) publishes no interval: pass bootstrap=0 and leave "
-                    "se unset (reason=cluster_interval_not_licensed)"
+                    "Aipw(cluster_dml=...) reports its own cluster-sandwich SE: pass bootstrap=0 "
+                    "and leave se unset (reason=cluster_interval_not_licensed)"
                 )
             if self.cluster_ids is not None:
                 raise CausalValueError(

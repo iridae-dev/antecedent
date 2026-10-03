@@ -5110,7 +5110,7 @@ impl PreparedStudy {
             .map(|g| g as _)
             .or_else(|| self.analysis.graph.as_admg().map(|g| g as _));
         let treatment = score_table_treatment_col(&self.analysis, table);
-        let (out, overlap_failed) = antecedent_estimate::retarget(
+        let (mut out, overlap_failed) = antecedent_estimate::retarget(
             table,
             weights,
             depends_on,
@@ -5133,7 +5133,77 @@ impl PreparedStudy {
             ));
             return Err(super::preflight::with_plan_subject(&self.analysis, refusal));
         }
+        self.apply_cluster_covariance(table, weights, &mut out)?;
         Ok(out)
+    }
+
+    /// Declared independence units of a cluster-DML plan (labels aligned with the rows of its
+    /// score table), or `None` for any other plan.
+    pub(crate) fn cluster_units(&self) -> Option<ClusterUnits> {
+        match self.analysis.estimator_spec.as_ref() {
+            Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => Some(ClusterUnits {
+                spec: config.cluster_dml?,
+                first: config.cluster_ids.clone()?,
+                second: config.cluster_ids_second.clone(),
+            }),
+            _ => None,
+        }
+    }
+
+    /// Replace the iid plug-in covariance of a retarget over a cluster-DML score table by the
+    /// covariance of the cluster-summed weighted influence columns (the receipt's
+    /// `G/(G-1)` sandwich, or the two-way `V_a + V_b - V_ab`), and the arm contrast's standard
+    /// error with it. A plan without declared units, or a table that is not a cluster-DML mean
+    /// table, is left as the iid retarget (whose cluster-marked provenance withholds it).
+    fn apply_cluster_covariance(
+        &self,
+        table: &ScoreTable,
+        weights: &[f64],
+        out: &mut RetargetResult,
+    ) -> Result<(), CausalError> {
+        if !table.nuisance_provenance.contains("cluster_dml=unit=")
+            || table.distinct_threshold_count() > 0
+        {
+            return Ok(());
+        }
+        let Some(units) = self.cluster_units() else {
+            return Ok(());
+        };
+        if units.first.len() != table.n_rows {
+            return Err(CausalError::Unsupported {
+                message: "cluster labels are not aligned with the score table rows",
+            });
+        }
+        let n = table.n_rows as f64;
+        let total: f64 = weights.iter().sum();
+        let mut columns: Vec<Vec<f64>> = Vec::with_capacity(table.n_columns());
+        for j in 0..table.n_columns() {
+            let theta = out.summary.means[j];
+            columns.push(
+                table
+                    .column(j)?
+                    .iter()
+                    .zip(weights)
+                    .map(|(phi, w)| n * (w / total) * (phi - theta))
+                    .collect(),
+            );
+        }
+        let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+        let covariance =
+            units.spec.influence_covariance(&refs, &units.first, units.second.as_deref())?;
+        let arm = |arm: u32| table.columns.iter().position(|c| c.arm == arm);
+        if let (Some(contrast), Some(control), Some(active)) =
+            (out.contrast.as_mut(), arm(0), arm(1))
+        {
+            let variance = covariance.get(active, active) + covariance.get(control, control)
+                - 2.0 * covariance.get(active, control);
+            contrast.se = variance.max(0.0).sqrt();
+        }
+        out.summary.covariance = covariance.clone();
+        out.covariance = covariance;
+        out.cluster_reference_df =
+            Some(units.spec.reference_df(&units.first, units.second.as_deref()));
+        Ok(())
     }
 
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
@@ -5201,10 +5271,13 @@ impl PreparedStudy {
             _ => return Err(CausalError::Unsupported { message: "unsupported retarget query" }),
         };
         let cdf = self.score_table.as_ref().and_then(|t| exceedance_cdf_values(&out.summary, t));
-        // Scores of a penalized propensity retarget to a point; their covariance is not a
-        // licensed sampling distribution, so no standard error, joint covariance or band.
+        // Scores of whole-cluster folds or learner-supplied joint cells retarget to a point; their
+        // iid covariance is not a licensed sampling distribution, so no standard error, joint
+        // covariance or band.
+        let cluster_df = out.cluster_reference_df;
         let interval_withheld =
-            antecedent_estimate::provenance_withholds_interval(&table.nuisance_provenance);
+            antecedent_estimate::provenance_withholds_interval(&table.nuisance_provenance)
+                && cluster_df.is_none();
         let se = if interval_withheld { f64::NAN } else { se };
         let mut estimate = EffectEstimate::new(
             ate,
@@ -5216,7 +5289,20 @@ impl PreparedStudy {
         .with_joint_covariance((!interval_withheld).then(|| out.covariance.clone()))
         .with_exceedance_cdf(cdf)
         .with_monotone_rearranged(out.monotone_rearranged);
-        estimate.score_inference = (!interval_withheld).then_some(inference);
+        // The iid max-t score inference is not a cluster object: it stays withheld there.
+        estimate.score_inference =
+            (!interval_withheld && cluster_df.is_none()).then_some(inference);
+        if let Some(df) = cluster_df {
+            // The cluster-summed standard error is published with its few-cluster t reference.
+            estimate.se_analytic = se;
+            estimate.se_reference_df = Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+            estimate.se_kind =
+                Some(if self.cluster_units().is_some_and(|units| units.second.is_some()) {
+                    antecedent_estimate::AnalyticSeKind::Multiway
+                } else {
+                    antecedent_estimate::AnalyticSeKind::Cluster
+                });
+        }
         if let Some((value, influence)) = quantile.as_ref() {
             estimate.ate = *value;
             estimate.se_analytic =
@@ -5241,7 +5327,7 @@ impl PreparedStudy {
                 "estimate.aipw.penalized_interval_withheld",
                 antecedent_core::DiagnosticKind::Scientific,
                 antecedent_core::DiagnosticSeverity::Info,
-                "the prepared scores come from a penalized propensity; the retargeted point is reported without a standard error, covariance or band because no interval is licensed for that nuisance",
+                "the prepared scores come from whole-cluster folds or learner-supplied joint-cell nuisances; the retargeted point is reported without a standard error, covariance or band because no iid interval is licensed for that construction",
             ));
         }
         if quantile.is_some() {
@@ -10581,6 +10667,14 @@ fn discrete_set_treatments(interventions: &[Intervention]) -> Vec<antecedent_cor
             _ => None,
         })
         .collect()
+}
+
+/// The declared independence units of a cluster-DML plan.
+#[derive(Clone, Debug)]
+pub(crate) struct ClusterUnits {
+    pub(crate) spec: antecedent_estimate::ClusterDml,
+    pub(crate) first: Vec<u32>,
+    pub(crate) second: Option<Vec<u32>>,
 }
 
 fn score_table_treatment_col(analysis: &Study, table: &ScoreTable) -> Option<Vec<f64>> {

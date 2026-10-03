@@ -1,6 +1,7 @@
 //! Cluster-aware cross-fitted AIPW (2.2 E4): whole clusters own their folds, the variance is a
-//! sandwich over cluster sums (checked against sums written here), no interval is published,
-//! and few clusters, an interval request and an out-of-scope population are refused with
+//! sandwich over cluster sums (checked against sums written here) and is the published
+//! standard error, and few clusters, a bootstrap or SE-kind request and an out-of-scope
+//! population are refused with
 //! registered reason codes. The dyadic (two-way) unit has whole-component folds and the
 //! Cameron-Gelbach-Miller variance, checked against sums and a closed form written here;
 //! the structures it does not cover stay typed refusals.
@@ -309,16 +310,18 @@ fn the_fold_plan_and_the_estimate_are_row_order_invariant() {
     assert!((a.ate - b.ate).abs() < 1e-7, "{} vs {}", a.ate, b.ate);
 }
 
-/// The published result is a point and a score table only; the table names whole-cluster
+/// The published result is a point, a score table and the cluster-sandwich standard error
+/// (never the iid covariance, influence or score inference); the table names whole-cluster
 /// folds; the wire form round-trips and keeps the marker.
 #[test]
-fn a_cluster_dml_fit_publishes_a_point_and_scores_but_no_interval() {
+fn a_cluster_dml_fit_publishes_the_cluster_sandwich_se_but_no_iid_covariance() {
     let raw = draw(30, 10, 7);
     let est = declared(&raw, 10);
     let fit = run(&est, &raw, 2).unwrap();
     assert!(fit.ate.is_finite());
-    assert!(fit.se_analytic.is_nan());
-    assert!(fit.se_kind.is_none());
+    assert_eq!(fit.se_kind, Some(antecedent_estimate::AnalyticSeKind::Cluster));
+    let oracle = oracle_cluster_se(table(&fit), &raw.cluster);
+    assert!((fit.se_analytic - oracle).abs() <= 1e-12 * oracle, "{} vs {oracle}", fit.se_analytic);
     assert!(fit.joint_covariance.is_none());
     assert!(fit.score_inference.is_none());
     assert!(fit.influence.is_none());
@@ -639,7 +642,8 @@ fn two_way_components_own_their_folds_and_the_point_recovers_the_truth() {
     assert!(t.nuisance_provenance.contains(";cluster_dml=unit=dyad;components=30;digest="));
     assert!(provenance_withholds_interval(&t.nuisance_provenance));
     assert_eq!(&ScoreTable::from_wire(t.to_wire()).unwrap(), t);
-    assert!(a.se_analytic.is_nan() && a.se_kind.is_none() && a.joint_covariance.is_none());
+    assert_eq!(a.se_kind, Some(antecedent_estimate::AnalyticSeKind::Multiway));
+    assert!(a.se_analytic.is_finite() && a.se_analytic > 0.0 && a.joint_covariance.is_none());
     assert!(a.score_inference.is_none() && a.influence.is_none());
 
     let again = run(&est, &raw, 5).unwrap();
@@ -907,4 +911,79 @@ fn flexible_learner_estimators_refuse_a_cluster_option_with_a_typed_reason() {
             assert!(text.contains(estimator) && text.contains(option), "{text}");
         }
     }
+}
+
+// ---- cluster-summed joint covariance (retarget of a cluster-DML table) -----------------------
+
+/// Hand calculation on a fixed table: ten clusters of two rows, `psi_a = (-1)^g` and
+/// `psi_b = +1` for `g < 5`, `-1` otherwise (both mean zero). The cluster sums are
+/// `S_a = 2 (-1)^g` and `S_b = +-2`, so `sum S_a^2 = sum S_b^2 = 40`, `sum S_a S_b = 8` and, with
+/// `G/(G-1) = 10/9` and `n = 20`, `Var_a = Var_b = (10/9) 40 / 400 = 1/9` and
+/// `Cov_ab = (10/9) 8 / 400 = 1/45`. The iid Gram of the same columns would be `sum psi^2 /
+/// (n (n - 1)) = 20 / 380`, so the cluster structure matters.
+#[test]
+fn the_cluster_summed_covariance_matches_a_hand_calculation_on_a_fixed_table() {
+    let clusters: Vec<u32> = (0..10u32).flat_map(|g| [g, g]).collect();
+    let a: Vec<f64> = (0..10).flat_map(|g| [f64::from(1 - 2 * (g % 2)); 2]).collect();
+    let b: Vec<f64> = (0..10).flat_map(|g| [if g < 5 { 1.0 } else { -1.0 }; 2]).collect();
+    let spec = ClusterDml::new(10).unwrap();
+    let cov = spec.influence_covariance(&[&a, &b], &clusters, None).unwrap();
+    assert!((cov.get(0, 0) - 1.0 / 9.0).abs() < 1e-12, "{}", cov.get(0, 0));
+    assert!((cov.get(1, 1) - 1.0 / 9.0).abs() < 1e-12, "{}", cov.get(1, 1));
+    assert!((cov.get(0, 1) - 1.0 / 45.0).abs() < 1e-12, "{}", cov.get(0, 1));
+    assert_eq!(cov.get(0, 1).to_bits(), cov.get(1, 0).to_bits());
+    assert!((20.0_f64 / 380.0 - cov.get(0, 0)).abs() > 0.05);
+    assert_eq!(spec.reference_df(&clusters, None), 9);
+    // Labels that do not match the unit, or too few clusters, are typed refusals.
+    assert!(spec.influence_covariance(&[&a], &clusters, Some(&clusters)).is_err());
+    let few: Vec<u32> = (0..9u32).flat_map(|g| [g, g]).collect();
+    code_of(&spec.influence_covariance(&[&a[..18]], &few, None).unwrap_err(), "too_few_clusters");
+}
+
+/// On a real cluster-DML table the cluster covariance of the (uniform-weight) contrast column
+/// is the receipt's squared standard error, one-way and two-way, and a column's cross term with
+/// itself-plus-another equals the bilinear cluster sums written here.
+#[test]
+fn the_cluster_covariance_diagonal_is_the_receipt_variance() {
+    let raw = draw(60, 20, 21);
+    let est = declared(&raw, 20);
+    let fit = run(&est, &raw, 4).unwrap();
+    let t = table(&fit);
+    let n = t.n_rows;
+    let mean = (0..n).map(|i| t.scores[n + i] - t.scores[i]).sum::<f64>() / n as f64;
+    let psi: Vec<f64> = (0..n).map(|i| t.scores[n + i] - t.scores[i] - mean).collect();
+    let spec = est.cluster_dml.unwrap();
+    let cov = spec.influence_covariance(&[&psi], &raw.cluster, None).unwrap();
+    let receipt = spec.receipt(t, &raw.cluster, None).unwrap();
+    let se = receipt.cluster_sandwich_se;
+    assert!((cov.get(0, 0) - se * se).abs() <= 1e-12 * se * se);
+    // Cross term with the arm-1 score column against bilinear cluster sums.
+    let other: Vec<f64> = (0..n).map(|i| t.scores[n + i]).collect();
+    let other_mean = other.iter().sum::<f64>() / n as f64;
+    let other: Vec<f64> = other.iter().map(|v| v - other_mean).collect();
+    let both = spec.influence_covariance(&[&psi, &other], &raw.cluster, None).unwrap();
+    let mut sums: BTreeMap<u32, (f64, f64)> = BTreeMap::new();
+    for i in 0..n {
+        let entry = sums.entry(raw.cluster[i]).or_default();
+        entry.0 += psi[i];
+        entry.1 += other[i];
+    }
+    let g = sums.len() as f64;
+    let bilinear = g / (g - 1.0) * sums.values().map(|(x, y)| x * y).sum::<f64>() / (n * n) as f64;
+    assert!((both.get(0, 1) - bilinear).abs() <= 1e-10 * (1.0 + bilinear.abs()));
+
+    // Two-way: the diagonal is the two-way receipt variance.
+    let raw = draw_two_way(30, 3, 4, 3);
+    let est = declared_two_way(&raw, 20, 4);
+    let fit = run(&est, &raw, 4).unwrap();
+    let t = table(&fit);
+    let n = t.n_rows;
+    let mean = (0..n).map(|i| t.scores[n + i] - t.scores[i]).sum::<f64>() / n as f64;
+    let psi: Vec<f64> = (0..n).map(|i| t.scores[n + i] - t.scores[i] - mean).collect();
+    let spec = est.cluster_dml.unwrap();
+    let cov = spec.influence_covariance(&[&psi], &raw.cluster, Some(&raw.second)).unwrap();
+    let receipt = spec.receipt(t, &raw.cluster, Some(&raw.second)).unwrap();
+    let se = receipt.cluster_sandwich_se;
+    assert!((cov.get(0, 0) - se * se).abs() <= 1e-10 * se * se);
+    assert_eq!(spec.reference_df(&raw.cluster, Some(&raw.second)), receipt.reference_df);
 }

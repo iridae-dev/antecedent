@@ -1,6 +1,6 @@
 """2.2 E4: cluster-aware cross-fitted ``Aipw`` and the entity-owned screen split.
 
-The route publishes a cross-fitted point and the score table and no interval; few clusters,
+The route publishes a cross-fitted point, the score table and the cluster-sandwich SE; few clusters,
 unsupported dyadic structures and cluster options on flexible-learner estimators are closed with
 their registered reason codes. The numerical oracles for the cluster and two-way variances and for
 fold ownership are in the Rust integration test ``crates/antecedent-estimate/tests/
@@ -83,13 +83,13 @@ def test_the_dataclass_wires_the_declared_unit_and_validates_it():
             bad()
 
 
-def test_a_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interval():
+def test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores():
     data, cluster = clustered()
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
     result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
     assert result.effect == pytest.approx(2.0, abs=0.7)
     estimate = result.estimate
-    assert math.isnan(estimate.se_analytic)
+    assert math.isfinite(estimate.se_analytic) and estimate.se_analytic > 0.0
     assert estimate.se_bootstrap is None
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None
@@ -126,7 +126,7 @@ def two_way(blocks: int = 30, na: int = 3, nb: int = 4, seed: int = 11):
     return {name: np.array(values) for name, values in cols.items()}, first, second
 
 
-def test_a_two_way_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interval():
+def test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores():
     data, first, second = two_way()
     cfg = Aipw(
         bootstrap=0,
@@ -137,7 +137,7 @@ def test_a_two_way_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interv
     result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
     assert result.effect == pytest.approx(2.0, abs=0.7)
     estimate = result.estimate
-    assert math.isnan(estimate.se_analytic)
+    assert math.isfinite(estimate.se_analytic) and estimate.se_analytic > 0.0
     assert estimate.se_bootstrap is None
     assert estimate.joint_covariance is None and estimate.score_inference is None
     assert estimate.score_table is not None

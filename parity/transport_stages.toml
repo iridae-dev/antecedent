@@ -3265,7 +3265,7 @@ guarantee = "cross_fitted_point_only_no_interval"
 reference = "docs/guides/clustered-dml.md"
 limits = "Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=...)) reports the point and the score table with a NaN standard error; a retarget reports the point only."
 evidence_test = "python/tests/test_cluster_dml.py"
-evidence_assertion = "test_a_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interval"
+evidence_assertion = "test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores"
 
 [[routes]]
 route = "antecedent_estimate.ClusterDml.receipt"
@@ -3298,7 +3298,7 @@ route = "antecedent_estimate.AipwAte.cluster_dml_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cluster_interval_not_licensed"
-notes = "No analytic or bootstrap interval for cluster-DML AIPW: no coverage record exists and a row bootstrap would split clusters."
+notes = "A bootstrap or another SE kind is refused for cluster-DML AIPW: a row bootstrap would split clusters and the route reports its own cluster-sandwich standard error."
 
 [[routes]]
 route = "antecedent_estimate.ClusterDml.few_clusters"
@@ -3331,7 +3331,7 @@ guarantee = "cross_fitted_point_only_no_interval"
 reference = "docs/guides/clustered-dml.md"
 limits = "Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., second_cluster_ids=..., unit='dyad')) reports the point and the score table with a NaN standard error; the two-way variance is a Rust receipt only."
 evidence_test = "python/tests/test_cluster_dml.py"
-evidence_assertion = "test_a_two_way_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interval"
+evidence_assertion = "test_a_two_way_cluster_dml_aipw_reports_the_two_way_se_and_the_scores"
 
 [[routes]]
 route = "antecedent_estimate.ClusterDml.two_way_receipt"

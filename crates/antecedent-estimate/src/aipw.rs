@@ -1019,6 +1019,15 @@ impl AipwAte {
                 IpwTarget::from_population(&problem.target_population).ok(),
             )
         });
+        // Whole-cluster folds: the sandwich standard error of the same scores, under the declared
+        // independence unit (`docs/guides/clustered-dml.md`).
+        let cluster_se = match (self.cluster_dml, self.cluster_ids.as_deref()) {
+            (Some(spec), Some(labels)) => {
+                let receipt = spec.receipt(&table, labels, self.cluster_ids_second.as_deref())?;
+                Some((receipt.cluster_sandwich_se, receipt.reference_df))
+            }
+            _ => None,
+        };
         let mut result =
             EffectEstimate::new(contrast.value, se_analytic, assumptions, problem.overlap)
                 .with_se_kind(self.se_kind)
@@ -1040,10 +1049,9 @@ impl AipwAte {
             result.penalized = Some(Box::new(report));
         }
         if self.cluster_dml.is_some() {
-            // The penalized and the cluster-DML routes publish scores and a point estimate,
-            // never an interval: the iid covariance and influence values of these scores are
-            // not a licensed sampling distribution (see `docs/guides/penalized-aipw.md` and
-            // `docs/guides/clustered-dml.md`).
+            // The cluster-DML route publishes the cluster-sandwich SE below; the iid
+            // covariance and influence values of these scores are not a licensed sampling
+            // distribution for it (see `docs/guides/clustered-dml.md`).
             result.se_analytic = f64::NAN;
             result.se_kind = None;
             result.joint_covariance = None;
@@ -1052,6 +1060,17 @@ impl AipwAte {
             result.crossfit_folds = Some(n_folds);
             result.crossfit_seed = Some(problem.fold_seed);
             result.learner_provenance = selections.into_iter().map(|s| s.provenance).collect();
+            if let Some((se, df)) = cluster_se {
+                // The cluster sandwich replaces the iid standard error; the iid joint
+                // covariance and influence values stay withheld (wrong dependence).
+                result.se_analytic = se;
+                result.se_reference_df = Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+                result.se_kind = Some(if self.cluster_ids_second.is_some() {
+                    AnalyticSeKind::Multiway
+                } else {
+                    AnalyticSeKind::Cluster
+                });
+            }
         }
         Ok(result)
     }

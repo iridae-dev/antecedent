@@ -2,11 +2,11 @@
 
 `Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))` (Rust:
 `AipwAte::with_cluster_ids(..).with_cluster_dml(ClusterDml::new(20)?)`) cross-fits the
-standard AIPW average effect with **whole clusters** owning folds. The claim is
-`point_only`: the route publishes the cross-fitted point estimate and the score table, and
-returns the cluster-sandwich standard error of the scores only as a named receipt
-(`ClusterDml::receipt`), never as an interval. The record is
-`2.2E.E4.clustered_dml_aipw` in `parity/promotion_2_2.toml`.
+standard AIPW average effect with **whole clusters** owning folds. The route publishes the
+cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
+scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The record is
+`2.2E.E4.clustered_dml_aipw` in `parity/promotion_2_2.toml`; the interval's calibration is
+wired and unmeasured (see [What is published](#what-is-published-and-what-is-not)).
 
 ```python
 from antecedent.estimators import Aipw, ClusterDml
@@ -109,23 +109,47 @@ library checks (C3) and part of (C1) and none of the others.
 Whole-cluster folds make the held-out clusters independent of `eta_k` (given the training
 clusters), which is the step the IID fold plan loses; (C5) is what makes `R` negligible.
 
-## Why no interval
+## What is published, and what is not
 
-No coverage record exists or was run for this construction, and (C5) is the same kind of
-unverifiable rate condition the penalized propensity route withholds an interval for. By the
-repository convention (`parity/README.md`: no 2.2 interval without a coverage record), the
-route therefore:
+The route publishes the cross-fitted point, the score table (with its fold ids and a
+provenance tag naming the cluster count and a fingerprint of the sorted cluster labels), a
+`ClusterDmlReceipt` (unit, cluster count, minimum, folds, unit fingerprint, reference degrees
+of freedom and the cluster-sandwich standard error of the scores) and, on the result,
+`se_analytic` equal to that sandwich standard error with `se_kind` `cluster` (`multiway` for a
+dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
 
-- publishes the point, the score table (with its fold ids and a provenance tag naming the
-  cluster count and a fingerprint of the sorted cluster labels) and a
-  `ClusterDmlReceipt` (unit, cluster count, minimum, folds, unit fingerprint and the
-  cluster-sandwich standard error of the scores). The receipt is not an interval and is
-  not a calibrated claim;
-- leaves `se_analytic` `NaN`, with no joint covariance, score inference or influence values,
-  and retargets of the table report the point only;
-- refuses a requested interval (a bootstrap count above zero, which would also resample
-  rows and split clusters, or a non-default `se_kind`) with
-  `cluster_interval_not_licensed` (`cluster_dml.interval_withheld`).
+- **Published interval.** `PublishedScalarUncertainty::interval` forms
+  `estimate +- t_df * se` with `df = G - 1` (`min(G_a, G_b) - 1` two-way), the declared
+  few-cluster reference; a result without `se_reference_df` keeps the normal quantile.
+- **Retarget.** A retarget of the table (single `PreparedStudy::retarget` or a batch family)
+  replaces the iid Gram by the covariance of the *cluster-summed* weighted influence columns.
+  For claim `k` with `a_r = w_r / sum w` and `theta_k` its weighted mean, the column is
+  `n a_r (phi_kr - theta_k)` and the covariance of claims `k, l` is the bilinear form
+  `G/(G-1) sum_g S_gk S_gl` with `S_g` the cluster sum (one-way), or the two-way
+  `V_a + V_b - V_ab` of the same bilinear forms (dyadic), formed by polarization
+  `(V(k + l) - V(k - l)) / 4` of the receipt's variance. Uniform weights return the fit's own
+  standard error. The contrast standard error, the joint covariance, the max-t band of a batch
+  family and each claim's `reference_df` come from it; the labels are the plan's declared
+  `cluster_ids` (aligned with the table rows), and a table or plan without them keeps the
+  iid retarget withheld. The iid max-t score inference stays withheld.
+- A requested bootstrap (which would resample rows and split clusters) or a non-default
+  `se_kind` is refused with `cluster_interval_not_licensed` (`cluster_dml.interval_withheld`):
+  the route reports its own sandwich standard error rather than ignoring the request.
+- **Calibration.** The calibration harness is wired and runnable:
+  `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
+  registered in `scripts/gate_calibration.sh`) scores the facade's published interval over a
+  sample grid of cluster counts and is measured once at the 2.2 cut. The only missing piece is
+  the measured coverage record; the registry keeps the record `point_only` until then.
+
+**Known-truth check.** `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs` draws
+clustered data with a cluster-level random effect on the outcome, a covariate and the
+treatment effect (population average effect 2) and, over a fixed number of replications and
+fixed seeds, asserts that the 95% Wald band from the receipt standard error with the declared
+`t_{G-1}` reference has coverage within three binomial standard errors of 0.95, that the
+iid standard error of the same scores undercovers by more than that tolerance on the same
+data, and that the published `se_analytic` is the receipt value. It also prints the
+normal-reference coverage so a finite-cluster shortfall is visible; the tolerance is not
+loosened to absorb one. It is a test with fixed seeds, not a coverage record.
 
 ## Scope and refusals
 
@@ -238,18 +262,18 @@ asymptotics):
 
 **Reference degrees of freedom.** The few-cluster convention of Cameron, Gelbach and Miller
 for a two-way variance is `G_min - 1` with `G_min = min(G_a, G_b)`; the receipt reports it as
-`reference_df` (`G - 1` for a cluster unit). No interval is built from it.
+`reference_df` (`G - 1` for a cluster unit). The known-truth test uses it as the `t` reference.
 
-**Result and receipt.** As in the one-way cell the result stays `point_only`: the point and
-the score table (provenance `;cluster_dml=unit=dyad;components=<C>;digest=<...>`) are
-published, `se_analytic` is `NaN`, and the two-way standard error is only the Rust
-`ClusterDml::receipt(table, first, Some(second))` value, with `n_clusters`,
-`n_clusters_second`, `n_components`, `reference_df` and a fingerprint of the sorted
-component names. A requested interval is refused as for the one-way unit
-(`cluster_interval_not_licensed`). The receipt refuses a table in which a component spans two
-folds. Python: `ClusterDml(cluster_ids=..., second_cluster_ids=..., unit="dyad",
-min_components_per_fold=4)`; a dyadic dataclass without second labels, with a different
-length, or a cluster unit with second labels is refused.
+**Result and receipt.** As in the one-way cell the point and the score table (provenance
+`;cluster_dml=unit=dyad;components=<C>;digest=<...>`) are published, `se_analytic` is the
+two-way standard error with `se_kind` `multiway`, and the same value is
+`ClusterDml::receipt(table, first, Some(second))` with `n_clusters`, `n_clusters_second`,
+`n_components`, `reference_df` and a fingerprint of the sorted component names. A requested
+bootstrap or SE kind is refused as for the one-way unit (`cluster_interval_not_licensed`).
+The receipt refuses a table in which a component spans two folds, and a materially negative
+two-way variance is an error, never truncated. Python: `ClusterDml(cluster_ids=...,
+second_cluster_ids=..., unit="dyad", min_components_per_fold=4)`; a dyadic dataclass without
+second labels, with a different length, or a cluster unit with second labels is refused.
 
 ## Screen, then estimate, owned by entities (`CandidateScreen.from_units`)
 

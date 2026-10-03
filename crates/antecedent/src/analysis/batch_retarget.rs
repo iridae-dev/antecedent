@@ -414,6 +414,9 @@ pub struct ClaimPoint {
     pub nuisance_provenance: String,
     /// Notes (a penalized member's withheld covariance).
     pub diagnostics: Vec<String>,
+    /// Degrees of freedom of the Student-t reference of a cluster-DML member's standard
+    /// error (`G - 1`, or `min(G_a, G_b) - 1` dyadic); `None` is the normal reference.
+    pub reference_df: Option<f64>,
 }
 
 /// One claim of a family report.
@@ -551,8 +554,12 @@ impl BatchRetargetReport {
 
 struct Evaluated {
     point: ClaimPoint,
-    /// Weighted influence values `ξ`; present only for a covariance-bearing member.
+    /// Weighted influence values `ξ`; present only for a covariance-bearing member. For a
+    /// cluster-DML member these are the columns `n a_r (φ_r − θ)` whose cluster-summed
+    /// covariance is the claim's.
     influence: Option<Vec<f64>>,
+    /// Declared independence units of a cluster-DML member.
+    cluster: Option<super::prepared::ClusterUnits>,
 }
 
 fn estimand_label(query: &BatchQuery) -> String {
@@ -589,6 +596,14 @@ fn weighted_influence(scores: &[f64], weights: &[f64], theta: f64) -> Vec<f64> {
         .zip(weights)
         .map(|(phi, w)| correction * ((w / scale) / total) * (phi - theta))
         .collect()
+}
+
+/// Cluster-DML influence columns `n · (w_r / Σw) · (φ_r − θ)`: their cluster-sandwich variance
+/// is `G/(G-1) Σ_g S_g²` with `S_g` the cluster sum of `(w_r / Σw)(φ_r − θ)`.
+fn cluster_influence(scores: &[f64], weights: &[f64], theta: f64) -> Vec<f64> {
+    let n = scores.len() as f64;
+    let total: f64 = weights.iter().sum();
+    scores.iter().zip(weights).map(|(phi, w)| n * (w / total) * (phi - theta)).collect()
 }
 
 fn evaluate_claim(
@@ -658,7 +673,9 @@ fn evaluate_claim(
     };
     let scores =
         table.combine_scores(&coefficients).map_err(|e| member_failure(&CausalError::from(e)))?;
-    let withheld = provenance_withholds_interval(&table.nuisance_provenance);
+    let cluster_df = out.cluster_reference_df;
+    let withheld =
+        provenance_withholds_interval(&table.nuisance_provenance) && cluster_df.is_none();
     let mut diagnostics = Vec::new();
     if withheld {
         diagnostics.push(
@@ -667,7 +684,14 @@ fn evaluate_claim(
         );
     }
     Ok(Evaluated {
-        influence: (!withheld).then(|| weighted_influence(&scores, &claim.weights, value)),
+        influence: (!withheld).then(|| {
+            if cluster_df.is_some() {
+                cluster_influence(&scores, &claim.weights, value)
+            } else {
+                weighted_influence(&scores, &claim.weights, value)
+            }
+        }),
+        cluster: cluster_df.and(plan.cluster_units()),
         point: ClaimPoint {
             value,
             std_error: None,
@@ -677,6 +701,7 @@ fn evaluate_claim(
             propensity_range: out.support.propensity_range,
             nuisance_provenance: table.nuisance_provenance.to_string(),
             diagnostics,
+            reference_df: cluster_df.map(|df| f64::from(u32::try_from(df).unwrap_or(u32::MAX))),
         },
     })
 }
@@ -922,9 +947,36 @@ pub(crate) fn retarget_family(
         None
     } else {
         let columns: Vec<&[f64]> = bearing.iter().map(|(_, x)| *x).collect();
+        // One estimator configuration governs the batch, so a cluster-DML family has one set
+        // of declared units: the covariance is then the cluster-summed one, never the iid Gram.
+        let units: Vec<Option<&super::prepared::ClusterUnits>> = bearing
+            .iter()
+            .map(|(i, _)| evaluated[*i].as_ref().ok().and_then(|e| e.cluster.as_ref()))
+            .collect();
+        let matrix = match units.first().copied().flatten() {
+            None if units.iter().all(Option::is_none) => gram(&columns)?,
+            Some(first)
+                if units.iter().all(|u| {
+                    u.is_some_and(|u| u.first == first.first && u.second == first.second)
+                }) =>
+            {
+                first
+                    .spec
+                    .influence_covariance(&columns, &first.first, first.second.as_deref())
+                    .map_err(|e| {
+                        not_supported("batch_retarget.covariance_unavailable", e.to_string())
+                    })?
+            }
+            _ => {
+                return Err(not_supported(
+                    "batch_retarget.covariance_unavailable",
+                    "the family mixes members with and without declared cluster units",
+                ));
+            }
+        };
         Some(FamilyCovariance {
             names: bearing.iter().map(|(i, _)| request.claims[*i].name.clone()).collect(),
-            matrix: gram(&columns)?,
+            matrix,
         })
     };
 
@@ -1343,6 +1395,7 @@ mod tests {
             propensity_range: None,
             nuisance_provenance: "test".into(),
             diagnostics: Vec::new(),
+            reference_df: None,
         }
     }
 

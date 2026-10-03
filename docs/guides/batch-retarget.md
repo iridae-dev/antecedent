@@ -129,6 +129,15 @@ In Rust, `PreparedBatch::estimate_scored` returns the results with the `BatchSco
 `PreparedBatch::retarget`. A single `PreparedStudy::retarget` still reweights the table frozen
 at prepare (or rebuilt by `refresh`); `estimate(&self)` never replaces it.
 
+### Cluster-DML families
+
+A plan whose estimator is a cluster-DML `Aipw` (see [clustered DML](clustered-dml.md)) joins the
+family with the covariance of the cluster-summed weighted influence columns
+(`G/(G-1) sum_g S_gk S_gl`, two-way `V_a + V_b - V_ab`) instead of the iid Gram, using the labels
+the plan declared; every member then carries `reference_df` (`G - 1`), and the max-t band is
+formed from that covariance. The family must be all cluster-DML with the same labels; a mixed
+family refuses `batch_retarget.covariance_unavailable`.
+
 ### Partial families and penalized tables
 
 Every claim and contrast is reported. A member that cannot be retargeted (weighted overlap
