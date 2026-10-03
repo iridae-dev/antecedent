@@ -110,7 +110,8 @@ pub fn independent_action_contrast(
 /// ratio estimates the treatment-on-treated effect. The ratio influence
 /// function `(outcome_score − effect · receipt_score) / first_stage` gives the
 /// independent-unit asymptotic variance; the normal interval is withheld for
-/// small or weakly supported designs.
+/// small or weakly supported designs, including a first stage whose conservative
+/// score interval reaches zero.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ComplierWaldEffect {
     /// Wald complier contrast (CACE/LATE, or one-sided treatment-on-treated).
@@ -130,7 +131,12 @@ pub struct ComplierWaldEffect {
 /// `probabilities` are the known per-row treatment-assignment probabilities.
 /// Returns `None` when the rows are misaligned, an outcome or probability is
 /// out of range, or the receipt first stage is not finite and positive. The
-/// interval matches the retained analyze route's published interval exactly;
+/// interval additionally requires the conservative score-based 95% interval
+/// for the first stage to exclude zero. A weak positive stage keeps its point
+/// estimate but has no normal ratio interval. This guard does not turn the
+/// normal ratio interval into a weak-instrument-robust confidence set. The
+/// interval matches the retained
+/// analyze route's published interval exactly;
 /// the support license itself is granted only on that route.
 #[must_use]
 pub fn complier_wald_effect(
@@ -169,6 +175,9 @@ pub fn complier_wald_effect(
     if !first_stage.is_finite() || first_stage <= f64::EPSILON {
         return None;
     }
+    let first_stage_variance =
+        receipt_scores.iter().map(|score| (score - first_stage).powi(2)).sum::<f64>()
+            / ((n - 1) * n) as f64;
     let effect = intention_to_treat_effect / first_stage;
     let influence = outcome_scores
         .iter()
@@ -185,6 +194,8 @@ pub fn complier_wald_effect(
         && control >= MIN_ACTION_ROWS_FOR_INTERVAL
         && treated >= MIN_ACTION_ROWS_FOR_INTERVAL
         && min_probability + 1e-12 >= MIN_ACTION_PROBABILITY_FOR_INTERVAL
+        && first_stage_variance.is_finite()
+        && first_stage > NORMAL_95 * first_stage_variance.sqrt()
         && variance > 0.0)
         .then(|| {
             let radius = NORMAL_95 * variance.sqrt();
@@ -477,5 +488,19 @@ mod tests {
                 .interval_95
                 .is_none()
         );
+    }
+
+    #[test]
+    fn complier_effect_withholds_normal_interval_for_near_zero_first_stage() {
+        let n = 400;
+        let outcomes = (0..n).map(|i| i as f64 / n as f64).collect::<Vec<_>>();
+        let assignment = (0..n).map(|i| i % 2 == 0).collect::<Vec<_>>();
+        let received =
+            (0..n).map(|i| if i % 2 == 0 { i / 2 < 101 } else { i / 2 < 100 }).collect::<Vec<_>>();
+        let probabilities = vec![0.5; n];
+        let fit = complier_wald_effect(&outcomes, &assignment, &received, &probabilities).unwrap();
+        assert!(fit.first_stage > 0.0);
+        assert!(fit.variance > 0.0);
+        assert!(fit.interval_95.is_none());
     }
 }

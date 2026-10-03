@@ -20,8 +20,9 @@
 //!   ratio and the 2SLS coefficient equal that effect, which is then also the average effect;
 //! - with effects that differ across units, a binary instrument and a binary treatment, the
 //!   Wald ratio is the local average treatment effect for compliers, and only under
-//!   monotonicity (no defiers); 2SLS with several or continuous instruments is an
-//!   instrument-weighted average of such complier effects.
+//!   monotonicity (no defiers). With several or continuous instruments, 2SLS has no
+//!   generic complier-average interpretation: an effect-weight representation needs
+//!   additional restrictions, and multiple-instrument weights need not be positive.
 //!
 //! Neither case is the population average effect under heterogeneity. The `ate` field of
 //! the returned [`EffectEstimate`] holds the estimate scaled to the queried contrast; the
