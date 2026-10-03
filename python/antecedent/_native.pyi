@@ -4696,6 +4696,17 @@ def classify_inverse_outcome_stage(
     cancel: CancellationToken | None = None,
 ) -> dict[str, Any]: ...
 
+def matched_case_control_odds_ratio(
+    stratum: list[str],
+    case: list[float],
+    exposed: list[float],
+    *,
+    sampling: str,
+    estimand: str,
+    interval: bool = False,
+    cancel: CancellationToken | None = None,
+) -> tuple[float, float, int, int, int, int, int]: ...
+
 def derived_treatment_check_json(
     names: list[str],
     columns: list[Any],

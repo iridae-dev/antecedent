@@ -165,6 +165,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "inference",
         "interference",
         "intervention",
+        "matched",
         "model",
         "observation",
         "policy",

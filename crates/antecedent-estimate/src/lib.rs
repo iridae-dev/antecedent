@@ -102,6 +102,7 @@ pub mod learned_continuous;
 pub mod learned_trial;
 pub mod longitudinal_regime;
 pub mod marginal_structural_model;
+pub mod matched_case_control;
 pub mod smoothed_dose;
 pub use estimator_menu::{
     EstimatorMenu, EstimatorMenuEntry, MenuContext, MenuRefusal, transport_estimator_menu,
@@ -228,6 +229,11 @@ pub use joint_cell_factorized::{
 pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,
     max_t_critical, monotone_decreasing, monotone_increasing, weighted_mean,
+};
+pub use matched_case_control::{
+    ConditionalOddsRatio, MATCHED_ESTIMAND, MATCHED_SAMPLING, MatchedSetCounts,
+    conditional_odds_ratio, parse_matched_estimand, parse_matched_sampling,
+    refuse_matched_interval,
 };
 pub use mixed_source::{evaluate_exact_mixed_source, prepare_exact_mixed_source};
 pub use observation::{

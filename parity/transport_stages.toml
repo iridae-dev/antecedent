@@ -3006,6 +3006,76 @@ status = "closed"
 reason_code = "route_not_supported"
 notes = "A conflicting-subscript district or an ID hedge on a district term, with no binary consistency complement answering, refuses route_not_supported with a checkable obstruction (details counterfactual_id.conflicting_subscripts, counterfactual_id.counterfactual_hedge): not identified by ID*, NOT a proof of non-identifiability."
 
+# 2.2 E7 matched case-control conditional odds ratio (parity/promotion_2_2.toml,
+# 2.2E.E7.matched_case_control_odds_ratio). Point-only; risk-scale estimands and intervals closed.
+
+[[routes]]
+route = "antecedent_estimate.conditional_odds_ratio"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_matched_sets_no_graph"
+evidence = "stratum_case_exposed_rows_sampled_on_the_outcome"
+functional = "conditional_odds_ratio"
+guarantee = "point_only_exact_conditional_likelihood"
+reference = "docs/guides/matched-case-control.md"
+limits = "Point only, binary exposure, matched sets of any size with any number of cases; concordant and outcome-degenerate sets are counted and carry no information; the estimate must be finite; no interval and no absolute risk."
+evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs"
+evidence_assertion = "one_to_one_matching_reduces_to_the_discordant_pair_ratio"
+
+[[routes]]
+route = "antecedent_estimate.parse_matched_estimand"
+stage = "evaluate"
+status = "closed"
+reason_code = "effect_not_identified"
+notes = "Population risk, absolute risk, risk difference and risk ratio are not identified from sets sampled on the outcome without prevalence or selection information."
+
+[[routes]]
+route = "antecedent_estimate.refuse_matched_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "No coverage record measures a Wald interval for the conditional odds ratio."
+
+[[routes]]
+route = "antecedent.matched.matched_case_control_odds_ratio"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_matched_sets_no_graph"
+evidence = "stratum_case_exposed_rows_sampled_on_the_outcome"
+functional = "conditional_odds_ratio"
+guarantee = "point_only_exact_conditional_likelihood"
+reference = "docs/guides/matched-case-control.md"
+limits = "Point only, binary exposure, matched sets of any size with any number of cases; concordant and outcome-degenerate sets are counted and carry no information; the estimate must be finite; no interval and no absolute risk."
+evidence_test = "python/tests/test_matched_case_control.py"
+evidence_assertion = "test_one_to_one_matching_is_the_discordant_pair_ratio"
+
+[[routes]]
+route = "antecedent.matched.replay_matched_case_control"
+stage = "consume"
+status = "licensed"
+graph = "declared_matched_sets_no_graph"
+evidence = "matched_case_control_v1_artifact"
+functional = "conditional_odds_ratio"
+guarantee = "independently_rebuilt_and_bit_exact_recomputed"
+reference = "docs/guides/matched-case-control.md"
+limits = "Checks the digest, rebuilds the sets from the stored sufficient statistic under a row cap, and recomputes the estimate and counts bit for bit."
+evidence_test = "python/tests/test_matched_case_control.py"
+evidence_assertion = "test_an_exported_result_is_replayed_by_an_independent_consumer"
+
+[[routes]]
+route = "antecedent.matched.risk_scale_estimand"
+stage = "evaluate"
+status = "closed"
+reason_code = "effect_not_identified"
+notes = "Risk-scale estimands are refused at the Python surface."
+
+[[routes]]
+route = "antecedent.matched.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "An interval request is refused at the Python surface."
+
 # 2.2 E6 finite-action inverse-outcome query (parity/promotion_2_2.toml, 2.2E.E6.finite_action_inverse_outcome). Point-only enumeration over a licensed forward mean curve.
 
 [[routes]]

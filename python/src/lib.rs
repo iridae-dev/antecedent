@@ -50,6 +50,7 @@ mod interrupt;
 mod inverse_outcome_api;
 mod learned_continuous_api;
 mod learned_trial_api;
+mod matched_case_control_api;
 mod observation_api;
 mod observational_interference_api;
 mod policy_api;
@@ -2643,6 +2644,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     learned_continuous_api::register(m)?;
     smoothed_dose_api::register(m)?;
     derived_treatment_api::register(m)?;
+    matched_case_control_api::register(m)?;
     candidate_screen_api::register(m)?;
     preflight_api::register(m)?;
     observation_api::register(m)?;

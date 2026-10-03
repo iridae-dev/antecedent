@@ -129,6 +129,7 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "interference",
     "intervention",
     "learners",
+    "matched",
     "model",
     "observation",
     "population",

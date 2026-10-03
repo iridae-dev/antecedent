@@ -1423,6 +1423,77 @@ fixtures = [
 ]
 
 [[record]]
+id = "2.2E.E7.matched_case_control_odds_ratio"
+workstream = "E7"
+milestone = "E"
+work_package = "E7"
+status = "in_progress"
+consumer_question = "From matched case-control sets sampled on the outcome, what is the conditional odds ratio of a binary exposure, and which sets informed it?"
+theorem = "Derived in-repo (docs/guides/matched-case-control.md). Under logit P(case | set i, x) = alpha_i + beta x with unrestricted alpha_i, conditioning each set on (size n, cases k, exposed total t) removes alpha_i: the exposed-case count A is noncentral hypergeometric, P(A = a) proportional to C(k, a) C(n-k, t-a) e^(beta a). The conditional log likelihood is strictly concave with score sum(a_i - E_i) and information sum V_i; sets with no case, no control or one exposure value have a single possible A and contribute zero. The MLE exists iff the exposed-case total lies strictly inside the sets bounds. With 1:1 matching it is the discordant-pair ratio b/c (Breslow and Day, Statistical Methods in Cancer Research Vol. 1, 1980: paper-inherited, not read here; the closed form is re-derived and tested in-repo). Outcome-dependent sampling changes only alpha_i, so beta is invariant to it."
+reference = "docs/guides/matched-case-control.md"
+guarantee = "exact_conditional_likelihood_point_only"
+graph_class = "None: the cell takes no causal graph. It states a conditional association parameter among declared matched sets; no confounding beyond the declared matching is identified and none is claimed."
+population_semantics = "The population the matched sets were drawn from, under outcome-dependent sampling; the odds ratio is common across sets and invariant to the sampling. Absolute risks, risk differences and risk ratios are not defined here: the case fraction is fixed by design and no prevalence or selection information is taken."
+evidence_family = "Rows of (stratum, case, exposed) with case and exposed exactly 0 or 1; the stratum is the caller-declared matching set and the sampling design is declared as matched_case_control."
+provider = "antecedent_estimate::conditional_odds_ratio: exact hypergeometric-weight sums with a bracketed safeguarded Newton solve of the monotone score; no second optimiser and no ML stack."
+estimand = "theta = exp(beta), the conditional odds ratio of exposure between cases and controls within matched sets, by conditional maximum likelihood."
+inference_claim = "point_only"
+inference_notes = "Point only. No interval: a Wald interval needs asymptotic conditions (number of informative sets growing with bounded set size, a fixed beta, independent sets given the matching) that no coverage record measures, so the interval route is closed with cell_not_licensed. No calibration is run. The information is used inside the solver and is not reported as a standard error."
+owners = ["antecedent-estimate", "python/antecedent/matched"]
+identity_inputs = ["sampling design (matched_case_control)", "estimand (conditional_odds_ratio)", "the set-shape sufficient statistic: (members, cases, exposed, exposed cases, number of sets) per distinct set shape"]
+wire_changes = ["Additive: matched_case_control_v1 JSON artifact (MatchedCaseControlResult.export) with the set-shape sufficient statistic, counts, estimate and a SHA-256 digest; no change to existing artifacts."]
+compatibility = "A new design row: no existing route, artifact or reason code changes, and the AIPW average-effect result is untouched."
+coverage_records = []
+search = false
+surface = ["python/antecedent/matched.py"]
+surface_rust = ["crates/antecedent-estimate/src/matched_case_control.rs"]
+surface_pyo3 = ["python/src/matched_case_control_api.rs"]
+surface_values = ["ConditionalOddsRatio", "MatchedSetCounts", "MatchedCaseControlResult"]
+bounds = { cancellation = true, max_iterations = 500, replay_max_rows = 10000000 }
+refusals = [
+  { code = "effect_not_identified", detail = "matched_case_control.absolute_risk_not_identified", when = "A population risk, absolute risk, risk difference or risk ratio is requested: outcome-dependent sampling fixes the case fraction and the cell takes no prevalence or selection information." },
+  { code = "route_not_supported", detail = "matched_case_control.estimand_not_supported", when = "Any estimand other than conditional_odds_ratio." },
+  { code = "invalid_argument", detail = "matched_case_control.sampling_design", when = "A sampling design other than matched_case_control (matched sets sampled on the outcome)." },
+  { code = "cell_not_licensed", detail = "matched_case_control.interval_withheld", when = "An interval is requested at any layer; the Wald asymptotics (many informative sets, bounded set size, fixed odds ratio) are not measured by a coverage record." },
+  { code = "effect_not_identified", detail = "matched_case_control.no_informative_sets", when = "Every set is exposure-concordant or outcome-degenerate: no set informs the odds ratio (the counts are reported)." },
+  { code = "route_not_supported", detail = "matched_case_control.estimate_not_finite", when = "The conditional likelihood is monotone over the informative sets (exposed-case total at its minimum or maximum), or the estimate lies beyond e^60 or below e^-60." },
+  { code = "invalid_argument", detail = "matched_case_control.invalid_data", when = "Empty or unequal-length rows, a case or exposure value other than exactly 0 or 1, or a missing value." },
+  { code = "transport_budget_cancel", detail = "matched_case_control.budget", when = "The solve was cancelled; no estimate is reported and the stop is not a verdict on the data." },
+]
+routes = [
+  { name = "antecedent_estimate.conditional_odds_ratio", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["parse_matched_sampling"] },
+  { name = "antecedent_estimate.parse_matched_estimand", stage = "evaluate", status = "closed", reason_code = "effect_not_identified", refusal_test = "crates/antecedent-estimate/tests/matched_case_control.rs", refusal_assertion = "risk_scale_estimands_are_refused_without_prevalence" },
+  { name = "antecedent_estimate.refuse_matched_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-estimate/tests/matched_case_control.rs", refusal_assertion = "the_interval_route_is_closed" },
+  { name = "antecedent.matched.matched_case_control_odds_ratio", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.matched.replay_matched_case_control", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.matched.risk_scale_estimand", stage = "evaluate", status = "closed", reason_code = "effect_not_identified", refusal_test = "python/tests/test_matched_case_control.py", refusal_assertion = "test_risk_scale_estimands_are_refused_without_prevalence" },
+  { name = "antecedent.matched.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_matched_case_control.py", refusal_assertion = "test_an_interval_is_withheld_with_a_typed_refusal" },
+]
+fixtures = [
+  { id = "e7.discordant_pair_ratio.truth", role = "truth", intent = "Hand enumeration: with 1:1 matching the conditional MLE is the discordant-pair ratio b/c (7 case-exposed pairs, 3 control-exposed: 7/3); concordant pairs, a singleton and a no-case set are counted and carry no information.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "one_to_one_matching_reduces_to_the_discordant_pair_ratio" },
+  { id = "e7.one_to_two_closed_form.truth", role = "truth", intent = "One type of 1:2 set (n=3, k=1, t=1) has theta = 2a/(m-a); the solver reproduces it for three (a, m).", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "one_to_two_sets_of_one_type_have_a_closed_form" },
+  { id = "e7.brute_force_profile.truth", role = "truth", intent = "Mixed 1:2, 1:3 and 2:2 sets: the estimate equals the argmax of an independently written subset-enumeration profile likelihood.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "mixed_one_to_m_and_k_to_m_sets_match_the_brute_force_profile_likelihood" },
+  { id = "e7.score_information.truth", role = "truth", intent = "The information equals minus the derivative of the score (central difference) and both match the closed form of the n=3, k=1, t=1 set.", evidence_test = "crates/antecedent-estimate/src/matched_case_control.rs", evidence_assertion = "information_is_minus_the_score_derivative" },
+  { id = "e7.uninformative_sets.invariance", role = "invariance", intent = "Adding concordant, outcome-degenerate and singleton sets leaves the estimate bit-identical and changes only the reported counts.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "concordant_and_degenerate_sets_leave_the_estimate_unchanged" },
+  { id = "e7.set_order.invariance", role = "invariance", intent = "Reordering rows and relabelling strata leaves the estimate bit-identical.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "a_set_order_or_label_change_does_not_move_the_estimate" },
+  { id = "e7.python_one_to_one.positive", role = "positive", intent = "Python surface: the discordant-pair ratio 7/3 with the full set counts and the point_only claim.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_one_to_one_matching_is_the_discordant_pair_ratio" },
+  { id = "e7.python_profile.truth", role = "truth", intent = "Python surface: mixed set sizes agree with the pure-Python subset-enumeration profile likelihood.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_mixed_set_sizes_match_the_brute_force_profile_likelihood" },
+  { id = "e7.risk_scale.negative", role = "negative", intent = "Population risk, absolute risk, risk difference and risk ratio refuse effect_not_identified (no prevalence or selection information); another estimand refuses route_not_supported.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "risk_scale_estimands_are_refused_without_prevalence" },
+  { id = "e7.python_risk_scale.negative", role = "negative", intent = "Python surface: the risk-scale estimands refuse effect_not_identified with the registered code.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_risk_scale_estimands_are_refused_without_prevalence" },
+  { id = "e7.no_informative.negative", role = "negative", intent = "Every set concordant or outcome-degenerate refuses effect_not_identified and reports the counts.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "no_informative_set_is_refused_with_the_counts" },
+  { id = "e7.monotone_likelihood.negative", role = "negative", intent = "Only case-exposed (or only control-exposed) discordant pairs have no finite maximizer and refuse as estimate_not_finite.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "a_monotone_likelihood_has_no_finite_estimate" },
+  { id = "e7.malformed_rows.negative", role = "negative", intent = "Empty, unequal-length, non-0/1 and NaN rows refuse invalid_data.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "malformed_rows_are_refused" },
+  { id = "e7.sampling_design.negative", role = "negative", intent = "Only the declared matched case-control sampling design is accepted; any other refuses sampling_design.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "only_the_declared_sampling_design_is_accepted" },
+  { id = "e7.interval.negative", role = "negative", intent = "The interval route refuses cell_not_licensed; a requested level is a typed refusal at the Python surface.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "the_interval_route_is_closed" },
+  { id = "e7.python_interval.negative", role = "negative", intent = "Python surface: level=0.95 refuses cell_not_licensed with the interval_withheld detail.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_an_interval_is_withheld_with_a_typed_refusal" },
+  { id = "e7.cancelled_solve.budget", role = "budget", intent = "A cancelled context stops the solve with a budget refusal, never a verdict, and the same rows then solve.", evidence_test = "crates/antecedent-estimate/tests/matched_case_control.rs", evidence_assertion = "a_cancelled_solve_is_a_budget_stop_never_a_verdict" },
+  { id = "e7.python_cancel.budget", role = "budget", intent = "Python surface: a cancelled token is a budget stop, never a verdict on the data.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_a_cancelled_solve_is_a_budget_stop_never_a_verdict" },
+  { id = "e7.replay.artifact", role = "artifact", intent = "An exported result (set-shape sufficient statistic, counts, estimate, digest) is replayed by an independent consumer that rebuilds the sets and recomputes bit for bit.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_an_exported_result_is_replayed_by_an_independent_consumer" },
+  { id = "e7.tampered_artifact.negative", role = "negative", intent = "Unsealed edits fail by digest; re-sealed edits, forged formats, claims, extra fields and impossible set types fail replay.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_a_tampered_artifact_is_refused_for_the_right_reason" },
+  { id = "e7.replay_cap.negative", role = "negative", intent = "An artifact that would expand past the row cap is refused before any work.", evidence_test = "python/tests/test_matched_case_control.py", evidence_assertion = "test_a_replay_that_would_expand_past_the_row_cap_is_refused_before_work" },
+]
+
+[[record]]
 id = "2.2E.E6.finite_action_inverse_outcome"
 workstream = "E6"
 milestone = "E"
