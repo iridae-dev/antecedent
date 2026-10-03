@@ -1,7 +1,7 @@
 //! Python execution boundary for the batch retarget (E3).
 //!
 //! The Rust [`BatchRetargetReport`] crosses as a dictionary (points, joint covariance,
-//! contrasts, failed members, the closed simultaneous interval, and the tidy rows) and the
+//! contrasts, failed members, the max-t simultaneous interval, and the tidy rows) and the
 //! Python wrapper parses it into frozen dataclasses. The handle keeps the score tables of
 //! its last `estimate`, so a retarget after an estimate reweights that estimate's rows.
 
@@ -9,7 +9,7 @@ use antecedent::{
     BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, MemberFailure,
     RetargetClaim, RetargetContrast,
 };
-use antecedent_core::VariableId;
+use antecedent_core::{ExecutionContext, VariableId};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -39,7 +39,52 @@ fn failure_json(failure: &MemberFailure) -> serde_json::Value {
     })
 }
 
-fn report_json(report: &BatchRetargetReport) -> serde_json::Value {
+/// The simultaneous max-t band of a complete family (`published`), or the typed refusal that
+/// makes the family incomplete (`unavailable`); a bad level or draw count and a cancelled
+/// context raise.
+fn band_json(
+    report: &BatchRetargetReport,
+    level: f64,
+    seed: u64,
+    draws: u32,
+    ctx: &ExecutionContext,
+) -> PyResult<serde_json::Value> {
+    match report.simultaneous_interval(level, seed, draws, ctx) {
+        Ok(band) => Ok(serde_json::json!({
+            "status": "published",
+            "level": band.level,
+            "seed": band.seed,
+            "draws": band.draws,
+            "critical_value": band.critical_value,
+            "members": band.members.iter().map(|m| serde_json::json!({
+                "name": m.name,
+                "value": m.value,
+                "std_error": m.std_error,
+                "lower": m.lower,
+                "upper": m.upper,
+            })).collect::<Vec<_>>(),
+        })),
+        Err(error)
+            if matches!(
+                error.detail,
+                "batch_retarget.partial_family"
+                    | "batch_retarget.point_only_member"
+                    | "batch_retarget.covariance_unavailable"
+            ) =>
+        {
+            Ok(serde_json::json!({
+                "status": "unavailable",
+                "reason_code": error.code,
+                "detail": error.detail,
+                "message": error.message,
+            }))
+        }
+        // A bad level or draw count and a cancelled context are refusals, never a band.
+        Err(error) => Err(retarget_error(error)),
+    }
+}
+
+fn report_json(report: &BatchRetargetReport, simultaneous: serde_json::Value) -> serde_json::Value {
     let claims: Vec<_> = report
         .claims
         .iter()
@@ -135,12 +180,7 @@ fn report_json(report: &BatchRetargetReport) -> serde_json::Value {
         "claims": claims,
         "contrasts": contrasts,
         "covariance": covariance,
-        "simultaneous_interval": {
-            "status": "closed",
-            "reason_code": report.simultaneous_interval.code,
-            "detail": report.simultaneous_interval.detail,
-            "message": report.simultaneous_interval.message,
-        },
+        "simultaneous_interval": simultaneous,
         "complete": complete.is_ok(),
         "complete_refusal": complete.as_ref().err().map(|e| serde_json::json!({
             "reason_code": e.code,
@@ -198,13 +238,25 @@ impl PyPreparedBatch {
     }
 
     /// Retarget a declared family of claims; the report as a dictionary.
-    #[pyo3(signature = (claims, contrasts, *, expected_snapshot=None))]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (
+        claims,
+        contrasts,
+        *,
+        expected_snapshot=None,
+        simultaneous_level=0.95,
+        simultaneous_seed=0,
+        simultaneous_draws=100_000,
+    ))]
     fn retarget_family(
         &self,
         py: Python<'_>,
         claims: Vec<ClaimSpec>,
         contrasts: Vec<ContrastSpec>,
         expected_snapshot: Option<String>,
+        simultaneous_level: f64,
+        simultaneous_seed: u64,
+        simultaneous_draws: u32,
     ) -> PyResult<Py<PyAny>> {
         let scores = self.current_scores()?;
         let claims = claims
@@ -228,6 +280,8 @@ impl PyPreparedBatch {
         let request = BatchRetargetRequest { claims, contrasts, expected_snapshot };
         let ctx = crate::py_execution_context(1, 1);
         let report = self.inner.retarget(&scores, &request, &ctx).map_err(retarget_error)?;
-        to_py_json(py, &report_json(&report))
+        let band =
+            band_json(&report, simultaneous_level, simultaneous_seed, simultaneous_draws, &ctx)?;
+        to_py_json(py, &report_json(&report, band))
     }
 }

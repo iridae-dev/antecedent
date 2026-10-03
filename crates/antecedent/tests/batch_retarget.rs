@@ -1,4 +1,4 @@
-//! E3: configured batches and batch retarget (joint covariance, contrasts, closed
+//! E3: configured batches and batch retarget (joint covariance, contrasts, max-t
 //! simultaneous interval, score-table lifetime, tidy export).
 //!
 //! The independent oracles here are written from the raw score tables with plain sums: the
@@ -324,10 +324,6 @@ fn the_joint_score_covariance_matches_an_independent_calculation() {
         .map(|r| 2.0 * truth[0].1[r] - truth[2].1[r] + 0.5 * truth[3].1[r])
         .collect();
     close(mixed.std_error.unwrap(), dot(&combo, &combo).sqrt(), "mixed se");
-
-    // The simultaneous interval is closed with a typed reason, not published.
-    assert_eq!(report.simultaneous_interval.code, "cell_not_licensed");
-    assert_eq!(report.simultaneous_interval.detail, "batch_retarget.simultaneous_interval_closed");
 }
 
 #[test]
@@ -441,7 +437,7 @@ fn a_failed_member_is_reported_and_the_family_is_never_complete() {
         && !r.family_complete
         && r.family_failed == 3
         && r.family_size == 5
-        && r.simultaneous_interval == "closed"
+        && r.simultaneous_interval == "none"
         && r.scores_source == "prepared"));
     let row = |name: &str| rows.iter().find(|r| r.name == name).unwrap();
     assert_eq!(row("good").status, "ok");
@@ -675,7 +671,7 @@ fn a_cancelled_retarget_is_a_stop_never_a_verdict() {
 }
 
 #[test]
-fn the_simultaneous_interval_is_closed_with_a_typed_reason() {
+fn the_simultaneous_interval_is_the_max_t_band_of_a_complete_family() {
     let fx = fixture(300, 72);
     let prepared = prepare(&fx, &[ate(T1, Y1), ate(T2, Y1)], 72);
     let scores = prepared.prepared_scores();
@@ -687,12 +683,37 @@ fn the_simultaneous_interval_is_closed_with_a_typed_reason() {
         expected_snapshot: None,
     };
     let report = retarget(&prepared, &scores, &request).unwrap();
-    // A complete, covariance-bearing family still has no simultaneous interval: the
-    // construction is nominal asymptotic and no coverage record measures it.
     assert!(report.complete_family().is_ok());
-    let closed = &report.simultaneous_interval;
-    assert_eq!(closed.code, "cell_not_licensed");
-    assert_eq!(closed.detail, "batch_retarget.simultaneous_interval_closed");
-    assert!(closed.message.contains("no coverage record"));
-    assert!(report.tidy_rows().iter().all(|r| r.simultaneous_interval == "closed"));
+    let ctx = ExecutionContext::for_tests(72);
+    let band = report.simultaneous_interval(0.95, 9, 20_000, &ctx).unwrap();
+    // Half-widths are c * se for the plug-in standard errors the report carries, and the
+    // family band is wider than the marginal 95% Wald band of either claim.
+    assert_eq!(band.members.len(), 2);
+    assert!(band.critical_value > 1.959_963_984_540_054 && band.critical_value < 2.6);
+    for (member, claim) in band.members.iter().zip(&report.claims) {
+        let point = claim.outcome.as_ref().unwrap();
+        close(member.value, point.value, "band point");
+        close(member.std_error, point.std_error.unwrap(), "band se");
+        close(member.upper - member.value, band.critical_value * member.std_error, "half width");
+    }
+    // Deterministic in (seed, draws); a different seed moves only the Monte-Carlo value.
+    let again = report.simultaneous_interval(0.95, 9, 20_000, &ctx).unwrap();
+    assert_eq!(again, band);
+    assert!(report.tidy_rows().iter().all(|r| r.simultaneous_interval == "max_t"));
+    // A partial family has no band: the refusal names why.
+    let partial = retarget(
+        &prepared,
+        &scores,
+        &BatchRetargetRequest {
+            claims: vec![claim("a", 0, vec![1.0; 3]), claim("b", 1, vec![1.0; 3])],
+            contrasts: vec![],
+            expected_snapshot: None,
+        },
+    )
+    .unwrap();
+    let refused = partial.simultaneous_interval(0.95, 9, 20_000, &ctx).unwrap_err();
+    assert_eq!(
+        (refused.code, refused.detail),
+        ("cell_not_licensed", "batch_retarget.partial_family")
+    );
 }

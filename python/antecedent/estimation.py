@@ -1971,15 +1971,47 @@ class RetargetMember:
 
 
 @dataclass(frozen=True)
+class SimultaneousBandMember:
+    """One claim of a :class:`SimultaneousInterval`: ``value +/- critical_value * std_error``."""
+
+    name: str
+    value: float
+    std_error: float
+    lower: float
+    upper: float
+
+
+@dataclass(frozen=True)
+class SimultaneousInterval:
+    """Family-level max-t band of a complete :class:`BatchRetarget` family.
+
+    ``critical_value`` is the ``level`` quantile of ``max_j |Z_j|`` for ``Z ~ N(0, R)``, ``R``
+    the correlation matrix of the family's plug-in score covariance: a Monte-Carlo value that
+    is a deterministic function of ``(R, level, seed, draws)``. The band is a nominal
+    asymptotic construction under iid rows, fixed declared weights, positivity and nuisance
+    convergence; selection and weight-estimation uncertainty and the Monte-Carlo error of
+    ``critical_value`` are excluded.
+    """
+
+    level: float
+    critical_value: float
+    seed: int
+    draws: int
+    members: tuple[SimultaneousBandMember, ...]
+
+
+@dataclass(frozen=True)
 class BatchRetarget:
     """Points, joint score covariance and contrasts of a retargeted family.
 
     The covariance is the plug-in joint covariance of the retargeted claims from the shared
-    row-aligned scores; a standard error is not an interval. The family-level simultaneous
-    interval is closed (:meth:`simultaneous_interval` raises ``cell_not_licensed``): it is a
-    nominal asymptotic interval no coverage record measures. A partial family (any failed or
-    point-only member) lists every member and is never a complete-family claim
-    (:meth:`complete_family` raises). Penalized-propensity scores retarget to points only.
+    row-aligned scores; a standard error is not an interval. For a complete family
+    :meth:`simultaneous_interval` returns the max-t band ``value +/- c * std_error`` of the
+    claims (level, seed and draws are the ``simultaneous_*`` arguments of
+    :meth:`PreparedBatch.retarget`); a partial family (any failed or point-only member) lists
+    every member, has no band and is never a complete-family claim (:meth:`complete_family`
+    and :meth:`simultaneous_interval` raise). Penalized-propensity scores retarget to points
+    only.
     """
 
     family_id: str
@@ -2007,10 +2039,27 @@ class BatchRetarget:
             raise CausalValueError(f"claim {b!r} carries no covariance in this family")
         return self.covariance[self.covariance_names.index(a)][self.covariance_names.index(b)]
 
-    def simultaneous_interval(self) -> Any:
-        """Always raises: the family-level simultaneous interval is closed."""
-        closed = self._closed
-        raise _refused(closed["reason_code"], f"{closed['detail']}: {closed['message']}")
+    def simultaneous_interval(self) -> SimultaneousInterval:
+        """The family-level max-t band; a typed refusal for a partial or point-only family."""
+        raw = self._closed
+        if raw["status"] != "published":
+            raise _refused(raw["reason_code"], f"{raw['detail']}: {raw['message']}")
+        return SimultaneousInterval(
+            level=float(raw["level"]),
+            critical_value=float(raw["critical_value"]),
+            seed=int(raw["seed"]),
+            draws=int(raw["draws"]),
+            members=tuple(
+                SimultaneousBandMember(
+                    name=m["name"],
+                    value=float(m["value"]),
+                    std_error=float(m["std_error"]),
+                    lower=float(m["lower"]),
+                    upper=float(m["upper"]),
+                )
+                for m in raw["members"]
+            ),
+        )
 
     def complete_family(self) -> BatchRetarget:
         """This report when it is a complete-family claim; otherwise a typed refusal."""
@@ -2306,6 +2355,9 @@ class PreparedBatch:
         contrasts: Sequence[RetargetContrast] = (),
         *,
         expected_snapshot: str | None = None,
+        simultaneous_level: float = 0.95,
+        simultaneous_seed: int = 0,
+        simultaneous_draws: int = 100_000,
     ) -> BatchRetarget:
         """Retarget a declared family of claims over one row snapshot. No refit.
 
@@ -2313,8 +2365,10 @@ class PreparedBatch:
         AllObserved iid AIPW or cell-AIPW plan) under row weights aligned with
         :meth:`retarget_rows`. The result carries every point, the joint plug-in score
         covariance (cross-claim terms come from the shared rows), the named
-        :class:`RetargetContrast` values with their standard errors, the failed members, and a
-        closed family-level simultaneous interval. After :meth:`estimate` the scores are that
+        :class:`RetargetContrast` values with their standard errors, the failed members, and
+        for a complete family the max-t simultaneous band at ``simultaneous_level`` (the
+        Monte-Carlo critical value uses ``simultaneous_seed`` and ``simultaneous_draws``,
+        1000 to 2000000). After :meth:`estimate` the scores are that
         estimate's; a plan whose estimate kept no score table fails its members with
         ``reason_code="score_table_unavailable"`` rather than reusing prepare-time rows.
         Mixed snapshots, an undeclared ``expected_snapshot`` and malformed families raise
@@ -2350,7 +2404,12 @@ class PreparedBatch:
             (c.name, [(str(n), float(v)) for n, v in c.coefficients.items()]) for c in contrasts
         ]
         raw = self._native.retarget_family(
-            native_claims, native_contrasts, expected_snapshot=expected_snapshot
+            native_claims,
+            native_contrasts,
+            expected_snapshot=expected_snapshot,
+            simultaneous_level=float(simultaneous_level),
+            simultaneous_seed=int(simultaneous_seed),
+            simultaneous_draws=int(simultaneous_draws),
         )
         members = []
         for entry in raw["claims"]:
@@ -6280,6 +6339,8 @@ __all__ = [
     "RetargetClaim",
     "RetargetContrast",
     "RetargetMember",
+    "SimultaneousBandMember",
+    "SimultaneousInterval",
     "SharedBatchDesign",
     "CandidateScreen",
     "PriorSensitivityReport",

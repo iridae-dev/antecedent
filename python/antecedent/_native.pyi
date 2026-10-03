@@ -2220,6 +2220,9 @@ class PreparedBatch:
         contrasts: list[tuple[str, list[tuple[str, float]]]],
         *,
         expected_snapshot: str | None = None,
+        simultaneous_level: float = 0.95,
+        simultaneous_seed: int = 0,
+        simultaneous_draws: int = 100_000,
     ) -> dict[str, Any]: ...
 
 def prepare_ate_batch(

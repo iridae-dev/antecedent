@@ -281,6 +281,8 @@ _EXPECTED_STAGE_ALL = {
         "RetargetClaim",
         "RetargetContrast",
         "RetargetMember",
+        "SimultaneousBandMember",
+        "SimultaneousInterval",
         "SharedBatchDesign",
         "CandidateScreen",
         "PriorSensitivityReport",

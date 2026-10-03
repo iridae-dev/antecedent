@@ -130,7 +130,7 @@ def test_an_unknown_configuration_key_is_refused_like_the_single_query_call():
         )
 
 
-def test_a_batch_retarget_reports_points_covariance_contrasts_and_a_closed_interval():
+def test_a_batch_retarget_reports_points_covariance_contrasts_and_a_simultaneous_interval():
     data = frame()
     batch = prepare(data)
     plus, minus = weights(batch, data, 1.0), weights(batch, data, -1.0)
@@ -167,16 +167,16 @@ def test_a_batch_retarget_reports_points_covariance_contrasts_and_a_closed_inter
     assert contrast.std_error == pytest.approx(math.sqrt(variance))
     assert report.inference_claim == "point_only"
 
-    # The family-level simultaneous interval is closed with a registered reason.
-    with pytest.raises(CausalUnsupportedError) as closed:
-        report.simultaneous_interval()
-    assert closed.value.reason_code == "cell_not_licensed"
-    assert_registered_refusal(closed.value)
+    # The family-level simultaneous interval is the max-t band of the complete family.
+    band = report.simultaneous_interval()
+    assert band.level == 0.95 and band.critical_value > 1.959
+    for member in band.members:
+        assert member.upper - member.value == pytest.approx(band.critical_value * member.std_error)
 
     rows = report.to_rows()
     assert [r["name"] for r in rows] == ["a", "b", "c", "route_a_minus_route_b"]
     assert {r["family_id"] for r in rows} == {report.family_id}
-    assert all(r["simultaneous_interval"] == "closed" and r["family_complete"] for r in rows)
+    assert all(r["simultaneous_interval"] == "max_t" and r["family_complete"] for r in rows)
     assert rows[3]["kind"] == "contrast" and rows[0]["scores_source"] == "prepared"
 
 
@@ -331,7 +331,7 @@ def test_a_plan_without_scores_refuses_its_members_after_an_estimate():
     assert after.claims[0].status == "failed" and not after.complete
 
 
-def test_the_simultaneous_interval_is_closed_with_a_registered_reason():
+def test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal():
     data = frame()
     batch = prepare(data)
     plus = weights(batch, data, 1.0)
@@ -339,16 +339,36 @@ def test_the_simultaneous_interval_is_closed_with_a_registered_reason():
         [
             RetargetClaim("a", 0, plus, depends_on=["z"]),
             RetargetClaim("b", 2, plus, depends_on=["z"]),
-        ]
+        ],
+        simultaneous_level=0.9,
+        simultaneous_seed=5,
+        simultaneous_draws=20_000,
     )
     assert report.complete
-    with pytest.raises(CausalUnsupportedError) as closed:
-        report.simultaneous_interval()
-    assert closed.value.reason_code == "cell_not_licensed"
-    assert_registered_refusal(closed.value)
-    assert "simultaneous" in str(closed.value)
-    # No interval field exists anywhere on the report or its rows.
-    assert not any("lower" in row or "upper" in row for row in report.to_rows())
+    band = report.simultaneous_interval()
+    assert (band.level, band.seed, band.draws) == (0.9, 5, 20_000)
+    assert 1.6448 < band.critical_value < 2.4
+    by_name = {m.name: m for m in report.claims}
+    for member in band.members:
+        assert member.value == pytest.approx(by_name[member.name].value)
+        assert member.std_error == pytest.approx(by_name[member.name].std_error)
+        assert member.lower == pytest.approx(member.value - band.critical_value * member.std_error)
+    # The max-t band is wider than each marginal band at the same level.
+    assert all(m.upper - m.value > 1.6448 * m.std_error for m in band.members)
+    # A partial family has no band: a typed refusal naming why.
+    partial = batch.retarget(
+        [
+            RetargetClaim("a", 0, plus, depends_on=["z"]),
+            RetargetClaim("short", 2, plus[:5], depends_on=["z"]),
+        ]
+    )
+    with pytest.raises(CausalUnsupportedError) as refused:
+        partial.simultaneous_interval()
+    assert_registered_refusal(refused.value)
+    assert refused.value.reason_code == "cell_not_licensed"
+    assert "partial_family" in str(refused.value)
+    with pytest.raises(Exception):
+        batch.retarget([RetargetClaim("a", 0, plus, depends_on=["z"])], simultaneous_level=1.5)
 
 
 def test_the_tidy_export_carries_identity_provenance_and_failed_members():

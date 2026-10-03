@@ -3,7 +3,7 @@
 //! The export never flattens a partial family into its successes: a failed member is a row
 //! with `status = "failed"` and its typed refusal, a point-only member is a row with a value
 //! and no standard error, and every row carries the family identity, whether the family is
-//! complete, how many members failed, the closed simultaneous-interval status and the
+//! complete, how many members failed, the simultaneous-interval availability and the
 //! provenance of the scores.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -55,7 +55,8 @@ pub struct TidyRow {
     pub std_error: Option<f64>,
     /// `plug_in_score_covariance` or `none`.
     pub uncertainty_kind: &'static str,
-    /// Status of the family-level simultaneous interval: always `closed`.
+    /// Family-level simultaneous interval: `max_t` when the family is complete (the band is
+    /// available from the report), otherwise `none`.
     pub simultaneous_interval: &'static str,
     /// `supported` (weighted overlap passed), `refused` (weighted overlap failed) or
     /// `not_assessed` (a contrast, or a member that failed before the overlap gate).
@@ -112,7 +113,7 @@ impl BatchRetargetReport {
             value: None,
             std_error: None,
             uncertainty_kind: UncertaintyKind::None.as_str(),
-            simultaneous_interval: "closed",
+            simultaneous_interval: if complete { "max_t" } else { "none" },
             support_status: "not_assessed",
             n_eff: None,
             refusal_code: None,

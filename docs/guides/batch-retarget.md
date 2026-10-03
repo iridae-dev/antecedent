@@ -3,7 +3,7 @@
 A batch answers many average-effect questions on one table. Two additions in 2.2: the batch
 entry points take the same typed estimator configurations as `analyze`, and a prepared batch
 can **retarget** a declared family of claims to caller-declared populations and report their
-joint covariance and named contrasts. The claim is `point_only`; the record is
+joint covariance, named contrasts and, for a complete family, a max-t simultaneous band. The points and plug-in covariance are `point_only`; the band is a calibrated-claim route whose calibration is wired and unmeasured (see [The simultaneous interval](#the-simultaneous-interval)). The record is
 `2.2E.E3.batch_retarget_covariance_contrasts` in `parity/promotion_2_2.toml`.
 
 ## Typed estimator configurations
@@ -76,40 +76,43 @@ weights that are fixed functions of certified covariates, positivity and nuisanc
 convergence. Selection and weight-estimation uncertainty and dependence between rows are
 excluded. A standard error is not an interval.
 
-### The simultaneous interval is closed
+### The simultaneous interval
 
-A family-level simultaneous (max-t) interval would be a nominal asymptotic construction on
-`Sigma`. No coverage record measures it, and 2.2 publishes no interval under
-`estimator_grid_not_measured`, so the report carries a typed closure instead:
-`BatchRetarget.simultaneous_interval()` raises `cell_not_licensed`
-(`batch_retarget.simultaneous_interval_closed`). Points, covariance and contrasts are what is
-published.
+For a complete family (no failed or point-only member) the report forms the family-level
+max-t band `point_j +- c * se_j` with `se_j = sqrt(Sigma_jj)` and `c` the `level` quantile of
+`max_j |Z_j|` for `Z ~ N(0, R)`, `R` the correlation matrix of `Sigma`. Rust:
+`BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` returning a
+`SimultaneousBand`; Python: `BatchRetarget.simultaneous_interval()`, computed at
+`PreparedBatch.retarget(..., simultaneous_level=0.95, simultaneous_seed=0,
+simultaneous_draws=100000)`. The band is a nominal asymptotic construction (the Gaussian
+limit of the studentized retargeted points, plug-in `Sigma`) under the single-claim
+retarget's conditions: iid rows, fixed declared weights, positivity and nuisance convergence.
+Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are excluded.
+The claim is `calibrated` with the calibration harness wired and unmeasured:
+`crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
+covered" event, is registered in `scripts/gate_calibration.sh` and runs once at the 2.2 cut;
+this change allocates no coverage record.
 
-#### The unpublished evaluator
+`c` is a Monte-Carlo quantile on the library's one max-t sampler: a deterministic function of
+`(R, level, seed, draws)`, with `draws` bounded to 1000 through 2000000, the stop signal
+polled every 1024 draws (a cancelled context returns `cancelled_no_claim`, never a value),
+and a matrix that is not a unit-diagonal positive semidefinite correlation refused
+(`batch_retarget.covariance_unavailable`; an invalid level or draw count refuses
+`batch_retarget.max_t_invalid_level` / `batch_retarget.max_t_draws_out_of_range`). A partial
+or point-only family has no band and refuses `cell_not_licensed`
+(`batch_retarget.partial_family` / `batch_retarget.point_only_member`); the Python result
+reports that refusal when `simultaneous_interval()` is called.
 
-The evaluator of that interval exists, but only as an unpublished Rust entry that the
-calibration wiring uses (`antecedent::max_t_critical_value` and
-`antecedent::simultaneous_band_unpublished`, both doc-hidden; there is no Python route). For a
-complete family (no failed or point-only member) it forms `point_j +- c * se_j`, where
-`se_j = sqrt(Sigma_jj)` and `c` is the `level` quantile of `max_j |Z_j|` for `Z ~ N(0, R)`, `R`
-the correlation matrix of `Sigma`. `c` is a Monte-Carlo quantile on the library's one max-t
-sampler: a deterministic function of `(R, level, seed, draws)`, with `draws` bounded to 1000
-through 2000000, the stop signal polled every 1024 draws (a cancelled context returns
-`cancelled_no_claim`, never a value), and a matrix that is not a unit-diagonal positive
-semidefinite correlation refused (`batch_retarget.covariance_unavailable`; an invalid level or
-draw count refuses `batch_retarget.max_t_invalid_level` / `batch_retarget.max_t_draws_out_of_range`).
-
-Its critical value is checked against oracles that need no simulation to state: one claim is
-the two-sided normal quantile `z_{1-(1-level)/2}`; `k` independent claims solve
-`(2 Phi(c) - 1)^k = level`; perfectly correlated claims reduce to one claim; `c` is monotone in
-`k` and in the level and shrinks under positive correlation; band half-widths equal `c * se_j`
-for a hand-computed covariance. Those checks verify the arithmetic, not the coverage of the
-band. The band is a nominal asymptotic construction (the Gaussian limit of the studentized
-retargeted points, plug-in `Sigma`, Monte-Carlo error excluded) that **no coverage record
-measures**: `crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint
-"all four claims covered" event, is registered in `scripts/gate_calibration.sh`, and is run
-once at the 2.2 cut; nothing is measured before it. The published route stays closed whatever
-the evaluator returns.
+The critical value is checked against oracles that need no simulation to state: one claim is
+the two-sided normal quantile; `k` independent claims solve `(2 Phi(c) - 1)^k = level`;
+perfectly correlated claims reduce to one claim; `c` is monotone in `k` and in the level and
+shrinks under positive correlation; band half-widths equal `c * se_j` for a hand-computed
+covariance. Those checks verify the arithmetic. Coverage is exercised by a known-truth test,
+`crates/antecedent/tests/batch_retarget_known_truth.rs`: over a fixed number of replications
+and fixed seeds on a linear-Gaussian-outcome SCM it asserts that the family-wise coverage of a
+three-claim family (uniform weights and two exponentially tilted claims whose true values are
+`2 + 0.5 s`) is at least the nominal level minus three binomial standard errors, and that the
+band is strictly wider than each marginal band. It is a test, not a coverage record.
 
 ### Score-table lifetime
 
@@ -148,7 +151,7 @@ carries no covariance, and a complete-family request refuses
 digest of the declared family, snapshot, scores source and estimator fingerprint),
 `family_complete`, `family_size`, `family_failed`, `kind`, `name`, `estimand`, `status`
 (`ok`, `point_only`, `failed`), `value`, `std_error`, `uncertainty_kind`
-(`plug_in_score_covariance` or `none`), `simultaneous_interval` (`closed`), `support_status`,
+(`plug_in_score_covariance` or `none`), `simultaneous_interval` (`max_t` for a complete family, else `none`), `support_status`,
 the refusal code, detail and message of a failed member, `diagnostics`, `scores_source`,
 `snapshot_id`, `estimator_fingerprint` and `nuisance_provenance`.
 

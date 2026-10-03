@@ -1,5 +1,5 @@
 //! Batch retarget: the points, joint covariance and named contrasts of a family of
-//! retargeted claims over one row snapshot, with the simultaneous interval closed.
+//! retargeted claims over one row snapshot, with the family-level max-t band.
 //!
 //! Each claim `k` reweights one plan's cross-fitted score table `φ_k` (the AIPW contrast
 //! score of an average effect, or the cell score of a joint cell) under caller-declared
@@ -25,12 +25,13 @@
 //!
 //! What is claimed: points and a plug-in score covariance under iid rows, fixed declared
 //! weights, positivity and nuisance convergence (the single-claim retarget's contract).
-//! What is not: the family-level simultaneous (max-t) interval. It is a nominal asymptotic
-//! interval no coverage record measures, so it is closed with a typed refusal rather than
-//! published under `estimator_grid_not_measured`. A penalized-propensity table retargets to
-//! a point only and joins the family without covariance. A partial family (any failed or
-//! point-only member) is reported member by member and never offered as a complete-family
-//! claim.
+//! The family-level simultaneous (max-t) band `θ_k ± c · se_k` is
+//! [`BatchRetargetReport::simultaneous_interval`]: a nominal asymptotic construction on `Σ`
+//! (plug-in covariance, Monte-Carlo critical value `c`), published for a complete family
+//! only. Its coverage is measured by the calibration harness, not asserted here. A
+//! penalized-propensity table retargets to a point only and joins the family without
+//! covariance. A partial family (any failed or point-only member) is reported member by
+//! member and never offered as a complete-family claim.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -49,7 +50,7 @@ use super::batch::BatchQuery;
 use super::prepared::PreparedStudy;
 
 /// What a batch retarget is and is not, carried on every report.
-pub const BATCH_RETARGET_SCOPE_NOTE: &str = "Points and plug-in score covariance of retargeted claims over one row snapshot, under iid rows, caller-declared fixed weights, positivity and nuisance convergence; selection or weight-estimation uncertainty is excluded. No interval is published: the family-level simultaneous interval is a nominal asymptotic construction that no coverage record measures, so it is closed.";
+pub const BATCH_RETARGET_SCOPE_NOTE: &str = "Points and plug-in score covariance of retargeted claims over one row snapshot, under iid rows, caller-declared fixed weights, positivity and nuisance convergence; selection or weight-estimation uncertainty is excluded. The family-level simultaneous interval is a nominal asymptotic max-t band on that plug-in covariance, available for a complete family only.";
 
 /// A refusal of a batch retarget, with its registered reason code.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -469,17 +470,6 @@ impl FamilyCovariance {
     }
 }
 
-/// The closed family-level simultaneous interval and why.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FamilyRefusal {
-    /// Registered reason code.
-    pub code: &'static str,
-    /// Stable detail.
-    pub detail: &'static str,
-    /// Explanation.
-    pub message: String,
-}
-
 /// The report of a batch retarget.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BatchRetargetReport {
@@ -497,8 +487,6 @@ pub struct BatchRetargetReport {
     pub contrasts: Vec<ContrastReport>,
     /// Joint covariance of the covariance-bearing members.
     pub covariance: Option<FamilyCovariance>,
-    /// The simultaneous interval is always closed.
-    pub simultaneous_interval: FamilyRefusal,
     /// Scope note.
     pub scope_note: &'static str,
 }
@@ -984,14 +972,6 @@ pub(crate) fn retarget_family(
         claims,
         contrasts,
         covariance,
-        simultaneous_interval: FamilyRefusal {
-            code: reason_code!("cell_not_licensed"),
-            detail: "batch_retarget.simultaneous_interval_closed",
-            message: "a family-level simultaneous (max-t) interval over retargeted claims is a \
-                      nominal asymptotic construction that no coverage record measures; \
-                      covariance, contrasts and points are published, the interval is closed"
-                .to_string(),
-        },
         scope_note: BATCH_RETARGET_SCOPE_NOTE,
     })
 }
@@ -1032,10 +1012,8 @@ fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRet
 /// Monte-Carlo max-t critical value `c = q_level(max_j |Z_j|)`, `Z ~ N(0, R)`, for a
 /// correlation matrix `R`.
 ///
-/// UNPUBLISHED. This is the evaluator of the family-level simultaneous interval, reached
-/// only through [`simultaneous_band_unpublished`] for the calibration wiring: the
-/// published interval stays closed (`batch_retarget.simultaneous_interval_closed`) until a
-/// coverage record measures it. It reuses the library's one max-t sampler
+/// The evaluator of the family-level simultaneous interval, reached through
+/// [`BatchRetargetReport::simultaneous_interval`]. It reuses the library's one max-t sampler
 /// ([`max_t_critical_polled`]) on a stream seeded from `seed`, so the value is a
 /// deterministic function of `(R, level, seed, draws)`; the Monte-Carlo error of the
 /// empirical quantile is not part of any interval claim.
@@ -1102,7 +1080,6 @@ pub fn max_t_critical_value(
 }
 
 /// One claim of a [`SimultaneousBand`]: `point ± c · se`.
-#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct BandMember {
     /// Claim name.
@@ -1117,9 +1094,9 @@ pub struct BandMember {
     pub upper: f64,
 }
 
-/// A simultaneous max-t band over a complete claim family. It is NOT a published interval:
-/// no coverage record measures it, and the report's own `simultaneous_interval` stays closed.
-#[doc(hidden)]
+/// A simultaneous max-t band over a complete claim family: nominal asymptotic, on the
+/// plug-in score covariance, with a Monte-Carlo critical value (its error is not part of the
+/// band). Measured coverage belongs to the calibration harness.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimultaneousBand {
     /// The nominal level the critical value was taken at.
@@ -1134,19 +1111,12 @@ pub struct SimultaneousBand {
     pub members: Vec<BandMember>,
 }
 
-/// The max-t band `point_j ± c · se_j` of a complete family from its plug-in score
-/// covariance.
-///
-/// UNPUBLISHED, like [`max_t_critical_value`]: this is the entry the calibration wiring
-/// scores for coverage. The published route
-/// ([`BatchRetargetReport::simultaneous_interval`]) refuses `cell_not_licensed` whatever this
-/// returns.
+/// Calibration-wiring entry to [`BatchRetargetReport::simultaneous_interval`] (same
+/// evaluator; kept under its original name for the wired coverage harness).
 ///
 /// # Errors
 ///
-/// The refusals of [`BatchRetargetReport::complete_family`] (`batch_retarget.partial_family`,
-/// `batch_retarget.point_only_member`, `batch_retarget.covariance_unavailable`) and of
-/// [`max_t_critical_value`].
+/// As [`BatchRetargetReport::simultaneous_interval`].
 #[doc(hidden)]
 pub fn simultaneous_band_unpublished(
     report: &BatchRetargetReport,
@@ -1155,37 +1125,65 @@ pub fn simultaneous_band_unpublished(
     draws: u32,
     ctx: &ExecutionContext,
 ) -> Result<SimultaneousBand, BatchRetargetError> {
-    let family = report.complete_family()?;
-    let critical_value = max_t_critical_value(&correlation_of(family)?, level, seed, draws, ctx)?;
-    let members = family
-        .names
-        .iter()
-        .enumerate()
-        .map(|(i, name)| {
-            let value = report
-                .claims
-                .iter()
-                .find(|c| c.name == *name)
-                .and_then(|c| c.outcome.as_ref().ok())
-                .map(|p| p.value)
-                .ok_or_else(|| {
-                    not_supported(
-                        "batch_retarget.covariance_unavailable",
-                        format!("covariance claim {name} has no reported point"),
-                    )
-                })?;
-            let std_error = family.matrix.se(i);
-            let half = critical_value * std_error;
-            Ok(BandMember {
-                name: name.clone(),
-                value,
-                std_error,
-                lower: value - half,
-                upper: value + half,
+    report.simultaneous_interval(level, seed, draws, ctx)
+}
+
+impl BatchRetargetReport {
+    /// The max-t band `point_j ± c · se_j` of a complete family from its plug-in score
+    /// covariance, with `c` the `level` quantile of `max_j |Z_j|`, `Z ~ N(0, R)`, `R` the
+    /// correlation matrix of the covariance. `c` is a deterministic function of
+    /// `(R, level, seed, draws)`.
+    ///
+    /// Nominal asymptotic: the Gaussian limit of the studentized retargeted points under the
+    /// single-claim retarget's conditions (iid rows, fixed declared weights, positivity,
+    /// nuisance convergence); selection and weight-estimation uncertainty and the
+    /// Monte-Carlo error of `c` are excluded.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`Self::complete_family`] (`batch_retarget.partial_family`,
+    /// `batch_retarget.point_only_member`, `batch_retarget.covariance_unavailable`) and of
+    /// [`max_t_critical_value`].
+    pub fn simultaneous_interval(
+        &self,
+        level: f64,
+        seed: u64,
+        draws: u32,
+        ctx: &ExecutionContext,
+    ) -> Result<SimultaneousBand, BatchRetargetError> {
+        let family = self.complete_family()?;
+        let critical_value =
+            max_t_critical_value(&correlation_of(family)?, level, seed, draws, ctx)?;
+        let members = family
+            .names
+            .iter()
+            .enumerate()
+            .map(|(i, name)| {
+                let value = self
+                    .claims
+                    .iter()
+                    .find(|c| c.name == *name)
+                    .and_then(|c| c.outcome.as_ref().ok())
+                    .map(|p| p.value)
+                    .ok_or_else(|| {
+                        not_supported(
+                            "batch_retarget.covariance_unavailable",
+                            format!("covariance claim {name} has no reported point"),
+                        )
+                    })?;
+                let std_error = family.matrix.se(i);
+                let half = critical_value * std_error;
+                Ok(BandMember {
+                    name: name.clone(),
+                    value,
+                    std_error,
+                    lower: value - half,
+                    upper: value + half,
+                })
             })
-        })
-        .collect::<Result<Vec<_>, BatchRetargetError>>()?;
-    Ok(SimultaneousBand { level, seed, draws, critical_value, members })
+            .collect::<Result<Vec<_>, BatchRetargetError>>()?;
+        Ok(SimultaneousBand { level, seed, draws, critical_value, members })
+    }
 }
 
 #[cfg(test)]
@@ -1361,11 +1359,6 @@ mod tests {
             claims,
             contrasts: Vec::new(),
             covariance,
-            simultaneous_interval: FamilyRefusal {
-                code: "cell_not_licensed",
-                detail: "batch_retarget.simultaneous_interval_closed",
-                message: String::new(),
-            },
             scope_note: BATCH_RETARGET_SCOPE_NOTE,
         }
     }
@@ -1614,11 +1607,9 @@ mod tests {
         near(b.upper, -2.0 + expected * 3.0);
         // Wider than the pointwise 1.96 and no wider than the independent two-claim 2.24.
         assert!(band.critical_value > 1.96 && band.critical_value < 2.3);
-        // The published closure is untouched by the unpublished evaluator.
-        assert_eq!(
-            report.simultaneous_interval.detail,
-            "batch_retarget.simultaneous_interval_closed"
-        );
+        // The published route is the same evaluator.
+        let published = report.simultaneous_interval(0.95, 17, DRAWS, &ctx()).unwrap();
+        assert_eq!(published, band);
     }
 
     #[test]
@@ -1628,14 +1619,13 @@ mod tests {
             claim_report("a", Ok(point(1.0, Some(0.5)))),
             claim_report("b", Err(failed)),
         ]);
-        let refused = simultaneous_band_unpublished(&partial, 0.95, 1, DRAWS, &ctx()).unwrap_err();
+        let refused = partial.simultaneous_interval(0.95, 1, DRAWS, &ctx()).unwrap_err();
         assert_eq!(refused.detail, "batch_retarget.partial_family");
         let point_only = report(vec![
             claim_report("a", Ok(point(1.0, Some(0.5)))),
             claim_report("p", Ok(point(2.0, None))),
         ]);
-        let refused =
-            simultaneous_band_unpublished(&point_only, 0.95, 1, DRAWS, &ctx()).unwrap_err();
+        let refused = point_only.simultaneous_interval(0.95, 1, DRAWS, &ctx()).unwrap_err();
         assert_eq!(refused.detail, "batch_retarget.point_only_member");
     }
 }

@@ -3654,7 +3654,7 @@ notes = "An interval over a learner-supplied joint-cell family is refused at the
 
 # ---- 2.2E.E3.batch_retarget_covariance_contrasts -------------------------------------------
 # Points, joint plug-in score covariance and named contrasts of retargeted claims over one
-# row snapshot (parity/promotion_2_2.toml). Point-only; the simultaneous interval is closed.
+# row snapshot (parity/promotion_2_2.toml). Point-only covariance; the family max-t band is calibration-wired and unmeasured.
 
 [[routes]]
 route = "antecedent.PreparedBatch.retarget"
@@ -3691,23 +3691,23 @@ evidence = "cross_fitted_score_tables_on_one_row_snapshot"
 functional = "retargeted_mean_contrasts_and_linear_contrasts"
 guarantee = "plug_in_score_covariance_point_only_no_interval"
 reference = "docs/guides/batch-retarget.md"
-limits = "PreparedBatch.retarget(claims, contrasts) reads the last estimate's scores (else the prepare-time tables) and reports the points, joint plug-in covariance, contrasts, failed members and a closed simultaneous interval."
+limits = "PreparedBatch.retarget(claims, contrasts) reads the last estimate's scores (else the prepare-time tables) and reports the points, joint plug-in covariance, contrasts, failed members and, for a complete family, the max-t simultaneous band (simultaneous_level, simultaneous_seed, simultaneous_draws)."
 evidence_test = "python/tests/test_batch_retarget.py"
-evidence_assertion = "test_a_batch_retarget_reports_points_covariance_contrasts_and_a_closed_interval"
+evidence_assertion = "test_a_batch_retarget_reports_points_covariance_contrasts_and_a_simultaneous_interval"
 
 [[routes]]
 route = "antecedent.PreparedBatch.simultaneous_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "A family-level simultaneous (max-t) interval over retargeted claims is a nominal asymptotic construction no coverage record measures; it is closed rather than published as a nominal interval."
+notes = "A partial or point-only family has no simultaneous (max-t) band and refuses cell_not_licensed; a complete family's nominal asymptotic band is returned (calibration wired, unmeasured; claim registration pending coverage ids)."
 
 [[routes]]
 route = "antecedent.estimation.BatchRetarget.simultaneous_interval"
 stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
-notes = "simultaneous_interval() raises cell_not_licensed at the Python surface."
+notes = "simultaneous_interval() raises cell_not_licensed for a partial or point-only family at the Python surface; a complete family returns the max-t band."
 
 [[routes]]
 route = "antecedent.PreparedBatch.partial_family"

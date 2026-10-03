@@ -148,17 +148,15 @@ pub use batch::{
 };
 pub use batch_export::{TidyKind, TidyRow};
 pub use batch_retarget::{
-    BATCH_RETARGET_SCOPE_NOTE, BatchRetargetError, BatchRetargetReport, BatchRetargetRequest,
-    BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport, FamilyCovariance,
-    FamilyRefusal, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource, UncertaintyKind,
+    BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
+    BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
+    FamilyCovariance, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, MemberFailure, RetargetClaim,
+    RetargetContrast, ScoreSource, SimultaneousBand, UncertaintyKind,
 };
-// Unpublished max-t evaluator of the closed family-level simultaneous interval; reached
-// by the calibration wiring only.
+// Max-t evaluator entries kept for the calibration wiring (the published route is
+// `BatchRetargetReport::simultaneous_interval`).
 #[doc(hidden)]
-pub use batch_retarget::{
-    BandMember, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, SimultaneousBand, max_t_critical_value,
-    simultaneous_band_unpublished,
-};
+pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub use contract::CausalContract;
