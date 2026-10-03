@@ -232,8 +232,14 @@ interval: a bootstrap or a non-default `se` is refused with
 with whole clusters owning folds (not an IID cross-fit followed by `se="cluster"`). It
 reports the cross-fitted point and keeps the score table, with no interval: a bootstrap or a
 non-default `se` is refused up front (`cluster_interval_not_licensed`), fewer clusters than
-`min_clusters` refuse `too_few_clusters`, and `ClusterDml(unit="dyad")` is declarable and
-closed (`dyadic_dependence_not_licensed`). `CandidateScreen.from_units(...)` builds a
+`min_clusters` refuse `too_few_clusters`. `ClusterDml(unit="dyad", cluster_ids=...,
+second_cluster_ids=...)` declares two-way dependence: folds own whole connected components of
+the endpoint graph (no endpoint crosses folds), still point only; an entity used in both
+endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, and fewer
+than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML`,
+`DRLearner` and `CausalForest` take no cluster option: a `cluster_ids`/`cluster_dml`/
+`multiway_ids` key in their `estimator_config` refuses `route_not_supported`.
+`CandidateScreen.from_units(...)` builds a
 deterministic screen/estimate split from entity labels, or from dyad endpoints so that
 connected endpoints never cross the split, and records the seed and a unit digest in
 `screen_id`. See [the guide](guides/clustered-dml.md).

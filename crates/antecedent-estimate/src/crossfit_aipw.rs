@@ -363,7 +363,10 @@ pub(crate) fn build_binary_scores_in(
     // names them (and `provenance_withholds_interval` keeps its iid summaries unpublished).
     let provenance = match (problem.fold_assignment.as_deref(), problem.fold_units.as_deref()) {
         (None, Some(units)) => {
-            format!("{provenance}{}", crate::cluster_dml_aipw::provenance_suffix(units))
+            format!(
+                "{provenance}{}",
+                crate::cluster_dml_aipw::provenance_suffix(units, problem.fold_unit_kind)
+            )
         }
         _ => provenance,
     };

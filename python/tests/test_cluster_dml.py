@@ -1,9 +1,10 @@
 """2.2 E4: cluster-aware cross-fitted ``Aipw`` and the entity-owned screen split.
 
-The route publishes a cross-fitted point and the score table and no interval; few clusters and a
-dyadic unit are closed with their registered reason codes. The numerical oracle for the cluster
-variance and for fold ownership is the Rust integration test ``crates/antecedent-estimate/tests/
-cluster_dml_aipw.rs`` (cluster sums written there), not this file.
+The route publishes a cross-fitted point and the score table and no interval; few clusters,
+unsupported dyadic structures and cluster options on flexible-learner estimators are closed with
+their registered reason codes. The numerical oracles for the cluster and two-way variances and for
+fold ownership are in the Rust integration test ``crates/antecedent-estimate/tests/
+cluster_dml_aipw.rs`` (sums and closed forms written there), not this file.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import numpy as np
 import pytest
 from antecedent.errors import CausalValueError
 from antecedent.estimation import CandidateScreen
+from antecedent._native import analyze_ate
 from antecedent.estimators import Aipw, ClusterDml
 
 from _refusal import assert_registered_refusal
@@ -47,15 +49,28 @@ def test_the_dataclass_wires_the_declared_unit_and_validates_it():
         "bootstrap_replicates": 0,
         "cluster_dml": {"cluster_ids": [0, 0, 1], "min_clusters": 12},
     }
-    assert ClusterDml(cluster_ids=[1, 2], unit="dyad")._wire() == {
+    assert ClusterDml(
+        cluster_ids=[1, 2], second_cluster_ids=[7, 8], unit="dyad", min_components_per_fold=3
+    )._wire() == {
         "cluster_ids": [1, 2],
         "unit": "dyad",
+        "second_cluster_ids": [7, 8],
+        "min_components_per_fold": 3,
     }
     for bad in (
         lambda: ClusterDml(cluster_ids=[]),
         lambda: ClusterDml(cluster_ids=[-1, 0]),
         lambda: ClusterDml(cluster_ids=[0, 1], min_clusters=9),
         lambda: ClusterDml(cluster_ids=[0, 1], unit="pair"),  # type: ignore[arg-type]
+        # A dyadic unit needs one second label per row; a cluster unit takes none.
+        lambda: ClusterDml(cluster_ids=[0, 1], unit="dyad"),
+        lambda: ClusterDml(cluster_ids=[0, 1], unit="dyad", second_cluster_ids=[5]),
+        lambda: ClusterDml(cluster_ids=[0, 1], unit="dyad", second_cluster_ids=[5, -1]),
+        lambda: ClusterDml(
+            cluster_ids=[0, 1], unit="dyad", second_cluster_ids=[5, 6], min_components_per_fold=1
+        ),
+        lambda: ClusterDml(cluster_ids=[0, 1], second_cluster_ids=[5, 6]),
+        lambda: ClusterDml(cluster_ids=[0, 1], min_components_per_fold=4),
         # No interval is published, so an interval request is refused up front.
         lambda: Aipw(cluster_dml=ClusterDml(cluster_ids=[0, 1])),
         lambda: Aipw(bootstrap=20, cluster_dml=ClusterDml(cluster_ids=[0, 1])),
@@ -91,14 +106,111 @@ def test_few_clusters_are_refused_with_a_registered_reason_code():
     assert_registered_refusal(error.value)
 
 
-def test_a_dyadic_unit_is_declarable_and_closed():
-    data, cluster = clustered()
+def two_way(blocks: int = 30, na: int = 3, nb: int = 4, seed: int = 11):
+    """Blocks of a full ``na`` by ``nb`` grid of endpoints; shocks per first and second endpoint."""
+    rng = np.random.default_rng(seed)
+    first, second, cols = [], [], {"z0": [], "z1": [], "t": [], "y": []}
+    for k in range(blocks):
+        u = 1.2 * rng.normal(size=na)
+        v = 1.2 * rng.normal(size=nb)
+        for i in range(na):
+            for j in range(nb):
+                z0 = 0.5 * u[i] + rng.normal()
+                z1 = rng.normal()
+                t = float(rng.uniform() < 1 / (1 + np.exp(-(0.6 * z0 - 0.4 * z1))))
+                y = 2.0 * t + z0 + 0.5 * z1 + u[i] + v[j] + 0.5 * rng.normal()
+                for name, value in zip(("z0", "z1", "t", "y"), (z0, z1, t, y)):
+                    cols[name].append(value)
+                first.append(k * na + i)
+                second.append(1_000_000 + k * nb + j)
+    return {name: np.array(values) for name, values in cols.items()}, first, second
+
+
+def test_a_two_way_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interval():
+    data, first, second = two_way()
     cfg = Aipw(
-        bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), unit="dyad")
+        bootstrap=0,
+        cluster_dml=ClusterDml(
+            cluster_ids=first, second_cluster_ids=second, unit="dyad", min_clusters=20
+        ),
+    )
+    result = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    assert result.effect == pytest.approx(2.0, abs=0.7)
+    estimate = result.estimate
+    assert math.isnan(estimate.se_analytic)
+    assert estimate.se_bootstrap is None
+    assert estimate.joint_covariance is None and estimate.score_inference is None
+    assert estimate.score_table is not None
+    again = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
+    assert again.effect == result.effect
+    # Other second-endpoint labels with the same structure are another declaration, but the
+    # same components give the same folds and so the same point.
+    relabeled = Aipw(
+        bootstrap=0,
+        cluster_dml=ClusterDml(
+            cluster_ids=first,
+            second_cluster_ids=[label + 5 for label in second],
+            unit="dyad",
+            min_clusters=20,
+        ),
+    )
+    other = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=relabeled, refute=False, seed=7)
+    assert other.effect == result.effect
+
+
+def test_unsupported_dyadic_structures_stay_closed_with_a_registered_reason_code():
+    data, first, second = two_way()
+    shared = list(second)
+    shared[0] = first[5]  # an entity in both endpoint roles
+    bridged = list(second)
+    for k in range(1, 30):  # a bridge row per block joins all blocks into one component
+        bridged[k * 12] = second[(k - 1) * 12]
+    cases = ((shared, "dyadic_shared_namespace"), (bridged, "dyadic_giant_component"))
+    for labels, detail in cases:
+        cfg = Aipw(
+            bootstrap=0,
+            cluster_dml=ClusterDml(cluster_ids=first, second_cluster_ids=labels, unit="dyad"),
+        )
+        with pytest.raises(Exception) as error:
+            ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
+        assert "dyadic_dependence_not_licensed" in refusal_text(error.value)
+        assert detail in refusal_text(error.value)
+        assert_registered_refusal(error.value)
+
+
+def test_few_components_per_fold_are_refused_with_a_registered_reason_code():
+    data, first, second = two_way(blocks=12)
+    cfg = Aipw(
+        bootstrap=0,
+        cluster_dml=ClusterDml(cluster_ids=first, second_cluster_ids=second, unit="dyad"),
     )
     with pytest.raises(Exception) as error:
         ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
-    assert "dyadic_dependence_not_licensed" in refusal_text(error.value)
+    assert "too_few_clusters" in refusal_text(error.value)
+    assert_registered_refusal(error.value)
+
+
+@pytest.mark.parametrize("estimator", ["dml", "dr.learner", "causal.forest"])
+@pytest.mark.parametrize("option", ["cluster_ids", "cluster_dml", "multiway_ids"])
+def test_flexible_learners_refuse_cluster_options(estimator, option):
+    data, cluster = clustered(groups=30, size=10)
+    names = ["z0", "z1", "t", "y"]
+    columns = [data[name] for name in names]
+    with pytest.raises(ValueError) as error:
+        analyze_ate(
+            names,
+            columns,
+            GRAPH,
+            "t",
+            "y",
+            refute=False,
+            bootstrap=0,
+            estimator=estimator,
+            estimator_config={option: [int(c) for c in cluster]},
+        )
+    assert "route_not_supported" in refusal_text(error.value)
+    assert "cluster_dml.flexible_learner_closed" in str(error.value)
+    assert "unknown estimator_config key" not in str(error.value)
     assert_registered_refusal(error.value)
 
 

@@ -11,8 +11,14 @@
 //! interval**. The cluster-sandwich standard error of the scores is returned only as a named
 //! [`ClusterDmlReceipt`] value (the derivation and its conditions are in
 //! `docs/guides/clustered-dml.md`); no coverage record exists for it, so it is never turned
-//! into an interval here. A cluster count below the declared minimum is a typed refusal, and
-//! a dyadic independence unit (rows sharing endpoints) is a declared but closed option.
+//! into an interval here. A cluster count below the declared minimum is a typed refusal.
+//!
+//! A *dyadic* (two-way) unit is the second supported declaration: rows carry two endpoint
+//! labels in separate namespaces, folds own whole connected components of the endpoint graph
+//! (so no endpoint is shared across folds), and the receipt is the two-way
+//! Cameron-Gelbach-Miller variance of the cluster-summed scores. What it does not cover
+//! (an entity appearing in both endpoint roles, a giant component, too few components per
+//! fold) is a typed `dyadic_dependence_not_licensed` / `too_few_clusters` refusal.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -35,6 +41,12 @@ pub const MIN_CLUSTERS_FLOOR: usize = 10;
 /// Declared minimum cluster count when a caller does not choose one.
 pub const DEFAULT_MIN_CLUSTERS: usize = 20;
 
+/// Smallest number of connected components per fold a dyadic declaration may require.
+pub const MIN_COMPONENTS_PER_FOLD_FLOOR: usize = 2;
+
+/// Declared minimum components per fold when a dyadic caller does not choose one.
+pub const DEFAULT_MIN_COMPONENTS_PER_FOLD: usize = 4;
+
 /// Provenance tag a cluster-DML score table carries; a table bearing it publishes no interval.
 pub(crate) const CLUSTER_DML_PROVENANCE_TAG: &str = ";cluster_dml=";
 
@@ -43,8 +55,10 @@ pub(crate) const CLUSTER_DML_PROVENANCE_TAG: &str = ";cluster_dml=";
 pub enum IndependenceUnit {
     /// Disjoint clusters (households, sites, patients): whole clusters are independent.
     Cluster,
-    /// Rows are dyads whose endpoints repeat across rows. Declarable but closed: the fold
-    /// ownership and covariance of dyadic data are a separate cell.
+    /// Rows are dyads: two endpoint labels per row (in separate namespaces) whose endpoints
+    /// repeat across rows, so rows are dependent through either endpoint. Folds own whole
+    /// connected components of the endpoint graph; the variance is the two-way
+    /// Cameron-Gelbach-Miller construction.
     Dyad,
 }
 
@@ -60,12 +74,15 @@ impl IndependenceUnit {
 }
 
 /// Declared cluster-DML configuration of an `AipwAte`: the independence unit and the smallest
-/// cluster count the route accepts. The cluster labels are the estimator's `cluster_ids`
-/// (aligned to complete-case rows).
+/// cluster count the route accepts. The labels are the estimator's `cluster_ids` (the first
+/// endpoint for a dyadic unit) and, for a dyadic unit, `cluster_ids_second`, all aligned to
+/// complete-case rows.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ClusterDml {
     unit: IndependenceUnit,
     min_clusters: usize,
+    /// Dyadic only (zero for a cluster unit): the fewest connected components each fold must own.
+    min_components_per_fold: usize,
 }
 
 impl ClusterDml {
@@ -75,23 +92,34 @@ impl ClusterDml {
     ///
     /// `invalid_argument` when `min_clusters` is below [`MIN_CLUSTERS_FLOOR`].
     pub fn new(min_clusters: usize) -> Result<Self, EstimationError> {
-        if min_clusters < MIN_CLUSTERS_FLOOR {
+        check_min_clusters(min_clusters)?;
+        Ok(Self { unit: IndependenceUnit::Cluster, min_clusters, min_components_per_fold: 0 })
+    }
+
+    /// A dyadic (two-way) independence declaration: at least `min_clusters` distinct labels
+    /// at each endpoint and at least `min_components_per_fold` connected components of the
+    /// endpoint graph per fold.
+    ///
+    /// # Errors
+    ///
+    /// `invalid_argument` when `min_clusters` is below [`MIN_CLUSTERS_FLOOR`] or
+    /// `min_components_per_fold` is below [`MIN_COMPONENTS_PER_FOLD_FLOOR`].
+    pub fn dyadic(
+        min_clusters: usize,
+        min_components_per_fold: usize,
+    ) -> Result<Self, EstimationError> {
+        check_min_clusters(min_clusters)?;
+        if min_components_per_fold < MIN_COMPONENTS_PER_FOLD_FLOOR {
             return Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
-                "cluster_dml.invalid_min_clusters",
+                "cluster_dml.invalid_min_components",
                 &format!(
-                    "the declared minimum cluster count {min_clusters} is below the floor \
-                     {MIN_CLUSTERS_FLOOR}"
+                    "the declared minimum components per fold {min_components_per_fold} is \
+                     below the floor {MIN_COMPONENTS_PER_FOLD_FLOOR}"
                 ),
             ));
         }
-        Ok(Self { unit: IndependenceUnit::Cluster, min_clusters })
-    }
-
-    /// A dyadic independence declaration: accepted as a declaration, refused at execution.
-    #[must_use]
-    pub const fn dyadic(min_clusters: usize) -> Self {
-        Self { unit: IndependenceUnit::Dyad, min_clusters }
+        Ok(Self { unit: IndependenceUnit::Dyad, min_clusters, min_components_per_fold })
     }
 
     /// The declared independence unit.
@@ -106,50 +134,61 @@ impl ClusterDml {
         self.min_clusters
     }
 
-    /// Stable key of the declaration, part of the estimator-spec identity.
+    /// The declared minimum components per fold (zero for a cluster unit).
     #[must_use]
-    pub fn canonical_key(&self) -> String {
-        format!(
-            "cluster_dml.aipw.v1;unit={};min_clusters={}",
-            self.unit.as_str(),
-            self.min_clusters
-        )
+    pub const fn min_components_per_fold(&self) -> usize {
+        self.min_components_per_fold
     }
 
-    /// Refuse the closed independence units before any work is done.
-    ///
-    /// # Errors
-    ///
-    /// `dyadic_dependence_not_licensed` for a dyadic unit.
-    pub fn validate_for_execution(&self) -> Result<(), EstimationError> {
+    /// Stable key of the declaration, part of the estimator-spec identity. The cluster form
+    /// is unchanged from before the dyadic unit existed.
+    #[must_use]
+    pub fn canonical_key(&self) -> String {
         match self.unit {
-            IndependenceUnit::Cluster => Ok(()),
-            IndependenceUnit::Dyad => Err(refuse(
-                antecedent_core::reason_code!("dyadic_dependence_not_licensed"),
-                "cluster_dml.dyadic_closed",
-                "rows that share endpoints are dependent through both endpoints, so disjoint \
-                 clusters do not describe them: dyadic fold ownership and two-way covariance \
-                 are not licensed, use the screen/estimate split of connected endpoint \
-                 components for selection and a cluster declaration only when rows are \
-                 disjoint clusters",
-            )),
+            IndependenceUnit::Cluster => {
+                format!("cluster_dml.aipw.v1;unit=cluster;min_clusters={}", self.min_clusters)
+            }
+            IndependenceUnit::Dyad => format!(
+                "cluster_dml.aipw.v1;unit=dyad;min_clusters={};min_components_per_fold={}",
+                self.min_clusters, self.min_components_per_fold
+            ),
         }
     }
 
+    fn require_cluster_count(&self, found: usize, dimension: &str) -> Result<(), EstimationError> {
+        if found < self.min_clusters {
+            return Err(refuse(
+                antecedent_core::reason_code!("too_few_clusters"),
+                "cluster_dml.too_few_clusters",
+                &format!(
+                    "{found} {dimension} are below the declared minimum {}; a sandwich over \
+                     cluster sums needs many independent clusters and no interval or \
+                     standard error is formed",
+                    self.min_clusters
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     /// Check the declared labels against the prepared rows and the declared minimum, and
-    /// return them as the fold units.
+    /// return the fold unit of every row: the cluster label itself, or for a dyadic unit the
+    /// connected component of the endpoint graph (named by its smallest first-endpoint
+    /// label) so that no endpoint's rows are spread across folds.
     ///
     /// # Errors
     ///
-    /// `required_option_missing` without labels, a length mismatch, or `too_few_clusters`
-    /// below the declared minimum.
+    /// `required_option_missing` without labels, a length mismatch, `too_few_clusters` below
+    /// the declared minimum (labels per endpoint, or components per fold), and for a dyadic
+    /// unit `dyadic_dependence_not_licensed` when an endpoint label appears in both roles
+    /// or one connected component holds more than one fold's share of the rows.
     pub fn declare_units(
         &self,
-        cluster_ids: Option<&[u32]>,
+        first: Option<&[u32]>,
+        second: Option<&[u32]>,
         nrows: usize,
     ) -> Result<Arc<[u32]>, EstimationError> {
-        self.validate_for_execution()?;
-        let Some(ids) = cluster_ids else {
+        let Some(ids) = first else {
             return Err(refuse(
                 antecedent_core::reason_code!("required_option_missing"),
                 "cluster_dml.cluster_ids_missing",
@@ -163,38 +202,98 @@ impl ClusterDml {
                 ids.len()
             )));
         }
-        let found = distinct_count(ids);
-        if found < self.min_clusters {
+        match (self.unit, second) {
+            (IndependenceUnit::Cluster, Some(_)) => Err(refuse(
+                antecedent_core::reason_code!("invalid_argument"),
+                "cluster_dml.second_ids_unexpected",
+                "a cluster unit takes one label per row; second-endpoint labels belong to a \
+                 dyadic declaration",
+            )),
+            (IndependenceUnit::Cluster, None) => {
+                self.require_cluster_count(distinct_count(ids), "clusters")?;
+                Ok(Arc::from(ids))
+            }
+            (IndependenceUnit::Dyad, None) => Err(refuse(
+                antecedent_core::reason_code!("required_option_missing"),
+                "cluster_dml.second_ids_missing",
+                "a dyadic cluster-DML declaration needs the second-endpoint label of every \
+                 complete-case row (estimator cluster_ids_second)",
+            )),
+            (IndependenceUnit::Dyad, Some(second)) => {
+                if second.len() != nrows {
+                    return Err(EstimationError::data_msg(format!(
+                        "cluster_ids_second length {} != nrows {nrows}",
+                        second.len()
+                    )));
+                }
+                self.require_cluster_count(distinct_count(ids), "first-endpoint clusters")?;
+                self.require_cluster_count(distinct_count(second), "second-endpoint clusters")?;
+                let units = dyad_units(ids, second)?;
+                self.require_balanced_components(&units)?;
+                Ok(Arc::from(units))
+            }
+        }
+    }
+
+    /// Components must be small enough and numerous enough for whole-component folds.
+    fn require_balanced_components(&self, units: &[u32]) -> Result<(), EstimationError> {
+        let folds = crate::crossfit_aipw::DEFAULT_AIPW_FOLDS;
+        let mut sizes: BTreeMap<u32, usize> = BTreeMap::new();
+        for &unit in units {
+            *sizes.entry(unit).or_default() += 1;
+        }
+        let largest = sizes.values().copied().max().unwrap_or(0);
+        if largest * folds > units.len() {
             return Err(refuse(
-                antecedent_core::reason_code!("too_few_clusters"),
-                "cluster_dml.too_few_clusters",
+                antecedent_core::reason_code!("dyadic_dependence_not_licensed"),
+                "cluster_dml.dyadic_giant_component",
                 &format!(
-                    "{found} clusters are below the declared minimum {}; a sandwich over \
-                     cluster sums needs many independent clusters and no interval or \
-                     standard error is formed",
-                    self.min_clusters
+                    "the largest connected component of the endpoint graph holds {largest} of \
+                     {} rows, more than one of the {folds} folds' share; whole-component folds \
+                     cannot be balanced and the held-out component would not be independent of \
+                     most of the training data, so no cross-fit is run",
+                    units.len()
                 ),
             ));
         }
-        Ok(Arc::from(ids))
+        let per_fold = sizes.len() / folds;
+        if per_fold < self.min_components_per_fold {
+            return Err(refuse(
+                antecedent_core::reason_code!("too_few_clusters"),
+                "cluster_dml.too_few_components",
+                &format!(
+                    "{} connected components give the smallest of {folds} folds {per_fold}, \
+                     below the declared minimum {} components per fold",
+                    sizes.len(),
+                    self.min_components_per_fold
+                ),
+            ));
+        }
+        Ok(())
     }
 
-    /// The cluster-sandwich standard error of a cluster-DML score table with its receipt.
+    /// The standard error of a cluster-DML score table with its receipt: the cluster
+    /// sandwich for a cluster unit, the two-way Cameron-Gelbach-Miller variance for a dyadic
+    /// one (`second` carries the second-endpoint labels; it must be `None` for a cluster
+    /// unit).
     ///
-    /// `clusters` are the labels of the table's rows. The table must hold the mean
-    /// functional's two arm columns and every cluster's rows must lie in one fold; a table
-    /// whose clusters were split across folds is not cluster-DML evidence and is refused.
+    /// `clusters` are the (first-endpoint) labels of the table's rows. The table must hold
+    /// the mean functional's two arm columns and every fold unit's rows (a cluster, or a
+    /// connected component of the endpoint graph) must lie in one fold; a table whose units
+    /// were split across folds is not cluster-DML evidence and is refused.
     ///
     /// # Errors
     ///
-    /// A closed independence unit, a label/row mismatch, too few clusters, a cluster split
-    /// across folds, or a table that is not a single mean contrast.
+    /// A label/row mismatch, too few clusters, a unit split across folds, a table that is
+    /// not a single mean contrast, `dyadic_dependence_not_licensed` for an endpoint label in
+    /// both roles, or (dyadic) a two-way variance that is materially negative, which is
+    /// reported as an error and never truncated to zero.
     pub fn receipt(
         &self,
         table: &ScoreTable,
         clusters: &[u32],
+        second: Option<&[u32]>,
     ) -> Result<ClusterDmlReceipt, EstimationError> {
-        self.validate_for_execution()?;
         if clusters.len() != table.n_rows || table.fold_ids.len() != table.n_rows {
             return Err(EstimationError::data_msg(
                 "cluster labels and fold ids must align with the score table rows",
@@ -206,46 +305,92 @@ impl ClusterDml {
             ));
         }
         let found = distinct_count(clusters);
-        if found < self.min_clusters {
-            return Err(refuse(
-                antecedent_core::reason_code!("too_few_clusters"),
-                "cluster_dml.too_few_clusters",
-                &format!("{found} clusters are below the declared minimum {}", self.min_clusters),
-            ));
-        }
-        require_whole_clusters_per_fold(clusters, &table.fold_ids)?;
-        let psi: Vec<f64> =
-            table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect();
+        let psi_of = || -> Result<Vec<f64>, EstimationError> {
+            Ok(table.column(0)?.iter().zip(table.column(1)?).map(|(&a, &b)| b - a).collect())
+        };
+        let (units, n_second, se) = match (self.unit, second) {
+            (IndependenceUnit::Cluster, None) => {
+                self.require_cluster_count(found, "clusters")?;
+                require_whole_clusters_per_fold(clusters, &table.fold_ids)?;
+                (clusters.to_vec(), None, crate::se::cluster_influence_se(&psi_of()?, clusters)?)
+            }
+            (IndependenceUnit::Cluster, Some(_)) => {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "cluster_dml.second_ids_unexpected",
+                    "a cluster unit takes one label per row",
+                ));
+            }
+            (IndependenceUnit::Dyad, None) => {
+                return Err(refuse(
+                    antecedent_core::reason_code!("required_option_missing"),
+                    "cluster_dml.second_ids_missing",
+                    "a dyadic receipt needs the second-endpoint label of every row",
+                ));
+            }
+            (IndependenceUnit::Dyad, Some(second)) => {
+                if second.len() != table.n_rows {
+                    return Err(EstimationError::data_msg(
+                        "second-endpoint labels must align with the score table rows",
+                    ));
+                }
+                let found_second = distinct_count(second);
+                self.require_cluster_count(found, "first-endpoint clusters")?;
+                self.require_cluster_count(found_second, "second-endpoint clusters")?;
+                let units = dyad_units(clusters, second)?;
+                require_whole_clusters_per_fold(&units, &table.fold_ids)?;
+                let se = crate::se::multiway_influence_se(
+                    &psi_of()?,
+                    &[clusters.to_vec(), second.to_vec()],
+                )?;
+                (units, Some(found_second), se)
+            }
+        };
+        let reference_df = n_second.map_or(found, |g| g.min(found)) - 1;
         Ok(ClusterDmlReceipt {
             independence_unit: self.unit,
             n_clusters: found,
+            n_clusters_second: n_second,
+            n_components: n_second.map(|_| distinct_count(&units)),
+            reference_df,
             min_clusters: self.min_clusters,
             n_rows: table.n_rows,
             folds: table.n_folds as usize,
-            unit_digest: unit_digest(clusters),
-            cluster_sandwich_se: crate::se::cluster_influence_se(&psi, clusters)?,
+            unit_digest: unit_digest(&units),
+            cluster_sandwich_se: se,
         })
     }
 }
 
 /// Declared unit, counts and the cluster-sandwich standard error of the cross-fitted scores.
 ///
-/// `cluster_sandwich_se` is `sqrt(G/(G-1) * sum_g S_g^2) / n` with `S_g` the cluster sum of
-/// the centered contrast scores. It is a variance receipt of the stored scores under the
-/// declared independence unit, not an interval and not a calibrated claim.
+/// For a cluster unit `cluster_sandwich_se` is `sqrt(G/(G-1) * sum_g S_g^2) / n` with `S_g`
+/// the cluster sum of the centered contrast scores. For a dyadic unit it is
+/// `sqrt(V_a + V_b - V_ab) / n` with each term the same sandwich over the first-endpoint,
+/// second-endpoint and (first, second) cell sums (Cameron-Gelbach-Miller). Either is a
+/// variance receipt of the stored scores under the declared independence unit, not an
+/// interval and not a calibrated claim.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClusterDmlReceipt {
     /// The declared independence unit.
     pub independence_unit: IndependenceUnit,
-    /// Distinct clusters.
+    /// Distinct clusters (first-endpoint labels for a dyadic unit).
     pub n_clusters: usize,
+    /// Distinct second-endpoint labels; `None` for a cluster unit.
+    pub n_clusters_second: Option<usize>,
+    /// Connected components of the endpoint graph that own the folds; `None` for a cluster
+    /// unit.
+    pub n_components: Option<usize>,
+    /// The few-cluster reference convention `min(G_a, G_b) - 1` (`G - 1` for a cluster
+    /// unit): the degrees of freedom a t reference would use. No interval is built from it.
+    pub reference_df: usize,
     /// The declared minimum the count satisfied.
     pub min_clusters: usize,
     /// Complete-case rows.
     pub n_rows: usize,
     /// Cross-fit folds.
     pub folds: usize,
-    /// Fingerprint of the sorted distinct cluster labels (row-order invariant).
+    /// Fingerprint of the sorted distinct fold-unit labels (row-order invariant).
     pub unit_digest: String,
     /// Cluster-sandwich standard error of the mean contrast.
     pub cluster_sandwich_se: f64,
@@ -321,9 +466,14 @@ pub(crate) fn refuse_interval_request(
 }
 
 /// Provenance suffix a cluster-DML score table carries.
-pub(crate) fn provenance_suffix(units: &[u32]) -> String {
+pub(crate) fn provenance_suffix(units: &[u32], unit: IndependenceUnit) -> String {
+    let counted = match unit {
+        IndependenceUnit::Cluster => "clusters",
+        IndependenceUnit::Dyad => "components",
+    };
     format!(
-        "{CLUSTER_DML_PROVENANCE_TAG}unit=cluster;clusters={};digest={}",
+        "{CLUSTER_DML_PROVENANCE_TAG}unit={};{counted}={};digest={}",
+        unit.as_str(),
         distinct_count(units),
         unit_digest(units)
     )
@@ -332,6 +482,98 @@ pub(crate) fn provenance_suffix(units: &[u32]) -> String {
 /// Whether a score table's provenance marks whole-cluster cross-fitting.
 pub(crate) fn provenance_marks_cluster_units(provenance: &str) -> bool {
     provenance.contains(CLUSTER_DML_PROVENANCE_TAG)
+}
+
+fn check_min_clusters(min_clusters: usize) -> Result<(), EstimationError> {
+    if min_clusters < MIN_CLUSTERS_FLOOR {
+        return Err(refuse(
+            antecedent_core::reason_code!("invalid_argument"),
+            "cluster_dml.invalid_min_clusters",
+            &format!(
+                "the declared minimum cluster count {min_clusters} is below the floor \
+                 {MIN_CLUSTERS_FLOOR}"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Connected component of the endpoint graph for every row, named by the smallest endpoint
+/// label of the component. Both endpoint labels live in one namespace and every row joins its
+/// two endpoints (union-find), so rows that share an endpoint, directly or through a chain of
+/// rows, get one component; the name does not depend on row order.
+///
+/// `first` and `second` must have equal length (callers validate it).
+#[must_use]
+pub fn endpoint_components(first: &[u32], second: &[u32]) -> Vec<u32> {
+    let mut labels: Vec<u32> = first.iter().chain(second).copied().collect();
+    labels.sort_unstable();
+    labels.dedup();
+    let slot: BTreeMap<u32, usize> =
+        labels.iter().enumerate().map(|(i, &label)| (label, i)).collect();
+    let mut parent: Vec<usize> = (0..labels.len()).collect();
+    for (a, b) in first.iter().zip(second) {
+        let (ra, rb) = (find_root(&mut parent, slot[a]), find_root(&mut parent, slot[b]));
+        // The smaller slot (labels are sorted) stays the root, so a component's root is its
+        // smallest label whatever the order the rows arrive in.
+        if ra != rb {
+            parent[ra.max(rb)] = ra.min(rb);
+        }
+    }
+    first.iter().map(|a| labels[find_root(&mut parent, slot[a])]).collect()
+}
+
+fn find_root(parent: &mut [usize], mut node: usize) -> usize {
+    while parent[node] != node {
+        parent[node] = parent[parent[node]];
+        node = parent[node];
+    }
+    node
+}
+
+/// Fold unit of every dyad: its connected component, named by the smallest first-endpoint
+/// label in it (so that components that are exactly the first-endpoint clusters carry the
+/// cluster labels themselves). Endpoint labels must not appear in both roles: the two-way
+/// construction treats the first and second labels as two dimensions, and an entity that is
+/// a first endpoint of some rows and a second endpoint of others would be dependent across
+/// the two dimensions in a way the construction does not model.
+fn dyad_units(first: &[u32], second: &[u32]) -> Result<Vec<u32>, EstimationError> {
+    let first_labels: BTreeSet<u32> = first.iter().copied().collect();
+    if let Some(shared) = second.iter().find(|label| first_labels.contains(label)) {
+        return Err(refuse(
+            antecedent_core::reason_code!("dyadic_dependence_not_licensed"),
+            "cluster_dml.dyadic_shared_namespace",
+            &format!(
+                "label {shared} is both a first and a second endpoint: an entity in both roles \
+                 is dependent across the two dimensions, which the two-way construction does \
+                 not model; give the two endpoint roles separate label sets"
+            ),
+        ));
+    }
+    let component = endpoint_components(first, second);
+    let mut name: BTreeMap<u32, u32> = BTreeMap::new();
+    for (&c, &a) in component.iter().zip(first) {
+        name.entry(c).and_modify(|smallest| *smallest = (*smallest).min(a)).or_insert(a);
+    }
+    Ok(component.iter().map(|c| name[c]).collect())
+}
+
+/// Typed refusal of a cluster or dependence declaration on a flexible-learner estimator
+/// (`dml`, `dr.learner`, `causal.forest`), whose configurations carry no dependence option.
+///
+/// The refusal is `route_not_supported` (`cluster_dml.flexible_learner_closed`).
+#[must_use]
+pub fn flexible_learner_dependence_refusal(estimator_id: &str, option: &str) -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("route_not_supported"),
+        "cluster_dml.flexible_learner_closed",
+        &format!(
+            "estimator {estimator_id:?} does not support the dependence option {option:?}: \
+             its cross-fitting and inference are not justified under clustered or dyadic \
+             dependence, so the declaration is refused rather than ignored; use \
+             Aipw(bootstrap=0, cluster_dml=ClusterDml(...)) for the cluster-aware point"
+        ),
+    )
 }
 
 fn distinct_count(ids: &[u32]) -> usize {

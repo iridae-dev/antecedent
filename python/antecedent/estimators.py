@@ -305,13 +305,21 @@ class ClusterDml:
     refuses ``cluster_interval_not_licensed``). It is licensed for the untrimmed
     ``AllObserved`` mean ATE and is not combined with ``propensity_penalty``.
 
-    ``unit="dyad"`` is declarable but closed: rows that share endpoints are dependent
-    through both endpoints, and execution refuses ``dyadic_dependence_not_licensed``.
+    ``unit="dyad"`` declares two-way (dyadic) dependence: ``cluster_ids`` are the first
+    endpoint of every row and ``second_cluster_ids`` the second, in separate label sets
+    (an entity that is a first endpoint of some rows and a second endpoint of others refuses
+    ``dyadic_dependence_not_licensed``). Folds own whole connected components of the endpoint
+    graph, so no endpoint crosses folds; ``min_components_per_fold`` (default 4, at least 2)
+    is the fewest components each of the five folds must own. One giant component (more than
+    a fold's share of the rows) also refuses ``dyadic_dependence_not_licensed``. The
+    two-way variance is a Rust receipt only; no interval is published.
     """
 
     cluster_ids: Sequence[int]
     min_clusters: int | None = None
     unit: IndependenceUnitName = "cluster"
+    second_cluster_ids: Sequence[int] | None = None
+    min_components_per_fold: int | None = None
 
     def __post_init__(self) -> None:
         if self.unit not in ("cluster", "dyad"):
@@ -333,6 +341,34 @@ class ClusterDml:
             raise CausalValueError(
                 f"ClusterDml.min_clusters must be an int of at least 10, got {self.min_clusters!r}"
             )
+        if self.unit == "cluster":
+            if self.second_cluster_ids is not None or self.min_components_per_fold is not None:
+                raise CausalValueError(
+                    "ClusterDml.second_cluster_ids and min_components_per_fold belong to "
+                    "unit='dyad'"
+                )
+            return
+        if self.second_cluster_ids is None:
+            raise CausalValueError("ClusterDml(unit='dyad') requires second_cluster_ids")
+        if len(self.second_cluster_ids) != len(self.cluster_ids):
+            raise CausalValueError(
+                "ClusterDml.second_cluster_ids must have one label per cluster_ids row, got "
+                f"{len(self.second_cluster_ids)} and {len(self.cluster_ids)}"
+            )
+        for label in self.second_cluster_ids:
+            if isinstance(label, bool) or not isinstance(label, int) or label < 0:
+                raise CausalValueError(
+                    f"ClusterDml.second_cluster_ids must be non-negative ints, got {label!r}"
+                )
+        if self.min_components_per_fold is not None and (
+            isinstance(self.min_components_per_fold, bool)
+            or not isinstance(self.min_components_per_fold, int)
+            or self.min_components_per_fold < 2
+        ):
+            raise CausalValueError(
+                "ClusterDml.min_components_per_fold must be an int of at least 2, got "
+                f"{self.min_components_per_fold!r}"
+            )
 
     def _wire(self) -> dict[str, Any]:
         out: dict[str, Any] = {"cluster_ids": [int(label) for label in self.cluster_ids]}
@@ -340,6 +376,10 @@ class ClusterDml:
             out["min_clusters"] = int(self.min_clusters)
         if self.unit != "cluster":
             out["unit"] = self.unit
+        if self.second_cluster_ids is not None:
+            out["second_cluster_ids"] = [int(label) for label in self.second_cluster_ids]
+        if self.min_components_per_fold is not None:
+            out["min_components_per_fold"] = int(self.min_components_per_fold)
         return out
 
 
@@ -934,7 +974,13 @@ class Iv2Sls:
 
 @dataclass(frozen=True, slots=True)
 class DML:
-    """``dml`` — cross-fitted DML / AIPW."""
+    """``dml`` — cross-fitted DML / AIPW.
+
+    These flexible-learner estimators take no cluster or dependence option: an
+    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
+    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
+    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
+    """
 
     learner: LearnerSpec | str | None = None
     outcome: LearnerSpec | str | None = None
@@ -976,6 +1022,11 @@ class DRLearner:
     The doubly robust property is that of the score: the effect estimate is
     consistent when either the propensity or the outcome nuisance is. It is a
     property of the point estimate, not of any reported standard error.
+
+    These flexible-learner estimators take no cluster or dependence option: an
+    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
+    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
+    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
     """
 
     learner: LearnerSpec | str | None = None
@@ -1011,7 +1062,13 @@ class DRLearner:
 
 @dataclass(frozen=True, slots=True)
 class CausalForest:
-    """``causal.forest`` — honest causal-forest CATE."""
+    """``causal.forest`` — honest causal-forest CATE.
+
+    These flexible-learner estimators take no cluster or dependence option: an
+    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
+    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
+    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
+    """
 
     n_trees: int | None = None
     min_leaf: int | None = None

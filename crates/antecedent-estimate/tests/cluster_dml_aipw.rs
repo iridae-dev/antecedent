@@ -1,7 +1,9 @@
 //! Cluster-aware cross-fitted AIPW (2.2 E4): whole clusters own their folds, the variance is a
 //! sandwich over cluster sums (checked against sums written here), no interval is published,
-//! and few clusters, a closed independence unit, an interval request and an out-of-scope
-//! population are refused with registered reason codes.
+//! and few clusters, an interval request and an out-of-scope population are refused with
+//! registered reason codes. The dyadic (two-way) unit has whole-component folds and the
+//! Cameron-Gelbach-Miller variance, checked against sums and a closed form written here;
+//! the structures it does not cover stay typed refusals.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -25,20 +27,22 @@ use antecedent_data::{
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, ClusterDml, EffectEstimate, EstimationError, IndependenceUnit,
     OverlapPolicy, PropensityNuisance, RidgeTuning, ScoreColumn, ScoreTable, cluster_fold_plan,
-    provenance_withholds_interval,
+    flexible_learner_dependence_refusal, provenance_withholds_interval,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
 
 const FOLDS: usize = 5;
 
-/// Raw columns of one clustered data set; `cluster[i]` is the label of row `i`.
+/// Raw columns of one clustered data set; `cluster[i]` is the label of row `i` (the first
+/// endpoint of a dyad) and `second[i]` its second endpoint (empty for one-way data).
 #[derive(Clone)]
 struct Raw {
     t: Vec<f64>,
     y: Vec<f64>,
     z: Vec<Vec<f64>>,
     cluster: Vec<u32>,
+    second: Vec<u32>,
 }
 
 impl Raw {
@@ -49,6 +53,11 @@ impl Raw {
             y: pick(&self.y),
             z: self.z.iter().map(|c| pick(c)).collect(),
             cluster: order.iter().map(|&i| self.cluster[i]).collect(),
+            second: if self.second.is_empty() {
+                Vec::new()
+            } else {
+                order.iter().map(|&i| self.second[i]).collect()
+            },
         }
     }
 }
@@ -59,8 +68,13 @@ impl Raw {
 fn draw(groups: usize, size: usize, seed: u64) -> Raw {
     let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xE4);
     let n = groups * size;
-    let mut raw =
-        Raw { t: vec![0.0; n], y: vec![0.0; n], z: vec![vec![0.0; n]; 2], cluster: vec![0; n] };
+    let mut raw = Raw {
+        t: vec![0.0; n],
+        y: vec![0.0; n],
+        z: vec![vec![0.0; n]; 2],
+        cluster: vec![0; n],
+        second: Vec::new(),
+    };
     for g in 0..groups {
         let shift = 0.7 * standard_normal(&mut rng);
         let shock = 1.5 * standard_normal(&mut rng);
@@ -76,6 +90,38 @@ fn draw(groups: usize, size: usize, seed: u64) -> Raw {
             raw.z[1][i] = z1;
             raw.y[i] = effect * t + z0 + 0.5 * z1 + shock + 0.5 * standard_normal(&mut rng);
             raw.cluster[i] = u32::try_from(g).unwrap();
+        }
+    }
+    raw
+}
+
+/// Offset that keeps second-endpoint labels in a namespace of their own.
+const SECOND: u32 = 1_000_000;
+
+/// `blocks` connected components, each the full grid of `na` first endpoints by `nb` second
+/// endpoints (one row per pair), so every endpoint repeats across rows. The outcome carries a
+/// shock per first endpoint and one per second endpoint, `Y = 2 T + z0 + 0.5 z1 + u_a + v_b +
+/// noise`, so rows sharing either endpoint are dependent; the true average effect is 2.
+fn draw_two_way(blocks: usize, na: usize, nb: usize, seed: u64) -> Raw {
+    let mut rng = ExecutionContext::for_tests(seed).rng.stream_for(StreamDomain::Estimate, 0xE4B);
+    let mut raw =
+        Raw { t: vec![], y: vec![], z: vec![vec![], vec![]], cluster: vec![], second: vec![] };
+    for k in 0..blocks {
+        let u: Vec<f64> = (0..na).map(|_| 1.2 * standard_normal(&mut rng)).collect();
+        let v: Vec<f64> = (0..nb).map(|_| 1.2 * standard_normal(&mut rng)).collect();
+        for i in 0..na {
+            for j in 0..nb {
+                let z0 = 0.5 * u[i] + standard_normal(&mut rng);
+                let z1 = standard_normal(&mut rng);
+                let eta = 0.6 * z0 - 0.4 * z1;
+                let t = f64::from(u8::from(rng.next_f64() < 1.0 / (1.0 + (-eta).exp())));
+                raw.t.push(t);
+                raw.z[0].push(z0);
+                raw.z[1].push(z1);
+                raw.y.push(2.0 * t + z0 + 0.5 * z1 + u[i] + v[j] + 0.5 * standard_normal(&mut rng));
+                raw.cluster.push(u32::try_from(k * na + i).unwrap());
+                raw.second.push(SECOND + u32::try_from(k * nb + j).unwrap());
+            }
         }
     }
     raw
@@ -136,6 +182,16 @@ fn declared(raw: &Raw, min_clusters: usize) -> AipwAte {
         bootstrap_replicates: 0,
         cluster_ids: Some(raw.cluster.clone()),
         cluster_dml: Some(ClusterDml::new(min_clusters).unwrap()),
+        ..AipwAte::new()
+    }
+}
+
+fn declared_two_way(raw: &Raw, min_clusters: usize, per_fold: usize) -> AipwAte {
+    AipwAte {
+        bootstrap_replicates: 0,
+        cluster_ids: Some(raw.cluster.clone()),
+        cluster_ids_second: Some(raw.second.clone()),
+        cluster_dml: Some(ClusterDml::dyadic(min_clusters, per_fold).unwrap()),
         ..AipwAte::new()
     }
 }
@@ -309,7 +365,7 @@ fn the_cluster_sandwich_equals_hand_computed_cluster_sums() {
     let est = declared(&raw, 20);
     let fit = run(&est, &raw, 4).unwrap();
     let t = table(&fit);
-    let receipt = est.cluster_dml.unwrap().receipt(t, &raw.cluster).unwrap();
+    let receipt = est.cluster_dml.unwrap().receipt(t, &raw.cluster, None).unwrap();
     let oracle = oracle_cluster_se(t, &raw.cluster);
     assert!(
         (receipt.cluster_sandwich_se - oracle).abs() <= 1e-12 * oracle,
@@ -334,7 +390,7 @@ fn the_cluster_sandwich_equals_hand_computed_cluster_sums() {
         },
         ..t.clone()
     };
-    let flipped_receipt = est.cluster_dml.unwrap().receipt(&flipped, &reversed).unwrap();
+    let flipped_receipt = est.cluster_dml.unwrap().receipt(&flipped, &reversed, None).unwrap();
     assert_eq!(flipped_receipt.unit_digest, receipt.unit_digest);
     assert!((flipped_receipt.cluster_sandwich_se - receipt.cluster_sandwich_se).abs() < 1e-12);
 
@@ -381,7 +437,7 @@ fn the_cluster_variance_has_its_closed_form_on_deterministic_scores() {
         intervened: Arc::from([]),
     };
     let spec = ClusterDml::new(10).unwrap();
-    let receipt = spec.receipt(&table, &clusters).unwrap();
+    let receipt = spec.receipt(&table, &clusters, None).unwrap();
     let expected = (1.0_f64 / 11.0).sqrt();
     assert!(
         (receipt.cluster_sandwich_se - expected).abs() < 1e-14,
@@ -392,7 +448,7 @@ fn the_cluster_variance_has_its_closed_form_on_deterministic_scores() {
     let singletons: Vec<u32> = (0..u32::try_from(n).unwrap()).collect();
     let mut one_per_row = table.clone();
     one_per_row.fold_ids = singletons.iter().map(|c| c % 5).collect::<Vec<_>>().into();
-    let iid = spec.receipt(&one_per_row, &singletons).unwrap();
+    let iid = spec.receipt(&one_per_row, &singletons, None).unwrap();
     let iid_expected = ((n as f64 / (n as f64 - 1.0)) * n as f64).sqrt() / n as f64;
     assert!((iid.cluster_sandwich_se - iid_expected).abs() < 1e-14);
     assert!(receipt.cluster_sandwich_se > 2.0 * iid.cluster_sandwich_se);
@@ -412,7 +468,7 @@ fn iid_row_folds_split_clusters_and_are_refused_as_cluster_evidence() {
         seen.entry(cluster).or_default().insert(fold);
     }
     assert!(seen.values().any(|folds| folds.len() > 1), "an iid plan should split a cluster");
-    let error = ClusterDml::new(20).unwrap().receipt(t, &raw.cluster).unwrap_err();
+    let error = ClusterDml::new(20).unwrap().receipt(t, &raw.cluster, None).unwrap_err();
     assert!(error.to_string().contains("split across cross-fit folds"), "{error}");
 }
 
@@ -429,31 +485,10 @@ fn few_clusters_are_refused_before_any_fit() {
     assert!(run(&declared(&raw, 24), &raw, 1).is_ok());
     // The receipt applies the same minimum.
     let fit = run(&declared(&raw, 24), &raw, 1).unwrap();
-    let error = ClusterDml::new(30).unwrap().receipt(table(&fit), &raw.cluster).unwrap_err();
+    let error = ClusterDml::new(30).unwrap().receipt(table(&fit), &raw.cluster, None).unwrap_err();
     code_of(&error, "too_few_clusters");
     // A declaration below the floor is invalid.
     code_of(&ClusterDml::new(9).unwrap_err(), "invalid_argument");
-}
-
-#[test]
-fn a_dyadic_unit_is_declarable_and_closed() {
-    let raw = draw(30, 10, 9);
-    let est = AipwAte { cluster_dml: Some(ClusterDml::dyadic(20)), ..declared(&raw, 20) };
-    assert_eq!(est.cluster_dml.unwrap().independence_unit(), IndependenceUnit::Dyad);
-    code_of(&run(&est, &raw, 1).unwrap_err(), "dyadic_dependence_not_licensed");
-    let fit = run(&declared(&raw, 20), &raw, 1).unwrap();
-    code_of(
-        &ClusterDml::dyadic(20).receipt(table(&fit), &raw.cluster).unwrap_err(),
-        "dyadic_dependence_not_licensed",
-    );
-    assert_ne!(
-        ClusterDml::dyadic(20).canonical_key(),
-        ClusterDml::new(20).unwrap().canonical_key()
-    );
-    assert_ne!(
-        ClusterDml::new(20).unwrap().canonical_key(),
-        ClusterDml::new(25).unwrap().canonical_key()
-    );
 }
 
 #[test]
@@ -513,4 +548,363 @@ fn scope_labels_and_combinations_outside_the_license_are_refused() {
         )
         .unwrap_err();
     assert!(error.to_string().contains("cluster-DML declaration"), "{error}");
+}
+
+// ---- dyadic (two-way) unit ------------------------------------------------------------------
+
+/// A hand-built score table whose contrast scores are `psi` (arm columns `0` and `psi`) and
+/// whose rows sit in the given folds.
+fn contrast_table(psi: &[f64], fold_ids: Vec<u32>) -> ScoreTable {
+    let n = psi.len();
+    let mut scores = vec![0.0; n];
+    scores.extend(psi.iter().copied());
+    ScoreTable {
+        observed_arm: vec![0; n].into(),
+        propensities: vec![0.5; 2 * n].into(),
+        observed_outcome: vec![0.0; n].into(),
+        n_rows: n,
+        row_index: (0..u32::try_from(n).unwrap()).collect::<Vec<_>>().into(),
+        fold_ids: fold_ids.into(),
+        n_folds: 5,
+        scores: scores.into(),
+        columns: Arc::from([
+            ScoreColumn { arm: 0, threshold: None },
+            ScoreColumn { arm: 1, threshold: None },
+        ]),
+        adjustment_set: Arc::from([]),
+        nuisance_provenance: Arc::from("two-way fixture"),
+        propensity_clip: None,
+        treatment: VariableId::from_raw(0),
+        intervened: Arc::from([]),
+    }
+}
+
+/// Hand-computed two-way variance of `psi` (Cameron-Gelbach-Miller): sums of the centered
+/// scores over first-endpoint clusters, second-endpoint clusters and (first, second) cells,
+/// each sandwich scaled by `G / (G - 1)`, combined as `V_a + V_b - V_ab`, then `sqrt(V) / n`.
+fn oracle_two_way_se(psi: &[f64], first: &[u32], second: &[u32]) -> f64 {
+    let n = psi.len();
+    let mean = psi.iter().sum::<f64>() / n as f64;
+    let mut by_a: BTreeMap<u32, f64> = BTreeMap::new();
+    let mut by_b: BTreeMap<u32, f64> = BTreeMap::new();
+    let mut by_ab: BTreeMap<(u32, u32), f64> = BTreeMap::new();
+    for i in 0..n {
+        *by_a.entry(first[i]).or_insert(0.0) += psi[i] - mean;
+        *by_b.entry(second[i]).or_insert(0.0) += psi[i] - mean;
+        *by_ab.entry((first[i], second[i])).or_insert(0.0) += psi[i] - mean;
+    }
+    let sandwich = |sums: Vec<f64>| {
+        let g = sums.len() as f64;
+        g / (g - 1.0) * sums.iter().map(|s| s * s).sum::<f64>()
+    };
+    let v = sandwich(by_a.into_values().collect()) + sandwich(by_b.into_values().collect())
+        - sandwich(by_ab.into_values().collect());
+    v.max(0.0).sqrt() / n as f64
+}
+
+/// Known truth: whole connected components own the folds (no first or second endpoint has
+/// rows in two folds), the folds are the whole-unit plan over the components named in this
+/// test, the point recovers the effect 2, the same seed replays bit for bit, and the table
+/// names the dyadic unit.
+#[test]
+fn two_way_components_own_their_folds_and_the_point_recovers_the_truth() {
+    let (blocks, na, nb) = (30usize, 3usize, 4usize);
+    let raw = draw_two_way(blocks, na, nb, 17);
+    let est = declared_two_way(&raw, 20, 4);
+    let a = run(&est, &raw, 5).unwrap();
+    assert!((a.ate - 2.0).abs() < 0.7, "ate={}", a.ate);
+
+    let t = table(&a);
+    let mut fold_of_first: BTreeMap<u32, u32> = BTreeMap::new();
+    let mut fold_of_second: BTreeMap<u32, u32> = BTreeMap::new();
+    for ((&first, &second), &fold) in raw.cluster.iter().zip(&raw.second).zip(t.fold_ids.iter()) {
+        assert_eq!(*fold_of_first.entry(first).or_insert(fold), fold, "endpoint {first} crosses");
+        assert_eq!(*fold_of_second.entry(second).or_insert(fold), fold, "endpoint {second}");
+    }
+    assert_eq!((fold_of_first.len(), fold_of_second.len()), (blocks * na, blocks * nb));
+    // The components are the blocks, named by their smallest first endpoint.
+    let na32 = u32::try_from(na).unwrap();
+    let units: Vec<u32> = raw.cluster.iter().map(|&c| c / na32 * na32).collect();
+    let plan = cluster_fold_plan(&units, FOLDS, a.crossfit_seed.unwrap()).unwrap();
+    assert_eq!(t.fold_ids.to_vec(), plan);
+    let mut components_per_fold = [0usize; FOLDS];
+    let mut seen = std::collections::BTreeSet::new();
+    for (&unit, &fold) in units.iter().zip(&plan) {
+        if seen.insert(unit) {
+            components_per_fold[fold as usize] += 1;
+        }
+    }
+    assert!(components_per_fold.iter().all(|&c| c == 6), "{components_per_fold:?}");
+
+    assert!(t.nuisance_provenance.contains(";cluster_dml=unit=dyad;components=30;digest="));
+    assert!(provenance_withholds_interval(&t.nuisance_provenance));
+    assert_eq!(&ScoreTable::from_wire(t.to_wire()).unwrap(), t);
+    assert!(a.se_analytic.is_nan() && a.se_kind.is_none() && a.joint_covariance.is_none());
+    assert!(a.score_inference.is_none() && a.influence.is_none());
+
+    let again = run(&est, &raw, 5).unwrap();
+    assert_eq!(a.ate.to_bits(), again.ate.to_bits());
+    assert_eq!(t.fold_ids, table(&again).fold_ids);
+}
+
+/// Permuting the rows (with both labels) keeps every endpoint's fold and the estimate to
+/// rounding, and the two-way receipt agrees.
+#[test]
+fn the_two_way_route_is_row_order_invariant() {
+    let raw = draw_two_way(30, 3, 4, 3);
+    let n = raw.t.len();
+    let order: Vec<usize> = (0..n).map(|i| (i * 7 + 3) % n).collect();
+    assert_eq!(order.iter().copied().collect::<std::collections::BTreeSet<_>>().len(), n);
+    let permuted = raw.permuted(&order);
+    let a = run(&declared_two_way(&raw, 20, 4), &raw, 9).unwrap();
+    let b = run(&declared_two_way(&permuted, 20, 4), &permuted, 9).unwrap();
+    assert!((a.ate - b.ate).abs() < 1e-7, "{} vs {}", a.ate, b.ate);
+    let folds = |raw: &Raw, fold_ids: &[u32]| -> BTreeMap<u32, u32> {
+        raw.cluster.iter().copied().zip(fold_ids.iter().copied()).collect()
+    };
+    assert_eq!(folds(&raw, &table(&a).fold_ids), folds(&permuted, &table(&b).fold_ids));
+    let spec = ClusterDml::dyadic(20, 4).unwrap();
+    let ra = spec.receipt(table(&a), &raw.cluster, Some(&raw.second)).unwrap();
+    let rb = spec.receipt(table(&b), &permuted.cluster, Some(&permuted.second)).unwrap();
+    assert_eq!(ra.unit_digest, rb.unit_digest);
+    assert!(
+        (ra.cluster_sandwich_se - rb.cluster_sandwich_se).abs() < 1e-7 * ra.cluster_sandwich_se
+    );
+}
+
+/// The two-way receipt equals sums written in this test from the table's own scores, and its
+/// counts and reference convention are the declared ones (`min(G_a, G_b) - 1` degrees).
+#[test]
+fn the_two_way_variance_equals_hand_computed_cgm_sums() {
+    let raw = draw_two_way(30, 3, 4, 21);
+    let est = declared_two_way(&raw, 20, 4);
+    let fit = run(&est, &raw, 4).unwrap();
+    let t = table(&fit);
+    let receipt = est.cluster_dml.unwrap().receipt(t, &raw.cluster, Some(&raw.second)).unwrap();
+    let n = t.n_rows;
+    let psi: Vec<f64> = (0..n).map(|i| t.scores[n + i] - t.scores[i]).collect();
+    let oracle = oracle_two_way_se(&psi, &raw.cluster, &raw.second);
+    assert!(
+        (receipt.cluster_sandwich_se - oracle).abs() <= 1e-12 * oracle,
+        "{} vs {oracle}",
+        receipt.cluster_sandwich_se
+    );
+    assert_eq!(receipt.independence_unit, IndependenceUnit::Dyad);
+    assert_eq!(
+        (receipt.n_clusters, receipt.n_clusters_second, receipt.n_components),
+        (90, Some(120), Some(30))
+    );
+    assert_eq!((receipt.reference_df, receipt.n_rows, receipt.folds), (89, 360, FOLDS));
+    // A cluster-unit receipt refuses a second label set instead of ignoring it.
+    let first_only = ClusterDml::new(20).unwrap();
+    assert!(first_only.receipt(t, &raw.cluster, Some(&raw.second)).is_err());
+}
+
+/// A deterministic fixture with repeated endpoints in a 12 by 12 grid, `psi = alpha_a + beta_b`
+/// with alternating `+-1` effects: the centered mean is zero, `S_a = +-12`, `S_b = +-12`,
+/// each cell sum is `psi` itself (`+-2` on the diagonal pattern, 72 of 144 cells), so
+/// `V_a = V_b = (12/11) 1728`, `V_ab = (144/143) 288` and `V = 24/143` after dividing by
+/// `n^2 = 144^2`. No Monte Carlo.
+#[test]
+fn the_two_way_variance_has_its_closed_form_on_a_repeated_endpoint_grid() {
+    let g = 12u32;
+    let (mut first, mut second, mut psi) = (vec![], vec![], vec![]);
+    for a in 0..g {
+        for b in 0..g {
+            first.push(a);
+            second.push(100 + b);
+            let alpha = if a % 2 == 0 { 1.0 } else { -1.0 };
+            let beta = if b % 2 == 0 { 1.0 } else { -1.0 };
+            psi.push(alpha + beta);
+        }
+    }
+    // The grid is one connected component: every row sits in one fold.
+    let table = contrast_table(&psi, vec![0; psi.len()]);
+    let spec = ClusterDml::dyadic(10, 2).unwrap();
+    let receipt = spec.receipt(&table, &first, Some(&second)).unwrap();
+    let expected = (24.0_f64 / 143.0).sqrt();
+    assert!(
+        (receipt.cluster_sandwich_se - expected).abs() < 1e-14,
+        "{} vs {expected}",
+        receipt.cluster_sandwich_se
+    );
+    assert!((oracle_two_way_se(&psi, &first, &second) - expected).abs() < 1e-14);
+    assert_eq!((receipt.n_components, receipt.reference_df), (Some(1), 11));
+}
+
+/// A two-way variance that comes out materially negative (`V_a + V_b < V_ab`) is reported as an
+/// error, never truncated to zero: `psi = (-1)^(a+b)` on a 10 by 10 grid has zero endpoint
+/// sums, so `V = -(100/99) 100 / 100^2 < 0`.
+#[test]
+fn a_materially_negative_two_way_variance_is_refused_not_truncated() {
+    let g = 10u32;
+    let (mut first, mut second, mut psi) = (vec![], vec![], vec![]);
+    for a in 0..g {
+        for b in 0..g {
+            first.push(a);
+            second.push(100 + b);
+            psi.push(if (a + b) % 2 == 0 { 1.0 } else { -1.0 });
+        }
+    }
+    let table = contrast_table(&psi, vec![0; psi.len()]);
+    let error =
+        ClusterDml::dyadic(10, 2).unwrap().receipt(&table, &first, Some(&second)).unwrap_err();
+    assert!(matches!(error, EstimationError::Stats(_)), "{error}");
+}
+
+/// Chains of shared endpoints form one unit: in each block a path of rows links first
+/// endpoints through second endpoints (`(a0,b0), (a1,b0), (a1,b1), (a2,b1)`), so the block
+/// is one component although no single endpoint appears in every row, and the repeated
+/// endpoints of a block never reach another fold.
+#[test]
+fn a_chain_of_shared_endpoints_is_one_fold_unit() {
+    let blocks = 25u32;
+    let (mut first, mut second) = (vec![], vec![]);
+    for k in 0..blocks {
+        for (a, b) in [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2), (3, 2)] {
+            first.push(4 * k + a);
+            second.push(SECOND + 3 * k + b);
+        }
+    }
+    let n = first.len();
+    let spec = ClusterDml::dyadic(20, 4).unwrap();
+    let units = spec.declare_units(Some(&first), Some(&second), n).unwrap();
+    for k in 0..blocks as usize {
+        let rows = &units[6 * k..6 * k + 6];
+        assert!(rows.iter().all(|&u| u == rows[0]), "block {k} was split: {rows:?}");
+        assert_eq!(rows[0], 4 * u32::try_from(k).unwrap());
+    }
+    assert_eq!(units.iter().collect::<std::collections::BTreeSet<_>>().len(), 25);
+    // Reversing the rows names the same components.
+    let first_r: Vec<u32> = first.iter().rev().copied().collect();
+    let second_r: Vec<u32> = second.iter().rev().copied().collect();
+    let units_r = spec.declare_units(Some(&first_r), Some(&second_r), n).unwrap();
+    assert_eq!(units_r.iter().rev().copied().collect::<Vec<_>>(), units.to_vec());
+}
+
+/// With every second endpoint its own label the two-way construction collapses to the
+/// one-way cluster route: the same folds, the same point bit for bit, and a receipt equal to
+/// the one-way sandwich (`V_b` and `V_ab` coincide and cancel).
+#[test]
+fn the_two_way_route_reduces_to_the_one_way_route_for_a_trivial_second_dimension() {
+    let raw = draw(40, 10, 3);
+    let singles: Vec<u32> = (0..u32::try_from(raw.t.len()).unwrap()).map(|i| SECOND + i).collect();
+    let two = Raw { second: singles, ..raw.clone() };
+    let one_way = run(&declared(&raw, 20), &raw, 6).unwrap();
+    let two_way = run(&declared_two_way(&two, 20, 4), &two, 6).unwrap();
+    assert_eq!(one_way.ate.to_bits(), two_way.ate.to_bits());
+    assert_eq!(table(&one_way).fold_ids, table(&two_way).fold_ids);
+    let se_one = ClusterDml::new(20).unwrap().receipt(table(&one_way), &raw.cluster, None).unwrap();
+    let se_two = ClusterDml::dyadic(20, 4)
+        .unwrap()
+        .receipt(table(&two_way), &two.cluster, Some(&two.second))
+        .unwrap();
+    assert!(
+        (se_one.cluster_sandwich_se - se_two.cluster_sandwich_se).abs()
+            <= 1e-12 * se_one.cluster_sandwich_se,
+        "{} vs {}",
+        se_one.cluster_sandwich_se,
+        se_two.cluster_sandwich_se
+    );
+}
+
+/// One giant component (a bridge row per block joins all blocks, or one third of the rows
+/// share a second endpoint) and an entity in both endpoint roles stay closed with
+/// `dyadic_dependence_not_licensed`, before any fit.
+#[test]
+fn unsupported_dyadic_structures_stay_closed() {
+    let (blocks, na, nb) = (30usize, 3usize, 4usize);
+    let raw = draw_two_way(blocks, na, nb, 5);
+    let ok = run(&declared_two_way(&raw, 20, 4), &raw, 1);
+    assert!(ok.is_ok(), "{:?}", ok.err());
+
+    // A bridge: the first row of each block reuses the previous block's second endpoint.
+    let mut bridged = raw.clone();
+    for k in 1..blocks {
+        bridged.second[k * na * nb] = raw.second[(k - 1) * na * nb];
+    }
+    let error = run(&declared_two_way(&bridged, 20, 4), &bridged, 1).unwrap_err();
+    code_of(&error, "dyadic_dependence_not_licensed");
+    assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
+
+    // One third of the rows share one second endpoint: a component larger than a fold's share.
+    let mut heavy = raw.clone();
+    let hub = raw.second[0];
+    for slot in heavy.second.iter_mut().take(10 * na * nb) {
+        *slot = hub;
+    }
+    let error = run(&declared_two_way(&heavy, 20, 4), &heavy, 1).unwrap_err();
+    code_of(&error, "dyadic_dependence_not_licensed");
+    assert!(error.to_string().contains("cluster_dml.dyadic_giant_component"), "{error}");
+
+    // An entity that is a first endpoint of some rows and a second endpoint of others.
+    let mut shared = raw.clone();
+    shared.second[0] = raw.cluster[5];
+    let error = run(&declared_two_way(&shared, 20, 4), &shared, 1).unwrap_err();
+    code_of(&error, "dyadic_dependence_not_licensed");
+    assert!(error.to_string().contains("cluster_dml.dyadic_shared_namespace"), "{error}");
+    let fit = run(&declared_two_way(&raw, 20, 4), &raw, 1).unwrap();
+    let error = ClusterDml::dyadic(20, 4)
+        .unwrap()
+        .receipt(table(&fit), &shared.cluster, Some(&shared.second))
+        .unwrap_err();
+    code_of(&error, "dyadic_dependence_not_licensed");
+}
+
+/// Too few labels at an endpoint, too few components per fold, a missing or misplaced second
+/// label set and out-of-range declarations are typed refusals.
+#[test]
+fn two_way_declarations_below_their_minimum_or_incomplete_are_refused() {
+    // 12 blocks over 5 folds leave the smallest fold 2 components: below the default 4.
+    let raw = draw_two_way(12, 3, 4, 8);
+    let error = run(&declared_two_way(&raw, 20, 4), &raw, 1).unwrap_err();
+    code_of(&error, "too_few_clusters");
+    assert!(error.to_string().contains("cluster_dml.too_few_components"), "{error}");
+    assert!(run(&declared_two_way(&raw, 20, 2), &raw, 1).is_ok());
+
+    // 90 first endpoints are below a declared minimum of 100.
+    let raw = draw_two_way(30, 3, 4, 8);
+    let error = run(&declared_two_way(&raw, 100, 4), &raw, 1).unwrap_err();
+    code_of(&error, "too_few_clusters");
+    assert!(error.to_string().contains("first-endpoint clusters"), "{error}");
+
+    let no_second = AipwAte { cluster_ids_second: None, ..declared_two_way(&raw, 20, 4) };
+    code_of(&run(&no_second, &raw, 1).unwrap_err(), "required_option_missing");
+    let mut short = raw.second.clone();
+    short.pop();
+    let misaligned = AipwAte { cluster_ids_second: Some(short), ..declared_two_way(&raw, 20, 4) };
+    let error = run(&misaligned, &raw, 1).unwrap_err();
+    assert!(error.to_string().contains("cluster_ids_second length"), "{error}");
+    let stray = AipwAte { cluster_ids_second: Some(raw.second.clone()), ..declared(&raw, 20) };
+    code_of(&run(&stray, &raw, 1).unwrap_err(), "invalid_argument");
+
+    code_of(&ClusterDml::dyadic(9, 4).unwrap_err(), "invalid_argument");
+    code_of(&ClusterDml::dyadic(20, 1).unwrap_err(), "invalid_argument");
+    let keys = [
+        ClusterDml::new(20).unwrap().canonical_key(),
+        ClusterDml::dyadic(20, 4).unwrap().canonical_key(),
+        ClusterDml::dyadic(20, 5).unwrap().canonical_key(),
+        ClusterDml::dyadic(25, 4).unwrap().canonical_key(),
+    ];
+    assert_eq!(keys.iter().collect::<std::collections::BTreeSet<_>>().len(), 4);
+    // The cluster key is the one written before the dyadic unit existed.
+    assert_eq!(keys[0], "cluster_dml.aipw.v1;unit=cluster;min_clusters=20");
+}
+
+/// A cluster or dependence option on the flexible-learner estimators is a typed refusal with a
+/// registered reason code and its detail, never ignored.
+#[test]
+fn flexible_learner_estimators_refuse_a_cluster_option_with_a_typed_reason() {
+    for estimator in ["dml", "dr.learner", "causal.forest"] {
+        for option in ["cluster_ids", "cluster_dml", "multiway_ids"] {
+            let error = flexible_learner_dependence_refusal(estimator, option);
+            assert!(
+                matches!(&error, EstimationError::Refused { code, .. } if *code == "route_not_supported"),
+                "{error}"
+            );
+            let text = error.to_string();
+            assert!(text.contains("cluster_dml.flexible_learner_closed"), "{text}");
+            assert!(text.contains(estimator) && text.contains(option), "{text}");
+        }
+    }
 }

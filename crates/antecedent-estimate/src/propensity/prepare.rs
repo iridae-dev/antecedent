@@ -62,6 +62,9 @@ pub struct PreparedPropensityProblem {
     /// fold plan deals whole units to folds (`cluster_dml_aipw::cluster_fold_plan`) instead
     /// of arm-stratified row units. Ignored when [`Self::fold_assignment`] is set.
     pub fold_units: Option<Arc<[u32]>>,
+    /// What [`Self::fold_units`] are (cluster labels, or connected components of a dyadic
+    /// endpoint graph); only read for the score-table provenance.
+    pub fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit,
     /// Seed of the cross-fit fold plan used when [`Self::fold_assignment`] is `None`.
     /// Callers holding an execution context set it to the master seed so the recorded
     /// cross-fit seed controls the folds as well as the learners.
@@ -412,6 +415,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         treatment_id: treatment,
         fold_assignment: None,
         fold_units: None,
+        fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit::Cluster,
         fold_seed: 0,
         shared_design: false,
         propensity: crate::propensity::PropensityNuisance::default(),

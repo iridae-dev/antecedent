@@ -3263,18 +3263,78 @@ reason_code = "too_few_clusters"
 notes = "Fewer independent clusters than the declared minimum: neither the whole-cluster cross-fit nor the sandwich is formed."
 
 [[routes]]
-route = "antecedent_estimate.ClusterDml.dyadic"
+route = "antecedent_estimate.AipwAte.cluster_dml_two_way_cross_fit"
 stage = "evaluate"
-status = "closed"
-reason_code = "dyadic_dependence_not_licensed"
-notes = "Shared-endpoint fold ownership and two-way covariance are not licensed; a dyadic unit is declarable and refused."
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_two_endpoint_labels"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "cross_fitted_point_only_no_interval"
+reference = "docs/guides/clustered-dml.md"
+limits = "Dyadic rows with disjoint first and second endpoint label sets: whole connected components of the endpoint graph own cross-fit folds (no endpoint crosses folds); at least the declared minimum labels per endpoint and components per fold, and no component larger than one fold's share of the rows; point and score table only, no interval, covariance or band."
+evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs"
+evidence_assertion = "two_way_components_own_their_folds_and_the_point_recovers_the_truth"
 
 [[routes]]
 route = "antecedent.estimators.ClusterDml.dyad"
 stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "complete_case_binary_treatment_rows_with_two_endpoint_labels"
+functional = "untrimmed_all_observed_mean_ate"
+guarantee = "cross_fitted_point_only_no_interval"
+reference = "docs/guides/clustered-dml.md"
+limits = "Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., second_cluster_ids=..., unit='dyad')) reports the point and the score table with a NaN standard error; the two-way variance is a Rust receipt only."
+evidence_test = "python/tests/test_cluster_dml.py"
+evidence_assertion = "test_a_two_way_cluster_dml_aipw_reports_a_point_and_the_scores_but_no_interval"
+
+[[routes]]
+route = "antecedent_estimate.ClusterDml.two_way_receipt"
+stage = "evaluate"
+status = "licensed"
+graph = "backdoor_adjustment_dag"
+evidence = "cluster_dml_score_table"
+functional = "two_way_cgm_standard_error_of_scores"
+guarantee = "variance_of_stored_scores_not_an_interval"
+reference = "docs/guides/clustered-dml.md"
+limits = "The Cameron-Gelbach-Miller two-way standard error sqrt(V_a + V_b - V_ab)/n of a dyadic cluster-DML score table (each term a G/(G-1) sandwich over cluster sums), with endpoint and component counts and the min(G_a,G_b)-1 reference convention; a materially negative variance is an error, never truncated; not an interval and not calibrated."
+evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs"
+evidence_assertion = "the_two_way_variance_equals_hand_computed_cgm_sums"
+
+[[routes]]
+route = "antecedent_estimate.ClusterDml.dyadic"
+stage = "evaluate"
 status = "closed"
 reason_code = "dyadic_dependence_not_licensed"
-notes = "A dyadic unit declared through the Python dataclass is refused at execution."
+notes = "An entity used as both a first and a second endpoint, and one connected component holding more than a fold's share of the rows, are not covered by the two-way construction."
+
+[[routes]]
+route = "antecedent.estimators.ClusterDml.dyad_structure"
+stage = "evaluate"
+status = "closed"
+reason_code = "dyadic_dependence_not_licensed"
+notes = "A shared-namespace or giant-component dyadic structure declared through the Python dataclass is refused at execution."
+
+[[routes]]
+route = "antecedent_estimate.ClusterDml.few_components"
+stage = "evaluate"
+status = "closed"
+reason_code = "too_few_clusters"
+notes = "Fewer connected components per fold than the declared minimum, or fewer endpoint labels than the declared cluster minimum, on a dyadic declaration."
+
+[[routes]]
+route = "antecedent_estimate.flexible_learner_cluster_option"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "dml, dr.learner and causal.forest refuse a cluster_ids, cluster_dml or multiway_ids option instead of ignoring it."
+
+[[routes]]
+route = "antecedent.estimators.DML.cluster_option"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "A cluster option in estimator_config for dml, dr.learner or causal.forest raises a typed error with the route_not_supported reason code."
 
 # 2.2 E7 descriptive raw-versus-adjusted comparison, reporting-scale transform and tier diagnostics
 # (parity/promotion_2_2.toml: 2.2E.E7.descriptive_comparison, 2.2E.E7.tier_diagnostics). Point-only; intervals closed.

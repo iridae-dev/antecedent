@@ -366,7 +366,7 @@ meaning = "The number of independent clusters is below the declared minimum, so 
 [[code]]
 id = "dyadic_dependence_not_licensed"
 applies_to = ["runtime_refusal"]
-meaning = "Rows share endpoints (dyads), so they are dependent through both endpoints and disjoint clusters do not describe them; dyadic fold ownership and two-way covariance are not licensed, only the screen/estimate split of connected endpoint components is."
+meaning = "Rows share endpoints (dyads) in a structure the two-way cluster-DML construction does not cover: an entity used as both a first and a second endpoint, or one connected component of the endpoint graph holding more than a fold's share of the rows, so whole-component folds and the two-way variance are not licensed."
 
 # 2.2 E7 tier diagnostics (promotion record: tier_diagnostics in parity/promotion_2_2.toml).
 [[code]]

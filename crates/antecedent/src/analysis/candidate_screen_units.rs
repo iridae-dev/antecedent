@@ -10,7 +10,9 @@
 //! - **Dyads**: the endpoint labels live in one namespace and every row links its two
 //!   endpoints, so a unit is a *connected component of the endpoint graph* (union-find). Two
 //!   rows that share an endpoint, directly or through a chain of rows, always land in the
-//!   same half; this is the no-shared-endpoint rule.
+//!   same half; this is the no-shared-endpoint rule. The components are computed by
+//!   `antecedent_estimate::endpoint_components`, the same union-find that owns the folds of
+//!   a dyadic cluster-DML declaration, so the screen split and the cross-fit agree on units.
 //!
 //! The split is a function of the set of units and the seed alone, so it does not depend on
 //! row order. A component that covers the whole graph leaves a single unit and the split is
@@ -18,7 +20,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -175,33 +176,10 @@ fn row_units(units: ScreenUnits<'_>) -> Result<(Vec<u32>, &'static str), CausalE
                     second.len()
                 ));
             }
-            let mut labels: Vec<u32> = first.iter().chain(second).copied().collect();
-            labels.sort_unstable();
-            labels.dedup();
-            let slot: BTreeMap<u32, usize> =
-                labels.iter().enumerate().map(|(i, &label)| (label, i)).collect();
-            let mut parent: Vec<usize> = (0..labels.len()).collect();
-            for (a, b) in first.iter().zip(second) {
-                let (ra, rb) = (find(&mut parent, slot[a]), find(&mut parent, slot[b]));
-                // The smaller slot (labels are sorted) stays the root, so a component's root
-                // is its smallest label whatever the order the rows arrive in.
-                if ra != rb {
-                    parent[ra.max(rb)] = ra.min(rb);
-                }
-            }
-            let rows =
-                first.iter().map(|a| labels[find(&mut parent, slot[a])]).collect::<Vec<u32>>();
+            let rows = antecedent_estimate::endpoint_components(first, second);
             Ok((rows, "dyad_component"))
         }
     }
-}
-
-fn find(parent: &mut [usize], mut node: usize) -> usize {
-    while parent[node] != node {
-        parent[node] = parent[parent[node]];
-        node = parent[node];
-    }
-    node
 }
 
 #[cfg(test)]

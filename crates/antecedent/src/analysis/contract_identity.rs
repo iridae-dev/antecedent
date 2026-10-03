@@ -6,6 +6,8 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt::Write;
+
 use antecedent_core::{CausalQuery, ObservationAssumption, ObservationSpec, VariableId};
 use antecedent_data::TableView;
 use antecedent_estimate::{
@@ -91,8 +93,9 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
             treatment_config: (!cfg.propensity.is_default())
                 .then(|| cfg.propensity.canonical_key()),
             // The declared independence unit and minimum cluster count (the labels are
-            // digested as `cluster_ids`); omitted by default.
-            score: cfg.cluster_dml.as_ref().map(antecedent_estimate::ClusterDml::canonical_key),
+            // digested as `cluster_ids`, a dyadic unit's second-endpoint labels inside this
+            // key); omitted by default.
+            score: cluster_dml_key(cfg),
             se_kind: Some(se_kind(cfg.se_kind)),
             cluster_ids: cfg.cluster_ids.as_deref().map(cluster_ids),
             multiway_ids: cfg.multiway_ids.as_deref().map(multiway_ids),
@@ -248,6 +251,19 @@ fn glm_options(options: &GlmOptions) -> GlmOptionsWire {
         },
         ridge_on_separation_bits: options.ridge_on_separation.map(f64::to_bits),
     }
+}
+
+/// Canonical key of an AIPW cluster-DML declaration, with the digest of a dyadic unit's
+/// second-endpoint labels so that other second labels give another identity.
+fn cluster_dml_key(cfg: &antecedent_estimate::AipwAte) -> Option<String> {
+    let mut key = cfg.cluster_dml.as_ref()?.canonical_key();
+    if let Some(second) = cfg.cluster_ids_second.as_deref() {
+        key.push_str(";second_ids=");
+        for byte in PayloadDigestWire::u32s("estimator.cluster_ids_second", second).digest {
+            let _ = write!(key, "{byte:02x}");
+        }
+    }
+    Some(key)
 }
 
 fn cluster_ids(ids: &[u32]) -> PayloadDigestWire {
@@ -499,5 +515,38 @@ mod learner_identity_tests {
             antecedent_estimate::LearnerSpec::Ridge(antecedent_estimate::RidgeSpec { lambda: 2.0 }),
         ));
         assert_ne!(estimator_spec_identity(&a), estimator_spec_identity(&b));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_estimate::{AipwAte, ClusterDml};
+
+    use super::*;
+
+    fn dyadic(first: &[u32], second: &[u32]) -> EstimatorSpecWire {
+        let cfg = AipwAte::new()
+            .with_cluster_dml(ClusterDml::dyadic(20, 3).unwrap())
+            .with_cluster_ids(first.to_vec())
+            .with_second_cluster_ids(second.to_vec());
+        estimator_spec_identity(&EstimatorSpec::Aipw(Box::new(cfg)))
+    }
+
+    #[test]
+    fn the_second_endpoint_labels_of_a_dyadic_unit_are_part_of_the_identity() {
+        let first = [0, 0, 1, 1, 2, 2];
+        let same = dyadic(&first, &[3, 4, 3, 5, 4, 5]);
+        assert_eq!(same, dyadic(&first, &[3, 4, 3, 5, 4, 5]));
+        assert_ne!(same, dyadic(&first, &[3, 4, 3, 5, 5, 4]));
+    }
+
+    #[test]
+    fn a_declared_dyadic_unit_differs_from_the_same_labels_without_a_second_dimension() {
+        let first = [0, 0, 1, 1, 2, 2];
+        let without = AipwAte::new()
+            .with_cluster_dml(ClusterDml::new(20).unwrap())
+            .with_cluster_ids(first.to_vec());
+        let without = estimator_spec_identity(&EstimatorSpec::Aipw(Box::new(without)));
+        assert_ne!(without, dyadic(&first, &[3, 4, 3, 5, 4, 5]));
     }
 }

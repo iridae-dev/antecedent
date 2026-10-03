@@ -238,6 +238,9 @@ pub struct AipwAte {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (aligned to prepared rows).
     pub cluster_ids: Option<Vec<u32>>,
+    /// Second-endpoint labels of a dyadic [`ClusterDml`] declaration (aligned to prepared
+    /// rows); [`Self::cluster_ids`] are then the first endpoints.
+    pub cluster_ids_second: Option<Vec<u32>>,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
     /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
@@ -292,6 +295,7 @@ impl AipwAte {
             glm_options: GlmOptions::default(),
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            cluster_ids_second: None,
             population_registry: None,
             multiway_ids: None,
             panel_times: None,
@@ -361,6 +365,13 @@ impl AipwAte {
         self
     }
 
+    /// Set the second-endpoint labels of a dyadic [`ClusterDml`] declaration.
+    #[must_use]
+    pub fn with_second_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids_second = Some(cluster_ids);
+        self
+    }
+
     /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
     /// [`AnalyticSeKind::Multiway`].
     #[must_use]
@@ -398,8 +409,7 @@ impl AipwAte {
                 self.overlap,
             )?;
         }
-        if let Some(cluster_dml) = &self.cluster_dml {
-            cluster_dml.validate_for_execution()?;
+        if self.cluster_dml.is_some() {
             crate::cluster_dml_aipw::require_unpenalized(self.propensity.is_penalized())?;
             crate::cluster_dml_aipw::require_scope(
                 query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
@@ -430,8 +440,12 @@ impl AipwAte {
         )?;
         problem.propensity = self.propensity.clone();
         if let Some(cluster_dml) = &self.cluster_dml {
-            problem.fold_units =
-                Some(cluster_dml.declare_units(self.cluster_ids.as_deref(), problem.nrows)?);
+            problem.fold_units = Some(cluster_dml.declare_units(
+                self.cluster_ids.as_deref(),
+                self.cluster_ids_second.as_deref(),
+                problem.nrows,
+            )?);
+            problem.fold_unit_kind = cluster_dml.independence_unit();
         }
         Ok(problem)
     }
@@ -744,8 +758,7 @@ impl AipwAte {
         if self.propensity.is_penalized() {
             self.require_penalized_scope(true, &problem.target_population, problem.overlap)?;
         }
-        if let Some(cluster_dml) = &self.cluster_dml {
-            cluster_dml.validate_for_execution()?;
+        if self.cluster_dml.is_some() {
             crate::cluster_dml_aipw::require_unpenalized(self.propensity.is_penalized())?;
             crate::cluster_dml_aipw::require_scope(
                 true,
@@ -757,7 +770,19 @@ impl AipwAte {
                 self.se_kind,
             )?;
         }
-        if problem.fold_units.as_deref() != self.cluster_dml.and(self.cluster_ids.as_deref()) {
+        let declared_units = self.cluster_dml.and_then(|spec| {
+            spec.declare_units(
+                self.cluster_ids.as_deref(),
+                self.cluster_ids_second.as_deref(),
+                problem.nrows,
+            )
+            .ok()
+        });
+        if problem.fold_units.as_deref() != declared_units.as_deref()
+            || self
+                .cluster_dml
+                .is_some_and(|spec| spec.independence_unit() != problem.fold_unit_kind)
+        {
             return Err(EstimationError::data_msg(
                 "AIPW cluster-DML declaration differs from the one the problem was prepared with",
             ));

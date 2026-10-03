@@ -160,8 +160,9 @@ pub use cell_aipw::{
     cell_minus_control_contrast, contrast_named, family_cell_contrast, interaction_contrast,
 };
 pub use cluster_dml_aipw::{
-    ClusterDml, ClusterDmlReceipt, DEFAULT_MIN_CLUSTERS, IndependenceUnit, MIN_CLUSTERS_FLOOR,
-    cluster_fold_plan,
+    ClusterDml, ClusterDmlReceipt, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD,
+    IndependenceUnit, MIN_CLUSTERS_FLOOR, MIN_COMPONENTS_PER_FOLD_FLOOR, cluster_fold_plan,
+    endpoint_components, flexible_learner_dependence_refusal,
 };
 pub use conditional::{ConditionalArmScores, ConditionalLinearAdjustment};
 pub use crossfit_aipw::{

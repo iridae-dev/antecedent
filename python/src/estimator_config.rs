@@ -158,7 +158,15 @@ const GLM_OPTION_KEYS: &[&str] = &["max_iter", "tol", "ridge_on_separation"];
 const PROPENSITY_PENALTY_KEYS: &[&str] = &["kind", "lambdas", "inner_folds"];
 
 /// Valid `cluster_dml` sub-dict keys (see [`build_cluster_dml`]).
-const CLUSTER_DML_KEYS: &[&str] = &["cluster_ids", "min_clusters", "unit"];
+const CLUSTER_DML_KEYS: &[&str] =
+    &["cluster_ids", "second_cluster_ids", "min_clusters", "min_components_per_fold", "unit"];
+
+/// Estimators with a flexible-learner cross-fit and no dependence option: a cluster or
+/// dependence key on them is a typed refusal, not an unknown key.
+const FLEXIBLE_LEARNER_IDS: &[&str] = &["dml", "dr.learner", "causal.forest"];
+
+/// Dependence declarations those estimators refuse (see [`FLEXIBLE_LEARNER_IDS`]).
+const DEPENDENCE_KEYS: &[&str] = &["cluster_ids", "cluster_dml", "multiway_ids"];
 
 fn valid_keys_for(estimator_id: &str) -> Option<&'static [&'static str]> {
     ESTIMATOR_KEYS.iter().find(|(id, _)| *id == estimator_id).map(|(_, keys)| *keys)
@@ -244,6 +252,16 @@ pub(crate) fn parse_estimator_config(
         let key: String = key_obj
             .extract()
             .map_err(|_| PyValueError::new_err("estimator_config keys must be str"))?;
+        if FLEXIBLE_LEARNER_IDS.contains(&resolved_id) && DEPENDENCE_KEYS.contains(&key.as_str()) {
+            let message =
+                antecedent_estimate::flexible_learner_dependence_refusal(resolved_id, &key)
+                    .to_string();
+            let (code, tail) = antecedent_core::reason_code::split_prefix(&message).unwrap_or((
+                antecedent_core::reason_code!("route_not_supported"),
+                message.as_str(),
+            ));
+            return Err(crate::with_reason_code(PyValueError::new_err(tail.to_string()), code));
+        }
         if !valid_keys.contains(&key.as_str()) {
             let owners = estimators_accepting(&key);
             if owners.is_empty() {
@@ -671,15 +689,17 @@ fn build_propensity_nuisance(
     Ok(Some(nuisance.with_fallback(fallback)))
 }
 
+/// Declared cluster-DML independence unit of an `aipw` estimator and its row labels.
+type ClusterDmlConfig = (antecedent_estimate::ClusterDml, Vec<u32>, Option<Vec<u32>>);
+
 /// Build the declared cluster-DML independence unit of `aipw` and its row labels from
-/// `cluster_dml` (`{"cluster_ids": [int], "min_clusters": int, "unit": "cluster" | "dyad"}`).
+/// `cluster_dml` (`{"cluster_ids": [int], "min_clusters": int, "unit": "cluster" | "dyad",
+/// "second_cluster_ids": [int], "min_components_per_fold": int}`).
 ///
-/// A `dyad` unit is accepted here and refused with its registered reason code when the
-/// analysis runs: it is declarable but closed.
-fn build_cluster_dml(
-    dict: &Bound<'_, PyDict>,
-) -> PyResult<Option<(antecedent_estimate::ClusterDml, Vec<u32>)>> {
-    use antecedent_estimate::{ClusterDml, DEFAULT_MIN_CLUSTERS};
+/// A `dyad` unit takes the second endpoint labels (`second_cluster_ids`, required) and a
+/// minimum components per fold; a `cluster` unit takes neither.
+fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConfig>> {
+    use antecedent_estimate::{ClusterDml, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD};
     let Some(value) = dict.get_item("cluster_dml")? else {
         return Ok(None);
     };
@@ -703,15 +723,47 @@ fn build_cluster_dml(
     let ids = get_u32_list(sub, "cluster_ids")?.ok_or_else(|| {
         invalid("estimator_config['cluster_dml'] requires cluster_ids".to_string())
     })?;
+    let second = get_u32_list(sub, "second_cluster_ids")?;
     let min_clusters = get_u32(sub, "min_clusters")?.map_or(DEFAULT_MIN_CLUSTERS, |m| m as usize);
+    let min_components = get_u32(sub, "min_components_per_fold")?;
+    let refused = |error: antecedent_estimate::EstimationError| {
+        let message = error.to_string();
+        let tail = antecedent_core::reason_code::split_prefix(&message)
+            .map_or(message.as_str(), |(_, tail)| tail);
+        invalid(tail.to_string())
+    };
     let spec = match get_string(sub, "unit")?.as_deref().unwrap_or("cluster") {
-        "cluster" => ClusterDml::new(min_clusters).map_err(|error| {
-            let message = error.to_string();
-            let tail = antecedent_core::reason_code::split_prefix(&message)
-                .map_or(message.as_str(), |(_, tail)| tail);
-            invalid(tail.to_string())
-        })?,
-        "dyad" => ClusterDml::dyadic(min_clusters),
+        "cluster" => {
+            if second.is_some() || min_components.is_some() {
+                return Err(invalid(
+                    "estimator_config['cluster_dml'] second_cluster_ids and \
+                     min_components_per_fold belong to unit='dyad'"
+                        .to_string(),
+                ));
+            }
+            ClusterDml::new(min_clusters).map_err(refused)?
+        }
+        "dyad" => {
+            match &second {
+                None => {
+                    return Err(invalid(
+                        "estimator_config['cluster_dml'] unit='dyad' requires second_cluster_ids"
+                            .to_string(),
+                    ));
+                }
+                Some(second) if second.len() != ids.len() => {
+                    return Err(invalid(format!(
+                        "estimator_config['cluster_dml'] second_cluster_ids has {} labels but \
+                         cluster_ids has {}",
+                        second.len(),
+                        ids.len()
+                    )));
+                }
+                Some(_) => {}
+            }
+            let per_fold = min_components.map_or(DEFAULT_MIN_COMPONENTS_PER_FOLD, |m| m as usize);
+            ClusterDml::dyadic(min_clusters, per_fold).map_err(refused)?
+        }
         other => {
             return Err(invalid(format!(
                 "estimator_config['cluster_dml']['unit'] {other:?} is not recognized; \
@@ -719,7 +771,7 @@ fn build_cluster_dml(
             )));
         }
     };
-    Ok(Some((spec, ids)))
+    Ok(Some((spec, ids, second)))
 }
 
 /// Build the caller-configured [`EstimatorSpec`] for one of the ten estimators
@@ -941,8 +993,11 @@ fn build_configured_spec(
             if let Some(nuisance) = build_propensity_nuisance(dict)? {
                 est = est.with_propensity_nuisance(nuisance);
             }
-            if let Some((spec, ids)) = cluster_dml {
+            if let Some((spec, ids, second)) = cluster_dml {
                 est = est.with_cluster_ids(ids).with_cluster_dml(spec);
+                if let Some(second) = second {
+                    est = est.with_second_cluster_ids(second);
+                }
             }
             est.into()
         }

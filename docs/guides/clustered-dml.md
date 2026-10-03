@@ -22,6 +22,9 @@ estimator uses (the same alignment `se="cluster"` has). The cluster-sandwich rec
 Rust value (`ClusterDml::receipt` on the result's score table); the Python result carries
 the point and the score table only.
 
+A dyadic (two-way) declaration, `ClusterDml(cluster_ids=first, second_cluster_ids=second,
+unit="dyad")`, is the second supported unit (see [Two-way and dyadic units](#two-way-and-dyadic-units)).
+
 ## What this is not
 
 `Aipw(se="cluster", cluster_ids=...)` is an IID cross-fit (rows are the units of the fold
@@ -134,20 +137,119 @@ route therefore:
   (`cluster_dml.cluster_ids_missing`); too few clusters refuse `too_few_clusters`
   (`cluster_dml.too_few_clusters`); a declared minimum below 10 refuses `invalid_argument`
   (`cluster_dml.invalid_min_clusters`).
-- **Dyadic and two-way dependence is closed.** `ClusterDml(unit="dyad")` is declarable and
-  refuses `dyadic_dependence_not_licensed` (`cluster_dml.dyadic_closed`). A sound two-way
-  cell needs three things this change does not provide: fold ownership in which a
-  validation dyad's nuisances are fit on dyads that share *neither* endpoint (a
-  two-dimensional endpoint-block plan, not whole clusters); a covariance algebra over scores
-  that are dependent through each shared endpoint (the multiway inclusion-exclusion of the
-  existing multiway influence standard error presupposes labels whose dependence is exactly
-  the declared one, and has no cross-fitting fixture); and cluster-count conditions on both
-  dimensions with repeated-endpoint fixtures. A half version would publish a variance that
-  ignores the cross-fit leakage, so it stays a typed refusal.
-- **Flexible-learner estimators stay closed.** `DML`, `DRLearner` and `CausalForest` have no
-  cluster or dependence option (their configurations take no `cluster_ids`/`cluster_dml`
-  key), and no dependence-aware interval is claimed for them: their own inference is not
-  justified under dependence in this change.
+- **Dyadic structures the two-way cell does not cover stay closed** with
+  `dyadic_dependence_not_licensed`: an entity that is a first endpoint of some rows and a
+  second endpoint of others (`cluster_dml.dyadic_shared_namespace`), and one connected
+  component of the endpoint graph holding more than one fold's share of the rows
+  (`cluster_dml.dyadic_giant_component`). Too few endpoint labels or too few components per
+  fold refuse `too_few_clusters`; a missing or misplaced second label set refuses
+  `required_option_missing` / `invalid_argument` (see below).
+- **Flexible-learner estimators refuse a cluster option.** `DML`, `DRLearner` and
+  `CausalForest` have no cluster or dependence option. An `estimator_config` carrying
+  `cluster_ids`, `cluster_dml` or `multiway_ids` for them (`dml`, `dr.learner`,
+  `causal.forest`) is refused with `route_not_supported`
+  (`cluster_dml.flexible_learner_closed`) rather than reported as an unknown key or ignored,
+  and no dependence-aware interval is claimed for them: their cross-fitting and inference are
+  not justified under dependence in this change. The refusal is raised by the shared
+  `flexible_learner_dependence_refusal` and tested in Rust and Python.
+
+## Two-way and dyadic units
+
+Rows are dyads `(a_i, b_i)`: `a_i` is the first endpoint label (`cluster_ids`) and `b_i` the
+second (`second_cluster_ids`, `AipwAte::with_second_cluster_ids`). Endpoints repeat across
+rows, so two rows are dependent when they share *either* endpoint (two-way clustering: firms
+and years, senders and receivers, buyers and sellers drawn from different populations). The
+two label sets must be disjoint: a label that is a first endpoint of some rows and a second
+endpoint of others means one entity sits in both dimensions, and rows `(i, j)` and `(k, i)`
+are then dependent through `i` in a way the two-way construction below does not model, so it
+is refused (`dyadic_dependence_not_licensed`, `cluster_dml.dyadic_shared_namespace`). A
+declaration is `ClusterDml::dyadic(min_clusters, min_components_per_fold)`.
+
+**Fold ownership.** Build the graph whose nodes are the endpoint labels and whose edges are
+the rows (`endpoint_components`: one union-find, the same one `CandidateScreen.from_units`
+uses for dyad ownership). A fold owns whole *connected components*; the component of a row is
+named by its smallest first-endpoint label, so the plan (`cluster_fold_plan` over those
+names) depends on the seed and the component set, not on row order. Consequently no
+endpoint, first or second, has rows in two folds, and the nuisances scoring a fold's rows are
+fit on rows sharing no endpoint with them, directly or through a chain of rows. When the
+second endpoint is unique to each row the components are the first-endpoint clusters and the
+route equals the one-way route (same folds, same point bit for bit, same receipt; tested).
+
+**Refusals before any fit.** The route refuses when the component structure cannot support
+whole-component folds:
+
+- one component holds more rows than one fold's share (its row count times the five folds
+  exceeds the number of rows): `dyadic_dependence_not_licensed`,
+  `cluster_dml.dyadic_giant_component`. A giant component is the common case of real
+  networks, and the whole graph then has no honest cross-fit;
+- fewer than `min_components_per_fold` components in the smallest fold (components divided
+  by five, rounded down; default 4, floor 2): `too_few_clusters`,
+  `cluster_dml.too_few_components`;
+- fewer than `min_clusters` distinct labels at either endpoint (`too_few_clusters`,
+  `cluster_dml.too_few_clusters`).
+
+**Variance (Cameron-Gelbach-Miller).** Let `psi_i` be the cross-fitted contrast scores,
+`theta_hat` their mean and `e_i = psi_i - theta_hat`. Define the sums over first-endpoint
+clusters, second-endpoint clusters and endpoint-pair cells,
+
+    S_a = sum_{i: a_i = a} e_i,    S_b = sum_{i: b_i = b} e_i,    S_ab = sum_{i: a_i = a, b_i = b} e_i.
+
+If rows with different `a` *and* different `b` are independent, then
+`Var(sum_i e_i) = sum_{i,j} Cov(e_i, e_j)` is the sum over pairs sharing the first endpoint,
+plus pairs sharing the second endpoint, minus pairs sharing both (counted twice by the first
+two). The three sums of squares estimate exactly those: `sum_a S_a^2` covers pairs sharing
+the first endpoint, `sum_b S_b^2` pairs sharing the second, and `sum_{ab} S_ab^2` pairs
+sharing both, so
+
+    V_hat = ( c_a sum_a S_a^2 + c_b sum_b S_b^2 - c_ab sum_ab S_ab^2 ) / n^2,
+    c_G = G / (G - 1),    se = sqrt(V_hat),
+
+where each term uses the finite-cluster factor of its own grouping (`G_a`, `G_b`, `G_ab`).
+This is the existing `se::multiway_influence_se` (full inclusion-exclusion over the two
+dimensions), reused. Setting one dimension to unique labels makes `V_b` and `V_ab` cancel and
+returns the one-way sandwich (tested). Two fixtures fix it without Monte Carlo: sums written
+in a test from the stored scores, and the closed form of a 12 by 12 grid of endpoints with
+alternating `+-1` effects, `psi = alpha_a + beta_b`, where `S_a = S_b = +-12`,
+`sum_a S_a^2 = sum_b S_b^2 = 1728`, `sum_ab S_ab^2 = 288` over 144 cells and
+`V = 41472 * (1/11 - 1/143) / 144^2 = 24/143`.
+
+**Not positive semidefinite.** `V_a + V_b - V_ab` can be negative with few or unbalanced
+clusters, because it is a difference. Rounding-level negatives (within `64 eps` of the sum of
+absolute terms) are set to zero. A *materially* negative value is an error: the receipt is
+not formed (`EstimationError::Stats`) and a zero variance is never reported for it, so a
+negative two-way variance cannot silently look like certainty. (Cameron, Gelbach and Miller
+suggest an eigenvalue truncation for the multivariate case; for this scalar contrast the
+analogue of truncating to zero would publish a standard error of zero, which this route does
+not do.) Tested on a grid whose two-way variance is negative.
+
+**Cluster-count conditions** (the receipt estimates the sampling standard deviation of
+`theta_hat` only when they hold; the library checks the counts and the structure, not the
+asymptotics):
+
+- (D1) rows with no shared endpoint are independent (a correctly declared pair of
+  dimensions, no third dimension of dependence, no entity in both roles);
+- (D2) `G_a` and `G_b` are both at least `min_clusters` (default 20, floor 10), and the
+  connected components number at least `5 * min_components_per_fold`;
+- (D3) no dominant endpoint or component (the Lindeberg-type condition of the one-way cell
+  applies to each of `S_a`, `S_b`; the library refuses only a component above one fold's
+  share);
+- (D4), (D5): positivity and the nuisance remainder rate, as in the one-way cell, with the
+  effective sample size now nearer the number of components than `n`.
+
+**Reference degrees of freedom.** The few-cluster convention of Cameron, Gelbach and Miller
+for a two-way variance is `G_min - 1` with `G_min = min(G_a, G_b)`; the receipt reports it as
+`reference_df` (`G - 1` for a cluster unit). No interval is built from it.
+
+**Result and receipt.** As in the one-way cell the result stays `point_only`: the point and
+the score table (provenance `;cluster_dml=unit=dyad;components=<C>;digest=<...>`) are
+published, `se_analytic` is `NaN`, and the two-way standard error is only the Rust
+`ClusterDml::receipt(table, first, Some(second))` value, with `n_clusters`,
+`n_clusters_second`, `n_components`, `reference_df` and a fingerprint of the sorted
+component names. A requested interval is refused as for the one-way unit
+(`cluster_interval_not_licensed`). The receipt refuses a table in which a component spans two
+folds. Python: `ClusterDml(cluster_ids=..., second_cluster_ids=..., unit="dyad",
+min_components_per_fold=4)`; a dyadic dataclass without second labels, with a different
+length, or a cluster unit with second labels is refused.
 
 ## Screen, then estimate, owned by entities (`CandidateScreen.from_units`)
 
@@ -176,8 +278,13 @@ candidate's interval calibrated, and no family-wise coverage run was made.
 ## Tests
 
 `crates/antecedent-estimate/tests/cluster_dml_aipw.rs` (fold ownership, row-order
-invariance, cluster-sum oracle, closed form, non-independent folds, few clusters, closed
-dyadic unit, interval and scope refusals, artifact round trip),
+invariance, cluster-sum oracle, closed form, non-independent folds, few clusters, interval
+and scope refusals, artifact round trip; for the dyadic unit: whole-component folds with no
+endpoint crossing, row-order invariance, the CGM oracle written from endpoint sums, the
+12 by 12 closed form, a negative-variance refusal, a repeated-endpoint chain, reduction to the
+one-way route, giant-component / shared-namespace / few-component / missing-label refusals;
+the flexible-learner refusal),
 `crates/antecedent/src/analysis/candidate_screen_units.rs` (inline tests: entity and dyad
 component ownership, row-order and seed replay, single-component refusal) and
-`python/tests/test_cluster_dml.py`.
+`python/tests/test_cluster_dml.py` (including the `dml`, `dr.learner` and `causal.forest`
+cluster-option refusal and the dyadic dataclass and analysis).
