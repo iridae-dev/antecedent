@@ -7,12 +7,21 @@
 //! this module has not derived them, and the bootstrap pass count is an upper bound that
 //! assumes every replicate refits every nuisance.
 //!
-//! No wall-clock figure is given. A time estimate needs a named local benchmark of the same
-//! fits, and the repository carries none (the benches under `benches/baselines` measure
-//! graph, counterfactual, kernel and Laplace workloads), so [`CostEstimate::seconds`] stays
-//! absent and says why.
+//! A wall-clock figure is given only when a named local benchmark backs it. The checked-in
+//! `scripts/bench_cost_model.py` times the nuisance fits over a small `(rows, columns)` grid
+//! on one machine and writes `parity/cost_model.toml`: for each estimator the coefficients of
+//! a monotone model `seconds per counted fit = a + b * rows * columns^2`
+//! (`a, b >= 0`), the grid, the benchmark name and a declared machine descriptor.
+//! [`CostEstimate::seconds`] is `fits * (a + b * rows * columns^2)` from that file's
+//! coefficients, labelled with the benchmark and machine, and stays absent (with the reason in
+//! [`CostEstimate::seconds_basis`]) when the file is missing, unreadable, has no declared
+//! machine, or has no coefficients for the estimator. The file is read from the path in
+//! `ANTECEDENT_COST_MODEL`, else `parity/cost_model.toml` relative to the working directory.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+
+use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use serde::Serialize;
 
@@ -29,12 +38,206 @@ use crate::strategy_table::{DEFAULT_ESTIMATOR_ID, EstimatorId};
 
 /// Label on every estimate: what it is and is not.
 const PLANNING_NOTE: &str = "planning hint, not a runtime guarantee: counts follow the frozen \
-     configuration, the bootstrap pass count is an upper bound, and no time is estimated \
-     because no named local benchmark of these fits exists in the repository";
+     configuration, the bootstrap pass count is an upper bound, and seconds appear only when a \
+     named local benchmark file backs them";
 
-/// Why no seconds are given.
-const NO_BENCHMARK: &str = "no named local benchmark covers this estimator's fits, so only \
-     counts are reported";
+/// Why no seconds are given when no model file is present.
+const NO_BENCHMARK: &str = "no named local benchmark file (parity/cost_model.toml, or the path \
+     in ANTECEDENT_COST_MODEL) is present, so only counts are reported";
+
+/// Environment variable naming the cost-model file.
+const COST_MODEL_ENV: &str = "ANTECEDENT_COST_MODEL";
+
+/// Default cost-model path, relative to the working directory.
+const COST_MODEL_FILE: &str = "parity/cost_model.toml";
+
+/// `seconds per fit = a + b * rows * columns^2` for one estimator.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FitCoefficients {
+    pub(crate) a: f64,
+    pub(crate) b: f64,
+}
+
+/// A fitted cost model with the benchmark and machine it was measured on.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct CostModel {
+    pub(crate) benchmark: String,
+    pub(crate) platform: String,
+    pub(crate) cpu_count: u64,
+    pub(crate) coefficients: Vec<(String, FitCoefficients)>,
+}
+
+/// Where the cost model came from.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum ModelSource {
+    /// No file.
+    Absent,
+    /// A file that cannot back a time estimate, and why.
+    Unusable(String),
+    /// A usable model.
+    Loaded(CostModel),
+}
+
+fn unquote(value: &str) -> Result<String, String> {
+    let inner = value
+        .strip_prefix('"')
+        .and_then(|v| v.strip_suffix('"'))
+        .filter(|v| !v.is_empty() && !v.contains(['"', '\\']))
+        .ok_or_else(|| format!("{value} is not a plain non-empty quoted string"))?;
+    Ok(inner.to_string())
+}
+
+impl CostModel {
+    /// Parse the strict TOML subset `scripts/bench_cost_model.py` writes: top-level
+    /// `benchmark`, `[machine]` with `platform` and `cpu_count`, and one
+    /// `[coefficients."<estimator id>"]` table per estimator with `a` and `b`. Other keys (the
+    /// grid, sample counts) are informational. A model without a declared machine, or with a
+    /// negative or non-finite coefficient (which would not be monotone), is refused.
+    pub(crate) fn parse(text: &str) -> Result<Self, String> {
+        let mut section = String::new();
+        let mut benchmark = None;
+        let mut platform = None;
+        let mut cpu_count = None;
+        let mut rows: Vec<(String, Option<f64>, Option<f64>)> = Vec::new();
+        for (number, raw) in text.lines().enumerate() {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some(name) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
+                name.trim().clone_into(&mut section);
+                if let Some(id) = section.strip_prefix("coefficients.") {
+                    rows.push((id.trim_matches('"').to_string(), None, None));
+                }
+                continue;
+            }
+            let (key, value) = line
+                .split_once('=')
+                .map(|(k, v)| (k.trim(), v.trim()))
+                .ok_or_else(|| format!("line {}: not a key = value pair", number + 1))?;
+            let float = |v: &str| {
+                v.parse::<f64>().map_err(|_| format!("line {}: {v} is not a number", number + 1))
+            };
+            match (section.as_str(), key) {
+                ("", "benchmark") => benchmark = Some(unquote(value)?),
+                ("machine", "platform") => platform = Some(unquote(value)?),
+                ("machine", "cpu_count") => {
+                    cpu_count =
+                        Some(value.parse::<u64>().map_err(|_| {
+                            format!("line {}: {value} is not a CPU count", number + 1)
+                        })?);
+                }
+                (table, "a" | "b") if table.starts_with("coefficients.") => {
+                    if let Some(row) = rows.last_mut() {
+                        if key == "a" {
+                            row.1 = Some(float(value)?);
+                        } else {
+                            row.2 = Some(float(value)?);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        let benchmark = benchmark.ok_or("no benchmark name is declared")?;
+        let platform = platform.ok_or("no machine platform is declared")?;
+        let cpu_count = cpu_count.filter(|&n| n > 0).ok_or("no machine CPU count is declared")?;
+        let mut coefficients = Vec::with_capacity(rows.len());
+        for (id, a, b) in rows {
+            let (Some(a), Some(b)) = (a, b) else {
+                return Err(format!("coefficients for {id} need both a and b"));
+            };
+            if !(a.is_finite() && b.is_finite() && a >= 0.0 && b >= 0.0) {
+                return Err(format!("coefficients for {id} must be finite and non-negative"));
+            }
+            coefficients.push((id, FitCoefficients { a, b }));
+        }
+        if coefficients.is_empty() {
+            return Err("no estimator coefficients are present".to_string());
+        }
+        Ok(Self { benchmark, platform, cpu_count, coefficients })
+    }
+
+    /// `fits * (a + b * rows * columns^2)` for the estimator, when the model covers it.
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "row, column and fit counts sit far below 2^53 for a planning hint"
+    )]
+    pub(crate) fn seconds(
+        &self,
+        estimator: &str,
+        rows: usize,
+        columns: usize,
+        fits: u64,
+    ) -> Option<f64> {
+        let (_, coefficient) = self.coefficients.iter().find(|(id, _)| id == estimator)?;
+        let per_fit = coefficient.a + coefficient.b * rows as f64 * (columns as f64).powi(2);
+        Some(fits as f64 * per_fit)
+    }
+
+    fn label(&self) -> String {
+        format!(
+            "planning hint from named local benchmark {}, machine {} ({} cpus)",
+            self.benchmark, self.platform, self.cpu_count
+        )
+    }
+}
+
+fn load_model() -> ModelSource {
+    let path = std::env::var_os(COST_MODEL_ENV)
+        .map_or_else(|| PathBuf::from(COST_MODEL_FILE), PathBuf::from);
+    match std::fs::read_to_string(&path) {
+        Ok(text) => match CostModel::parse(&text) {
+            Ok(model) => ModelSource::Loaded(model),
+            Err(why) => ModelSource::Unusable(format!("{}: {why}", path.display())),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => ModelSource::Absent,
+        Err(error) => ModelSource::Unusable(format!("{}: {error}", path.display())),
+    }
+}
+
+/// The process-wide cost model, read once.
+fn default_model() -> &'static ModelSource {
+    static MODEL: OnceLock<ModelSource> = OnceLock::new();
+    MODEL.get_or_init(load_model)
+}
+
+/// Seconds and their basis for one plan.
+fn seconds_of(
+    inputs: &CostInputs,
+    fits: Option<u64>,
+    source: &ModelSource,
+) -> (Option<f64>, String) {
+    match source {
+        ModelSource::Absent => (None, NO_BENCHMARK.to_string()),
+        ModelSource::Unusable(why) => {
+            (None, format!("the cost-model file cannot back a time estimate ({why})"))
+        }
+        ModelSource::Loaded(model) => {
+            let (Some(rows), Some(columns), Some(fits)) =
+                (inputs.rows, inputs.design_columns, fits)
+            else {
+                return (
+                    None,
+                    "rows, design columns or nuisance-fit counts are not derived for this plan, \
+                     so no time is estimated"
+                        .to_string(),
+                );
+            };
+            match model.seconds(inputs.estimator.as_str(), rows, columns, fits) {
+                Some(seconds) => (Some(seconds), model.label()),
+                None => (
+                    None,
+                    format!(
+                        "the benchmark {} has no coefficients for estimator {}",
+                        model.benchmark,
+                        inputs.estimator.as_str()
+                    ),
+                ),
+            }
+        }
+    }
+}
 
 /// The inference the plan will run by default, shown before any work starts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -87,10 +290,10 @@ pub struct CostEstimate {
     pub fold_copy_bytes: Option<u64>,
     /// Bytes of the batch's shared covariate design, when this plan shares one.
     pub shared_covariate_bytes: Option<u64>,
-    /// Estimated seconds. Absent unless a named local benchmark backs it.
+    /// Estimated seconds. Absent unless a named local benchmark file backs it.
     pub seconds: Option<f64>,
-    /// Why `seconds` is absent (or the named benchmark behind it).
-    pub seconds_basis: &'static str,
+    /// Why `seconds` is absent, or the named benchmark and machine behind it.
+    pub seconds_basis: String,
 }
 
 /// Cost counts for a prepared batch.
@@ -151,14 +354,16 @@ fn bytes(rows: Option<usize>, columns: Option<usize>) -> Option<u64> {
     u64::try_from(cells).ok()?.checked_mul(8)
 }
 
-/// Derive the counts. Pure, so monotonicity in folds, replicates and claims is testable
-/// without a study.
-pub(crate) fn cost_of(inputs: &CostInputs) -> CostEstimate {
+/// Derive the counts and, when `source` holds a usable model, the seconds. Pure, so
+/// monotonicity in folds, replicates and claims is testable without a study or a file.
+pub(crate) fn cost_of(inputs: &CostInputs, source: &ModelSource) -> CostEstimate {
     let counts = fits_per_pass(inputs.estimator, inputs.folds);
     let passes = 1 + u64::from(inputs.bootstrap_replicates);
     let nuisance_per_pass = counts.map(|(p, o, _)| p + o);
     let crossfit = counts.is_some_and(|(_, _, crossfit)| crossfit);
     let design_matrix_bytes = bytes(inputs.rows, inputs.design_columns);
+    let nuisance_fits_upper_bound = nuisance_per_pass.and_then(|n| n.checked_mul(passes));
+    let (seconds, seconds_basis) = seconds_of(inputs, nuisance_fits_upper_bound, source);
     CostEstimate {
         planning_hint: true,
         note: PLANNING_NOTE,
@@ -181,14 +386,14 @@ pub(crate) fn cost_of(inputs: &CostInputs) -> CostEstimate {
         outcome_fits_per_pass: counts.map(|(_, o, _)| o),
         nuisance_fits_per_pass: nuisance_per_pass,
         passes_upper_bound: passes,
-        nuisance_fits_upper_bound: nuisance_per_pass.and_then(|n| n.checked_mul(passes)),
+        nuisance_fits_upper_bound,
         refuter_replicates: None,
         refute_suite: inputs.refute_suite.clone(),
         design_matrix_bytes,
         fold_copy_bytes: crossfit.then_some(design_matrix_bytes).flatten(),
         shared_covariate_bytes: inputs.shares_covariates.then_some(design_matrix_bytes).flatten(),
-        seconds: None,
-        seconds_basis: NO_BENCHMARK,
+        seconds,
+        seconds_basis,
     }
 }
 
@@ -226,15 +431,15 @@ impl PreparedStudy {
     /// Planning-time cost counts for this plan: nuisance fits, folds, bootstrap replicates,
     /// the design matrix it materializes, and the active inference default.
     ///
-    /// A planning hint, not a runtime guarantee, and counts only: no seconds are estimated
-    /// because the repository has no named local benchmark of these fits.
+    /// A planning hint, not a runtime guarantee. Counts always; seconds only when the named
+    /// local benchmark file (`parity/cost_model.toml`) backs them (see the module docs).
     ///
     /// # Errors
     ///
     /// Never today; the `Result` keeps the signature stable for plans whose cost cannot be
     /// stated.
     pub fn estimate_cost(&self) -> Result<CostEstimate, CausalError> {
-        Ok(cost_of(&inputs_of(self.study())))
+        Ok(cost_of(&inputs_of(self.study()), default_model()))
     }
 }
 
@@ -273,8 +478,12 @@ fn total_cost(plans: Vec<CostEstimate>) -> BatchCostEstimate {
 
 #[cfg(test)]
 mod tests {
-    use super::{CostInputs, cost_of, total_cost};
+    use super::{CostInputs, CostModel, FitCoefficients, ModelSource, total_cost};
     use crate::strategy_table::EstimatorId;
+
+    fn cost_of(inputs: &CostInputs) -> super::CostEstimate {
+        super::cost_of(inputs, &ModelSource::Absent)
+    }
 
     fn inputs(estimator: EstimatorId, folds: u32, bootstrap: u32) -> CostInputs {
         CostInputs {
@@ -354,5 +563,119 @@ mod tests {
         assert_eq!(cost_of(&shared).shared_covariate_bytes, None);
         shared.shares_covariates = true;
         assert_eq!(cost_of(&shared).shared_covariate_bytes, Some(1000 * 11 * 8));
+    }
+
+    fn model(a: f64, b: f64) -> CostModel {
+        CostModel {
+            benchmark: "synthetic".to_string(),
+            platform: "test-platform".to_string(),
+            cpu_count: 4,
+            coefficients: vec![("aipw".to_string(), FitCoefficients { a, b })],
+        }
+    }
+
+    /// Seconds are `fits * (a + b * rows * columns^2)`, checked by hand: AIPW with 5 folds
+    /// and 9 replicates is 150 fits, and 150 * (0.01 + 1e-9 * 1000 * 121) = 150 * 0.01012...
+    #[test]
+    fn model_seconds_follow_the_hand_arithmetic_and_are_labelled() {
+        let source = ModelSource::Loaded(model(0.01, 1e-9));
+        let cost = super::cost_of(&inputs(EstimatorId::Aipw, 5, 9), &source);
+        let expected = 150.0 * (0.01 + 1e-9 * 1000.0 * 121.0);
+        assert!((cost.seconds.unwrap() - expected).abs() < 1e-12, "{:?}", cost.seconds);
+        assert_eq!(
+            cost.seconds_basis,
+            "planning hint from named local benchmark synthetic, machine test-platform (4 cpus)"
+        );
+    }
+
+    /// The model is monotone in folds, replicates and rows, and in columns.
+    #[test]
+    fn model_seconds_are_monotone_in_folds_replicates_rows_and_columns() {
+        let source = ModelSource::Loaded(model(0.001, 1e-9));
+        let seconds = |folds: u32, bootstrap: u32, rows: usize, columns: usize| {
+            let mut input = inputs(EstimatorId::Aipw, folds, bootstrap);
+            input.rows = Some(rows);
+            input.design_columns = Some(columns);
+            super::cost_of(&input, &source).seconds.unwrap()
+        };
+        assert!(seconds(2, 0, 1000, 11) < seconds(5, 0, 1000, 11));
+        assert!(seconds(5, 0, 1000, 11) < seconds(10, 0, 1000, 11));
+        assert!(seconds(5, 0, 1000, 11) < seconds(5, 1, 1000, 11));
+        assert!(seconds(5, 1, 1000, 11) < seconds(5, 199, 1000, 11));
+        assert!(seconds(5, 10, 500, 11) < seconds(5, 10, 1000, 11));
+        assert!(seconds(5, 10, 1000, 6) < seconds(5, 10, 1000, 11));
+    }
+
+    /// A missing file, an unusable file, an estimator the benchmark does not cover and a plan
+    /// without derived counts all leave `seconds` absent with a stated reason.
+    #[test]
+    fn seconds_stay_absent_without_a_usable_model() {
+        let absent = cost_of(&inputs(EstimatorId::Aipw, 5, 0));
+        assert!(absent.seconds.is_none() && absent.seconds_basis.contains("only counts"));
+
+        let unusable = super::cost_of(
+            &inputs(EstimatorId::Aipw, 5, 0),
+            &ModelSource::Unusable("bad".to_string()),
+        );
+        assert!(unusable.seconds.is_none() && unusable.seconds_basis.contains("bad"));
+
+        let loaded = ModelSource::Loaded(model(0.01, 1e-9));
+        let uncovered = super::cost_of(&inputs(EstimatorId::LinearAdjustmentAte, 5, 0), &loaded);
+        assert!(uncovered.seconds.is_none());
+        assert!(uncovered.seconds_basis.contains("no coefficients"));
+
+        let underived = super::cost_of(&inputs(EstimatorId::IvWald, 5, 0), &loaded);
+        assert!(underived.seconds.is_none());
+        assert!(underived.seconds_basis.contains("not derived"));
+    }
+
+    const FILE: &str = r#"
+# written by scripts/bench_cost_model.py
+benchmark = "scripts/bench_cost_model.py"
+model = "seconds per fit = a + b * rows * columns^2"
+
+[machine]
+platform = "macOS-15-arm64"
+cpu_count = 10
+
+[grid]
+rows = [200, 400]
+columns = [3, 6]
+
+[coefficients."aipw"]
+a = 2.5e-04
+b = 3.0e-10
+samples = 12
+
+[coefficients."linear.adjustment.ate"]
+a = 1.0e-05
+b = 1.0e-10
+"#;
+
+    /// The checked-in file format parses, and a model needs a declared machine and
+    /// non-negative finite coefficients.
+    #[test]
+    fn the_file_format_parses_and_refuses_undeclared_or_non_monotone_models() {
+        let parsed = CostModel::parse(FILE).unwrap();
+        assert_eq!(parsed.benchmark, "scripts/bench_cost_model.py");
+        assert_eq!(parsed.platform, "macOS-15-arm64");
+        assert_eq!(parsed.cpu_count, 10);
+        assert_eq!(parsed.coefficients.len(), 2);
+        assert_eq!(
+            parsed.coefficients[0],
+            ("aipw".to_string(), FitCoefficients { a: 2.5e-4, b: 3.0e-10 })
+        );
+        assert_eq!(parsed.coefficients[1].0, "linear.adjustment.ate");
+        let seconds = parsed.seconds("aipw", 400, 6, 10).unwrap();
+        assert!((seconds - 10.0 * (2.5e-4 + 3.0e-10 * 400.0 * 36.0)).abs() < 1e-15);
+
+        let no_machine =
+            FILE.replace("[machine]\nplatform = \"macOS-15-arm64\"\ncpu_count = 10\n", "");
+        assert!(CostModel::parse(&no_machine).unwrap_err().contains("platform"));
+        let zero_cpus = FILE.replace("cpu_count = 10", "cpu_count = 0");
+        assert!(CostModel::parse(&zero_cpus).unwrap_err().contains("CPU count"));
+        let negative = FILE.replace("b = 3.0e-10", "b = -3.0e-10");
+        assert!(CostModel::parse(&negative).unwrap_err().contains("non-negative"));
+        assert!(CostModel::parse("").is_err());
     }
 }

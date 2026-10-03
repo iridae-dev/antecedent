@@ -5411,3 +5411,17 @@ def rank_drop_json(
     seed: int = 1,
     threads: int | None = None,
 ) -> str: ...
+def estimate_with_rank_drop_json(
+    names: list[str],
+    columns: Sequence[Any],
+    treatment: str,
+    outcome: str,
+    adjustment: list[str],
+    estimator: str,
+    priority: list[str] | None = None,
+    control: float = 0.0,
+    active: float = 1.0,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...

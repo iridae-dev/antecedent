@@ -1,0 +1,25 @@
+# Written by scripts/bench_cost_model.py; regenerate rather than edit.
+# estimate_cost reports seconds from this file only because it declares its machine.
+benchmark = "scripts/bench_cost_model.py"
+model = "seconds per counted fit = a + b * rows * columns^2"
+
+[machine]
+platform = "macOS-26.5.2-arm64-arm-64bit-Mach-O"
+cpu_count = 10
+python = "3.13.0"
+
+[grid]
+rows = [400, 800, 1600]
+columns = [4, 8, 16]
+bootstrap_replicates = 10
+repeats = 3
+
+[coefficients."linear.adjustment.ate"]
+a = 0.0012515636882651365
+b = 1.106959278488744e-07
+samples = 18
+
+[coefficients."aipw"]
+a = 0.00014579413282041394
+b = 8.239859423858286e-09
+samples = 18

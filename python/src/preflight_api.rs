@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use antecedent::{
-    CausalError, ColumnPriority, PreflightInput, RankDropPolicy, fit_diagnostics_design,
-    plan_rank_drop, preflight_design,
+    CausalError, ColumnPriority, EstimatorId, PreflightInput, RankDropPolicy,
+    estimate_with_rank_drop, fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
 use antecedent_core::{CausalSchema, VariableId};
 use antecedent_data::TableView;
@@ -302,9 +302,42 @@ fn rank_drop_json(
     })
 }
 
+/// Estimate a declared binary-effect design on the span-preserving reduced adjustment set of
+/// a rank-drop plan (`estimator` is a licensed estimator id, e.g. `aipw`).
+#[pyfunction]
+#[pyo3(signature = (names, columns, treatment, outcome, adjustment, estimator, priority=None, control=0.0, active=1.0, *, seed=1, threads=None))]
+#[allow(clippy::too_many_arguments, reason = "mirrors the Python keyword surface")]
+fn estimate_with_rank_drop_json(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    treatment: &str,
+    outcome: &str,
+    adjustment: Vec<String>,
+    estimator: &str,
+    priority: Option<Vec<String>>,
+    control: f64,
+    active: f64,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<String> {
+    let design = BoundDesign::bind(py, names, columns, treatment, outcome, &adjustment)?;
+    let policy = policy_for(design.data.schema(), priority)?;
+    let estimator =
+        estimator.parse::<EstimatorId>().map_err(|e| PyValueError::new_err(e.to_string()))?;
+    detach_catch(py, move || {
+        let ctx = py_execution_context(seed, resolve_user_threads(threads));
+        to_json(
+            &estimate_with_rank_drop(&design.input(control, active), &policy, estimator, &ctx)
+                .map_err(py_err)?,
+        )
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(preflight_json, module)?)?;
     module.add_function(wrap_pyfunction!(fit_diagnostics_json, module)?)?;
     module.add_function(wrap_pyfunction!(rank_drop_json, module)?)?;
+    module.add_function(wrap_pyfunction!(estimate_with_rank_drop_json, module)?)?;
     Ok(())
 }

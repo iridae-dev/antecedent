@@ -97,8 +97,9 @@ pub use analysis::{
     ArmCount, ArmSpec, ArmWeightEss, BatchCostEstimate, BatchPreflightReport, ColumnMissingness,
     ColumnPriority, ColumnWeight, CostEstimate, DependentColumn, DroppedColumn, DuplicateGroup,
     FindingSeverity, FittedPropensity, InferenceDefault, NuisanceFitDiagnostics, PreflightFinding,
-    PreflightInput, PreflightReport, PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport,
-    ScoreQuantile, fit_diagnostics_design, plan_rank_drop, preflight_design,
+    PreflightInput, PreflightReport, PropensityOutcome, RankDropEstimate, RankDropPlan,
+    RankDropPolicy, RankReport, ScoreQuantile, SpanCheck, estimate_with_rank_drop,
+    fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
 pub use analysis::{
     BATCH_RETARGET_SCOPE_NOTE, BatchRetargetError, BatchRetargetReport, BatchRetargetRequest,

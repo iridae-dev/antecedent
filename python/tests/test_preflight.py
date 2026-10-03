@@ -212,7 +212,9 @@ def test_a_prepared_plan_diagnoses_and_counts_its_cost() -> None:
     assert cost.crossfit_folds == 5
     assert cost.nuisance_fits_per_pass == 15
     assert cost.nuisance_fits_upper_bound == 15
-    assert cost.seconds is None and cost.seconds_basis
+    # Seconds appear only with a named benchmark file (parity/cost_model.toml), and say which.
+    named = cost.seconds_basis.startswith("planning hint from named local benchmark")
+    assert (cost.seconds is not None) == named and cost.seconds_basis
     assert cost.inference.mode == "frequentist"
     assert cost.inference.refit_warning is None
 
@@ -243,3 +245,77 @@ def test_a_prepared_batch_diagnoses_and_costs_every_claim() -> None:
     assert cost.plans[0].inference.refit_warning is not None
     assert len(batch.diagnose_fit()) == 2
     assert len(batch.plan_rank_drop()) == 2
+
+
+def _collinear(n: int = 600, seed: int = 31):
+    """``c = 2a - 3b + 1`` exactly; treatment driven by ``a``; true effect 1.5."""
+    rng = np.random.default_rng(seed)
+    a, b = rng.standard_normal(n), rng.standard_normal(n)
+    c = 2.0 * a - 3.0 * b + 1.0
+    t = (rng.random(n) < 1.0 / (1.0 + np.exp(-0.8 * a))).astype(np.float64)
+    y = 1.5 * t + a + 0.5 * b + 0.3 * rng.standard_normal(n)
+    return t, y, a, b, c
+
+
+def _ols_treatment_coefficient(t, y, *covariates) -> float:
+    design = np.column_stack([np.ones_like(t), t, *covariates])
+    return float(np.linalg.lstsq(design, y, rcond=None)[0][1])
+
+
+def test_estimate_with_rank_drop_matches_numpy_and_records_the_drop() -> None:
+    t, y, a, b, c = _collinear()
+    data = _frame(t, y, a=a, b=b, c=c)
+    result = pf.estimate_with_rank_drop(
+        data, treatment="t", outcome="y", adjustment=["a", "b", "c"]
+    )
+    assert [d.column for d in result.plan.dropped] == ["c"]
+    assert result.plan.original_adjustment == ("a", "b", "c")
+    assert result.plan.kept_adjustment == ("a", "b")
+    assert result.plan.design_identity == "adjustment=[a,b];dropped=[c];priority=[a,b,c]"
+    assert result.span_check.original_rank == result.span_check.retained_rank == 3
+    assert result.projection_invariance == "exact"
+    # Independent oracle: NumPy least squares on the hand-built reduced design.
+    assert result.ate == pytest.approx(_ols_treatment_coefficient(t, y, a, b), abs=1e-8)
+
+    flipped = pf.estimate_with_rank_drop(
+        data,
+        treatment="t",
+        outcome="y",
+        adjustment=["a", "b", "c"],
+        priority=["c", "a", "b"],
+    )
+    assert [d.column for d in flipped.plan.dropped] == ["b"]
+    assert flipped.plan.design_identity != result.plan.design_identity
+    assert flipped.ate == pytest.approx(result.ate, abs=1e-9)
+
+    aipw = pf.estimate_with_rank_drop(
+        data, treatment="t", outcome="y", adjustment=["a", "b", "c"], estimator="aipw"
+    )
+    assert aipw.projection_invariance == "unpenalized_logistic_no_separation"
+    assert aipw.ate == pytest.approx(1.5, abs=0.25)
+
+
+def test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators() -> None:
+    t, y, a, b, c = _collinear(seed=32)
+    aliased = _frame(t, y, a=a, alias=t.copy())
+    with pytest.raises(CausalUnsupportedError) as raised:
+        pf.estimate_with_rank_drop(aliased, treatment="t", outcome="y", adjustment=["a", "alias"])
+    assert raised.value.reason_code == "rank_drop_not_licensed"
+    assert_registered_refusal(raised.value)
+
+    data = _frame(t, y, a=a, b=b, c=c)
+    with pytest.raises(CausalUnsupportedError) as raised:
+        pf.estimate_with_rank_drop(
+            data,
+            treatment="t",
+            outcome="y",
+            adjustment=["a", "b", "c"],
+            estimator="propensity.weighting",
+        )
+    assert raised.value.reason_code == "route_not_supported"
+
+    with pytest.raises(CausalUnsupportedError) as raised:
+        pf.estimate_with_rank_drop(
+            data, treatment="t", outcome="y", adjustment=["a", "b", "c"], priority=["a"]
+        )
+    assert raised.value.reason_code == "rank_drop_not_licensed"

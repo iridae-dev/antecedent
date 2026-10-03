@@ -16,10 +16,13 @@ an unpopulated arm is *blocking*.
 ``plan_rank_drop`` is opt-in and records, never executes: it declares a column priority,
 names the columns that would be dropped and the exact linear relation behind each, and
 refuses (``reason_code == "rank_drop_not_licensed"``) when a treatment, outcome or effect
-modifier is involved.
+modifier is involved. ``estimate_with_rank_drop`` executes a plan: it re-runs a licensed
+estimator on the reduced design and returns the point estimate with the drop record, never
+silently, and refuses whenever the drop could change what is fitted.
 
-``estimate_cost`` is a planning hint, not a runtime guarantee, and gives counts only: the
-repository has no named local benchmark of these fits, so ``seconds`` is ``None``.
+``estimate_cost`` is a planning hint, not a runtime guarantee. It reports counts, and
+``seconds`` only when ``parity/cost_model.toml`` (written by ``scripts/bench_cost_model.py``
+on a named machine) is present; otherwise ``seconds`` is ``None``.
 
 A refusal raised by these calls carries its structured fields on
 ``error.refusal_fields`` (``None`` on every other error).
@@ -52,9 +55,12 @@ __all__ = [
     "NuisanceFitDiagnostics",
     "PreflightFinding",
     "PreflightReport",
+    "RankDropEstimate",
     "RankDropPlan",
     "RankReport",
     "ScoreQuantile",
+    "SpanCheck",
+    "estimate_with_rank_drop",
     "fit_diagnostics",
     "plan_rank_drop",
     "preflight",
@@ -226,7 +232,7 @@ class DroppedColumn:
 
 @dataclass(frozen=True)
 class RankDropPlan:
-    """Record of an opt-in rank drop (a plan: no estimator is re-run on the reduced design)."""
+    """Record of an opt-in rank drop (``estimate_with_rank_drop`` executes one)."""
 
     subject: str
     priority: tuple[str, ...]
@@ -235,6 +241,33 @@ class RankDropPlan:
     kept_adjustment: tuple[str, ...]
     numerical_rank: int
     design_identity: str
+
+
+@dataclass(frozen=True)
+class SpanCheck:
+    """Independent numerical check that a rank drop kept the column space of ``[1 | Z]``."""
+
+    original_rank: int
+    retained_rank: int
+    max_dropped_residual_ratio: float
+    tolerance: float
+
+
+@dataclass(frozen=True)
+class RankDropEstimate:
+    """A point estimate on the reduced adjustment set, with the drop that produced it.
+
+    ``plan`` records the dropped columns, their exact relations, the original and reduced
+    adjustment sets and the design identity. No interval, calibration or new identification
+    claim is made.
+    """
+
+    plan: RankDropPlan
+    span_check: SpanCheck
+    estimator: str
+    projection_invariance: str
+    ate: float
+    note: str
 
 
 @dataclass(frozen=True)
@@ -517,6 +550,55 @@ def plan_rank_drop(
         threads=threads,
     )
     return _plan(json.loads(raw))
+
+
+def estimate_with_rank_drop(
+    data: Mapping[str, Any] | Any,
+    *,
+    treatment: str,
+    outcome: str,
+    adjustment: Sequence[str],
+    estimator: str = "linear.adjustment.ate",
+    priority: Sequence[str] | None = None,
+    control: float = 0.0,
+    active: float = 1.0,
+    seed: int = 1,
+    threads: int | None = None,
+) -> RankDropEstimate:
+    """Estimate on the span-preserving reduced adjustment set of a declared rank drop.
+
+    Re-runs ``estimator`` (``"linear.adjustment.ate"`` or ``"aipw"`` with its default
+    unpenalized nuisances) on the design with the plan's dependent columns removed. A dropped
+    column is an exact linear combination of the retained ones, so the fitted projections
+    equal the original design's. Raises ``CausalUnsupportedError``
+    (``rank_drop_not_licensed``) when the plan refuses, the retained columns do not span the
+    original design, or the cross-fitted propensity separates on the reduced design;
+    ``route_not_supported`` for any other estimator.
+    """
+    names, columns = ingest_columns(data)
+    raw = json.loads(
+        _native.estimate_with_rank_drop_json(
+            names,
+            columns,
+            treatment,
+            outcome,
+            list(adjustment),
+            estimator,
+            None if priority is None else list(priority),
+            control,
+            active,
+            seed=seed,
+            threads=threads,
+        )
+    )
+    return RankDropEstimate(
+        plan=_plan(raw["plan"]),
+        span_check=SpanCheck(**raw["span_check"]),
+        estimator=raw["estimator"],
+        projection_invariance=raw["projection_invariance"],
+        ate=raw["ate"],
+        note=raw["note"],
+    )
 
 
 def _call(native: Any, method: str, *args: Any, **kwargs: Any) -> Any:

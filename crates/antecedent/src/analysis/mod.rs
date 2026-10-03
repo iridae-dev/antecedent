@@ -38,6 +38,7 @@ mod learned_trial;
 mod mixed_source;
 mod mz_transport;
 mod preflight;
+mod rank_drop_estimate;
 mod recovery;
 mod smoothed_dose;
 mod statistical;
@@ -103,9 +104,10 @@ pub use preflight::{
     ArmCount, ArmSpec, ArmWeightEss, BatchPreflightReport, ColumnMissingness, ColumnPriority,
     ColumnWeight, DependentColumn, DroppedColumn, DuplicateGroup, FindingSeverity,
     FittedPropensity, NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport,
-    PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport, ScoreQuantile,
+    PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport, ScoreQuantile, SpanCheck,
     fit_diagnostics_design, plan_rank_drop, preflight_design,
 };
+pub use rank_drop_estimate::{RankDropEstimate, estimate_with_rank_drop};
 pub use recovery::{
     ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
 };

@@ -3671,3 +3671,66 @@ stage = "evaluate"
 status = "closed"
 reason_code = "score_table_unavailable"
 notes = "A plan with no score table (prepared or after an estimate) fails its members; prepare-time rows are never substituted for an estimate's rows."
+
+# 2.2 E1 rank-drop estimation (parity/promotion_2_2.toml, 2.2E.E1.preflight_rank_drop_estimation). Point-only; no interval is returned or requestable.
+
+[[routes]]
+route = "antecedent.estimate_with_rank_drop"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_binary_contrast_adjustment_design"
+evidence = "binary_treatment_outcome_and_adjustment_rows_with_a_declared_column_priority"
+functional = "average_treatment_effect_on_the_span_preserving_reduced_adjustment_set"
+guarantee = "span_preserving_point_only"
+reference = "docs/guides/preflight-diagnostics.md"
+limits = "Point only, linear adjustment (exact projection invariance) or cross-fitted AIPW with unpenalized logistic propensity (conditional on a non-separating converged propensity fit on the reduced design); other estimators, joint cells, aliases of a treatment or outcome, protected effect modifiers and drops that do not preserve the numerical column span are refused; the drop is recorded with its relations, original and reduced sets and design identity, never silent."
+evidence_test = "crates/antecedent/tests/rank_drop_estimate.rs"
+evidence_assertion = "reduced_estimate_equals_the_hand_built_reduced_design"
+
+[[routes]]
+route = "antecedent.preflight.estimate_with_rank_drop"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_binary_contrast_adjustment_design"
+evidence = "binary_treatment_outcome_and_adjustment_rows_with_a_declared_column_priority"
+functional = "average_treatment_effect_on_the_span_preserving_reduced_adjustment_set"
+guarantee = "span_preserving_point_only"
+reference = "docs/guides/preflight-diagnostics.md"
+limits = "The Python surface of antecedent.estimate_with_rank_drop with the same licensed estimators and refusals."
+evidence_test = "python/tests/test_preflight.py"
+evidence_assertion = "test_estimate_with_rank_drop_matches_numpy_and_records_the_drop"
+
+[[routes]]
+route = "antecedent.estimate_with_rank_drop.other_estimator"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "An estimator whose nuisance fit is not shown invariant to a span-preserving column removal (penalized, lasso, matching, stratification) is refused."
+
+[[routes]]
+route = "antecedent.estimate_with_rank_drop.joint_cell"
+stage = "evaluate"
+status = "closed"
+reason_code = "route_not_supported"
+notes = "A joint cell or several treatments is outside the binary-contrast route."
+
+[[routes]]
+route = "antecedent.estimate_with_rank_drop.treatment_alias"
+stage = "evaluate"
+status = "closed"
+reason_code = "rank_drop_not_licensed"
+notes = "An adjustment column that is an exact copy of a treatment or the outcome, a protected effect modifier, or an uncovered priority refuses the plan, so nothing is estimated."
+
+[[routes]]
+route = "antecedent.estimate_with_rank_drop.separating_propensity"
+stage = "evaluate"
+status = "closed"
+reason_code = "rank_drop_not_licensed"
+notes = "The cross-fitted route refuses when the reduced design's propensity fit separates, saturates, fails or does not converge."
+
+[[routes]]
+route = "antecedent.estimate_with_rank_drop.span_not_preserved"
+stage = "evaluate"
+status = "closed"
+reason_code = "rank_drop_not_licensed"
+notes = "The independent numerical span check refuses a drop whose retained columns do not span the original design."

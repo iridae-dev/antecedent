@@ -1389,6 +1389,124 @@ pub fn plan_rank_drop(
     })
 }
 
+/// A dropped column's residual after projecting onto the retained span must stay within
+/// this multiple of the scan tolerance (rounding slack for the second projection).
+const SPAN_SLACK: f64 = 10.0;
+
+/// Numerical evidence that a rank drop kept the column space of the `[1 | Z]` design.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SpanCheck {
+    /// Numerical rank of the original `[1 | Z]` design.
+    pub original_rank: usize,
+    /// Numerical rank of the retained `[1 | Z_kept]` design (equal to its column count).
+    pub retained_rank: usize,
+    /// Largest residual-over-norm of a dropped column after projecting onto the retained
+    /// span (0 when nothing was dropped).
+    pub max_dropped_residual_ratio: f64,
+    /// Scan tolerance the ratios were compared with, after the rounding slack.
+    pub tolerance: f64,
+}
+
+/// The adjustment columns a plan keeps, in the input's order.
+pub(super) fn kept_adjustment_ids(
+    input: &PreflightInput<'_>,
+    plan: &RankDropPlan,
+) -> Result<Vec<VariableId>, CausalError> {
+    let schema = input.data.schema();
+    let mut kept = Vec::with_capacity(plan.kept_adjustment.len());
+    for &id in &input.adjustment {
+        let meta = schema.get(id)?;
+        if plan.kept_adjustment.iter().any(|name| name.as_str() == &*meta.name) {
+            kept.push(id);
+        }
+    }
+    Ok(kept)
+}
+
+/// Residual norm over own norm of `values` after projecting out an orthonormal `basis`
+/// (twice, for orthogonality). A zero column lies in every span.
+fn residual_over_norm(basis: &[Vec<f64>], values: &[f64]) -> f64 {
+    let norm = l2(values);
+    if !(norm.is_finite() && norm > 0.0) {
+        return 0.0;
+    }
+    let mut w = values.to_vec();
+    for _ in 0..2 {
+        for q in basis {
+            let c = dot(q, &w);
+            for (wi, qi) in w.iter_mut().zip(q) {
+                *wi -= c * qi;
+            }
+        }
+    }
+    l2(&w) / norm
+}
+
+/// Verify, independently of the plan's scan, that dropping `plan.dropped` left the column
+/// space unchanged: the retained design has full numerical rank equal to the original's, and
+/// every dropped column lies in the retained span within the scan tolerance.
+///
+/// # Errors
+///
+/// `rank_drop_not_licensed` when the retained design is still rank deficient, its rank
+/// differs from the original, or a dropped column is not in the retained span; the
+/// preflight errors (unknown column, size limit, cancellation).
+pub(super) fn verify_span_preserved(
+    input: &PreflightInput<'_>,
+    plan: &RankDropPlan,
+    kept: &[VariableId],
+    ctx: &ExecutionContext,
+) -> Result<SpanCheck, CausalError> {
+    let frame = Frame::new(input)?;
+    let columns = frame.adjustment_columns();
+    let ones = vec![1.0; frame.rows_complete];
+    let keep_mask: Vec<bool> = input.adjustment.iter().map(|id| kept.contains(id)).collect();
+    let mut design: Vec<&[f64]> = vec![&ones];
+    design.extend(
+        columns.iter().zip(&keep_mask).filter(|(_, keep)| **keep).map(|(c, _)| c.as_slice()),
+    );
+    let tol = tolerance(frame.rows_complete, input.adjustment.len() + 1);
+    let scan = scan_rank(&design, tol, ctx)?;
+    let retained_rank = scan.basis.len();
+    if retained_rank != design.len() || retained_rank != plan.numerical_rank {
+        return Err(rank_drop_refusal(
+            &frame.subject,
+            "rank_drop_estimate.span_not_preserved: the retained design does not span the \
+             original column space (its numerical rank differs from the original's or it is \
+             still rank deficient)",
+            Vec::new(),
+            "the drop would change the fitted projection; keep the original adjustment set",
+        ));
+    }
+    let mut worst = 0.0_f64;
+    let mut worst_column = String::new();
+    for ((column, keep), name) in columns.iter().zip(&keep_mask).zip(frame.adjustment_names()) {
+        if *keep {
+            continue;
+        }
+        let ratio = residual_over_norm(&scan.basis, column);
+        if ratio > worst {
+            worst = ratio;
+            worst_column.clone_from(name);
+        }
+    }
+    if worst > SPAN_SLACK * tol {
+        return Err(rank_drop_refusal(
+            &frame.subject,
+            "rank_drop_estimate.span_not_preserved: a dropped column is not an exact linear \
+             combination of the retained columns",
+            vec![worst_column],
+            "the drop would change the fitted projection; keep the original adjustment set",
+        ));
+    }
+    Ok(SpanCheck {
+        original_rank: plan.numerical_rank,
+        retained_rank,
+        max_dropped_residual_ratio: worst,
+        tolerance: SPAN_SLACK * tol,
+    })
+}
+
 fn outside_cell() -> CausalError {
     crate::unsupported_reason!(
         "route_not_supported",
@@ -1544,7 +1662,11 @@ impl PreparedBatch {
 mod tests {
     use antecedent_core::ExecutionContext;
 
-    use super::{scan_rank, separates_arms, tolerance};
+    use antecedent_data::{TableView, TabularData};
+
+    use super::{
+        PreflightInput, RankDropPlan, scan_rank, separates_arms, tolerance, verify_span_preserved,
+    };
 
     fn column(n: usize, seed: u64) -> Vec<f64> {
         // Deterministic, well-spread values from a small linear congruential stream.
@@ -1615,5 +1737,52 @@ mod tests {
             separates_arms(&col, &[None, Some(false), None, Some(true)]),
             Some("completely")
         );
+    }
+
+    /// The independent span check refuses a plan whose retained columns lose the original
+    /// column space: once because the rank differs, once because a dropped column is not in
+    /// the retained span although the rank is (falsely) recorded as unchanged.
+    #[test]
+    fn span_verification_refuses_a_drop_that_loses_an_independent_column() {
+        let n = 120;
+        let (a, b) = (column(n, 11), column(n, 12));
+        let (t, y) = (column(n, 13), column(n, 14));
+        let data = TabularData::from_f64_columns(vec![
+            ("t", t.as_slice()),
+            ("y", y.as_slice()),
+            ("a", a.as_slice()),
+            ("b", b.as_slice()),
+        ])
+        .unwrap();
+        let schema = data.schema();
+        let (ia, ib) = (schema.id_of("a").unwrap(), schema.id_of("b").unwrap());
+        let input = PreflightInput::binary_effect(
+            &data,
+            schema.id_of("t").unwrap(),
+            schema.id_of("y").unwrap(),
+            &[ia, ib],
+            0.0,
+            1.0,
+        );
+        let plan = |rank: usize| RankDropPlan {
+            subject: "t -> y".to_string(),
+            priority: vec!["a".to_string(), "b".to_string()],
+            original_adjustment: vec!["a".to_string(), "b".to_string()],
+            dropped: Vec::new(),
+            kept_adjustment: vec!["a".to_string()],
+            numerical_rank: rank,
+            design_identity: String::new(),
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        for recorded_rank in [3, 2] {
+            let error =
+                verify_span_preserved(&input, &plan(recorded_rank), &[ia], &ctx).unwrap_err();
+            assert_eq!(error.reason_code(), Some("rank_drop_not_licensed"), "{error}");
+            assert!(error.to_string().contains("rank_drop_estimate.span_not_preserved"), "{error}");
+        }
+        // Keeping both columns spans the original space exactly.
+        let kept_all = verify_span_preserved(&input, &plan(3), &[ia, ib], &ctx).unwrap();
+        assert_eq!((kept_all.original_rank, kept_all.retained_rank), (3, 3));
+        assert!(kept_all.max_dropped_residual_ratio <= 0.0);
     }
 }

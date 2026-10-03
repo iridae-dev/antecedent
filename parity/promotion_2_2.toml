@@ -2046,3 +2046,56 @@ fixtures = [
   { id = "e3.tidy_export.artifact", role = "artifact", intent = "The tidy export lists a row per claim and contrast with family identity, completeness and failure count, support and uncertainty kind, the failed member with its refusal, and a point-only member with no standard error.", evidence_test = "crates/antecedent/src/analysis/batch_retarget.rs", evidence_assertion = "a_complete_family_needs_every_member_with_covariance" },
   { id = "e3.python_tidy_export.artifact", role = "artifact", intent = "Python surface: to_rows carries every column (identity, provenance, support, refusal, diagnostics) for every claim and contrast including the failed one, and returns copies.", evidence_test = "python/tests/test_batch_retarget.py", evidence_assertion = "test_the_tidy_export_carries_identity_provenance_and_failed_members" },
 ]
+
+[[record]]
+id = "2.2E.E1.preflight_rank_drop_estimation"
+workstream = "E1"
+milestone = "E"
+work_package = "E1"
+status = "in_progress"
+consumer_question = "When a declared adjustment set contains an exact linear dependency, what does the configured estimator give on the set with the dependent columns removed, and what exactly was dropped?"
+theorem = "Derived in-repo (docs/guides/preflight-diagnostics.md; module docs of crates/antecedent/src/analysis/rank_drop_estimate.rs). A dropped column is an exact linear combination of the intercept and the retained columns on the complete-case rows, so [1 | Z_kept] and [1 | Z] have the same column space V. Ordinary least squares depends on the design only through V (fitted values are the projection of y onto V, and the coefficient on the treatment is the same linear functional of those fitted values), and an unpenalized logistic maximum likelihood depends on the design only through the set {X b} = V, so its fitted probabilities coincide as well. Penalized and separation-ridge fits are parametrization dependent: only the linear adjustment (exact) and the cross-fitted AIPW with its unpenalized logistic propensity (conditional on a non-separating, converged propensity fit on the reduced design) are licensed, every other estimator is refused, and a fold-level separation that a ridge would regularize is not detected, so the AIPW invariance is stated as conditional. The original rank-deficient design cannot be fit, so no original-design estimate exists to compare with; the estimate is the one the original set's projections define."
+reference = "docs/guides/preflight-diagnostics.md"
+guarantee = "span_preserving_point_only"
+graph_class = "Declared binary-contrast adjustment design (one treatment, one outcome, a declared adjustment set); the route builds no graph of its own beyond a confounder star over the retained columns that only carries the set into the estimator, and makes no identification claim."
+population_semantics = "All complete-case rows of the declared table; the estimator's own all-observed ATE."
+evidence_family = "A table with binary-coded treatment, outcome and the declared adjustment columns, plus a declared deterministic column priority."
+provider = "The existing study path (linear adjustment or cross-fitted AIPW) run on the projected table; the existing rank scan (plan_rank_drop) and propensity diagnostic fit. No second estimator."
+estimand = "The estimator's average treatment effect on the reduced adjustment set, equal by the span argument to what the original set's projections define."
+inference_claim = "point_only"
+inference_notes = "Point only. The bootstrap is forced to zero and no standard error, interval, band or covariance is returned or requestable; no coverage record exists or was run. No calibration is claimed."
+owners = ["antecedent", "python/antecedent/preflight"]
+identity_inputs = ["the plan's canonical design identity (kept adjustment, dropped columns, declared priority)", "the estimator id", "fold seed (AIPW)", "complete-case row identities"]
+wire_changes = ["Additive: a new JSON result (plan, span check, estimator, invariance label, point, note); no existing artifact or wire format changes."]
+compatibility = "Additive entry point; plan_rank_drop still records without executing and a study prepared with the original adjustment set keeps it."
+coverage_records = []
+search = false
+bounds = { cancellation = true, work = "one rank scan, one diagnostic propensity fit (AIPW) and one study run over at most the declared table; the preflight cell limit applies" }
+surface_rust = ["crates/antecedent/src/analysis/rank_drop_estimate.rs"]
+surface_values = ["RankDropEstimate"]
+refusals = [
+  { code = "route_not_supported", detail = "rank_drop_estimate.estimator_not_licensed", when = "An estimator other than linear adjustment or cross-fitted AIPW: its nuisance fits are not shown invariant to a span-preserving column removal." },
+  { code = "route_not_supported", detail = "rank_drop_estimate.shape_not_supported", when = "A design that is not a binary contrast of one treatment (a joint cell or several treatments)." },
+  { code = "rank_drop_not_licensed", detail = "rank_drop_estimate.span_not_preserved", when = "The independent check finds the retained columns do not span the original design (rank differs, retained set still dependent, or a dropped column outside the retained span)." },
+  { code = "rank_drop_not_licensed", detail = "rank_drop_estimate.propensity_separates", when = "The cross-fitted route's diagnostic propensity fit on the reduced design separates, saturates, fails or does not converge." },
+]
+routes = [
+  { name = "antecedent.estimate_with_rank_drop", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.preflight.estimate_with_rank_drop", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.estimate_with_rank_drop.other_estimator", stage = "evaluate", status = "closed", reason_code = "route_not_supported", refusal_test = "crates/antecedent/tests/rank_drop_estimate.rs", refusal_assertion = "refusals_leave_nothing_estimated" },
+  { name = "antecedent.estimate_with_rank_drop.joint_cell", stage = "evaluate", status = "closed", reason_code = "route_not_supported", refusal_test = "crates/antecedent/tests/rank_drop_estimate.rs", refusal_assertion = "a_joint_cell_is_outside_the_route" },
+  { name = "antecedent.estimate_with_rank_drop.treatment_alias", stage = "evaluate", status = "closed", reason_code = "rank_drop_not_licensed", refusal_test = "crates/antecedent/tests/rank_drop_estimate.rs", refusal_assertion = "refusals_leave_nothing_estimated" },
+  { name = "antecedent.estimate_with_rank_drop.separating_propensity", stage = "evaluate", status = "closed", reason_code = "rank_drop_not_licensed", refusal_test = "crates/antecedent/tests/rank_drop_estimate.rs", refusal_assertion = "a_separating_propensity_refuses_the_cross_fitted_route_only" },
+  { name = "antecedent.estimate_with_rank_drop.span_not_preserved", stage = "evaluate", status = "closed", reason_code = "rank_drop_not_licensed", refusal_test = "crates/antecedent/src/analysis/preflight.rs", refusal_assertion = "span_verification_refuses_a_drop_that_loses_an_independent_column" },
+]
+fixtures = [
+  { id = "e1.rank_drop_hand_built.positive", role = "positive", intent = "Exact collinearity c = 2a - 3b + 1: the plain study refuses the full design, and the reduced estimate equals, bit for bit, the study run on a table written out column by column with the same declared graph; the drop record names c, its relation and the design identity.", evidence_test = "crates/antecedent/tests/rank_drop_estimate.rs", evidence_assertion = "reduced_estimate_equals_the_hand_built_reduced_design" },
+  { id = "e1.rank_drop_numpy_oracle.truth", role = "truth", intent = "Python surface: the reduced linear-adjustment estimate equals a NumPy least-squares coefficient on the hand-built reduced design to 1e-8, and the drop record, span check and identity are as derived by hand.", evidence_test = "python/tests/test_preflight.py", evidence_assertion = "test_estimate_with_rank_drop_matches_numpy_and_records_the_drop" },
+  { id = "e1.rank_drop_priority.invariance", role = "invariance", intent = "A different declared priority drops a different column and changes the design identity but not the estimate (linear to 1e-9, cross-fitted AIPW to 1e-4), and the same declaration replays identically.", evidence_test = "crates/antecedent/tests/rank_drop_estimate.rs", evidence_assertion = "priority_changes_the_dropped_column_and_identity_but_not_the_estimate" },
+  { id = "e1.rank_drop_alias.negative", role = "negative", intent = "An adjustment column that is a copy of the treatment, an unlicensed estimator, an uncovered priority, a protected effect modifier and a cancelled context each refuse before any estimate.", evidence_test = "crates/antecedent/tests/rank_drop_estimate.rs", evidence_assertion = "refusals_leave_nothing_estimated" },
+  { id = "e1.rank_drop_joint_cell.negative", role = "negative", intent = "A joint cell refuses route_not_supported.", evidence_test = "crates/antecedent/tests/rank_drop_estimate.rs", evidence_assertion = "a_joint_cell_is_outside_the_route" },
+  { id = "e1.rank_drop_separation.negative", role = "negative", intent = "A treatment completely separated by a covariate refuses the cross-fitted route with rank_drop_not_licensed while linear adjustment on the same data still estimates.", evidence_test = "crates/antecedent/tests/rank_drop_estimate.rs", evidence_assertion = "a_separating_propensity_refuses_the_cross_fitted_route_only" },
+  { id = "e1.rank_drop_span_check.negative", role = "negative", intent = "The independent span check refuses a plan whose retained columns lose an independent column, whether the recorded rank differs or is falsely recorded as unchanged.", evidence_test = "crates/antecedent/src/analysis/preflight.rs", evidence_assertion = "span_verification_refuses_a_drop_that_loses_an_independent_column" },
+  { id = "e1.rank_drop_python.negative", role = "negative", intent = "Python surface: an alias, an unlicensed estimator and an uncovered priority refuse with registered reason codes.", evidence_test = "python/tests/test_preflight.py", evidence_assertion = "test_estimate_with_rank_drop_refuses_aliases_and_unlicensed_estimators" },
+  { id = "e1.rank_drop_record.artifact", role = "artifact", intent = "The result serializes with the original and reduced sets, the dropped column and its relation (intercept 1, a 2, b -3), the recomputed design identity and the span evidence, deterministically.", evidence_test = "crates/antecedent/tests/rank_drop_estimate.rs", evidence_assertion = "the_estimate_serializes_with_its_drop_record" },
+]

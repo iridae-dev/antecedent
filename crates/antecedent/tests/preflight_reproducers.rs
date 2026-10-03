@@ -659,7 +659,14 @@ fn a_prepared_plan_diagnoses_fit_free_then_fitted_and_counts_its_cost() {
     assert_eq!(cost.design_matrix_bytes, Some(u64::try_from(n * design_columns * 8).unwrap()));
     assert_eq!(cost.inference.mode, "frequentist");
     assert!(cost.inference.refit_warning.is_none());
-    assert!(cost.seconds.is_none() && !cost.seconds_basis.is_empty());
+    // Seconds appear only with a named benchmark file, and then say which; otherwise absent.
+    assert_eq!(
+        cost.seconds.is_some(),
+        cost.seconds_basis.starts_with("planning hint from named local benchmark"),
+        "{}",
+        cost.seconds_basis
+    );
+    assert!(!cost.seconds_basis.is_empty());
 }
 
 /// E1 on a prepared batch: one report and cost per claim, the shared covariate design is

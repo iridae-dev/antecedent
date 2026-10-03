@@ -1,16 +1,19 @@
-# Preflight diagnostics, rank-drop plans and cost counts (2.2 E0/E1)
+# Preflight diagnostics, rank-drop plans and estimates, and cost counts (2.2 E0/E1)
 
 Before a nuisance fit refuses a table, `antecedent` can say what is wrong with it.
-The surface adds no inferential claim, so it carries no promotion record; it is a
-diagnostic and planning layer over existing cells. Two kinds of check are kept in
-separate types so one is never read as the other.
+The diagnostics and the plan add no inferential claim; they are a diagnostic and
+planning layer over existing cells. The one entry point that estimates after a rank
+drop (`estimate_with_rank_drop`) does change what is computed, so it carries its own
+promotion record, `2.2E.E1.preflight_rank_drop_estimation`, `point_only`. Two kinds
+of check are kept in separate types so one is never read as the other.
 
 | Check | Rust | Python | Fits a model? |
 | --- | --- | --- | --- |
 | Fit-free preflight | `PreparedStudy::diagnose`, `PreparedBatch::diagnose`, `preflight_design` | `prepared.diagnose()`, `antecedent.preflight.preflight(...)` | No |
 | Propensity-fit diagnostics | `diagnose_fit`, `fit_diagnostics_design` | `prepared.diagnose_fit()`, `antecedent.preflight.fit_diagnostics(...)` | Yes |
-| Opt-in rank drop | `plan_rank_drop` | `prepared.plan_rank_drop(priority)`, `antecedent.preflight.plan_rank_drop(...)` | No |
-| Cost counts | `estimate_cost` | `prepared.estimate_cost()` | No |
+| Opt-in rank drop plan | `plan_rank_drop` | `prepared.plan_rank_drop(priority)`, `antecedent.preflight.plan_rank_drop(...)` | No |
+| Estimate after a rank drop | `estimate_with_rank_drop` | `antecedent.preflight.estimate_with_rank_drop(...)` | Yes (the estimator) |
+| Cost counts and, with a benchmark file, seconds | `estimate_cost` | `prepared.estimate_cost()` | No |
 
 `prepared.preflight()` (Python) is the older, structural-only inspection of the plan;
 `diagnose` reads the data.
@@ -85,9 +88,67 @@ the adjustment set, when a dependent column is a treatment, outcome or effect mo
 query needs, or when an adjustment column is an exact copy of a treatment or the outcome.
 
 **The plan is a record, not an execution.** No estimator is re-run on the reduced design,
-and a study prepared with the original adjustment set keeps it.
+and a study prepared with the original adjustment set keeps it. Executing a plan is the
+separate, explicit entry point below.
 
-## Cost counts
+## Estimating after a rank drop
+
+`estimate_with_rank_drop(input, policy, estimator, ctx)` (Rust) and
+`antecedent.preflight.estimate_with_rank_drop(data, treatment=, outcome=, adjustment=,
+estimator=, priority=)` (Python) re-run a licensed estimator on the design with the plan's
+dependent columns removed. It works on a declared binary-contrast design, the same input
+as `preflight_design`, because a rank-deficient table cannot be prepared (the cross-fitted
+AIPW fits its scores at prepare time, and a prepared handle with the original set keeps it).
+
+It returns the **point estimate** together with the recorded drop (`plan`: dropped columns,
+the exact relation behind each, the declared priority, the original and reduced adjustment
+sets and the design identity), the numerical `span_check` and the estimator's invariance
+label. It never drops silently and it refuses, with nothing estimated, when:
+
+- the plan refuses (`rank_drop_not_licensed`: the priority does not cover the set, a
+  dependent column is a protected effect modifier, or an adjustment column is an exact
+  copy of the treatment or outcome, a treatment alias that a drop would not resolve);
+- the independent span check fails (`rank_drop_not_licensed`, detail
+  `rank_drop_estimate.span_not_preserved`): the retained `[1 | Z_kept]` must have full
+  numerical rank equal to the original's, and every dropped column must lie in its span
+  within the scan tolerance (ten times, for rounding);
+- the estimator is not one of the two below, or the design is not a binary contrast of one
+  treatment (`route_not_supported`);
+- for cross-fitted AIPW, the diagnostic propensity fit on the reduced design separates,
+  saturates, fails or does not converge (`rank_drop_not_licensed`, detail
+  `rank_drop_estimate.propensity_separates`).
+
+**Why a span-preserving drop cannot change the fitted nuisances.** A dropped column is an
+exact linear combination of the intercept and the retained columns, so the reduced and the
+original design have the same column space `V`. Ordinary least squares depends on the design
+only through `V`: the fitted values are the projection of the outcome onto `V`, and the
+treatment coefficient is the same linear functional of them. An unpenalized logistic maximum
+likelihood depends on the design only through the set of linear predictors `{X b} = V`, so
+its fitted probabilities coincide. Only the coefficients of the original design are not
+identified, and the estimand never reads them. The reduced adjustment set is the original
+set's projections, so no new identification claim is made: the returned sets are the
+declared design's, not a graph search's. (The estimator itself is run through the ordinary
+study path on the reduced table with a declared confounder graph over the retained columns;
+that graph only carries the retained set into the estimator.)
+
+Licensed estimators and their invariance label:
+
+| Estimator | `projection_invariance` | Notes |
+| --- | --- | --- |
+| `linear.adjustment.ate` | `exact` | OLS; the reduced coefficient equals the OLS on the hand-built reduced design |
+| `aipw` (default, unpenalized logistic) | `unpenalized_logistic_no_separation` | conditional: a fold-level separation that a ridge would regularize is not detected, only the full reduced-design fit is checked |
+
+Penalized, lasso, matching and stratification nuisances are refused: a penalty depends on
+the parametrization, not only the column space. The result is point only: the bootstrap is
+forced to zero and no standard error or interval is returned or requestable.
+
+Tests: the reduced estimate equals the estimate on a hand-built reduced design bit for bit,
+and a NumPy / normal-equations OLS to 1e-8; a different declared priority drops a different
+column and changes the design identity but not the estimate; a treatment alias, an
+unlicensed estimator, a joint cell, a separating propensity and a span violation each
+refuse.
+
+## Cost counts and time estimates
 
 `estimate_cost` counts what a prepared plan will do from its frozen configuration: nuisance
 fits per pass (derived for cross-fitted AIPW, linear and GLM adjustment, and the propensity
@@ -97,9 +158,48 @@ estimators; absent otherwise, never zero), cross-fit folds, bootstrap replicates
 when it resamples. A batch sums per-claim counts; the fit total is an upper bound because
 identical cross-fitted AIPW nuisances are shared across queries.
 
-It is a planning hint, not a runtime guarantee, and gives **counts only**: no seconds are
-estimated, because the repository has no named local benchmark of these fits
-(`benches/baselines` covers graph, counterfactual, kernel and Laplace workloads).
+It is a planning hint, not a runtime guarantee. **Seconds** are reported only when a named
+local benchmark file backs them:
+
+```
+python3 scripts/bench_cost_model.py        # one command, writes parity/cost_model.toml
+```
+
+The script (run it on a quiet machine, on the python package built from the tree) times
+`antecedent.analyze` for `linear.adjustment.ate` and `aipw` over a small `(rows, design
+columns)` grid, with no bootstrap and with `--bootstrap` replicates (default 10), keeping the
+fastest of `--repeats` runs. One sample is the best wall time divided by the nuisance-fit
+count `estimate_cost` itself reports for that plan, so the cross-fit and bootstrap steps are
+timed through the fits they add. Per estimator it fits the monotone model
+
+```
+seconds per counted fit = a + b * rows * columns^2        (a, b >= 0)
+```
+
+by least squares in `x = rows * columns^2`, clamped to non-negative coefficients, and writes
+the coefficients, the grid, the benchmark name and the machine descriptor (platform, CPU
+count) to `parity/cost_model.toml`. `estimate_cost` then reports
+`seconds = nuisance_fits_upper_bound * (a + b * rows * columns^2)` with
+`seconds_basis` set to `planning hint from named local benchmark <name>, machine <platform>
+(<n> cpus)`. The model is end to end for the benchmarked plans: for an estimator whose
+bootstrap replicates do not each refit every nuisance, the per-fit figure absorbs that and the
+count stays an upper bound. The file is read from `ANTECEDENT_COST_MODEL`, else
+`parity/cost_model.toml` relative to the working directory.
+
+`seconds` stays `None`, with the reason in `seconds_basis`, when the file is missing or
+unreadable, declares no machine or a negative coefficient, has no coefficients for the plan's
+estimator, or the plan's rows, columns or fit counts are not derived. The prediction is
+monotone in folds, replicates, rows and columns (unit-tested on a synthetic coefficients
+struct, with hand arithmetic). Seconds describe the benchmark machine, not yours.
+
+**How accurate the hint is.** On the committed grid (rows 400 to 1600, columns 4 to 16, one
+run on the macOS arm64 development machine), the AIPW model predicts between 0.2 and 14 times
+the measured time per counted fit: within 0.2 to 2.4 times without a bootstrap, and 2.2 to 14
+times too high with 10 bootstrap replicates (a replicate does not cost a full fit, so the
+count is an upper bound that the model then overstates). Per-fit time also jumps between 8
+and 16 columns on that machine, which a quadratic term cannot follow. Treat `seconds` as an
+order-of-magnitude upper bound for bootstrap plans, not a prediction, and regenerate the file
+on the machine you plan for.
 
 ## Current behavior (E0 reproducers)
 
