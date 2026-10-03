@@ -4742,6 +4742,44 @@ def factorized_joint_cells_json(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
+def raw_vs_adjusted(
+    outcome: list[float],
+    treatment: list[float],
+    adjusted_estimate: float,
+    *,
+    adjusted_se: float | None = None,
+    scale: str,
+    active: float,
+    control: float,
+    all_observed: bool,
+) -> tuple[
+    tuple[int, float, float],
+    tuple[int, float, float],
+    float,
+    float | None,
+    float,
+]: ...
+def attribute_gap_to_columns() -> None: ...
+def transform_mean_pair(
+    mean_active: float,
+    mean_control: float,
+    scales: list[str],
+    *,
+    covariance: tuple[float, float, float] | None = None,
+    interval: bool = False,
+) -> tuple[list[float], list[tuple[float, float]], list[float] | None]: ...
+def transform_raw_arms(
+    outcome: list[float],
+    treatment: list[float],
+    scales: list[str],
+    *,
+    interval: bool = False,
+) -> tuple[
+    tuple[int, float, float],
+    tuple[int, float, float],
+    tuple[list[float], list[tuple[float, float]], list[float] | None],
+]: ...
+
 def candidate_screen_from_units(
     screen_id: str,
     procedure: str,

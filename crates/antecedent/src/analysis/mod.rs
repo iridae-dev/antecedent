@@ -42,6 +42,7 @@ mod recovery;
 mod smoothed_dose;
 mod statistical;
 mod temporal_transport;
+mod tier_diagnostics;
 mod transport_grid;
 mod transport_scenarios;
 mod z_transport;
@@ -114,6 +115,10 @@ pub use statistical::{
     StatisticalStudyInspection, StatisticalStudyResult,
 };
 pub use temporal_transport::{PreparedTemporalTransport, consume_temporal_transport_artifact};
+pub use tier_diagnostics::{
+    TierDesign, TierDiagnostics, TierDiagnosticsError, TierEvalue, TierPointEvalue, TierScenario,
+    tier_diagnostics,
+};
 pub use transport_grid::{
     TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
     TransportGridResult, TransportGridState,

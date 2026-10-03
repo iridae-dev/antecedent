@@ -3276,6 +3276,169 @@ status = "closed"
 reason_code = "dyadic_dependence_not_licensed"
 notes = "A dyadic unit declared through the Python dataclass is refused at execution."
 
+# 2.2 E7 descriptive raw-versus-adjusted comparison, reporting-scale transform and tier diagnostics
+# (parity/promotion_2_2.toml: 2.2E.E7.descriptive_comparison, 2.2E.E7.tier_diagnostics). Point-only; intervals closed.
+
+[[routes]]
+route = "antecedent_estimate.raw_contrast"
+stage = "evaluate"
+status = "licensed"
+graph = "no_graph_descriptive_view"
+evidence = "outcome_and_binary_treatment_rows"
+functional = "raw_difference_of_means"
+guarantee = "descriptive_arithmetic_point_only"
+reference = "docs/guides/descriptive-comparison.md"
+limits = "Point only, descriptive: difference-of-means coding at active 1 versus control 0 on the all-observed population; no interval or standard error for the gap and no attribution to adjustment columns."
+evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs"
+evidence_assertion = "the_raw_contrast_matches_the_hand_computation"
+
+[[routes]]
+route = "antecedent_estimate.compare_raw_adjusted"
+stage = "evaluate"
+status = "licensed"
+graph = "no_graph_descriptive_view"
+evidence = "raw_rows_and_an_adjusted_estimate_of_the_same_coding"
+functional = "raw_minus_adjusted_gap"
+guarantee = "descriptive_arithmetic_point_only"
+reference = "docs/guides/descriptive-comparison.md"
+limits = "Point only, descriptive: difference-of-means coding at active 1 versus control 0 on the all-observed population; no interval or standard error for the gap and no attribution to adjustment columns."
+evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs"
+evidence_assertion = "the_gap_is_raw_minus_adjusted_and_carries_no_interval"
+
+[[routes]]
+route = "antecedent_estimate.transform_mean_pair"
+stage = "evaluate"
+status = "licensed"
+graph = "no_graph_descriptive_view"
+evidence = "mean_pair_with_optional_joint_covariance"
+functional = "reporting_scale_transform"
+guarantee = "first_order_delta_method_point_only"
+reference = "docs/guides/descriptive-comparison.md"
+limits = "Point only: risk_difference, log_risk_ratio, log_odds_ratio and mean_difference of a mean pair within each scale's domain; the first-order delta-method covariance exists only when the source carries the pair's joint covariance, otherwise a typed reason; no interval."
+evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs"
+evidence_assertion = "log_risk_ratio_and_its_delta_method_variance_match_the_hand_computation"
+
+[[routes]]
+route = "antecedent_estimate.refuse_transform_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "No coverage record measures a delta-method Wald interval on a transformed scale."
+
+[[routes]]
+route = "antecedent_estimate.refuse_column_attribution"
+stage = "evaluate"
+status = "closed"
+reason_code = "effect_not_identified"
+notes = "The raw-minus-adjusted gap is not attributed to adjustment columns: the adjusted estimate is not additive in them."
+
+[[routes]]
+route = "antecedent.descriptive.raw_vs_adjusted"
+stage = "evaluate"
+status = "licensed"
+graph = "no_graph_descriptive_view"
+evidence = "outcome_and_binary_treatment_rows"
+functional = "raw_minus_adjusted_gap"
+guarantee = "descriptive_arithmetic_point_only"
+reference = "docs/guides/descriptive-comparison.md"
+limits = "Point only, descriptive: difference-of-means coding at active 1 versus control 0 on the all-observed population; no interval or standard error for the gap and no attribution to adjustment columns."
+evidence_test = "python/tests/test_descriptive_comparison.py"
+evidence_assertion = "test_the_raw_contrast_and_the_gap_match_the_hand_computation"
+
+[[routes]]
+route = "antecedent.descriptive.transform_mean_pair"
+stage = "evaluate"
+status = "licensed"
+graph = "no_graph_descriptive_view"
+evidence = "mean_pair_with_optional_joint_covariance"
+functional = "reporting_scale_transform"
+guarantee = "first_order_delta_method_point_only"
+reference = "docs/guides/descriptive-comparison.md"
+limits = "Point only: risk_difference, log_risk_ratio, log_odds_ratio and mean_difference of a mean pair within each scale's domain; the first-order delta-method covariance exists only when the source carries the pair's joint covariance, otherwise a typed reason; no interval."
+evidence_test = "python/tests/test_descriptive_comparison.py"
+evidence_assertion = "test_log_risk_ratio_matches_the_hand_computation"
+
+[[routes]]
+route = "antecedent.descriptive.raw_reporting_transform"
+stage = "evaluate"
+status = "licensed"
+graph = "no_graph_descriptive_view"
+evidence = "outcome_and_binary_treatment_rows"
+functional = "reporting_scale_transform"
+guarantee = "first_order_delta_method_point_only"
+reference = "docs/guides/descriptive-comparison.md"
+limits = "Point only: risk_difference, log_risk_ratio, log_odds_ratio and mean_difference of a mean pair within each scale's domain; the first-order delta-method covariance exists only when the source carries the pair's joint covariance, otherwise a typed reason; no interval."
+evidence_test = "python/tests/test_descriptive_comparison.py"
+evidence_assertion = "test_raw_arm_means_carry_the_independent_groups_covariance"
+
+[[routes]]
+route = "antecedent.descriptive.replay_descriptive_comparison"
+stage = "consume"
+status = "licensed"
+graph = "no_graph_descriptive_view"
+evidence = "descriptive_comparison_v1_artifact"
+functional = "raw_minus_adjusted_gap"
+guarantee = "independently_recomputed_from_sufficient_statistics"
+reference = "docs/guides/descriptive-comparison.md"
+limits = "Checks the digest, recomputes the raw difference, Welch standard error and gap from the stored arm sufficient statistics in pure Python and compares them with the stored values."
+evidence_test = "python/tests/test_descriptive_comparison.py"
+evidence_assertion = "test_an_exported_comparison_is_replayed_by_an_independent_consumer"
+
+[[routes]]
+route = "antecedent.descriptive.attribute_gap_to_columns"
+stage = "evaluate"
+status = "closed"
+reason_code = "effect_not_identified"
+notes = "A column attribution of the gap is refused at the Python surface."
+
+[[routes]]
+route = "antecedent.descriptive.interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "An interval request on a transformed scale is refused at the Python surface."
+
+[[routes]]
+route = "antecedent.tier_diagnostics"
+stage = "evaluate"
+status = "licensed"
+graph = "declared_tier_background_codetermined_or_unknown_scenarios"
+evidence = "executed_tiered_average_effect_result"
+functional = "tier_overlap_and_point_evalue"
+guarantee = "read_off_executed_result_point_only"
+reference = "docs/guides/tier-diagnostics.md"
+limits = "Point only, read off a licensed single-treatment tiered average-effect result: the estimator's own overlap report and the tier cell's point E-value for CoDetermined, the two declared scenarios with typed absences for Unknown; nothing is refit, no within-tier DAG is built and no E-value interval is reported."
+evidence_test = "crates/antecedent/tests/tier_diagnostics.rs"
+evidence_assertion = "codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue"
+
+[[routes]]
+route = "antecedent.tier_diagnostics.unknown_scenarios"
+stage = "evaluate"
+status = "closed"
+reason_code = "diagnostic_not_available"
+notes = "The Unknown cell fits no propensity score and has no single effect: overlap and the E-value are typed unavailable."
+
+[[routes]]
+route = "antecedent.tier_diagnostics.refuter_evalue"
+stage = "evaluate"
+status = "closed"
+reason_code = "diagnostic_not_available"
+notes = "An E-value mirrored from the E-value refuter embeds a converted interval-limit endpoint and is not reported as a point E-value."
+
+[[routes]]
+route = "antecedent.tier_diagnostics.evalue_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "No E-value interval: the converted effect-interval endpoint is an uncalibrated approximation."
+
+[[routes]]
+route = "antecedent.tier_diagnostics.non_tiered_result"
+stage = "evaluate"
+status = "closed"
+reason_code = "invalid_argument"
+notes = "A result that is not a single-treatment tiered average-effect result is refused."
+
 # 2.2 E5 factorized joint cells and derived treatments (parity/promotion_2_2.toml, 2.2E.E5.factorized_joint_cells). Point-only; intervals, covariance and machine-learning nuisances closed.
 
 [[routes]]

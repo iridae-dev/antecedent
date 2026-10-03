@@ -1714,6 +1714,137 @@ fixtures = [
 
 
 [[record]]
+id = "2.2E.E7.descriptive_comparison"
+workstream = "E7"
+milestone = "E"
+work_package = "E7"
+status = "in_progress"
+consumer_question = "How far is the unadjusted treated-versus-control contrast from an adjusted estimate of the same estimand coding, and what are a mean-outcome pair's risk difference, log risk ratio and log odds ratio with their first-order covariance when the source carries the pair's joint covariance?"
+theorem = "Descriptive arithmetic plus the delta method, derived in-repo (docs/guides/descriptive-comparison.md). The raw contrast is mean(Y | T=1) - mean(Y | T=0) with Welch variance s1^2/n1 + s0^2/n0 for disjoint arms of one sample. The gap raw - adjusted is a difference of two numbers computed on the same rows: it mixes confounding, the adjustment model's form, estimator differences and sampling noise, and has no causal reading. For theta = g(mu) with mu the pair of arm means, Sigma its covariance and J the k x 2 Jacobian of a family g_1..g_k, the first-order covariance is J Sigma J'; the gradients are (1, -1) for the mean and risk difference, (1/mu1, -1/mu0) for ln(mu1/mu0) and (1/(mu1(1-mu1)), -1/(mu0(1-mu0))) for the log odds ratio. The adjusted estimate is not an additive function of the adjustment columns, so a leave-one-out difference depends on order and form and is refused."
+reference = "docs/guides/descriptive-comparison.md"
+guarantee = "descriptive_arithmetic_and_first_order_delta_method_point_only"
+graph_class = "None: the cell takes no causal graph and adds no identification claim. It reports on estimates the caller already holds."
+population_semantics = "The raw contrast averages over all complete observed rows; the adjusted estimate must target the all-observed population with a 1-versus-0 difference-of-means coding, else the comparison is refused. A transform is of the mean pair as supplied."
+evidence_family = "Outcome and 0/1 treatment rows plus an adjusted estimate and its declared coding; or a pair of arm means with the joint covariance the source estimate published."
+provider = "antecedent_estimate::descriptive_comparison: two-pass arm summaries, Welch variance, closed-form gradients and J Sigma J'; no estimator, optimiser or second ML stack."
+estimand = "Descriptive: raw minus adjusted difference of means; and the declared transforms (mean_difference, risk_difference, log_risk_ratio, log_odds_ratio) of a mean-outcome pair. Not a causal decomposition."
+inference_claim = "point_only"
+inference_notes = "Point only. The delta-method covariance is exact algebra of a first-order approximation and is published only when the source carries Sigma; a Wald interval on a transformed scale rests on asymptotic normality and a linearization near the boundary of the scale that no coverage record measures, so the interval route is closed with cell_not_licensed. The raw-minus-adjusted gap carries no interval: the covariance of the raw and the adjusted estimate is not carried and not assumed zero. No calibration is run."
+owners = ["antecedent-estimate", "python/antecedent/descriptive"]
+identity_inputs = ["arm sufficient statistics (count, mean, sum of squared deviations) of the raw contrast", "the adjusted estimate, its standard error and its declared coding", "the mean pair and its declared joint covariance"]
+wire_changes = ["Additive: descriptive_comparison_v1 JSON artifact (DescriptiveComparison.export) with the arm sufficient statistics, stored results and a SHA-256 digest; no change to existing artifacts."]
+compatibility = "A new descriptive view over existing estimates: no existing route, result type, artifact or reason code changes."
+coverage_records = []
+search = false
+bounds = { cancellation = true, work = "one linear pass over the supplied rows plus a closed-form 2 x 2 delta method; no iteration and no search, so no loop outlives the input", max_scales = 4 }
+surface = ["python/antecedent/descriptive.py"]
+surface_rust = ["crates/antecedent-estimate/src/descriptive_comparison.rs"]
+surface_pyo3 = ["python/src/descriptive_api.rs"]
+surface_values = ["Unavailable", "Availability", "ArmSummary", "ReportingScale", "MeanPair", "ReportingContrast", "ReportingTransform", "RawContrast", "AdjustedEstimate", "DescriptiveComparison"]
+refusals = [
+  { code = "route_not_supported", detail = "descriptive_comparison.scale_not_supported", when = "A reporting scale other than mean_difference, risk_difference, log_risk_ratio or log_odds_ratio." },
+  { code = "route_not_supported", detail = "descriptive_comparison.estimand_coding_mismatch", when = "The adjusted estimate is not a difference of means at active 1 versus control 0, so it shares no estimand coding with the raw contrast." },
+  { code = "population_not_estimable", detail = "descriptive_comparison.population_not_all_observed", when = "The adjusted estimate targets a subpopulation, a treated-only effect or a reweighted population." },
+  { code = "invalid_argument", detail = "descriptive_comparison.invalid_data", when = "Empty, unequal-length, non-finite or non-0/1 rows, a non-finite adjusted estimate or standard error, a non-finite mean, or no scale declared." },
+  { code = "arm_not_populated", detail = "descriptive_comparison.arm_not_populated", when = "A treatment arm has no rows, so there is no raw contrast." },
+  { code = "invalid_argument", detail = "descriptive_comparison.arm_too_small", when = "An arm with fewer than two rows has no sample variance: the raw standard error and the independent-groups covariance are typed unavailable." },
+  { code = "invalid_argument", detail = "descriptive_comparison.transform_domain", when = "A mean outside a scale's domain: risk_difference needs [0, 1], log_risk_ratio positive means, log_odds_ratio means inside (0, 1)." },
+  { code = "invalid_argument", detail = "descriptive_comparison.invalid_covariance", when = "A covariance that is not finite, has a negative variance, is not positive semidefinite or not symmetric, or arm indices that are equal or out of range." },
+  { code = "required_option_missing", detail = "descriptive_comparison.joint_covariance_unavailable", when = "The source carries no joint covariance of the mean pair: the transformed points are reported and the covariance is typed unavailable (never zero, never independence)." },
+  { code = "effect_not_identified", detail = "descriptive_comparison.column_attribution_not_identified", when = "An attribution of the raw-minus-adjusted gap to individual adjustment columns (leave-one-out or other) is requested." },
+  { code = "cell_not_licensed", detail = "descriptive_comparison.interval_withheld", when = "An interval on a transformed scale is requested; no coverage record measures the delta-method Wald interval." },
+  { code = "cell_not_licensed", detail = "descriptive_comparison.gap_interval_unavailable", when = "The gap between the raw and the adjusted estimate has no standard error or interval: their covariance is not carried and not assumed zero." },
+]
+routes = [
+  { name = "antecedent_estimate.raw_contrast", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_estimate.compare_raw_adjusted", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_estimate.transform_mean_pair", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent_estimate.refuse_transform_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", refusal_assertion = "an_interval_and_a_column_attribution_are_closed_routes" },
+  { name = "antecedent_estimate.refuse_column_attribution", stage = "evaluate", status = "closed", reason_code = "effect_not_identified", refusal_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", refusal_assertion = "an_interval_and_a_column_attribution_are_closed_routes" },
+  { name = "antecedent.descriptive.raw_vs_adjusted", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.descriptive.transform_mean_pair", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.descriptive.raw_reporting_transform", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["transform_raw_arms"] },
+  { name = "antecedent.descriptive.replay_descriptive_comparison", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.descriptive.attribute_gap_to_columns", stage = "evaluate", status = "closed", reason_code = "effect_not_identified", refusal_test = "python/tests/test_descriptive_comparison.py", refusal_assertion = "test_the_gap_is_never_attributed_to_adjustment_columns" },
+  { name = "antecedent.descriptive.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_descriptive_comparison.py", refusal_assertion = "test_an_interval_on_a_transformed_scale_is_a_typed_refusal" },
+]
+fixtures = [
+  { id = "e7.raw_contrast.truth", role = "truth", intent = "Hand arithmetic: control [1,2,3] and active [4,6,8] give means 2 and 6, sums of squares 2 and 8, a raw difference of 4 and Welch SE sqrt(5/3).", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "the_raw_contrast_matches_the_hand_computation" },
+  { id = "e7.gap_no_interval.positive", role = "positive", intent = "The gap is raw minus adjusted (4 - 3.5) and carries a typed reason instead of an interval.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "the_gap_is_raw_minus_adjusted_and_carries_no_interval" },
+  { id = "e7.log_risk_ratio_variance.truth", role = "truth", intent = "Means (0.4, 0.2) with a stated covariance: ln 2 with gradient (2.5, -5) and delta-method variance 0.1125 by hand.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "log_risk_ratio_and_its_delta_method_variance_match_the_hand_computation" },
+  { id = "e7.finite_difference_jacobian.truth", role = "truth", intent = "The four-scale family covariance J Sigma J' equals one formed from an independently written central-difference Jacobian, is symmetric, and the risk and mean differences coincide.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "the_family_covariance_matches_an_independent_finite_difference_jacobian" },
+  { id = "e7.raw_arm_covariance.truth", role = "truth", intent = "Binary arms (0.75 and 0.25, 4 rows each): the independent-groups covariance diag(0.0625, 0.0625) gives log RR SE sqrt(10/9) and log OR SE sqrt(32/9) by hand.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "raw_arm_means_carry_the_independent_groups_covariance_into_a_transform" },
+  { id = "e7.coding_population.negative", role = "negative", intent = "Another level coding, another scale, a non-all-observed population and a non-finite estimate or negative SE each refuse with their registered code.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "an_adjusted_estimate_of_another_coding_or_population_is_not_compared" },
+  { id = "e7.descriptive_rows.negative", role = "negative", intent = "Empty, unequal, NaN and non-0/1 rows refuse invalid_argument; an empty arm refuses arm_not_populated.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "malformed_rows_and_empty_arms_are_refused" },
+  { id = "e7.one_row_arm.negative", role = "negative", intent = "An arm of one row keeps the difference but its SE and covariance are typed unavailable (arm_too_small).", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "a_one_row_arm_has_a_typed_reason_instead_of_a_standard_error" },
+  { id = "e7.missing_covariance.negative", role = "negative", intent = "No joint covariance: the transformed points are reported, the covariance is typed unavailable (required_option_missing) and no SE exists, never a zero.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "a_missing_joint_covariance_gives_points_and_a_typed_reason_never_a_zero" },
+  { id = "e7.joint_covariance_entries.negative", role = "negative", intent = "A pair is read at named entries of a joint covariance; equal or out-of-range indices and an asymmetric matrix are refused.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "a_joint_covariance_is_read_at_the_named_entries" },
+  { id = "e7.transform_domain.negative", role = "negative", intent = "Means outside a scale's domain, no scale, a non-finite mean and a negative, non-PSD or NaN covariance each refuse invalid_argument with their detail.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "a_transform_outside_its_domain_or_on_a_bad_covariance_is_refused" },
+  { id = "e7.interval_attribution.negative", role = "negative", intent = "An interval request refuses cell_not_licensed and a column attribution refuses effect_not_identified.", evidence_test = "crates/antecedent-estimate/tests/descriptive_comparison.rs", evidence_assertion = "an_interval_and_a_column_attribution_are_closed_routes" },
+  { id = "e7.python_descriptive.positive", role = "positive", intent = "Python surface: the raw contrast, Welch SE and gap match the hand arithmetic and the gap interval is typed unavailable.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_the_raw_contrast_and_the_gap_match_the_hand_computation" },
+  { id = "e7.python_log_rr.truth", role = "truth", intent = "Python surface: log risk ratio value, gradient and delta-method variance 0.1125 against the hand computation.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_log_risk_ratio_matches_the_hand_computation" },
+  { id = "e7.python_jacobian.truth", role = "truth", intent = "Python surface: the family covariance equals one formed from a pure-Python central-difference Jacobian.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_the_family_covariance_matches_an_independent_finite_difference_jacobian" },
+  { id = "e7.python_raw_arms.truth", role = "truth", intent = "Python surface: the independent-groups covariance of raw arm means gives the hand-computed log RR and log OR SEs.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_raw_arm_means_carry_the_independent_groups_covariance" },
+  { id = "e7.python_missing_covariance.negative", role = "negative", intent = "Python surface: no covariance gives points and the typed reason, never a zero.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_a_missing_joint_covariance_gives_points_and_a_typed_reason_never_a_zero" },
+  { id = "e7.python_coding.negative", role = "negative", intent = "Python surface: another coding, scale or population refuses with the registered code and detail.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_another_estimand_coding_or_population_is_refused_not_compared" },
+  { id = "e7.python_attribution.negative", role = "negative", intent = "Python surface: a column attribution of the gap refuses effect_not_identified whatever it is passed.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_the_gap_is_never_attributed_to_adjustment_columns" },
+  { id = "e7.python_scale_interval.negative", role = "negative", intent = "Python surface: level=0.95 on a transformed scale refuses cell_not_licensed with the interval_withheld detail.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_an_interval_on_a_transformed_scale_is_a_typed_refusal" },
+  { id = "e7.descriptive_replay.artifact", role = "artifact", intent = "An exported comparison is replayed by an independent pure-Python consumer that recomputes the raw difference, Welch SE and gap from the arm sufficient statistics.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_an_exported_comparison_is_replayed_by_an_independent_consumer" },
+  { id = "e7.descriptive_tampered.negative", role = "negative", intent = "Unsealed edits fail by digest; re-sealed edits, forged formats, claims, scales, interpretations, extra fields and impossible arm statistics fail replay.", evidence_test = "python/tests/test_descriptive_comparison.py", evidence_assertion = "test_a_tampered_artifact_is_refused_for_the_right_reason" },
+]
+
+[[record]]
+id = "2.2E.E7.tier_diagnostics"
+workstream = "E7"
+milestone = "E"
+work_package = "E7"
+status = "in_progress"
+consumer_question = "For an executed tiered average-effect result, which overlap and E-value diagnostics does its own design carry, and which are unavailable and why?"
+theorem = "No new identification or estimation theorem (docs/guides/tier-diagnostics.md). The diagnostics are read off the executed result: the CoDetermined tier-closure adjustment set and the estimator's own overlap report, the tier cell's point E-value RR + sqrt(RR(RR-1)) with RR = exp(0.91 |effect| / sd(Y)) (VanderWeele and Ding's approximation; paper-inherited, not read here), or the Unknown cell's two declared orientation scenarios. Nothing is refit and no graph is built: the tier background asserts no within-tier edge, so no DAG with an assumed within-tier edge is constructed. An E-value reported by the E-value refuter is the smaller of a point and a converted interval-limit value and is therefore not a point E-value."
+reference = "docs/guides/tier-diagnostics.md"
+guarantee = "read_off_executed_result_point_only"
+graph_class = "The tiered backgrounds the licensed cells accept (CoDetermined closure and the Unknown two-scenario envelope); the cell adds no graph and no identification claim."
+population_semantics = "The executed result's own population: the all-observed (or declared) population of the tiered average-effect cell."
+evidence_family = "A licensed StudyResult of a single-treatment tiered AverageEffect cell (its derivation steps, estimand adjustment sets, overlap report, E-value fields and diagnostics)."
+provider = "None: no estimator is added. antecedent::tier_diagnostics reads the executed result."
+estimand = "None new: a statement of which diagnostics the executed design carries."
+inference_claim = "point_only"
+inference_notes = "Point only. The point E-value is a sensitivity summary of the no-latent-path premise, not a test of it and not a tier-identification certificate. No E-value interval is reported: the converted effect-interval endpoint is an approximation whose own uncertainty is excluded and no coverage record measures it, so the interval is a typed unavailable field on every result (cell_not_licensed). No calibration is run."
+owners = ["antecedent"]
+identity_inputs = ["the executed result: derivation steps, estimand adjustment sets, scenario effects, overlap report, E-value fields and diagnostics"]
+wire_changes = ["None: a read-only view over an executed result; no artifact or wire format changes."]
+compatibility = "A read-only view over existing tiered results: no existing route, result type, artifact or default changes. New reason code diagnostic_not_available."
+coverage_records = []
+search = false
+bounds = { cancellation = true, work = "constant work over the fields of one executed result; no iteration, no refit and no search" }
+surface_rust = ["crates/antecedent/src/analysis/tier_diagnostics.rs"]
+surface_values = ["TierDiagnosticsError", "TierScenario", "TierDesign", "TierPointEvalue", "TierEvalue", "TierDiagnostics"]
+refusals = [
+  { code = "cell_not_licensed", detail = "tier_diagnostics.result_not_licensed", when = "The result's support status is not licensed." },
+  { code = "invalid_argument", detail = "tier_diagnostics.not_a_tiered_average_result", when = "The result is not a single-treatment CoDetermined closure or Unknown two-scenario average-effect result (a non-tiered or joint-cell result)." },
+  { code = "diagnostic_not_available", detail = "tier_diagnostics.overlap_not_carried", when = "A CoDetermined result whose estimator fitted no propensity score carries no overlap report; none is refit." },
+  { code = "diagnostic_not_available", detail = "tier_diagnostics.unknown_scenarios_no_overlap", when = "The Unknown cell is a linear adjustment under two declared scenarios and fits no propensity score." },
+  { code = "diagnostic_not_available", detail = "tier_diagnostics.unknown_scenarios_no_evalue", when = "The Unknown headline effect is NaN by design; one E-value across scenarios sharing data is not formed." },
+  { code = "diagnostic_not_available", detail = "tier_diagnostics.evalue_embeds_interval_limit", when = "The E-value on the result came from the E-value refuter, which embeds a converted interval-limit value; it is not reported as a point E-value." },
+  { code = "diagnostic_not_available", detail = "tier_diagnostics.evalue_not_computed", when = "The tier cell attached no point E-value (non-finite effect or an outcome with no usable spread)." },
+  { code = "cell_not_licensed", detail = "tier_diagnostics.evalue_interval_withheld", when = "An E-value for the effect-interval limit is asked for: the converted endpoint is an uncalibrated approximation, so only the point E-value is reported." },
+]
+routes = [
+  { name = "antecedent.tier_diagnostics", stage = "evaluate", status = "licensed", claim = "point_only" },
+  { name = "antecedent.tier_diagnostics.unknown_scenarios", stage = "evaluate", status = "closed", reason_code = "diagnostic_not_available", refusal_test = "crates/antecedent/tests/tier_diagnostics.rs", refusal_assertion = "unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnostic" },
+  { name = "antecedent.tier_diagnostics.refuter_evalue", stage = "evaluate", status = "closed", reason_code = "diagnostic_not_available", refusal_test = "crates/antecedent/tests/tier_diagnostics.rs", refusal_assertion = "an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value" },
+  { name = "antecedent.tier_diagnostics.evalue_interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/tier_diagnostics.rs", refusal_assertion = "codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue" },
+  { name = "antecedent.tier_diagnostics.non_tiered_result", stage = "evaluate", status = "closed", reason_code = "invalid_argument", refusal_test = "crates/antecedent/tests/tier_diagnostics.rs", refusal_assertion = "a_result_that_is_not_a_tiered_average_effect_is_refused" },
+]
+fixtures = [
+  { id = "e7.tier_codetermined.positive", role = "positive", intent = "A CoDetermined AIPW study reports the closure adjustment set [z, u], the estimator's own overlap report (identical to the result's) and a point E-value equal to an oracle written from the raw outcome SD and the reported effect; the interval is typed unavailable.", evidence_test = "crates/antecedent/tests/tier_diagnostics.rs", evidence_assertion = "codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue" },
+  { id = "e7.tier_refuter_evalue.negative", role = "negative", intent = "With the Cheap suite the mirrored refuter E-value embeds an interval endpoint and is reported unavailable (diagnostic_not_available), not as a point value.", evidence_test = "crates/antecedent/tests/tier_diagnostics.rs", evidence_assertion = "an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value" },
+  { id = "e7.tier_unknown_scenarios.negative", role = "negative", intent = "An Unknown study reports its two scenarios with their adjustment sets and effects, and overlap and the E-value are typed unavailable; no within-tier DAG is built.", evidence_test = "crates/antecedent/tests/tier_diagnostics.rs", evidence_assertion = "unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnostic" },
+  { id = "e7.tier_not_tiered.negative", role = "negative", intent = "A plain backdoor AIPW result is refused invalid_argument (not a tiered average-effect result).", evidence_test = "crates/antecedent/tests/tier_diagnostics.rs", evidence_assertion = "a_result_that_is_not_a_tiered_average_effect_is_refused" },
+  { id = "e7.tier_lifecycle.artifact", role = "artifact", intent = "The diagnostics read off the fresh run, the prepared click and the refreshed result agree, and the result's own artifact is consumed by the independent verifier.", evidence_test = "crates/antecedent/tests/tier_diagnostics.rs", evidence_assertion = "diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_artifact" },
+]
+
+[[record]]
 id = "2.2E.E5.factorized_joint_cells"
 workstream = "E5"
 milestone = "E"

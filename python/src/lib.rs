@@ -35,6 +35,7 @@ mod candidate_screen_api;
 mod counterfactual_id_api;
 mod cross_world_api;
 mod derived_treatment_api;
+mod descriptive_api;
 mod design_api;
 mod discovery_api;
 mod estimator_config;
@@ -2645,6 +2646,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     smoothed_dose_api::register(m)?;
     derived_treatment_api::register(m)?;
     matched_case_control_api::register(m)?;
+    descriptive_api::register(m)?;
     candidate_screen_api::register(m)?;
     preflight_api::register(m)?;
     observation_api::register(m)?;

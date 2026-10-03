@@ -96,6 +96,7 @@ pub use adjustment::{
     EstimationWorkspace, LinearAdjustmentAte, LinearFitKind, PreparedEstimationProblem,
 };
 pub mod cluster_dml_aipw;
+pub mod descriptive_comparison;
 pub mod estimator_menu;
 pub mod joint_cell_factorized;
 pub mod learned_continuous;
@@ -168,6 +169,11 @@ pub use crossfit_aipw::{
     crossfit_binary_scores, thresholds_of, weighted_support,
 };
 pub use crossfit_cache::{CrossfitCacheStats, CrossfitNuisanceCache, NuisanceScopeUse};
+pub use descriptive_comparison::{
+    AdjustedEstimate, ArmSummary, Availability, DescriptiveComparison, MeanPair, RawContrast,
+    ReportingContrast, ReportingScale, ReportingTransform, Unavailable, compare_raw_adjusted,
+    raw_contrast, refuse_column_attribution, refuse_transform_interval, transform_mean_pair,
+};
 pub use design_compile::{CovariateSpec, compile_adjustment_design};
 pub use dml::{DmlAte, DmlScore};
 pub use dr::{CateProfile, DrLearner, PointwiseCateEstimate};

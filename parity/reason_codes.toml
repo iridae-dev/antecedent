@@ -367,3 +367,9 @@ meaning = "The number of independent clusters is below the declared minimum, so 
 id = "dyadic_dependence_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "Rows share endpoints (dyads), so they are dependent through both endpoints and disjoint clusters do not describe them; dyadic fold ownership and two-way covariance are not licensed, only the screen/estimate split of connected endpoint components is."
+
+# 2.2 E7 tier diagnostics (promotion record: tier_diagnostics in parity/promotion_2_2.toml).
+[[code]]
+id = "diagnostic_not_available"
+applies_to = ["runtime_refusal"]
+meaning = "A diagnostic is requested that the executed route's own design does not carry (no propensity score, an E-value that embeds an interval endpoint, a result with no single effect); it is reported absent with this code and a detail, never fabricated and never refit from a different design."

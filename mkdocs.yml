@@ -55,6 +55,9 @@ nav:
       - Transport theorem scope: guides/transport-scope.md
       - Finite-action inverse outcome: guides/inverse-outcome.md
       - Matched case-control odds ratio: guides/matched-case-control.md
+      - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
+      - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
+      - Sparse ingest evaluation: guides/sparse-ingest-evaluation.md
       - Penalized propensity for AIPW: guides/penalized-aipw.md
       - Joint cells and derived treatments: guides/joint-cells.md
       - Clustered DML and entity-owned screens: guides/clustered-dml.md
