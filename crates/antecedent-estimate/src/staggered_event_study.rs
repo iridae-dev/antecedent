@@ -185,14 +185,18 @@ pub fn estimate(
             let g = scores.len();
             let variance =
                 g as f64 / (g - 1) as f64 * scores.values().map(|score| score * score).sum::<f64>();
+            let effect = means[1] - means[0];
+            if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
+                return Err("event-time effect or cluster variance overflowed".into());
+            }
             effects.push(EventTimeEffect {
                 cohort,
                 period,
                 event_time: period - cohort,
-                effect: means[1] - means[0],
+                effect,
                 treated_subjects: treated.len(),
                 comparison_subjects: controls.len(),
-                standard_error: variance.max(0.0).sqrt(),
+                standard_error: variance.sqrt(),
                 clusters: g,
             });
         }
@@ -210,6 +214,16 @@ mod tests {
         allow(clippy::float_cmp, reason = "tests assert exact deterministic estimates")
     )]
     use super::*;
+
+    #[test]
+    fn finite_panel_values_cannot_publish_infinite_event_effects() {
+        let outcomes = [-1e308, 1e308, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        let subjects = ["t1", "t1", "t2", "t2", "c1", "c1", "c2", "c2"];
+        let periods = [1, 2, 1, 2, 1, 2, 1, 2];
+        let cohorts = [2, 2, 2, 2, 0, 0, 0, 0];
+        let clusters = ["t1", "t1", "t2", "t2", "c1", "c1", "c2", "c2"];
+        assert!(estimate(&outcomes, &subjects, &periods, &cohorts, &clusters).is_err());
+    }
 
     #[test]
     fn joint_preperiod_cluster_statistic_has_no_inferential_cutoff() {
