@@ -11,7 +11,7 @@ use antecedent::{
 use antecedent_estimate::{
     CellStatus, DEFAULT_RIDGE_GRID, EstimationError, FactorizedJointConfig, FactorizedJointFit,
     JointCellReport, JointContrast, RidgeTuning, declared_joint_nuisance, orderings_for,
-    refuse_joint_inference,
+    refuse_joint_inference, refuse_joint_learner_inference,
 };
 use pyo3::prelude::*;
 use serde_json::{Value, json};
@@ -117,8 +117,10 @@ fn fit_value(fit: &FactorizedJointFit, contrasts: Vec<Value>) -> Value {
 /// conditional propensities, as JSON (point estimates only).
 ///
 /// `ordering` lists the construction columns in the declared factorization order (`None`: the
-/// declared source order); `all_orderings` re-estimates under every permutation. An interval
-/// and any nuisance other than `ridge_logistic` are refused before any data is read.
+/// declared source order); `all_orderings` re-estimates under every permutation. `nuisance` is
+/// `ridge_logistic` (default), `random_forest` or `gradient_boosted_trees` (a cross-fitted
+/// learner for every conditional and outcome model; point only). An interval and any
+/// undeclared nuisance are refused before any data is read.
 #[pyfunction]
 #[pyo3(signature = (
     names, columns, declaration, outcome, adjustment, *, ordering=None, all_orderings=true,
@@ -151,12 +153,16 @@ fn factorized_joint_cells_json(
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<String> {
     let declaration = parse_declaration(declaration)?;
+    let learner = declared_joint_nuisance(nuisance).map_err(estimation_err)?;
     if interval {
-        return Err(estimation_err(refuse_joint_inference()));
+        return Err(estimation_err(if learner.is_some() {
+            refuse_joint_learner_inference()
+        } else {
+            refuse_joint_inference()
+        }));
     }
     let grid = penalties.unwrap_or_else(|| DEFAULT_RIDGE_GRID.to_vec());
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
-    let tuning = declared_joint_nuisance(nuisance, tuning).map_err(estimation_err)?;
     let requested = contrasts
         .unwrap_or_default()
         .iter()
@@ -184,6 +190,7 @@ fn factorized_joint_cells_json(
     let orderings =
         orderings_for(components.len(), &declared, all_orderings).map_err(estimation_err)?;
     let mut config = FactorizedJointConfig::new(tuning);
+    config.learner = learner;
     config.folds = folds;
     config.seed = seed;
     config.clip = clip;

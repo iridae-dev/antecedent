@@ -93,6 +93,40 @@ A prefix stratum whose training rows are all one class has a constant conditiona
 (probability 0 or 1). It is counted in `degenerate_conditionals` and is what lets a
 populated cell stay supported when its sibling cell is empty.
 
+## Declared learners
+
+`nuisance="random_forest"` or `"gradient_boosted_trees"` (Rust
+`FactorizedJointConfig::learner`, resolved by `declared_joint_nuisance`) replaces both the
+ridge-logistic conditionals and the per-cell OLS outcome models with that `antecedent-learn`
+learner, with its default hyperparameters. It runs under its own cross-fitting contract:
+
+- **Out of fold only.** The same seeded, cell-stratified unit fold plan is used. A learner is
+  fit on a fold's training rows (restricted to the prefix stratum for a conditional, to the cell
+  for an outcome model) and predicts only that fold's rows, so no row trains and predicts the
+  same fold. A recording learner in the unit tests checks this model by model.
+- **No silent fallback.** A fit that fails, or a probability outside `[0, 1]`, makes the factor
+  unsupported and refuses the cells that need it (`joint_cells.conditional_unsupported` or
+  `joint_cells.outcome_model_unsupported`, naming the fold and the learner's error); the other
+  cells keep their estimates. A learner that cannot be resolved in this build refuses the call
+  (`route_not_supported`, `joint_cells.learner_unavailable`); `auto` is refused
+  (`joint_cells.learner`) because it hides the learner actually fit. A prefix stratum whose
+  training rows are one class is still a counted constant and does not call the learner.
+- **Provenance and seeds.** The score table's provenance starts with
+  `joint_cell.factorized.crossfit.learner_prefix` and carries `;nuisance=ml_joint_cell`, the
+  learner identity (`outcome=...;propensity=...`), the distinct fitted implementations and
+  `fold_seed=` (the config seed of the fold plan) and `ctx_seed=` (the execution context seed
+  the learners draw from). The same declaration, seeds and data replay bit-identically.
+- **Point only.** The result keeps the aligned `ScoreTable` and the family contrasts, but no
+  interval or covariance: a flexible nuisance needs its own remainder-rate and coverage license
+  and none is granted. A requested interval refuses `ml_nuisance_not_licensed`
+  (`joint_cells.ml_interval_withheld`).
+
+Other machine-learning names (`ml`, `neural_network`, `gradient_boosting`, ...) are not declared
+learners and refuse `ml_nuisance_not_licensed` (`joint_cells.ml_learner_not_declared`). The
+default ridge route is unchanged by the option. The tests recover a known effect with OLS and
+logistic learners and, in a build with the forest provider, a random forest; no coverage or
+calibration of the learner route is claimed.
+
 ## Per-cell support and refusals
 
 A cell is evaluated or refused individually, with the others kept
@@ -128,8 +162,14 @@ not supported is withheld with `joint_cell_unsupported` rather than computed on 
   `ordering_tolerance_sd` (default 0.05) outcome standard deviations. Orderings differ only
   through the conditional models' dependence on `Z`, so a flag points at that
   misspecification. It is a receipt about this table, never a verdict on an ordering.
-- **Factorization** is by construction (the chain rule above); it is not separately tested
-  against a direct multinomial fit, and no such comparison is claimed.
+- **Factorization** is tested against direct counting. On hand-counted 2- and 3-component laws
+  with no covariate and cell counts divisible by the fold count, each prefix-stratum conditional
+  is saturated and its training frequency equals the table's, so the chain-rule product under
+  every ordering must equal the empirical joint cell frequency counted in the test, and the
+  enumerated propensities must sum to one. This checks the chain-rule indexing and assembly on
+  those laws (through the declared-learner route, whose unpenalized logistic is saturated in an
+  intercept); it does not show the ridge conditionals fit a law with covariates, which the
+  known-law recovery tests assess, and no comparison to the multinomial route is claimed.
 
 ## The score table and what is closed
 
@@ -137,20 +177,22 @@ The declared ordering's scores for the supported cells are retained in an aligne
 `ScoreTable` (Rust `FactorizedJointFit::scores`) so a family contrast
 (`cell_minus_control:<cell>`, and `interaction` for two components with all four cells
 supported) has per-row scores. Point contrasts are the difference of the cell means. The
-table's provenance carries the ridge tag, so the established rule applies: **no interval
-or joint covariance is published** for a penalized propensity (see
-`penalized-aipw.md`). A requested interval refuses
-`penalized_interval_not_licensed` (`joint_cells.interval_withheld`). No calibration record
-exists for this route.
+table's provenance carries the ridge tag (or the learner marker, see above), so the
+established rule applies: **no interval or joint covariance is published** for a penalized
+propensity (see `penalized-aipw.md`) or a learner-supplied nuisance. A requested interval
+refuses `penalized_interval_not_licensed` (`joint_cells.interval_withheld`) on the ridge route
+and `ml_nuisance_not_licensed` (`joint_cells.ml_interval_withheld`) with a declared learner. No
+calibration record exists for this route.
 
-A machine-learning nuisance provider is refused (`ml_nuisance_not_licensed`,
-`joint_cells.ml_nuisance_closed`): it has no cross-fitting and inference contract on joint
-cells here, and it is never silently replaced by the ridge factors. Lasso is closed
-(`selection_inference_not_licensed`); an unknown provider name is an invalid argument.
+Lasso is closed (`selection_inference_not_licensed`); a machine-learning name that is not a
+declared learner refuses `ml_nuisance_not_licensed`; an unknown provider name is an invalid
+argument.
 
 ## Limits
 
 At most three binary components, so at most eight cells and at most six orderings. The
 outcome model per cell is linear in `Z`; a misspecified outcome model weakens the double
 robustness that the AIPW score relies on. The route does not take a causal graph: the
-adjustment set is the caller's, checked only for the leakage and dependence above.
+adjustment set is the caller's, checked only for the leakage and dependence above. A declared
+learner uses its default hyperparameters (no tuning grid) and the Python wrapper accepts no
+`penalties` with it.

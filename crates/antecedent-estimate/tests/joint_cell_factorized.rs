@@ -1,7 +1,9 @@
 //! Factorized joint-cell AIPW (2.2 E5): the factorized cell propensities and cell means are
 //! checked against a known joint law enumerated by hand, the family keeps its supported cells
-//! when one is empty or rare, ordering sensitivity is reported, and every closed route
-//! (machine-learning nuisance, lasso, interval, covariance) refuses with its reason code.
+//! when one is empty or rare, ordering sensitivity is reported, a declared `antecedent-learn`
+//! learner supplies the nuisances out of fold (point only), the factorization reproduces the
+//! empirical joint frequencies of a hand-counted law, and every closed route (undeclared
+//! learner, lasso, interval, covariance) refuses with its reason code.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -16,8 +18,9 @@ use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{
     CellStatus, EstimationError, FactorizedJointConfig, FactorizedJointFit, JointContrast,
-    RidgeTuning, ScoreTable, declared_joint_nuisance, fit_factorized_joint_cells, orderings_for,
-    provenance_withholds_interval, refuse_joint_inference,
+    LearnerSpec, LinearSpec, RidgeTuning, ScoreTable, declared_joint_nuisance,
+    fit_factorized_joint_cells, orderings_for, provenance_withholds_interval,
+    refuse_joint_inference, refuse_joint_learner_inference,
 };
 use antecedent_kernels::standard_normal;
 
@@ -435,23 +438,247 @@ fn declarations_outside_the_bounded_cell_are_refused() {
     assert!(message.contains("joint_cells.cancelled"), "{message}");
 }
 
-/// Only the ridge-logistic provider executes: lasso, a machine-learning provider and an
-/// interval or covariance request are closed with their registered reason codes.
+/// Ridge-logistic is the default route, `random_forest` and `gradient_boosted_trees` declare a
+/// learner, and lasso, an undeclared machine-learning name, an unknown name and an interval or
+/// covariance request over either route are closed with their registered reason codes.
 #[test]
-fn machine_learning_nuisance_lasso_and_intervals_are_closed() {
-    let tuning = RidgeTuning::default();
-    assert_eq!(declared_joint_nuisance("ridge_logistic", tuning.clone()).unwrap(), tuning);
-    let (code, _) = refused(declared_joint_nuisance("lasso", tuning.clone()).unwrap_err());
+fn undeclared_learners_lasso_and_intervals_are_closed() {
+    assert_eq!(declared_joint_nuisance("ridge_logistic").unwrap(), None);
+    assert!(matches!(
+        declared_joint_nuisance("random_forest").unwrap(),
+        Some(LearnerSpec::RandomForest(_))
+    ));
+    assert!(matches!(
+        declared_joint_nuisance("gradient_boosted_trees").unwrap(),
+        Some(LearnerSpec::GradientBoostedTrees(_))
+    ));
+    let (code, _) = refused(declared_joint_nuisance("lasso").unwrap_err());
     assert_eq!(code, "selection_inference_not_licensed");
-    for provider in ["ml", "random_forest", "gradient_boosting"] {
-        let (code, message) =
-            refused(declared_joint_nuisance(provider, tuning.clone()).unwrap_err());
+    for provider in ["ml", "gradient_boosting", "neural_network", "forest", "boosting"] {
+        let (code, message) = refused(declared_joint_nuisance(provider).unwrap_err());
         assert_eq!(code, "ml_nuisance_not_licensed");
-        assert!(message.contains("joint_cells.ml_nuisance_closed"), "{message}");
+        assert!(message.contains("joint_cells.ml_learner_not_declared"), "{message}");
     }
-    let (code, message) = refused(declared_joint_nuisance("typo", tuning).unwrap_err());
+    let (code, message) = refused(declared_joint_nuisance("typo").unwrap_err());
     assert_eq!(code, "invalid_argument");
     assert!(message.contains("joint_cells.nuisance_provider"), "{message}");
     let (code, _) = refused(refuse_joint_inference());
     assert_eq!(code, "penalized_interval_not_licensed");
+    let (code, message) = refused(refuse_joint_learner_inference());
+    assert_eq!(code, "ml_nuisance_not_licensed");
+    assert!(message.contains("joint_cells.ml_interval_withheld"), "{message}");
+    assert!(message.contains("remainder and coverage license"), "{message}");
+}
+
+fn learner_config() -> FactorizedJointConfig {
+    FactorizedJointConfig { learner: Some(LearnerSpec::Linear(LinearSpec {})), ..config() }
+}
+
+/// A declared learner (OLS outcome models and unpenalized-logistic conditionals through the
+/// `antecedent-learn` contract) recovers the known cell means, interaction and propensities.
+/// Both nuisance models are correctly specified here (`z` is binary, so a logistic in `z` is
+/// saturated and the outcome is linear in `z`), so the AIPW cell mean has standard error near
+/// `0.17 / sqrt(n p_cell)`, about 0.004 at n = 12 000 with `p_cell >= 0.15`; the 0.05 and 0.1
+/// tolerances are an order of magnitude wider and exist to keep the test from being flaky,
+/// not to claim a rate. The table is marked so no interval is published.
+#[test]
+fn a_declared_learner_recovers_the_known_effect_point_only() {
+    let law = law_two();
+    let n = 12_000;
+    let sample = draw(n, 31, &law, 2);
+    let data = frame(&sample, &[]);
+    let orderings = orderings_for(2, &[0, 1], true).unwrap();
+    let fit = run(&data, 2, &["z"], &orderings, &learner_config()).unwrap();
+    for cell in 0..4 {
+        let truth = 0.4 * cell as f64 + f64::from(u8::from(cell == 3)) + 0.25;
+        assert!((estimate_of(&fit, cell) - truth).abs() < 0.05, "cell {cell}");
+    }
+    let interaction = fit.contrast_point(JointContrast::Interaction).unwrap();
+    assert!((interaction - 1.0).abs() < 0.1, "{interaction}");
+    let propensities = &fit.scores.propensities;
+    for (j, column) in fit.scores.columns.iter().enumerate() {
+        let worst = (0..n)
+            .map(|i| {
+                let oracle = law[usize::from(sample.z[i] > 0.5)][column.arm as usize];
+                (propensities[j * n + i] - oracle).abs()
+            })
+            .fold(0.0_f64, f64::max);
+        assert!(worst < 0.05, "cell {}: worst propensity error {worst}", column.arm);
+    }
+    for check in &fit.normalization {
+        assert!(check.max_abs_error.unwrap() < 1e-9, "{check:?}");
+    }
+    assert!(!fit.sensitivity.disagreement);
+
+    let table = &fit.scores;
+    assert!(provenance_withholds_interval(&table.nuisance_provenance));
+    assert!(table.nuisance_provenance.starts_with("joint_cell.factorized.crossfit.learner_prefix"));
+    assert!(table.nuisance_provenance.contains(";nuisance=ml_joint_cell;outcome=linear;"));
+    assert!(
+        table.nuisance_provenance.contains(";learners=linear/faer/"),
+        "{}",
+        table.nuisance_provenance
+    );
+    assert!(table.nuisance_provenance.contains(";fold_seed=7;ctx_seed="));
+    assert!(!table.nuisance_provenance.contains(";propensity=ridge_logistic"));
+    let back = ScoreTable::from_wire(table.to_wire()).unwrap();
+    assert_eq!(back.scores, table.scores);
+    assert_eq!(back.nuisance_provenance, table.nuisance_provenance);
+    assert!(provenance_withholds_interval(&back.nuisance_provenance));
+}
+
+/// The same declaration, data, config seed and context replay bit-identically; a different
+/// config seed changes the fold plan and the recorded seed.
+#[test]
+fn seeded_learner_fits_replay_bit_identically() {
+    let sample = draw(3_000, 32, &law_two(), 2);
+    let data = frame(&sample, &[]);
+    let orderings = orderings_for(2, &[0, 1], false).unwrap();
+    let a = run(&data, 2, &["z"], &orderings, &learner_config()).unwrap();
+    let b = run(&data, 2, &["z"], &orderings, &learner_config()).unwrap();
+    assert_eq!(bits(&a.scores.scores), bits(&b.scores.scores));
+    assert_eq!(bits(&a.scores.propensities), bits(&b.scores.propensities));
+    assert_eq!(a.scores.fold_ids, b.scores.fold_ids);
+    assert_eq!(a.scores.nuisance_provenance, b.scores.nuisance_provenance);
+    let other = FactorizedJointConfig { seed: 8, ..learner_config() };
+    let c = run(&data, 2, &["z"], &orderings, &other).unwrap();
+    assert_ne!(a.scores.fold_ids, c.scores.fold_ids);
+    assert_ne!(a.scores.nuisance_provenance, c.scores.nuisance_provenance);
+    assert!(c.scores.nuisance_provenance.contains(";fold_seed=8;"));
+}
+
+fn bits(values: &[f64]) -> Vec<u64> {
+    values.iter().map(|v| v.to_bits()).collect()
+}
+
+/// Declaring a learner is a per-call option: the default ridge route is bit-identical before
+/// and after a learner fit in the same process and keeps its ridge provenance.
+#[test]
+fn declaring_a_learner_leaves_the_default_route_bit_identical() {
+    let sample = draw(3_000, 33, &law_two(), 2);
+    let data = frame(&sample, &[]);
+    let orderings = orderings_for(2, &[0, 1], true).unwrap();
+    assert!(config().learner.is_none());
+    let before = run(&data, 2, &["z"], &orderings, &config()).unwrap();
+    let learned = run(&data, 2, &["z"], &orderings, &learner_config()).unwrap();
+    let after = run(&data, 2, &["z"], &orderings, &config()).unwrap();
+    assert_eq!(bits(&before.scores.scores), bits(&after.scores.scores));
+    assert_eq!(bits(&before.scores.propensities), bits(&after.scores.propensities));
+    assert_eq!(before.scores.fold_ids, after.scores.fold_ids);
+    assert_eq!(before.scores.nuisance_provenance, after.scores.nuisance_provenance);
+    assert!(before.scores.nuisance_provenance.contains(";propensity=ridge_logistic"));
+    assert!(!before.scores.nuisance_provenance.contains("ml_joint_cell"));
+    assert_ne!(before.scores.scores, learned.scores.scores);
+}
+
+/// A learner with no declared identity or no resolvable provider is refused before any fit:
+/// `Auto` hides the learner actually fit, and a forest needs the `ml-forest` feature.
+#[test]
+fn an_auto_or_unavailable_learner_is_refused_before_any_fit() {
+    let sample = draw(600, 34, &law_two(), 2);
+    let data = frame(&sample, &[]);
+    let orderings = orderings_for(2, &[0, 1], false).unwrap();
+    let auto = FactorizedJointConfig { learner: Some(LearnerSpec::Auto), ..config() };
+    let (code, message) = refused(run(&data, 2, &["z"], &orderings, &auto).unwrap_err());
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("joint_cells.learner"), "{message}");
+    #[cfg(not(feature = "ml-forest"))]
+    {
+        let forest = FactorizedJointConfig {
+            learner: declared_joint_nuisance("random_forest").unwrap(),
+            ..config()
+        };
+        let (code, message) = refused(run(&data, 2, &["z"], &orderings, &forest).unwrap_err());
+        assert_eq!(code, "route_not_supported");
+        assert!(message.contains("joint_cells.learner_unavailable"), "{message}");
+    }
+}
+
+/// A sample whose rows realize `counts[cell]` exactly (cell bit `j` is component `j`), with no
+/// adjustment covariate and a deterministic outcome.
+fn counted_sample(counts: &[usize], k: usize) -> Sample {
+    let mut sample = Sample { z: Vec::new(), t: vec![Vec::new(); k], y: Vec::new() };
+    for (cell, &count) in counts.iter().enumerate() {
+        for r in 0..count {
+            for (j, column) in sample.t.iter_mut().enumerate() {
+                column.push(f64::from(u8::try_from((cell >> j) & 1).unwrap()));
+            }
+            sample.z.push(0.0);
+            sample.y.push(0.4 * cell as f64 + 0.1 * (r % 7) as f64);
+        }
+    }
+    sample
+}
+
+/// Independent verification of the factorization. On a hand-counted law with no covariate the
+/// prefix-stratum conditionals are saturated (an intercept per observed prefix), and every cell
+/// count is a multiple of the five folds, so the cell-stratified fold plan puts exactly
+/// `count / 5` of each cell in each fold: a training set then has the same cell proportions as
+/// the whole table, and each conditional's out-of-fold probability is the training frequency
+/// `count(prefix, value) / count(prefix)`. The oracle is the empirical joint frequency counted
+/// directly in the test; the chain-rule product under every ordering must equal it (to the
+/// logistic solver's tolerance, `1e-5`), and the enumerated cell propensities must sum to one.
+#[test]
+fn the_factorized_product_reproduces_the_empirical_joint_frequencies() {
+    for (k, counts) in
+        [(2, vec![200_usize, 100, 150, 50]), (3, vec![100_usize, 50, 75, 25, 75, 50, 75, 50])]
+    {
+        let sample = counted_sample(&counts, k);
+        let data = frame(&sample, &[]);
+        let n = sample.y.len();
+        assert_eq!(n, counts.iter().sum::<usize>());
+        // Direct count of the joint cells from the treatment columns.
+        let mut tally = vec![0usize; 1 << k];
+        for i in 0..n {
+            let cell: usize = (0..k).map(|j| usize::from(sample.t[j][i] > 0.5) << j).sum();
+            tally[cell] += 1;
+        }
+        assert_eq!(tally, counts);
+        let orderings = orderings_for(k, &(0..k).collect::<Vec<_>>(), true).unwrap();
+        let fit = run(&data, k, &[], &orderings, &learner_config()).unwrap();
+        assert_eq!(fit.scores.n_columns(), 1 << k);
+        let propensities = &fit.scores.propensities;
+        for (j, column) in fit.scores.columns.iter().enumerate() {
+            let oracle = tally[column.arm as usize] as f64 / n as f64;
+            let worst =
+                (0..n).map(|i| (propensities[j * n + i] - oracle).abs()).fold(0.0_f64, f64::max);
+            assert!(worst < 1e-5, "k = {k}, cell {}: {worst}", column.arm);
+        }
+        for i in 0..n {
+            let total: f64 = (0..1 << k).map(|j| propensities[j * n + i]).sum();
+            assert!((total - 1.0).abs() < 1e-9, "k = {k}, row {i}: sums to {total}");
+        }
+        assert_eq!(fit.normalization.len(), orderings.len());
+        for check in &fit.normalization {
+            assert_eq!(check.cells_enumerated, 1 << k);
+            assert!(check.max_abs_error.unwrap() < 1e-9, "{check:?}");
+        }
+        // Every ordering gives the same estimate of every cell (the identity holds for any
+        // ordering on this saturated law).
+        for spread in &fit.sensitivity.cells {
+            assert!(spread.spread.unwrap() < 1e-4, "{spread:?}");
+        }
+    }
+}
+
+/// A random-forest learner recovers the known means. Runs only in a build with the forest
+/// provider (`ml-forest`); the tolerance is loose because a forest's piecewise-constant fit
+/// of a binary covariate is exact up to bootstrap noise in the leaf means, a 0.15 band is
+/// several standard errors at this size, and no rate is claimed.
+#[cfg(feature = "ml-forest")]
+#[test]
+fn a_random_forest_learner_recovers_the_known_means() {
+    let sample = draw(6_000, 35, &law_two(), 2);
+    let data = frame(&sample, &[]);
+    let config = FactorizedJointConfig {
+        learner: declared_joint_nuisance("random_forest").unwrap(),
+        ..config()
+    };
+    let fit = run(&data, 2, &["z"], &orderings_for(2, &[0, 1], false).unwrap(), &config).unwrap();
+    for cell in 0..4 {
+        let truth = 0.4 * cell as f64 + f64::from(u8::from(cell == 3)) + 0.25;
+        assert!((estimate_of(&fit, cell) - truth).abs() < 0.15, "cell {cell}");
+    }
+    assert!(fit.scores.nuisance_provenance.contains("forest"));
+    assert!(provenance_withholds_interval(&fit.scores.nuisance_provenance));
 }

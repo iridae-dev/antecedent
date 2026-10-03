@@ -32,9 +32,18 @@
 //! The score table keeps the declared ordering's scores for the supported cells so a family
 //! contrast has aligned scores, but the propensity is penalized: its provenance carries the
 //! ridge tag and no interval or joint covariance is published
-//! ([`refuse_joint_inference`]). A machine-learning provider is closed
-//! ([`declared_joint_nuisance`]) because no cross-fitting and inference contract exists for
-//! it on joint cells.
+//! ([`refuse_joint_inference`]).
+//!
+//! A declared learner ([`FactorizedJointConfig::learner`], resolved by
+//! [`declared_joint_nuisance`]) replaces both the ridge-logistic conditionals and the per-cell
+//! OLS outcome models with `antecedent-learn` learners under the same fold plan. Every
+//! prediction is out of fold (a learner is fit on a fold's training rows and predicts only that
+//! fold's rows), a failed fit refuses the cells that need it and never falls back to ridge, and
+//! the score table's provenance carries the learner identity, the learners' implementations and
+//! the seeds. The result stays point only: the table is marked
+//! (`provenance_marks_learned`) so no interval or covariance is published
+//! ([`refuse_joint_learner_inference`]), because a flexible nuisance needs its own remainder and
+//! coverage license that no record grants.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -45,12 +54,16 @@ use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
+use antecedent_learn::{
+    ForestSpec, GbtSpec, LearnerFactory, LearnerProvenance, LearnerSpec, PredictionTask,
+    RowSelection, TargetView, resolve_for,
+};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::aipw::{predict_colmajor, select_rows_colmajor};
 use crate::cell_aipw::{cell_minus_control_coefficients, interaction_coefficients};
 use crate::error::EstimationError;
-use crate::learn_nuisance::crossfit_fold_plan;
+use crate::learn_nuisance::{crossfit_fold_plan, design_for_spec};
 use crate::propensity::{
     PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning, fit_ridge_fold, refuse,
 };
@@ -68,11 +81,29 @@ const MAX_FOLDS: usize = 20;
 /// Provenance of the factorized joint-cell score table.
 const FACTORIZED_PROVENANCE: &str = "joint_cell.factorized.crossfit.ridge_logistic_prefix.ols.v1";
 
+/// Provenance of the score table when a declared learner supplies the nuisances.
+const LEARNED_PROVENANCE: &str = "joint_cell.factorized.crossfit.learner_prefix.v1";
+
+/// Marker that a score table's nuisances came from a declared learner.
+const LEARNED_PROVENANCE_TAG: &str = ";nuisance=ml_joint_cell";
+
+/// Whether a score table's provenance marks learner-supplied joint-cell nuisances, whose
+/// remainder is not licensed: the table is a point-and-score artifact.
+#[must_use]
+pub(crate) fn provenance_marks_learned(provenance: &str) -> bool {
+    provenance.contains(LEARNED_PROVENANCE_TAG)
+}
+
 /// Declared tuning of one factorized joint-cell fit.
 #[derive(Clone, Debug)]
 pub struct FactorizedJointConfig {
-    /// Ridge tuning of every conditional factor.
+    /// Ridge tuning of every conditional factor (the default route; unused with a learner).
     pub tuning: RidgeTuning,
+    /// Declared `antecedent-learn` learner for every prefix-stratum conditional and per-cell
+    /// outcome model (see [`declared_joint_nuisance`]); `None` is the ridge-logistic plus OLS
+    /// route. The spec is mapped onto each task with `LearnerSpec::for_task`; `Auto` is refused
+    /// because it hides the learner actually fit.
+    pub learner: Option<LearnerSpec>,
     /// Cross-fit folds, `2..=20`.
     pub folds: usize,
     /// Seed of the fold plan and of the inner penalty-selection plans.
@@ -91,11 +122,12 @@ pub struct FactorizedJointConfig {
 
 impl FactorizedJointConfig {
     /// 5 folds, clip 0.01, minimum cell ESS 10, normalization tolerance `1e-9`, ordering
-    /// tolerance 0.05 outcome standard deviations.
+    /// tolerance 0.05 outcome standard deviations, the ridge-logistic route.
     #[must_use]
     pub fn new(tuning: RidgeTuning) -> Self {
         Self {
             tuning,
+            learner: None,
             folds: 5,
             seed: 0,
             clip: 0.01,
@@ -130,41 +162,51 @@ impl FactorizedJointConfig {
         if !(self.ordering_tolerance_sd.is_finite() && self.ordering_tolerance_sd >= 0.0) {
             return bad("ordering_tolerance_sd must be finite and non-negative");
         }
+        if let Some(spec) = self.learner {
+            if matches!(spec, LearnerSpec::Auto) || spec.validate().is_err() {
+                return Err(refuse(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "joint_cells.learner",
+                    "declare an explicit learner with valid hyperparameters; auto is refused \
+                     because it hides the learner actually fit",
+                ));
+            }
+        }
         Ok(())
     }
 }
 
-/// Validate a declared nuisance provider for joint cells and return its ridge tuning.
+/// Validate a declared nuisance provider for joint cells and return the learner it declares.
 ///
-/// Only `ridge_logistic` executes. `lasso` is closed (`selection_inference_not_licensed`) and a
-/// flexible machine-learning provider is closed (`ml_nuisance_not_licensed`): neither has a
-/// cross-fitting and inference contract on joint cells. Any other name is an invalid argument.
+/// `ridge_logistic` is the default route (`None`). `random_forest` and `gradient_boosted_trees`
+/// declare that learner with its default hyperparameters for every conditional and outcome
+/// model (a point-only route; see [`FactorizedJointConfig::learner`]). `lasso` is closed
+/// (`selection_inference_not_licensed`). The remaining machine-learning names are not declared
+/// joint-cell learners (`ml_nuisance_not_licensed`). Any other name is an invalid argument.
 ///
 /// # Errors
 ///
-/// A refusal for every provider other than `ridge_logistic`.
-pub fn declared_joint_nuisance(
-    provider: &str,
-    tuning: RidgeTuning,
-) -> Result<RidgeTuning, EstimationError> {
+/// A refusal for every provider that is not declared.
+pub fn declared_joint_nuisance(provider: &str) -> Result<Option<LearnerSpec>, EstimationError> {
     match provider {
-        "ridge_logistic" => Ok(tuning),
-        "lasso" => PropensityNuisance::lasso().validate_for_execution().map(|()| tuning),
-        "ml" | "random_forest" | "gradient_boosting" | "neural_network" | "forest" | "boosting" => {
-            Err(refuse(
-                antecedent_core::reason_code!("ml_nuisance_not_licensed"),
-                "joint_cells.ml_nuisance_closed",
-                &format!(
-                    "the {provider} nuisance provider has no cross-fitting and inference contract \
-                     for joint cells; use ridge_logistic"
-                ),
-            ))
-        }
+        "ridge_logistic" => Ok(None),
+        "random_forest" => Ok(Some(LearnerSpec::RandomForest(ForestSpec::default()))),
+        "gradient_boosted_trees" => Ok(Some(LearnerSpec::GradientBoostedTrees(GbtSpec::default()))),
+        "lasso" => PropensityNuisance::lasso().validate_for_execution().map(|()| None),
+        "ml" | "gradient_boosting" | "neural_network" | "forest" | "boosting" => Err(refuse(
+            antecedent_core::reason_code!("ml_nuisance_not_licensed"),
+            "joint_cells.ml_learner_not_declared",
+            &format!(
+                "{provider} is not a declared joint-cell learner; declare random_forest or \
+                 gradient_boosted_trees (point only), or ridge_logistic"
+            ),
+        )),
         other => Err(refuse(
             antecedent_core::reason_code!("invalid_argument"),
             "joint_cells.nuisance_provider",
             &format!(
-                "unknown joint-cell nuisance provider {other:?}; only ridge_logistic executes"
+                "unknown joint-cell nuisance provider {other:?}; declare ridge_logistic, \
+                 random_forest or gradient_boosted_trees"
             ),
         )),
     }
@@ -181,6 +223,22 @@ pub fn refuse_joint_inference() -> EstimationError {
         "joint_cells.interval_withheld",
         "factorized joint cells publish point estimates and an aligned score table only; no \
          interval or joint covariance is licensed for penalized conditional propensities",
+    )
+}
+
+/// The refusal for an interval or joint covariance over learner-supplied joint cells.
+///
+/// A flexible nuisance needs its own remainder-rate and coverage license for an interval, and no
+/// record grants one on joint cells; only the point estimates and the aligned score table are
+/// published.
+#[must_use]
+pub fn refuse_joint_learner_inference() -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("ml_nuisance_not_licensed"),
+        "joint_cells.ml_interval_withheld",
+        "learner-supplied joint cells publish point estimates and an aligned score table only; \
+         an interval or joint covariance over machine-learning nuisances needs a nuisance \
+         remainder and coverage license that no record grants",
     )
 }
 
@@ -512,6 +570,81 @@ fn cancelled() -> EstimationError {
     )
 }
 
+/// Learners resolved for the conditionals (binary probability) and the per-cell outcome models
+/// (regression) of a declared [`FactorizedJointConfig::learner`].
+struct LearnedNuisance {
+    outcome: Box<dyn LearnerFactory>,
+    outcome_spec: LearnerSpec,
+    propensity: Box<dyn LearnerFactory>,
+    propensity_spec: LearnerSpec,
+}
+
+impl LearnedNuisance {
+    fn resolve(spec: LearnerSpec) -> Result<Self, EstimationError> {
+        let outcome_spec = spec.for_task(PredictionTask::Regression);
+        let propensity_spec = spec.for_task(PredictionTask::BinaryProbability);
+        let unavailable = |error: antecedent_learn::LearnError| {
+            refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                "joint_cells.learner_unavailable",
+                &format!(
+                    "the {} learner cannot be resolved for joint-cell nuisances: {error}",
+                    spec.name()
+                ),
+            )
+        };
+        Ok(Self {
+            outcome: resolve_for(outcome_spec, PredictionTask::Regression).map_err(unavailable)?,
+            outcome_spec,
+            propensity: resolve_for(propensity_spec, PredictionTask::BinaryProbability)
+                .map_err(unavailable)?,
+            propensity_spec,
+        })
+    }
+
+    fn identity(&self) -> String {
+        format!(
+            "outcome={};propensity={}",
+            self.outcome_spec.identity(),
+            self.propensity_spec.identity()
+        )
+    }
+}
+
+fn row_ids(rows: &[usize]) -> Result<Vec<u32>, EstimationError> {
+    rows.iter()
+        .map(|&i| {
+            u32::try_from(i)
+                .map_err(|_| EstimationError::data_msg("row index exceeds the u32 row-id capacity"))
+        })
+        .collect()
+}
+
+/// Fit `factory` on the `train` rows of the problem's design and predict the `valid` rows.
+///
+/// `train` and `valid` are the two sides of one fold, so no row is both fit on and predicted.
+/// Every failure is returned as text; the caller decides whether it is a cancellation.
+fn learner_fold_predict(
+    factory: &dyn LearnerFactory,
+    view_spec: LearnerSpec,
+    problem: &Problem,
+    train: &[u32],
+    valid: &[u32],
+    y: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<(Vec<f64>, LearnerProvenance), String> {
+    let view = design_for_spec(view_spec, &problem.design, problem.n, problem.ncols)
+        .map_err(|error| error.to_string())?;
+    let fit_view = view.with_rows(RowSelection::new(train)).map_err(|error| error.to_string())?;
+    let model =
+        factory.fit(fit_view, TargetView::new(y), None, ctx).map_err(|error| error.to_string())?;
+    let predict_view =
+        view.with_rows(RowSelection::new(valid)).map_err(|error| error.to_string())?;
+    let mut predicted = vec![0.0; valid.len()];
+    model.predict(predict_view, &mut predicted, ctx).map_err(|error| error.to_string())?;
+    Ok((predicted, model.provenance()))
+}
+
 /// Cache key of one conditional: fold, prefix components (bit mask), their values, target
 /// component.
 type ConditionalKey = (usize, u32, u32, usize);
@@ -522,8 +655,10 @@ struct ConditionalFits<'a> {
     config: &'a FactorizedJointConfig,
     problem: &'a Problem,
     folds: &'a [FoldSplit],
+    learned: Option<&'a LearnedNuisance>,
     cache: HashMap<ConditionalKey, Result<Vec<f64>, String>>,
     selections: Vec<RidgeFoldSelection>,
+    provenances: Vec<LearnerProvenance>,
     degenerate: usize,
 }
 
@@ -571,6 +706,9 @@ impl ConditionalFits<'_> {
             self.degenerate += 1;
             return Ok(Ok(vec![if positives == 0 { 0.0 } else { 1.0 }; n_valid]));
         }
+        if let Some(learned) = self.learned {
+            return self.fit_learned(learned, fold, &rows, target);
+        }
         let mut design_train = Vec::new();
         select_rows_colmajor(&problem.design, problem.n, problem.ncols, &rows, &mut design_train);
         let units: Vec<u32> = rows.iter().map(|&i| problem.row_index[i]).collect();
@@ -594,6 +732,118 @@ impl ConditionalFits<'_> {
             Err(error) => Ok(Err(error.to_string())),
         }
     }
+}
+
+impl ConditionalFits<'_> {
+    /// The declared learner's out-of-fold probabilities for one conditional: it is fit on the
+    /// fold's training rows with the prefix and predicts the fold's validation rows only. A
+    /// failed fit or a probability outside `[0, 1]` makes the factor unsupported (refusing the
+    /// cells that need it); only cancellation is an `Err`.
+    fn fit_learned(
+        &mut self,
+        learned: &LearnedNuisance,
+        fold: usize,
+        rows: &[usize],
+        target: usize,
+    ) -> Result<Result<Vec<f64>, String>, EstimationError> {
+        let problem = self.problem;
+        let train = row_ids(rows)?;
+        let valid = row_ids(&self.folds[fold].valid)?;
+        let t_full: Vec<f64> =
+            problem.cell.iter().map(|&code| f64::from((code >> target) & 1)).collect();
+        match learner_fold_predict(
+            learned.propensity.as_ref(),
+            learned.propensity_spec,
+            problem,
+            &train,
+            &valid,
+            &t_full,
+            self.ctx,
+        ) {
+            Ok((predicted, _)) if predicted.iter().any(|p| !(0.0..=1.0).contains(p)) => {
+                Ok(Err(format!("fold {fold}: the learner returned a probability outside [0, 1]")))
+            }
+            Ok((predicted, provenance)) => {
+                self.provenances.push(provenance);
+                Ok(Ok(predicted))
+            }
+            Err(_) if self.ctx.cancellation.is_cancelled() => Err(cancelled()),
+            Err(reason) => Ok(Err(format!("fold {fold}: the learner failed: {reason}"))),
+        }
+    }
+}
+
+/// Out-of-fold predictions of one cell's outcome model and the learner provenance of its folds.
+type LearnedOutcome = (Vec<f64>, Vec<LearnerProvenance>);
+
+/// Out-of-fold outcome-model predictions of one cell under a declared learner, with the
+/// learner provenance of every fold, or why the cell's model is unsupported. Only cancellation
+/// is an `Err`.
+fn learned_outcome_predictions(
+    learned: &LearnedNuisance,
+    problem: &Problem,
+    folds: &[FoldSplit],
+    cell: u32,
+    ctx: &ExecutionContext,
+) -> Result<Result<LearnedOutcome, String>, EstimationError> {
+    let mut out = vec![0.0; problem.n];
+    let mut provenances = Vec::with_capacity(folds.len());
+    for (fold, split) in folds.iter().enumerate() {
+        if ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
+        let rows: Vec<usize> =
+            split.train.iter().copied().filter(|&i| problem.cell[i] == cell).collect();
+        if rows.is_empty() {
+            return Ok(Err(format!("fold {fold}: no training row lies in the cell")));
+        }
+        let train = row_ids(&rows)?;
+        let valid = row_ids(&split.valid)?;
+        match learner_fold_predict(
+            learned.outcome.as_ref(),
+            learned.outcome_spec,
+            problem,
+            &train,
+            &valid,
+            &problem.outcome,
+            ctx,
+        ) {
+            Ok((predicted, _)) if predicted.iter().any(|p| !p.is_finite()) => {
+                return Ok(Err(format!("fold {fold}: the learner returned a non-finite value")));
+            }
+            Ok((predicted, provenance)) => {
+                provenances.push(provenance);
+                for (&i, &p) in split.valid.iter().zip(&predicted) {
+                    out[i] = p;
+                }
+            }
+            Err(_) if ctx.cancellation.is_cancelled() => return Err(cancelled()),
+            Err(reason) => {
+                return Ok(Err(format!("fold {fold}: the outcome learner failed: {reason}")));
+            }
+        }
+    }
+    Ok(Ok((out, provenances)))
+}
+
+/// Provenance suffix of a learner-supplied table: the declared learner identity, the distinct
+/// fitted implementations, and the seeds that make the fit replayable.
+fn learned_suffix(
+    learned: &LearnedNuisance,
+    provenances: &[LearnerProvenance],
+    fold_seed: u64,
+    ctx_seed: u64,
+) -> String {
+    let implementations: std::collections::BTreeSet<String> = provenances
+        .iter()
+        .map(|p| format!("{}/{}/{}", p.spec, p.implementation, p.version))
+        .collect();
+    let implementations: Vec<String> = implementations.into_iter().collect();
+    format!(
+        "{LEARNED_PROVENANCE_TAG};{};learners={};fold_seed={fold_seed};ctx_seed={ctx_seed}",
+        learned.identity(),
+        implementations.join("|")
+    )
 }
 
 /// Out-of-fold outcome-model predictions of one cell, or why the model is unsupported.
@@ -802,10 +1052,37 @@ pub fn fit_factorized_joint_cells(
     config: &FactorizedJointConfig,
     ctx: &ExecutionContext,
 ) -> Result<FactorizedJointFit, EstimationError> {
+    config.validate()?;
+    let learned = config.learner.map(LearnedNuisance::resolve).transpose()?;
+    fit_with_nuisance(
+        data,
+        treatments,
+        outcome,
+        adjustment,
+        orderings,
+        config,
+        ctx,
+        learned.as_ref(),
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the public entry point's arguments plus the resolved nuisance learners"
+)]
+fn fit_with_nuisance(
+    data: &TabularData,
+    treatments: &[VariableId],
+    outcome: VariableId,
+    adjustment: &[VariableId],
+    orderings: &[Vec<usize>],
+    config: &FactorizedJointConfig,
+    ctx: &ExecutionContext,
+    learned: Option<&LearnedNuisance>,
+) -> Result<FactorizedJointFit, EstimationError> {
     let k = treatments.len();
     check_permutation(k, &(0..k).collect::<Vec<_>>())?;
     validate_orderings(k, orderings)?;
-    config.validate()?;
     let problem = prepare_problem(data, treatments, outcome, adjustment)?;
     let n = problem.n;
     let n_cells = 1u32 << k;
@@ -823,12 +1100,21 @@ pub fn fit_factorized_joint_cells(
         (0..n_cells).map(|c| problem.cell.iter().filter(|&&code| code == c).count()).collect();
 
     let mut mu = Vec::with_capacity(n_cells as usize);
+    let mut outcome_provenances: Vec<LearnerProvenance> = Vec::new();
     for cell in 0..n_cells {
         if ctx.cancellation.is_cancelled() {
             return Err(cancelled());
         }
         mu.push(if rows_in_cell[cell as usize] == 0 {
             Err("the cell has no rows".to_string())
+        } else if let Some(learned) = learned {
+            match learned_outcome_predictions(learned, &problem, &folds, cell, ctx)? {
+                Ok((predicted, provenances)) => {
+                    outcome_provenances.extend(provenances);
+                    Ok(predicted)
+                }
+                Err(why) => Err(why),
+            }
         } else {
             outcome_predictions(&problem, &folds, cell)
         });
@@ -839,8 +1125,10 @@ pub fn fit_factorized_joint_cells(
         config,
         problem: &problem,
         folds: &folds,
+        learned,
         cache: HashMap::new(),
         selections: Vec::new(),
+        provenances: Vec::new(),
         degenerate: 0,
     };
     let mut evaluations = Vec::with_capacity(orderings.len());
@@ -866,7 +1154,8 @@ pub fn fit_factorized_joint_cells(
             declared_propensities = propensities;
         }
     }
-    let ConditionalFits { selections, degenerate, .. } = fits;
+    let ConditionalFits { selections, mut provenances, degenerate, .. } = fits;
+    provenances.extend(outcome_provenances);
 
     let sd = {
         let mean = problem.outcome.iter().sum::<f64>() / n as f64;
@@ -912,10 +1201,17 @@ pub fn fit_factorized_joint_cells(
             &format!("no cell of the family is supported ({})", reasons.join("; ")),
         ));
     }
-    let provenance = format!(
-        "{FACTORIZED_PROVENANCE}{}",
-        PropensityNuisance::ridge_logistic(config.tuning.clone()).provenance_suffix(&selections)
-    );
+    let provenance = match learned {
+        Some(learned) => format!(
+            "{LEARNED_PROVENANCE}{}",
+            learned_suffix(learned, &provenances, config.seed, ctx.rng.master_seed())
+        ),
+        None => format!(
+            "{FACTORIZED_PROVENANCE}{}",
+            PropensityNuisance::ridge_logistic(config.tuning.clone())
+                .provenance_suffix(&selections)
+        ),
+    };
     let table = ScoreTable {
         observed_arm: problem.cell.clone().into(),
         propensities: propensity_columns.into(),
@@ -1045,5 +1341,257 @@ mod tests {
                 vec![2, 1, 0]
             ]
         );
+    }
+
+    use std::sync::Mutex;
+
+    use antecedent_core::CausalRng;
+    use antecedent_data::TableView;
+    use antecedent_learn::{
+        DesignView, FittedPredictor, LearnError, LearnerCapabilities, LinearSpec, LogisticSpec,
+    };
+
+    /// `(rows the model was fit on, rows it predicted)` of every fitted model, physical indices.
+    type FitLog = Arc<Mutex<Vec<(Vec<usize>, Vec<usize>)>>>;
+    /// A rule that makes a fit fail from the physical rows it would be fit on.
+    type FailRule = Arc<dyn Fn(&[usize]) -> bool + Send + Sync>;
+
+    fn physical_rows(x: DesignView<'_>) -> Vec<usize> {
+        (0..x.nrows()).map(|i| x.physical_index(i).unwrap()).collect()
+    }
+
+    /// A real learner wrapped to record the rows it is fit and asked to predict on, and to
+    /// fail on demand.
+    struct Stub {
+        inner: Box<dyn LearnerFactory>,
+        log: FitLog,
+        fail: FailRule,
+    }
+
+    struct StubModel {
+        inner: Box<dyn FittedPredictor>,
+        fit_rows: Vec<usize>,
+        log: FitLog,
+    }
+
+    impl LearnerFactory for Stub {
+        fn task(&self) -> PredictionTask {
+            self.inner.task()
+        }
+
+        fn capabilities(&self) -> LearnerCapabilities {
+            self.inner.capabilities()
+        }
+
+        fn fit(
+            &self,
+            x: DesignView<'_>,
+            y: TargetView<'_>,
+            weights: Option<&[f64]>,
+            ctx: &ExecutionContext,
+        ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+            let fit_rows = physical_rows(x);
+            if (self.fail)(&fit_rows) {
+                return Err(LearnError::Backend("injected failure".to_string()));
+            }
+            Ok(Box::new(StubModel {
+                inner: self.inner.fit(x, y, weights, ctx)?,
+                fit_rows,
+                log: Arc::clone(&self.log),
+            }))
+        }
+    }
+
+    impl FittedPredictor for StubModel {
+        fn predict(
+            &self,
+            x: DesignView<'_>,
+            out: &mut [f64],
+            ctx: &ExecutionContext,
+        ) -> Result<(), LearnError> {
+            self.log.lock().unwrap().push((self.fit_rows.clone(), physical_rows(x)));
+            self.inner.predict(x, out, ctx)
+        }
+
+        fn provenance(&self) -> LearnerProvenance {
+            LearnerProvenance {
+                spec: "stub".to_string(),
+                implementation: "recording".to_string(),
+                version: "test".to_string(),
+            }
+        }
+    }
+
+    struct Fixture {
+        data: TabularData,
+        treatments: Vec<VariableId>,
+        outcome: VariableId,
+        adjustment: Vec<VariableId>,
+        cell: Vec<u32>,
+        t0: Vec<f64>,
+    }
+
+    /// Two binary components, `z ~ Bernoulli(1/2)`, the cell drawn from a hand-written
+    /// `P(cell | z)`, `Y = 0.4 cell + 1{cell = 3} + 0.5 z + uniform noise`.
+    fn fixture(n: usize, seed: u64) -> Fixture {
+        let law = [[0.4, 0.2, 0.2, 0.2], [0.1, 0.3, 0.2, 0.4]];
+        let mut rng = CausalRng::from_seed(seed);
+        let (mut z, mut t0, mut t1, mut y, mut cell) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for _ in 0..n {
+            let zi = usize::from(rng.next_f64() < 0.5);
+            let u = rng.next_f64();
+            let mut cumulative = 0.0;
+            let mut code = 3u32;
+            for (c, &p) in law[zi].iter().enumerate() {
+                cumulative += p;
+                if u < cumulative {
+                    code = u32::try_from(c).unwrap();
+                    break;
+                }
+            }
+            z.push(zi as f64);
+            t0.push(f64::from(code & 1));
+            t1.push(f64::from((code >> 1) & 1));
+            y.push(
+                0.4 * f64::from(code)
+                    + f64::from(u8::from(code == 3))
+                    + 0.5 * zi as f64
+                    + 0.3 * (2.0 * rng.next_f64() - 1.0),
+            );
+            cell.push(code);
+        }
+        let data = TabularData::from_f64_columns(vec![
+            ("t0", t0.as_slice()),
+            ("t1", t1.as_slice()),
+            ("y", y.as_slice()),
+            ("z", z.as_slice()),
+        ])
+        .unwrap();
+        let id = |name: &str| data.schema().id_of(name).unwrap();
+        let (treatments, outcome, adjustment) = (vec![id("t0"), id("t1")], id("y"), vec![id("z")]);
+        Fixture { data, treatments, outcome, adjustment, cell, t0 }
+    }
+
+    fn stubbed(
+        outcome_fail: FailRule,
+        propensity_fail: FailRule,
+    ) -> (LearnedNuisance, FitLog, FitLog) {
+        let (outcome_log, propensity_log) = (FitLog::default(), FitLog::default());
+        let outcome_spec = LearnerSpec::Linear(LinearSpec {});
+        let propensity_spec = LearnerSpec::Logistic(LogisticSpec { ridge_lambda: 0.0 });
+        let learned = LearnedNuisance {
+            outcome: Box::new(Stub {
+                inner: resolve_for(outcome_spec, PredictionTask::Regression).unwrap(),
+                log: Arc::clone(&outcome_log),
+                fail: outcome_fail,
+            }),
+            outcome_spec,
+            propensity: Box::new(Stub {
+                inner: resolve_for(propensity_spec, PredictionTask::BinaryProbability).unwrap(),
+                log: Arc::clone(&propensity_log),
+                fail: propensity_fail,
+            }),
+            propensity_spec,
+        };
+        (learned, outcome_log, propensity_log)
+    }
+
+    fn run_stubbed(
+        fixture: &Fixture,
+        learned: &LearnedNuisance,
+    ) -> Result<FactorizedJointFit, EstimationError> {
+        let mut config = FactorizedJointConfig::new(RidgeTuning::default());
+        config.seed = 5;
+        fit_with_nuisance(
+            &fixture.data,
+            &fixture.treatments,
+            fixture.outcome,
+            &fixture.adjustment,
+            &[vec![0, 1]],
+            &config,
+            &ExecutionContext::for_tests(9),
+            Some(learned),
+        )
+    }
+
+    fn never() -> FailRule {
+        Arc::new(|_| false)
+    }
+
+    /// A recording learner proves the cross-fitting contract: every fitted model predicts one
+    /// fold's rows and none of the rows it was fit on, the predicted rows are exactly that
+    /// fold, and the expected number of models was fit (3 conditionals and 4 cell outcome
+    /// models, each per fold).
+    #[test]
+    fn a_learner_never_predicts_a_row_it_was_fit_on() {
+        let fixture = fixture(1_500, 21);
+        let (learned, outcome_log, propensity_log) = stubbed(never(), never());
+        let fit = run_stubbed(&fixture, &learned).unwrap();
+        let plan = &fit.scores.fold_ids;
+        for (log, expected) in [(&outcome_log, 20), (&propensity_log, 15)] {
+            let log = log.lock().unwrap();
+            assert_eq!(log.len(), expected);
+            for (fit_rows, predicted) in log.iter() {
+                let fold = plan[predicted[0]];
+                assert!(predicted.iter().all(|&i| plan[i] == fold), "one fold per model");
+                assert!(fit_rows.iter().all(|&i| plan[i] != fold), "train and predict overlap");
+                assert!(fit_rows.iter().all(|i| !predicted.contains(i)));
+                assert_eq!(predicted.len(), plan.iter().filter(|&&f| f == fold).count());
+            }
+        }
+        assert!(fit.scores.nuisance_provenance.contains("learners=stub/recording/test"));
+        assert!(provenance_marks_learned(&fit.scores.nuisance_provenance));
+        assert!(fit.scores.nuisance_provenance.contains(";fold_seed=5;ctx_seed="));
+    }
+
+    /// A failing outcome learner for one cell refuses that cell alone; a failing conditional
+    /// refuses the cells that need it; the survivors keep their estimates and nothing falls
+    /// back to the ridge route.
+    #[test]
+    fn a_failing_learner_refuses_only_the_cells_that_need_it() {
+        let fixture = fixture(1_500, 22);
+        let cell = fixture.cell.clone();
+        let outcome_fail: FailRule = Arc::new(move |rows| rows.iter().all(|&i| cell[i] == 3));
+        let (learned, _, _) = stubbed(outcome_fail, never());
+        let fit = run_stubbed(&fixture, &learned).unwrap();
+        for (index, report) in fit.cells.iter().enumerate() {
+            match (&report.status, index) {
+                (CellStatus::Unsupported(refusal), 3) => {
+                    assert_eq!(refusal.detail, "joint_cells.outcome_model_unsupported");
+                    assert!(refusal.message.contains("outcome learner failed"), "{refusal:?}");
+                }
+                (CellStatus::Supported(_), 0..=2) => {}
+                (status, _) => panic!("cell {index}: unexpected {status:?}"),
+            }
+        }
+        assert_eq!(fit.scores.n_columns(), 3);
+
+        // Under the ordering [0, 1] the factor P(t1 | t0 = 1) is fit on rows whose t0 is one
+        // only; failing it refuses the cells with t0 = 1 (codes 1 and 3).
+        let t0 = fixture.t0.clone();
+        let propensity_fail: FailRule = Arc::new(move |rows| rows.iter().all(|&i| t0[i] > 0.5));
+        let (learned, _, _) = stubbed(never(), propensity_fail);
+        let fit = run_stubbed(&fixture, &learned).unwrap();
+        for (index, report) in fit.cells.iter().enumerate() {
+            match (&report.status, index) {
+                (CellStatus::Unsupported(refusal), 1 | 3) => {
+                    assert_eq!(refusal.detail, "joint_cells.conditional_unsupported");
+                    assert!(refusal.message.contains("the learner failed"), "{refusal:?}");
+                }
+                (CellStatus::Supported(_), 0 | 2) => {}
+                (status, _) => panic!("cell {index}: unexpected {status:?}"),
+            }
+        }
+        assert!(!fit.scores.nuisance_provenance.contains(";propensity=ridge_logistic"));
+
+        // A learner that fails everywhere leaves no supported cell.
+        let everywhere: FailRule = Arc::new(|_| true);
+        let (learned, _, _) = stubbed(Arc::clone(&everywhere), everywhere);
+        let EstimationError::Refused { message, .. } = run_stubbed(&fixture, &learned).unwrap_err()
+        else {
+            panic!("expected a refusal")
+        };
+        assert!(message.contains("joint_cells.no_supported_cell"), "{message}");
     }
 }

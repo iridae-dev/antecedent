@@ -303,8 +303,8 @@ impl PropensityNuisance {
     }
 }
 
-/// Whether a score table's provenance marks a ridge-penalized propensity or whole-cluster
-/// (cluster-DML) cross-fitting.
+/// Whether a score table's provenance marks a ridge-penalized propensity, whole-cluster
+/// (cluster-DML) cross-fitting or learner-supplied joint-cell nuisances.
 ///
 /// Such a table is a point-and-score artifact: it can be retargeted and its scores
 /// summarized, but no interval or joint covariance is published from it.
@@ -312,6 +312,7 @@ impl PropensityNuisance {
 pub fn provenance_withholds_interval(provenance: &str) -> bool {
     provenance.contains(PENALIZED_PROVENANCE_TAG)
         || crate::cluster_dml_aipw::provenance_marks_cluster_units(provenance)
+        || crate::joint_cell_factorized::provenance_marks_learned(provenance)
 }
 
 /// Penalty chosen on one cross-fit fold's training rows.

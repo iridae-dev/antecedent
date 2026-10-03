@@ -23,11 +23,19 @@ estimates under every permutation of the ordering with a flag where they disagre
 that cannot be evaluated is refused alone (``status == "unsupported"`` with its reason code)
 and the rest of the family is kept. The claim is ``point_only``.
 
+``nuisance="random_forest"`` or ``"gradient_boosted_trees"`` replaces the ridge-logistic
+conditionals and the per-cell OLS outcome models with that learner, cross-fitted over the same
+folds (a model never predicts a row it was fit on), with the learner identity, implementation
+and seeds recorded on ``result.provenance``. A failed learner fit refuses the cells that need
+it; nothing falls back to ridge. The learner must be available in the build. The result is
+still ``point_only``.
+
 Refused, with a registered reason code:
 
 * an interval (``level=...``): ``penalized_interval_not_licensed``;
-* a machine-learning nuisance (``nuisance="random_forest"`` and similar):
-  ``ml_nuisance_not_licensed``; ``"lasso"``: ``selection_inference_not_licensed``;
+* an interval over a learner-supplied family (``nuisance="random_forest"`` with ``level=...``)
+  and a machine-learning name that is not a declared learner (``"ml"``, ``"neural_network"``,
+  ...): ``ml_nuisance_not_licensed``; ``"lasso"``: ``selection_inference_not_licensed``;
 * an inconsistent declaration, leakage, illegal values: ``derived_treatment_invalid``;
 * a rank-deficient adjustment design: ``design_rank_deficient``.
 """
@@ -389,8 +397,17 @@ def factorized_joint_cells(
     permutation. ``contrasts`` may hold ``"interaction"`` (two components, every cell
     supported) and ``"cell_minus_control:<cell>"``; a contrast that needs an unsupported cell
     comes back with its refusal code rather than a value. ``level`` requests an interval and
-    is refused. At most three binary components are supported.
+    is refused. ``nuisance`` is ``"ridge_logistic"`` (default), ``"random_forest"`` or
+    ``"gradient_boosted_trees"``; ``penalties`` and ``inner_folds`` tune the ridge route only, so
+    passing ``penalties`` with a learner is an error. At most three binary components are
+    supported.
     """
+    if not isinstance(nuisance, str):
+        raise CausalValueError("nuisance must be a provider name string")
+    if penalties is not None and nuisance != "ridge_logistic":
+        raise CausalValueError(
+            "penalties tune the ridge_logistic nuisance only; a declared learner takes none"
+        )
     names, columns = ingest_columns(data)
     raw = _native.factorized_joint_cells_json(
         names,

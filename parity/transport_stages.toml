@@ -3499,7 +3499,7 @@ status = "closed"
 reason_code = "invalid_argument"
 notes = "A result that is not a single-treatment tiered average-effect result is refused."
 
-# 2.2 E5 factorized joint cells and derived treatments (parity/promotion_2_2.toml, 2.2E.E5.factorized_joint_cells). Point-only; intervals, covariance and machine-learning nuisances closed.
+# 2.2 E5 factorized joint cells and derived treatments (parity/promotion_2_2.toml, 2.2E.E5.factorized_joint_cells). Point-only; intervals and covariance closed; a declared learner nuisance runs point-only.
 
 [[routes]]
 route = "antecedent_estimate.fit_factorized_joint_cells"
@@ -3510,16 +3510,29 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "crates/antecedent-estimate/tests/joint_cell_factorized.rs"
 evidence_assertion = "factorized_propensities_and_means_match_the_enumerated_law"
 
 [[routes]]
 route = "antecedent_estimate.declared_joint_nuisance"
 stage = "evaluate"
+status = "licensed"
+graph = "caller_certified_adjustment_set_no_graph_of_its_own"
+evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_derived_treatment_declaration"
+functional = "joint_cell_mean_outcome_do_cell"
+guarantee = "cross_fitted_point_only_per_cell_refusal"
+reference = "docs/guides/joint-cells.md"
+limits = "Point only. Declares ridge_logistic (default), random_forest or gradient_boosted_trees; a declared learner supplies every conditional and outcome model out of fold under the cell-stratified unit fold plan, its identity, implementations and seeds are recorded on the score table, a failed fit refuses the cells that need it and never falls back to ridge; lasso and undeclared machine-learning names are refused; no interval or covariance (learner-supplied nuisance remainder is not licensed)."
+evidence_test = "crates/antecedent-estimate/tests/joint_cell_factorized.rs"
+evidence_assertion = "a_declared_learner_recovers_the_known_effect_point_only"
+
+[[routes]]
+route = "antecedent_estimate.refuse_joint_learner_inference"
+stage = "uncertainty"
 status = "closed"
 reason_code = "ml_nuisance_not_licensed"
-notes = "A machine-learning joint-cell nuisance has no cross-fitting and inference contract; lasso and unknown providers are refused too."
+notes = "No interval or covariance over learner-supplied joint-cell nuisances: no nuisance-remainder or coverage license exists."
 
 [[routes]]
 route = "antecedent_estimate.refuse_joint_inference"
@@ -3537,7 +3550,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "crates/antecedent/tests/derived_treatment.rs"
 evidence_assertion = "a_valid_declaration_reports_its_construction"
 
@@ -3550,7 +3563,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "crates/antecedent/tests/derived_treatment.rs"
 evidence_assertion = "a_declared_joint_cell_is_estimated_on_a_known_law"
 
@@ -3563,7 +3576,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "python/tests/test_derived_treatment.py"
 evidence_assertion = "test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_named"
 
@@ -3576,7 +3589,7 @@ evidence = "binary_treatment_components_outcome_and_adjustment_rows_with_a_deriv
 functional = "joint_cell_mean_outcome_do_cell"
 guarantee = "cross_fitted_point_only_per_cell_refusal"
 reference = "docs/guides/joint-cells.md"
-limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set; a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized propensity); machine-learning nuisance and lasso are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
+limits = "Point only. At most three binary 0/1 components (eight cells) and six orderings; a conditional is a ridge-logistic model inside each observed prefix stratum and the outcome model per cell is OLS on the adjustment set, or, with a declared random_forest or gradient_boosted_trees learner, that learner cross-fitted over the same folds for every conditional and outcome model (out-of-fold only, a failed fit refuses the cells that need it, never a ridge fallback); a cell that is empty, has an unsupported factor or outcome model, or has in-cell weight ESS below the declared minimum is refused alone and the others are kept; no interval or covariance (penalized or learner-supplied propensity); lasso and undeclared machine-learning names are closed; the derived-treatment check refuses leakage, duplicates, tracking, illegal values and rank deficiency and never drops a column."
 evidence_test = "python/tests/test_derived_treatment.py"
 evidence_assertion = "test_a_declared_joint_cell_recovers_the_known_law_and_the_interaction"
 
@@ -3588,11 +3601,11 @@ reason_code = "penalized_interval_not_licensed"
 notes = "An interval request is refused at the Python surface."
 
 [[routes]]
-route = "antecedent.derived.ml_nuisance"
-stage = "evaluate"
+route = "antecedent.derived.ml_interval"
+stage = "uncertainty"
 status = "closed"
 reason_code = "ml_nuisance_not_licensed"
-notes = "A machine-learning nuisance is refused at the Python surface."
+notes = "An interval over a learner-supplied joint-cell family is refused at the Python surface; so is a machine-learning name that is not a declared learner."
 
 # ---- 2.2E.E3.batch_retarget_covariance_contrasts -------------------------------------------
 # Points, joint plug-in score covariance and named contrasts of retargeted claims over one

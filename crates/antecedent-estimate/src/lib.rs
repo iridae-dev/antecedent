@@ -231,7 +231,7 @@ pub use joint_cell_factorized::{
     CellEstimate, CellOrderingSpread, CellRefusal, CellStatus, FactorizedJointConfig,
     FactorizedJointFit, JointCellReport, JointContrast, MAX_FACTORIZED_COMPONENTS, MAX_ORDERINGS,
     NormalizationCheck, OrderingSensitivity, declared_joint_nuisance, fit_factorized_joint_cells,
-    orderings_for, refuse_joint_inference,
+    orderings_for, refuse_joint_inference, refuse_joint_learner_inference,
 };
 pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,

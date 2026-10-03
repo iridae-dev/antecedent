@@ -350,7 +350,7 @@ meaning = "A derived-treatment declaration is inconsistent, a constituent column
 [[code]]
 id = "ml_nuisance_not_licensed"
 applies_to = ["runtime_refusal"]
-meaning = "A flexible machine-learning nuisance provider was declared for a joint-cell route that has no cross-fitting and inference contract for it; the declaration is refused rather than silently replaced by the ridge-logistic factors."
+meaning = "A machine-learning nuisance was declared for joint cells in a way no record licenses: an interval or joint covariance over learner-supplied nuisances (which need their own remainder and coverage license), or a machine-learning name that is not a declared joint-cell learner; refused rather than silently replaced by the ridge-logistic factors."
 
 # 2.2 E4 clustered DML (promotion record: 2.2E.E4.clustered_dml_aipw).
 [[code]]
