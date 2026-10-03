@@ -25,17 +25,24 @@ pub struct LikelihoodTerms {
 ///
 /// # Errors
 ///
-/// Non-finite Poisson rate.
+/// Non-finite Poisson rate or weighted likelihood derivatives.
 pub fn poisson_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, ProbError> {
     let mu = eta.exp();
     if !mu.is_finite() {
         return Err(ProbError::Numerical { message: "Poisson rate overflow".into() });
     }
-    Ok(LikelihoodTerms {
+    let terms = LikelihoodTerms {
         log_value: weight * (y * eta - mu),
         score_eta: weight * (y - mu),
         neg_hessian_eta: weight * mu,
-    })
+    };
+    if !terms.log_value.is_finite()
+        || !terms.score_eta.is_finite()
+        || !terms.neg_hessian_eta.is_finite()
+    {
+        return Err(ProbError::Numerical { message: "non-finite Poisson likelihood terms".into() });
+    }
+    Ok(terms)
 }
 
 /// Bernoulli logit terms.
@@ -557,6 +564,7 @@ mod tests {
     fn poisson_near_overflow_consistent_and_overflow_errors() {
         let eta_ok = 800.0_f64; // beyond ~709 where exp overflows
         assert!(poisson_terms(1.0, eta_ok, 1.0).is_err());
+        assert!(poisson_terms(1e308, 10.0, 1.0).is_err());
         let eta_safe = 20.0;
         let t = poisson_terms(2.0, eta_safe, 1.5).unwrap();
         let mu = eta_safe.exp();
