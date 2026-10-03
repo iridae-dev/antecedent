@@ -313,6 +313,7 @@ suite.mz_transport_calibration crates/antecedent-estimate/tests/common/mz_fixtur
 suite.mz_transport_calibration crates/antecedent-estimate/tests/common/z_scm.rs
 suite.mz_transport_calibration crates/antecedent-estimate/tests/common/mod.rs
 suite.joint_sensitivity_calibration crates/antecedent/tests/joint_sensitivity_calibration.rs
+suite.batch_retarget_calibration crates/antecedent/tests/batch_retarget_calibration.rs
 suite.learned_continuous_calibration crates/antecedent/tests/learned_continuous_calibration.rs
 # The known-truth data-generating processes its designs draw from.
 suite.learned_continuous_calibration crates/antecedent/tests/learned_continuous_dgp/mod.rs

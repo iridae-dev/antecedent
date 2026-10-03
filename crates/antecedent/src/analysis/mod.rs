@@ -152,6 +152,13 @@ pub use batch_retarget::{
     BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport, FamilyCovariance,
     FamilyRefusal, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource, UncertaintyKind,
 };
+// Unpublished max-t evaluator of the closed family-level simultaneous interval; reached
+// by the calibration wiring only.
+#[doc(hidden)]
+pub use batch_retarget::{
+    BandMember, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, SimultaneousBand, max_t_critical_value,
+    simultaneous_band_unpublished,
+};
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub use contract::CausalContract;

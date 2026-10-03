@@ -293,6 +293,31 @@ pub fn max_t_critical(
     replicates: u32,
     seed: u64,
 ) -> Result<f64, EstimationError> {
+    let mut rng = CausalRng::from_seed(seed);
+    max_t_critical_polled(cov, level, replicates, &mut rng, &|| false)?.ok_or_else(|| {
+        EstimationError::unsupported("max-t draw loop stopped without a stop signal")
+    })
+}
+
+/// Draws between two polls of the stop signal in [`max_t_critical_polled`].
+const MAX_T_POLL_EVERY: u32 = 1024;
+
+/// [`max_t_critical`] on a caller-owned stream, polling `cancelled` every
+/// [`MAX_T_POLL_EVERY`] draws.
+///
+/// Returns `Ok(None)` when the stop signal fired before every draw was made: a stop is a
+/// receipt, never a critical value.
+///
+/// # Errors
+///
+/// Degenerate covariance or non-finite level.
+pub fn max_t_critical_polled(
+    cov: &JointCovariance,
+    level: f64,
+    replicates: u32,
+    rng: &mut CausalRng,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Option<f64>, EstimationError> {
     if !level.is_finite() || level <= 0.0 || level >= 1.0 || replicates == 0 {
         return Err(EstimationError::unsupported(
             "max-t bands require level in (0, 1) and a positive replicate count",
@@ -326,12 +351,14 @@ pub fn max_t_critical(
         }
     }
     let chol = cholesky_corr(&corr, k)?;
-    let mut rng = CausalRng::from_seed(seed);
     let mut maxima = Vec::with_capacity(replicates as usize);
     let mut z = vec![0.0; k];
-    for _ in 0..replicates {
+    for draw in 0..replicates {
+        if draw % MAX_T_POLL_EVERY == 0 && cancelled() {
+            return Ok(None);
+        }
         for zi in &mut z {
-            *zi = antecedent_kernels::standard_normal(&mut rng);
+            *zi = antecedent_kernels::standard_normal(rng);
         }
         let mut max_abs: f64 = 0.0;
         for i in 0..k {
@@ -344,7 +371,7 @@ pub fn max_t_critical(
         maxima.push(max_abs);
     }
     maxima.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    Ok(crate::util::monte_carlo_critical(&maxima, level))
+    Ok(Some(crate::util::monte_carlo_critical(&maxima, level)))
 }
 
 /// Equal-weight least-squares projection onto decreasing sequences using PAVA.

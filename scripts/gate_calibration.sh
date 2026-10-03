@@ -65,6 +65,8 @@ grid_group() {
     smoothed_dose_calibration:*_psi_h) return 0 ;;
     # 2.2B X3 joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
     joint_sensitivity_calibration:*) return 0 ;;
+    # 2.2E E3 batch retarget: the unpublished family-level max-t band (wired, unmeasured).
+    batch_retarget_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -803,6 +805,19 @@ run_js() {
 }
 run_js z_joint_sensitivity_zero_box
 run_js z_joint_sensitivity_positive_box
+
+echo "== 2.2E batch retarget unpublished max-t simultaneous band (antecedent) =="
+# Record 2.2E.E3.batch_retarget_covariance_contrasts. The family-level simultaneous interval
+# route is closed (cell_not_licensed); the band is scored through the unpublished evaluator
+# and measured once at the 2.2 cut. Nothing is measured before it.
+run_br() {
+  local filter="$1"
+  echo "== antecedent: batch_retarget_calibration ${filter} =="
+  check "batch_retarget_calibration: ${filter}" \
+    cargo test --release -p antecedent --test batch_retarget_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_br batch_retarget_max_t_simultaneous_band
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

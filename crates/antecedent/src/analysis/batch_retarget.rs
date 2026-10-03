@@ -36,8 +36,10 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, VariableId, reason_code};
-use antecedent_estimate::{JointCovariance, ScoreTable, provenance_withholds_interval};
+use antecedent_core::{CausalRng, ExecutionContext, VariableId, reason_code};
+use antecedent_estimate::{
+    JointCovariance, ScoreTable, max_t_critical_polled, provenance_withholds_interval,
+};
 use antecedent_io::PayloadDigestWire;
 
 use crate::error::CausalError;
@@ -81,6 +83,16 @@ fn mixed_snapshot(message: impl Into<String>) -> BatchRetargetError {
         code: reason_code!("row_weights_bound_to_snapshot"),
         detail: "batch_retarget.mixed_snapshot",
         message: message.into(),
+    }
+}
+
+fn cancelled() -> BatchRetargetError {
+    BatchRetargetError {
+        code: reason_code!("cancelled_no_claim"),
+        detail: "batch_retarget.cancelled",
+        message: "the batch retarget was cancelled; no family is reported and the stop is not a \
+                  verdict on the data"
+            .into(),
     }
 }
 
@@ -799,13 +811,7 @@ pub(crate) fn retarget_family(
         Vec::with_capacity(request.claims.len());
     for claim in &request.claims {
         if ctx.cancellation.is_cancelled() {
-            return Err(BatchRetargetError {
-                code: reason_code!("cancelled_no_claim"),
-                detail: "batch_retarget.cancelled",
-                message: "the batch retarget was cancelled; no family is reported and the stop \
-                          is not a verdict on the data"
-                    .into(),
-            });
+            return Err(cancelled());
         }
         evaluated.push(evaluate_claim(
             &plans[claim.query_index],
@@ -885,6 +891,198 @@ pub(crate) fn retarget_family(
         },
         scope_note: BATCH_RETARGET_SCOPE_NOTE,
     })
+}
+
+/// Fewest Monte-Carlo draws the unpublished max-t evaluator accepts.
+pub const MAX_T_MIN_DRAWS: u32 = 1_000;
+
+/// Most Monte-Carlo draws the unpublished max-t evaluator accepts (the draws' maxima are
+/// held in memory to take their empirical quantile).
+pub const MAX_T_MAX_DRAWS: u32 = 2_000_000;
+
+/// Slack on a correlation matrix's unit diagonal and unit bound.
+const CORRELATION_SLACK: f64 = 1e-9;
+
+/// The correlation matrix of a family covariance, column-major with an exactly symmetric
+/// off-diagonal.
+fn correlation_of(family: &FamilyCovariance) -> Result<JointCovariance, BatchRetargetError> {
+    let matrix = &family.matrix;
+    let dim = matrix.dim;
+    let se: Vec<f64> = (0..dim).map(|i| matrix.se(i)).collect();
+    if dim == 0 || se.iter().any(|s| !(s.is_finite() && *s > 0.0)) {
+        return Err(not_supported(
+            "batch_retarget.covariance_unavailable",
+            "a max-t band needs every claim's plug-in standard error positive and finite",
+        ));
+    }
+    let mut values = vec![1.0; dim * dim];
+    for j in 0..dim {
+        for i in (j + 1)..dim {
+            let r = (matrix.get(i, j) / (se[i] * se[j])).clamp(-1.0, 1.0);
+            values[j * dim + i] = r;
+            values[i * dim + j] = r;
+        }
+    }
+    Ok(JointCovariance { dim, values: Arc::from(values) })
+}
+
+/// Monte-Carlo max-t critical value `c = q_level(max_j |Z_j|)`, `Z ~ N(0, R)`, for a
+/// correlation matrix `R`.
+///
+/// UNPUBLISHED. This is the evaluator of the family-level simultaneous interval, reached
+/// only through [`simultaneous_band_unpublished`] for the calibration wiring: the
+/// published interval stays closed (`batch_retarget.simultaneous_interval_closed`) until a
+/// coverage record measures it. It reuses the library's one max-t sampler
+/// ([`max_t_critical_polled`]) on a stream seeded from `seed`, so the value is a
+/// deterministic function of `(R, level, seed, draws)`; the Monte-Carlo error of the
+/// empirical quantile is not part of any interval claim.
+///
+/// # Errors
+///
+/// `invalid_argument` (`batch_retarget.max_t_invalid_level`) for a level outside (0, 1);
+/// `invalid_argument` (`batch_retarget.max_t_draws_out_of_range`) for fewer than
+/// [`MAX_T_MIN_DRAWS`] or more than [`MAX_T_MAX_DRAWS`] draws, or too few for the level's
+/// empirical quantile to exist; `route_not_supported`
+/// (`batch_retarget.covariance_unavailable`) when `correlation` is not a symmetric positive
+/// semidefinite matrix with a unit diagonal; `cancelled_no_claim`
+/// (`batch_retarget.cancelled`) when the context is cancelled before every draw is made.
+#[doc(hidden)]
+pub fn max_t_critical_value(
+    correlation: &JointCovariance,
+    level: f64,
+    seed: u64,
+    draws: u32,
+    ctx: &ExecutionContext,
+) -> Result<f64, BatchRetargetError> {
+    if !(level.is_finite() && level > 0.0 && level < 1.0) {
+        return Err(invalid(
+            "batch_retarget.max_t_invalid_level",
+            format!("the max-t level must lie strictly between 0 and 1, got {level}"),
+        ));
+    }
+    if !(MAX_T_MIN_DRAWS..=MAX_T_MAX_DRAWS).contains(&draws) {
+        return Err(invalid(
+            "batch_retarget.max_t_draws_out_of_range",
+            format!(
+                "the max-t evaluator takes between {MAX_T_MIN_DRAWS} and {MAX_T_MAX_DRAWS} \
+                 draws, got {draws}"
+            ),
+        ));
+    }
+    let dim = correlation.dim;
+    let well_formed = dim > 0
+        && correlation.values.len() == dim * dim
+        && (0..dim).all(|i| {
+            (correlation.get(i, i) - 1.0).abs() <= CORRELATION_SLACK
+                && (0..dim).all(|j| correlation.get(i, j).abs() <= 1.0 + CORRELATION_SLACK)
+        });
+    if !well_formed {
+        return Err(not_supported(
+            "batch_retarget.covariance_unavailable",
+            "the max-t evaluator needs a finite correlation matrix with a unit diagonal and \
+             entries in [-1, 1]",
+        ));
+    }
+    let mut rng = CausalRng::from_seed(seed);
+    let critical = max_t_critical_polled(correlation, level, draws, &mut rng, &|| {
+        ctx.cancellation.is_cancelled()
+    })
+    .map_err(|e| not_supported("batch_retarget.covariance_unavailable", e.to_string()))?
+    .ok_or_else(cancelled)?;
+    if !critical.is_finite() {
+        return Err(invalid(
+            "batch_retarget.max_t_draws_out_of_range",
+            format!("{draws} draws are too few for an empirical {level} quantile"),
+        ));
+    }
+    Ok(critical)
+}
+
+/// One claim of a [`SimultaneousBand`]: `point ± c · se`.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct BandMember {
+    /// Claim name.
+    pub name: String,
+    /// The retargeted point.
+    pub value: f64,
+    /// Plug-in standard error `sqrt(Σ_jj)`.
+    pub std_error: f64,
+    /// `value − c · std_error`.
+    pub lower: f64,
+    /// `value + c · std_error`.
+    pub upper: f64,
+}
+
+/// A simultaneous max-t band over a complete claim family. It is NOT a published interval:
+/// no coverage record measures it, and the report's own `simultaneous_interval` stays closed.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SimultaneousBand {
+    /// The nominal level the critical value was taken at.
+    pub level: f64,
+    /// Seed of the Monte-Carlo stream.
+    pub seed: u64,
+    /// Number of Monte-Carlo draws.
+    pub draws: u32,
+    /// The max-t critical value `c`.
+    pub critical_value: f64,
+    /// One entry per claim, in the covariance's claim order.
+    pub members: Vec<BandMember>,
+}
+
+/// The max-t band `point_j ± c · se_j` of a complete family from its plug-in score
+/// covariance.
+///
+/// UNPUBLISHED, like [`max_t_critical_value`]: this is the entry the calibration wiring
+/// scores for coverage. The published route
+/// ([`BatchRetargetReport::simultaneous_interval`]) refuses `cell_not_licensed` whatever this
+/// returns.
+///
+/// # Errors
+///
+/// The refusals of [`BatchRetargetReport::complete_family`] (`batch_retarget.partial_family`,
+/// `batch_retarget.point_only_member`, `batch_retarget.covariance_unavailable`) and of
+/// [`max_t_critical_value`].
+#[doc(hidden)]
+pub fn simultaneous_band_unpublished(
+    report: &BatchRetargetReport,
+    level: f64,
+    seed: u64,
+    draws: u32,
+    ctx: &ExecutionContext,
+) -> Result<SimultaneousBand, BatchRetargetError> {
+    let family = report.complete_family()?;
+    let critical_value = max_t_critical_value(&correlation_of(family)?, level, seed, draws, ctx)?;
+    let members = family
+        .names
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            let value = report
+                .claims
+                .iter()
+                .find(|c| c.name == *name)
+                .and_then(|c| c.outcome.as_ref().ok())
+                .map(|p| p.value)
+                .ok_or_else(|| {
+                    not_supported(
+                        "batch_retarget.covariance_unavailable",
+                        format!("covariance claim {name} has no reported point"),
+                    )
+                })?;
+            let std_error = family.matrix.se(i);
+            let half = critical_value * std_error;
+            Ok(BandMember {
+                name: name.clone(),
+                value,
+                std_error,
+                lower: value - half,
+                upper: value + half,
+            })
+        })
+        .collect::<Result<Vec<_>, BatchRetargetError>>()?;
+    Ok(SimultaneousBand { level, seed, draws, critical_value, members })
 }
 
 #[cfg(test)]
@@ -1102,5 +1300,239 @@ mod tests {
         assert_eq!(rows[1].status, "point_only");
         assert!(rows[1].std_error.is_none());
         assert_eq!(rows[1].uncertainty_kind, "none");
+    }
+
+    // ---- unpublished max-t evaluator ------------------------------------------------
+
+    /// Draws for the Monte-Carlo oracles: the empirical-quantile error is about 0.005 at
+    /// these levels, an order below the 0.04 tolerance.
+    const DRAWS: u32 = 200_000;
+    const TOL: f64 = 0.04;
+
+    /// Standard normal CDF by the Maclaurin series of erf (independent of the library).
+    fn phi(x: f64) -> f64 {
+        let t = x / std::f64::consts::SQRT_2;
+        let (mut term, mut sum) = (t, t);
+        for n in 1..120 {
+            let n = f64::from(n);
+            term *= -t * t / n;
+            sum += term / (2.0 * n + 1.0);
+        }
+        0.5 * (1.0 + 2.0 / std::f64::consts::PI.sqrt() * sum)
+    }
+
+    /// Standard normal quantile by bisection on [`phi`].
+    fn inverse_phi(p: f64) -> f64 {
+        let (mut lo, mut hi) = (0.0_f64, 6.0_f64);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if phi(mid) < p {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        0.5 * (lo + hi)
+    }
+
+    fn equicorrelation(k: usize, r: f64) -> JointCovariance {
+        let mut values = vec![r; k * k];
+        for i in 0..k {
+            values[i * k + i] = 1.0;
+        }
+        JointCovariance { dim: k, values: Arc::from(values) }
+    }
+
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::for_tests(7)
+    }
+
+    fn critical(corr: &JointCovariance, level: f64, seed: u64) -> f64 {
+        max_t_critical_value(corr, level, seed, DRAWS, &ctx()).unwrap()
+    }
+
+    #[test]
+    fn the_normal_oracle_is_the_known_quantile() {
+        assert!((inverse_phi(0.975) - 1.959_963_984_540_054).abs() < 1e-6);
+        assert!((inverse_phi(0.995) - 2.575_829_303_548_901).abs() < 1e-6);
+    }
+
+    #[test]
+    fn one_claim_is_the_two_sided_normal_quantile() {
+        let one = equicorrelation(1, 1.0);
+        for level in [0.80, 0.90, 0.95, 0.99] {
+            let c = critical(&one, level, 11);
+            let z = inverse_phi(1.0 - (1.0 - level) / 2.0);
+            assert!((c - z).abs() < TOL, "level {level}: {c} vs {z}");
+        }
+    }
+
+    /// Independent claims: `P(max |Z_j| <= c) = (2 Φ(c) − 1)^k = level`.
+    #[test]
+    fn independent_claims_solve_the_product_equation() {
+        for k in 1..=5_usize {
+            for level in [0.90, 0.95] {
+                let c = critical(&equicorrelation(k, 0.0), level, 21);
+                let exponent = i32::try_from(k).unwrap();
+                let covered = (2.0 * phi(c) - 1.0).powi(exponent);
+                let oracle = inverse_phi((1.0 + level.powf(1.0 / f64::from(exponent))) / 2.0);
+                assert!((c - oracle).abs() < TOL, "k {k} level {level}: {c} vs {oracle}");
+                assert!((covered - level).abs() < 0.01, "k {k} level {level}: covered {covered}");
+            }
+        }
+    }
+
+    #[test]
+    fn perfectly_correlated_claims_reduce_to_one_claim() {
+        let single = inverse_phi(0.975);
+        for k in [2, 3, 6] {
+            let c = critical(&equicorrelation(k, 1.0), 0.95, 31);
+            assert!((c - single).abs() < TOL, "k {k}: {c} vs {single}");
+        }
+    }
+
+    #[test]
+    fn the_critical_value_is_monotone_in_the_family_size_and_the_level() {
+        let by_k: Vec<f64> =
+            (1..=6).map(|k| critical(&equicorrelation(k, 0.0), 0.95, 41)).collect();
+        assert!(by_k.windows(2).all(|w| w[0] < w[1]), "{by_k:?}");
+        let by_level: Vec<f64> = [0.80, 0.90, 0.95, 0.99]
+            .iter()
+            .map(|&level| critical(&equicorrelation(2, 0.3), level, 43))
+            .collect();
+        assert!(by_level.windows(2).all(|w| w[0] < w[1]), "{by_level:?}");
+        // Positive correlation can only shrink the family-wise critical value.
+        assert!(
+            critical(&equicorrelation(4, 0.8), 0.95, 47)
+                < critical(&equicorrelation(4, 0.0), 0.95, 47)
+        );
+    }
+
+    #[test]
+    fn the_critical_value_is_deterministic_in_the_seed() {
+        let corr = equicorrelation(3, 0.25);
+        let a = critical(&corr, 0.95, 5);
+        assert_eq!(a.to_bits(), critical(&corr, 0.95, 5).to_bits());
+        assert_ne!(a.to_bits(), critical(&corr, 0.95, 6).to_bits());
+        // The context's master seed is not an input: only the declared seed is.
+        let other = max_t_critical_value(&corr, 0.95, 5, DRAWS, &ExecutionContext::for_tests(99));
+        assert_eq!(a.to_bits(), other.unwrap().to_bits());
+    }
+
+    #[test]
+    fn the_evaluator_refuses_bad_levels_draws_and_matrices() {
+        let corr = equicorrelation(2, 0.0);
+        let detail = |level: f64, draws: u32, m: &JointCovariance| {
+            max_t_critical_value(m, level, 1, draws, &ctx()).unwrap_err().detail
+        };
+        for level in [0.0, 1.0, -0.5, 1.5, f64::NAN] {
+            assert_eq!(detail(level, 5_000, &corr), "batch_retarget.max_t_invalid_level");
+        }
+        assert_eq!(
+            detail(0.95, MAX_T_MIN_DRAWS - 1, &corr),
+            "batch_retarget.max_t_draws_out_of_range"
+        );
+        assert_eq!(
+            detail(0.95, MAX_T_MAX_DRAWS + 1, &corr),
+            "batch_retarget.max_t_draws_out_of_range"
+        );
+        // 1000 draws cannot hold a 0.9999 empirical quantile.
+        assert_eq!(
+            detail(0.9999, MAX_T_MIN_DRAWS, &corr),
+            "batch_retarget.max_t_draws_out_of_range"
+        );
+        let not_unit = JointCovariance { dim: 1, values: Arc::from(vec![2.0]) };
+        let not_psd = JointCovariance { dim: 2, values: Arc::from(vec![1.0, 2.0, 2.0, 1.0]) };
+        let empty = JointCovariance { dim: 0, values: Arc::from(Vec::<f64>::new()) };
+        for bad in [&not_unit, &not_psd, &empty] {
+            assert_eq!(detail(0.95, 5_000, bad), "batch_retarget.covariance_unavailable");
+        }
+    }
+
+    #[test]
+    fn a_cancelled_context_stops_the_draws_without_a_value() {
+        let corr = equicorrelation(2, 0.0);
+        let before = ExecutionContext::for_tests(3);
+        before.cancellation.cancel();
+        let stopped = max_t_critical_value(&corr, 0.95, 1, DRAWS, &before).unwrap_err();
+        assert_eq!(
+            (stopped.code, stopped.detail),
+            ("cancelled_no_claim", "batch_retarget.cancelled")
+        );
+        // Cancelled in the middle: the first poll passes, the second (draw 1024) trips.
+        let mut mid = ExecutionContext::for_tests(3);
+        mid.cancellation = antecedent_core::CancellationToken::cancel_after_checks(1);
+        let stopped = max_t_critical_value(&corr, 0.95, 1, DRAWS, &mid).unwrap_err();
+        assert_eq!(stopped.detail, "batch_retarget.cancelled");
+        // The same call then completes on a live context.
+        assert!(max_t_critical_value(&corr, 0.95, 1, DRAWS, &ctx()).is_ok());
+    }
+
+    fn two_claim_report() -> BatchRetargetReport {
+        // Σ = [[4, 1.2], [1.2, 9]]: se = (2, 3) and correlation 1.2 / (2 · 3) = 0.2.
+        let mut report = report(vec![
+            claim_report("a", Ok(point(1.5, Some(2.0)))),
+            claim_report("b", Ok(point(-2.0, Some(3.0)))),
+        ]);
+        report.covariance = Some(FamilyCovariance {
+            names: vec!["a".into(), "b".into()],
+            matrix: JointCovariance { dim: 2, values: Arc::from(vec![4.0, 1.2, 1.2, 9.0]) },
+        });
+        report
+    }
+
+    #[test]
+    fn the_correlation_of_a_family_is_a_hand_calculation() {
+        let report = two_claim_report();
+        let corr = correlation_of(report.covariance.as_ref().unwrap()).unwrap();
+        near(corr.get(0, 0), 1.0);
+        near(corr.get(1, 1), 1.0);
+        near(corr.get(0, 1), 0.2);
+        assert_eq!(corr.get(0, 1).to_bits(), corr.get(1, 0).to_bits());
+    }
+
+    #[test]
+    fn the_band_half_widths_are_the_critical_value_times_each_standard_error() {
+        let report = two_claim_report();
+        let band = simultaneous_band_unpublished(&report, 0.95, 17, DRAWS, &ctx()).unwrap();
+        // The critical value is the evaluator's value on the hand-computed correlation 0.2.
+        let expected = critical(&equicorrelation(2, 0.2), 0.95, 17);
+        assert_eq!(band.critical_value.to_bits(), expected.to_bits());
+        assert_eq!((band.seed, band.draws), (17, DRAWS));
+        assert_eq!(band.level.to_bits(), 0.95_f64.to_bits());
+        assert_eq!(band.members.len(), 2);
+        let (a, b) = (&band.members[0], &band.members[1]);
+        assert_eq!((a.name.as_str(), b.name.as_str()), ("a", "b"));
+        near(a.std_error, 2.0);
+        near(b.std_error, 3.0);
+        near(a.lower, 1.5 - expected * 2.0);
+        near(a.upper, 1.5 + expected * 2.0);
+        near(b.lower, -2.0 - expected * 3.0);
+        near(b.upper, -2.0 + expected * 3.0);
+        // Wider than the pointwise 1.96 and no wider than the independent two-claim 2.24.
+        assert!(band.critical_value > 1.96 && band.critical_value < 2.3);
+        // The published closure is untouched by the unpublished evaluator.
+        assert_eq!(
+            report.simultaneous_interval.detail,
+            "batch_retarget.simultaneous_interval_closed"
+        );
+    }
+
+    #[test]
+    fn the_band_refuses_a_partial_or_point_only_family() {
+        let failed = MemberFailure::from(invalid("batch_retarget.incompatible_target", "x"));
+        let partial = report(vec![
+            claim_report("a", Ok(point(1.0, Some(0.5)))),
+            claim_report("b", Err(failed)),
+        ]);
+        let refused = simultaneous_band_unpublished(&partial, 0.95, 1, DRAWS, &ctx()).unwrap_err();
+        assert_eq!(refused.detail, "batch_retarget.partial_family");
+        let point_only = report(vec![
+            claim_report("a", Ok(point(1.0, Some(0.5)))),
+            claim_report("p", Ok(point(2.0, None))),
+        ]);
+        let refused =
+            simultaneous_band_unpublished(&point_only, 0.95, 1, DRAWS, &ctx()).unwrap_err();
+        assert_eq!(refused.detail, "batch_retarget.point_only_member");
     }
 }

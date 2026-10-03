@@ -85,6 +85,32 @@ A family-level simultaneous (max-t) interval would be a nominal asymptotic const
 (`batch_retarget.simultaneous_interval_closed`). Points, covariance and contrasts are what is
 published.
 
+#### The unpublished evaluator
+
+The evaluator of that interval exists, but only as an unpublished Rust entry that the
+calibration wiring uses (`antecedent::max_t_critical_value` and
+`antecedent::simultaneous_band_unpublished`, both doc-hidden; there is no Python route). For a
+complete family (no failed or point-only member) it forms `point_j +- c * se_j`, where
+`se_j = sqrt(Sigma_jj)` and `c` is the `level` quantile of `max_j |Z_j|` for `Z ~ N(0, R)`, `R`
+the correlation matrix of `Sigma`. `c` is a Monte-Carlo quantile on the library's one max-t
+sampler: a deterministic function of `(R, level, seed, draws)`, with `draws` bounded to 1000
+through 2000000, the stop signal polled every 1024 draws (a cancelled context returns
+`cancelled_no_claim`, never a value), and a matrix that is not a unit-diagonal positive
+semidefinite correlation refused (`batch_retarget.covariance_unavailable`; an invalid level or
+draw count refuses `batch_retarget.max_t_invalid_level` / `batch_retarget.max_t_draws_out_of_range`).
+
+Its critical value is checked against oracles that need no simulation to state: one claim is
+the two-sided normal quantile `z_{1-(1-level)/2}`; `k` independent claims solve
+`(2 Phi(c) - 1)^k = level`; perfectly correlated claims reduce to one claim; `c` is monotone in
+`k` and in the level and shrinks under positive correlation; band half-widths equal `c * se_j`
+for a hand-computed covariance. Those checks verify the arithmetic, not the coverage of the
+band. The band is a nominal asymptotic construction (the Gaussian limit of the studentized
+retargeted points, plug-in `Sigma`, Monte-Carlo error excluded) that **no coverage record
+measures**: `crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint
+"all four claims covered" event, is registered in `scripts/gate_calibration.sh`, and is run
+once at the 2.2 cut; nothing is measured before it. The published route stays closed whatever
+the evaluator returns.
+
 ### Score-table lifetime
 
 `PreparedBatch.estimate(data)` retains the score tables of that estimate on the handle, so a

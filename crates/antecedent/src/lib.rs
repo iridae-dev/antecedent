@@ -107,6 +107,11 @@ pub use analysis::{
     FamilyRefusal, MemberFailure, RetargetClaim, RetargetContrast, ScoreSource, TidyKind, TidyRow,
     UncertaintyKind,
 };
+#[doc(hidden)]
+pub use analysis::{
+    BandMember, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, SimultaneousBand, max_t_critical_value,
+    simultaneous_band_unpublished,
+};
 pub use analysis::{
     BatchQuery, BatchStudy, BlockedOperation, CandidateProcedure, CandidateScreen,
     CandidateSelection, CausalContract, CellFamilyContrast, CheckedAdmgGraphPosteriorResponseInfo,
