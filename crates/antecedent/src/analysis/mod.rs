@@ -30,6 +30,7 @@ mod cost;
 mod derived_treatment;
 mod exact;
 mod execute;
+mod inverse_outcome;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
 mod learned_continuous;
@@ -78,6 +79,12 @@ pub use derived_treatment::{
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
+};
+pub use inverse_outcome::{
+    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
+    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
+    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
+    SupportBasis, TargetDirection, classify_inverse_outcome,
 };
 pub use joint_sensitivity::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,

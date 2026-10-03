@@ -4671,6 +4671,31 @@ def replay_study_plan(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
+def classify_inverse_outcome_stage(
+    query_kind: str,
+    threshold: float,
+    direction: str,
+    forward: tuple[
+        str,
+        str,
+        bool,
+        bool,
+        list[list[float]],
+        list[float],
+        list[str],
+        str,
+        tuple[str, str, float, list[float], list[float]] | None,
+        list[str],
+    ],
+    actions: list[tuple[str, list[float], float, list[tuple[str, bool]]]],
+    *,
+    probability: float | None = None,
+    level: float | None = None,
+    budget: float | None = None,
+    tolerance: float = 1e-9,
+    cancel: CancellationToken | None = None,
+) -> dict[str, Any]: ...
+
 def derived_treatment_check_json(
     names: list[str],
     columns: list[Any],

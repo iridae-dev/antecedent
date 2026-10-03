@@ -3006,6 +3006,68 @@ status = "closed"
 reason_code = "route_not_supported"
 notes = "A conflicting-subscript district or an ID hedge on a district term, with no binary consistency complement answering, refuses route_not_supported with a checkable obstruction (details counterfactual_id.conflicting_subscripts, counterfactual_id.counterfactual_hedge): not identified by ID*, NOT a proof of non-identifiability."
 
+# 2.2 E6 finite-action inverse-outcome query (parity/promotion_2_2.toml, 2.2E.E6.finite_action_inverse_outcome). Point-only enumeration over a licensed forward mean curve.
+
+[[routes]]
+route = "antecedent.classify_inverse_outcome"
+stage = "evaluate"
+status = "licensed"
+graph = "forward_response_route_graph_no_graph_of_its_own"
+evidence = "forward_mean_curve_published_by_a_licensed_response_route_plus_an_enumerated_action_grid"
+functional = "finite_action_target_mean_feasibility"
+guarantee = "exact_enumeration_point_only"
+reference = "docs/guides/inverse-outcome.md"
+limits = "Point only. A scalar-outcome point-identified mean curve (ResponseCurve) evaluated on a grid containing the actions; at most 4096 actions and 65536 forward points; an action off the grid is unevaluated, never interpolated; feasibility is relative to the enumerated set; a robustly_feasible flag reads the forward interval as published and adds no coverage claim; probability, quantile and observational queries refuse cell_not_licensed."
+evidence_test = "crates/antecedent/src/analysis/inverse_outcome.rs"
+evidence_assertion = "forward_inverse_round_trip_matches_the_analytic_inverse"
+
+[[routes]]
+route = "antecedent.inverse.inverse_outcome"
+stage = "evaluate"
+status = "licensed"
+graph = "forward_response_route_graph_no_graph_of_its_own"
+evidence = "causal_response_view_of_a_licensed_response_route_plus_an_enumerated_action_grid"
+functional = "finite_action_target_mean_feasibility"
+guarantee = "exact_enumeration_point_only"
+reference = "docs/guides/inverse-outcome.md"
+limits = "Point only. A scalar-outcome point-identified mean curve (ResponseCurve) evaluated on a grid containing the actions; at most 4096 actions and 65536 forward points; an action off the grid is unevaluated, never interpolated; feasibility is relative to the enumerated set; a robustly_feasible flag reads the forward interval as published and adds no coverage claim; probability, quantile and observational queries refuse cell_not_licensed."
+evidence_test = "python/tests/test_inverse_outcome.py"
+evidence_assertion = "test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_route"
+
+[[routes]]
+route = "antecedent.inverse.InverseOutcomeReport.verify"
+stage = "consume"
+status = "licensed"
+graph = "forward_response_route_graph_no_graph_of_its_own"
+evidence = "inverse_outcome_report_inputs_stored_on_the_report"
+functional = "finite_action_target_mean_feasibility"
+guarantee = "independently_recomputed_from_stored_inputs"
+reference = "docs/guides/inverse-outcome.md"
+limits = "Recomputes the classification and the order-invariant identity from the stored forward response, actions, target, budget and tolerance; detects an edited input."
+evidence_test = "python/tests/test_inverse_outcome.py"
+evidence_assertion = "test_verify_recomputes_the_report_and_detects_an_edited_one"
+
+[[routes]]
+route = "antecedent.inverse.probability_target"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "A mean threshold cannot establish P(Y^do(a) >= y) >= q."
+
+[[routes]]
+route = "antecedent.inverse.quantile_target"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "A target-quantile inverse query is scheduled for 2.3B."
+
+[[routes]]
+route = "antecedent.inverse.observational_scenarios"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Observational scenarios P(X | Y) are not interventions."
+
 # ---- 2.2E.E2.penalized_propensity_aipw ----------------------------------------------------
 
 [[routes]]

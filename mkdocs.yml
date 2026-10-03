@@ -53,6 +53,7 @@ nav:
       - Transport and interference: transport-interference.md
       - Transport failures: guides/transport-failure.md
       - Transport theorem scope: guides/transport-scope.md
+      - Finite-action inverse outcome: guides/inverse-outcome.md
       - Penalized propensity for AIPW: guides/penalized-aipw.md
       - Joint cells and derived treatments: guides/joint-cells.md
       - Clustered DML and entity-owned screens: guides/clustered-dml.md

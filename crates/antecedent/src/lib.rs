@@ -83,6 +83,12 @@ pub mod validate;
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
 pub use analysis::{
+    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
+    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
+    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
+    SupportBasis, TargetDirection, classify_inverse_outcome,
+};
+pub use analysis::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
     consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,
     export_admg_conditional_obstruction,

@@ -47,6 +47,7 @@ mod graphs;
 mod identification_details;
 mod interference_saturation_api;
 mod interrupt;
+mod inverse_outcome_api;
 mod learned_continuous_api;
 mod learned_trial_api;
 mod observation_api;
@@ -2631,6 +2632,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transport_mixed_api::register(m)?;
     study_planning_api::register(m)?;
     recovery_api::register(m)?;
+    inverse_outcome_api::register(m)?;
     transport_admg_conditional_api::register(m)?;
     transport_mz_api::register(m)?;
     transport_scenario_api::register(m)?;
