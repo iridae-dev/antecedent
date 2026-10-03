@@ -266,6 +266,7 @@ pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, Respo
 pub use retarget::{
     DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, changes_target,
     check_depends_on, exceedance_cdf_values, retarget, summarize_functional,
+    weighted_overlap_fields, weighted_support_fields,
 };
 pub use scores::{
     LinearContrast, ScoreColumn, ScoreInference, ScoreSummary, ScoreSupport, ScoreTable,

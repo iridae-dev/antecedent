@@ -27,7 +27,7 @@ use std::sync::Arc;
 
 use antecedent_core::TargetPopulation;
 
-use crate::error::EstimationError;
+use crate::error::{EstimationError, RefusalFields};
 use crate::overlap::OverlapPolicy;
 use crate::propensity::{refuse, trim_of};
 use crate::scores::ScoreTable;
@@ -157,7 +157,7 @@ impl ClusterDml {
 
     fn require_cluster_count(&self, found: usize, dimension: &str) -> Result<(), EstimationError> {
         if found < self.min_clusters {
-            return Err(refuse(
+            return Err(refuse_counted(
                 antecedent_core::reason_code!("too_few_clusters"),
                 "cluster_dml.too_few_clusters",
                 &format!(
@@ -166,6 +166,12 @@ impl ClusterDml {
                      standard error is formed",
                     self.min_clusters
                 ),
+                &CountFacts {
+                    reason: "too_few_clusters",
+                    found,
+                    minimum: self.min_clusters,
+                    remedy: "supply more independent clusters (or coarser-grained units)",
+                },
             ));
         }
         Ok(())
@@ -244,7 +250,7 @@ impl ClusterDml {
         }
         let largest = sizes.values().copied().max().unwrap_or(0);
         if largest * folds > units.len() {
-            return Err(refuse(
+            return Err(refuse_counted(
                 antecedent_core::reason_code!("dyadic_dependence_not_licensed"),
                 "cluster_dml.dyadic_giant_component",
                 &format!(
@@ -254,11 +260,18 @@ impl ClusterDml {
                      most of the training data, so no cross-fit is run",
                     units.len()
                 ),
+                &CountFacts {
+                    reason: "dyadic_giant_component",
+                    found: sizes.len(),
+                    minimum: 0,
+                    remedy: "split or drop the hub endpoints that connect most rows, or declare \
+                             a cluster unit instead of a dyadic one",
+                },
             ));
         }
         let per_fold = sizes.len() / folds;
         if per_fold < self.min_components_per_fold {
-            return Err(refuse(
+            return Err(refuse_counted(
                 antecedent_core::reason_code!("too_few_clusters"),
                 "cluster_dml.too_few_components",
                 &format!(
@@ -267,6 +280,12 @@ impl ClusterDml {
                     sizes.len(),
                     self.min_components_per_fold
                 ),
+                &CountFacts {
+                    reason: "too_few_components_per_fold",
+                    found: sizes.len(),
+                    minimum: self.min_components_per_fold * folds,
+                    remedy: "supply more independent components (a sparser endpoint graph)",
+                },
             ));
         }
         Ok(())
@@ -444,6 +463,39 @@ pub(crate) fn require_unpenalized(penalized: bool) -> Result<(), EstimationError
         ));
     }
     Ok(())
+}
+
+/// The counts behind a cluster-count refusal.
+struct CountFacts {
+    reason: &'static str,
+    /// Clusters (or components) found.
+    found: usize,
+    /// Fewest the declaration needs; 0 when the refusal is not a shortfall.
+    minimum: usize,
+    remedy: &'static str,
+}
+
+/// [`refuse`] that also records the counts as structured fields (stage, reason, cluster count,
+/// the minimum when the refusal is a shortfall, remedy). The message is `refuse`'s.
+fn refuse_counted(
+    code: &'static str,
+    detail: &str,
+    message: &str,
+    facts: &CountFacts,
+) -> EstimationError {
+    EstimationError::refused_with_fields(
+        code,
+        format!("{detail}: {message}"),
+        RefusalFields {
+            stage: Some("cluster_dml".to_string()),
+            reason: Some(facts.reason.to_string()),
+            cluster_count: Some(u64::try_from(facts.found).unwrap_or(u64::MAX)),
+            cluster_minimum: (facts.minimum > 0)
+                .then(|| u64::try_from(facts.minimum).unwrap_or(u64::MAX)),
+            remedy: Some(facts.remedy.to_string()),
+            ..RefusalFields::default()
+        },
+    )
 }
 
 /// The route publishes no interval: a bootstrap (row resampling would break clusters) or an

@@ -1914,6 +1914,10 @@ class RetargetMember:
     refusal_code: str | None = None
     refusal_detail: str | None = None
     refusal_message: str | None = None
+    # Structured refusal diagnostics of a failed member (stage, the claim or contrast as
+    # subject, reason, and for a failed overlap gate the per-arm effective sample size and the
+    # propensity range); ``None`` for a member that did not fail, absent entries ``None``.
+    refusal_fields: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -1992,6 +1996,7 @@ def _retarget_member(raw: Mapping[str, Any], kind: str) -> RetargetMember:
         refusal_code=failure.get("reason_code"),
         refusal_detail=failure.get("detail"),
         refusal_message=failure.get("message"),
+        refusal_fields=failure.get("refusal_fields"),
     )
 
 

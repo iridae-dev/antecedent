@@ -22,7 +22,11 @@ type ClaimSpec = (String, usize, Vec<f64>, Vec<String>);
 type ContrastSpec = (String, Vec<(String, f64)>);
 
 fn retarget_error(error: BatchRetargetError) -> PyErr {
-    crate::refusal(error.code, format!("{}: {}", error.detail, error.message))
+    let fields = error.refusal_fields();
+    crate::preflight_api::with_refusal_fields(
+        crate::refusal(error.code, format!("{}: {}", error.detail, error.message)),
+        Some(&fields),
+    )
 }
 
 fn failure_json(failure: &MemberFailure) -> serde_json::Value {
@@ -31,6 +35,7 @@ fn failure_json(failure: &MemberFailure) -> serde_json::Value {
         "detail": failure.detail,
         "message": failure.message,
         "support_refused": failure.support_refused,
+        "refusal_fields": failure.fields.as_deref().map(crate::preflight_api::refusal_fields_value),
     })
 }
 

@@ -967,7 +967,14 @@ impl AipwAte {
         // rather than published at the wrong strength.
         let inference = table.inference(weights)?;
         if refuse_overlap && !inference.support.overlap_ok {
-            return Err(EstimationError::unsupported("custom target weighted overlap failed"));
+            return Err(EstimationError::unsupported_with_fields(
+                "custom target weighted overlap failed",
+                crate::retarget::weighted_overlap_fields(
+                    &table,
+                    weights.unwrap_or(&[]),
+                    &inference.support,
+                ),
+            ));
         }
         let se_analytic = if iid_se {
             contrast.se

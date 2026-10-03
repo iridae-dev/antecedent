@@ -5117,12 +5117,21 @@ impl PreparedStudy {
             graph,
             treatment.as_deref(),
             None,
-        )?;
+        )
+        .map_err(|error| {
+            super::preflight::with_plan_subject(&self.analysis, CausalError::from(error))
+        })?;
         if overlap_failed {
-            return Err(CausalError::Support {
+            let refusal = CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
                 message: antecedent_estimate::RetargetRefusal::WeightedOverlap.as_str(),
-            });
+            }
+            .diagnosed(antecedent_estimate::weighted_overlap_fields(
+                table,
+                weights,
+                &out.support,
+            ));
+            return Err(super::preflight::with_plan_subject(&self.analysis, refusal));
         }
         Ok(out)
     }
@@ -5388,6 +5397,20 @@ impl PreparedStudy {
     }
 
     pub(crate) fn estimate_with_shared(
+        &self,
+        data: &TabularData,
+        shared: Option<Arc<super::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        // A stats-layer refusal of a regression, GLM, IV or matching design fit learns here
+        // which plan it was for and, for a rank refusal, which columns are dependent on the
+        // table the fit read.
+        self.estimate_with_shared_unnamed(data, shared, ctx).map_err(|error| {
+            super::preflight::name_stats_refusal(&self.analysis, Some(data), error, ctx)
+        })
+    }
+
+    fn estimate_with_shared_unnamed(
         &self,
         data: &TabularData,
         shared: Option<Arc<super::batch::SharedBatchDesign>>,
@@ -10306,6 +10329,16 @@ impl Study {
 
     /// Cross-fitted AIPW scores for retarget / exceedance / joint cells.
     pub(crate) fn prepare_score_table(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<ScoreTable>, CausalError> {
+        // A stats-layer refusal of a fit learns here which treatment or cell it was for and,
+        // for a rank refusal, which columns are dependent.
+        self.prepare_score_table_unnamed(ctx)
+            .map_err(|error| super::preflight::name_stats_refusal(self, None, error, ctx))
+    }
+
+    fn prepare_score_table_unnamed(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Option<ScoreTable>, CausalError> {

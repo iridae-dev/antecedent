@@ -1523,6 +1523,93 @@ pub(super) fn adjustment_of(study: &Study) -> Option<Vec<VariableId>> {
     study.shared_batch_design.as_ref()?.covariate.as_ref().map(|c| c.adjustment_set.to_vec())
 }
 
+/// Name the treatment (or joint cell) on a stats-layer refusal that crossed into this plan,
+/// and, for a rank refusal, the dependent columns the fit-free preflight finds on the same
+/// design. The refusal's message, variant, reason code and Python class are unchanged (it is
+/// wrapped in [`CausalError::Diagnosed`]); nothing is added when the plan has no preflight
+/// input, preflight itself fails, or the error carries no stats record. Dependent columns
+/// come from the whole retained table's `[1 | Z]` scan, so a refusal on a fold's subset may
+/// name fewer columns than the table has; none is invented when the scan finds none.
+///
+/// `data` is the table the failing fit read when it is not the plan's retained one (an
+/// estimate on refreshed rows).
+pub(super) fn name_stats_refusal(
+    study: &Study,
+    data: Option<&TabularData>,
+    error: CausalError,
+    ctx: &ExecutionContext,
+) -> CausalError {
+    if !matches!(&error, CausalError::Estimate(EstimationError::Stats(_))) {
+        return error;
+    }
+    let Some(mut fields) = error.refusal_fields().map(Cow::into_owned) else {
+        return error;
+    };
+    let Ok(mut input) = input_of(study) else {
+        return error;
+    };
+    if let Some(data) = data {
+        input.data = data;
+    }
+    let Ok(report) = preflight_design(&input, ctx) else {
+        return error;
+    };
+    fields.subject = Some(report.subject.clone());
+    if fields.numerical_rank.is_some() {
+        if let Some(rank) = &report.rank {
+            fields.implicated_columns = rank.dependent.iter().map(|d| d.column.clone()).collect();
+        }
+    }
+    error.diagnosed(fields)
+}
+
+/// The plan label preflight uses (`effect(t -> y)`, `cell(a, b -> y)`), read from the query
+/// and schema alone; `None` outside the cells preflight covers.
+pub(super) fn plan_subject(study: &Study) -> Option<String> {
+    let input = input_of(study).ok()?;
+    let schema = input.data.schema();
+    let mut names: Vec<String> = Vec::with_capacity(input.treatments.len() + 1);
+    for id in input.treatments.iter().copied().chain(std::iter::once(input.outcome)) {
+        names.push(schema.get(id).ok()?.name.to_string());
+    }
+    Some(subject_label(&names, input.treatments.len(), &input))
+}
+
+/// A refusal that carries structured fields with no subject gets the plan label as subject
+/// (wrapped in [`CausalError::Diagnosed`]; text, code and class unchanged). Anything else, or a
+/// plan outside preflight's cells, passes through.
+pub(super) fn with_plan_subject(study: &Study, error: CausalError) -> CausalError {
+    let Some(mut fields) = error.refusal_fields().map(Cow::into_owned) else {
+        return error;
+    };
+    if fields.subject.is_some() {
+        return error;
+    }
+    let Some(subject) = plan_subject(study) else {
+        return error;
+    };
+    fields.subject = Some(subject);
+    error.diagnosed(fields)
+}
+
+/// [`name_stats_refusal`] for a one-shot run, which has no frozen plan: prepare the study (this
+/// builds the identification the dependent-column scan needs; it runs only after a refusal)
+/// and name the refusal against that plan, falling back to the query's label alone when
+/// preparation cannot supply one.
+pub(super) fn name_run_refusal(
+    study: &Study,
+    error: CausalError,
+    ctx: &ExecutionContext,
+) -> CausalError {
+    if !matches!(&error, CausalError::Estimate(EstimationError::Stats(_))) {
+        return error;
+    }
+    match study.prepare(ctx) {
+        Ok(prepared) => name_stats_refusal(prepared.study(), None, error, ctx),
+        Err(_) => with_plan_subject(study, error),
+    }
+}
+
 /// The preflight input a prepared plan implies.
 fn input_of(study: &Study) -> Result<PreflightInput<'_>, CausalError> {
     let DataInput::Tabular(data) = &study.data else {

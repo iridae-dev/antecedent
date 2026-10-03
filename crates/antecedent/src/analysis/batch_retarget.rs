@@ -38,7 +38,8 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId, reason_code};
 use antecedent_estimate::{
-    JointCovariance, ScoreTable, max_t_critical_polled, provenance_withholds_interval,
+    JointCovariance, RefusalFields, ScoreTable, max_t_critical_polled,
+    provenance_withholds_interval,
 };
 use antecedent_io::PayloadDigestWire;
 
@@ -60,14 +61,76 @@ pub struct BatchRetargetError {
     pub detail: &'static str,
     /// Human-readable explanation.
     pub message: String,
+    /// The claim or contrast the refusal is about, when it names one.
+    pub subject: Option<String>,
+}
+
+impl BatchRetargetError {
+    /// This refusal about a named claim or contrast.
+    #[must_use]
+    pub fn about(mut self, subject: &str) -> Self {
+        self.subject = Some(subject.to_string());
+        self
+    }
+
+    /// Structured diagnostics: stage, subject (when it names one), the stable detail as the
+    /// reason, and the remedy where one is known. Nothing numeric: a refusal of the
+    /// family's declaration measures no fitted quantity.
+    #[must_use]
+    pub fn refusal_fields(&self) -> RefusalFields {
+        RefusalFields {
+            stage: Some("batch_retarget".to_string()),
+            subject: self.subject.clone(),
+            reason: Some(self.detail.to_string()),
+            remedy: remedy_of(self.detail).map(str::to_string),
+            ..RefusalFields::default()
+        }
+    }
+}
+
+/// What the caller can change for a refusal, by its stable detail; `None` where the
+/// refusal names no single change.
+fn remedy_of(detail: &str) -> Option<&'static str> {
+    Some(match detail {
+        "batch_retarget.functional_not_licensed" => {
+            "retarget the mean functional (an average effect or a joint cell); keep a quantile or \
+             exceedance grid on the single-claim retarget"
+        }
+        "batch_retarget.incompatible_target" => {
+            "declare finite non-negative weights, one per row of the common snapshot"
+        }
+        "batch_retarget.scores_unavailable"
+        | "batch_retarget.scores_unavailable_after_estimate" => {
+            "use an AllObserved iid AIPW or cell-AIPW plan and keep its scores"
+        }
+        "batch_retarget.contrast_member_failed" => {
+            "fix or drop the failed claim the contrast reads"
+        }
+        "batch_retarget.unknown_claim" => {
+            "name only claims of this family and queries of this batch"
+        }
+        "batch_retarget.duplicate_name" => "give every claim and contrast its own nonempty name",
+        "batch_retarget.invalid_contrast" => "use finite coefficients on distinct declared claims",
+        _ => return None,
+    })
 }
 
 fn invalid(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
-    BatchRetargetError { code: reason_code!("invalid_argument"), detail, message: message.into() }
+    BatchRetargetError {
+        code: reason_code!("invalid_argument"),
+        detail,
+        message: message.into(),
+        subject: None,
+    }
 }
 
 fn not_licensed(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
-    BatchRetargetError { code: reason_code!("cell_not_licensed"), detail, message: message.into() }
+    BatchRetargetError {
+        code: reason_code!("cell_not_licensed"),
+        detail,
+        message: message.into(),
+        subject: None,
+    }
 }
 
 fn not_supported(detail: &'static str, message: impl Into<String>) -> BatchRetargetError {
@@ -75,6 +138,7 @@ fn not_supported(detail: &'static str, message: impl Into<String>) -> BatchRetar
         code: reason_code!("route_not_supported"),
         detail,
         message: message.into(),
+        subject: None,
     }
 }
 
@@ -83,6 +147,7 @@ fn mixed_snapshot(message: impl Into<String>) -> BatchRetargetError {
         code: reason_code!("row_weights_bound_to_snapshot"),
         detail: "batch_retarget.mixed_snapshot",
         message: message.into(),
+        subject: None,
     }
 }
 
@@ -93,6 +158,7 @@ fn cancelled() -> BatchRetargetError {
         message: "the batch retarget was cancelled; no family is reported and the stop is not a \
                   verdict on the data"
             .into(),
+        subject: None,
     }
 }
 
@@ -114,6 +180,7 @@ fn scores_unavailable(source: ScoreSource) -> BatchRetargetError {
         code: reason_code!("score_table_unavailable"),
         detail,
         message: message.into(),
+        subject: None,
     }
 }
 
@@ -269,26 +336,53 @@ pub struct MemberFailure {
     pub message: String,
     /// Whether the refusal is a weighted-overlap support refusal.
     pub support_refused: bool,
+    /// Structured diagnostics of the failing member: stage, the claim or contrast as
+    /// subject, the reason and, for a failed overlap gate, the per-arm effective sample
+    /// size and propensity range that gate measured. Absent entries stay absent.
+    pub fields: Option<Box<RefusalFields>>,
+}
+
+impl MemberFailure {
+    /// This failure about a named claim or contrast.
+    fn about(mut self, subject: &str) -> Self {
+        if let Some(fields) = self.fields.as_mut() {
+            fields.subject = Some(subject.to_string());
+        }
+        self
+    }
 }
 
 impl From<BatchRetargetError> for MemberFailure {
     fn from(error: BatchRetargetError) -> Self {
+        let fields = Some(Box::new(error.refusal_fields()));
         Self {
             reason_code: Some(error.code.to_string()),
             detail: Some(error.detail.to_string()),
             message: error.message,
             support_refused: false,
+            fields,
         }
     }
 }
 
 fn member_failure(error: &CausalError) -> MemberFailure {
-    if matches!(error, CausalError::Support { .. }) {
+    let carried = error.refusal_fields().map(|fields| Box::new(fields.into_owned()));
+    if matches!(error.peeled(), CausalError::Support { .. }) {
         let mut failure = MemberFailure::from(not_licensed(
             "batch_retarget.weighted_overlap_failed",
             error.to_string(),
         ));
         failure.support_refused = true;
+        // The overlap gate's own figures replace the detail-only defaults.
+        if let (Some(fields), Some(carried)) = (failure.fields.as_mut(), carried) {
+            fields.arm_ess = carried.arm_ess;
+            fields.propensity_min = carried.propensity_min;
+            fields.propensity_max = carried.propensity_max;
+            if carried.reason.is_some() {
+                fields.reason = carried.reason;
+            }
+            fields.remedy = carried.remedy;
+        }
         return failure;
     }
     MemberFailure {
@@ -296,6 +390,7 @@ fn member_failure(error: &CausalError) -> MemberFailure {
         detail: None,
         message: error.to_string(),
         support_refused: false,
+        fields: carried,
     }
 }
 
@@ -613,7 +708,8 @@ fn validate_request(
             return Err(invalid(
                 "batch_retarget.duplicate_name",
                 format!("claim and contrast names must be nonempty and unique, got {name:?}"),
-            ));
+            )
+            .about(name));
         }
     }
     if let Some(claim) = request.claims.iter().find(|c| c.query_index >= plans) {
@@ -623,7 +719,8 @@ fn validate_request(
                 "claim {:?} names query {} but the batch has {plans} plans",
                 claim.name, claim.query_index
             ),
-        ));
+        )
+        .about(&claim.name));
     }
     for contrast in &request.contrasts {
         let mut seen = std::collections::BTreeSet::new();
@@ -637,7 +734,8 @@ fn validate_request(
                     "contrast {:?} needs finite coefficients on distinct claims",
                     contrast.name
                 ),
-            ));
+            )
+            .about(&contrast.name));
         }
         if let Some((missing, _)) =
             contrast.coefficients.iter().find(|(n, _)| !request.claims.iter().any(|c| &c.name == n))
@@ -645,7 +743,8 @@ fn validate_request(
             return Err(invalid(
                 "batch_retarget.unknown_claim",
                 format!("contrast {:?} names the undeclared claim {missing:?}", contrast.name),
-            ));
+            )
+            .about(&contrast.name));
         }
     }
     Ok(())
@@ -813,13 +912,16 @@ pub(crate) fn retarget_family(
         if ctx.cancellation.is_cancelled() {
             return Err(cancelled());
         }
-        evaluated.push(evaluate_claim(
-            &plans[claim.query_index],
-            &queries[claim.query_index],
-            scores.table(claim.query_index),
-            claim,
-            scores.source,
-        ));
+        evaluated.push(
+            evaluate_claim(
+                &plans[claim.query_index],
+                &queries[claim.query_index],
+                scores.table(claim.query_index),
+                claim,
+                scores.source,
+            )
+            .map_err(|failure| failure.about(&claim.name)),
+        );
     }
 
     // Joint covariance of the covariance-bearing members, in declared order.
@@ -869,7 +971,8 @@ pub(crate) fn retarget_family(
         .map(|c| ContrastReport {
             name: c.name.clone(),
             terms: c.coefficients.clone(),
-            outcome: contrast_outcome(c, &claims, covariance.as_ref()),
+            outcome: contrast_outcome(c, &claims, covariance.as_ref())
+                .map_err(|failure| failure.about(&c.name)),
         })
         .collect();
 

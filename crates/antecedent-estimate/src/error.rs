@@ -5,7 +5,9 @@
 use antecedent_core::QueryError;
 use antecedent_data::DataError;
 use antecedent_prob::ProbError;
-use antecedent_stats::StatsError;
+use antecedent_stats::{GlmRefusalKind, StatsError};
+use std::borrow::Cow;
+
 use thiserror::Error;
 
 /// Estimation failures.
@@ -29,6 +31,16 @@ pub enum EstimationError {
     Overlap {
         /// Message.
         message: &'static str,
+    },
+    /// [`Self::Overlap`] raised on a fitted propensity that also carries structured
+    /// diagnostics (see [`RefusalFields`]); the rendered message is that of the
+    /// [`Self::Overlap`] it replaces.
+    #[error("{message}")]
+    OverlapWithFields {
+        /// Message.
+        message: &'static str,
+        /// Structured diagnostics of the failing step; absent entries stay absent.
+        fields: Box<RefusalFields>,
     },
     /// Incompatible estimand.
     #[error("{message}")]
@@ -64,6 +76,17 @@ pub enum EstimationError {
         message: &'static str,
         /// What the caller can do instead.
         remedy: &'static str,
+    },
+    /// [`Self::Unsupported`] that also carries structured diagnostics (see
+    /// [`RefusalFields`]). The rendered message is byte-identical to the
+    /// [`Self::Unsupported`] with the same message and, as there, no reason code is
+    /// attached; the fields are read with [`Self::refusal_fields`].
+    #[error("{message}")]
+    UnsupportedWithFields {
+        /// Explanation (the refusal).
+        message: &'static str,
+        /// Structured diagnostics of the failing step; absent entries stay absent.
+        fields: Box<RefusalFields>,
     },
     /// The estimator refused because identification was not certified for this query.
     ///
@@ -169,6 +192,16 @@ pub struct RefusalFields {
     pub implicated_columns: Vec<String>,
     /// What the caller can change to get past the refusal.
     pub remedy: Option<String>,
+    /// IRLS iterations of the refused GLM fit.
+    pub glm_iterations: Option<u64>,
+    /// Smallest `min(mu, 1 - mu)` over the refused binomial fit's rows (distance of the
+    /// closest fitted probability to 0 or 1), at the returned coefficients.
+    pub boundary_margin: Option<ExactF64>,
+    /// Rows of the refused binomial fit whose fitted probability is within `1e-8` of 0 or 1.
+    pub boundary_count: Option<u64>,
+    /// Fewest clusters the refused cluster-robust variance needs (the failing count is
+    /// [`Self::cluster_count`]).
+    pub cluster_minimum: Option<u64>,
 }
 
 impl EstimationError {
@@ -222,14 +255,27 @@ impl EstimationError {
         Self::RefusedWithFields { code, message: message.into(), fields: Box::new(fields) }
     }
 
-    /// Structured diagnostics of a refusal built with them. Additive: `None` for every
-    /// other error, and never part of the rendered message.
+    /// Structured diagnostics of a refusal that carries them: one built with
+    /// [`Self::refused_with_fields`] or [`Self::UnsupportedWithFields`], or a stats-layer
+    /// refusal whose own record holds them (a refused GLM fit, a rank-deficient design, too
+    /// few clusters), read from that record and never parsed out of the message. Additive:
+    /// `None` for every other error, and never part of the rendered message. A diagnostic the
+    /// failing step did not measure stays absent.
     #[must_use]
-    pub fn refusal_fields(&self) -> Option<&RefusalFields> {
+    pub fn refusal_fields(&self) -> Option<Cow<'_, RefusalFields>> {
         match self {
-            Self::RefusedWithFields { fields, .. } => Some(fields),
+            Self::RefusedWithFields { fields, .. }
+            | Self::UnsupportedWithFields { fields, .. }
+            | Self::OverlapWithFields { fields, .. } => Some(Cow::Borrowed(fields)),
+            Self::Stats(error) => stats_refusal_fields(error).map(Cow::Owned),
             _ => None,
         }
+    }
+
+    /// [`Self::unsupported`] with structured diagnostics.
+    #[must_use]
+    pub fn unsupported_with_fields(message: &'static str, fields: RefusalFields) -> Self {
+        Self::UnsupportedWithFields { message, fields: Box::new(fields) }
     }
 
     /// Ad-hoc data-layer message (maps to [`DataError::InvalidArgument`]).
@@ -242,6 +288,64 @@ impl EstimationError {
     #[must_use]
     pub fn stats_msg(message: impl Into<String>) -> Self {
         Self::Stats(StatsError::Backend(message.into()))
+    }
+}
+
+/// The structured diagnostics a stats-layer refusal records: stage, reason, remedy and the
+/// numbers its own failing step produced. A subject (treatment or cell) is not known at this
+/// layer and stays absent; so does every figure the fit did not measure.
+fn stats_refusal_fields(error: &StatsError) -> Option<RefusalFields> {
+    match error {
+        StatsError::GlmRefused { kind, iterations, boundary_count, .. } => {
+            let (reason, remedy) = match kind {
+                GlmRefusalKind::NonConverged => (
+                    "non_converged",
+                    "standardize or drop near-collinear columns, or raise the iteration limit",
+                ),
+                GlmRefusalKind::Separated => (
+                    "separated",
+                    "drop or coarsen the separating columns, or use a penalized nuisance",
+                ),
+                GlmRefusalKind::BoundarySaturated => (
+                    "boundary_saturated",
+                    "drop or coarsen the near-deterministic columns, or use a penalized nuisance",
+                ),
+            };
+            Some(RefusalFields {
+                stage: Some("glm_fit".to_string()),
+                reason: Some(reason.to_string()),
+                remedy: Some(remedy.to_string()),
+                glm_iterations: Some(u64::from(*iterations)),
+                boundary_margin: error.glm_boundary_margin().map(ExactF64),
+                boundary_count: *boundary_count,
+                ..RefusalFields::default()
+            })
+        }
+        StatsError::RankDeficient { rank, ncols } => Some(RefusalFields {
+            stage: Some("design_rank".to_string()),
+            reason: Some("rank_deficient".to_string()),
+            remedy: Some(
+                "run preflight to name the dependent columns, then drop them or use \
+                 estimate_with_rank_drop"
+                    .to_string(),
+            ),
+            numerical_rank: Some(u64::try_from(*rank).unwrap_or(u64::MAX)),
+            design_columns: Some(u64::try_from(*ncols).unwrap_or(u64::MAX)),
+            ..RefusalFields::default()
+        }),
+        StatsError::FewClusters { clusters, minimum, .. } => Some(RefusalFields {
+            stage: Some("cluster_variance".to_string()),
+            reason: Some("too_few_clusters".to_string()),
+            remedy: Some(
+                "supply more clusters, coarser-grained dependence, or a non-clustered standard \
+                 error"
+                    .to_string(),
+            ),
+            cluster_count: Some(*clusters),
+            cluster_minimum: Some(*minimum),
+            ..RefusalFields::default()
+        }),
+        _ => None,
     }
 }
 

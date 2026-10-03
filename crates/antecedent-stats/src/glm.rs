@@ -15,7 +15,7 @@
 
 use antecedent_kernels::{norm_cdf, norm_pdf};
 
-use crate::error::StatsError;
+use crate::error::{GlmRefusalKind, StatsError};
 use crate::gram::{column_is_constant, invert_square};
 use crate::linalg::{DenseLinearAlgebra, FitDiagnostics, LeastSquaresWorkspace};
 
@@ -156,6 +156,13 @@ pub struct GlmFit {
     /// converged fit with a strong predictor can saturate while its MLE exists, but such
     /// scores are still unusable as propensities, so [`GlmFit::require_ok`] refuses them.
     pub boundary_saturated: bool,
+    /// Smallest distance of a fitted probability to 0 or 1, `min(mu, 1 - mu)` over the rows,
+    /// at the returned coefficients (a binomial fit only; `None` for every other family,
+    /// where it is not measured). For a separation fallback these are the penalized fit's
+    /// scores, not the unpenalized fit's.
+    pub boundary_margin: Option<f64>,
+    /// Rows whose fitted probability lies within `1e-8` of 0 or 1 (a binomial fit only).
+    pub boundary_count: Option<u64>,
     /// The coefficients minimise a ridge-penalized objective (the deliberate
     /// [`fit_glm_ridge`] or the separation fallback), not the unpenalized likelihood.
     pub penalized: bool,
@@ -174,22 +181,30 @@ impl GlmFit {
     ///
     /// Non-converged or separated fits.
     pub fn require_ok(&self) -> Result<(), StatsError> {
+        let refuse = |kind, message: &'static str| StatsError::GlmRefused {
+            kind,
+            message,
+            iterations: self.iterations,
+            boundary_margin_bits: self.boundary_margin.map(f64::to_bits),
+            boundary_count: self.boundary_count,
+        };
         if !self.converged {
-            return Err(StatsError::Backend(
-                "GLM IRLS did not converge; refuse propensity/outcome scores".into(),
+            return Err(refuse(
+                GlmRefusalKind::NonConverged,
+                "GLM IRLS did not converge; refuse propensity/outcome scores",
             ));
         }
         if self.separated {
-            return Err(StatsError::Backend(
-                "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores"
-                    .into(),
+            return Err(refuse(
+                GlmRefusalKind::Separated,
+                "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores",
             ));
         }
         if self.boundary_saturated {
-            return Err(StatsError::Backend(
+            return Err(refuse(
+                GlmRefusalKind::BoundarySaturated,
                 "GLM fitted probabilities lie within 1e-8 of 0 or 1 (extreme scores, not \
-                 necessarily separation); refuse propensity/outcome scores"
-                    .into(),
+                 necessarily separation); refuse propensity/outcome scores",
             ));
         }
         Ok(())
@@ -248,6 +263,10 @@ struct BinomialDiagnostics {
     deviance: f64,
     /// Some fitted probability is outside `[1e-8, 1 − 1e-8]`.
     saturated: bool,
+    /// Smallest `min(mu, 1 − mu)` over the rows.
+    min_margin: f64,
+    /// Rows with a fitted probability outside `[1e-8, 1 − 1e-8]`.
+    n_saturated: u64,
     /// `η > 0` for every `y = 1` row and `η < 0` for every `y = 0` row: `β` itself is a
     /// separating direction, which proves complete separation.
     perfectly_classified: bool,
@@ -270,6 +289,8 @@ fn binomial_diagnostics_at(
     let GlmDesignRef { x_colmajor, nrows, ncols, y } = design;
     let mut deviance = 0.0;
     let mut saturated = false;
+    let mut min_margin = f64::INFINITY;
+    let mut n_saturated = 0u64;
     let mut perfectly_classified = true;
     for r in 0..nrows {
         let eta = eta_at(x_colmajor, nrows, ncols, beta, r);
@@ -280,7 +301,9 @@ fn binomial_diagnostics_at(
         };
         if !(1e-8..=1.0 - 1e-8).contains(&mu) {
             saturated = true;
+            n_saturated += 1;
         }
+        min_margin = min_margin.min(mu.min(1.0 - mu));
         if (y[r] > 0.0 && eta <= 0.0) || (y[r] <= 0.0 && eta >= 0.0) {
             perfectly_classified = false;
         }
@@ -291,7 +314,7 @@ fn binomial_diagnostics_at(
             deviance += -2.0 * (1.0 - mu_clamped).ln();
         }
     }
-    BinomialDiagnostics { deviance, saturated, perfectly_classified }
+    BinomialDiagnostics { deviance, saturated, min_margin, n_saturated, perfectly_classified }
 }
 
 /// Validate that `y` matches `nrows` and `x_colmajor` holds at least `nrows * ncols` entries.
@@ -341,6 +364,8 @@ fn fit_gaussian(
         converged: true,
         separated: false,
         boundary_saturated: false,
+        boundary_margin: None,
+        boundary_count: None,
         penalized: false,
         deviance: fit.rss,
         nb_alpha: None,
@@ -380,6 +405,8 @@ fn fit_poisson(
         converged,
         separated: false,
         boundary_saturated: false,
+        boundary_margin: None,
+        boundary_count: None,
         penalized: false,
         deviance,
         nb_alpha: None,
@@ -508,6 +535,8 @@ fn finish_binomial(
         converged,
         separated,
         boundary_saturated: diag.saturated,
+        boundary_margin: Some(diag.min_margin),
+        boundary_count: Some(diag.n_saturated),
         penalized: false,
         deviance: diag.deviance,
         nb_alpha: None,
@@ -702,6 +731,8 @@ fn fit_negbin_fixed_alpha(
         converged,
         separated: false,
         boundary_saturated: false,
+        boundary_margin: None,
+        boundary_count: None,
         penalized: false,
         deviance,
         nb_alpha: Some(alpha),
@@ -806,6 +837,8 @@ fn fit_binomial_ridge(
         converged,
         separated,
         boundary_saturated: diag.saturated || fallback_separated.is_some(),
+        boundary_margin: Some(diag.min_margin),
+        boundary_count: Some(diag.n_saturated),
         penalized: true,
         deviance: diag.deviance,
         nb_alpha: None,
@@ -891,12 +924,23 @@ impl MultinomialFit {
     ///
     /// Non-converged or separated fits.
     pub fn require_ok(&self) -> Result<(), StatsError> {
+        let refuse = |kind, message: &'static str| StatsError::GlmRefused {
+            kind,
+            message,
+            iterations: self.iterations,
+            boundary_margin_bits: None,
+            boundary_count: None,
+        };
         if !self.converged {
-            return Err(StatsError::Backend("multinomial logit IRLS did not converge".into()));
+            return Err(refuse(
+                GlmRefusalKind::NonConverged,
+                "multinomial logit IRLS did not converge",
+            ));
         }
         if self.separated {
-            return Err(StatsError::Backend(
-                "multinomial logit indicates (quasi-)complete separation".into(),
+            return Err(refuse(
+                GlmRefusalKind::Separated,
+                "multinomial logit indicates (quasi-)complete separation",
             ));
         }
         Ok(())
@@ -1597,6 +1641,70 @@ mod tests {
     }
 
     #[test]
+    fn a_refused_fit_carries_the_facts_it_measured() {
+        let n = 40usize;
+        let mut x = vec![0.0; n * 2];
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            let t = if i < n / 2 { 0.0 } else { 1.0 };
+            x[i] = 1.0;
+            x[n + i] = t;
+            y[i] = t;
+        }
+        let mut ws = LeastSquaresWorkspace::default();
+        let fit = fit_glm(
+            GlmFamily::BinomialLogit,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::new(100, 1e-6).without_separation_ridge(),
+        )
+        .unwrap();
+        // Complete separation drives some fitted probability inside the 1e-8 band.
+        let count = fit.boundary_count.unwrap();
+        assert!((1..=n as u64).contains(&count), "count={count}");
+        assert!(fit.boundary_margin.unwrap() < 1e-8);
+        match fit.require_ok().unwrap_err() {
+            StatsError::GlmRefused {
+                kind,
+                message,
+                iterations,
+                boundary_margin_bits,
+                boundary_count,
+            } => {
+                // `require_ok` reports non-convergence before separation.
+                let (expected_kind, expected_message) = if fit.converged {
+                    (
+                        GlmRefusalKind::Separated,
+                        "GLM indicates (quasi-)complete separation; refuse propensity/outcome scores",
+                    )
+                } else {
+                    (
+                        GlmRefusalKind::NonConverged,
+                        "GLM IRLS did not converge; refuse propensity/outcome scores",
+                    )
+                };
+                assert_eq!(kind, expected_kind);
+                assert_eq!(message, expected_message);
+                assert_eq!(iterations, fit.iterations);
+                assert_eq!(boundary_margin_bits, fit.boundary_margin.map(f64::to_bits));
+                assert_eq!(boundary_count, Some(count));
+            }
+            other => panic!("expected a GLM refusal record, got {other:?}"),
+        }
+        // A least-squares fit measures no probability margin: absent, not zero.
+        let gaussian = fit_glm(
+            GlmFamily::GaussianIdentity,
+            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: 2, y: &y },
+            &FaerBackend,
+            &mut ws,
+            &GlmOptions::default(),
+        )
+        .unwrap();
+        assert!(gaussian.boundary_margin.is_none() && gaussian.boundary_count.is_none());
+    }
+
+    #[test]
     fn multinomial_binary_matches_logistic_slope_sign() {
         let n = 80usize;
         let mut x = vec![0.0; n * 2];
@@ -1876,17 +1984,32 @@ mod tests {
 
     #[test]
     fn separation_verdict_needs_more_than_saturation() {
-        let saturated_only =
-            BinomialDiagnostics { deviance: 1.0, saturated: true, perfectly_classified: false };
+        let saturated_only = BinomialDiagnostics {
+            deviance: 1.0,
+            saturated: true,
+            min_margin: 0.0,
+            n_saturated: 1,
+            perfectly_classified: false,
+        };
         // A converged fit that saturates but misclassifies a row has a finite MLE.
         assert!(!saturated_only.separated(true));
         // The same saturation without convergence is divergence: separation.
         assert!(saturated_only.separated(false));
-        let perfect =
-            BinomialDiagnostics { deviance: 0.0, saturated: true, perfectly_classified: true };
+        let perfect = BinomialDiagnostics {
+            deviance: 0.0,
+            saturated: true,
+            min_margin: 0.0,
+            n_saturated: 1,
+            perfectly_classified: true,
+        };
         assert!(perfect.separated(true));
-        let interior =
-            BinomialDiagnostics { deviance: 0.0, saturated: false, perfectly_classified: true };
+        let interior = BinomialDiagnostics {
+            deviance: 0.0,
+            saturated: false,
+            min_margin: 0.5,
+            n_saturated: 0,
+            perfectly_classified: true,
+        };
         assert!(!interior.separated(false));
     }
 
@@ -1898,6 +2021,8 @@ mod tests {
             converged: true,
             separated: false,
             boundary_saturated: false,
+            boundary_margin: Some(0.25),
+            boundary_count: Some(0),
             penalized: false,
             deviance: 0.0,
             nb_alpha: None,

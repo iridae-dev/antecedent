@@ -17,7 +17,10 @@ use antecedent_stats::{StatsError, chol_solve, cholesky_spd, form_xtx, invert_sq
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 
-/// Map a stats-layer error into [`EstimationError::Stats`].
+/// Map a stats-layer error into [`EstimationError::Stats`]. A refusal record the stats layer
+/// carries (a refused GLM fit, a rank-deficient design, too few clusters) stays in the error and
+/// is read back as structured fields by [`EstimationError::refusal_fields`]; the text and the
+/// variant are unchanged.
 #[allow(clippy::needless_pass_by_value)] // StatsError is small / owned at call sites
 pub(crate) fn stats_err(e: StatsError) -> EstimationError {
     EstimationError::from(e)

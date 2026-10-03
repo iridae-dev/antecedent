@@ -63,7 +63,7 @@ pub use divergence::{
     likelihood_ratio_permutations, max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7,
     residual_likelihood_ratio, sample_std,
 };
-pub use error::StatsError;
+pub use error::{GlmRefusalKind, StatsError};
 pub use faer_backend::FaerBackend;
 pub use fdr::{
     FdrAdjustment, MultipleTestingMethod, adjust_pvalues, benjamini_hochberg, benjamini_yekutieli,

@@ -405,7 +405,7 @@ fn retarget_weighted_overlap_is_support() {
     let ctx = ExecutionContext::for_tests(17);
     let prepared = ate_study(data, graph, query, EstimatorId::Aipw).prepare(&ctx).unwrap();
     let err = prepared.retarget(&w, &[VariableId::from_raw(2)], &ctx).unwrap_err();
-    assert!(matches!(err, antecedent::CausalError::Support { .. }), "{err}");
+    assert!(matches!(err.peeled(), antecedent::CausalError::Support { .. }), "{err}");
 }
 
 #[test]

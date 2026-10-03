@@ -42,12 +42,11 @@ fn policy_for(schema: &CausalSchema, priority: Option<Vec<String>>) -> PyResult<
     Ok(RankDropPolicy { priority })
 }
 
-/// Structured refusal fields as a Python dict (`None` and empty lists for absent entries).
-pub(crate) fn refusal_fields_dict<'py>(
-    py: Python<'py>,
+/// Structured refusal fields as JSON (`null` and empty lists for absent entries).
+pub(crate) fn refusal_fields_value(
     fields: &antecedent_estimate::RefusalFields,
-) -> PyResult<Bound<'py, PyAny>> {
-    let value = serde_json::json!({
+) -> serde_json::Value {
+    serde_json::json!({
         "stage": fields.stage,
         "subject": fields.subject,
         "reason": fields.reason,
@@ -60,12 +59,23 @@ pub(crate) fn refusal_fields_dict<'py>(
             .map(|(p, v)| (p.0, v.0))
             .collect::<Vec<_>>(),
         "cluster_count": fields.cluster_count,
+        "cluster_minimum": fields.cluster_minimum,
         "numerical_rank": fields.numerical_rank,
         "design_columns": fields.design_columns,
         "implicated_columns": fields.implicated_columns,
         "remedy": fields.remedy,
-    });
-    py.import("json")?.call_method1("loads", (value.to_string(),))
+        "glm_iterations": fields.glm_iterations,
+        "boundary_margin": fields.boundary_margin.map(|v| v.0),
+        "boundary_count": fields.boundary_count,
+    })
+}
+
+/// Structured refusal fields as a Python dict (`None` and empty lists for absent entries).
+pub(crate) fn refusal_fields_dict<'py>(
+    py: Python<'py>,
+    fields: &antecedent_estimate::RefusalFields,
+) -> PyResult<Bound<'py, PyAny>> {
+    py.import("json")?.call_method1("loads", (refusal_fields_value(fields).to_string(),))
 }
 
 /// Attach a refusal's structured fields (`refusal_fields`) to the raised exception.

@@ -65,14 +65,69 @@ unconverged or saturated is returned with those flags set.
 
 ## Structured refusal fields
 
-`EstimationError::RefusedWithFields` (additive; `Refused`, every existing code and message
-are unchanged) carries `RefusalFields`: failing treatment or cell, stage, reason, per-arm
-ESS, propensity extrema and quantiles, cluster count, numerical rank, design column count,
-implicated columns and a remedy. Every entry is absent unless the failing step measured it.
-Read it with `CausalError::refusal_fields()` (Rust) or `error.refusal_fields` (Python,
-`None` on other errors). The preflight refusals use the new registered codes
-`design_rank_deficient`, `arm_not_populated` and `rank_drop_not_licensed`. The existing
-estimator and retarget refusal sites are not rewired to the container in this change.
+`RefusalFields` (Rust `CausalError::refusal_fields()`, Python `error.refusal_fields`, `None`
+on errors that carry none) holds the failing treatment, cell or claim (`subject`), `stage`,
+`reason`, per-arm ESS, propensity extrema and quantiles, cluster count and minimum, numerical
+rank and design column count, implicated columns, a `remedy`, and, for a refused GLM fit, its
+iterations, nearest fitted-probability margin and the count of rows within `1e-8` of 0 or 1.
+Every entry is absent (`None`, or an empty list) unless the failing step measured it; a fit
+that failed before it produced scores never has a propensity range reconstructed for it.
+
+Fields ride beside the refusal and never change it: every existing reason code, message and
+exception class is preserved (the tests pin the message strings). The rendered text of a
+refusal never includes the fields.
+
+Sites that populate the fields:
+
+| Site | Stage | Reasons | Numbers carried |
+| --- | --- | --- | --- |
+| Preflight (`design_rank_deficient`, `arm_not_populated`, `rank_drop_not_licensed`), derived treatment, rank-drop estimate | `preflight`, `rank_drop`, ... | the finding | rank, columns, implicated columns, arm rows |
+| GLM refused by an estimation path (`GlmFit::require_ok`: propensity, GLM adjustment, cross-fitted AIPW folds) | `glm_fit` | `non_converged`, `separated`, `boundary_saturated` | iterations, nearest margin, rows within `1e-8` |
+| Rank-deficient design from the QR backend (the real AIPW refusal at rank 174 of 175) | `design_rank` | `rank_deficient` | numerical rank, design columns; subject and implicated columns from the facade (below) |
+| Cluster-robust variance with fewer than two clusters (GLM cluster and multiway sandwiches, influence-function cluster, multiway and panel SEs) | `cluster_variance` | `too_few_clusters` | clusters found, minimum |
+| Cluster-DML cluster, component and dyadic-giant-component refusals | `cluster_dml` | `too_few_clusters`, `too_few_components_per_fold`, `dyadic_giant_component` | found, declared minimum |
+| Positivity refusal on fitted scores (propensity of exactly 0 or 1 with no clip: propensity estimators, cross-fitted AIPW, cell AIPW) | `positivity` | `propensity_not_interior` | extrema and nearest-rank quantiles of the finite scores |
+| Weighted-overlap gate of a retarget and of a custom-weight AIPW | `retarget` | `arm_effective_sample_size_below_minimum`, `propensity_range_touches_zero_or_one`, `extreme_propensity_share_above_limit`, `propensity_range_unavailable`, `arm_support_not_computed` | per-arm Kish ESS, raw propensity range and nearest-rank quantiles of the finite raw propensities of rows the target weights |
+| Retarget `depends_on` refusals (treatment or descendant, outside the adjustment set, no graph, undeclared nonconstant weights) | `retarget` | one per refusal | none: no score exists yet |
+| Failed batch-retarget members and contrasts, and family declaration errors | `batch_retarget` | the stable `batch_retarget.*` detail | the overlap figures above for an overlap failure; the claim or contrast name as `subject` |
+| Penalized-propensity fallback refusal | that of the failed fit | that of the failed fit | those of the failed fit |
+| Builder: configured estimator plus an explicit `bootstrap_replicates` or `overlap_policy` (also reached through batch entry points) | `study_build` | `set_on_builder_and_configured_estimator` | none; the setting is the `subject` |
+
+How they are attached, so a caller reads the right thing: a stats-layer refusal stays an
+`EstimationError::Stats` (its text, reason-code absence and Python class
+`CausalEstimateError` are unchanged) and its fields are derived from the record it carries;
+an estimator refusal that must keep its variant is `EstimationError::UnsupportedWithFields` or
+`OverlapWithFields`; a facade refusal that must keep its variant (the retarget support refusal,
+the builder conflict, and a stats refusal that crossed `prepare`) is wrapped in
+`CausalError::Diagnosed`, which renders and classifies as the refusal it wraps (match it
+through `CausalError::peeled()`). A batch member reports its fields as
+`MemberFailure::fields` (Python `RetargetMember.refusal_fields`).
+
+The stats layer knows neither the treatment nor column names, so the facade adds them, with
+the plan label preflight uses as `subject` (`effect(t -> y)`, `cell(a, b -> y)`). Where each
+refusal crosses into the facade:
+
+- the prepare-time score-table fit of a cross-fitted AIPW or cell-AIPW plan;
+- every estimate of a prepared plan (`PreparedStudy::estimate`, which is where regression,
+  GLM, IV and matching design fits run), against the table that estimate read;
+- a one-shot `Study::run`, which has no frozen plan: after a stats refusal it prepares the
+  study to obtain the identification, and names the refusal against that plan (the label
+  alone when preparation cannot supply one);
+- the retarget refusals (weighted overlap and the `depends_on` refusals), which take the plan
+  label as `subject`; a batch member's subject stays the claim or contrast name.
+
+For a rank refusal, `implicated_columns` is the columns the fit-free preflight scan names as
+dependent on that table's `[1 | Z]` design. A refusal on a fold's subset may be a smaller rank
+than the table's, and which of two identical columns is named depends on the scan
+(adjustment-set) order. If the scan finds none, preflight cannot run, or the plan is outside
+preflight's cells (static tabular average effects and discrete joint cells), the entries stay
+absent. Stats refusals raised on routes the facade does not reach through those entry points
+(for example temporal or transport estimators) carry the stage and numbers but no subject.
+
+What the fields do not claim: the arm sizes and quantiles of a refused retarget are those the
+overlap gate compared (Kish sizes under the target weights, raw held-out propensities of rows
+the target weights), not a verdict on identification. A refusal raised before any score exists
+has them absent.
 
 ## Opt-in rank-deficiency drop
 
@@ -158,6 +213,46 @@ estimators; absent otherwise, never zero), cross-fit folds, bootstrap replicates
 when it resamples. A batch sums per-claim counts; the fit total is an upper bound because
 identical cross-fitted AIPW nuisances are shared across queries.
 
+### Counts for the 2.2 fit routes
+
+Counts are read off the configuration the route executes (`CostEstimate.fit_route` names the
+counted route), never from a second copy of its loop:
+
+| Route | Propensity fits per pass | Outcome fits per pass |
+|---|---|---|
+| AIPW (unpenalized) | `folds` | `2 * folds` |
+| AIPW, ridge or lasso propensity | `folds * penalties * (inner_folds + 1)`, an upper bound (a penalty is refit on the whole training set only when its inner loss improves) | `2 * folds` |
+| AIPW, penalized GLM fallback declared | the above plus the destination's selection, an upper bound (it runs only when the GLM fit fails) | `4 * folds`, the outcome models run again |
+| AIPW, cluster-DML declaration | `folds` (whole clusters, never rows, own the folds) | `2 * folds`; `cluster_labels` is the distinct cluster count |
+| `dml` (AIPW score) | `folds` of the DML estimator | `2 * folds` |
+| `dml` (partially linear score) | `folds` | `folds` |
+| `dr_learner` | `folds` | `2 * folds + 1` (the final-stage regression) |
+
+Refit-bootstrap replicates add passes (`1 + replicates`, each repeating the whole pipeline
+including penalty selection), so a penalized plan's upper bound is `(per pass) * (1 +
+replicates)`. The ML fallback and a full-sample lasso are closed and add no fit. Counts are
+monotone in folds, replicates, the penalty grid and the inner folds (unit-tested), and the
+penalized, cluster-DML and joint-cell counts equal the polls an instrumented run makes
+(`cancellation_expansion_cells.rs`: one cancellation poll per penalty of every outer fold, per
+whole-cluster fold, per cell, per conditional and per learner fold).
+
+Outside a prepared plan:
+
+- `BatchScores::estimate_retarget_cost(request)` counts a batch retarget: **zero nuisance
+  fits** (the retained scores are reweighted), the claims, the contrasts and the snapshot rows,
+  `claims * rows` weighted score reads and `claims * (claims + 1) / 2 * rows` covariance
+  products. The unpublished max-t evaluator polls once per 1024 draws.
+- `estimate_joint_cell_cost(config, components, orderings, rows)` counts a factorized joint
+  cell from `FactorizedJointConfig::planned_fits`: per fold the distinct prefix-stratum
+  conditionals over every ordering (shared between orderings), `folds * strata` conditional
+  fits, each costing its ridge penalty selection (`penalties * (inner_folds + 1)`) or one fit
+  under a declared learner, plus `cells * folds` per-cell outcome models. An invalid
+  declaration is refused as the fit refuses it, never costed.
+- `estimate_with_rank_drop` costs one fit-free rank scan, plus for AIPW one diagnostic
+  propensity fit, plus the counts of the reduced study itself. Preflight, the inverse outcome,
+  matched case-control, the descriptive comparison and the tier diagnostics fit no nuisance
+  model.
+
 It is a planning hint, not a runtime guarantee. **Seconds** are reported only when a named
 local benchmark file backs them:
 
@@ -188,7 +283,11 @@ count stays an upper bound. The file is read from `ANTECEDENT_COST_MODEL`, else
 
 `seconds` stays `None`, with the reason in `seconds_basis`, when the file is missing or
 unreadable, declares no machine or a negative coefficient, has no coefficients for the plan's
-estimator, or the plan's rows, columns or fit counts are not derived. The prediction is
+estimator, or the plan's rows, columns or fit counts are not derived. The benchmark times
+plain `linear.adjustment.ate` and `aipw` fits only, so a penalized, lasso, fallback, `dml` or
+`dr_learner` plan, a batch retarget and a joint cell report counts with `seconds = None` and
+the reason; a cluster-DML declaration fits the same logistic and OLS models per fold as plain
+AIPW and is timed with its coefficients. The prediction is
 monotone in folds, replicates, rows and columns (unit-tested on a synthetic coefficients
 struct, with hand arithmetic). Seconds describe the benchmark machine, not yours.
 
@@ -220,9 +319,10 @@ from reading the code paths they exercise.
   `diagnose_fit` keeps flagged scores. One column that separates the arms is visible
   without a fit (`column_separates_arms`).
 - **Retargeted overlap refusal.** A row-weight retarget onto rows the treated arm never
-  reaches refuses with `CausalError::Support`; it carries no structured fields today.
-- **Configured estimator in a batch.** `BatchStudy::estimator` takes an `EstimatorId`
-  (Python: a string id), so a configured estimator struct cannot be supplied to a batch
-  entry point.
+  reaches refuses with `CausalError::Support` (wrapped in `CausalError::Diagnosed`), and its
+  fields carry the per-arm ESS and the propensity range under the target.
+- **Configured estimator in a batch.** `BatchStudy::estimator_spec` now takes a configured
+  estimator, so that limit is gone; combining it with an explicit `bootstrap_replicates` is
+  refused when the study is built, with the setting named as the refusal's subject.
 - **Not reproduced here:** joint-cell instability and repeated-entity or dyad dependence
   (no bounded public workload was added); those stay with their own cells.

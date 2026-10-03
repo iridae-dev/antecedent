@@ -630,7 +630,7 @@ fn reason_code_of(error: &RustCausalError) -> Option<String> {
     let named = reason_code_in_message(&message)
         .filter(|code| reason_code::is_registered(code))
         .map(str::to_string);
-    let default = match error {
+    let default = match error.peeled() {
         RustCausalError::Graph(e) => Some(if matches!(e, GraphError::UnknownVariableName { .. }) {
             reason_code!("unknown_variable")
         } else {
@@ -671,7 +671,7 @@ impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
         let remedy = self.remedy();
-        let fields = self.refusal_fields().cloned();
+        let fields = self.refusal_fields().map(std::borrow::Cow::into_owned);
         let err = with_remedy(uncoded_py_err(self), remedy);
         let err = preflight_api::with_refusal_fields(err, fields.as_ref());
         match code {
@@ -685,6 +685,8 @@ impl IntoCausalPyErr for RustCausalError {
 /// [`reason_code_of`]).
 fn uncoded_py_err(error: RustCausalError) -> PyErr {
     match error {
+        // A refusal with structured fields is the refusal it wraps.
+        RustCausalError::Diagnosed { error, .. } => uncoded_py_err(*error),
         RustCausalError::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
         // A reason-coded estimator refusal is the one refusal class, as a Rust
         // `Unsupported` refusal is.

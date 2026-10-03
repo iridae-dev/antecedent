@@ -397,6 +397,20 @@ fn stub_accepted_graph_for(
 #[derive(Clone, Copy, Debug)]
 struct CallerGraph;
 
+/// A setting named on both the builder and a configured estimator: the same conflict for
+/// every setting, carrying the setting as the diagnosed subject.
+fn estimator_setting_conflict(what: &'static str) -> CausalError {
+    const DETAIL: &str = "set on both the builder and the configured estimator; set it \
+                          in one place (prefer the estimator)";
+    CausalError::Conflict { what, detail: DETAIL }.diagnosed(antecedent_estimate::RefusalFields {
+        stage: Some("study_build".to_string()),
+        subject: Some(what.to_string()),
+        reason: Some("set_on_builder_and_configured_estimator".to_string()),
+        remedy: Some("set it in one place, preferably on the configured estimator".to_string()),
+        ..antecedent_estimate::RefusalFields::default()
+    })
+}
+
 /// A caller graph and a tier background both describe the study structure.
 fn tiered_graph_conflict() -> CausalError {
     CausalError::Conflict {
@@ -1348,18 +1362,10 @@ impl StudyBuilder {
         if let Some(spec) = &self.estimator_spec {
             if spec.is_configured() {
                 if self.bootstrap_explicit {
-                    return Err(CausalError::Conflict {
-                        what: "bootstrap_replicates",
-                        detail: "set on both the builder and the configured estimator; set it \
-                                 in one place (prefer the estimator)",
-                    });
+                    return Err(estimator_setting_conflict("bootstrap_replicates"));
                 }
                 if self.overlap_policy.is_some() {
-                    return Err(CausalError::Conflict {
-                        what: "overlap_policy",
-                        detail: "set on both the builder and the configured estimator; set it \
-                                 in one place (prefer the estimator)",
-                    });
+                    return Err(estimator_setting_conflict("overlap_policy"));
                 }
             }
         }
@@ -2342,7 +2348,7 @@ mod estimator_spec_conflict_tests {
             .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
             .bootstrap_replicates(100)
             .build();
-        match result {
+        match result.map_err(CausalError::into_peeled) {
             Err(CausalError::Conflict { what, .. }) => assert_eq!(what, "bootstrap_replicates"),
             other => panic!("expected CausalError::Conflict, got {other:?}"),
         }
@@ -2354,7 +2360,7 @@ mod estimator_spec_conflict_tests {
             .estimator(LinearAdjustmentAte::new().with_bootstrap_replicates(500))
             .overlap_policy(OverlapPolicy::ExplicitOverride)
             .build();
-        match result {
+        match result.map_err(CausalError::into_peeled) {
             Err(CausalError::Conflict { what, .. }) => assert_eq!(what, "overlap_policy"),
             other => panic!("expected CausalError::Conflict, got {other:?}"),
         }
