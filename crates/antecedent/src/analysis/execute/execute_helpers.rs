@@ -2476,20 +2476,15 @@ fn finish_identified_execute_with_context(
     if !is_quantile {
         super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
     }
-    if !is_quantile
-        && context
-            .tiered
-            .as_ref()
-            .is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
-    {
-        if let Some(data) = tabular_data {
-            super::helpers::attach_tiered_evalue(
-                &mut result.estimate,
-                data,
-                args.outcome,
-                &mut result.diagnostics,
-            );
-        }
+    if let Some(data) = tabular_data {
+        super::helpers::attach_tiered_evalue_for_cell(
+            &mut result.estimate,
+            data,
+            args.outcome,
+            is_quantile,
+            context.tiered.as_ref(),
+            &mut result.diagnostics,
+        );
     }
     if let Some(crate::support::CellStatus::Allowlisted { reason, parent }) = context.support_status
     {

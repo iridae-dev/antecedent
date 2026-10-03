@@ -237,11 +237,10 @@ fn diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_ar
         let report = again.overlap.available().expect("overlap report");
         assert!((report.propensity_min - ref_report.propensity_min).abs() < 1e-9);
         assert!((report.propensity_max - ref_report.propensity_max).abs() < 1e-9);
-        // The prepared lifecycle does not attach the tier cell's point E-value, so its view
-        // reports the typed absence instead of a value (never a fabricated one).
-        let reason =
-            again.evalue.point.unavailable().expect("no tier E-value on a prepared result");
-        assert_eq!(reason.detail, "tier_diagnostics.evalue_not_computed");
+        // The prepared lifecycle attaches the same tier-cell point E-value as the fresh run.
+        let point = again.evalue.point.available().expect("point E-value on a prepared result");
+        assert!((point.value - ref_point.value).abs() < 1e-9);
+        assert_eq!(point.method, ref_point.method);
         assert!(ref_point.value > 1.0);
         assert_eq!(again.evalue.interval, reference.evalue.interval);
     }

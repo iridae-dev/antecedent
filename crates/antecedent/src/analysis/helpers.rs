@@ -741,8 +741,28 @@ pub(crate) fn mirror_refuted_evalue(
 /// Report name the [`EValue`] validator publishes.
 pub(crate) const EVALUE_REFUTER: &str = "sensitivity.evalue";
 
+/// Attach the tier cell's point E-value to a finalized estimate when the executed study is
+/// a `CoDetermined` tiered one and its functional is not a quantile.
+///
+/// The single predicate shared by the fresh-run finalizer and the prepared lifecycle, so a
+/// result carries the same point E-value however it was produced.
+pub(crate) fn attach_tiered_evalue_for_cell(
+    estimate: &mut EffectEstimate,
+    data: &TabularData,
+    outcome: VariableId,
+    is_quantile: bool,
+    tiered: Option<&antecedent_graph::TieredBackground>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !is_quantile
+        && tiered.is_some_and(|b| b.within_tier == antecedent_graph::WithinTier::CoDetermined)
+    {
+        attach_tiered_evalue(estimate, data, outcome, diagnostics);
+    }
+}
+
 /// Attach a point E-value for the tier-closure no-latent-to-outcome premise.
-pub(crate) fn attach_tiered_evalue(
+fn attach_tiered_evalue(
     estimate: &mut EffectEstimate,
     data: &TabularData,
     outcome: VariableId,

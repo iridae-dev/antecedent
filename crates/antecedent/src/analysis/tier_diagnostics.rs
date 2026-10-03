@@ -246,8 +246,7 @@ fn point_evalue(result: &StudyResult) -> Availability<TierPointEvalue> {
         _ => Availability::Unavailable(unavailable(
             "tier_diagnostics.evalue_not_computed",
             "the tier cell attached no point E-value to this result (a non-finite effect, an \
-             outcome with no usable spread, or a result of the prepared lifecycle, which does not \
-             attach the tier E-value; run the study directly to have it attached)",
+             outcome with no usable spread, or a quantile functional, which carries no E-value)",
         )),
     }
 }

@@ -1905,6 +1905,14 @@ impl CheckedAipwOperation {
         result.population_registry.clone_from(&self.population_registry);
         result.custom_validator_names = self.custom_validator_names.to_vec();
         super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        super::helpers::attach_tiered_evalue_for_cell(
+            &mut result.estimate,
+            data,
+            self.query.outcome,
+            self.query.outcome_functional.quantile_level().is_some(),
+            self.tiered_background.as_ref(),
+            &mut result.diagnostics,
+        );
         Ok(result)
     }
 }

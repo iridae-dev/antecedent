@@ -41,9 +41,6 @@ the estimate did not use.
   (`tier_diagnostics.evalue_embeds_interval_limit`), not as a point value. A tiered study
   does not license the `Cheap` suite at all, so that branch applies to a result whose
   estimate carries a mirrored refuter value.
-* **Prepared-lifecycle results carry no tier E-value.** Only a directly run study attaches
-  the point value; the result of `prepare().estimate()` or a refresh reports
-  `tier_diagnostics.evalue_not_computed`, and its overlap report is still carried.
 * **No E-value interval.** `evalue.interval` is always the typed reason
   (`cell_not_licensed`, `tier_diagnostics.evalue_interval_withheld`): the converted
   effect-interval endpoint is an approximation whose own uncertainty is excluded, and no
