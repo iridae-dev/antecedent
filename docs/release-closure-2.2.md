@@ -39,7 +39,7 @@ its typed refusal (mirror `crates/antecedent/tests/a_exit_gate.rs`).
 
 | Package | Story |
 | --- | --- |
-| B1 | prepare latent-confounded selection ADMG + conditional query, point vs enumerated truth, export, independent consume; non-transportable diagram gives `transport_not_certified`; counted laws refused |
+| B1 | prepare latent-confounded selection ADMG + conditional query, point vs enumerated truth, export, independent consume; a verified two-model witness gives `transport_proven_non_transportable`, otherwise the unresolved diagram stays `transport_not_certified`; counted laws refused |
 | B2 | prepare trial + dose + grid, smoothed psi_h, export/consume; tampered artifact fails; `.interval()` refuses `cell_not_licensed` |
 | B3 | z baseline, joint 2-factor deviation with tipping frontier, export/consume; re-sealed mutated threshold/factor set fails replay; union never labelled a CI |
 | B4 | failed X1 (and X9) decision, plan studies, export/replay; bounds-exceeded catalog inconclusive, never "sufficient"; arrival flips the decision |
@@ -85,8 +85,10 @@ its typed refusal (mirror `crates/antecedent/tests/a_exit_gate.rs`).
 7. **Version.** `bash scripts/set_version.sh 2.2.0`, commit the bump as its own commit, and get a
    green CI run on that HEAD (including the `python-wheels` matrix).
 8. **Tag.** `CI_RUN_ID=<run> bash scripts/tag_release.sh`. It runs
-   `scripts/gate_release_candidate.sh` (clean tree required; fresh-venv install of the local
-   wheel with the full pytest suite), tags `v2.2.0` and leaves the push to you.
+   `scripts/gate_release_candidate.sh` (clean tree required; strict A/B exit gates,
+   strict bound agreement, final release claims and fresh-venv install of the local
+   wheel with the full pytest suite), tags `v2.2.0`
+   and leaves the push to you.
 
 ## TODO.md B8 checklist mapped to gates
 
