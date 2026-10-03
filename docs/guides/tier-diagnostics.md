@@ -1,6 +1,6 @@
 # Tier-aware overlap and E-value diagnostics (2.2 E7)
 
-`antecedent::tier_diagnostics(&result)` reads an executed **tiered** average-effect result
+`antecedent::tier_diagnostics(&result, &ctx)` reads an executed **tiered** average-effect result
 (`Study::tiered_background(..)`) and states which diagnostics that result's own design
 carries. It refits nothing and builds no graph. The record is `2.2E.E7.tier_diagnostics` in
 `parity/promotion_2_2.toml`; the claim is `point_only` (an E-value is a sensitivity
@@ -8,7 +8,7 @@ summary, not an inferential interval).
 
 ```rust
 let result = study.run(&ctx)?;
-let diagnostics = antecedent::tier_diagnostics(&result)?;
+let diagnostics = antecedent::tier_diagnostics(&result, &ctx)?;
 match &diagnostics.overlap {
     antecedent_estimate::Availability::Available(report) => { /* the estimator's own report */ }
     antecedent_estimate::Availability::Unavailable(why) => { /* why.code, why.detail */ }
@@ -56,6 +56,10 @@ order). It does not test that premise and is not a tier-identification certifica
 average-effect result: `cell_not_licensed`
 (`tier_diagnostics.result_not_licensed`), or `invalid_argument`
 (`tier_diagnostics.not_a_tiered_average_result`) for a non-tiered or joint-cell result.
+
+A cancelled `ctx` is observed on entry, before each of the two tier reads and once per
+scenario, and stops the read with `cancelled_no_claim` (`tier_diagnostics.cancelled`) and no
+diagnostics: a cancelled read is never a partial set and never a verdict on the result.
 
 ## Limits
 

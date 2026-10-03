@@ -98,6 +98,7 @@ pub use adjustment::{
 pub mod cluster_dml_aipw;
 pub mod descriptive_comparison;
 pub mod estimator_menu;
+pub mod fit_plan;
 pub mod joint_cell_factorized;
 pub mod learned_continuous;
 pub mod learned_trial;
@@ -193,6 +194,7 @@ pub use envelope::{
 };
 pub use error::{EstimationError, ExactF64, RefusalFields};
 pub use estimator::{Estimator, TabularAteEstimator};
+pub use fit_plan::JointFitPlan;
 pub use frontdoor::{
     CheckedFrontDoorLowering, CheckedFrontDoorPreparation, FrontDoorTwoStage, FrontDoorWorkspace,
     PreparedFrontDoorProblem, linear_path_product_restriction,

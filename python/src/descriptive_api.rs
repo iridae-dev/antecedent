@@ -1,5 +1,6 @@
 //! Python binding for the descriptive raw-versus-adjusted comparison and the declared
 //! reporting-scale transform (2.2 E7).
+use crate::transport_common::execution_context;
 use antecedent_estimate::{
     AdjustedEstimate, Availability, EstimationError, MeanPair, RawContrast, ReportingScale,
     ReportingTransform, compare_raw_adjusted, raw_contrast, refuse_column_attribution,
@@ -33,9 +34,10 @@ fn raw_se(raw: &RawContrast) -> Option<f64> {
 /// declares its scale, levels and population; any coding other than a 1-versus-0 difference
 /// of means on the all-observed population is refused before data are read.
 #[pyfunction]
-#[pyo3(signature=(outcome, treatment, adjusted_estimate, *, adjusted_se=None, scale, active, control, all_observed))]
+#[pyo3(signature=(outcome, treatment, adjusted_estimate, *, adjusted_se=None, scale, active, control, all_observed, cancel=None))]
 #[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 fn raw_vs_adjusted(
+    py: Python<'_>,
     outcome: Vec<f64>,
     treatment: Vec<f64>,
     adjusted_estimate: f64,
@@ -44,6 +46,7 @@ fn raw_vs_adjusted(
     active: f64,
     control: f64,
     all_observed: bool,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Comparison> {
     let adjusted = AdjustedEstimate {
         estimate: adjusted_estimate,
@@ -53,10 +56,13 @@ fn raw_vs_adjusted(
         scale: ReportingScale::parse(scale).map_err(estimation_err)?,
         all_observed_population: all_observed,
     };
-    let comparison =
-        compare_raw_adjusted(&outcome, &treatment, adjusted).map_err(estimation_err)?;
-    let raw = &comparison.raw;
-    Ok((arm(&raw.active), arm(&raw.control), raw.difference, raw_se(raw), comparison.gap))
+    let ctx = execution_context(0, None, cancel);
+    crate::detach_catch(py, move || {
+        let comparison =
+            compare_raw_adjusted(&outcome, &treatment, adjusted, &ctx).map_err(estimation_err)?;
+        let raw = &comparison.raw;
+        Ok((arm(&raw.active), arm(&raw.control), raw.difference, raw_se(raw), comparison.gap))
+    })
 }
 
 /// A column attribution of the gap is always refused.
@@ -110,22 +116,27 @@ fn transform_mean_pair(
 /// independent-groups covariance of the two arm means. Returns the arm summaries and the
 /// transformed family.
 #[pyfunction]
-#[pyo3(signature=(outcome, treatment, scales, *, interval=false))]
+#[pyo3(signature=(outcome, treatment, scales, *, interval=false, cancel=None))]
 #[allow(clippy::needless_pass_by_value)]
 fn transform_raw_arms(
+    py: Python<'_>,
     outcome: Vec<f64>,
     treatment: Vec<f64>,
     scales: Vec<String>,
     interval: bool,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<(Arm, Arm, Transformed)> {
     if interval {
         return Err(estimation_err(refuse_transform_interval()));
     }
-    let raw = raw_contrast(&outcome, &treatment).map_err(estimation_err)?;
-    let transform =
-        antecedent_estimate::transform_mean_pair(&raw.mean_pair(), &parse_scales(&scales)?)
+    let scales = parse_scales(&scales)?;
+    let ctx = execution_context(0, None, cancel);
+    crate::detach_catch(py, move || {
+        let raw = raw_contrast(&outcome, &treatment, &ctx).map_err(estimation_err)?;
+        let transform = antecedent_estimate::transform_mean_pair(&raw.mean_pair(), &scales)
             .map_err(estimation_err)?;
-    Ok((arm(&raw.active), arm(&raw.control), transformed(&transform)))
+        Ok((arm(&raw.active), arm(&raw.control), transformed(&transform)))
+    })
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

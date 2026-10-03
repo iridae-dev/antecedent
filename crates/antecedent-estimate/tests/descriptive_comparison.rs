@@ -6,11 +6,16 @@
 
 use std::sync::Arc;
 
+use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
     AdjustedEstimate, Availability, EstimationError, JointCovariance, MeanPair, ReportingScale,
     compare_raw_adjusted, raw_contrast, refuse_column_attribution, refuse_transform_interval,
     transform_mean_pair,
 };
+
+fn ctx() -> ExecutionContext {
+    ExecutionContext::for_tests(0)
+}
 
 fn close(actual: f64, expected: f64, what: &str) {
     assert!(
@@ -39,7 +44,7 @@ fn binary_arms() -> (Vec<f64>, Vec<f64>) {
 #[test]
 fn the_raw_contrast_matches_the_hand_computation() {
     let (y, t) = two_arms();
-    let raw = raw_contrast(&y, &t).unwrap();
+    let raw = raw_contrast(&y, &t, &ctx()).unwrap();
     assert_eq!((raw.active.n, raw.control.n), (3, 3));
     close(raw.active.mean, 6.0, "active mean");
     close(raw.control.mean, 2.0, "control mean");
@@ -54,7 +59,8 @@ fn the_raw_contrast_matches_the_hand_computation() {
 fn the_gap_is_raw_minus_adjusted_and_carries_no_interval() {
     let (y, t) = two_arms();
     let comparison =
-        compare_raw_adjusted(&y, &t, AdjustedEstimate::mean_difference(3.5, Some(0.4))).unwrap();
+        compare_raw_adjusted(&y, &t, AdjustedEstimate::mean_difference(3.5, Some(0.4)), &ctx())
+            .unwrap();
     close(comparison.gap, 0.5, "gap");
     close(comparison.raw.difference, 4.0, "raw");
     close(comparison.adjusted.estimate, 3.5, "adjusted");
@@ -68,7 +74,7 @@ fn the_gap_is_raw_minus_adjusted_and_carries_no_interval() {
 fn a_gap_is_zero_when_the_adjusted_estimate_equals_the_raw_contrast() {
     let (y, t) = two_arms();
     let comparison =
-        compare_raw_adjusted(&y, &t, AdjustedEstimate::mean_difference(4.0, None)).unwrap();
+        compare_raw_adjusted(&y, &t, AdjustedEstimate::mean_difference(4.0, None), &ctx()).unwrap();
     close(comparison.gap, 0.0, "gap");
 }
 
@@ -113,7 +119,7 @@ fn an_adjusted_estimate_of_another_coding_or_population_is_not_compared() {
             "descriptive_comparison.invalid_data",
         ),
     ] {
-        let (got, message) = refused(compare_raw_adjusted(&y, &t, adjusted).unwrap_err());
+        let (got, message) = refused(compare_raw_adjusted(&y, &t, adjusted, &ctx()).unwrap_err());
         assert_eq!(got, code, "{detail}");
         assert!(message.starts_with(detail), "{message}");
     }
@@ -129,18 +135,18 @@ fn malformed_rows_and_empty_arms_are_refused() {
         (vec![1.0, 2.0, 3.0], vec![0.0, 1.0, 2.0]),
         (vec![1.0, 2.0], vec![0.0, f64::NAN]),
     ] {
-        let (code, message) = refused(raw_contrast(&y, &t).unwrap_err());
+        let (code, message) = refused(raw_contrast(&y, &t, &ctx()).unwrap_err());
         assert_eq!(code, "invalid_argument");
         assert!(message.starts_with(invalid), "{message}");
     }
-    let (code, message) = refused(raw_contrast(&[1.0, 2.0], &[1.0, 1.0]).unwrap_err());
+    let (code, message) = refused(raw_contrast(&[1.0, 2.0], &[1.0, 1.0], &ctx()).unwrap_err());
     assert_eq!(code, "arm_not_populated");
     assert!(message.starts_with("descriptive_comparison.arm_not_populated"), "{message}");
 }
 
 #[test]
 fn a_one_row_arm_has_a_typed_reason_instead_of_a_standard_error() {
-    let raw = raw_contrast(&[1.0, 2.0, 5.0], &[0.0, 0.0, 1.0]).unwrap();
+    let raw = raw_contrast(&[1.0, 2.0, 5.0], &[0.0, 0.0, 1.0], &ctx()).unwrap();
     close(raw.difference, 5.0 - 1.5, "difference");
     let reason = raw.se.unavailable().expect("a one-row arm has no sample variance");
     assert_eq!(reason.code, "invalid_argument");
@@ -220,7 +226,7 @@ fn the_family_covariance_matches_an_independent_finite_difference_jacobian() {
 fn raw_arm_means_carry_the_independent_groups_covariance_into_a_transform() {
     // Active p = 0.75, control p = 0.25, each s^2/n = 0.0625 (see `binary_arms`).
     let (y, t) = binary_arms();
-    let raw = raw_contrast(&y, &t).unwrap();
+    let raw = raw_contrast(&y, &t, &ctx()).unwrap();
     let pair = raw.mean_pair();
     assert_eq!(pair.covariance, Availability::Available([0.0625, 0.0, 0.0625]));
     let transform =

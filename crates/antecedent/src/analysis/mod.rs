@@ -72,7 +72,10 @@ pub(crate) use checked_temporal_graph_posterior_effect::{
 pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
 };
-pub use cost::{BatchCostEstimate, CostEstimate, InferenceDefault};
+pub use cost::{
+    BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
+    estimate_joint_cell_cost,
+};
 pub use derived_treatment::{
     ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
     ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,

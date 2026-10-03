@@ -378,7 +378,7 @@ fn solve(
 /// `stratum`, `case` (1 = case, 0 = control) and `exposed` (1 = exposed) are parallel
 /// rows. The score is monotone, so the root is bracketed and found by a safeguarded
 /// Newton iteration (the information supplies the step, bisection the guarantee);
-/// `ctx` is observed once per iteration.
+/// `ctx` is observed on entry and once per iteration.
 ///
 /// # Errors
 /// `invalid_argument` (`matched_case_control.invalid_data`) for empty or unequal
@@ -394,6 +394,7 @@ pub fn conditional_odds_ratio(
     exposed: &[f64],
     ctx: &ExecutionContext,
 ) -> Result<ConditionalOddsRatio, EstimationError> {
+    cancelled(ctx)?;
     let sets = classify(stratum, case, exposed)?;
     let informative = sets.counts.informative;
     if sets.sum_a == sets.sum_lo {

@@ -531,6 +531,17 @@ pub(crate) fn require_scope(
     Ok(())
 }
 
+/// The stop of a cancelled whole-cluster fit: no estimate or score table is reported and the
+/// stop is not a verdict on the data.
+pub(crate) fn cancelled() -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "cluster_dml.cancelled",
+        "the cluster-DML cross-fit was cancelled before every fold was fit; no estimate is \
+         reported and the stop is not a verdict on the data",
+    )
+}
+
 /// A penalized propensity keeps points only and its remainder is not shown negligible, so it
 /// is not combined with the cluster claim.
 pub(crate) fn require_unpenalized(penalized: bool) -> Result<(), EstimationError> {

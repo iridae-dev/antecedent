@@ -145,7 +145,7 @@ impl FactorizedJointConfig {
         }
     }
 
-    fn validate(&self) -> Result<(), EstimationError> {
+    pub(crate) fn validate(&self) -> Result<(), EstimationError> {
         let bad = |message: &str| {
             Err(refuse(
                 antecedent_core::reason_code!("invalid_argument"),
@@ -316,7 +316,10 @@ fn check_permutation(k: usize, ordering: &[usize]) -> Result<(), EstimationError
     Ok(())
 }
 
-fn validate_orderings(k: usize, orderings: &[Vec<usize>]) -> Result<(), EstimationError> {
+pub(crate) fn validate_orderings(
+    k: usize,
+    orderings: &[Vec<usize>],
+) -> Result<(), EstimationError> {
     if orderings.is_empty() || orderings.len() > MAX_ORDERINGS {
         return Err(ordering_error("declare 1 to 6 orderings; the first is the declared one"));
     }
@@ -742,7 +745,8 @@ impl ConditionalFits<'_> {
                 self.selections.push(selection);
                 Ok(Ok(predicted))
             }
-            Err(error) if is_cancelled(&error) => Err(error),
+            // The penalty search's own stop is this cell's stop: one detail names it.
+            Err(error) if is_cancelled(&error) => Err(cancelled()),
             Err(error) => Ok(Err(error.to_string())),
         }
     }
@@ -900,6 +904,11 @@ fn outcome_predictions(
     Ok(out)
 }
 
+/// The set of components that precede position `j` of `ordering`, as a bit mask.
+pub(crate) fn prefix_mask(ordering: &[usize], j: usize) -> u32 {
+    ordering[..j].iter().fold(0u32, |m, &t| m | (1 << t))
+}
+
 /// Out-of-fold propensity of every cell under one ordering (`Err`: the reason it cannot be
 /// enumerated).
 fn ordering_propensities(
@@ -916,7 +925,7 @@ fn ordering_propensities(
         'folds: for (fold, split) in folds.iter().enumerate() {
             let mut product = vec![1.0; split.valid.len()];
             for (j, &target) in ordering.iter().enumerate() {
-                let mask = ordering[..j].iter().fold(0u32, |m, &t| m | (1 << t));
+                let mask = prefix_mask(ordering, j);
                 match fits.get(fold, mask, cell & mask, target)? {
                     Ok(p1) => {
                         let one = (cell >> target) & 1 == 1;

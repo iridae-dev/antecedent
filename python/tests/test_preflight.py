@@ -209,6 +209,7 @@ def test_a_prepared_plan_diagnoses_and_counts_its_cost() -> None:
     cost = prepared.estimate_cost()
     assert cost.planning_hint is True
     assert cost.estimator == "aipw"
+    assert cost.fit_route == "aipw" and cost.cluster_labels is None
     assert cost.crossfit_folds == 5
     assert cost.nuisance_fits_per_pass == 15
     assert cost.nuisance_fits_upper_bound == 15

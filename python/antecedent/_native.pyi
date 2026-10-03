@@ -4760,6 +4760,7 @@ def raw_vs_adjusted(
     active: float,
     control: float,
     all_observed: bool,
+    cancel: CancellationToken | None = None,
 ) -> tuple[
     tuple[int, float, float],
     tuple[int, float, float],
@@ -4782,6 +4783,7 @@ def transform_raw_arms(
     scales: list[str],
     *,
     interval: bool = False,
+    cancel: CancellationToken | None = None,
 ) -> tuple[
     tuple[int, float, float],
     tuple[int, float, float],

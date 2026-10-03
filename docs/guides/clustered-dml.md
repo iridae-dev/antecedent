@@ -161,6 +161,9 @@ loosened to absorb one. It is a test with fixed seeds, not a coverage record.
   (`cluster_dml.cluster_ids_missing`); too few clusters refuse `too_few_clusters`
   (`cluster_dml.too_few_clusters`); a declared minimum below 10 refuses `invalid_argument`
   (`cluster_dml.invalid_min_clusters`).
+- A cancelled context stops the cross-fit before every whole-cluster fold (one-way and
+  two-way) with `cancelled_no_claim` (`cluster_dml.cancelled`) and no estimate or score table;
+  it is never a verdict on the data.
 - **Dyadic structures the two-way cell does not cover stay closed** with
   `dyadic_dependence_not_licensed`: an entity that is a first endpoint of some rows and a
   second endpoint of others (`cluster_dml.dyadic_shared_namespace`), and one connected

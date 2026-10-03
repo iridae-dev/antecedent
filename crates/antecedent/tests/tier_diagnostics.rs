@@ -114,7 +114,7 @@ fn codetermined_diagnostics_consume_the_executed_design_overlap_and_point_evalue
     let data = codetermined_data(3_000, 41);
     let ctx = ExecutionContext::for_tests(41);
     let result = codetermined_study(&data, RefuteSuite::None).build().unwrap().run(&ctx).unwrap();
-    let diagnostics = tier_diagnostics(&result).unwrap();
+    let diagnostics = tier_diagnostics(&result, &ctx).unwrap();
 
     let schema = data.schema();
     let TierDesign::CoDeterminedClosure { adjustment, rows, propensity_scored } =
@@ -162,7 +162,7 @@ fn an_evalue_refuter_value_embeds_an_interval_endpoint_and_is_not_a_point_value(
         codetermined_study(&data, RefuteSuite::None).build().unwrap().run(&ctx).unwrap();
     let effect = result.estimate.as_effect_mut().expect("an effect estimate");
     effect.evalue_threshold = Some(1.5);
-    let diagnostics = tier_diagnostics(&result).unwrap();
+    let diagnostics = tier_diagnostics(&result, &ctx).unwrap();
     let reason = diagnostics.evalue.point.unavailable().expect("a limit-minimum is not a point");
     assert_eq!(reason.code, "diagnostic_not_available");
     assert_eq!(reason.detail, "tier_diagnostics.evalue_embeds_interval_limit");
@@ -189,7 +189,7 @@ fn unknown_scenarios_state_the_declared_orientations_and_no_fabricated_diagnosti
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let diagnostics = tier_diagnostics(&result).unwrap();
+    let diagnostics = tier_diagnostics(&result, &ctx).unwrap();
     let schema = data.schema();
     let (era, m) = (schema.id_of("era").unwrap(), schema.id_of("m").unwrap());
 
@@ -224,14 +224,14 @@ fn diagnostics_are_the_same_off_the_fresh_click_and_refreshed_results_and_the_ar
     let mut prepared = builder.build().unwrap().prepare(&ctx).unwrap();
     let click = prepared.estimate(&data, &ctx).unwrap();
     let refreshed = prepared.refresh(data.clone(), &ctx).unwrap();
-    let reference = tier_diagnostics(&fresh).unwrap();
+    let reference = tier_diagnostics(&fresh, &ctx).unwrap();
     let (ref_report, ref_point) = (
         reference.overlap.available().expect("overlap report"),
         reference.evalue.point.available().expect("point E-value"),
     );
     for result in [&click, &refreshed] {
         assert_eq!(result.support_status, Some(CellStatus::Licensed));
-        let again = tier_diagnostics(result).unwrap();
+        let again = tier_diagnostics(result, &ctx).unwrap();
         // The fresh run and the prepared lifecycle agree to the estimator's own tolerance.
         assert_eq!(again.design, reference.design);
         let report = again.overlap.available().expect("overlap report");
@@ -269,7 +269,7 @@ fn a_result_that_is_not_a_tiered_average_effect_is_refused() {
         .unwrap()
         .run(&ctx)
         .unwrap();
-    let error = tier_diagnostics(&result).unwrap_err();
+    let error = tier_diagnostics(&result, &ctx).unwrap_err();
     assert_eq!(error.code, "invalid_argument");
     assert_eq!(error.detail, "tier_diagnostics.not_a_tiered_average_result");
 }

@@ -284,6 +284,21 @@ fn build_scores_pass(
         .collect();
 
     for fold in 0..folds {
+        // An unpenalized fit observes cancellation before every fold (the fold is the unit of
+        // work; a penalized fit polls once per penalty instead); a cancelled fit reports no
+        // table. Polling does not touch the numbers of an uncancelled fit.
+        if penalized.is_none() && ctx.is_some_and(|c| c.cancellation.is_cancelled()) {
+            return Err(if problem.fold_units.is_some() {
+                crate::cluster_dml_aipw::cancelled()
+            } else {
+                crate::propensity::refuse(
+                    antecedent_core::reason_code!("cancelled_no_claim"),
+                    "aipw.cancelled",
+                    "the cross-fitted AIPW fit was cancelled before every fold was fit; no \
+                     estimate is reported and the stop is not a verdict on the data",
+                )
+            });
+        }
         let train: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize != fold).collect();
         let valid: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize == fold).collect();
         if train.is_empty() || valid.is_empty() {

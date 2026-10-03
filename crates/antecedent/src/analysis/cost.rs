@@ -26,13 +26,18 @@ use std::sync::OnceLock;
 use serde::Serialize;
 
 use antecedent_data::TableView;
+use antecedent_estimate::{
+    AipwAte, DmlAte, DmlScore, DrLearner, FactorizedJointConfig, JointFitPlan, PropensityPenalty,
+};
 
 use super::batch::PreparedBatch;
+use super::batch_retarget::{BatchRetargetRequest, BatchScores};
 use super::builder::DataInput;
 use super::execute::Study;
 use super::preflight::adjustment_of;
 use super::prepared::PreparedStudy;
 use crate::error::CausalError;
+use crate::estimator_spec::EstimatorSpec;
 use crate::inference::InferenceMode;
 use crate::strategy_table::{DEFAULT_ESTIMATOR_ID, EstimatorId};
 
@@ -213,6 +218,14 @@ fn seconds_of(
         ModelSource::Unusable(why) => {
             (None, format!("the cost-model file cannot back a time estimate ({why})"))
         }
+        ModelSource::Loaded(_) if inputs.shape.as_ref().is_some_and(|s| !s.benchmarked) => (
+            None,
+            format!(
+                "no benchmark coefficients cover the route {} (the checked-in benchmark times \
+                 plain logistic and OLS fits), so only counts are reported",
+                inputs.shape.as_ref().map_or("", |s| s.route.as_str())
+            ),
+        ),
         ModelSource::Loaded(model) => {
             let (Some(rows), Some(columns), Some(fits)) =
                 (inputs.rows, inputs.design_columns, fits)
@@ -259,6 +272,10 @@ pub struct CostEstimate {
     pub note: &'static str,
     /// Estimator id the plan runs.
     pub estimator: String,
+    /// The counted fit route, read off the declared configuration: the estimator id, or for a
+    /// configured cross-fitted route its penalty grid, independence unit or score (for example
+    /// `aipw.ridge_logistic(penalties=3, inner_folds=5)`).
+    pub fit_route: String,
     /// Active inference default.
     pub inference: InferenceDefault,
     /// Rows in the retained table (an upper bound on complete-case rows).
@@ -267,7 +284,12 @@ pub struct CostEstimate {
     pub design_columns: Option<usize>,
     /// Cross-fit folds, for a cross-fitted estimator.
     pub crossfit_folds: Option<u32>,
-    /// Propensity fits in one pass over the data, when derived for this estimator.
+    /// Distinct first-endpoint cluster labels a cluster-DML declaration folds by (whole
+    /// clusters, never rows), when one is declared.
+    pub cluster_labels: Option<usize>,
+    /// Propensity fits in one pass over the data, when derived for this estimator. For a
+    /// ridge-penalized propensity this is an upper bound: the folds times the penalty grid
+    /// times the inner folds plus one refit per penalty.
     pub propensity_fits_per_pass: Option<u64>,
     /// Outcome-regression fits in one pass over the data, when derived for this estimator.
     pub outcome_fits_per_pass: Option<u64>,
@@ -327,18 +349,137 @@ pub(crate) struct CostInputs {
     pub(crate) design_columns: Option<usize>,
     pub(crate) folds: u32,
     pub(crate) shares_covariates: bool,
+    /// How a configured cross-fitted route's fits scale with its folds (`None`: the id's
+    /// default counts).
+    pub(crate) shape: Option<CrossfitShape>,
+    pub(crate) cluster_labels: Option<usize>,
+}
+
+/// How a cross-fitted route's nuisance fits scale with its folds, read off the declared
+/// configuration the route executes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CrossfitShape {
+    /// Label of the counted route.
+    pub(crate) route: String,
+    /// Propensity fits per fold.
+    pub(crate) propensity_per_fold: u64,
+    /// Outcome-regression fits per fold.
+    pub(crate) outcome_per_fold: u64,
+    /// Outcome-side fits made once after the folds (the DR-Learner's final-stage regression).
+    pub(crate) outcome_once: u64,
+    /// Whether the counted fits are the ones the checked-in benchmark times (a plain logistic
+    /// propensity and arm-wise OLS); a seconds figure is given only then.
+    pub(crate) benchmarked: bool,
+}
+
+impl CrossfitShape {
+    fn new(
+        route: &str,
+        propensity_per_fold: u64,
+        outcome_per_fold: u64,
+        outcome_once: u64,
+        benchmarked: bool,
+    ) -> Self {
+        Self {
+            route: route.to_string(),
+            propensity_per_fold,
+            outcome_per_fold,
+            outcome_once,
+            benchmarked,
+        }
+    }
+}
+
+/// The counted shape of a configured cross-fitted route and the fold count it declares
+/// (`None`: the study's fold count), from the same configuration the route executes.
+fn shape_of(spec: &EstimatorSpec) -> Option<(CrossfitShape, Option<u32>)> {
+    match spec {
+        EstimatorSpec::Aipw(aipw) => Some((aipw_shape(aipw), None)),
+        EstimatorSpec::Default(EstimatorId::Aipw) => {
+            Some((CrossfitShape::new("aipw", 1, 2, 0, true), None))
+        }
+        EstimatorSpec::Dml(dml) => Some(dml_shape(dml)),
+        EstimatorSpec::Default(EstimatorId::Dml) => Some(dml_shape(&DmlAte::new())),
+        EstimatorSpec::DrLearner(dr) => Some(dr_shape(dr)),
+        EstimatorSpec::Default(EstimatorId::DrLearner) => Some(dr_shape(&DrLearner::new())),
+        _ => None,
+    }
+}
+
+/// AIPW: one propensity fit and two arm-wise outcome regressions per fold. A ridge or lasso
+/// propensity replaces the propensity fit by its penalty selection (grid times inner folds
+/// plus refits), and a declared penalized fallback adds the destination's selection and a
+/// second pass of the outcome models, as an upper bound (it runs only when the GLM fit fails).
+fn aipw_shape(aipw: &AipwAte) -> CrossfitShape {
+    let mut route = match aipw.propensity.penalty() {
+        PropensityPenalty::None => "aipw".to_string(),
+        PropensityPenalty::RidgeLogistic(tuning) => format!(
+            "aipw.ridge_logistic(penalties={}, inner_folds={})",
+            tuning.planned_penalties(),
+            tuning.inner_folds()
+        ),
+        PropensityPenalty::Lasso(tuning) => format!(
+            "aipw.lasso(penalties={}, inner_folds={})",
+            tuning.planned_penalties(),
+            tuning.inner_folds()
+        ),
+    };
+    let reruns = aipw.propensity.reruns_on_fallback();
+    if reruns {
+        route.push_str(".glm_fallback");
+    }
+    if let Some(cluster) = aipw.cluster_dml {
+        route = format!("{route}.cluster_dml(unit={})", cluster.independence_unit().as_str());
+    }
+    CrossfitShape {
+        route,
+        propensity_per_fold: aipw.propensity.planned_fits_per_fold(),
+        outcome_per_fold: 2 * (1 + u64::from(reruns)),
+        outcome_once: 0,
+        benchmarked: !aipw.propensity.is_penalized() && !reruns,
+    }
+}
+
+fn folds_of(folds: usize) -> u32 {
+    u32::try_from(folds).unwrap_or(u32::MAX)
+}
+
+/// DML: the AIPW score fits one propensity and two arm-wise outcome models per fold, the
+/// partially linear score one outcome and one treatment regression per fold.
+fn dml_shape(dml: &DmlAte) -> (CrossfitShape, Option<u32>) {
+    let shape = match dml.score {
+        DmlScore::Aipw => CrossfitShape::new("dml(score=aipw)", 1, 2, 0, false),
+        DmlScore::PartiallyLinear => {
+            CrossfitShape::new("dml(score=partially_linear)", 1, 1, 0, false)
+        }
+    };
+    (shape, Some(folds_of(dml.folds)))
+}
+
+/// DR-Learner: the cross-fitted AIPW nuisances (one propensity, two outcome models per fold)
+/// and one final-stage regression of the pseudo-outcome.
+fn dr_shape(dr: &DrLearner) -> (CrossfitShape, Option<u32>) {
+    (CrossfitShape::new("dr_learner", 1, 2, 1, false), Some(folds_of(dr.folds)))
 }
 
 /// Nuisance fits per pass for an estimator whose count is derived, as
 /// `(propensity, outcome, crossfit)`; `None` where it is not.
 ///
-/// Derived from the estimators' fit loops: cross-fitted AIPW fits one propensity model and
-/// two outcome regressions (one per arm) in each fold; linear and GLM adjustment fit one
-/// outcome model; propensity weighting, matching and stratification fit one propensity
-/// model; distance matching fits none.
-fn fits_per_pass(estimator: EstimatorId, folds: u32) -> Option<(u64, u64, bool)> {
-    let folds = u64::from(folds);
-    match estimator {
+/// Derived from the estimators' fit loops: a cross-fitted route fits its shape's propensity
+/// and outcome models in each fold (AIPW one propensity model and two outcome regressions, a
+/// ridge-penalized propensity its penalty selection's fits instead of one); linear and GLM
+/// adjustment fit one outcome model; propensity weighting, matching and stratification fit
+/// one propensity model; distance matching fits none.
+fn fits_per_pass(inputs: &CostInputs) -> Option<(u64, u64, bool)> {
+    let folds = u64::from(inputs.folds);
+    if let Some(shape) = &inputs.shape {
+        return Some((
+            shape.propensity_per_fold.saturating_mul(folds),
+            shape.outcome_per_fold.saturating_mul(folds).saturating_add(shape.outcome_once),
+            true,
+        ));
+    }
+    match inputs.estimator {
         EstimatorId::Aipw => Some((folds, 2 * folds, true)),
         EstimatorId::LinearAdjustmentAte | EstimatorId::GlmAdjustment => Some((0, 1, false)),
         EstimatorId::PropensityWeighting
@@ -357,7 +498,7 @@ fn bytes(rows: Option<usize>, columns: Option<usize>) -> Option<u64> {
 /// Derive the counts and, when `source` holds a usable model, the seconds. Pure, so
 /// monotonicity in folds, replicates and claims is testable without a study or a file.
 pub(crate) fn cost_of(inputs: &CostInputs, source: &ModelSource) -> CostEstimate {
-    let counts = fits_per_pass(inputs.estimator, inputs.folds);
+    let counts = fits_per_pass(inputs);
     let passes = 1 + u64::from(inputs.bootstrap_replicates);
     let nuisance_per_pass = counts.map(|(p, o, _)| p + o);
     let crossfit = counts.is_some_and(|(_, _, crossfit)| crossfit);
@@ -368,6 +509,10 @@ pub(crate) fn cost_of(inputs: &CostInputs, source: &ModelSource) -> CostEstimate
         planning_hint: true,
         note: PLANNING_NOTE,
         estimator: inputs.estimator.as_str().to_string(),
+        fit_route: inputs
+            .shape
+            .as_ref()
+            .map_or_else(|| inputs.estimator.as_str().to_string(), |shape| shape.route.clone()),
         inference: InferenceDefault {
             mode: inputs.inference_mode.clone(),
             bootstrap_replicates: inputs.bootstrap_replicates,
@@ -382,6 +527,7 @@ pub(crate) fn cost_of(inputs: &CostInputs, source: &ModelSource) -> CostEstimate
         rows: inputs.rows,
         design_columns: inputs.design_columns,
         crossfit_folds: crossfit.then_some(inputs.folds),
+        cluster_labels: inputs.cluster_labels,
         propensity_fits_per_pass: counts.map(|(p, _, _)| p),
         outcome_fits_per_pass: counts.map(|(_, o, _)| o),
         nuisance_fits_per_pass: nuisance_per_pass,
@@ -409,6 +555,16 @@ fn inputs_of(study: &Study) -> CostInputs {
         _ => None,
     };
     let shared = study.shared_batch_design.as_deref();
+    let default_spec = study.estimator.map(EstimatorSpec::Default);
+    let (shape, declared_folds) =
+        study.estimator_spec.as_ref().or(default_spec.as_ref()).and_then(shape_of).unzip();
+    let cluster_labels = match study.estimator_spec.as_ref() {
+        Some(EstimatorSpec::Aipw(aipw)) if aipw.cluster_dml.is_some() => aipw
+            .cluster_ids
+            .as_deref()
+            .map(|labels| labels.iter().collect::<std::collections::BTreeSet<_>>().len()),
+        _ => None,
+    };
     CostInputs {
         estimator,
         inference_mode: match &study.inference {
@@ -419,11 +575,15 @@ fn inputs_of(study: &Study) -> CostInputs {
         refute_suite: study.refute.diagnostic_label().to_string(),
         rows,
         design_columns: adjustment_of(study).map(|set| set.len() + 1),
-        folds: shared.map_or_else(
-            || u32::try_from(antecedent_estimate::DEFAULT_AIPW_FOLDS).unwrap_or(5),
-            |design| design.n_folds,
-        ),
+        folds: declared_folds.flatten().unwrap_or_else(|| {
+            shared.map_or_else(
+                || u32::try_from(antecedent_estimate::DEFAULT_AIPW_FOLDS).unwrap_or(5),
+                |design| design.n_folds,
+            )
+        }),
         shares_covariates: shared.is_some_and(|design| design.covariate.is_some()),
+        shape,
+        cluster_labels,
     }
 }
 
@@ -476,9 +636,169 @@ fn total_cost(plans: Vec<CostEstimate>) -> BatchCostEstimate {
     }
 }
 
+/// Why no seconds are given for a route the benchmark does not cover.
+const NO_ROUTE_COEFFICIENTS: &str = "no cost-model coefficients cover this route (parity/cost_model.toml \
+     times plain linear adjustment and AIPW fits only), so only counts are reported";
+
+/// Cost counts for a batch retarget request.
+///
+/// A retarget reweights the retained score tables: it fits no nuisance model, so the fit
+/// count is zero by construction. What it costs is reading the scores once per claim and
+/// forming the Gram matrix of the weighted influence values. A planning hint, not a runtime
+/// guarantee.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct RetargetCostEstimate {
+    /// Always `true`: this is a planning hint.
+    pub planning_hint: bool,
+    /// What the estimate is and is not.
+    pub note: &'static str,
+    /// Claims the request retargets.
+    pub claims: usize,
+    /// Contrasts the request forms over the claims.
+    pub contrasts: usize,
+    /// Rows of the common snapshot the claims reweight, absent when the scores share none.
+    pub snapshot_rows: Option<usize>,
+    /// Always `0`: scores are reused, nothing is refit.
+    pub nuisance_fits: u64,
+    /// `claims * rows`: weighted score sums, one pass of the snapshot per claim.
+    pub weighted_score_reads: Option<u64>,
+    /// `claims * (claims + 1) / 2 * rows`: products of the weighted influence values in the
+    /// upper triangle of the family covariance.
+    pub covariance_products: Option<u64>,
+    /// Estimated seconds: always absent, no benchmark covers a retarget.
+    pub seconds: Option<f64>,
+    /// Why `seconds` is absent.
+    pub seconds_basis: String,
+}
+
+impl BatchScores {
+    /// Planning-time cost counts of retargeting these scores under `request`: zero nuisance
+    /// fits (the scores are reused) and the claim, contrast and row counts the reweighting
+    /// and the family covariance read.
+    ///
+    /// A planning hint, not a runtime guarantee: the request is not validated here, so a
+    /// request the retarget refuses is still counted as declared.
+    #[must_use]
+    pub fn estimate_retarget_cost(&self, request: &BatchRetargetRequest) -> RetargetCostEstimate {
+        let claims = request.claims.len();
+        let snapshot_rows = self.common_rows().ok().flatten().map(|rows| rows.len());
+        let pairs = u64::try_from(claims * (claims + 1) / 2).ok();
+        let rows = snapshot_rows.and_then(|rows| u64::try_from(rows).ok());
+        RetargetCostEstimate {
+            planning_hint: true,
+            note: PLANNING_NOTE,
+            claims,
+            contrasts: request.contrasts.len(),
+            snapshot_rows,
+            nuisance_fits: 0,
+            weighted_score_reads: rows
+                .and_then(|rows| u64::try_from(claims).ok()?.checked_mul(rows)),
+            covariance_products: rows.and_then(|rows| pairs?.checked_mul(rows)),
+            seconds: None,
+            seconds_basis: NO_ROUTE_COEFFICIENTS.to_string(),
+        }
+    }
+}
+
+/// Cost counts for one factorized joint-cell fit, from the declared configuration.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct JointCellCostEstimate {
+    /// Always `true`: this is a planning hint.
+    pub planning_hint: bool,
+    /// What the estimate is and is not.
+    pub note: &'static str,
+    /// The counted route: the ridge penalty grid, or the declared learner.
+    pub fit_route: String,
+    /// Treatment components of the joint cell.
+    pub components: usize,
+    /// Cells of the family (`2^components`).
+    pub cells: u64,
+    /// Orderings the family is estimated under.
+    pub orderings: u64,
+    /// Cross-fit folds.
+    pub folds: u64,
+    /// Distinct prefix-stratum conditionals of one fold across the orderings.
+    pub conditional_strata: u64,
+    /// Conditional fits (`folds * conditional_strata`), an upper bound: an empty or
+    /// one-class stratum is not fit.
+    pub conditional_fits: u64,
+    /// Propensity fits: one per conditional under a declared learner, the penalty selection's
+    /// fits per conditional on the ridge route (an upper bound).
+    pub propensity_fits: u64,
+    /// Per-cell outcome models (`cells * folds`), an upper bound.
+    pub outcome_fits: u64,
+    /// `propensity_fits + outcome_fits`.
+    pub nuisance_fits: u64,
+    /// Rows the fit would read, when the caller states them.
+    pub rows: Option<usize>,
+    /// Estimated seconds: always absent, no benchmark covers the route.
+    pub seconds: Option<f64>,
+    /// Why `seconds` is absent.
+    pub seconds_basis: String,
+}
+
+/// Planning-time cost counts of a factorized joint-cell fit with this configuration,
+/// `components` treatment components and these `orderings` (see
+/// [`antecedent_estimate::fit_factorized_joint_cells`]). The counts come from
+/// [`FactorizedJointConfig::planned_fits`], the same declaration the fit executes.
+///
+/// A planning hint, not a runtime guarantee.
+///
+/// # Errors
+///
+/// The refusal the fit itself raises for an invalid configuration or ordering list: no cost
+/// is stated for a declaration the route refuses before any fit.
+pub fn estimate_joint_cell_cost(
+    config: &FactorizedJointConfig,
+    components: usize,
+    orderings: &[Vec<usize>],
+    rows: Option<usize>,
+) -> Result<JointCellCostEstimate, CausalError> {
+    let JointFitPlan {
+        folds,
+        cells,
+        orderings: ordering_count,
+        conditional_strata,
+        conditional_fits,
+        propensity_fits,
+        outcome_fits,
+    } = config.planned_fits(components, orderings)?;
+    let fit_route = match config.learner {
+        Some(spec) => format!("joint_cells.learner({})", spec.identity()),
+        None => format!(
+            "joint_cells.ridge_logistic(penalties={}, inner_folds={})",
+            config.tuning.planned_penalties(),
+            config.tuning.inner_folds()
+        ),
+    };
+    Ok(JointCellCostEstimate {
+        planning_hint: true,
+        note: PLANNING_NOTE,
+        fit_route,
+        components,
+        cells,
+        orderings: ordering_count,
+        folds,
+        conditional_strata,
+        conditional_fits,
+        propensity_fits,
+        outcome_fits,
+        nuisance_fits: propensity_fits.saturating_add(outcome_fits),
+        rows,
+        seconds: None,
+        seconds_basis: NO_ROUTE_COEFFICIENTS.to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{CostInputs, CostModel, FitCoefficients, ModelSource, total_cost};
+    use antecedent_estimate::{
+        AipwAte, ClusterDml, DmlAte, DmlScore, DrLearner, NuisanceFallback, PropensityNuisance,
+        RidgeTuning,
+    };
+
+    use super::{CostInputs, CostModel, FitCoefficients, ModelSource, shape_of, total_cost};
+    use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::EstimatorId;
 
     fn cost_of(inputs: &CostInputs) -> super::CostEstimate {
@@ -495,6 +815,8 @@ mod tests {
             design_columns: Some(11),
             folds,
             shares_covariates: false,
+            shape: None,
+            cluster_labels: None,
         }
     }
 
@@ -677,5 +999,147 @@ b = 1.0e-10
         let negative = FILE.replace("b = 3.0e-10", "b = -3.0e-10");
         assert!(CostModel::parse(&negative).unwrap_err().contains("non-negative"));
         assert!(CostModel::parse("").is_err());
+    }
+    // ---- configured cross-fitted routes: counts follow the declared configuration ----------
+
+    fn routed(spec: &EstimatorSpec, bootstrap: u32) -> CostInputs {
+        let (shape, folds) = shape_of(spec).unzip();
+        CostInputs { shape, folds: folds.flatten().unwrap_or(5), ..inputs(spec.id(), 5, bootstrap) }
+    }
+
+    fn aipw_with(propensity: PropensityNuisance) -> EstimatorSpec {
+        EstimatorSpec::Aipw(Box::new(AipwAte {
+            propensity,
+            bootstrap_replicates: 0,
+            ..AipwAte::new()
+        }))
+    }
+
+    fn ridge(grid: &[f64], inner_folds: usize) -> PropensityNuisance {
+        PropensityNuisance::ridge_logistic(RidgeTuning::new(grid, inner_folds).unwrap())
+    }
+
+    /// A ridge grid of 3 penalties and 4 inner folds fits `3 * (4 + 1) = 15` propensity models
+    /// per outer fold (each penalty on every inner split and once on the whole training set), so
+    /// 5 folds give 75 propensity and 10 outcome fits, and 199 refit-bootstrap replicates each
+    /// repeat the whole pipeline: `85 * 200`.
+    #[test]
+    fn penalized_aipw_counts_follow_the_grid_inner_folds_and_replicates() {
+        let spec = aipw_with(ridge(&[1.0, 10.0, 100.0], 4));
+        let cost = cost_of(&routed(&spec, 0));
+        assert_eq!(cost.fit_route, "aipw.ridge_logistic(penalties=3, inner_folds=4)");
+        assert_eq!(cost.crossfit_folds, Some(5));
+        assert_eq!(cost.propensity_fits_per_pass, Some(75));
+        assert_eq!(cost.outcome_fits_per_pass, Some(10));
+        assert_eq!(cost.nuisance_fits_upper_bound, Some(85));
+        let refit = cost_of(&routed(&spec, 199));
+        assert_eq!(refit.passes_upper_bound, 200);
+        assert_eq!(refit.nuisance_fits_upper_bound, Some(85 * 200));
+    }
+
+    /// The count never falls as the grid, the inner folds, the outer folds or the replicates
+    /// grow.
+    #[test]
+    fn penalized_counts_are_monotone_in_grid_inner_folds_folds_and_replicates() {
+        let fits = |grid: &[f64], inner, bootstrap| {
+            cost_of(&routed(&aipw_with(ridge(grid, inner)), bootstrap))
+                .nuisance_fits_upper_bound
+                .unwrap()
+        };
+        assert!(fits(&[1.0], 3, 0) < fits(&[1.0, 2.0], 3, 0));
+        assert!(fits(&[1.0, 2.0], 3, 0) < fits(&[1.0, 2.0, 4.0], 3, 0));
+        assert!(fits(&[1.0, 2.0], 2, 0) < fits(&[1.0, 2.0], 5, 0));
+        assert!(fits(&[1.0, 2.0], 5, 0) < fits(&[1.0, 2.0], 5, 1));
+        assert!(fits(&[1.0, 2.0], 5, 1) < fits(&[1.0, 2.0], 5, 199));
+        let folds = |folds| {
+            let mut input = routed(&aipw_with(ridge(&[1.0, 2.0], 3)), 0);
+            input.folds = folds;
+            cost_of(&input).nuisance_fits_upper_bound.unwrap()
+        };
+        assert!(folds(2) < folds(5) && folds(5) < folds(10));
+    }
+
+    /// A lasso grid is counted like a ridge grid; a declared penalized fallback adds the
+    /// destination's selection and a second pass of the outcome models as an upper bound.
+    #[test]
+    fn lasso_and_fallback_counts_are_derived_from_their_own_grids() {
+        // Default lasso: 8 penalties, 5 inner folds: 8 * (5 + 1) = 48 per fold.
+        let lasso = cost_of(&routed(&aipw_with(PropensityNuisance::lasso()), 0));
+        assert_eq!(lasso.fit_route, "aipw.lasso(penalties=8, inner_folds=5)");
+        assert_eq!(lasso.propensity_fits_per_pass, Some(5 * 48));
+        assert_eq!(lasso.outcome_fits_per_pass, Some(10));
+        let fallback = PropensityNuisance::default().with_fallback(
+            NuisanceFallback::RidgeLogistic(RidgeTuning::new(&[1.0, 10.0], 3).unwrap()),
+        );
+        let cost = cost_of(&routed(&aipw_with(fallback), 0));
+        assert_eq!(cost.fit_route, "aipw.glm_fallback");
+        // 1 GLM fit + 2 * (3 + 1) fallback fits per fold, and the outcome models twice.
+        assert_eq!(cost.propensity_fits_per_pass, Some(5 * 9));
+        assert_eq!(cost.outcome_fits_per_pass, Some(20));
+        // An ML fallback is closed: it adds no fit.
+        let ml = PropensityNuisance::default().with_fallback(NuisanceFallback::Ml);
+        assert_eq!(cost_of(&routed(&aipw_with(ml), 0)).propensity_fits_per_pass, Some(5));
+    }
+
+    /// Seconds are given only for the fits the benchmark times: plain AIPW and a cluster-DML
+    /// declaration (the same logistic and OLS fits per fold), never a penalty selection.
+    #[test]
+    fn seconds_cover_plain_and_cluster_aipw_but_not_penalized_routes() {
+        let source = ModelSource::Loaded(model(0.01, 1e-9));
+        let with_model = |spec: &EstimatorSpec| super::cost_of(&routed(spec, 0), &source);
+        let plain = with_model(&aipw_with(PropensityNuisance::default()));
+        let cluster = with_model(&EstimatorSpec::Aipw(Box::new(AipwAte {
+            bootstrap_replicates: 0,
+            cluster_ids: Some(vec![0; 40]),
+            cluster_dml: Some(ClusterDml::new(10).unwrap()),
+            ..AipwAte::new()
+        })));
+        assert_eq!(cluster.fit_route, "aipw.cluster_dml(unit=cluster)");
+        assert_eq!(cluster.nuisance_fits_per_pass, plain.nuisance_fits_per_pass);
+        assert_eq!(cluster.seconds, plain.seconds);
+        assert!(plain.seconds.is_some());
+        let penalized = with_model(&aipw_with(ridge(&[1.0, 10.0], 3)));
+        assert!(penalized.seconds.is_none());
+        assert!(
+            penalized.seconds_basis.contains("aipw.ridge_logistic"),
+            "{}",
+            penalized.seconds_basis
+        );
+        assert!(penalized.seconds_basis.contains("only counts"));
+        let dyadic = ClusterDml::dyadic(10, 4).unwrap();
+        let spec =
+            EstimatorSpec::Aipw(Box::new(AipwAte { cluster_dml: Some(dyadic), ..AipwAte::new() }));
+        assert_eq!(cost_of(&routed(&spec, 0)).fit_route, "aipw.cluster_dml(unit=dyad)");
+    }
+
+    /// DML counts use the estimator's own fold count and score: the AIPW score fits one
+    /// propensity and two outcome models per fold, the partially linear score one of each, the
+    /// DR-Learner the AIPW nuisances and one final-stage regression.
+    #[test]
+    fn dml_and_dr_counts_follow_their_folds_and_scores() {
+        let dml = |score, folds| {
+            EstimatorSpec::Dml(Box::new(DmlAte::new().with_score(score).with_folds(folds)))
+        };
+        let aipw = cost_of(&routed(&dml(DmlScore::Aipw, 7), 0));
+        assert_eq!(aipw.fit_route, "dml(score=aipw)");
+        assert_eq!(aipw.crossfit_folds, Some(7));
+        assert_eq!(
+            (aipw.propensity_fits_per_pass, aipw.outcome_fits_per_pass),
+            (Some(7), Some(14))
+        );
+        let plr = cost_of(&routed(&dml(DmlScore::PartiallyLinear, 7), 0));
+        assert_eq!((plr.propensity_fits_per_pass, plr.outcome_fits_per_pass), (Some(7), Some(7)));
+        let dr = cost_of(&routed(&EstimatorSpec::DrLearner(Box::new(DrLearner::new())), 0));
+        assert_eq!((dr.propensity_fits_per_pass, dr.outcome_fits_per_pass), (Some(5), Some(11)));
+        let by_id = cost_of(&routed(&EstimatorSpec::Default(EstimatorId::Dml), 0));
+        assert_eq!(by_id.nuisance_fits_per_pass, Some(15));
+        let fits = |folds| {
+            cost_of(&routed(&dml(DmlScore::Aipw, folds), 0)).nuisance_fits_upper_bound.unwrap()
+        };
+        assert!(fits(2) < fits(5) && fits(5) < fits(10));
+        // No coefficients cover these routes, so no seconds are invented.
+        let loaded = ModelSource::Loaded(model(0.01, 1e-9));
+        let timed = super::cost_of(&routed(&dml(DmlScore::Aipw, 5), 0), &loaded);
+        assert!(timed.seconds.is_none() && timed.seconds_basis.contains("only counts"));
     }
 }

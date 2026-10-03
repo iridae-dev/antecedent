@@ -36,7 +36,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{VariableId, reason_code};
+use antecedent_core::{ExecutionContext, VariableId, reason_code};
 use antecedent_estimate::{Availability, OverlapReport, Unavailable};
 
 use crate::result::StudyResult;
@@ -138,6 +138,19 @@ fn not_tiered() -> TierDiagnosticsError {
     )
 }
 
+/// Observe cancellation: a cancelled read reports no diagnostics, never a partial set.
+fn observe(ctx: &ExecutionContext) -> Result<(), TierDiagnosticsError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(refusal(
+            reason_code!("cancelled_no_claim"),
+            "tier_diagnostics.cancelled",
+            "reading the tier diagnostics was cancelled; none is reported and the stop is not a \
+             verdict on the result",
+        ));
+    }
+    Ok(())
+}
+
 fn unavailable(detail: &'static str, reason: &'static str) -> Unavailable {
     Unavailable { code: reason_code!("diagnostic_not_available"), detail, reason }
 }
@@ -148,8 +161,14 @@ fn unavailable(detail: &'static str, reason: &'static str) -> Unavailable {
 /// `cell_not_licensed` (`tier_diagnostics.result_not_licensed`) when the result's support
 /// status is not licensed; `invalid_argument` (`tier_diagnostics.not_a_tiered_average_result`)
 /// when it is not a single-treatment `CoDetermined` closure or `Unknown` two-scenario
-/// average-effect result.
-pub fn tier_diagnostics(result: &StudyResult) -> Result<TierDiagnostics, TierDiagnosticsError> {
+/// average-effect result; `cancelled_no_claim` (`tier_diagnostics.cancelled`) when `ctx` is
+/// cancelled (observed on entry, before each of the two tier reads and once per scenario),
+/// with no diagnostics reported.
+pub fn tier_diagnostics(
+    result: &StudyResult,
+    ctx: &ExecutionContext,
+) -> Result<TierDiagnostics, TierDiagnosticsError> {
+    observe(ctx)?;
     if !matches!(result.support_status, Some(CellStatus::Licensed)) {
         return Err(refusal(
             reason_code!("cell_not_licensed"),
@@ -162,6 +181,7 @@ pub fn tier_diagnostics(result: &StudyResult) -> Result<TierDiagnostics, TierDia
     };
     let effect = result.estimate.as_effect().ok_or_else(not_tiered)?;
     if derived(CLOSURE_RULE) && effect.scenario_effects.is_none() && effect.ate.is_finite() {
+        observe(ctx)?;
         let design = TierDesign::CoDeterminedClosure {
             adjustment: result.estimand.adjustment_set.to_vec(),
             rows: effect.n_obs,
@@ -182,20 +202,21 @@ pub fn tier_diagnostics(result: &StudyResult) -> Result<TierDiagnostics, TierDia
         return Ok(TierDiagnostics { design, overlap, evalue });
     }
     if derived(UNKNOWN_RULE) {
+        observe(ctx)?;
         let effects = effect.scenario_effects.as_deref().ok_or_else(not_tiered)?;
         let estimands = &result.identification.estimands;
         if effects.len() != estimands.len() || effects.is_empty() {
             return Err(not_tiered());
         }
-        let scenarios = estimands
-            .iter()
-            .zip(effects)
-            .map(|(estimand, &value)| TierScenario {
+        let mut scenarios = Vec::with_capacity(effects.len());
+        for (estimand, &value) in estimands.iter().zip(effects) {
+            observe(ctx)?;
+            scenarios.push(TierScenario {
                 method: Arc::clone(&estimand.method),
                 adjustment: estimand.adjustment_set.to_vec(),
                 effect: value,
-            })
-            .collect();
+            });
+        }
         return Ok(TierDiagnostics {
             design: TierDesign::UnknownScenarios { scenarios },
             overlap: Availability::Unavailable(unavailable(

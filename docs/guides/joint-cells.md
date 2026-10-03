@@ -196,3 +196,9 @@ robustness that the AIPW score relies on. The route does not take a causal graph
 adjustment set is the caller's, checked only for the leakage and dependence above. A declared
 learner uses its default hyperparameters (no tuning grid) and the Python wrapper accepts no
 `penalties` with it.
+
+Cancellation is observed once per cell, once per prefix-stratum conditional, once per penalty of
+a ridge conditional and once per cell and fold of a declared learner's outcome models. A
+cancelled fit is `cancelled_no_claim` (`joint_cells.cancelled`) with no fit and no score table.
+`estimate_joint_cell_cost` states the planned conditional and outcome fits from the same
+declaration (see the cost section of the preflight guide).

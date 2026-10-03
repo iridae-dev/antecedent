@@ -283,17 +283,23 @@ class InferenceDefault:
 class CostEstimate:
     """Counts for one prepared plan. A planning hint, not a runtime guarantee.
 
-    ``seconds`` is ``None`` unless a named local benchmark backs it; ``seconds_basis`` says
-    why. Counts that were not derived for the estimator are ``None``, never zero.
+    ``seconds`` is ``None`` unless a named local benchmark backs it (it covers plain
+    ``linear.adjustment.ate`` and ``aipw`` fits, so a penalized, lasso, DML or DR route reports
+    counts only); ``seconds_basis`` says why. Counts that were not derived for the estimator
+    are ``None``, never zero. ``fit_route`` names the counted route (a penalty grid, a
+    cluster-DML unit, a DML score) and ``cluster_labels`` the distinct cluster labels a
+    cluster-DML declaration folds by. A ridge or lasso propensity count is an upper bound.
     """
 
     planning_hint: bool
     note: str
     estimator: str
+    fit_route: str
     inference: InferenceDefault
     rows: int | None
     design_columns: int | None
     crossfit_folds: int | None
+    cluster_labels: int | None
     propensity_fits_per_pass: int | None
     outcome_fits_per_pass: int | None
     nuisance_fits_per_pass: int | None
@@ -433,6 +439,7 @@ def _cost(raw: Mapping[str, Any]) -> CostEstimate:
         planning_hint=raw["planning_hint"],
         note=raw["note"],
         estimator=raw["estimator"],
+        fit_route=raw["fit_route"],
         inference=InferenceDefault(
             mode=inference["mode"],
             bootstrap_replicates=inference["bootstrap_replicates"],
@@ -441,6 +448,7 @@ def _cost(raw: Mapping[str, Any]) -> CostEstimate:
         rows=raw["rows"],
         design_columns=raw["design_columns"],
         crossfit_folds=raw["crossfit_folds"],
+        cluster_labels=raw["cluster_labels"],
         propensity_fits_per_pass=raw["propensity_fits_per_pass"],
         outcome_fits_per_pass=raw["outcome_fits_per_pass"],
         nuisance_fits_per_pass=raw["nuisance_fits_per_pass"],

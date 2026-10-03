@@ -57,7 +57,7 @@ set (`n = 3`, `k = 1`, `t = 1`) with `a` of `m` sets having the case exposed,
 
 The estimate is found by bracketing the monotone score and a safeguarded Newton
 iteration (the information gives the step, bisection the guarantee); the solve observes
-a cancellation token each iteration. It is finite iff the observed exposed-case total
+a cancellation token on entry (before the set tally) and each iteration. It is finite iff the observed exposed-case total
 lies strictly between the smallest and largest totals the informative sets allow.
 
 ## Strata that carry no information

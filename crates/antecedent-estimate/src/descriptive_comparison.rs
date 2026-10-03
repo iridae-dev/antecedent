@@ -37,12 +37,18 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ExecutionContext;
+
 use crate::error::EstimationError;
 use crate::joint_if::JointCovariance;
 
 /// Tolerance for treatment codes and covariance symmetry, matching the propensity
 /// preparer's exact-binary check.
 const CODE_TOLERANCE: f64 = 1e-12;
+
+/// Rows between cancellation polls in the raw-contrast pass, so a long input stops at a
+/// bounded granularity without a poll per row.
+const POLL_EVERY_ROWS: usize = 4096;
 
 /// A diagnostic or covariance the route does not carry, with the registered code and the
 /// detail naming why. Absent is explicit; nothing here is a zero or a fabricated value.
@@ -94,6 +100,15 @@ fn invalid_data(message: &str) -> EstimationError {
         antecedent_core::reason_code!("invalid_argument"),
         "descriptive_comparison.invalid_data",
         message,
+    )
+}
+
+fn cancelled() -> EstimationError {
+    refuse(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "descriptive_comparison.cancelled",
+        "the comparison was cancelled before every row was read; no contrast is reported and \
+         the stop is not a verdict on the data",
     )
 }
 
@@ -430,13 +445,22 @@ impl RawContrast {
 /// # Errors
 /// `invalid_argument` (`descriptive_comparison.invalid_data`) for empty, unequal-length,
 /// non-finite or non-0/1 treatment input; `arm_not_populated`
-/// (`descriptive_comparison.arm_not_populated`) when an arm has no rows.
-pub fn raw_contrast(outcome: &[f64], treatment: &[f64]) -> Result<RawContrast, EstimationError> {
+/// (`descriptive_comparison.arm_not_populated`) when an arm has no rows;
+/// `cancelled_no_claim` (`descriptive_comparison.cancelled`) when `ctx` is cancelled (observed
+/// at the first row, every 4096 rows and once after the pass), with no contrast reported.
+pub fn raw_contrast(
+    outcome: &[f64],
+    treatment: &[f64],
+    ctx: &ExecutionContext,
+) -> Result<RawContrast, EstimationError> {
     if outcome.is_empty() || outcome.len() != treatment.len() {
         return Err(invalid_data("outcome and treatment must be non-empty and of equal length"));
     }
     let (mut active, mut control) = (Vec::new(), Vec::new());
-    for (&y, &t) in outcome.iter().zip(treatment) {
+    for (i, (&y, &t)) in outcome.iter().zip(treatment).enumerate() {
+        if i % POLL_EVERY_ROWS == 0 && ctx.cancellation.is_cancelled() {
+            return Err(cancelled());
+        }
         if !y.is_finite() {
             return Err(invalid_data("the outcome has a missing or non-finite value"));
         }
@@ -447,6 +471,9 @@ pub fn raw_contrast(outcome: &[f64], treatment: &[f64]) -> Result<RawContrast, E
         } else {
             return Err(invalid_data("the treatment must be coded exactly 0 or 1"));
         }
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled());
     }
     if active.is_empty() || control.is_empty() {
         return Err(refuse(
@@ -526,11 +553,12 @@ pub struct DescriptiveComparison {
 /// adjusted estimate is not a 1-versus-0 difference of means; `population_not_estimable`
 /// (`descriptive_comparison.population_not_all_observed`) when it targets another
 /// population; `invalid_argument` for a non-finite estimate or standard error; and the
-/// [`raw_contrast`] errors.
+/// [`raw_contrast`] errors (cancellation included).
 pub fn compare_raw_adjusted(
     outcome: &[f64],
     treatment: &[f64],
     adjusted: AdjustedEstimate,
+    ctx: &ExecutionContext,
 ) -> Result<DescriptiveComparison, EstimationError> {
     if adjusted.scale != ReportingScale::MeanDifference
         || (adjusted.active - 1.0).abs() > CODE_TOLERANCE
@@ -560,7 +588,7 @@ pub fn compare_raw_adjusted(
     if !adjusted.estimate.is_finite() || adjusted.se.is_some_and(|se| !se.is_finite() || se < 0.0) {
         return Err(invalid_data("the adjusted estimate and its standard error must be finite"));
     }
-    let raw = raw_contrast(outcome, treatment)?;
+    let raw = raw_contrast(outcome, treatment, ctx)?;
     Ok(DescriptiveComparison {
         raw,
         adjusted,
