@@ -7,7 +7,7 @@ import math
 import numbers
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 import numpy as np
 
@@ -193,6 +193,16 @@ from .transport.advanced import (
     TransportQuery,
     TransportResponseGridQuery,
 )
+
+if TYPE_CHECKING:
+    from .preflight import (
+        BatchCostEstimate,
+        BatchPreflightReport,
+        CostEstimate,
+        NuisanceFitDiagnostics,
+        PreflightReport,
+        RankDropPlan,
+    )
 
 
 def _refutation_reports_from_raw(validation: Any) -> list[RefutationReport]:
@@ -1850,6 +1860,40 @@ class PreparedBatch:
             adjustment_set=None if adj is None else tuple(int(i) for i in adj),
             shares_covariates=bool(self._native.shares_covariates()),
         )
+
+    def diagnose(self, *, seed: int = 1, threads: int | None = None) -> BatchPreflightReport:
+        """Fit-free preflight of every plan (see ``PreparedAnalysis.diagnose``)."""
+        from .preflight import diagnose_batch
+
+        return diagnose_batch(self._native, seed=seed, threads=threads)
+
+    def diagnose_fit(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[NuisanceFitDiagnostics, ...]:
+        """Propensity-fit diagnostics of every plan (fit-requiring)."""
+        from .preflight import diagnose_fit_batch
+
+        return diagnose_fit_batch(self._native, seed=seed, threads=threads)
+
+    def plan_rank_drop(
+        self,
+        priority: Sequence[str] | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[RankDropPlan, ...]:
+        """Opt-in rank-drop plan of every plan under one declared column priority."""
+        from .preflight import plan_rank_drop_batch
+
+        return plan_rank_drop_batch(self._native, priority, seed=seed, threads=threads)
+
+    def estimate_cost(self) -> BatchCostEstimate:
+        """Planning counts of every plan and their totals; the fit total is an upper bound
+        because identical cross-fitted nuisances are shared. A planning hint, not a runtime
+        guarantee."""
+        from .preflight import estimate_cost_batch
+
+        return estimate_cost_batch(self._native)
 
     @classmethod
     def prepare(
@@ -5373,6 +5417,53 @@ class PreparedAnalysis(Generic[ResultT]):
         if self._transport is not None:
             return self.inspect()
         return as_inspection(ReasoningSlots.from_contract(self._native.inspect()))
+
+    def diagnose(self, *, seed: int = 1, threads: int | None = None) -> PreflightReport:
+        """Fit-free preflight of the retained table and certified adjustment set.
+
+        Reports complete-case and arm counts, missingness, exact duplicate columns, the
+        numerical rank of the ``[1 | Z]`` design with the dependent columns named, and
+        review flags for near-deterministic relations (never a change to the adjustment
+        set). Nothing is fit; :meth:`diagnose_fit` is the check that fits a propensity
+        model. Unlike :meth:`preflight`, which inspects the plan's structure, this reads
+        the data.
+        """
+        from .preflight import diagnose_prepared
+
+        return diagnose_prepared(self._native, seed=seed, threads=threads)
+
+    def diagnose_fit(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> NuisanceFitDiagnostics:
+        """Fit a diagnostic propensity model and report its score range and arm ESS.
+
+        Not preflight: the fit is part of the evidence. A fit that fails before any score
+        exists reports every fitted quantity as absent.
+        """
+        from .preflight import diagnose_fit_prepared
+
+        return diagnose_fit_prepared(self._native, seed=seed, threads=threads)
+
+    def plan_rank_drop(
+        self,
+        priority: Sequence[str] | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> RankDropPlan:
+        """Opt-in rank-deficiency drop plan under a declared column priority (a record,
+        not an execution). See :func:`antecedent.preflight.plan_rank_drop`."""
+        from .preflight import plan_rank_drop_prepared
+
+        return plan_rank_drop_prepared(self._native, priority, seed=seed, threads=threads)
+
+    def estimate_cost(self) -> CostEstimate:
+        """Planning-time counts (nuisance fits, folds, bootstrap replicates, design bytes)
+        and the active inference default. A planning hint, not a runtime guarantee; no
+        seconds are estimated."""
+        from .preflight import estimate_cost_prepared
+
+        return estimate_cost_prepared(self._native)
 
     def preview_transform(self, intent: str) -> dict[str, str]:
         """Pure preview of a transformation of this study; nothing is re-executed.

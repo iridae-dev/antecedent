@@ -4,6 +4,7 @@
 
 /// Every registered reason code.
 pub const REASON_CODES: &[&str] = &[
+    "arm_not_populated",
     "attested_not_reverifiable",
     "boundary_record",
     "calibration_basis_missing",
@@ -13,6 +14,7 @@ pub const REASON_CODES: &[&str] = &[
     "construction_not_licensed",
     "cross_world_not_identified",
     "data_modality_not_licensed",
+    "design_rank_deficient",
     "effect_not_identified",
     "estimator_grid_not_measured",
     "estimator_inference_mismatch",
@@ -29,6 +31,7 @@ pub const REASON_CODES: &[&str] = &[
     "posterior_draws_below_measured",
     "prior_dimension_mismatch",
     "prior_transfer_not_hydrated",
+    "rank_drop_not_licensed",
     "rd_assignment_not_sharp",
     "refutation_not_applicable",
     "required_option_missing",
@@ -64,6 +67,7 @@ pub const REASON_CODES: &[&str] = &[
 
 /// Codes whose `applies_to` includes `runtime_refusal`.
 pub const RUNTIME_REFUSAL_CODES: &[&str] = &[
+    "arm_not_populated",
     "attested_not_reverifiable",
     "cancelled_no_claim",
     "cell_not_applicable",
@@ -71,6 +75,7 @@ pub const RUNTIME_REFUSAL_CODES: &[&str] = &[
     "construction_not_licensed",
     "cross_world_not_identified",
     "data_modality_not_licensed",
+    "design_rank_deficient",
     "effect_not_identified",
     "estimator_inference_mismatch",
     "graph_invalid",
@@ -82,6 +87,7 @@ pub const RUNTIME_REFUSAL_CODES: &[&str] = &[
     "population_not_estimable",
     "prior_dimension_mismatch",
     "prior_transfer_not_hydrated",
+    "rank_drop_not_licensed",
     "rd_assignment_not_sharp",
     "refutation_not_applicable",
     "required_option_missing",

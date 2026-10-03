@@ -303,3 +303,19 @@ meaning = "The point is retained but its interval is withheld: sampling dependen
 id = "scenario_aggregate_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are licensed."
+
+# 2.2 E1 preflight (parity/promotion_2_2.toml carries no record: diagnostics add no inferential claim).
+[[code]]
+id = "design_rank_deficient"
+applies_to = ["runtime_refusal"]
+meaning = "The adjustment design is numerically rank deficient (an exact duplicate or linear dependency among its columns), so regression-based nuisance fits would refuse it; the refusal names the dependent columns and the rank."
+
+[[code]]
+id = "rank_drop_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "An opt-in rank-deficiency drop would remove a column the query needs (a treatment, outcome or effect modifier) or the declared column priority does not cover the design; nothing is dropped."
+
+[[code]]
+id = "arm_not_populated"
+applies_to = ["runtime_refusal"]
+meaning = "A treatment arm or joint cell has no complete-case rows, so no contrast against it is estimable; the refusal names the arm and its counts."

@@ -49,6 +49,7 @@ mod learned_trial_api;
 mod observation_api;
 mod observational_interference_api;
 mod policy_api;
+mod preflight_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
@@ -664,7 +665,9 @@ impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
         let remedy = self.remedy();
+        let fields = self.refusal_fields().cloned();
         let err = with_remedy(uncoded_py_err(self), remedy);
+        let err = preflight_api::with_refusal_fields(err, fields.as_ref());
         match code {
             Some(code) => with_default_reason_code(err, &code),
             None => err,
@@ -681,6 +684,7 @@ fn uncoded_py_err(error: RustCausalError) -> PyErr {
         // `Unsupported` refusal is.
         RustCausalError::Estimate(
             e @ (antecedent_estimate::EstimationError::Refused { .. }
+            | antecedent_estimate::EstimationError::RefusedWithFields { .. }
             | antecedent_estimate::EstimationError::TargetPopulation),
         ) => unsupported_py_err(e.to_string()),
         RustCausalError::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
@@ -2633,6 +2637,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     learned_trial_api::register(m)?;
     learned_continuous_api::register(m)?;
     smoothed_dose_api::register(m)?;
+    preflight_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
@@ -2650,6 +2655,7 @@ fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Every exception reads `remedy`: `None` unless the refusal names one (see
     // [`with_remedy`]), so a caller never needs `getattr(err, "remedy", None)`.
     m.py().get_type::<CausalError>().setattr("remedy", m.py().None())?;
+    m.py().get_type::<CausalError>().setattr("refusal_fields", m.py().None())?;
     m.add("CausalError", m.py().get_type::<CausalError>())?;
     m.add("CausalIdentifyError", m.py().get_type::<CausalIdentifyError>())?;
     m.add("CausalEstimateError", m.py().get_type::<CausalEstimateError>())?;

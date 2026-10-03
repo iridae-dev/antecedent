@@ -23,6 +23,7 @@ mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
 mod contract;
 mod contract_identity;
+mod cost;
 mod exact;
 mod execute;
 mod joint_sensitivity;
@@ -31,6 +32,7 @@ mod learned_continuous;
 mod learned_trial;
 mod mixed_source;
 mod mz_transport;
+mod preflight;
 mod recovery;
 mod smoothed_dose;
 mod statistical;
@@ -63,6 +65,7 @@ pub(crate) use checked_temporal_graph_posterior_effect::{
 pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
 };
+pub use cost::{BatchCostEstimate, CostEstimate, InferenceDefault};
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
@@ -79,6 +82,13 @@ pub use learned_continuous::{
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
 pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
 pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use preflight::{
+    ArmCount, ArmSpec, ArmWeightEss, BatchPreflightReport, ColumnMissingness, ColumnPriority,
+    ColumnWeight, DependentColumn, DroppedColumn, DuplicateGroup, FindingSeverity,
+    FittedPropensity, NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport,
+    PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport, ScoreQuantile,
+    fit_diagnostics_design, plan_rank_drop, preflight_design,
+};
 pub use recovery::{
     ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
 };

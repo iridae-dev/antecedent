@@ -25,6 +25,9 @@ class CausalError(Exception):
     # What the caller can change to get past a refusal, when it names one;
     # ``None`` otherwise (a class default every subclass inherits).
     remedy: str | None
+    # Structured refusal fields (stage, subject, counts, implicated columns, remedy)
+    # when the refusal carries them; ``None`` otherwise.
+    refusal_fields: dict[str, object] | None
 
 class CausalIdentifyError(CausalError): ...
 class CausalEstimateError(CausalError): ...
@@ -970,6 +973,16 @@ class AnalysisResult:
 TemporalAnalysisResult = AnalysisResult
 
 class PreparedAnalysis:
+    def diagnose_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def diagnose_fit_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def plan_rank_drop_json(
+        self,
+        priority: list[str] | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def estimate_cost_json(self) -> str: ...
     def contract(
         self,
     ) -> dict[str, str]: ...
@@ -2169,6 +2182,16 @@ def analyze_ate_many(
 ) -> list[AteAnalysisResult]: ...
 
 class PreparedBatch:
+    def diagnose_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def diagnose_fit_json(self, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def plan_rank_drop_json(
+        self,
+        priority: list[str] | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def estimate_cost_json(self) -> str: ...
     def n_plans(self) -> int: ...
     def shares_covariates(self) -> bool: ...
     def shared_n_folds(self) -> int | None: ...
@@ -5217,3 +5240,41 @@ def open_provider_result(
     verified_request_digest: str | None = None,
     verified_evidence_digest: str | None = None,
 ) -> tuple[str, bytes | None]: ...
+
+def preflight_json(
+    names: list[str],
+    columns: Sequence[Any],
+    treatment: str,
+    outcome: str,
+    adjustment: list[str],
+    control: float = 0.0,
+    active: float = 1.0,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def fit_diagnostics_json(
+    names: list[str],
+    columns: Sequence[Any],
+    treatment: str,
+    outcome: str,
+    adjustment: list[str],
+    control: float = 0.0,
+    active: float = 1.0,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...
+def rank_drop_json(
+    names: list[str],
+    columns: Sequence[Any],
+    treatment: str,
+    outcome: str,
+    adjustment: list[str],
+    priority: list[str] | None = None,
+    control: float = 0.0,
+    active: float = 1.0,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+) -> str: ...

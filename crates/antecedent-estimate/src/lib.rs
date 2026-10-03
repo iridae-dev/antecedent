@@ -177,7 +177,7 @@ pub use envelope::{
     EnvelopeOptions, GraphEffectDraws, aggregate_effect_envelope,
     aggregate_mixture_functional_envelope, couple_mixture_functional_draws,
 };
-pub use error::EstimationError;
+pub use error::{EstimationError, ExactF64, RefusalFields};
 pub use estimator::{Estimator, TabularAteEstimator};
 pub use frontdoor::{
     CheckedFrontDoorLowering, CheckedFrontDoorPreparation, FrontDoorTwoStage, FrontDoorWorkspace,

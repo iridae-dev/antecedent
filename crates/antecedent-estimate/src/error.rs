@@ -107,6 +107,68 @@ pub enum EstimationError {
         /// What was refused and what the caller can do instead.
         message: String,
     },
+    /// [`Self::Refused`] that also carries structured diagnostics (see
+    /// [`RefusalFields`]). The rendered message is byte-identical to the
+    /// [`Self::Refused`] with the same code and message; the fields are read with
+    /// [`Self::refusal_fields`], never parsed out of the text.
+    #[error("{}{code}: {message}", antecedent_core::reason_code::PREFIX)]
+    RefusedWithFields {
+        /// Registered reason code (checked with `antecedent_core::reason_code!`).
+        code: &'static str,
+        /// What was refused and what the caller can do instead.
+        message: String,
+        /// Structured diagnostics of the failing step; absent entries stay absent.
+        fields: Box<RefusalFields>,
+    },
+}
+
+/// A float compared by its bit pattern, so a refusal that carries diagnostics stays
+/// `Eq` (NaN equals the same NaN; `0.0` and `-0.0` differ).
+#[derive(Clone, Copy, Debug)]
+pub struct ExactF64(pub f64);
+
+impl PartialEq for ExactF64 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_bits() == other.0.to_bits()
+    }
+}
+
+impl Eq for ExactF64 {}
+
+/// Structured diagnostics of a refusal: which treatment or cell failed, at which stage
+/// and why, plus whatever numbers the failing step actually produced.
+///
+/// Every entry is optional or empty by default and stays that way unless the failing
+/// step measured it. A diagnostic that needs a fitted nuisance is never invented from
+/// a fit that failed before producing one. Build one with
+/// `RefusalFields { stage: .., ..RefusalFields::default() }`; later fields are added
+/// only as further optional or empty entries.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RefusalFields {
+    /// Pipeline stage that refused (`preflight`, `rank_drop`, ...).
+    pub stage: Option<String>,
+    /// Failing treatment or joint cell, by name.
+    pub subject: Option<String>,
+    /// Short statement of why it failed.
+    pub reason: Option<String>,
+    /// Effective sample size per arm, `(arm label, ess)`.
+    pub arm_ess: Vec<(String, ExactF64)>,
+    /// Smallest fitted propensity.
+    pub propensity_min: Option<ExactF64>,
+    /// Largest fitted propensity.
+    pub propensity_max: Option<ExactF64>,
+    /// Fitted propensity quantiles, `(probability, value)`.
+    pub propensity_quantiles: Vec<(ExactF64, ExactF64)>,
+    /// Number of clusters, when the estimator clusters.
+    pub cluster_count: Option<u64>,
+    /// Numerical rank of the design.
+    pub numerical_rank: Option<u64>,
+    /// Number of design columns the rank is out of.
+    pub design_columns: Option<u64>,
+    /// Columns the refusal implicates, by name.
+    pub implicated_columns: Vec<String>,
+    /// What the caller can change to get past the refusal.
+    pub remedy: Option<String>,
 }
 
 impl EstimationError {
@@ -150,6 +212,26 @@ impl EstimationError {
         Self::Refused { code, message: message.into() }
     }
 
+    /// A refusal with a registered runtime reason code and structured diagnostics.
+    #[must_use]
+    pub fn refused_with_fields(
+        code: &'static str,
+        message: impl Into<String>,
+        fields: RefusalFields,
+    ) -> Self {
+        Self::RefusedWithFields { code, message: message.into(), fields: Box::new(fields) }
+    }
+
+    /// Structured diagnostics of a refusal built with them. Additive: `None` for every
+    /// other error, and never part of the rendered message.
+    #[must_use]
+    pub fn refusal_fields(&self) -> Option<&RefusalFields> {
+        match self {
+            Self::RefusedWithFields { fields, .. } => Some(fields),
+            _ => None,
+        }
+    }
+
     /// Ad-hoc data-layer message (maps to [`DataError::InvalidArgument`]).
     #[must_use]
     pub fn data_msg(message: impl Into<String>) -> Self {
@@ -165,7 +247,7 @@ impl EstimationError {
 
 #[cfg(test)]
 mod tests {
-    use super::EstimationError;
+    use super::{EstimationError, RefusalFields};
 
     /// Only a refusal built with a remedy carries one; every other error reads
     /// `None`, and attaching a remedy never changes the rendered message.
@@ -180,5 +262,23 @@ mod tests {
         let remedied = EstimationError::unsupported_with_remedy("refused", "do this instead");
         assert_eq!(remedied.remedy(), Some("do this instead"));
         assert_eq!(remedied.to_string(), plain.to_string());
+    }
+
+    /// Structured fields ride beside a refusal without changing its code or message, and
+    /// a plain refusal reads no fields.
+    #[test]
+    fn refusal_fields_are_additive_to_the_coded_message() {
+        let plain = EstimationError::refused("route_not_supported", "no");
+        assert!(plain.refusal_fields().is_none());
+        let fields = RefusalFields {
+            numerical_rank: Some(174),
+            implicated_columns: vec!["z174".to_string()],
+            ..RefusalFields::default()
+        };
+        let rich = EstimationError::refused_with_fields("route_not_supported", "no", fields);
+        assert_eq!(rich.to_string(), plain.to_string());
+        let read = rich.refusal_fields().expect("fields were attached");
+        assert_eq!(read.numerical_rank, Some(174));
+        assert!(read.stage.is_none() && read.arm_ess.is_empty() && read.propensity_min.is_none());
     }
 }

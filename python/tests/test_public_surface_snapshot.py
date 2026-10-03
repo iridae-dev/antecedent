@@ -167,6 +167,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "model",
         "observation",
         "policy",
+        "preflight",
         "regimes",
         "population",
         "prediction",
@@ -265,6 +266,11 @@ SNAPSHOT: dict[str, set[str]] = {
         "refresh",
         "inspect",
         "preflight",
+        # Data-reading diagnostics, cost counts and the opt-in rank-drop plan (2.2 E1)
+        "diagnose",
+        "diagnose_fit",
+        "plan_rank_drop",
+        "estimate_cost",
         "preview_transform",
         "export",
         # Second clicks on the retained execution

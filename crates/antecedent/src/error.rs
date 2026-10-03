@@ -453,7 +453,10 @@ impl CausalError {
             Self::NotIdentified { .. } => return Some("effect_not_identified"),
             Self::Compile { message } => message.as_str(),
             Self::Unsupported { message } | Self::Support { message, .. } => message,
-            Self::Estimate(EstimationError::Refused { code, .. })
+            Self::Estimate(
+                EstimationError::Refused { code, .. }
+                | EstimationError::RefusedWithFields { code, .. },
+            )
             | Self::Serialization(IoError::Refused { code, .. }) => return Some(code),
             // The multi-source limited-experiment route's frozen (code, detail) pairs.
             Self::Identify(error) => {
@@ -463,6 +466,17 @@ impl CausalError {
             _ => return None,
         };
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
+    }
+
+    /// Structured diagnostics (failing treatment or cell, stage, arm ESS, rank, implicated
+    /// columns, remedy) of a refusal built with them. Additive: `None` for every other
+    /// error, and absent entries inside stay absent rather than being derived.
+    #[must_use]
+    pub fn refusal_fields(&self) -> Option<&antecedent_estimate::RefusalFields> {
+        match self {
+            Self::Estimate(error) => error.refusal_fields(),
+            _ => None,
+        }
     }
 
     /// What the caller can change to get past this refusal, when the refusal
