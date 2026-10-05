@@ -571,10 +571,7 @@ def static_python_test(path: Path, name: str) -> list[str]:
 
 
 @functools.cache
-def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
-    problems = static_python_test(path, name)
-    if problems:
-        return problems
+def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
     rel = path.resolve().relative_to((cwd / "python").resolve())
     # Evidence collection is read-only. CI and local release gates install the
     # project environment first; resolving one test must not fetch packages.
@@ -591,14 +588,26 @@ def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
             "-q",
             "-p",
             "no:cacheprovider",
-            f"{rel}::{name}",
+            str(rel),
         ],
         cwd=cwd / "python",
         capture_output=True,
         text=True,
     )
-    if proc.returncode != 0 or f"::{name}" not in proc.stdout:
-        return [f"pytest does not collect {rel}::{name}: {(proc.stdout + proc.stderr)[-500:]}"]
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+@functools.cache
+def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
+    problems = static_python_test(path, name)
+    if problems:
+        return problems
+    rel = path.resolve().relative_to((cwd / "python").resolve())
+    code, listing = _python_collection(path, cwd)
+    nodes = (line.split()[0] for line in listing.splitlines() if line.startswith(str(rel) + "::"))
+    if code != 0 or not any(node.endswith("::" + name) or
+                            node.split("[")[0].endswith("::" + name) for node in nodes):
+        return [f"pytest does not collect {rel}::{name}: {listing[-500:]}"]
     return []
 
 

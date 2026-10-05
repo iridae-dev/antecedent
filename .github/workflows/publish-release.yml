@@ -1,4 +1,4 @@
-# Tag-driven release: wheels → GitHub Release + PyPI + crates.io, as one release.
+# Tag-driven release: reuse exact-main-CI wheels → GitHub Release + PyPI + crates.io.
 # PyPI uses trusted publishing (OIDC). The publisher on pypi.org must match this
 # workflow filename; the publishing job runs in the `release` environment, so
 # register that environment name on pypi.org too and give it required reviewers
@@ -11,7 +11,8 @@
 #
 # Nothing publishes until `prepare` has verified (scripts/verify_release.sh) that
 # the tag commit is on main, that the committed tree carries the tag's version,
-# and that the `ci` workflow is green on that exact commit.
+# and that a main-push `ci` run is green on that exact commit. Both publishers
+# verify the downloaded 16-wheel matrix before touching a registry or Release.
 # Note: GitHub Packages has no supported Python registry; upload.pypi.pkg.github.com
 # currently fails TLS (cert only valid for *.registry.github.com).
 name: publish-release
@@ -27,7 +28,7 @@ on:
         required: true
         type: string
       reuse_run_id:
-        description: "Skip wheel/docs builds; publish artifacts from this Actions run id"
+        description: "Optional exact-tag-SHA main CI run id for a manual retry"
         required: false
         type: string
         default: ""
@@ -49,14 +50,15 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
       tag: ${{ steps.ver.outputs.tag }}
+      ci_run_id: ${{ steps.verify.outputs.ci_run_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The attestation diffs against each record's calibration_sha.
           fetch-depth: 0
 
-      # Every later job needs this one: no wheel is built and nothing is
-      # published while a committed coverage record does not match the code it
+      # Every later job needs this one: nothing is published while a committed
+      # coverage record does not match the code it
       # would ship with (calibration labels would come from a stale registry).
       - name: Calibration attestation (coverage records match the code)
         run: bash scripts/gate_calibration_attestation.sh
@@ -89,147 +91,22 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
-      # The tag decides what ships. Fail (do not rewrite the tree) unless the
-      # commit is on main, carries this version, and has a green ci run.
+      # The tag decides what ships. Fail unless this exact commit has a green
+      # main-push CI run, including its fully tested wheel matrix.
       - name: Verify tag commit, committed version and CI
+        id: verify
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.ver.outputs.version }}
-        run: bash scripts/verify_release.sh tag "$VERSION"
-
-  wheels:
-    name: Wheel ${{ matrix.os }} py${{ matrix.python }}
-    if: ${{ github.event_name == 'push' || inputs.reuse_run_id == '' }}
-    needs: prepare
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            python: "3.11"
-            target: x86_64
-            manylinux: auto
-          - os: ubuntu-latest
-            python: "3.12"
-            target: x86_64
-            manylinux: auto
-          - os: ubuntu-latest
-            python: "3.13"
-            target: x86_64
-            manylinux: auto
-          - os: ubuntu-latest
-            python: "3.14"
-            target: x86_64
-            manylinux: auto
-          - os: ubuntu-24.04-arm
-            python: "3.11"
-            target: aarch64
-            manylinux: auto
-          - os: ubuntu-24.04-arm
-            python: "3.12"
-            target: aarch64
-            manylinux: auto
-          - os: ubuntu-24.04-arm
-            python: "3.13"
-            target: aarch64
-            manylinux: auto
-          - os: ubuntu-24.04-arm
-            python: "3.14"
-            target: aarch64
-            manylinux: auto
-          - os: macos-14
-            python: "3.11"
-            target: aarch64
-            manylinux: ""
-          - os: macos-14
-            python: "3.12"
-            target: aarch64
-            manylinux: ""
-          - os: macos-14
-            python: "3.13"
-            target: aarch64
-            manylinux: ""
-          - os: macos-14
-            python: "3.14"
-            target: aarch64
-            manylinux: ""
-          - os: windows-latest
-            python: "3.11"
-            target: x64
-            manylinux: ""
-          - os: windows-latest
-            python: "3.12"
-            target: x64
-            manylinux: ""
-          - os: windows-latest
-            python: "3.13"
-            target: x64
-            manylinux: ""
-          - os: windows-latest
-            python: "3.14"
-            target: x64
-            manylinux: ""
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Windows jobs default to PowerShell, which expands $VERSION before bash
-      # starts and leaves the check with an empty version.
-      - name: Committed version matches the tag
-        shell: bash
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: bash scripts/set_version.sh --check "$VERSION"
-
-      - name: Install Rust 1.85
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
-        with:
-          toolchain: "1.85"
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: ${{ matrix.python }}
-
-      - name: Build wheel
-        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
-        with:
-          working-directory: python
-          command: build
-          # manylinux images have no bare `python` on PATH; pass the version
-          # so maturin resolves /opt/python/cp3XY-*/bin/python inside the container.
-          args: --release --out dist -i ${{ matrix.python }}
-          target: ${{ matrix.target }}
-          manylinux: ${{ matrix.manylinux }}
-          sccache: "true"
-
-      - name: Install wheel and smoke tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          pip install python/dist/*.whl numpy pandas pyarrow pytest
-          cd "$(mktemp -d)"
-          python -c "import antecedent; print(antecedent.__version__)"
-          # Publishing to PyPI must not be gated on a narrower check than CI.
-          # Run the whole suite against the wheel that is about to ship.
-          ROOT="${{ github.workspace }}"
-          pytest -q "$ROOT/python/tests"
-
-      - name: Upload wheel artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-wheel-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.target }}
-          path: python/dist/*.whl
-          if-no-files-found: error
-          retention-days: 30
+          REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
+        run: bash scripts/verify_release.sh tag "$VERSION" "$REUSE_RUN_ID"
 
   docs:
     name: Build docs bundle
-    if: ${{ github.event_name == 'push' || inputs.reuse_run_id == '' }}
-    needs: [prepare, wheels]
+    needs: prepare
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -251,8 +128,10 @@ jobs:
       - name: Download manylinux x86_64 py3.12 wheel
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: release-wheel-ubuntu-latest-py3.12-x86_64
+          name: wheel-ubuntu-latest-py3.12-x86_64
           path: wheel-in
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ needs.prepare.outputs.ci_run_id }}
 
       - name: Rustdoc
         run: cargo doc -p antecedent --no-deps
@@ -296,20 +175,18 @@ jobs:
   # uploads.github.com used to skip trusted publishing entirely.
   publish-pypi:
     name: Publish wheels to PyPI
-    needs: [prepare, wheels, crates-dry-run]
+    needs: [prepare, crates-dry-run]
     if: >-
       always() && !cancelled() &&
       needs.prepare.result == 'success' &&
-      needs.crates-dry-run.result == 'success' &&
-      (needs.wheels.result == 'success' || needs.wheels.result == 'skipped')
+      needs.crates-dry-run.result == 'success'
     runs-on: ubuntu-latest
     # Required reviewer + tag-only deployment rule live on this environment.
     environment: release
     permissions:
       actions: read
-      attestations: write  # build-provenance attestations for the wheels
       contents: read
-      id-token: write  # PyPI trusted publishing and attestations
+      id-token: write  # PyPI trusted publishing
     steps:
       # Verification helpers and the tree they verify against.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -319,11 +196,11 @@ jobs:
       - name: Download all wheels
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: release-wheel-*
+          pattern: wheel-*
           path: wheels
           merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id) || github.run_id }}
+          run-id: ${{ needs.prepare.outputs.ci_run_id }}
 
       - name: List wheels
         run: |
@@ -336,13 +213,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
-          REUSE_RUN_ID: ${{ (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id) || '' }}
+          REUSE_RUN_ID: ${{ needs.prepare.outputs.ci_run_id }}
         run: bash scripts/verify_release.sh wheels wheels "$VERSION" "$REUSE_RUN_ID"
-
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: wheels/*.whl
 
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -420,14 +292,11 @@ jobs:
 
   github-release:
     name: Publish GitHub Release
-    needs: [prepare, wheels, docs]
+    needs: [prepare, docs]
     if: >-
       always() && !cancelled() &&
       needs.prepare.result == 'success' &&
-      (
-        (needs.wheels.result == 'success' && needs.docs.result == 'success') ||
-        (needs.wheels.result == 'skipped' && needs.docs.result == 'skipped')
-      )
+      needs.docs.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -438,11 +307,11 @@ jobs:
       - name: Download all wheels
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: release-wheel-*
+          pattern: wheel-*
           path: wheels
           merge-multiple: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id) || github.run_id }}
+          run-id: ${{ needs.prepare.outputs.ci_run_id }}
 
       - name: Download docs bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -450,13 +319,13 @@ jobs:
           name: docs-bundle
           path: .
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id) || github.run_id }}
+          run-id: ${{ github.run_id }}
 
       - name: Verify wheels belong to this release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
-          REUSE_RUN_ID: ${{ (github.event_name == 'workflow_dispatch' && inputs.reuse_run_id) || '' }}
+          REUSE_RUN_ID: ${{ needs.prepare.outputs.ci_run_id }}
         run: bash scripts/verify_release.sh wheels wheels "$VERSION" "$REUSE_RUN_ID"
 
       - name: List release assets

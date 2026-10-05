@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      rust_test_opt_level:
+        description: "Rust test optimization level for a CI timing comparison"
+        type: choice
+        options: ["1", "2"]
+        default: "2"
 
 permissions:
   contents: read
@@ -31,8 +38,10 @@ jobs:
     # binaries fit on the Ubuntu runner; the last run died in ld with
     # "No space left on device" after Clippy had already filled the disk.
     env:
-      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: ${{ inputs.rust_test_opt_level || '2' }}
       CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
     strategy:
       fail-fast: false
       matrix:
@@ -54,6 +63,12 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
 
       - name: DCO check
         if: github.event_name == 'pull_request'
@@ -101,8 +116,21 @@ jobs:
       - name: Test
         if: matrix.os != 'macos-latest' || github.event_name == 'push'
         run: |
+          cargo test --workspace --no-run --timings
           cargo nextest run --workspace
           cargo test --workspace --doc
+
+      - name: Upload Cargo timings
+        if: always() && (matrix.os != 'macos-latest' || github.event_name == 'push')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-timings-${{ matrix.os }}
+          path: target/cargo-timings/*.html
+          if-no-files-found: warn
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
 
       - name: Test optional learner and Gaussian-process features
         if: matrix.os != 'macos-latest' || github.event_name == 'push'
@@ -254,11 +282,18 @@ jobs:
   # record does not match the code (gate_calibration_attestation.sh): the
   # statistical measurement is made on a development machine before upload
   # (scripts/measure_calibration.sh) and never runs here.
-  gates:
-    name: Domain gates
+  gate-sections:
+    name: Domain ${{ matrix.section }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
+    strategy:
+      fail-fast: false
+      matrix:
+        section: [inventory, promotion, matrix, checked, features, benches]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -280,21 +315,53 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
+      - name: Install cargo-nextest for cited promotion tests
+        if: matrix.section == 'promotion'
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: nextest
+
       - name: Install uv
+        if: matrix.section != 'benches'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
-      - name: Sync Python for composition smoke
+      - name: Sync Python dependencies
+        if: matrix.section != 'benches'
         working-directory: python
-        run: uv sync --group dev
+        run: uv sync --group dev --no-install-project
 
       - name: Build native extension
+        if: matrix.section != 'benches'
         working-directory: python
-        run: uv run maturin develop
+        run: uv run --no-sync maturin develop
 
-      - name: Release gate
+      - name: Release gate section
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: bash scripts/gate_release.sh
+          UV_NO_SYNC: "1"
+        run: bash scripts/gate_release.sh --section "${{ matrix.section }}"
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
+
+  # Retain the required Domain gates check: every section must pass.
+  gates:
+    name: Domain gates
+    needs: gate-sections
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every domain section
+        env:
+          RESULT: ${{ needs.gate-sections.result }}
+        run: test "$RESULT" = success
 
   # Python lint / type check. `uv sync` creates python/.venv, which is what
   # scripts/gate_python_lint.sh requires, so CI runs the very script the release
@@ -304,6 +371,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -315,23 +385,35 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Sync dev environment
         working-directory: python
-        run: uv sync --group dev
+        run: uv sync --group dev --no-install-project
 
       - name: Build native extension
         working-directory: python
-        run: uv run maturin develop
+        run: uv run --no-sync maturin develop
 
       - name: ruff, ruff format, mypy
+        env:
+          UV_NO_SYNC: "1"
         run: bash scripts/gate_python_lint.sh
 
       - name: pytest with coverage floor
         working-directory: python
-        run: uv run pytest -q --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+        run: uv run --no-sync pytest -q --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
 
   # : CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
   # macOS arm64; Windows x86_64. Default faer path (no system BLAS).
@@ -345,6 +427,8 @@ jobs:
       PYTHONIOENCODING: utf-8
     permissions:
       contents: read
+      attestations: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -458,4 +542,11 @@ jobs:
           name: wheel-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.target }}
           path: python/dist/*.whl
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+
+      # Main CI, where the wheel is built, records its provenance for release.
+      - name: Attest wheel build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: python/dist/*.whl

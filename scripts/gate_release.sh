@@ -24,6 +24,30 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# CI runs these independent sections in parallel. With no argument the local
+# release-candidate gate still runs every check in this file.
+section=all
+if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
+  section="$2"
+elif [[ $# -ne 0 ]]; then
+  echo "usage: $0 [--section inventory|promotion|support|matrix|checked|features|benches]" >&2
+  exit 2
+fi
+case "$section" in all|inventory|promotion|support|matrix|checked|features|benches) ;; *)
+  echo "unknown release-gate section: $section" >&2; exit 2 ;;
+esac
+section_start() {
+  printf -v "section_since_$1" '%s' "$SECONDS"
+  echo "== $1 started $(date -u +%FT%TZ) =="
+}
+section_end() {
+  local since="section_since_$1"
+  echo "== $1 finished in $((SECONDS - ${!since}))s =="
+}
+
+if [[ "$section" == all || "$section" == inventory ]]; then
+section_start inventory
+
 # Runs unconditionally: the inventory honesty pass below reads `status` with a
 # regex default, so a row missing the key would sail through it. SKIP_PRIOR_GATES
 # must not skip the schema contract that pass depends on.
@@ -44,21 +68,36 @@ bash scripts/gate_metadata_consistency.sh
 
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
+fi
 
+if [[ "$section" == all || "$section" == promotion ]]; then
+section_start promotion
 # 2.2 cells stay closed until their frozen promotion record carries executed
 # positive, negative and artifact evidence (parity/promotion_2_2.toml).
 echo "== 2.2 promotion records =="
 bash scripts/gate_promotion.sh
+section_end promotion
+fi
 
+if [[ "$section" == all || "$section" == support || "$section" == matrix ]]; then
+section_start matrix
 echo "== public support matrix =="
 bash scripts/gate_support_matrix.sh
+section_end matrix
+fi
+
+if [[ "$section" == all || "$section" == support || "$section" == checked ]]; then
+section_start checked
 
 # Every licensed cell executes each licensed estimator from a retained checked
 # operation with no builder alive: the checked_execution citations on
 # parity/support_licensed.toml run here, grouped by test target.
 echo "== checked execution evidence =="
 bash scripts/gate_checked_execution.sh
+section_end checked
+fi
 
+if [[ "$section" == all || "$section" == inventory ]]; then
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 
@@ -89,7 +128,10 @@ bash scripts/gate_coverage_citations.sh
 
 echo "== calibration attestation (every coverage record matches the code) =="
 bash scripts/gate_calibration_attestation.sh
+fi
 
+if [[ "$section" == all || "$section" == features ]]; then
+section_start features
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
   bash scripts/gate_estimate_ci.sh
@@ -118,6 +160,10 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== 2.2 B exit gate =="
   bash scripts/gate_b_exit.sh
 fi
+section_end features
+fi
+
+if [[ "$section" == all || "$section" == inventory ]]; then
 
 python3 - <<'PY'
 from pathlib import Path
@@ -304,6 +350,10 @@ if ! git diff --exit-code -- docs/release-notes/ \
   exit 1
 fi
 
+fi
+
+if [[ "$section" == all || "$section" == benches ]]; then
+section_start benches
 # One cargo invocation, so a bench added to a manifest cannot ship unexecuted.
 # Pull requests skip it unless they touch a bench file or a [[bench]] entry;
 # main and a local release run always smoke. The extension module and the
@@ -337,6 +387,10 @@ if [[ "$run_criterion_smoke" -eq 1 ]]; then
   cargo bench --workspace --exclude antecedent-py --exclude antecedent-learn-burn \
     --bench '*' -- --test
 fi
+section_end benches
+fi
+
+if [[ "$section" == all || "$section" == inventory ]]; then
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="
@@ -350,3 +404,5 @@ fi
 
 echo "PR inventory / composition gate PASSED (not an RC)."
 echo "Cut with: CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh"
+section_end inventory
+fi

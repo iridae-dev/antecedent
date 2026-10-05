@@ -6,7 +6,8 @@
 # version, and on which the `ci` workflow finished with every required job
 # green. The RC gate is a local convention; this is what the runners enforce.
 #
-#   bash scripts/verify_release.sh tag VERSION      commit on main, tree at VERSION, CI green
+#   bash scripts/verify_release.sh tag VERSION [RUN_ID]
+#                                                   commit on main, tree at VERSION, CI green
 #   bash scripts/verify_release.sh wheels DIR VERSION [RUN_ID]
 #                                                   every wheel in DIR is antecedent-VERSION-*,
 #                                                   and (when RUN_ID is given) built from this commit
@@ -22,7 +23,7 @@ fail() {
 }
 
 verify_tag() {
-  local version="$1" sha run_id tmp
+  local version="$1" supplied_run="${2:-}" sha run_id tmp
   sha="$(git rev-parse HEAD)"
 
   # workflow_dispatch may name any ref; publishing is tag-only.
@@ -40,50 +41,36 @@ verify_tag() {
 
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  # A publisher-only commit on top of a green main commit is the same release.
-  # Windows runs `run:` steps in PowerShell, so a workflow fix must be able to
-  # ship without another full CI of an unchanged product tree. The version
-  # check itself is one of those publisher files.
-  ci_sha="$sha"
-  run_id="$(gh run list --workflow ci.yml --commit "$ci_sha" --status success \
-    --json databaseId --jq '.[0].databaseId // empty')"
-  if [[ -z "$run_id" ]]; then
-    local parent path publisher_only
-    parent="$(git rev-parse "$sha^1" 2>/dev/null || true)"
-    publisher_only=0
-    if [[ -n "$parent" ]]; then
-      publisher_only=1
-      while IFS= read -r path; do
-        [[ -z "$path" ]] && continue
-        case "$path" in
-          .github/workflows/*|scripts/verify_release.sh|scripts/set_version.sh) ;;
-          *) publisher_only=0 ;;
-        esac
-      done < <(git diff --name-only "$parent" "$sha")
-    fi
-    if [[ "$publisher_only" -eq 1 ]]; then
-      ci_sha="$parent"
-      run_id="$(gh run list --workflow ci.yml --commit "$ci_sha" --status success \
-        --json databaseId --jq '.[0].databaseId // empty')"
-    fi
-  fi
+  # Release artifacts and the green CI run must name this exact tree.
+  run_id="${supplied_run:-$(gh run list --workflow ci.yml --event push --branch main --commit "$sha" --status success --limit 100 \
+    --json databaseId --jq '.[0].databaseId // empty')}"
   if [[ -z "$run_id" ]]; then
     fail "no successful ci run on $sha (gh run list --workflow ci.yml --commit $sha)"
   fi
-  gh run view "$run_id" --json headSha,jobs >"$tmp/run.json"
+  gh run view "$run_id" --json headSha,headBranch,event,conclusion,workflowName,jobs >"$tmp/run.json"
+  python3 - "$tmp/run.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+run = json.loads(Path(sys.argv[1]).read_text())
+if (run.get("event"), run.get("headBranch"), run.get("conclusion"), run.get("workflowName")) != ("push", "main", "success", "ci"):
+    raise SystemExit("FAIL: release requires a successful main-push CI run")
+PY
   local required
   required="$(uv run --quiet --project python --only-group dev python scripts/ci_workflow.py required-jobs)"
   # shellcheck disable=SC2086
   uv run --quiet --project python --only-group dev python scripts/ci_workflow.py \
-    check-run "$tmp/run.json" --head-sha "$ci_sha" $required
+    check-run "$tmp/run.json" --head-sha "$sha" $required
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    echo "ci_run_id=$run_id" >> "$GITHUB_OUTPUT"
+  fi
   echo "verified: $sha is on main, tree is at $version, ci run $run_id is green"
 }
 
 verify_wheels() {
-  local dir="$1" version="$2" run_id="${3:-}" sha w seg n=0
+  local dir="$1" version="$2" run_id="${3:-}" sha w seg
   shopt -s nullglob
   for w in "$dir"/*.whl; do
-    n=$((n + 1))
     # PEP 427 file names normalise the version ("2.0.0-rc.1" -> "2.0.0rc1"), so
     # compare with the separators removed.
     seg="$(basename "$w" | cut -d- -f2)"
@@ -91,9 +78,7 @@ verify_wheels() {
       fail "wheel $(basename "$w") does not carry version ${version}"
     fi
   done
-  if [[ "$n" -eq 0 ]]; then
-    fail "no wheels in $dir"
-  fi
+  python3 scripts/verify_wheel_matrix.py "$dir" "$version"
   if [[ -n "$run_id" && "$run_id" != "${GITHUB_RUN_ID:-}" ]]; then
     sha="$(git rev-parse HEAD)"
     if [[ "$(gh run view "$run_id" --json headSha --jq .headSha)" != "$sha" ]]; then
@@ -105,8 +90,8 @@ verify_wheels() {
 
 case "${1:-}" in
   tag)
-    [[ $# -eq 2 ]] || fail "usage: $0 tag VERSION"
-    verify_tag "$2"
+    [[ $# -ge 2 && $# -le 3 ]] || fail "usage: $0 tag VERSION [RUN_ID]"
+    verify_tag "$2" "${3:-}"
     ;;
   wheels)
     [[ $# -ge 3 && $# -le 4 ]] || fail "usage: $0 wheels DIR VERSION [RUN_ID]"

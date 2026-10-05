@@ -521,13 +521,15 @@ git push origin vX.Y.Z
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
-builds the full wheel matrix, then publishes to public PyPI and the GitHub
-Release as **independent jobs**. Trusted publishing (`id-token: write`) must not
+reuses the 16 wheels built and fully tested by the green `main` CI run on the
+exact tag commit, then publishes to public PyPI and the GitHub Release as
+**independent jobs**. It builds the docs bundle from that run's Python 3.12
+Linux wheel. Trusted publishing (`id-token: write`) must not
 wait on GitHub asset uploads: a unicorn on `uploads.github.com` skipped PyPI
-for 1.10.0 while crates.io (a separate workflow) succeeded. Release assets are
-uploaded one file at a time with retries. If wheels already exist, dispatch
-with `version` plus `reuse_run_id` set to the Actions run that built them —
-do not rebuild a newer branch and stamp it as an older version.
+for 1.10.0 while crates.io succeeded. Release assets are
+uploaded one file at a time with retries. A manual retry may supply
+`reuse_run_id`, but that run must be a successful `main` push CI run on the
+exact tag commit and contain the complete wheel matrix.
 
 Configure a pending/trusted publisher on [pypi.org](https://pypi.org) for this
 repo and workflow file `publish-release.yml` (Environment blank unless the job

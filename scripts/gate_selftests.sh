@@ -17,6 +17,8 @@ bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
 bash scripts/gate_transport.sh --self-test
 bash scripts/gate_promotion.sh --self-test
+python3 scripts/run_evidence_rows_selftest.py
+python3 scripts/verify_wheel_matrix_selftest.py
 bash scripts/gate_release_candidate.sh --self-test
 bash scripts/gate_calibration_attestation.sh --self-test
 bash scripts/gate_coverage_citations.sh --self-test
