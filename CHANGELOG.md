@@ -12,6 +12,7 @@ Changes since 2.1.1. The [release notes](docs/release-notes/v2.2.0.md) explain t
 - Derived-treatment declarations check constituent roles and exclusions. A factorized propensity estimates bounded joint cells. Matched case-control sets support a conditional odds ratio and refuse absolute risk effects.
 - Preflight diagnostics identify duplicate and near-deterministic columns, rank failures, overlap failures, and fit costs. A declared rank-drop plan can rerun supported estimators with its reduction recorded. Tier diagnostics and raw-versus-adjusted comparisons have distinct, limited claims.
 - Bounded multi-source and conditional ADMG transport, structural scenario envelopes, two-step temporal transport, smoothed dose response, joint mechanism sensitivity, study planning, counterfactual identification, and binary observation recovery extend the 2.1 structural routes. See the release notes for each cell's scope and numeric limits.
+- Learned continuous trial transport adds a pointwise analytic influence interval for the declared IID nested-cohort and independent-samples designs. Interval artifacts use version 2 and replay the standard error and limits; version 1 point artifacts remain readable. The percentile-bootstrap request stays withheld after failing its coverage grid.
 
 ### Changed
 

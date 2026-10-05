@@ -173,15 +173,35 @@ impl PreparedLearnedContinuous {
         Ok(LearnedContinuousResult { wire, identity })
     }
 
-    /// The closed interval route: the point is retained by [`Self::estimate`] and the
-    /// interval is withheld until this cell's coverage records are measured.
+    /// Compute the design-specific analytic influence interval and exportable result.
     ///
     /// # Errors
-    /// Always `cell_not_licensed` (`learned_transport.interval_withheld`), or cancellation.
+    /// Fit, support, budget or cancellation failure. A legacy bootstrap request refuses
+    /// with `estimator_inference_mismatch` because its percentile interval failed coverage.
     pub fn interval(&self, ctx: &ExecutionContext) -> Result<LearnedContinuousResult, IoError> {
-        antecedent_estimate::refuse_cancelled(ctx, "learned continuous interval")
+        let mut ctx = ctx.clone();
+        ctx.rng = antecedent_core::RngFactory::from_seed(self.seed);
+        let result =
+            antecedent_estimate::learned_continuous::estimate_learned_continuous_analytic_interval(
+                &self.identification,
+                &self.input,
+                &self.options,
+                &ctx,
+            )
             .map_err(estimate_err)?;
-        Err(estimate_err(antecedent_estimate::refuse_learned_continuous_interval()))
+        let wire = LearnedContinuousArtifactWire::checked(LearnedContinuousArtifactInput {
+            graph: self.diagram.causal_graph(),
+            selections: self.diagram.selection_targets().iter().map(|v| v.raw()).collect(),
+            query: &self.query,
+            variable_names: &self.variable_names,
+            identification: &self.identification,
+            input: &self.input,
+            options: &self.options,
+            seed: self.seed,
+            result: &result,
+        })?;
+        let identity = wire.identity()?;
+        Ok(LearnedContinuousResult { wire, identity })
     }
 
     /// Replace the rows with a compatible snapshot after validation; the certificate,

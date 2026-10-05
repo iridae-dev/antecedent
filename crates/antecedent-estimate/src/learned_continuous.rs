@@ -35,9 +35,9 @@
 //! a floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`], failed its sample-size coverage
 //! grid. It remains available only to calibration-internal code and to the older
 //! learned-trial route. A design-specific analytic influence interval is now
-//! measured by the calibration harness. The public 2.2A route remains closed
-//! (`cell_not_licensed`, interval withheld) pending promotion; its estimate is
-//! the point with the interval status.
+//! measured by the calibration harness and exposed through the public interval
+//! route for the two declared IID designs. It is a pointwise Wald interval;
+//! nuisance convergence at the cross-fitting product rate remains an assumption.
 //!
 //! Two replicate behaviors are documented rather than changed (their effect on coverage is
 //! measured in the rejected bootstrap diagnostic): a replicate reuses the point
@@ -81,6 +81,8 @@ pub const CONTINUOUS_POINT_ONLY: &str = "point_only";
 pub const CONTINUOUS_WITHHELD: &str = "withheld";
 /// Reason for a point-only estimate.
 pub const CONTINUOUS_NO_INTERVAL_REQUESTED: &str = "no_interval_requested";
+/// Available design-specific analytic influence interval.
+pub const CONTINUOUS_AVAILABLE: &str = "available";
 
 /// Overlap thresholds, learner specs, folds and bootstrap request of one estimate.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -97,9 +99,9 @@ pub struct LearnedContinuousOptions {
     /// Smallest arm probability of the known randomization, in `(0, 0.5)`.
     pub min_treatment_probability: f64,
     /// Requested bootstrap replicates, at most [`LEARNED_CONTINUOUS_MAX_BOOTSTRAP`].
-    /// The public route runs none: the interval route is closed.
+    /// Legacy percentile-bootstrap request. The analytic interval uses zero.
     pub bootstrap: u32,
-    /// Nominal coverage of the internal interval.
+    /// Nominal coverage of the analytic interval.
     pub coverage_level: f64,
 }
 
@@ -131,12 +133,11 @@ impl LearnedContinuousOptions {
     }
 }
 
-/// Interval status of a public estimate. No interval is ever attached while the
-/// interval route is closed.
+/// Interval status of a public estimate.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LearnedContinuousUncertainty {
-    /// [`CONTINUOUS_POINT_ONLY`] or [`CONTINUOUS_WITHHELD`].
+    /// [`CONTINUOUS_POINT_ONLY`], [`CONTINUOUS_WITHHELD`] or [`CONTINUOUS_AVAILABLE`].
     pub status: String,
     /// [`CONTINUOUS_NO_INTERVAL_REQUESTED`], `estimator_inference_mismatch` or
     /// `cell_not_licensed`.
@@ -148,6 +149,16 @@ pub struct LearnedContinuousUncertainty {
 }
 
 impl LearnedContinuousUncertainty {
+    /// An analytic influence interval was computed under the declared IID design.
+    #[must_use]
+    pub fn analytic() -> Self {
+        Self {
+            status: CONTINUOUS_AVAILABLE.into(),
+            reason: "analytic_influence".into(),
+            detail: None,
+            replicates_requested: 0,
+        }
+    }
     /// The status of a request for `bootstrap` replicates on the closed route.
     #[must_use]
     pub fn for_request(bootstrap: u32) -> Self {
@@ -170,10 +181,10 @@ impl LearnedContinuousUncertainty {
         }
     }
 
-    /// Whether an interval is available. Never true while the route is closed.
+    /// Whether an interval is available.
     #[must_use]
     pub fn available(&self) -> bool {
-        false
+        self.status == CONTINUOUS_AVAILABLE
     }
 }
 
@@ -195,7 +206,13 @@ pub struct FoldProvenance {
 pub struct LearnedContinuousEstimate {
     /// Target mean contrast `psi`.
     pub estimate: f64,
-    /// Interval status; the interval route is closed.
+    /// The analytic 95% (or requested coverage) Wald interval, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval: Option<(f64, f64)>,
+    /// Design-specific influence standard error, when computed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_error: Option<f64>,
+    /// Interval status and method.
     pub uncertainty: LearnedContinuousUncertainty,
     /// Out-of-fold source-membership probabilities.
     pub membership: Vec<f64>,
@@ -222,8 +239,7 @@ fn support_refusal(detail: &str, message: &str) -> EstimationError {
     refuse(antecedent_core::reason_code!("transport_support_failure"), detail, message)
 }
 
-/// The refusal of the closed interval route: the point is retained while the
-/// measured analytic candidate awaits a separate API and artifact promotion.
+/// The legacy refusal constructor kept for callers of the old closed route.
 #[must_use]
 #[doc(hidden)]
 pub fn refuse_learned_continuous_interval() -> EstimationError {
@@ -346,7 +362,7 @@ pub fn check_membership_overlap(
 }
 
 /// Execute the point estimate: cross-fit every nuisance, refuse insufficient overlap,
-/// and report the interval status of the closed interval route.
+/// and report the point-only or legacy-bootstrap status.
 ///
 /// # Errors
 /// Any [`validate_learned_continuous`] refusal, cancellation, a fit failure, or
@@ -362,6 +378,8 @@ pub fn estimate_learned_continuous(
     check_membership_overlap(&point.membership, options)?;
     Ok(LearnedContinuousEstimate {
         estimate: point.estimate,
+        interval: None,
+        standard_error: None,
         uncertainty: LearnedContinuousUncertainty::for_request(options.bootstrap),
         membership: point.membership,
         mu0: point.mu0,
@@ -380,7 +398,7 @@ pub fn estimate_learned_continuous(
 /// The internal estimator the calibration harness measures: the joint outer refit
 /// percentile bootstrap of the whole cross-fitted estimator, grouped per design.
 ///
-/// The public route never calls this; it stays closed until the coverage records exist.
+/// The public route never calls this because its percentile intervals failed coverage.
 /// It is compiled only with the `calibration-internal` feature, which only the facade's
 /// dev-dependencies enable (calibration harness and lifecycle tests): an ordinary
 /// dependent cannot reach the interval around the `cell_not_licensed` refusal.
@@ -412,24 +430,45 @@ pub fn learned_continuous_interval_internal(
     Ok(run)
 }
 
-/// Calibration-only Wald interval from the cross-fitted AIPW score. For a
+/// Wald interval from the cross-fitted AIPW score. For a
 /// nested cohort the nonparticipant denominator is random, so the target
 /// contribution is centred at the full estimate. For independent fixed-size
 /// samples, the target and trial contributions are centred within their own
 /// samples and their variances are added. Nuisance estimation is treated as
 /// second order under the usual cross-fitting rate conditions.
-#[cfg(feature = "calibration-internal")]
-fn learned_continuous_analytic_interval_internal(
+pub fn estimate_learned_continuous_analytic_interval(
     id: &TransportIdentification,
     input: &TrialAipwInput,
     options: &LearnedContinuousOptions,
     ctx: &ExecutionContext,
+) -> Result<LearnedContinuousEstimate, EstimationError> {
+    if options.bootstrap != 0 {
+        return Err(refuse(
+            antecedent_core::reason_code!("estimator_inference_mismatch"),
+            "learned_transport.bootstrap_not_licensed",
+            "the percentile bootstrap failed calibration; request the analytic interval with bootstrap=0",
+        ));
+    }
+    let mut run = estimate_learned_continuous(id, input, options, ctx)?;
+    let (se, interval) = learned_continuous_analytic_interval(input, &run, options.coverage_level)?;
+    run.standard_error = Some(se);
+    run.interval = Some(interval);
+    run.uncertainty = LearnedContinuousUncertainty::analytic();
+    Ok(run)
+}
+
+/// Recompute the design-specific influence interval from stored out-of-fold
+/// predictions. The independent artifact consumer uses this without fitting.
+///
+/// # Errors
+/// Insufficient sample sizes or a nonpositive/nonfinite variance.
+pub fn learned_continuous_analytic_interval(
+    input: &TrialAipwInput,
+    run: &LearnedContinuousEstimate,
+    coverage_level: f64,
 ) -> Result<(f64, (f64, f64)), EstimationError> {
     use crate::learned_trial::TrialSampling;
 
-    validate_learned_continuous(id, input, options)?;
-    let run = estimate_trial_aipw(id, input, &options.trial_options(0), ctx)?;
-    check_membership_overlap(&run.membership, options)?;
     let target_n = input.source.iter().filter(|s| !**s).count() as f64;
     let trial_n = input.source.len() as f64 - target_n;
     if target_n <= 1.0 || trial_n <= 1.0 {
@@ -471,9 +510,9 @@ fn learned_continuous_analytic_interval_internal(
             "analytic trial variance is nonpositive or nonfinite",
         ));
     }
-    let z = antecedent_stats::normal_ppf(0.5 + options.coverage_level / 2.0);
+    let z = antecedent_stats::normal_ppf(0.5 + coverage_level / 2.0);
     let width = z * variance.sqrt();
-    Ok((run.estimate, (run.estimate - width, run.estimate + width)))
+    Ok((variance.sqrt(), (run.estimate - width, run.estimate + width)))
 }
 
 #[cfg(feature = "calibration-internal")]
@@ -486,7 +525,8 @@ impl LearnedContinuousOptions {
         input: &TrialAipwInput,
         ctx: &ExecutionContext,
     ) -> Result<(f64, (f64, f64)), EstimationError> {
-        learned_continuous_analytic_interval_internal(id, input, self, ctx)
+        let run = estimate_learned_continuous_analytic_interval(id, input, self, ctx)?;
+        Ok((run.estimate, run.interval.expect("analytic result has an interval")))
     }
 }
 

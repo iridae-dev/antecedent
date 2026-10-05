@@ -804,22 +804,41 @@ fn a_mutated_artifact_fails_independent_consumption_with_a_typed_error() {
         .is_err()
     );
     // A different version is refused before its payload is interpreted.
-    let version = mutate(&original, |w| w.version = 2, false);
+    let version = mutate(&original, |w| w.version = 3, false);
     assert!(matches!(
         consume_learned_continuous_artifact(&version, LearnedContinuousConsumeLimits::default()),
-        Err(IoError::UnsupportedVersion { version: 2 })
+        Err(IoError::UnsupportedVersion { version: 3 })
     ));
 }
 
 #[test]
-fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
+fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
     let prepared =
         prepare(Design::IndependentSamples, Scenario::Good, (400, 300), options(), 2).unwrap();
     let ctx = ExecutionContext::for_tests(2);
-    let (code, message) = refused_code(prepared.interval(&ctx).unwrap_err());
-    assert_eq!(code, "cell_not_licensed");
-    assert!(message.starts_with("learned_transport.interval_withheld"), "{message}");
-    // The point remains available and reports the interval withheld, never attached.
+    let interval = prepared.interval(&ctx).unwrap();
+    assert_eq!(interval.wire().version, 2);
+    assert!(interval.estimate().uncertainty.available());
+    let (low, high) = interval.estimate().interval.unwrap();
+    assert!(low < interval.estimate().estimate && interval.estimate().estimate < high);
+    let replay = consume_learned_continuous_artifact(
+        &interval.export().unwrap(),
+        LearnedContinuousConsumeLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(replay.estimate().interval, interval.estimate().interval);
+    let forged = mutate(
+        interval.wire(),
+        |w| {
+            w.result.interval.as_mut().unwrap().0 -= 0.01;
+        },
+        true,
+    );
+    assert!(matches!(
+        consume_learned_continuous_artifact(&forged, LearnedContinuousConsumeLimits::default()),
+        Err(IoError::LearnedContinuous(Refusal::IntervalMismatch))
+    ));
+    // The old percentile-bootstrap request remains withheld.
     let requested = LearnedContinuousOptions { bootstrap: 199, ..options() };
     let result = prepare(Design::IndependentSamples, Scenario::Good, (400, 300), requested, 2)
         .unwrap()
@@ -831,6 +850,14 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
         ("withheld", "cell_not_licensed")
     );
     assert!(!uncertainty.available() && result.estimate().estimate.is_finite());
+    let (code, message) = refused_code(
+        prepare(Design::IndependentSamples, Scenario::Good, (400, 300), requested, 2)
+            .unwrap()
+            .interval(&ctx)
+            .unwrap_err(),
+    );
+    assert_eq!(code, "estimator_inference_mismatch");
+    assert!(message.starts_with("learned_transport.bootstrap_not_licensed"));
 }
 
 #[test]
@@ -979,7 +1006,7 @@ fn the_io_wire_consumes_bytes_directly_under_its_own_limits() {
     let foreign = mutate(&original, |w| w.required_features = vec!["other_v9".into()], false);
     assert!(matches!(coded(&foreign, limits), Refusal::UnsupportedSemantics(_)));
     // A future version fails at decode, and undecodable bytes are not a typed artifact refusal.
-    let future = mutate(&original, |w| w.version += 1, false);
+    let future = mutate(&original, |w| w.version = 3, false);
     assert!(matches!(
         LearnedContinuousArtifactWire::consume(&future, limits),
         Err(IoError::UnsupportedVersion { .. })

@@ -50,9 +50,9 @@ its typed refusal (mirror `crates/antecedent/tests/a_exit_gate.rs`).
 
 The workspace, Python package, citation, and lockfile already identify this branch as
 2.2.0. The [release notes](release-notes/v2.2.0.md) and changelog describe the
-implemented user-facing surface. Internal `in_progress` promotion rows with unmeasured
-coverage ids keep their uncertainty routes closed; the public notes describe those
-intervals as withheld. A version number is not an interval license.
+implemented user-facing surface. Unmeasured or failed interval routes remain
+closed in the support registry and are described as withheld in the public notes.
+A version number is not an interval license.
 
 1. **Feature and implementation freeze.** Settle estimators, APIs, refusal reasons,
    artifact formats and execution-affecting dependency versions. Run ordinary correctness,
@@ -68,11 +68,14 @@ intervals as withheld. A version number is not an interval license.
    coverage ids. The collector writes `parity/coverage_records.toml` and
    `crates/antecedent-io/src/coverage_records_data.rs`. Any code change that affects a
    measured coordinate requires measuring it again.
-3. **Promote measured cells and freeze the matrix.** For a cell whose measurement
+3. **Promote measured cells, review the docs, and freeze the matrix.** For a cell whose measurement
    passes, attach the exact coverage record, open its uncertainty route in the owning
    registries, and promote its record. Keep failed or unmeasured routes closed. Regenerate
    `docs/support-matrix.md` with `python3 scripts/generate_support_matrix_docs.py`, update
-   the manual transport and counterfactual coverage pages, and reconcile the final notes.
+   the manual transport and counterfactual coverage pages. Read the release notes
+   as a user-facing 2.2.0 overview, the changelog as the delta from 2.1.1, and
+   every affected guide and API doc for examples, formulas, assumptions, refusals,
+   artifact versions and Python/Rust agreement. Remove stale provisional language.
    Run `python3 scripts/check_promotion_records.py`,
    `python3 scripts/check_release_claims.py --final`, and
    `bash scripts/gate_docs_support_matrix.sh`.

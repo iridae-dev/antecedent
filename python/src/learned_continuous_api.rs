@@ -15,7 +15,7 @@ use std::sync::Arc;
 const PREFIX: &[u8] = b"ANTECEDENT-LEARNED-CONTINUOUS\x01";
 
 /// Population mean contrast of the certified binary treatment on a continuous outcome.
-const SCOPE: &str = "learned_continuous_trial_transport_point_only";
+const SCOPE: &str = "learned_continuous_trial_transport";
 
 fn value_error(e: impl std::fmt::Display) -> PyErr {
     crate::value_err(e.to_string())
@@ -71,6 +71,8 @@ fn estimate_json(result: &antecedent::LearnedContinuousResult, names: &[String])
         "status": "available",
         "scope": SCOPE,
         "estimate": wire.result.estimate,
+        "interval": wire.result.interval,
+        "standard_error": wire.result.standard_error,
         "uncertainty": wire.result.uncertainty,
         "overlap": wire.result.overlap,
         "diagnostics": wire.result.diagnostics,
@@ -118,12 +120,19 @@ impl PreparedLearnedContinuousNative {
         Ok(payload)
     }
 
-    /// The closed interval route: always refuses with `cell_not_licensed`.
+    /// Compute the design-specific analytic influence interval.
     #[pyo3(signature=(cancel=None))]
-    fn interval(&self, py: Python<'_>, cancel: Option<crate::PyCancellationToken>) -> PyResult<()> {
+    fn interval(
+        &mut self,
+        py: Python<'_>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<String> {
         let ctx = execution_context(self.seed, self.memory_bytes, cancel);
         let inner = self.inner.clone();
-        crate::detach_catch(py, move || inner.interval(&ctx).map(|_| ()).map_err(error))
+        let result = crate::detach_catch(py, move || inner.interval(&ctx).map_err(error))?;
+        let payload = estimate_json(&result, &self.names);
+        self.last = Some(result);
+        Ok(payload)
     }
 
     /// Replace the rows with a compatible snapshot; clears the last claim.

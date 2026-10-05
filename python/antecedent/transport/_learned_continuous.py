@@ -54,8 +54,9 @@ class LearnedContinuousOptions:
     probability accepted on any row; ``min_treatment_probability`` bounds the known
     randomization probabilities. Both lie in ``(0, 0.5)``; insufficient overlap
     refuses rather than extrapolates. ``bootstrap`` requests interval replicates
-    (at most 2000, floor 199): the interval route is closed, so the request only
-    changes the reported interval status.
+    (at most 2000, floor 199): the percentile route failed calibration, so the
+    request only changes the reported interval status. Set it to zero and call
+    ``PreparedLearnedContinuous.interval()`` for the analytic influence interval.
     """
 
     outcome: Any = field(default_factory=Ridge)
@@ -194,15 +195,18 @@ def estimator_menu(
 
 @dataclass(frozen=True, slots=True)
 class LearnedContinuousEstimate:
-    """The point estimate with provenance, diagnostics and the interval status.
+    """The estimate with provenance, diagnostics and interval status.
 
     ``overlap`` keeps source membership (``selection``) and treatment overlap apart.
     ``uncertainty`` is ``point_only`` when no interval was requested and ``withheld``
     (``cell_not_licensed``, or ``estimator_inference_mismatch`` below the replicate
-    floor) otherwise; ``interval`` is always ``None``.
+    floor) for a legacy bootstrap request. ``interval()`` returns an ``available``
+    analytic influence interval and its standard error.
     """
 
     estimate: float
+    interval: tuple[float, float] | None
+    standard_error: float | None
     uncertainty: Mapping[str, Any]
     overlap: Mapping[str, Any]
     diagnostics: Mapping[str, Any]
@@ -218,14 +222,11 @@ class LearnedContinuousEstimate:
     execution_id: str
     variable_names: tuple[str, ...]
 
-    @property
-    def interval(self) -> None:
-        return None
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "estimate": self.estimate,
-            "interval": None,
+            "interval": self.interval,
+            "standard_error": self.standard_error,
             "uncertainty": _thaw(self.uncertainty),
             "overlap": _thaw(self.overlap),
             "diagnostics": _thaw(self.diagnostics),
@@ -253,6 +254,8 @@ def _estimate(payload: str) -> LearnedContinuousEstimate:
     raw = json.loads(payload)
     return LearnedContinuousEstimate(
         raw["estimate"],
+        tuple(raw["interval"]) if raw["interval"] is not None else None,
+        raw["standard_error"],
         _frozen(raw["uncertainty"]),
         _frozen(raw["overlap"]),
         _frozen(raw["diagnostics"]),
@@ -283,7 +286,7 @@ class PreparedLearnedContinuous:
         self._last: LearnedContinuousEstimate | None = None
 
     def estimate(self, *, cancel: Any = None) -> LearnedContinuousEstimate:
-        """Cross-fit and report the point; the interval is withheld while its route is closed."""
+        """Cross-fit and report the point and any legacy-bootstrap refusal status."""
         self._last = _estimate(self._native.estimate(cancel))
         return self._last
 
@@ -297,9 +300,10 @@ class PreparedLearnedContinuous:
         self._native.refresh(data, cancel)
         self._last = None
 
-    def interval(self, *, cancel: Any = None) -> None:
-        """The closed interval route: always refuses with ``cell_not_licensed``."""
-        self._native.interval(cancel)
+    def interval(self, *, cancel: Any = None) -> LearnedContinuousEstimate:
+        """Fit the design-specific analytic influence interval and keep its artifact."""
+        self._last = _estimate(self._native.interval(cancel))
+        return self._last
 
     def estimator_menu(self) -> EstimatorMenu:
         """The estimator menu for this prepared graph, query and learners."""

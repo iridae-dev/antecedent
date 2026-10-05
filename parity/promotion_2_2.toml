@@ -296,23 +296,23 @@ id = "2.2A.X4.learned_continuous_trial_transport"
 workstream = "X4"
 milestone = "A"
 work_package = "A3"
-status = "in_progress"
+status = "promoted"
 consumer_question = "What is the mean effect of a randomized binary treatment on a continuous outcome in an overlap-supported target population, and which graph-specific estimators are eligible?"
 theorem = "Trial-to-target transport of the conditional-mean functional under mean exchangeability over the certified standardizers and positivity of trial participation; augmented inverse-odds estimator is model doubly robust (outcome regression or participation model correct) with known randomization probabilities. No efficiency claim."
 reference = "https://doi.org/10.1002/sim.8426"
-guarantee = "model_double_robustness_of_point_only"
+guarantee = "model_double_robustness_of_point_and_pointwise_analytic_interval_under_iid_nuisance_rate_conditions"
 graph_class = "Certified direct or baseline-standardization transport derivation (existing prepare_trial graph contract)."
 population_semantics = "Target is the overlap-supported target population; nested-cohort (trial participants plus nonparticipants from one IID cohort, target = nonparticipants) and independent-samples (separate IID trial and representative target samples) are distinct declared designs."
 evidence_family = "Binary randomized source treatment with known probabilities; complete baseline covariates equal to the certified standardizers; continuous source outcome; IID sampling only."
 provider = "Existing TrialAipw via antecedent-learn LearnerSpec; all nuisances cross-fitted (each fold fitted on the other folds; the fit applies no preprocessing beyond an intercept column)."
 estimand = "psi = E_target[ E(Y | X, A=1, S=1) - E(Y | X, A=0, S=1) ]."
 inference_claim = "calibrated"
-inference_notes = "Exactly one interval method: joint outer refit percentile bootstrap of the whole cross-fitted estimator (antecedent_estimate::learned_continuous_interval_internal), grouped per design (one cohort for nested_cohort; trial and target samples separately for independent_samples), replicate floor 199, cap 2000. No CATE-wide or simultaneous claim. The public interval route is closed: estimates report the interval withheld (cell_not_licensed, or estimator_inference_mismatch below the floor) and never attach one; a public consumer re-derives that status and the artifact format has no interval field. The route opens only after both coverage records are measured. The existing prepare_trial nominal interval keeps its 2.1 status."
+inference_notes = "The pointwise analytic influence Wald interval passed the six-point 95% coverage grid for IID nested cohort and independent fixed-size samples (2000 datasets per point). It treats nuisance estimation as second order under cross-fitting product-rate conditions and requires the declared support. No CATE-wide or simultaneous claim. PreparedLearnedContinuous.interval computes it when bootstrap=0; version 2 artifacts replay its standard error and limits from stored predictions. The old percentile bootstrap failed coverage and remains withheld. The existing prepare_trial nominal interval keeps its 2.1 status."
 owners = ["antecedent-learn", "antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 identity_inputs = ["graph, selections and query (premises digest)", "certificate record (rule, formula kind, standardizers, selection targets, premises)", "sampling design", "LearnerSpec for outcome and membership", "fold count and fold scheme (assignment is deterministic in the rows; master seed bound)", "bootstrap replicate request and coverage level", "overlap thresholds (membership and treatment) and frozen bounds", "variable names", "sample rows (data digest; refresh-replaceable)"]
-wire_changes = ["Additive: learned continuous transport artifact v1 (checked_learned_continuous_point_v1, separate from learned_trial v1) records the certificate, provider implementation/version per fitted nuisance, fold count/scheme/assignment, and membership and treatment overlap separately; it has no interval field.", "Additive: estimator-menu inspection payload (graph/query/provider-specific entries; selection always manual)."]
-compatibility = "learned_trial wire v1 artifacts and the prepare_trial route stay unchanged and consumable; the cell adds its own artifact version. A future interval opens as a new artifact version with its interval provenance."
-coverage_records = ["cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast", "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_independent_samples_continuous_mean_contrast"]
+wire_changes = ["Additive: learned continuous point artifact v1 (checked_learned_continuous_point_v1) records the certificate, provider versions, folds and overlap; interval artifact v2 (checked_learned_continuous_analytic_interval_v2) additionally records the analytic standard error and band.", "Additive: estimator-menu inspection payload (graph/query/provider-specific entries; selection always manual)."]
+compatibility = "learned_trial wire v1 artifacts and prepare_trial stay unchanged and consumable; learned continuous point v1 remains consumable alongside interval v2."
+coverage_records = ["cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast", "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_independent_samples_continuous_mean_contrast"]
 search = false
 surface = ["python/antecedent/transport/_learned_continuous.py"]
 surface_values = ["EstimatorMenu", "EstimatorMenuEntry", "LearnedContinuousEstimate", "LearnedContinuousOptions", "LearnedContinuousResult", "LearnedContinuousUncertainty", "FoldProvenance", "MenuContext", "MenuRefusal", "CertificateRecord", "LearnedContinuousArtifactError", "LearnedContinuousConsumeLimits", "LearnedContinuousArtifactWire", "LearnedContinuousArtifactInput", "ConsumedLearnedContinuous", "PreparedLearnedContinuous", "PreparedLearnedContinuousNative"]
@@ -326,7 +326,10 @@ surface_internal = [
   { name = "check_membership_overlap", why = "Membership-overlap re-check shared with the antecedent-io consumer; reached publicly only through the routed consume route." },
   { name = "parse_learned_continuous_sampling", why = "Sampling-design name parser shared by the pyo3 binding and lifecycle tests; a pure parse behind the routed prepare surface." },
   { name = "parse_learned_continuous_target", why = "Target name parser shared by the pyo3 binding and lifecycle tests; a pure parse behind the routed prepare surface." },
-  { name = "refuse_learned_continuous_interval", why = "Builds the cell_not_licensed refusal returned by the closed interval route (PreparedLearnedContinuous.interval); constructs an error only." },
+  { name = "refuse_learned_continuous_interval", why = "Legacy refusal constructor retained for compatibility; the public analytic route no longer calls it." },
+  { name = "learned_continuous_analytic_interval", why = "Pure interval replay shared with the independent artifact consumer; it fits no nuisance." },
+  { name = "estimate_learned_continuous_analytic_interval", why = "Estimator implementation reached through PreparedLearnedContinuous.interval." },
+  { name = "analytic_interval_internal", why = "Calibration-only accessor for the same analytic estimator under the calibration-internal feature." },
   { name = "learned_continuous_estimator_menu", why = "Native pyfunction backing the routed Python estimator_menu (antecedent.transport.advanced), reached only through that wrapper; the Python route owns its evidence." },
   { name = "learned_continuous_interval_internal", why = "Joint outer bootstrap behind the closed interval route; compiled only under the calibration-internal feature for the coverage harness and thread-budget test, and no public route reaches it." },
 ]
@@ -336,9 +339,9 @@ refusals = [
   { code = "transport_support_failure", detail = "learned_transport.treatment_overlap", when = "A known randomization probability on a source row leaves [min_treatment_probability, 1 - min_treatment_probability]." },
   { code = "sampling_dependence_unknown", detail = "learned_transport.non_iid_design", when = "Clustered, linked or undeclared sampling; only nested_cohort and independent_samples are declared IID designs." },
   { code = "estimator_inference_mismatch", detail = "learned_transport.bootstrap_below_floor", when = "Requested replicates in 1..198; the point is retained and the interval withheld." },
+  { code = "estimator_inference_mismatch", detail = "learned_transport.bootstrap_not_licensed", when = "The interval method is requested with legacy percentile-bootstrap replicates; that method failed coverage." },
   { code = "route_not_supported", detail = "learned_transport.cate_requested", when = "A heterogeneous, conditional or simultaneous target is requested (also the menu's reason for the DR-Learner CATE entry)." },
   { code = "route_not_supported", detail = "learned_transport.bounds_exceeded", when = "More than 20 folds or more than 2000 bootstrap replicates requested." },
-  { code = "cell_not_licensed", detail = "learned_transport.interval_withheld", when = "The interval route is requested; it is closed until its coverage records are measured. The point is retained." },
 ]
 routes = [
   { name = "antecedent_estimate.transport_estimator_menu", stage = "representation", status = "licensed", claim = "none" },
@@ -354,9 +357,9 @@ routes = [
   { name = "antecedent.StudyBuilder.learned_continuous_menu", stage = "representation", status = "licensed", claim = "none" },
   { name = "antecedent_io.LearnedContinuousArtifactWire.consume", stage = "consume", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.estimate_learned_continuous", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_unmeasured_interval_route_refuses_with_cell_not_licensed" },
-  { name = "antecedent.transport.advanced.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_learned_continuous_transport.py", refusal_assertion = "test_the_unmeasured_interval_route_refuses_with_cell_not_licensed" },
-  { name = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap", stage = "uncertainty", status = "closed", reason_code = "cell_not_licensed", refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_unmeasured_interval_route_refuses_with_cell_not_licensed" },
+  { name = "antecedent.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "pointwise_analytic_interval" },
+  { name = "antecedent.transport.advanced.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "pointwise_analytic_interval" },
+  { name = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_analytic_interval_replays_and_the_legacy_bootstrap_refuses" },
 ]
 fixtures = [
   { id = "x4.good_overlap_known_truth.positive", role = "positive", intent = "Known-truth DGP (truth 2.5) with good overlap under nested cohort and independent samples; provider provenance, fold scheme and separate membership/treatment overlap recorded.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "good_overlap_known_truth_under_both_designs" },
@@ -373,7 +376,7 @@ fixtures = [
   { id = "x4.python_roundtrip.artifact", role = "artifact", intent = "Python surface: prepare once, estimate, export after builder disposal, independent consume.", evidence_test = "python/tests/test_learned_continuous_transport.py", evidence_assertion = "test_prepare_once_estimate_export_and_independent_consume_after_builder_disposal" },
   { id = "x4.python_tamper.negative", role = "negative", intent = "Python consumption refuses truncated, foreign and byte-flipped artifacts with typed errors.", evidence_test = "python/tests/test_learned_continuous_transport.py", evidence_assertion = "test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_errors" },
   { id = "x4.python_weak_overlap.negative", role = "negative", intent = "Python surface refuses weak overlap and low randomization probabilities with their reason codes.", evidence_test = "python/tests/test_learned_continuous_transport.py", evidence_assertion = "test_weak_overlap_refuses_rather_than_extrapolating" },
-  { id = "x4.sample_size_grid.calibration", role = "calibration", intent = "Coverage of the whole-estimator joint outer bootstrap across the sample-size grid n/2, n, 2n at the replicate floor, both designs. Wired: the two *_mean_contrast coverage tests read the grid point (grid_n) and gate_calibration.sh / calibration_groups.py sweep them at all three points via grid_group; the weak-overlap and misspecified-nuisance tests print measurements at the base point only and emit no record. Ignored until measured."},
+  { id = "x4.sample_size_grid.calibration", role = "calibration", intent = "Measured analytic influence Wald interval at six design/sample-size coordinates, 2000 datasets each, 95% nominal. The failed percentile-bootstrap diagnostic is retained separately; weak-overlap and misspecified-nuisance tests emit no coverage record."},
 ]
 
 [[record]]

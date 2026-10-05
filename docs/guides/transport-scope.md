@@ -227,6 +227,13 @@ standardizers (a direct or baseline-standardization certificate, the
 `prepare_trial` graph contract), and an overlap-supported target. The estimand is
 `E_target[E(Y | X, A=1, S=1) - E(Y | X, A=0, S=1)]`.
 
+After preparing with `advanced.prepare_learned_continuous(query, data)`, use
+`prepared.estimate()` for a point or `prepared.interval()` for the pointwise
+analytic interval. Both return an estimate with uncertainty status; the latter
+also has `.standard_error` and `.interval`. `prepared.export()` saves the most
+recent result. `advanced.consume_learned_continuous(artifact)` checks and replays
+it without refitting the learners.
+
 - **Target and design.** Nested cohort: the target is the nonparticipants of one
   IID cohort. Independent samples: a separately sampled representative IID target
   with fixed sample sizes. The two are distinct declared designs; sampling is IID
@@ -265,24 +272,36 @@ standardizers (a direct or baseline-standardization certificate, the
   Selection stays manual; nothing is recommended.
 - **Bounds.** At most 20 cross-fitting folds and a bootstrap cap of 2000 replicates
   (floor 199); a consumer admits at most 1,000,000 rows and 256 features.
-- **Interval.** The original joint outer refit percentile bootstrap (replicate
-  floor 199) overcovered at the smallest sample size and undercovered for the
-  largest nested cohort. A design-specific analytic influence interval passed
-  the six-point 95% grid at 2,000 datasets per point. The public route remains
-  closed (`cell_not_licensed`) pending promotion: estimates report the interval
-  withheld and artifacts carry no interval field. The calibration harness is in
-  `crates/antecedent/tests/learned_continuous_calibration.rs`; the candidate
-  interval is compiled only under the `calibration-internal`
-  feature of `antecedent-estimate` (enabled by the facade's dev-dependencies alone), so
-  no ordinary dependent can obtain the interval around the `cell_not_licensed` refusal.
+- **Interval.** Call `prepared.interval()` with `bootstrap=0` to obtain the
+  pointwise analytic influence interval and its standard error. It uses a
+  design-specific variance: a random target count for a nested cohort, or
+  separate target and trial contributions for independent fixed-size samples.
+  Its 95% interval passed the six-point grid at 2,000 datasets per point.
+  The normal-reference interval assumes IID sampling, positivity, correct
+  identification and the usual cross-fitting product-rate condition for the
+  nuisance errors. It is not a simultaneous or CATE interval. The original
+  joint outer refit percentile bootstrap overcovered at the smallest sample
+  size and undercovered for the largest nested cohort; requesting it still
+  withholds the interval. Point artifacts remain version 1. Interval artifacts
+  use version 2 and replay the standard error and limits from the stored
+  out-of-fold predictions without refitting. The calibration harness is in
+  `crates/antecedent/tests/learned_continuous_calibration.rs`.
+  Write `d_i = μ̂1(X_i) − μ̂0(X_i)` for a target row and
+  `r_i = (1−p̂_i)/p̂_i × [A_i(Y_i−μ̂1_i)/e_i − (1−A_i)(Y_i−μ̂0_i)/(1−e_i)]`
+  for a trial row, where `p̂` is out-of-fold source membership and `e` is the
+  known randomization probability. With `n_t` target and `n_s` trial rows, the
+  nested-cohort variance is `[Σ_target(d_i−ψ̂)² + Σ_trial r_i²]/n_t²`.
+  For independent fixed-size samples it is the target sample variance of `d`
+  divided by `n_t`, plus `n_s/n_t²` times the sample variance of `r`.
+  The reported band is `ψ̂ ± z_(1−α/2) √V̂`.
   The sample-size grid `n/2, n, 2n` is swept by `scripts/gate_calibration.sh` for the two
   coverage records only; the weak-overlap and misspecified-nuisance tests print
   measurements at the base point and emit no record.
-- **Bootstrap replicates.** Replicates refit every nuisance on their own resample and
+- **Closed percentile bootstrap.** Its internal replicates refit every nuisance on their own resample and
   reuse the point run's fold label of each resampled row (duplicates of one row stay in
   one fold, so a row never trains and tests its own copy). Two behaviors are documented
-  rather than changed, and their effect on coverage is unmeasured beyond what the
-  calibration records themselves measure: replicate fold sizes are not rebalanced (a
+  rather than changed. The failed calibration grid measures their combined effect;
+  it does not isolate them: replicate fold sizes are not rebalanced (a
   replicate whose fold lacks a role fails and counts as a failed replicate, which
   withholds the interval under the strict replicate policy), and only the point run is
   gated on membership overlap (a replicate whose resampled out-of-fold membership falls

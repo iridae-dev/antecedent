@@ -1,7 +1,8 @@
-//! Independent point-result artifacts for learned continuous-outcome trial transport.
+//! Independent point and analytic-interval artifacts for learned continuous-outcome trial transport.
 //!
-//! Format version 1 of the 2.2A cell X4 artifact (separate from the `learned_trial` v1
-//! wire, which stays consumable). A consumer never fits a learner or resamples. It
+//! Format versions 1 (point) and 2 (analytic interval) of the 2.2A cell X4 artifact
+//! (separate from the `learned_trial` v1 wire, which stays consumable). A consumer
+//! never fits a learner or resamples. It
 //! re-derives the transport certificate from the stored graph and query and requires the
 //! stored certificate record to match; re-validates the request against the frozen
 //! bounds; recomputes the shared fold assignment from the stored rows; replays the
@@ -33,9 +34,9 @@
 //! overlap). The evidence digest is kept apart from the premises digest because the fold
 //! assignment is a function of the rows, and the premises must stay row-independent.
 //!
-//! The interval route is closed (`cell_not_licensed`) until its coverage records exist,
-//! so the format has no interval field: an artifact that carries one fails to decode
-//! (`deny_unknown_fields`), and the stored status is re-derived.
+//! Version 2 recomputes the design-specific influence standard error and Wald interval
+//! from the stored rows, point and out-of-fold predictions. Version 1 cannot carry an
+//! interval; an added field fails decoding or verification.
 use crate::{
     IoError, admg_from_wire, admg_to_wire, query_wire::TransportQueryWire, wire::AdmgWire,
 };
@@ -51,8 +52,13 @@ use serde::{Deserialize, Serialize};
 
 /// The artifact format this reader writes and accepts.
 pub const LEARNED_CONTINUOUS_ARTIFACT_VERSION: u32 = 1;
+/// Interval-bearing format; version 1 point artifacts remain consumable.
+pub const LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker of the accepted format.
 pub const LEARNED_CONTINUOUS_ARTIFACT_FEATURE: &str = "checked_learned_continuous_point_v1";
+/// Required semantics of an interval-bearing artifact.
+pub const LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_FEATURE: &str =
+    "checked_learned_continuous_analytic_interval_v2";
 
 /// Why a learned-continuous artifact was refused. Callers match the kind.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
@@ -80,6 +86,9 @@ pub enum LearnedContinuousArtifactError {
     /// The recomputed point differs from the stored point.
     #[error("point estimate does not replay")]
     PointMismatch,
+    /// The analytic standard error or interval does not replay.
+    #[error("analytic interval does not replay")]
+    IntervalMismatch,
     /// The recomputed held-out diagnostics differ from the stored ones.
     #[error("nuisance diagnostics do not replay")]
     DiagnosticsMismatch,
@@ -89,7 +98,7 @@ pub enum LearnedContinuousArtifactError {
     /// The stored membership predictions leave the declared overlap threshold.
     #[error("membership overlap is below the declared threshold")]
     OverlapRefused,
-    /// The stored interval status contradicts the closed interval route.
+    /// The stored interval status contradicts its format and request.
     #[error("uncertainty bookkeeping does not check: {0}")]
     UncertaintyMismatch(&'static str),
     /// The premises digest does not match the stored premises.
@@ -278,8 +287,16 @@ impl LearnedContinuousArtifactWire {
         let certificate = CertificateRecord::from_identification(input.identification)
             .map_err(|message| IoError::from(Refusal::ProofMismatch(message)))?;
         let mut wire = Self {
-            version: LEARNED_CONTINUOUS_ARTIFACT_VERSION,
-            required_features: vec![LEARNED_CONTINUOUS_ARTIFACT_FEATURE.into()],
+            version: if input.result.interval.is_some() {
+                LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION
+            } else {
+                LEARNED_CONTINUOUS_ARTIFACT_VERSION
+            },
+            required_features: vec![if input.result.interval.is_some() {
+                LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_FEATURE.into()
+            } else {
+                LEARNED_CONTINUOUS_ARTIFACT_FEATURE.into()
+            }],
             graph: admg_to_wire(input.graph)?,
             selections: input.selections,
             query: crate::query_wire::transport_query_to_wire(input.query)?,
@@ -311,7 +328,11 @@ impl LearnedContinuousArtifactWire {
         Ok(crate::identity::digest_wire(
             IdentityDomain::TransportCertificate,
             &PremisesView {
-                tag: "learned_continuous_point_v1",
+                tag: if self.version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION {
+                    "learned_continuous_analytic_interval_v2"
+                } else {
+                    "learned_continuous_point_v1"
+                },
                 graph,
                 selections: &self.selections,
                 query: &self.query,
@@ -357,7 +378,14 @@ impl LearnedContinuousArtifactWire {
     pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
         Ok(crate::identity::digest_wire(
             IdentityDomain::TransportCertificate,
-            &EvidenceView { tag: "learned_continuous_evidence_v1", result: &self.result },
+            &EvidenceView {
+                tag: if self.version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION {
+                    "learned_continuous_evidence_v2"
+                } else {
+                    "learned_continuous_evidence_v1"
+                },
+                result: &self.result,
+            },
         )?
         .to_hex())
     }
@@ -412,7 +440,9 @@ impl LearnedContinuousArtifactWire {
     /// interval field fails here).
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != LEARNED_CONTINUOUS_ARTIFACT_VERSION {
+        if peek.version != LEARNED_CONTINUOUS_ARTIFACT_VERSION
+            && peek.version != LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION
+        {
             return Err(IoError::UnsupportedVersion { version: peek.version });
         }
         crate::from_cbor(bytes)
@@ -432,7 +462,12 @@ impl LearnedContinuousArtifactWire {
     }
 
     fn check_shape(&self, limits: &LearnedContinuousConsumeLimits) -> Result<(), Refusal> {
-        if self.required_features != [LEARNED_CONTINUOUS_ARTIFACT_FEATURE] {
+        let feature = if self.version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION {
+            LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_FEATURE
+        } else {
+            LEARNED_CONTINUOUS_ARTIFACT_FEATURE
+        };
+        if self.required_features != [feature] {
             return Err(Refusal::UnsupportedSemantics("required feature set"));
         }
         let n = self.input.source.len();
@@ -496,7 +531,9 @@ impl LearnedContinuousArtifactWire {
         &self,
         limits: LearnedContinuousConsumeLimits,
     ) -> Result<TransportIdentification, IoError> {
-        if self.version != LEARNED_CONTINUOUS_ARTIFACT_VERSION {
+        if self.version != LEARNED_CONTINUOUS_ARTIFACT_VERSION
+            && self.version != LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION
+        {
             return Err(IoError::UnsupportedVersion { version: self.version });
         }
         self.check_shape(&limits)?;
@@ -563,7 +600,30 @@ impl LearnedContinuousArtifactWire {
         }
         check_membership_overlap(&r.membership, &self.options)
             .map_err(|_| IoError::from(Refusal::OverlapRefused))?;
-        let expected = LearnedContinuousUncertainty::for_request(self.options.bootstrap);
+        let expected = if self.version == LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_VERSION {
+            if self.options.bootstrap != 0 {
+                return Err(Refusal::UncertaintyMismatch(
+                    "analytic interval with bootstrap request",
+                )
+                .into());
+            }
+            let (se, interval) =
+                antecedent_estimate::learned_continuous::learned_continuous_analytic_interval(
+                    &self.input,
+                    r,
+                    self.options.coverage_level,
+                )
+                .map_err(|e| Refusal::InvalidRequest(e.to_string()))?;
+            if r.standard_error != Some(se) || r.interval != Some(interval) {
+                return Err(Refusal::IntervalMismatch.into());
+            }
+            LearnedContinuousUncertainty::analytic()
+        } else {
+            if r.interval.is_some() || r.standard_error.is_some() {
+                return Err(Refusal::IntervalMismatch.into());
+            }
+            LearnedContinuousUncertainty::for_request(self.options.bootstrap)
+        };
         if r.uncertainty != expected {
             return Err(
                 Refusal::UncertaintyMismatch("status is not the closed-route status").into()

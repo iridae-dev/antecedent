@@ -275,12 +275,12 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
         advanced.consume_learned_continuous(artifact, max_rows=10)
 
 
-def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
+def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     query, data = fixture()
     study = advanced.prepare_learned_continuous(query, data, options=options(bootstrap=199), seed=4)
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.interval_withheld") as info:
+    with pytest.raises(CausalUnsupportedError, match="learned_transport.bootstrap_not_licensed") as info:
         study.interval()
-    assert info.value.reason_code == "cell_not_licensed"
+    assert info.value.reason_code == "estimator_inference_mismatch"
     result = study.estimate()
     assert result.uncertainty["status"] == "withheld"
     assert result.uncertainty["reason"] == "cell_not_licensed"
@@ -289,3 +289,11 @@ def test_the_unmeasured_interval_route_refuses_with_cell_not_licensed():
     consumed = advanced.consume_learned_continuous(study.export())
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None
+    analytic = advanced.prepare_learned_continuous(query, data, options=options(), seed=4)
+    interval = analytic.interval()
+    assert interval.uncertainty["status"] == "available"
+    assert interval.standard_error > 0
+    assert interval.interval[0] < interval.estimate < interval.interval[1]
+    replay = advanced.consume_learned_continuous(analytic.export())
+    assert replay.interval == interval.interval
+    assert replay.standard_error == interval.standard_error

@@ -982,9 +982,8 @@ notes = "A CPDAG or PAG in place of an explicit scenario list refuses (detail sc
 
 # 2.2A X4 learned continuous trial transport (parity/promotion_2_2.toml,
 # 2.2A.X4.learned_continuous_trial_transport). The estimator menu and the point routes
-# are licensed point-only; the whole-estimator joint outer bootstrap interval route stays
-# closed until its two coverage records (learned_trial_aipw_nested_cohort_continuous_mean_contrast,
-# learned_trial_aipw_independent_samples_continuous_mean_contrast) are measured.
+# are licensed; the analytic influence interval passed its six-point coverage grid.
+# The old joint outer bootstrap remains closed after failing coverage.
 [[routes]]
 route = "antecedent_estimate.transport_estimator_menu"
 stage = "representation"
@@ -1020,7 +1019,7 @@ evidence = "binary_randomized_source_known_probabilities_and_iid_trial_and_targe
 functional = "target_mean_contrast_continuous_outcome"
 guarantee = "model_double_robust_cross_fitted_augmented_inverse_odds_point"
 reference = "https://doi.org/10.1002/sim.8426"
-limits = "Cross-fits the outcome regressions (per arm) and source membership on one shared stratified fold assignment with no preprocessing outside the folds; records provider implementation/version and fold provenance; refuses out-of-fold membership below the declared threshold (learned_transport.membership_overlap) rather than extrapolating. Reports the interval withheld; never attaches one. Refresh keeps the certificate and refuses a changed schema or sampling design."
+limits = "Cross-fits the outcome regressions (per arm) and source membership on one shared stratified fold assignment with no preprocessing outside the folds; records provider implementation/version and fold provenance; refuses out-of-fold membership below the declared threshold (learned_transport.membership_overlap). Estimate reports a point; interval computes a design-specific influence Wald interval. Refresh keeps the certificate and refuses a changed schema or sampling design."
 evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
 evidence_assertion = "good_overlap_known_truth_under_both_designs"
 
@@ -1033,7 +1032,7 @@ evidence = "embedded_rows_out_of_fold_predictions_and_point"
 functional = "target_mean_contrast_continuous_outcome"
 guarantee = "independently_rederived_and_bit_exact_replayed_without_fitting"
 reference = "https://doi.org/10.1002/sim.8426"
-limits = "Re-derives the certificate, recomputes the fold assignment, replays the point, diagnostics and both overlap reports, re-applies the declared thresholds and re-derives the interval status. The premises digest binds graph, query, certificate, learner specs, folds, seed, thresholds, bounds, sampling and names; the data digest binds the rows. The format has no interval field."
+limits = "Re-derives the certificate, folds, point, diagnostics and overlap, re-applies thresholds and re-derives uncertainty status. Version 2 also replays the analytic standard error and interval from stored predictions without refitting; version 1 point artifacts remain consumable."
 evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
 evidence_assertion = "a_mutated_artifact_fails_independent_consumption_with_a_typed_error"
 
@@ -1072,7 +1071,7 @@ evidence = "binary_randomized_source_known_probabilities_and_iid_trial_and_targe
 functional = "target_mean_contrast_continuous_outcome"
 guarantee = "model_double_robust_cross_fitted_augmented_inverse_odds_point"
 reference = "https://doi.org/10.1002/sim.8426"
-limits = "Point with provenance, folds, diagnostics and separate membership/treatment overlap; interval is always None (point_only, or withheld with cell_not_licensed or estimator_inference_mismatch below the floor)."
+limits = "Point with provenance, folds, diagnostics and separate membership/treatment overlap; an explicit interval() call computes the analytic band. Legacy bootstrap requests keep a withheld status."
 evidence_test = "python/tests/test_learned_continuous_transport.py"
 evidence_assertion = "test_estimate_executes_the_retained_plan_after_builder_disposal"
 
@@ -1098,7 +1097,7 @@ evidence = "last_executed_point_and_bookkeeping"
 functional = "target_mean_contrast_continuous_outcome"
 guarantee = "names_and_premises_bound_into_the_verified_identity"
 reference = "https://doi.org/10.1002/sim.8426"
-limits = "Framed learned continuous artifact v1 with the variable names it was built under; export before estimating refuses."
+limits = "Framed learned continuous point artifact v1 or interval artifact v2 with bound variable names; export before execution refuses."
 evidence_test = "python/tests/test_learned_continuous_transport.py"
 evidence_assertion = "test_prepare_once_estimate_export_and_independent_consume_after_builder_disposal"
 
@@ -1119,8 +1118,8 @@ evidence_assertion = "test_consumer_replays_the_point_after_builder_disposal"
 route = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap"
 stage = "uncertainty"
 status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Closed until cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast and ...learned_trial_aipw_independent_samples_continuous_mean_contrast are measured (crates/antecedent/tests/learned_continuous_calibration.rs, gate_calibration.sh run_lc). Runtime refusal: crates/antecedent/tests/learned_continuous_lifecycle.rs::the_unmeasured_interval_route_refuses_with_cell_not_licensed and python/tests/test_learned_continuous_transport.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed. The internal estimator is antecedent_estimate::learned_continuous_interval_internal."
+reason_code = "estimator_inference_mismatch"
+notes = "The legacy percentile bootstrap failed the sample-size coverage grid and remains internal. A bootstrap request to the public interval route refuses estimator_inference_mismatch (learned_transport.bootstrap_not_licensed); the analytic interval is licensed for bootstrap=0. Evidence: crates/antecedent/tests/learned_continuous_lifecycle.rs::the_analytic_interval_replays_and_the_legacy_bootstrap_refuses."
 
 [[routes]]
 route = "antecedent.StudyBuilder.learned_continuous_menu"
@@ -1144,7 +1143,7 @@ evidence = "embedded_rows_out_of_fold_predictions_and_point"
 functional = "target_mean_contrast_continuous_outcome"
 guarantee = "independently_rederived_and_bit_exact_replayed_without_fitting"
 reference = "https://doi.org/10.1002/sim.8426"
-limits = "io-layer consumer behind antecedent.consume_learned_continuous_artifact: decodes under the consume limits, re-derives the certificate, folds, point, diagnostics and overlap without fitting, and refuses any failed check with a typed LearnedContinuousArtifactError. The format has no interval field."
+limits = "io-layer consumer behind antecedent.consume_learned_continuous_artifact: decodes under the consume limits, re-derives the certificate, folds, point, diagnostics and overlap without fitting; version 2 replays the analytic interval and standard error. Failed checks give typed LearnedContinuousArtifactError refusals."
 evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
 evidence_assertion = "the_io_wire_consumes_bytes_directly_under_its_own_limits"
 
@@ -1164,16 +1163,28 @@ evidence_assertion = "the_estimator_layer_returns_the_point_with_recorded_diagno
 [[routes]]
 route = "antecedent.PreparedLearnedContinuous.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Rust facade of the closed interval route; always refuses (learned_transport.interval_withheld). Runtime refusal: crates/antecedent/tests/learned_continuous_lifecycle.rs::the_unmeasured_interval_route_refuses_with_cell_not_licensed."
+status = "licensed"
+graph = "checked_direct_or_baseline_standardization"
+evidence = "binary_randomized_source_known_probabilities_and_iid_trial_and_target_rows"
+functional = "target_mean_contrast_continuous_outcome"
+guarantee = "pointwise_analytic_influence_interval"
+reference = "https://doi.org/10.1002/sim.8426"
+limits = "Design-specific normal-reference Wald interval for bootstrap=0; assumes IID sampling, overlap and cross-fitting nuisance-rate conditions. Its 95% six-point grid passed at 2000 datasets each."
+evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs"
+evidence_assertion = "the_analytic_interval_replays_and_the_legacy_bootstrap_refuses"
 
 [[routes]]
 route = "antecedent.transport.advanced.PreparedLearnedContinuous.interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Python surface of the closed interval route; always refuses (learned_transport.interval_withheld). Runtime refusal: python/tests/test_learned_continuous_transport.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed."
+status = "licensed"
+graph = "checked_direct_or_baseline_standardization"
+evidence = "binary_randomized_source_known_probabilities_and_iid_trial_and_target_rows"
+functional = "target_mean_contrast_continuous_outcome"
+guarantee = "pointwise_analytic_influence_interval"
+reference = "https://doi.org/10.1002/sim.8426"
+limits = "Python surface of the design-specific analytic interval and v2 artifact; legacy bootstrap requests refuse."
+evidence_test = "python/tests/test_learned_continuous_transport.py"
+evidence_assertion = "test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses"
 
 # 2.2A X5 two-step temporal transport (parity/promotion_2_2.toml, 2.2A.X5.two_step_temporal_transport).
 # Point routes are licensed point-only with executed checked-execution evidence; temporal
