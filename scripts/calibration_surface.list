@@ -105,6 +105,8 @@ key estimator.transport_empirical estimator transport.z_joint_sensitivity_endpoi
 # score, its overlap gate and the whole-estimator joint outer bootstrap.
 estimator.transport_learned crates/antecedent-estimate/src/learned_trial.rs
 estimator.transport_learned crates/antecedent-estimate/src/learned_continuous.rs
+estimator.transport_learned crates/antecedent/src/analysis/learned_continuous.rs
+estimator.transport_learned crates/antecedent-io/src/learned_continuous_artifact.rs
 key estimator.transport_learned estimator transport.learned_trial_aipw
 
 # Smoothed dose-response transport grid (2.2B X4): the quadrature, the composed score, its

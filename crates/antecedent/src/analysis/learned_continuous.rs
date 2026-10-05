@@ -4,15 +4,10 @@
 //! and validates the request before any nuisance is fitted. Estimation cross-fits every
 //! nuisance on the retained rows under the frozen seed and never identifies again;
 //! refresh replaces the rows of the same schema and sampling design and keeps the
-//! certificate. The result is the point estimate with its provenance, diagnostics and
-//! interval status.
-//!
-//! The interval route is registered closed (`cell_not_licensed`) until its coverage
-//! records are measured: an estimate reports the interval withheld, and
-//! [`PreparedLearnedContinuous::interval`] refuses. The internal estimator the
-//! calibration harness measures is
-//! `antecedent_estimate::learned_continuous_interval_internal`, compiled only under the
-//! `calibration-internal` feature that the facade's dev-dependencies enable.
+//! certificate. Estimation returns the point with provenance and diagnostics;
+//! [`PreparedLearnedContinuous::interval`] returns the pointwise analytic influence
+//! interval under the declared IID sampling design. A legacy percentile-bootstrap
+//! request refuses because that method failed its coverage grid.
 use super::StudyBuilder;
 use super::transport_common::{err, estimate_err};
 use antecedent_core::{ExecutionContext, TransportQuery};
