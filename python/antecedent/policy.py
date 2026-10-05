@@ -803,7 +803,7 @@ def uplift_by_score(
         not isinstance(value, (bool, np.bool_)) for value in assignment
     ):
         raise CausalValueError("assignment must contain one bool per evaluation row")
-    if not 1 <= bins <= len(values):
+    if bins > len(values):
         raise CausalValueError("bins must be between one and the number of evaluation rows")
     order = np.argsort(-score_values, kind="stable")
     bin_ids = np.empty(len(values), dtype=np.uint64)

@@ -903,7 +903,6 @@ def test_z_transport_plan_evidence_refuses_a_candidate_that_rewrites_the_failure
     )
     with pytest.raises(CausalValueError, match="must preserve the failure catalog"):
         transport.plan_z_transport_evidence(stage, base, [candidate])
-    del graph
 
 
 def test_z_transport_estimate_reports_its_seed_and_limits_are_inherited():
@@ -1370,4 +1369,3 @@ def test_z_transport_plan_report_carries_the_evaluation_budget_receipt():
     assert truncated["truncated"] is True and len(proposals) == 1
     with pytest.raises(CausalValueError, match="max_evaluated"):
         transport.plan_z_transport_evidence(stage, base, candidates, max_evaluated=0)
-    del graph
