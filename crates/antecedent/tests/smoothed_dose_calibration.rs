@@ -28,7 +28,7 @@ mod dgp;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
-    SMOOTHED_DOSE_BOUNDS, SmoothedDoseOptions, smoothed_dose_interval_internal,
+    SMOOTHED_DOSE_BOUNDS, SmoothedDoseInput, SmoothedDoseOptions, smoothed_dose_interval_internal,
 };
 use antecedent_identify::TransportIdentifier;
 use common::calibration::{
@@ -41,6 +41,22 @@ const INTERVAL: &str = "percentile_bootstrap";
 /// Bootstrap replicates per execution: the frozen replicate floor of the cell.
 const REPLICATES: u32 = SMOOTHED_DOSE_BOUNDS.min_bootstrap;
 const H: f64 = 0.5;
+
+fn smoothed_dose_nested_cohort_quadratic_curve(
+    n_trial: usize,
+    n_target: usize,
+    seed: u64,
+) -> SmoothedDoseInput {
+    draw(Design::NestedCohort, Scenario::Good, n_trial, n_target, seed)
+}
+
+fn smoothed_dose_independent_samples_quadratic_curve(
+    n_trial: usize,
+    n_target: usize,
+    seed: u64,
+) -> SmoothedDoseInput {
+    draw(Design::IndependentSamples, Scenario::Good, n_trial, n_target, seed)
+}
 
 fn construction() -> Construction {
     Construction {
@@ -81,7 +97,16 @@ fn execute(
     let (diagram, _) = diagram();
     let q = query(grid, H);
     let id = TransportIdentifier::new().identify(&diagram, &q.transport_query()).unwrap();
-    let input = draw(design, scenario, sizes.0, sizes.1, stream_seed(rep, 0x5D05));
+    let seed = stream_seed(rep, 0x5D05);
+    let input = match (design, scenario) {
+        (Design::NestedCohort, Scenario::Good) => {
+            smoothed_dose_nested_cohort_quadratic_curve(sizes.0, sizes.1, seed)
+        }
+        (Design::IndependentSamples, Scenario::Good) => {
+            smoothed_dose_independent_samples_quadratic_curve(sizes.0, sizes.1, seed)
+        }
+        _ => draw(design, scenario, sizes.0, sizes.1, seed),
+    };
     let ctx = ExecutionContext::for_tests(rep);
     let run = smoothed_dose_interval_internal(&id, &q, &input, &options(), &ctx)
         .map_err(|err| {

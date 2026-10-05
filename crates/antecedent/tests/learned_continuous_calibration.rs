@@ -37,7 +37,7 @@ mod dgp;
 
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::{
-    LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousOptions, LearnerSpec, LinearSpec,
+    LEARNED_CONTINUOUS_BOUNDS, LearnedContinuousOptions, LearnerSpec, LinearSpec, TrialAipwInput,
     learned_continuous_interval_internal,
 };
 use antecedent_identify::TransportIdentifier;
@@ -68,6 +68,22 @@ fn analytic_construction() -> Construction {
     }
 }
 
+fn learned_continuous_nested_cohort_good_overlap(
+    n_trial: usize,
+    n_target: usize,
+    seed: u64,
+) -> TrialAipwInput {
+    draw(Design::NestedCohort, Scenario::Good, n_trial, n_target, seed)
+}
+
+fn learned_continuous_independent_samples_good_overlap(
+    n_trial: usize,
+    n_target: usize,
+    seed: u64,
+) -> TrialAipwInput {
+    draw(Design::IndependentSamples, Scenario::Good, n_trial, n_target, seed)
+}
+
 fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
     let n = sizes();
     let truth = Scenario::Good.truth();
@@ -80,7 +96,13 @@ fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
     let (diagram, query, _) = graph();
     let id = TransportIdentifier::new().identify(&diagram, &query).unwrap();
     let rows = map_replicates(n_sim(), |rep| {
-        let input = draw(design, Scenario::Good, n.0, n.1, stream_seed(rep, 0x4C43));
+        let seed = stream_seed(rep, 0x4C43);
+        let input = match design {
+            Design::NestedCohort => learned_continuous_nested_cohort_good_overlap(n.0, n.1, seed),
+            Design::IndependentSamples => {
+                learned_continuous_independent_samples_good_overlap(n.0, n.1, seed)
+            }
+        };
         analytic_options
             .analytic_interval_internal(&id, &input, &ExecutionContext::for_tests(rep))
             .ok()
