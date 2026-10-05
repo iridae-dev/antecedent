@@ -7,9 +7,8 @@ artifact bytes alone and require the consumer's recomputed answers to equal the 
 bit for bit and the exactly enumerated truth. Each story also asserts its named refusal or
 incomplete side.
 
-Story 3 says "calibrated". Calibration is measured separately; this file makes no calibration
-claim and asserts that no interval is ever attached. ``scripts/gate_a_exit.sh`` reports that
-part as ``PENDING_CALIBRATION`` until the coverage records exist.
+Story 3 checks the public analytic interval. Coverage is measured separately by the
+calibration harness and checked by ``scripts/gate_a_exit.sh``.
 """
 
 import itertools

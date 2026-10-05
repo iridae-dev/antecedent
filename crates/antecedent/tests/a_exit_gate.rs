@@ -9,11 +9,9 @@
 //! enumerated truth where the story has one. Each story also asserts its named
 //! refusal or incomplete side.
 //!
-//! Story 3 says "calibrated". Calibration is measured separately (the harness is
-//! `learned_continuous_calibration.rs` under `scripts/gate_calibration.sh`); this
-//! file makes no calibration claim and asserts that no interval is attached.
-//! `scripts/gate_a_exit.sh` reports that part as `PENDING_CALIBRATION` until the
-//! coverage records exist.
+//! Story 3 checks the public analytic interval. Its coverage is measured separately
+//! in `learned_continuous_calibration.rs` under `scripts/gate_calibration.sh`.
+//! `scripts/gate_a_exit.sh` verifies the corresponding coverage records.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -782,7 +780,7 @@ fn story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_m
 
 // ---------------------------------------------------------------------------
 // Story 3 (X4): an overlap-supported learned transport estimate for the one chosen
-// continuous-outcome cell. (Calibration is a separate, pending check.)
+// continuous-outcome cell. Coverage is attested separately.
 // ---------------------------------------------------------------------------
 
 mod s3 {
@@ -911,17 +909,12 @@ fn story_3_learned_continuous_transport_estimate_with_overlap_refusal() {
             assert!((estimate.overlap.treatment.probability_min - 0.5).abs() < 1e-12);
             assert_eq!(estimate.provenance.len(), 9);
             assert_eq!(estimate.folds.count, 3);
-            // The interval route is closed; asking for it is refused, the point is kept.
-            match prepared.interval(&ctx) {
-                Err(IoError::Refused { code, message }) => {
-                    assert_eq!(code, "cell_not_licensed");
-                    assert!(
-                        message.starts_with("learned_transport.interval_withheld"),
-                        "{message}"
-                    );
-                }
-                other => panic!("expected cell_not_licensed, got {:?}", other.map(|_| ())),
-            }
+            let interval = prepared.interval(&ctx).unwrap();
+            assert_eq!(interval.wire().version, 2);
+            assert!(interval.estimate().uncertainty.available());
+            assert!(interval.estimate().standard_error.unwrap() > 0.0);
+            let (low, high) = interval.estimate().interval.unwrap();
+            assert!(low < interval.estimate().estimate && interval.estimate().estimate < high);
             // Refresh with fresh rows keeps the certificate and moves the point.
             let refreshed = prepared.refresh(draw(sampling, 0.4, 900, 600, 4), &ctx).unwrap();
             assert_eq!(refreshed.identification(), prepared.identification());
