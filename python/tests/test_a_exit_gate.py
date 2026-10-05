@@ -403,7 +403,7 @@ def test_story_2_finite_scenario_set_retains_identified_unidentified_and_unevalu
 
 
 # --------------------------------------------------------------------------------------
-# Story 3 (X4): overlap-supported learned transport estimate (calibration pending).
+# Story 3 (X4): overlap-supported learned transport estimate and analytic interval.
 # --------------------------------------------------------------------------------------
 
 
@@ -447,10 +447,10 @@ def s3_producer(design):
     assert result.overlap["selection"]["probability_min"] > 0.05
     assert result.overlap["treatment"]["probability_min"] == pytest.approx(0.5)
     assert len(result.provenance) == 9
-    # The interval route is closed: requesting it is refused and the point is kept.
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.interval_withheld") as info:
-        study.interval()
-    assert info.value.reason_code == "cell_not_licensed"
+    interval = study.interval()
+    assert interval.uncertainty["status"] == "available"
+    assert interval.standard_error > 0
+    assert interval.interval[0] < interval.estimate < interval.interval[1]
     # Refresh keeps the certificate and moves the point.
     _, fresh = s3_fixture(design, seed=9)
     study.refresh(fresh)
