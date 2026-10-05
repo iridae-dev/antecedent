@@ -134,6 +134,9 @@ pub enum ReportingScale {
     LogOddsRatio,
 }
 
+/// There are four supported scale variants; bound the size of each requested family.
+const MAX_REPORTING_SCALES: usize = 4;
+
 impl ReportingScale {
     /// Wire name of the scale.
     #[must_use]
@@ -325,6 +328,9 @@ pub fn transform_mean_pair(
 ) -> Result<ReportingTransform, EstimationError> {
     if scales.is_empty() {
         return Err(invalid_data("at least one reporting scale must be declared"));
+    }
+    if scales.len() > MAX_REPORTING_SCALES {
+        return Err(invalid_data("at most four reporting scales may be declared"));
     }
     if !(pair.active.is_finite() && pair.control.is_finite()) {
         return Err(invalid_data("the arm means must be finite"));

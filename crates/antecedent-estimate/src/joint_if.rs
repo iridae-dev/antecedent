@@ -318,10 +318,31 @@ pub fn max_t_critical_polled(
     rng: &mut CausalRng,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Option<f64>, EstimationError> {
+    max_t_critical_with_df_polled(cov, level, replicates, None, rng, cancelled)
+}
+
+/// Max-t critical value with a shared Student-t scale for a family whose declared
+/// reference degrees of freedom are `df` (the cluster-DML family). `None` gives the
+/// Gaussian iid construction. One claim reduces to the two-sided Student-t critical.
+///
+/// # Errors
+///
+/// Invalid covariance, level, replicate count, or reference degrees of freedom.
+pub fn max_t_critical_with_df_polled(
+    cov: &JointCovariance,
+    level: f64,
+    replicates: u32,
+    df: Option<f64>,
+    rng: &mut CausalRng,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Option<f64>, EstimationError> {
     if !level.is_finite() || level <= 0.0 || level >= 1.0 || replicates == 0 {
         return Err(EstimationError::unsupported(
             "max-t bands require level in (0, 1) and a positive replicate count",
         ));
+    }
+    if df.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+        return Err(EstimationError::data_msg("max-t requires positive finite reference df"));
     }
     let k = cov.dim;
     if k == 0
@@ -360,13 +381,22 @@ pub fn max_t_critical_polled(
         for zi in &mut z {
             *zi = antecedent_kernels::standard_normal(rng);
         }
+        let student_scale = if let Some(df) = df {
+            let chi_square = antecedent_kernels::sample_gamma(df / 2.0, 0.5, rng);
+            if !(chi_square.is_finite() && chi_square > 0.0) {
+                return Err(EstimationError::data_msg("invalid max-t Student-t scale draw"));
+            }
+            (df / chi_square).sqrt()
+        } else {
+            1.0
+        };
         let mut max_abs: f64 = 0.0;
         for i in 0..k {
             let mut acc = 0.0;
             for j in 0..=i {
                 acc += chol[i * k + j] * z[j];
             }
-            max_abs = max_abs.max(acc.abs());
+            max_abs = max_abs.max((acc * student_scale).abs());
         }
         maxima.push(max_abs);
     }

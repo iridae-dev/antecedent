@@ -31,8 +31,8 @@ For docs/release-notes/v2.2.0.md (or --notes PATH) this checks:
   4. every 2.2B work package of B_PACKAGES has either a record entry or a
      `<!-- todo-cell: <package> -->` marker (the draft skeleton);
   5. X7 (GPU lane) is stated as carried forward with its rationale (CPU-only 2.1 baseline);
-  6. the entry's `Bounds:` line equals the record's numeric bounds, its `record status` equals the
-     record's status and its `Guarantee:` string is the record's (stale otherwise: a warning while
+  6. the entry's `Bounds:` line equals the record's numeric bounds, any stated `record status`
+     equals the record's status, and its `Guarantee:` string is the record's (stale otherwise: a warning while
      the notes are a DRAFT, an error outside draft mode and in `--final`);
   7. a record with a closed uncertainty route says its interval is `withheld` / `not offered`; an
      `assumption_range` or `structural_envelope` record says the range is never a confidence
@@ -239,7 +239,7 @@ def entry_text(rec: dict, present: set[str]) -> str:
         "",
         f"- Question: {rec['consumer_question']}",
         f"- Scope: {rec['graph_class']}",
-        f"- Guarantee: {guarantee_text(rec)}; record status `{rec['status']}`.",
+        f"- Guarantee: {guarantee_text(rec)}.",
         f"- Bounds: {numeric_bounds(rec)}.",
     ]
     if pending:
@@ -439,7 +439,8 @@ def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
                     f"{label}: entry promises a '{promise.group(0)}' but the cell's claim is {want!r}; "
                     "a cell without a measured coverage record publishes no interval"
                 )
-        # 6-7. the entry restates the record's bounds, status, guarantee and interval stance
+        # 6-7. the entry restates bounds, guarantee and interval stance. An optional
+        # internal status must be accurate, but need not appear in public notes.
         bounds_lines = BOUNDS_LINE.findall(body)
         if numeric_bounds(rec) != "none declared" or bounds_lines:
             if len(bounds_lines) != 1 or bounds_lines[0] != numeric_bounds(rec):
@@ -448,7 +449,7 @@ def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
                     f"[{numeric_bounds(rec)}]"
                 )
         statuses = STATUS_PART.findall(body)
-        if statuses != [rec.get("status")]:
+        if statuses and statuses != [rec.get("status")]:
             stale.append(
                 f"{label}: entry says record status {statuses or 'nothing'} but the record is "
                 f"`{rec.get('status')}`"
@@ -797,7 +798,7 @@ def self_test() -> int:
             None,
         )
 
-        # ---- D5: prose claim words, plain none, bounds/status/guarantee, interval stance
+        # ---- D5: prose claim words, plain none, bounds/optional status/guarantee, interval stance
         expect(
             "'structural envelope' with a space is a claim word",
             run(
@@ -869,7 +870,9 @@ def self_test() -> int:
             "status edited (not a draft)",
             run(
                 lambda s: nodraft(s).replace(
-                    "record status `promoted`", "record status `frozen`", 1
+                    "- Guarantee: `sound_incomplete`.",
+                    "- Guarantee: `sound_incomplete`; record status `frozen`.",
+                    1,
                 )
             ),
             "record status",

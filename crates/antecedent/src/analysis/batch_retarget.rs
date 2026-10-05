@@ -23,14 +23,17 @@
 //! "route A minus route B" among declared holders is the contrast `+1·A −1·B` of two claims
 //! (the same plan retargeted to two weightings, or two plans).
 //!
-//! What is claimed: points and a plug-in score covariance under iid rows, fixed declared
-//! weights, positivity and nuisance convergence (the single-claim retarget's contract).
+//! What is claimed: points and a plug-in score covariance under iid rows or declared
+//! independent cluster units, fixed declared weights, positivity and nuisance
+//! convergence (the single-claim retarget's contract).
 //! The family-level simultaneous (max-t) band `θ_k ± c · se_k` is
 //! [`BatchRetargetReport::simultaneous_interval`]: a nominal asymptotic construction on `Σ`
 //! (plug-in covariance, Monte-Carlo critical value `c`), published for a complete family
-//! only. Its coverage is measured by the calibration harness, not asserted here. A
-//! penalized-propensity table retargets to a point only and joins the family without
-//! covariance. A partial family (any failed or point-only member) is reported member by
+//! only for iid rows; a cluster-DML family uses the same covariance with a shared
+//! Student-t scale at its declared reference degrees of freedom. Its coverage is
+//! measured by the calibration harness, not asserted here. A
+//! penalized-propensity table retains its score covariance. A partial family (any failed
+//! or point-only member) is reported member by
 //! member and never offered as a complete-family claim.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -39,7 +42,7 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalRng, ExecutionContext, VariableId, reason_code};
 use antecedent_estimate::{
-    JointCovariance, RefusalFields, ScoreTable, max_t_critical_polled,
+    JointCovariance, RefusalFields, ScoreTable, max_t_critical_with_df_polled,
     provenance_withholds_interval,
 };
 use antecedent_io::PayloadDigestWire;
@@ -50,7 +53,7 @@ use super::batch::BatchQuery;
 use super::prepared::PreparedStudy;
 
 /// What a batch retarget is and is not, carried on every report.
-pub const BATCH_RETARGET_SCOPE_NOTE: &str = "Points and plug-in score covariance of retargeted claims over one row snapshot, under iid rows, caller-declared fixed weights, positivity and nuisance convergence; selection or weight-estimation uncertainty is excluded. The family-level simultaneous interval is a nominal asymptotic max-t band on that plug-in covariance, available for a complete family only.";
+pub const BATCH_RETARGET_SCOPE_NOTE: &str = "Points and plug-in score covariance of retargeted claims over one row snapshot, under iid rows or declared independent cluster units, caller-declared fixed weights, positivity and nuisance convergence; selection or weight-estimation uncertainty is excluded. The family-level simultaneous interval is a nominal max-t band on that plug-in covariance (Student-t reference for cluster units), available for a complete family only.";
 
 /// A refusal of a batch retarget, with its registered reason code.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
@@ -537,8 +540,8 @@ impl BatchRetargetReport {
             return Err(not_licensed(
                 "batch_retarget.point_only_member",
                 format!(
-                    "{} retarget to a point only (a penalized propensity publishes no \
-                     covariance), so the family has no complete joint covariance",
+                    "{} retarget to a point only under their score-table provenance, so the \
+                     family has no complete joint covariance",
                     point_only.join(", ")
                 ),
             ));
@@ -602,8 +605,12 @@ fn weighted_influence(scores: &[f64], weights: &[f64], theta: f64) -> Vec<f64> {
 /// is `G/(G-1) Σ_g S_g²` with `S_g` the cluster sum of `(w_r / Σw)(φ_r − θ)`.
 fn cluster_influence(scores: &[f64], weights: &[f64], theta: f64) -> Vec<f64> {
     let n = scores.len() as f64;
-    let total: f64 = weights.iter().sum();
-    scores.iter().zip(weights).map(|(phi, w)| n * (w / total) * (phi - theta)).collect()
+    // The retarget evaluator accepts finite weights whose raw sum can overflow. Use the
+    // same scale-invariant normalization as the iid covariance path so multiplying every
+    // weight by a common constant cannot change the cluster covariance.
+    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
+    let total: f64 = weights.iter().map(|w| w / scale).sum();
+    scores.iter().zip(weights).map(|(phi, w)| n * ((w / scale) / total) * (phi - theta)).collect()
 }
 
 fn evaluate_claim(
@@ -679,8 +686,7 @@ fn evaluate_claim(
     let mut diagnostics = Vec::new();
     if withheld {
         diagnostics.push(
-            "the scores come from a penalized propensity: a retargeted point, no covariance"
-                .to_string(),
+            "the score-table provenance licenses a retargeted point but no covariance".to_string(),
         );
     }
     Ok(Evaluated {
@@ -1087,6 +1093,17 @@ pub fn max_t_critical_value(
     draws: u32,
     ctx: &ExecutionContext,
 ) -> Result<f64, BatchRetargetError> {
+    max_t_critical_value_with_df(correlation, level, seed, draws, None, ctx)
+}
+
+fn max_t_critical_value_with_df(
+    correlation: &JointCovariance,
+    level: f64,
+    seed: u64,
+    draws: u32,
+    df: Option<f64>,
+    ctx: &ExecutionContext,
+) -> Result<f64, BatchRetargetError> {
     if !(level.is_finite() && level > 0.0 && level < 1.0) {
         return Err(invalid(
             "batch_retarget.max_t_invalid_level",
@@ -1117,7 +1134,7 @@ pub fn max_t_critical_value(
         ));
     }
     let mut rng = CausalRng::from_seed(seed);
-    let critical = max_t_critical_polled(correlation, level, draws, &mut rng, &|| {
+    let critical = max_t_critical_with_df_polled(correlation, level, draws, df, &mut rng, &|| {
         ctx.cancellation.is_cancelled()
     })
     .map_err(|e| not_supported("batch_retarget.covariance_unavailable", e.to_string()))?
@@ -1182,12 +1199,14 @@ pub fn simultaneous_band_unpublished(
 
 impl BatchRetargetReport {
     /// The max-t band `point_j ± c · se_j` of a complete family from its plug-in score
-    /// covariance, with `c` the `level` quantile of `max_j |Z_j|`, `Z ~ N(0, R)`, `R` the
-    /// correlation matrix of the covariance. `c` is a deterministic function of
-    /// `(R, level, seed, draws)`.
+    /// covariance. For iid rows, `c` is the `level` quantile of `max_j |Z_j|` for
+    /// `Z ~ N(0, R)`; for a cluster-DML family it uses a shared Student-t scale with
+    /// the family's declared reference degrees of freedom. `R` is the correlation
+    /// matrix of the covariance. `c` is deterministic in the inputs and seed.
     ///
     /// Nominal asymptotic: the Gaussian limit of the studentized retargeted points under the
-    /// single-claim retarget's conditions (iid rows, fixed declared weights, positivity,
+    /// single-claim retarget's conditions (iid rows or declared independent cluster units,
+    /// fixed declared weights, positivity,
     /// nuisance convergence); selection and weight-estimation uncertainty and the
     /// Monte-Carlo error of `c` are excluded.
     ///
@@ -1204,8 +1223,34 @@ impl BatchRetargetReport {
         ctx: &ExecutionContext,
     ) -> Result<SimultaneousBand, BatchRetargetError> {
         let family = self.complete_family()?;
-        let critical_value =
-            max_t_critical_value(&correlation_of(family)?, level, seed, draws, ctx)?;
+        let reference_df = family
+            .names
+            .iter()
+            .try_fold(None, |current: Option<Option<f64>>, name| {
+                let next = self
+                    .claims
+                    .iter()
+                    .find(|claim| claim.name == *name)
+                    .and_then(|claim| claim.outcome.as_ref().ok())
+                    .and_then(|point| point.reference_df);
+                if current.is_some_and(|df| df != next) {
+                    Err(not_supported(
+                        "batch_retarget.covariance_unavailable",
+                        "one family cannot mix different cluster reference degrees of freedom",
+                    ))
+                } else {
+                    Ok(Some(next))
+                }
+            })?
+            .flatten();
+        let critical_value = max_t_critical_value_with_df(
+            &correlation_of(family)?,
+            level,
+            seed,
+            draws,
+            reference_df,
+            ctx,
+        )?;
         let members = family
             .names
             .iter()
@@ -1284,6 +1329,20 @@ mod tests {
         let library =
             antecedent_estimate::joint_influence_covariance(&[&phi[..]], Some(&w[..])).unwrap();
         near(cov.get(0, 0), library.get(0, 0));
+    }
+
+    #[test]
+    fn cluster_influence_is_invariant_to_large_finite_weight_scale() {
+        let scores = [1.0, 2.0, 4.0, 5.0];
+        let base = [1.0, 1.0, 2.0, 2.0];
+        let large = [5e307, 5e307, 1e308, 1e308];
+        let theta = 3.5;
+        let expected = cluster_influence(&scores, &base, theta);
+        let actual = cluster_influence(&scores, &large, theta);
+        assert!(actual.iter().all(|v| v.is_finite()));
+        for (a, b) in actual.iter().zip(expected) {
+            near(*a, b);
+        }
     }
 
     fn table(rows: &[u32]) -> ScoreTable {
@@ -1638,6 +1697,38 @@ mod tests {
         near(corr.get(1, 1), 1.0);
         near(corr.get(0, 1), 0.2);
         assert_eq!(corr.get(0, 1).to_bits(), corr.get(1, 0).to_bits());
+    }
+
+    #[test]
+    fn a_cluster_family_uses_the_declared_student_t_reference() {
+        let corr = equicorrelation(1, 0.0);
+        let level = 0.95;
+        let draws = 100_000;
+        let df = 19.0;
+        let normal = max_t_critical_value(&corr, level, 29, draws, &ctx()).unwrap();
+        let clustered =
+            max_t_critical_value_with_df(&corr, level, 29, draws, Some(df), &ctx()).unwrap();
+        let oracle = antecedent_stats::student_t_ppf(0.5 + level / 2.0, df);
+        assert!((clustered - oracle).abs() < 0.05, "clustered={clustered} oracle={oracle}");
+        assert!(clustered > normal);
+
+        let mut family = report(vec![claim_report("a", Ok(point(1.0, Some(1.0))))]);
+        family.claims[0].outcome.as_mut().unwrap().reference_df = Some(df);
+        family.covariance = Some(FamilyCovariance {
+            names: vec!["a".into()],
+            matrix: JointCovariance { dim: 1, values: Arc::from(vec![1.0]) },
+        });
+        let band = family.simultaneous_interval(level, 29, draws, &ctx()).unwrap();
+        assert_eq!(band.critical_value.to_bits(), clustered.to_bits());
+
+        let mut mixed = two_claim_report();
+        mixed.claims[0].outcome.as_mut().unwrap().reference_df = Some(df);
+        let error = mixed.simultaneous_interval(level, 29, DRAWS, &ctx()).unwrap_err();
+        assert_eq!(error.detail, "batch_retarget.covariance_unavailable");
+        let mut reverse_mixed = two_claim_report();
+        reverse_mixed.claims[1].outcome.as_mut().unwrap().reference_df = Some(df);
+        let error = reverse_mixed.simultaneous_interval(level, 29, DRAWS, &ctx()).unwrap_err();
+        assert_eq!(error.detail, "batch_retarget.covariance_unavailable");
     }
 
     #[test]

@@ -534,10 +534,10 @@ pub(crate) fn fold_supports(
 /// whole-cluster (cluster-DML) cross-fitting, learner-supplied joint-cell nuisances, or a
 /// factorized joint-cell family.
 ///
-/// Such a table is a point-and-score artifact: it can be retargeted and its scores
-/// summarized, but no interval or joint covariance is published from it. Ridge- and
-/// lasso-penalized propensity tables are not withheld: their intervals are the routes of
-/// `docs/guides/penalized-aipw.md`.
+/// Such a table is a point-and-score artifact unless a separate dependence receipt
+/// licenses its covariance and interval. The cluster-DML route supplies that receipt;
+/// factorized joint cells do not. Ridge- and lasso-penalized propensity tables are not
+/// withheld: their intervals are the routes of `docs/guides/penalized-aipw.md`.
 #[must_use]
 pub fn provenance_withholds_interval(provenance: &str) -> bool {
     crate::cluster_dml_aipw::provenance_marks_cluster_units(provenance)

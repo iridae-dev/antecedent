@@ -94,6 +94,7 @@ published.
 
 ## Limits
 
+* A transform accepts at most 4 reporting scales in one request.
 * Point only; no interval anywhere, no calibration run.
 * The comparison is for the difference-of-means coding on the all-observed population; a
   ratio-scale or subpopulation comparison needs its own adjusted estimate and is refused here.

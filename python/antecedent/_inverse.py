@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from . import _native
-from .errors import CausalTypeError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .query import ResponseCurve
 from .results.response import CausalResponseView
 
@@ -75,7 +75,18 @@ class Action:
             raise CausalTypeError("action point must be a number or a sequence of numbers")
         if isinstance(self.point, (int, float)):
             return (float(self.point),)
+        if any(isinstance(value, bool) for value in self.point):
+            raise CausalTypeError("action coordinates must be numbers, not booleans")
         return tuple(float(value) for value in self.point)
+
+
+def _action_wire(action: Action) -> tuple[str, list[float], float, list[tuple[str, bool]]]:
+    constraints = []
+    for name, satisfied in action.constraints.items():
+        if not isinstance(name, str) or not isinstance(satisfied, bool):
+            raise CausalTypeError("action constraints need string names and boolean values")
+        constraints.append((name, satisfied))
+    return (action.label, list(action.coordinates()), float(action.cost), constraints)
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +149,23 @@ class ActionResult:
     robustly_feasible: bool | None
 
 
+def _action_result(row: Mapping[str, Any]) -> ActionResult:
+    return ActionResult(
+        label=row["label"],
+        point=tuple(row["point"]),
+        cost=row["cost"],
+        status=row["status"],
+        reason=row["reason"],
+        violated_constraints=tuple(row["violated_constraints"]),
+        estimate=row["estimate"],
+        margin=row["margin"],
+        within_tolerance=row["within_tolerance"],
+        support_status=row["support_status"],
+        interval=None if row["interval"] is None else tuple(row["interval"]),
+        robustly_feasible=row["robustly_feasible"],
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class MissingEvidenceView:
     """The study planner's proposals, projected verbatim as a separate view."""
@@ -170,7 +198,8 @@ class InverseOutcomeReport:
     ``undetermined`` (none feasible, some unsupported or unevaluated). It never
     speaks about actions that were not enumerated. ``inference_claim`` is
     ``point_only``. ``identity`` is an order-invariant digest of every input;
-    :meth:`verify` recomputes the report from the stored inputs.
+    :meth:`verify` recomputes and compares the report from its stored inputs;
+    this local check does not authenticate those inputs or the forward model.
     """
 
     query: TargetMean
@@ -178,6 +207,9 @@ class InverseOutcomeReport:
     budget: float | None
     outcome: str
     population: str
+    forward_claim_id: str | None
+    forward_program_id: str | None
+    forward_data_snapshot_id: str | None
     horizons: tuple[int, ...] | None
     assumptions: tuple[str, ...]
     support_basis: str
@@ -197,6 +229,7 @@ class InverseOutcomeReport:
     sensitivity: SensitivityView | None = None
     _call: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
     _payload: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
+    _declared_horizons: tuple[int, ...] | None = field(default=None, repr=False, compare=False)
 
     def action(self, label: str) -> ActionResult:
         """The result for one enumerated action."""
@@ -208,12 +241,46 @@ class InverseOutcomeReport:
     def verify(self) -> bool:
         """Recompute the report from its stored inputs; ``True`` when identical.
 
-        The report is a pure function of the forward response as published, the
-        action grid, the target, the budget and the tolerance, so an independent
-        recomputation reproduces the identity and every classification.
+        The report is a pure function of the supplied forward response, action
+        grid, target, budget and tolerance. Recompute and compare its identity,
+        public classification fields and stored native payload. This does not
+        authenticate edited inputs or certify the forward model.
         """
         recomputed = _native.classify_inverse_outcome_stage(**self._call)
-        return bool(recomputed == self._payload)
+        if recomputed != self._payload:
+            return False
+        expected_actions = tuple(_action_result(row) for row in recomputed["actions"])
+        expected_horizons = (
+            (int(self._call["actions"][0][1][1]),)
+            if self._declared_horizons is not None and self._call["actions"]
+            else None
+        )
+        return bool(
+            self.query
+            == TargetMean(recomputed["query"]["threshold"], recomputed["query"]["direction"])
+            and self.tolerance == recomputed["tolerance"]
+            and self.budget == recomputed["budget"]
+            and self.outcome == recomputed["outcome"]
+            and self.population == recomputed["population"]
+            and self.forward_claim_id == recomputed["forward_claim_id"]
+            and self.forward_program_id == recomputed["forward_program_id"]
+            and self.forward_data_snapshot_id == recomputed["forward_data_snapshot_id"]
+            and self.horizons == expected_horizons
+            and self.assumptions == tuple(recomputed["assumptions"])
+            and self.support_basis == recomputed["support_basis"]
+            and self.interval == recomputed["interval"]
+            and self.actions == expected_actions
+            and self.feasible == tuple(recomputed["feasible"])
+            and self.infeasible == tuple(recomputed["infeasible"])
+            and self.unsupported == tuple(recomputed["unsupported"])
+            and self.unevaluated == tuple(recomputed["unevaluated"])
+            and self.cheapest_feasible == tuple(recomputed["cheapest_feasible"])
+            and self.robustly_feasible == tuple(recomputed["robustly_feasible"])
+            and self.enumerated == recomputed["enumerated"]
+            and self.inference_claim == recomputed["inference_claim"]
+            and self.scope_note == recomputed["scope_note"]
+            and self.identity == recomputed["identity"]
+        )
 
 
 def _finite(name: str, value: float) -> float:
@@ -229,6 +296,12 @@ def _forward(response: CausalResponseView) -> tuple[Any, ...]:
             "inverse_outcome requires the CausalResponseView of a forward response route "
             "(ResponseCurve); run analyze/prepare first",
             reason_code="invalid_argument",
+        )
+    if response.evidence_status == "allowed_unlicensed":
+        raise CausalUnsupportedError(
+            "inverse.forward_not_licensed: the forward response is allowed for compatibility "
+            "but does not carry a licensed causal claim",
+            reason_code="cell_not_licensed",
         )
     view = response.response
     points = [] if view is None else [[float(c) for c in point] for point in view.points]
@@ -250,8 +323,22 @@ def _forward(response: CausalResponseView) -> tuple[Any, ...]:
         support, basis = [str(response.support.status)] * len(points), "surface_worst_case"
     interval = None
     uncertainty = response.uncertainty
+    simultaneous = response.simultaneous_band
     if (
-        uncertainty.kind in ("pointwise", "simultaneous")
+        simultaneous is not None
+        and uncertainty.interpretation is not None
+        and len(simultaneous) == len(points)
+    ):
+        interval = (
+            "simultaneous",
+            uncertainty.interpretation,
+            float(simultaneous.level),
+            [float(row[0]) for row in simultaneous.lower],
+            [float(row[0]) for row in simultaneous.upper],
+        )
+    if (
+        interval is None
+        and uncertainty.kind in ("pointwise", "simultaneous")
         and uncertainty.interpretation is not None
         and uncertainty.level is not None
         and uncertainty.lower is not None
@@ -272,6 +359,7 @@ def _forward(response: CausalResponseView) -> tuple[Any, ...]:
     return (
         outcomes[0] if len(outcomes) == 1 else "",
         population,
+        (response.claim_id, response.program_id, response.data_snapshot_id),
         mean_response,
         point_identified,
         points,
@@ -399,50 +487,40 @@ def inverse_outcome(
     arguments = _query_arguments(query)
     if isinstance(actions, (str, bytes)) or not all(isinstance(a, Action) for a in actions):
         raise CausalTypeError("actions must be a sequence of Action values")
+    forward_wire = _forward(response)
+    action_rows = [_action_wire(action) for action in actions]
+    declared_horizons = getattr(response.estimand, "horizons", None)
+    selected_horizon = None
+    if declared_horizons is not None:
+        allowed_horizons = set(int(h) for h in declared_horizons)
+        for _, point, _, _ in action_rows:
+            if len(point) != 2 or not point[1].is_integer() or int(point[1]) not in allowed_horizons:
+                raise CausalValueError(
+                    "a temporal action needs a dose and one horizon declared by the forward query"
+                )
+        selected_horizon = (int(action_rows[0][1][1]),) if action_rows else None
     call: dict[str, Any] = {
         **arguments,
-        "forward": _forward(response),
-        "actions": [
-            (
-                action.label,
-                list(action.coordinates()),
-                float(action.cost),
-                [(str(name), bool(ok)) for name, ok in action.constraints.items()],
-            )
-            for action in actions
-        ],
+        "forward": forward_wire,
+        "actions": action_rows,
         "budget": None if budget is None else float(budget),
         "tolerance": float(tolerance),
     }
     payload = _native.classify_inverse_outcome_stage(**call, cancel=cancel)
-    horizons = getattr(response.estimand, "horizons", None)
     return InverseOutcomeReport(
         query=TargetMean(payload["query"]["threshold"], payload["query"]["direction"]),
         tolerance=payload["tolerance"],
         budget=payload["budget"],
         outcome=payload["outcome"],
         population=payload["population"],
-        horizons=None if horizons is None else tuple(int(h) for h in horizons),
+        forward_claim_id=payload["forward_claim_id"],
+        forward_program_id=payload["forward_program_id"],
+        forward_data_snapshot_id=payload["forward_data_snapshot_id"],
+        horizons=selected_horizon,
         assumptions=tuple(payload["assumptions"]),
         support_basis=payload["support_basis"],
         interval=payload["interval"],
-        actions=tuple(
-            ActionResult(
-                label=row["label"],
-                point=tuple(row["point"]),
-                cost=row["cost"],
-                status=row["status"],
-                reason=row["reason"],
-                violated_constraints=tuple(row["violated_constraints"]),
-                estimate=row["estimate"],
-                margin=row["margin"],
-                within_tolerance=row["within_tolerance"],
-                support_status=row["support_status"],
-                interval=None if row["interval"] is None else tuple(row["interval"]),
-                robustly_feasible=row["robustly_feasible"],
-            )
-            for row in payload["actions"]
-        ),
+        actions=tuple(_action_result(row) for row in payload["actions"]),
         feasible=tuple(payload["feasible"]),
         infeasible=tuple(payload["infeasible"]),
         unsupported=tuple(payload["unsupported"]),
@@ -457,6 +535,7 @@ def inverse_outcome(
         sensitivity=None if sensitivity is None else _sensitivity(sensitivity),
         _call=call,
         _payload=payload,
+        _declared_horizons=None if declared_horizons is None else tuple(declared_horizons),
     )
 
 

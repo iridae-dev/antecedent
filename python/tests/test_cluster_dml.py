@@ -15,7 +15,7 @@ import antecedent as ant
 import numpy as np
 import pytest
 from antecedent.errors import CausalValueError
-from antecedent.estimation import CandidateScreen
+from antecedent.estimation import CandidateScreen, PreparedBatch, RetargetClaim
 from antecedent._native import analyze_ate
 from antecedent.estimators import Aipw, ClusterDml
 
@@ -95,6 +95,27 @@ def test_a_cluster_dml_aipw_reports_the_cluster_sandwich_se_and_the_scores():
     assert estimate.score_table is not None
     again = ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=7)
     assert again.effect == result.effect
+
+
+def test_a_cluster_batch_band_uses_the_cluster_reference():
+    data, cluster = clustered(groups=12, size=20)
+    cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=10))
+    batch = PreparedBatch.prepare(
+        data, graph=GRAPH, queries=[QUERY], estimator=cfg, refute=False, seed=7
+    )
+    rows = batch.retarget_rows()
+    assert rows is not None
+    report = batch.retarget(
+        [RetargetClaim("effect", 0, np.ones(len(rows)), depends_on=[])],
+        simultaneous_level=0.95,
+        simultaneous_seed=29,
+        simultaneous_draws=20_000,
+    )
+    band = report.simultaneous_interval()
+    assert report.complete and len(band.members) == 1
+    assert band.critical_value > 2.1  # t_11, above the iid normal critical 1.96
+    member = band.members[0]
+    assert member.lower == pytest.approx(member.value - band.critical_value * member.std_error)
 
 
 def test_few_clusters_are_refused_with_a_registered_reason_code():

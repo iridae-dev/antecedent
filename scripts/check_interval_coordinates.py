@@ -95,7 +95,9 @@ def emitted_by_a_test(coverage_id: str) -> bool:
     def hit(lit: str) -> bool:
         return lit in (comp, coverage_id) or lit.endswith("." + comp)
 
-    for p in ROOT.glob("crates/*/tests/**/*.rs"):
+    # Some crates keep their ignored calibration tests in a #[cfg(test)]
+    # module under src (antecedent-estimate does); both layouts emit records.
+    for p in [*ROOT.glob("crates/*/tests/**/*.rs"), *ROOT.glob("crates/*/src/**/*.rs")]:
         if comp not in p.read_text():
             continue
         if any(hit(lit) for lits in ignored_test_literals(p).values() for lit in lits):
@@ -210,7 +212,7 @@ def check() -> dict:
             if not emitted_by_a_test(cid):
                 errors.append(
                     f"{rid}: coverage id {cid} is emitted by no `#[ignore]` test body (string literal) "
-                    "under crates/*/tests or python/tests"
+                    "under crates/*/tests, crates/*/src, or python/tests"
                 )
             # a carried_forward record is deliberately not measured at the cut, so it need not be
             # registered in gate_calibration.sh (its emitting test must still exist)
@@ -314,6 +316,15 @@ def check() -> dict:
                 errors.append(f"{rid}: interval surface file {rel} is missing")
                 continue
             findings += [(rel, line, n) for line, n in cai.interval_findings(rel)]
+        # A wrapper may echo an interval licensed by its input route without
+        # constructing its own uncertainty. The record must name those public
+        # fields explicitly; any new interval-bearing name still needs a route.
+        inherited = set(record.get("inherited_interval_fields") or [])
+        if inherited:
+            seen = {name for _, _, name in findings}
+            for name in sorted(inherited - seen):
+                errors.append(f"{rid}: inherited interval field {name!r} is absent from its surface")
+            findings = [row for row in findings if row[2] not in inherited]
         if findings and not (closed_uncertainty or (open_uncertainty and not missing)):
             first = findings[0]
             errors.append(
@@ -416,7 +427,7 @@ def self_test() -> int:
                 if route.get("refusal_test"):
                     needed.add(route["refusal_test"])
             for cid in rec.get("coverage_records") or []:
-                for p in list(real.glob("crates/*/tests/**/*.rs")):
+                for p in [*real.glob("crates/*/tests/**/*.rs"), *real.glob("crates/*/src/**/*.rs")]:
                     if cid.rsplit(".", 1)[-1] in p.read_text():
                         needed.add(str(p.relative_to(real)))
         for rel in sorted(needed):
@@ -700,6 +711,18 @@ routes = [
                     promo_rel,
                     closed_head,
                     '{ name = "synth.point", stage = "evaluate", status = "licensed", claim = "point_only" }',
+                )
+            ),
+            "has no closed uncertainty route",
+        )
+        expect(
+            "an inverse-owned interval is not hidden by inherited forward metadata",
+            run(
+                edit(
+                    "python/antecedent/_inverse.py",
+                    "    interval: tuple[float | None, float | None] | None",
+                    "    inverse_interval: tuple[float | None, float | None] | None\n"
+                    "    interval: tuple[float | None, float | None] | None",
                 )
             ),
             "has no closed uncertainty route",

@@ -55,17 +55,21 @@ its refusal visible; do not silently broaden the release claim.
 
 **2.2 expansion cells (reported by 2.1.1 users).** Alongside the A and B cells,
 2.2 carries a set of independently gated expansion cells. Each has its own promotion
-record and ships only if its fixtures pass; none claims an interval, and no calibration
-has been run for them.
+record and ships only if its fixtures and any required calibration pass. The
+interval evaluators below are implemented for the calibration pass; their
+repeated-sampling records have not yet been measured.
 
 - Preflight diagnostics, structured refusal fields and count-only cost estimates for
   prepared plans (no inferential claim).
-- Penalized propensity AIPW: ridge-logistic propensity with training-fold tuning; point
-  only. Lasso, a bootstrap interval and an ML fallback stay closed.
+- Penalized propensity AIPW: ridge and lasso logistic propensities with training-fold
+  tuning, score-based and refit-bootstrap intervals awaiting calibration, and a
+  declared GLM-to-penalized fallback. An unrestricted ML fallback stays closed.
 - Configured estimators in batches, and batch retarget with the joint score covariance and
-  named contrasts of a claim family; a simultaneous interval stays closed until measured.
-- Clustered DML AIPW with whole-cluster cross-fitting (point only) and entity-owned
-  candidate screens; two-way and dyadic dependence stay refused.
+  named contrasts of a claim family; its implemented max-t simultaneous interval
+  awaits calibration.
+- Clustered DML AIPW with whole-cluster cross-fitting and entity-owned candidate
+  screens. The cluster and bounded two-way dyadic standard errors and intervals
+  await calibration; other flexible-learner dependence claims stay closed.
 - Derived-treatment declarations and factorized joint cells (up to three binary
   components); point only.
 - A finite-action inverse query on a **target mean** (`E[Y^do(a)] >= threshold`) over a

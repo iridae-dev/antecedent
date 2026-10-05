@@ -8,7 +8,8 @@ equal the value stated by each place mapped to it in `MAPPING` below:
             out of a source file by a regex, in the cell's own source files;
   docs      a sentence of docs/guides/transport-scope.md (or another docs page) that states the
             bound, picked out by a regex (digits, digits with `,` or `_`, or number words);
-  python    a constant or docstring/default of the cell's Python module;
+  python    a constant or docstring/default of the cell's Python module (also the implementation
+            bound for Python-only artifact replay);
   refusal   the numbers quoted by the record's `*.bounds_exceeded` refusal `when` text.
 
 The check fails, naming the record, the bound and the place, when a mapped constant, regex or
@@ -128,6 +129,15 @@ JOINT_PY = "python/antecedent/transport/_joint_sensitivity.py"
 JOINT_DOC = "docs/guides/joint-mechanism-sensitivity.md"
 CFID = "crates/antecedent-identify/src/counterfactual_id.rs"
 CFID_PY = "python/antecedent/counterfactual_id.py"
+MATCHED = "crates/antecedent-estimate/src/matched_case_control.rs"
+MATCHED_PY = "python/antecedent/matched.py"
+INVERSE = "crates/antecedent/src/analysis/inverse_outcome.rs"
+PENALIZED = "crates/antecedent-estimate/src/propensity/penalized.rs"
+CLUSTER_DML = "crates/antecedent-estimate/src/cluster_dml_aipw.rs"
+DESCRIPTIVE = "crates/antecedent-estimate/src/descriptive_comparison.rs"
+JOINT_CELLS = "crates/antecedent-estimate/src/joint_cell_factorized.rs"
+BATCH_RETARGET = "crates/antecedent/src/analysis/batch_retarget.rs"
+JOINT_IF = "crates/antecedent-estimate/src/joint_if.rs"
 
 
 def scope_and(doc: str, regex: str) -> tuple[Place, ...]:
@@ -137,6 +147,35 @@ def scope_and(doc: str, regex: str) -> tuple[Place, ...]:
 
 # The mapping table: one row per (record, bounds key). Extend with additive rows for 2.2B records.
 MAPPING: tuple[Bound, ...] = (
+    # ---- 2.2 expansion cells
+    Bound("2.2E.E7", "max_iterations", rust=(C(MATCHED, "MAX_ITERATIONS"),),
+          docs=(L("docs/guides/matched-case-control.md", r"at most (\d+) Newton iterations"),)),
+    Bound("2.2E.E7", "replay_max_rows", python=(L(MATCHED_PY, r"^_MAX_REPLAY_ROWS = ([\d_]+)"),),
+          docs=(L("docs/guides/matched-case-control.md", r"at\s+most ([\d,]+) reconstructed rows"),)),
+    Bound("2.2E.E6", "max_actions", rust=(C(INVERSE, "MAX_INVERSE_ACTIONS"),),
+          docs=(L("docs/guides/inverse-outcome.md", r"more than (\d+) actions"),)),
+    Bound("2.2E.E6", "max_forward_points", rust=(C(INVERSE, "MAX_INVERSE_FORWARD_POINTS"),),
+          docs=(L("docs/guides/inverse-outcome.md", r"or (\d+) forward points"),)),
+    Bound("2.2E.E2", "max_grid", rust=(C(PENALIZED, "MAX_RIDGE_GRID"),),
+          docs=(L("docs/guides/penalized-aipw.md", r"at most (\d+) penalty candidates"),)),
+    Bound("2.2E.E2", "max_inner_folds", rust=(C(PENALIZED, "MAX_RIDGE_INNER_FOLDS"),),
+          docs=(L("docs/guides/penalized-aipw.md", r"at most (\d+) inner folds"),)),
+    Bound("2.2E.E4", "default_min_clusters", rust=(C(CLUSTER_DML, "DEFAULT_MIN_CLUSTERS"),),
+          docs=(L("docs/guides/clustered-dml.md", r"min_clusters` \(default (\d+), floor"),)),
+    Bound("2.2E.E4", "min_clusters_floor", rust=(C(CLUSTER_DML, "MIN_CLUSTERS_FLOOR"),),
+          docs=(L("docs/guides/clustered-dml.md", r"min_clusters` \(default \d+, floor (\d+)"),)),
+    Bound("2.2E.E4", "default_min_components_per_fold", rust=(C(CLUSTER_DML, "DEFAULT_MIN_COMPONENTS_PER_FOLD"),),
+          docs=(L("docs/guides/clustered-dml.md", r"default (\d+), floor 2\)"),)),
+    Bound("2.2E.E4", "min_components_per_fold_floor", rust=(C(CLUSTER_DML, "MIN_COMPONENTS_PER_FOLD_FLOOR"),),
+          docs=(L("docs/guides/clustered-dml.md", r"default 4, floor (\d+)\)"),)),
+    Bound("2.2E.E7", "max_scales", rust=(C(DESCRIPTIVE, "MAX_REPORTING_SCALES"),),
+          docs=(L("docs/guides/descriptive-comparison.md", r"at most (\d+) reporting scales"),)),
+    Bound("2.2E.E5", "max_components", rust=(C(JOINT_CELLS, "MAX_FACTORIZED_COMPONENTS"),),
+          docs=(L("docs/guides/joint-cells.md", r"up to (\w+)\s+binary components"),)),
+    Bound("2.2E.E5", "max_folds", rust=(C(JOINT_CELLS, "MAX_FOLDS"),),
+          docs=(L("docs/guides/joint-cells.md", r"at most (\d+) cross-fitting folds"),)),
+    Bound("2.2E.E5", "max_orderings", rust=(C(JOINT_CELLS, "MAX_ORDERINGS"),),
+          docs=(L("docs/guides/joint-cells.md", r"at most (\d+) orderings"),)),
     # ---- X1 mz-transportability
     Bound(
         "2.2A.X1",
@@ -803,6 +842,10 @@ _MEMORY_REASON = (
 )
 
 NONINT: tuple[NonInt, ...] = (
+    NonInt("2.2E.E7", "cancellation_check", places=(C(DESCRIPTIVE, "POLL_EVERY_ROWS"),)),
+    NonInt("2.2E.E7", "work", exclude="2 x 2 names the dimension of the fixed delta-method covariance, not a tunable execution bound"),
+    NonInt("2.2E.E3", "max_t_draws", places=(C(BATCH_RETARGET, "MAX_T_MIN_DRAWS"), C(BATCH_RETARGET, "MAX_T_MAX_DRAWS"))),
+    NonInt("2.2E.E3", "max_t_poll", places=(C(JOINT_IF, "MAX_T_POLL_EVERY"),)),
     NonInt("2.2A.X1", "memory_limit", exclude=_MEMORY_REASON),
     NonInt("2.2B.X2", "memory_limit", exclude=_MEMORY_REASON),
     NonInt("2.2B.X6", "memory_limit", exclude=_MEMORY_REASON),
@@ -1077,8 +1120,8 @@ def check(
                 + [("docs", p) for p in b.docs]
                 + [("python", p) for p in b.python]
             )
-            if not b.rust:
-                errors.append(f"{tag}: mapping names no Rust constant")
+            if not b.rust and not b.python:
+                errors.append(f"{tag}: mapping names no implementation bound")
             bad = False
             for kind, place in places:
                 vals, err = read_place(rd, place)

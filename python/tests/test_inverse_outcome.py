@@ -26,9 +26,13 @@ from antecedent.inverse import (
 from antecedent.query import AverageDerivative, ResponseCurve
 from antecedent.results import IdentificationView
 from antecedent.results.response import (
+    SIMULTANEOUS_BAND_CRITICAL,
+    SIMULTANEOUS_BAND_LOWER,
+    SIMULTANEOUS_BAND_UPPER,
     CausalResponseView,
     ResponseUncertainty,
     ResponseView,
+    SupportDiagnostic,
     SupportReport,
 )
 
@@ -129,6 +133,9 @@ def test_forward_inverse_round_trip_on_a_known_structural_law_through_a_real_rou
         )
     assert report.inference_claim == "point_only"
     assert report.enumerated == "reachable"
+    assert report.forward_claim_id == forward.claim_id
+    assert report.forward_program_id == forward.program_id
+    assert report.forward_data_snapshot_id == forward.data_snapshot_id
     assert report.verify()
 
 
@@ -356,6 +363,137 @@ def test_a_published_interval_adds_only_a_robustly_feasible_flag():
     assert upper.robustly_feasible == ("dose_0.0", "dose_0.5")
 
 
+def test_temporal_style_simultaneous_band_is_preferred_to_the_pointwise_band():
+    forward = _forward(half_width=0.1)
+    means = [_law(a) for a in GRID]
+    support = SupportReport(
+        "supported",
+        {"t": (0.0, 2.0)},
+        diagnostics=[
+            SupportDiagnostic(
+                SIMULTANEOUS_BAND_LOWER, [mean - 1.5 for mean in means], "joint band"
+            ),
+            SupportDiagnostic(
+                SIMULTANEOUS_BAND_UPPER, [mean + 1.5 for mean in means], "joint band"
+            ),
+            SupportDiagnostic(SIMULTANEOUS_BAND_CRITICAL, [0.9, 2.5, 100.0], "joint band"),
+        ],
+    )
+    forward = forward.model_copy(update={"support": support})
+    report = inverse_outcome(forward, query=TargetMean(3.0), actions=_actions())
+    assert report.interval == {
+        "scope": "simultaneous",
+        "interpretation": "confidence",
+        "level": 0.9,
+    }
+    assert report.robustly_feasible == ("dose_2.0",)
+    assert report.action("dose_1.5").interval == (2.5, 5.5)
+
+
+def test_forward_claim_and_snapshot_identity_are_bound_and_unlicensed_input_refuses():
+    forward = _forward().model_copy(
+        update={
+            "claim_id": "claim-a",
+            "program_id": "program-a",
+            "data_snapshot_id": "snapshot-a",
+        }
+    )
+    report = inverse_outcome(forward, query=TargetMean(3.0), actions=_actions())
+    assert (
+        report.forward_claim_id,
+        report.forward_program_id,
+        report.forward_data_snapshot_id,
+    ) == (
+        "claim-a",
+        "program-a",
+        "snapshot-a",
+    )
+    assert report.verify()
+    changed = forward.model_copy(update={"data_snapshot_id": "snapshot-b"})
+    assert (
+        inverse_outcome(changed, query=TargetMean(3.0), actions=_actions()).identity
+        != report.identity
+    )
+    _refused(
+        "cell_not_licensed",
+        "inverse.forward_not_licensed",
+        lambda: inverse_outcome(
+            forward.model_copy(update={"evidence_status": "allowed_unlicensed"}),
+            query=TargetMean(3.0),
+            actions=_actions(),
+        ),
+    )
+
+
+def test_finite_forward_values_cannot_publish_an_infinite_target_margin():
+    forward = _forward(law=lambda _: float.fromhex("0x1.fffffffffffffp+1023"), grid=[0.0, 1.0])
+    report = inverse_outcome(
+        forward,
+        query=TargetMean(-float.fromhex("0x1.fffffffffffffp+1023")),
+        actions=[Action("extreme", 0.0)],
+    )
+    action = report.action("extreme")
+    assert (action.status, action.reason, action.margin) == (
+        "unevaluated",
+        "numerical_margin_overflow",
+        None,
+    )
+    assert report.enumerated == "undetermined"
+
+
+def test_action_constraints_are_booleans_not_truthy_strings():
+    with pytest.raises(CausalTypeError, match="boolean values"):
+        inverse_outcome(
+            _forward(),
+            query=TargetMean(3.0),
+            actions=[Action("unsafe", 1.0, constraints={"in_stock": "false"})],  # type: ignore[dict-item]
+        )
+    with pytest.raises(CausalTypeError, match="not booleans"):
+        inverse_outcome(
+            _forward(),
+            query=TargetMean(3.0),
+            actions=[Action("boolean_dose", [True])],  # type: ignore[list-item]
+        )
+
+
+def test_temporal_reverse_forecast_uses_one_declared_horizon():
+    forward = _forward().model_copy(
+        update={
+            "estimand": ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1, 2]),
+            "response": ResponseView(
+                ["t"], ["y"], [[0.0, 1.0], [1.0, 1.0], [0.0, 2.0], [1.0, 2.0]],
+                [[1.0], [3.0], [2.0], [4.0]],
+            ),
+            "support": SupportReport(
+                "supported", {"t": (0.0, 1.0)}, point_status=["supported"] * 4
+            ),
+        }
+    )
+    report = inverse_outcome(
+        forward,
+        query=TargetMean(3.0),
+        actions=[Action("low", (0.0, 1.0)), Action("high", (1.0, 1.0))],
+    )
+    assert report.horizons == (1,)
+    assert report.feasible == ("high",)
+    assert report.verify()
+    assert not dataclasses.replace(report, horizons=(2,)).verify()
+    assert not dataclasses.replace(report, horizons=None).verify()
+    _refused(
+        "invalid_argument",
+        "one fixed outcome horizon",
+        lambda: inverse_outcome(
+            forward,
+            query=TargetMean(3.0),
+            actions=[Action("early", (0.0, 1.0)), Action("late", (1.0, 2.0))],
+        ),
+    )
+    with pytest.raises(CausalValueError, match="one horizon declared"):
+        inverse_outcome(
+            forward, query=TargetMean(3.0), actions=[Action("unknown", (0.0, 3.0))]
+        )
+
+
 def test_study_options_and_sensitivity_are_separate_views_outside_the_classification():
     plan = {
         "outcome": "sufficient",
@@ -430,6 +568,9 @@ def test_verify_recomputes_the_report_and_detects_an_edited_one():
     edited_call = {**report._call, "threshold": 2.0}
     edited = dataclasses.replace(report, _call=edited_call)
     assert not edited.verify()
+    assert not dataclasses.replace(report, feasible=("fabricated",)).verify()
+    changed_action = dataclasses.replace(report.actions[0], status="feasible")
+    assert not dataclasses.replace(report, actions=(changed_action, *report.actions[1:])).verify()
     cancel = ant.state.CancellationToken()
     cancel.cancel()
     _refused(

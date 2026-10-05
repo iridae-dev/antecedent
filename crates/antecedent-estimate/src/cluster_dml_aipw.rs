@@ -336,6 +336,9 @@ impl ClusterDml {
             (IndependenceUnit::Dyad, Some(second)) => {
                 self.require_cluster_count(distinct_count(first), "first-endpoint clusters")?;
                 self.require_cluster_count(distinct_count(second), "second-endpoint clusters")?;
+                // Keep this public covariance route inside the same dyadic design class as
+                // receipt(): a label in both endpoint roles breaks the two-way model.
+                dyad_units(first, second)?;
             }
             _ => {
                 return Err(refuse(

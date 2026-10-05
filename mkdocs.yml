@@ -100,6 +100,7 @@ nav:
       - Practitioner acceptance: practitioner-acceptance.md
       - Security review: security_review.md
   - Release notes:
+      - "2.2.0": release-notes/v2.2.0.md
       - "2.1.1": release-notes/v2.1.1.md
       - "2.1.0": release-notes/v2.1.0.md
       - "2.0.0": release-notes/v2.0.0.md

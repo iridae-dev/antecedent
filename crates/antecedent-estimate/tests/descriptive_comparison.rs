@@ -171,6 +171,15 @@ fn log_risk_ratio_and_its_delta_method_variance_match_the_hand_computation() {
 }
 
 #[test]
+fn a_transform_rejects_more_scales_than_the_declared_bound() {
+    let pair = MeanPair::new(0.4, 0.2, None);
+    let scales = [ReportingScale::MeanDifference; 5];
+    let (code, message) = refused(transform_mean_pair(&pair, &scales).unwrap_err());
+    assert_eq!(code, "invalid_argument");
+    assert!(message.contains("at most four reporting scales"), "{message}");
+}
+
+#[test]
 fn the_family_covariance_matches_an_independent_finite_difference_jacobian() {
     let (mu1, mu0) = (0.4, 0.2);
     let sigma = [0.01, 0.002, 0.004];

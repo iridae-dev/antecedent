@@ -8,6 +8,8 @@ binary components. This guide covers the two pieces added for it: an explicit
 The record is `2.2E.E5.factorized_joint_cells` in `parity/promotion_2_2.toml`; no
 calibration is run for it.
 
+One fit accepts at most 20 cross-fitting folds and at most 6 orderings.
+
 ```python
 from antecedent.derived import DerivedTreatment, SourceColumn, factorized_joint_cells
 

@@ -228,6 +228,9 @@ fn forward(grid: &[f64]) -> ForwardEvaluation {
     ForwardEvaluation {
         outcome: "y".into(),
         population: "source".into(),
+        claim_id: None,
+        program_id: None,
+        data_snapshot_id: None,
         mean_response: true,
         point_identified: true,
         dimension: 1,

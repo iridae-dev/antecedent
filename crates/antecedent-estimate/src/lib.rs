@@ -237,7 +237,8 @@ pub use joint_cell_factorized::{
 };
 pub use joint_if::{
     JointCovariance, frozen_weight_mixture_scores, joint_influence_covariance, kish_n_eff,
-    max_t_critical, max_t_critical_polled, monotone_decreasing, monotone_increasing, weighted_mean,
+    max_t_critical, max_t_critical_polled, max_t_critical_with_df_polled, monotone_decreasing,
+    monotone_increasing, weighted_mean,
 };
 pub use matched_case_control::{
     ConditionalOddsRatio, MATCHED_ESTIMAND, MATCHED_SAMPLING, MatchedSetCounts,

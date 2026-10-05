@@ -67,26 +67,30 @@ and the family covariance is the Gram matrix `Sigma_kl = sum_r xi_kr xi_lr`.
   one **row snapshot** (identical complete-case row index). Plans on different rows are a
   mixed snapshot and are refused (`row_weights_bound_to_snapshot`); `expected_snapshot`
   pins the snapshot a family was declared on.
-- `Sigma` is symmetric by construction and positive semidefinite (a Gram matrix).
+- The iid `Sigma` is symmetric by construction and positive semidefinite (a Gram matrix).
 - A contrast `sum c_k theta_k` has value `c'theta` and plug-in variance `c'Sigma c`; it has a
   standard error only when every term carries covariance.
 
-Validity as a sampling covariance needs the single-claim retarget's conditions (a DML, DR-Learner or CausalForest plan joins on the same terms, see [DML scores](dml-scores.md)): iid rows,
+Validity as a sampling covariance needs the single-claim retarget's conditions (a DML, DR-Learner or CausalForest plan joins on the same terms, see [DML scores](dml-scores.md)): iid rows or declared independent cluster units,
 weights that are fixed functions of certified covariates, positivity and nuisance
-convergence. Selection and weight-estimation uncertainty and dependence between rows are
-excluded. A standard error is not an interval.
+convergence. Selection and weight-estimation uncertainty and dependence beyond the
+declared cluster units are excluded. A standard error is not an interval.
 
 ### The simultaneous interval
 
 For a complete family (no failed or point-only member) the report forms the family-level
 max-t band `point_j +- c * se_j` with `se_j = sqrt(Sigma_jj)` and `c` the `level` quantile of
-`max_j |Z_j|` for `Z ~ N(0, R)`, `R` the correlation matrix of `Sigma`. Rust:
+`max_j |Z_j|` for `Z ~ N(0, R)`, `R` the correlation matrix of `Sigma` for iid rows.
+For a cluster-DML family the sampler gives every Gaussian draw one shared
+`sqrt(df / chi-square_df)` scale, with the family's declared cluster reference
+degrees of freedom; one claim then has the ordinary two-sided Student-t critical. Rust:
 `BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` returning a
 `SimultaneousBand`; Python: `BatchRetarget.simultaneous_interval()`, computed at
 `PreparedBatch.retarget(..., simultaneous_level=0.95, simultaneous_seed=0,
 simultaneous_draws=100000)`. The band is a nominal asymptotic construction (the Gaussian
 limit of the studentized retargeted points, plug-in `Sigma`) under the single-claim
-retarget's conditions: iid rows, fixed declared weights, positivity and nuisance convergence.
+retarget's conditions: iid rows or the declared independent cluster units, fixed declared
+weights, positivity and nuisance convergence.
 Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are excluded.
 The claim is `calibrated` with the calibration harness wired and unmeasured:
 `crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
@@ -94,7 +98,7 @@ covered" event, is registered in `scripts/gate_calibration.sh` and runs once at 
 this change allocates no coverage record.
 
 `c` is a Monte-Carlo quantile on the library's one max-t sampler: a deterministic function of
-`(R, level, seed, draws)`, with `draws` bounded to 1000 through 2000000, the stop signal
+`(R, level, seed, draws, reference_df)`, with `draws` bounded to 1000 through 2000000, the stop signal
 polled every 1024 draws (a cancelled context returns `cancelled_no_claim`, never a value),
 and a matrix that is not a unit-diagonal positive semidefinite correlation refused
 (`batch_retarget.covariance_unavailable`; an invalid level or draw count refuses
@@ -103,8 +107,9 @@ or point-only family has no band and refuses `cell_not_licensed`
 (`batch_retarget.partial_family` / `batch_retarget.point_only_member`); the Python result
 reports that refusal when `simultaneous_interval()` is called.
 
-The critical value is checked against oracles that need no simulation to state: one claim is
-the two-sided normal quantile; `k` independent claims solve `(2 Phi(c) - 1)^k = level`;
+The critical value is checked against oracles that need no simulation to state: one iid claim
+is the two-sided normal quantile, one clustered claim is the two-sided Student-t quantile;
+`k` independent iid claims solve `(2 Phi(c) - 1)^k = level`;
 perfectly correlated claims reduce to one claim; `c` is monotone in `k` and in the level and
 shrinks under positive correlation; band half-widths equal `c * se_j` for a hand-computed
 covariance. Those checks verify the arithmetic. Coverage is exercised by a known-truth test,
@@ -134,8 +139,9 @@ at prepare (or rebuilt by `refresh`); `estimate(&self)` never replaces it.
 A plan whose estimator is a cluster-DML `Aipw` (see [clustered DML](clustered-dml.md)) joins the
 family with the covariance of the cluster-summed weighted influence columns
 (`G/(G-1) sum_g S_gk S_gl`, two-way `V_a + V_b - V_ab`) instead of the iid Gram, using the labels
-the plan declared; every member then carries `reference_df` (`G - 1`), and the max-t band is
-formed from that covariance. The family must be all cluster-DML with the same labels; a mixed
+the plan declared; every member then carries `reference_df` (`G - 1`, or the smaller endpoint
+count minus one for dyads), and the max-t band is formed from that covariance with a
+shared Student-t scale. The family must be all cluster-DML with the same labels; a mixed
 family refuses `batch_retarget.covariance_unavailable`.
 
 ### Partial families and penalized tables

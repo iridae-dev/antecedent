@@ -216,6 +216,12 @@ pub struct ForwardEvaluation {
     pub outcome: String,
     /// Declared population label (the forward route's target population).
     pub population: String,
+    /// Identity of the forward execution claim, when the route supplied one.
+    pub claim_id: Option<String>,
+    /// Identity of the prepared forward program, when available.
+    pub program_id: Option<String>,
+    /// Identity of the forward data snapshot, when available.
+    pub data_snapshot_id: Option<String>,
     /// The forward estimand is a mean response (not a derivative or a contrast).
     pub mean_response: bool,
     /// The forward response is point identified (not an identified set or a class mixture).
@@ -363,6 +369,12 @@ pub struct InverseOutcomeReport {
     pub outcome: String,
     /// Declared population label.
     pub population: String,
+    /// Forward execution claim identity, when available.
+    pub forward_claim_id: Option<String>,
+    /// Forward prepared-program identity, when available.
+    pub forward_program_id: Option<String>,
+    /// Forward data-snapshot identity, when available.
+    pub forward_data_snapshot_id: Option<String>,
     /// The forward route's assumptions, verbatim.
     pub assumptions: Vec<String>,
     /// Whether support labels are per point or a surface-wide worst case.
@@ -433,13 +445,19 @@ fn identity(
     tolerance: f64,
 ) -> String {
     let mut canon = Canon::default();
-    canon.text("inverse_outcome.target_mean.v1");
+    canon.text("inverse_outcome.target_mean.v2");
     canon.float(threshold);
     canon.text(direction.as_str());
     canon.float(tolerance);
     canon.optional(budget);
     canon.text(&forward.outcome);
     canon.text(&forward.population);
+    for value in [&forward.claim_id, &forward.program_id, &forward.data_snapshot_id] {
+        canon.flag(value.is_some());
+        if let Some(value) = value {
+            canon.text(value);
+        }
+    }
     canon.flag(forward.mean_response);
     canon.flag(forward.point_identified);
     canon.word(forward.dimension as u64);
@@ -518,15 +536,15 @@ fn validate_forward(
         ));
     }
     let rows = forward.points.len();
-    if forward.dimension == 0
+    if !(1..=2).contains(&forward.dimension)
         || rows == 0
         || forward.mean.len() != rows
         || forward.support.len() != rows
     {
         return Err(invalid(
             "inverse.invalid_forward",
-            "the forward evaluation needs at least one point, a positive dimension, and one mean \
-             and one support label per point",
+            "the forward evaluation needs at least one point, one dose coordinate with an \
+             optional horizon coordinate, and one mean and support label per point",
         ));
     }
     if rows > MAX_INVERSE_FORWARD_POINTS {
@@ -579,6 +597,7 @@ fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), Inve
         ));
     }
     let mut labels = BTreeSet::new();
+    let mut horizon = None;
     for action in actions {
         if action.label.trim().is_empty() || !labels.insert(action.label.as_str()) {
             return Err(invalid(
@@ -591,6 +610,15 @@ fn validate_actions(actions: &[ActionSpec], dimension: usize) -> Result<(), Inve
                 "inverse.invalid_action",
                 format!("action `{}` needs {dimension} finite coordinates", action.label),
             ));
+        }
+        if dimension == 2 {
+            let current = canonical_bits(action.point[1]);
+            if horizon.replace(current).is_some_and(|first| first != current) {
+                return Err(invalid(
+                    "inverse.invalid_action",
+                    "one inverse-outcome enumeration must use one fixed outcome horizon",
+                ));
+            }
         }
         if !action.cost.is_finite() || action.cost < 0.0 {
             return Err(invalid(
@@ -637,7 +665,10 @@ fn classify_action(
         TargetDirection::AtLeast => value - threshold,
         TargetDirection::AtMost => threshold - value,
     };
-    let margin = estimate.map(signed);
+    let margin = estimate.and_then(|value| {
+        let gap = signed(value);
+        gap.is_finite().then_some(gap)
+    });
     let (status, reason) = if !violated.is_empty() {
         (ActionStatus::Infeasible, "constraint_violated")
     } else if budget.is_some_and(|limit| action.cost > limit) {
@@ -655,6 +686,8 @@ fn classify_action(
         } else {
             (ActionStatus::Infeasible, "misses_target")
         }
+    } else if estimate.is_some() {
+        (ActionStatus::Unevaluated, "numerical_margin_overflow")
     } else {
         (ActionStatus::Unevaluated, "non_finite_estimate")
     };
@@ -792,6 +825,9 @@ pub fn classify_inverse_outcome(
         budget,
         outcome: forward.outcome.clone(),
         population: forward.population.clone(),
+        forward_claim_id: forward.claim_id.clone(),
+        forward_program_id: forward.program_id.clone(),
+        forward_data_snapshot_id: forward.data_snapshot_id.clone(),
         assumptions: forward.assumptions.clone(),
         support_basis: forward.support_basis,
         interval: forward.interval.as_ref().map(|interval| IntervalMeta {
@@ -820,6 +856,9 @@ mod tests {
         ForwardEvaluation {
             outcome: "y".into(),
             population: "source".into(),
+            claim_id: None,
+            program_id: None,
+            data_snapshot_id: None,
             mean_response: true,
             point_identified: true,
             dimension: 1,
@@ -1200,5 +1239,54 @@ mod tests {
             first.identity,
             run(&at_least(3.0), &weaker, &grid_actions(&GRID)).unwrap().identity
         );
+    }
+
+    #[test]
+    fn forward_execution_identity_is_bound_to_the_inverse_report() {
+        let mut forward = linear_forward(&GRID);
+        forward.claim_id = Some("claim-a".into());
+        forward.program_id = Some("program-a".into());
+        forward.data_snapshot_id = Some("snapshot-a".into());
+        let actions = grid_actions(&GRID);
+        let report = run(&at_least(3.0), &forward, &actions).unwrap();
+        assert_eq!(report.forward_claim_id.as_deref(), Some("claim-a"));
+        assert_eq!(report.forward_program_id.as_deref(), Some("program-a"));
+        assert_eq!(report.forward_data_snapshot_id.as_deref(), Some("snapshot-a"));
+        for changed in ["claim", "program", "snapshot"] {
+            let mut other = forward.clone();
+            match changed {
+                "claim" => other.claim_id = Some("claim-b".into()),
+                "program" => other.program_id = Some("program-b".into()),
+                _ => other.data_snapshot_id = Some("snapshot-b".into()),
+            }
+            assert_ne!(report.identity, run(&at_least(3.0), &other, &actions).unwrap().identity);
+        }
+    }
+
+    #[test]
+    fn finite_inputs_with_an_unrepresentable_margin_are_not_classified() {
+        let mut forward = linear_forward(&[0.0]);
+        forward.mean[0] = f64::MAX;
+        let report = run(&at_least(-f64::MAX), &forward, &[action("a", 0.0, 0.0)]).unwrap();
+        let outcome = &report.outcomes[0];
+        assert_eq!(outcome.status, ActionStatus::Unevaluated);
+        assert_eq!(outcome.reason, "numerical_margin_overflow");
+        assert_eq!(outcome.estimate, Some(f64::MAX));
+        assert_eq!(outcome.margin, None);
+        assert_eq!(report.enumerated, EnumeratedStatus::Undetermined);
+    }
+
+    #[test]
+    fn one_enumeration_cannot_choose_between_outcome_horizons() {
+        let mut forward = linear_forward(&[0.0, 1.0]);
+        forward.dimension = 2;
+        forward.points = vec![vec![0.0, 1.0], vec![1.0, 2.0]];
+        let actions = [
+            ActionSpec { point: vec![0.0, 1.0], ..action("early", 0.0, 0.0) },
+            ActionSpec { point: vec![1.0, 2.0], ..action("late", 1.0, 0.0) },
+        ];
+        let error = run(&at_least(2.0), &forward, &actions).unwrap_err();
+        assert_eq!((error.code, error.detail), ("invalid_argument", "inverse.invalid_action"));
+        assert!(error.message.contains("one fixed outcome horizon"));
     }
 }

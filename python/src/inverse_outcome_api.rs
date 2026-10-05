@@ -17,11 +17,12 @@ use crate::transport_z_api::to_py_json;
 /// `(scope, interpretation, level, lower, upper)` of a forward interval.
 type IntervalTuple = (String, String, f64, Vec<f64>, Vec<f64>);
 
-/// `(outcome, population, mean_response, point_identified, points, mean, support,
-/// support_basis, interval, assumptions)` of a forward evaluation.
+/// `(outcome, population, (claim_id, program_id, data_snapshot_id), mean_response,
+/// point_identified, points, mean, support, support_basis, interval, assumptions)`.
 type ForwardTuple = (
     String,
     String,
+    (Option<String>, Option<String>, Option<String>),
     bool,
     bool,
     Vec<Vec<f64>>,
@@ -68,6 +69,7 @@ fn forward_from_tuple(tuple: ForwardTuple) -> PyResult<ForwardEvaluation> {
     let (
         outcome,
         population,
+        (claim_id, program_id, data_snapshot_id),
         mean_response,
         point_identified,
         points,
@@ -99,6 +101,9 @@ fn forward_from_tuple(tuple: ForwardTuple) -> PyResult<ForwardEvaluation> {
     Ok(ForwardEvaluation {
         outcome,
         population,
+        claim_id,
+        program_id,
+        data_snapshot_id,
         mean_response,
         point_identified,
         dimension: points.first().map_or(0, Vec::len),
@@ -142,6 +147,9 @@ fn report_json(report: &InverseOutcomeReport) -> serde_json::Value {
         "budget": report.budget,
         "outcome": report.outcome,
         "population": report.population,
+        "forward_claim_id": report.forward_claim_id,
+        "forward_program_id": report.forward_program_id,
+        "forward_data_snapshot_id": report.forward_data_snapshot_id,
         "assumptions": report.assumptions,
         "support_basis": report.support_basis.as_str(),
         "interval": report.interval.map(|meta| serde_json::json!({

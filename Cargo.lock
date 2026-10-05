@@ -60,7 +60,7 @@ checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
 name = "antecedent"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-attribution",
  "antecedent-core",
@@ -91,7 +91,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-attribution"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-counterfactual",
@@ -109,14 +109,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-core"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "thiserror 2.0.20",
 ]
 
 [[package]]
 name = "antecedent-counterfactual"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-data"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-design"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-graph",
@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-discovery"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-estimate"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -197,14 +197,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-expr"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
 ]
 
 [[package]]
 name = "antecedent-graph"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "criterion",
@@ -214,7 +214,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-identify"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -228,7 +228,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-io"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-discovery",
@@ -251,7 +251,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-kernels"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "criterion",
@@ -259,7 +259,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-learn"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -275,14 +275,14 @@ dependencies = [
 
 [[package]]
 name = "antecedent-learn-burn"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "burn",
 ]
 
 [[package]]
 name = "antecedent-model"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",
@@ -296,7 +296,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-prob"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-py"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent",
  "antecedent-attribution",
@@ -335,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-state"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -347,7 +347,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-stats"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
@@ -359,7 +359,7 @@ dependencies = [
 
 [[package]]
 name = "antecedent-validate"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "antecedent-core",
  "antecedent-data",

@@ -382,8 +382,8 @@ def schema_cases() -> list[bool]:
             "no_interval_reported_out_of_scope",
             {
                 "parity/reason_codes.toml": replace(
-                    'queries = ["Counterfactual", "AnomalyAttribution", "ChangeAttribution"]',
-                    'queries = ["Counterfactual", "AnomalyAttribution"]',
+                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution"]',
+                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution"]',
                 )
             },
             ["no_interval_reported on a ChangeAttribution cell"],

@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.2.0
+
+Changes since 2.1.1. The [release notes](docs/release-notes/v2.2.0.md) explain the user workflows, claim scopes, and refusals; this section records the software delta.
+
+### Added
+
+- A finite-action inverse-outcome API classifies enumerated interventions against a licensed forward mean response. It records target, action constraints and costs, support, forward provenance, and reasons for unsupported or unevaluated actions. Probability, quantile, observational-scenario, and unlicensed-forward requests refuse.
+- AIPW accepts a declared ridge or lasso propensity with fold-local tuning and retained score tables. Configured estimators work in batch entry points; batch retargeting reports joint plug-in covariance, named contrasts, and tidy rows on one row snapshot.
+- Cluster-owned cross-fitted AIPW supports declared clusters and restricted dyadic units. Entity-owned candidate-screen splits keep shared endpoints on one side. ML routes without a licensed cluster implementation refuse the option.
+- Derived-treatment declarations check constituent roles and exclusions. A factorized propensity estimates bounded joint cells. Matched case-control sets support a conditional odds ratio and refuse absolute risk effects.
+- Preflight diagnostics identify duplicate and near-deterministic columns, rank failures, overlap failures, and fit costs. A declared rank-drop plan can rerun supported estimators with its reduction recorded. Tier diagnostics and raw-versus-adjusted comparisons have distinct, limited claims.
+- Bounded multi-source and conditional ADMG transport, structural scenario envelopes, two-step temporal transport, smoothed dose response, joint mechanism sensitivity, study planning, counterfactual identification, and binary observation recovery extend the 2.1 structural routes. See the release notes for each cell's scope and numeric limits.
+
+### Changed
+
+- Transport grids distinguish missing evidence from support failure. Transport decisions expose a common identification-status vocabulary while retaining older outcome spellings for compatibility.
+- Prepared batches share only bit-identical nuisance inputs; retargeted covariance requires identical complete-case row snapshots. DML-family AIPW score tables can be retained for the licensed average-effect path.
+- Inverse-outcome report identity binds available forward claim, program, and data-snapshot IDs. Temporal inverse actions share one declared horizon; a separately published simultaneous band takes precedence over pointwise bounds. Verification replays local classification and is not authentication of the forward model.
+- Several 2.1 corrections affect estimates or refusals, including sensitivity-law normalization, prior covariance propagation, discovery block-mask handling, design entropy ranking, and response-derivative interval disclosure. The [release notes](docs/release-notes/v2.2.0.md#corrections-to-21) list their boundaries.
+
+### Release boundary
+
+The branch and package metadata are 2.2.0. New sampling intervals that require the final repeated-sampling calibration remain withheld as release claims until the exact coverage records are measured and the support matrix is frozen. Point, structural-range, and assumption-range claims retain their documented meanings.
+
 ## 2.1.1
 
 Corrections to 2.1.0. No new capability is licensed. Some estimates change on some inputs; some inputs that 2.1.0 accepted with a wrong or corrupted result are now refused; both are listed below.

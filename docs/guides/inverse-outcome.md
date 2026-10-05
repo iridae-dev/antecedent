@@ -28,7 +28,8 @@ report.action("dose_1.0").status, report.action("dose_1.0").margin
 
 The forward response is never re-estimated here. Run the existing route on a grid that
 contains every action's point; the inverse query classifies each action against what that
-route published.
+route published. An `allowed_unlicensed` compatibility result cannot license this inverse
+claim and is refused.
 
 ## Three kinds of answer
 
@@ -59,6 +60,7 @@ In order:
 | `unevaluated` | `not_on_evaluated_grid` | its point is not a point of the forward evaluation; never interpolated |
 | `unsupported` | `outside_empirical_support` / `missing_evidence` | the forward route's support label at that point |
 | `unevaluated` | `non_finite_estimate` | the forward estimate is not finite |
+| `unevaluated` | `numerical_margin_overflow` | finite estimate and threshold have a difference that cannot be represented as a finite margin |
 | `feasible` / `infeasible` | `meets_target` / `misses_target` | `margin >= -tolerance` |
 
 `margin` is the signed distance to the goal side of the threshold (positive meets it).
@@ -73,6 +75,9 @@ worst over the grid), so the report copies it to every point and says so
 unsupported; split the grid and run the forward route per sub-grid to separate them. A
 temporal dose-by-horizon surface has a label per point (`support_basis="per_point"`), and
 actions on it are `(dose, horizon)` pairs.
+One inverse report uses a single horizon declared by the forward temporal query;
+split actions at different horizons into separate reports so their target means
+retain one time coordinate.
 
 ## What "feasible" means
 
@@ -90,9 +95,14 @@ actions on it are `(dose, horizon)` pairs.
   statement over the grid, and picking an action by its estimate is not adjusted for.
   `None` means no interval, or an action that is not point-feasible. There is no flag for
   an interval-free route, never a `False`.
+  When a temporal result publishes both pointwise intervals and a separate simultaneous
+  band, the inverse report uses the simultaneous band and labels its scope accordingly.
 * **Identity.** `report.identity` is an order-invariant digest of the forward response as
-  published, the action grid, the target, budget and tolerance. `report.verify()` recomputes
-  the report from those stored inputs. Reordering actions or forward rows changes neither
+  published (including its claim, program and data-snapshot IDs when present), the action grid,
+  the target, budget and tolerance. `report.verify()` recomputes and compares the
+  public classification against those stored inputs; it does not authenticate the
+  forward model or protect against replacement of all stored inputs. Reordering
+  actions or forward rows changes neither
   results nor identity; changing an assumption, a cost, a constraint or a support label does.
 
 ## Typed refusals
@@ -104,6 +114,7 @@ actions on it are `(dose, horizon)` pairs.
 | `cell_not_licensed` | `inverse.observational_scenarios` | `ObservationalScenarios` |
 | `route_not_supported` | `inverse.forward_not_mean_response` | the forward estimand is not a scalar-outcome mean curve (`ResponseCurve`) |
 | `route_not_supported` | `inverse.forward_not_point_identified` | the forward response is an identified set, a class mixture or unidentified |
+| `cell_not_licensed` | `inverse.forward_not_licensed` | the forward result is marked `allowed_unlicensed` for compatibility |
 | `route_not_supported` | `inverse.bounds_exceeded` | more than 4096 actions or 65536 forward points |
 | `invalid_argument` | `inverse.invalid_target`, `inverse.invalid_action`, `inverse.invalid_forward` | a non-finite threshold, negative tolerance or budget; an empty grid, duplicate label, wrong-dimension point, bad cost or constraint name; a repeated forward point or malformed interval |
 | `transport_budget_cancel` | `inverse.cancelled` | cancelled mid-enumeration; never a verdict |

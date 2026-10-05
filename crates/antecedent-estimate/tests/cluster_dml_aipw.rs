@@ -986,4 +986,9 @@ fn the_cluster_covariance_diagonal_is_the_receipt_variance() {
     let se = receipt.cluster_sandwich_se;
     assert!((cov.get(0, 0) - se * se).abs() <= 1e-10 * se * se);
     assert_eq!(spec.reference_df(&raw.cluster, Some(&raw.second)), receipt.reference_df);
+    let shared = raw.cluster.clone();
+    code_of(
+        &spec.influence_covariance(&[&psi], &raw.cluster, Some(&shared)).unwrap_err(),
+        "dyadic_dependence_not_licensed",
+    );
 }

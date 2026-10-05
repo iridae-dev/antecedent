@@ -1,5 +1,7 @@
 # Penalized propensity for AIPW (2.2 E2)
 
+The tuning grid accepts at most 64 penalty candidates and at most 20 inner folds.
+
 `Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
 `AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
 `::lasso_with(..)`) fits the binary propensity of the cross-fitted AIPW with an explicit

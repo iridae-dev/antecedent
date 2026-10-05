@@ -25,7 +25,7 @@ linked from the published navigation.
 | Script | What it enforces | Run by |
 | --- | --- | --- |
 | `scripts/check_limits_agreement.py` | Each numeric `bounds` entry of every 2.2 record equals the Rust constant, the `docs/guides/transport-scope.md` statement, the Python docstring or default, and the number quoted in the record's `bounds_exceeded` refusal, anchored per bound (`refusal=r"regex"`, one capture group: a number found elsewhere in the text proves nothing). A numeric bound with no row in its `MAPPING` table fails (a `frozen` record gets a gap until `in_progress`); a non-integer bound that states numbers (`quadrature_nodes`, `tolerance`, `per_decision_operations`, `operation_limit`) is compared through a `NONINT` row or excluded there with a recorded reason. Works for any record status, `carried_forward` included. Extend `MAPPING` with additive `Bound(...)` rows for each B record. The self-test runs on a pinned synthetic tree, never the live records. `--strict` turns documentation gaps into failures. | `gate_release.sh` |
-| `scripts/check_release_claims.py` | `docs/release-notes/v2.2.0.md` defines the six terms (point only, nominal, calibrated, structural envelope, assumption range, statistical interval), has one entry per record with exactly its claim word (prose forms `structural envelope` / `assumption range` and a plain `none` after "claim" count as claim words), restates the record's `Bounds`, status and guarantee (stale in draft mode, an error otherwise and in `--final`), says the interval is withheld for any record with a closed uncertainty route and that an assumption range or structural envelope is never a confidence interval, never prints a `complete` guarantee without its qualifier (`exact_range_complete_within_declared_contamination_class` carries `within the declared contamination class; sampling interval not offered`), never describes a `calibrated` record as calibrated while its coverage records are absent, and states the X7 carry-forward. `--write-draft` regenerates the skeleton from the records; `--final` fails on any DRAFT or TODO. | `gate_release.sh` (draft mode) |
+| `scripts/check_release_claims.py` | `docs/release-notes/v2.2.0.md` defines the six terms (point only, nominal, calibrated, structural envelope, assumption range, statistical interval), has one entry per record with exactly its claim word (prose forms `structural envelope` / `assumption range` and a plain `none` after "claim" count as claim words), restates the record's `Bounds` and guarantee (and validates an optional internal status if present; stale in draft mode, an error otherwise and in `--final`), says the interval is withheld for any record with a closed uncertainty route and that an assumption range or structural envelope is never a confidence interval, never prints a `complete` guarantee without its qualifier (`exact_range_complete_within_declared_contamination_class` carries `within the declared contamination class; sampling interval not offered`), never describes a `calibrated` record as calibrated while its coverage records are absent, and states the X7 carry-forward. `--write-draft` regenerates the skeleton from the records; `--final` fails on any DRAFT or TODO. | `gate_release.sh` (draft mode) |
 | `scripts/check_interval_coordinates.py` | Zero newly introduced unmeasured interval coordinates over **every** 2.2 record (A and B): no licensed route carries `estimator_grid_not_measured`, every uncertainty route is closed with an executed refusal test or licensed with all its coverage records, every allocated coverage id (any claim or status, `carried_forward` included) is a string literal in the body of an `#[ignore]` test (a comment does not count) and a registered `run_*` group name in `scripts/gate_calibration.sh`; a `cov.*` id named in a record's text but absent from its `coverage_records` is a hidden reservation and fails; a `== 2.2...` calibration registration whose test emits a coverage record no 2.2 record owns fails. Reports per-record calibration state for every record that allocates ids. | `gate_b_exit.sh` |
 | `scripts/gate_b_exit.sh` (+ `b_exit_report.py`) | Per-package table PASS / FAIL / PENDING_IMPLEMENTATION / PENDING_CALIBRATION / CARRIED_FORWARD. The story-test registry is `B_PACKAGES` in `scripts/b_exit_report.py` (B1-B6 each register one story in `crates/antecedent/tests/b_exit_gate.rs`); a package reads PASS only with registered stories and an `evidence` list of route-evidence test names, each defined in a story file (and passed in its run log) or in an already-cited record fixture, at least one in a story file. An allocated coverage id never passes without a calibration reading (a carried record's unmeasured ids get a CARRIED_FORWARD calibration row). See the story list below. `--require-calibrated`, `--require-implemented`, `--release` (both). | `gate_release.sh`; the cut with `--release` |
 | `scripts/gate_a_exit.sh` | The A stories and the X1/X4 calibration state. `--require-calibrated` at the cut. | `gate_release.sh`; the cut with the flag |
@@ -48,47 +48,40 @@ its typed refusal (mirror `crates/antecedent/tests/a_exit_gate.rs`).
 
 ## Cut procedure, in order
 
-1. **Finish B.** Every B record is `in_progress` or `promoted`, each B package has registered its
-   story tests in `B_PACKAGES`, and any B interval has its coverage ids allocated and its
-   calibration harness wired (the route stays closed until step 4). Regenerate the draft notes
-   with `python3 scripts/check_release_claims.py --write-draft` to pick up new records, then
-   hand-edit the prose.
-2. **Measure calibration once**, on a clean checkout of the commit being cut:
-   `bash scripts/measure_calibration.sh --dry-run` to size it, then
-   `bash scripts/measure_calibration.sh`. Only owed groups run: the X1 and X4 coverage records
-   (`crates/antecedent/tests/mz_transport_calibration.rs`, `learned_continuous_calibration.rs`),
-   the B interval records, and any old coordinates taken on. The B interval records are the
-   2.2B X4 smoothed dose-response records (`smoothed_dose_calibration.rs`, `run_sd`) and the
-   2.2B X3 joint-sensitivity records (`joint_sensitivity_calibration.rs`, `run_js`). X3's
-   zero-box record is `gated`. Its positive-box record is `one_sided` (side `upper`): coverage of
-   the true upper extremal bound must be at least nominal, with no upper band or ceiling,
-   because the endpoint bootstrap is conservative by design.
-3. **Regenerate and commit** `parity/coverage_records.toml` and
-   `crates/antecedent-io/src/coverage_records_data.rs` (the collector writes both).
-4. **Open the measured routes and promote.** For X1, X4 and each B interval record (2.2B X4
-   smoothed dose response, 2.2B X3 joint-sensitivity uncertainty), flip the
-   uncertainty route from `closed` (`cell_not_licensed`) to `licensed` together with its row in
-   the owning registry (`parity/transport_stages.toml`, `parity/support_licensed.toml`), move the
-   record to `promoted`, and remove the `calibration-internal` gating only where the record says
-   it is lifted. Hand-edit `parity/transport_coverage.md` (flip the X1/X4/X5 "Closed" rows) and
-   `parity/counterfactual_coverage.md` (new title, add B5); neither has a generator.
-   Then `python3 scripts/check_promotion_records.py` and `bash scripts/gate_promotion.sh`.
-5. **Release notes.** Write `docs/release-notes/preparation.toml` with
-   `target_version = "2.2.0"`, finish `docs/release-notes/v2.2.0.md` (remove the DRAFT banner and
-   every TODO; add the `## Explicit refusals` section and the licensed-block markers as in
-   v2.1.1, and the nav entry in `mkdocs.yml`), then run
-   `python3 scripts/generate_support_matrix_docs.py` (it freezes the v2.1.1 licensed block) and
-   `python3 scripts/check_release_claims.py --final`.
-6. **Exit gates.** `bash scripts/gate_a_exit.sh --require-calibrated` and
-   `bash scripts/gate_b_exit.sh --release`, plus `python3 scripts/check_limits_agreement.py --strict`
-   (every bound also stated in the docs), and `bash scripts/gate_release.sh`.
-7. **Version.** `bash scripts/set_version.sh 2.2.0`, commit the bump as its own commit, and get a
-   green CI run on that HEAD (including the `python-wheels` matrix).
-8. **Tag.** `CI_RUN_ID=<run> bash scripts/tag_release.sh`. It runs
-   `scripts/gate_release_candidate.sh` (clean tree required; strict A/B exit gates,
-   strict bound agreement, final release claims and fresh-venv install of the local
-   wheel with the full pytest suite), tags `v2.2.0`
-   and leaves the push to you.
+The workspace, Python package, citation, and lockfile already identify this branch as
+2.2.0. The [release notes](release-notes/v2.2.0.md) and changelog describe the
+implemented user-facing surface. Internal `in_progress` promotion rows with unmeasured
+coverage ids keep their uncertainty routes closed; the public notes describe those
+intervals as withheld. A version number is not an interval license.
+
+1. **Feature and implementation freeze.** Settle estimators, APIs, refusal reasons,
+   artifact formats and execution-affecting dependency versions. Run ordinary correctness,
+   parity, known-truth, negative/refusal, replay, cancellation and compatibility tests on
+   the proposed code. Fix any finding and repeat the affected checks. Commit the resulting
+   implementation and documentation before measuring coverage.
+2. **Final calibration.** On a clean checkout of the frozen commit, run
+   `bash scripts/measure_calibration.sh --dry-run`, then
+   `bash scripts/measure_calibration.sh`. Measure only the owed coordinates: X1 and X4,
+   smoothed dose response, joint sensitivity, and new 2.2 E interval routes with allocated
+   coverage ids. The collector writes `parity/coverage_records.toml` and
+   `crates/antecedent-io/src/coverage_records_data.rs`. Any code change that affects a
+   measured coordinate requires measuring it again.
+3. **Promote measured cells and freeze the matrix.** For a cell whose measurement
+   passes, attach the exact coverage record, open its uncertainty route in the owning
+   registries, and promote its record. Keep failed or unmeasured routes closed. Regenerate
+   `docs/support-matrix.md` with `python3 scripts/generate_support_matrix_docs.py`, update
+   the manual transport and counterfactual coverage pages, and reconcile the final notes.
+   Run `python3 scripts/check_promotion_records.py`,
+   `python3 scripts/check_release_claims.py --final`, and
+   `bash scripts/gate_docs_support_matrix.sh`.
+4. **Full release gate.** Run `bash scripts/gate_a_exit.sh --require-calibrated`,
+   `bash scripts/gate_b_exit.sh --release`,
+   `python3 scripts/check_limits_agreement.py --strict`, and
+   `bash scripts/gate_release.sh`. Verify the fresh-install Python wheel and CI matrix
+   on the final HEAD. The gate must see a clean tree and agreement between coverage,
+   support licenses, artifacts, Python/Rust surfaces, and refusals.
+5. **Tag.** With a green CI run, use `CI_RUN_ID=<run> bash scripts/tag_release.sh`.
+   It checks the release candidate and tags `v2.2.0`; pushing remains a separate action.
 
 ## TODO.md B8 checklist mapped to gates
 
@@ -107,5 +100,5 @@ its typed refusal (mirror `crates/antecedent/tests/a_exit_gate.rs`).
 | Release notes distinguish point-only, nominal, calibrated, structural envelope, assumption range and statistical interval | `check_release_claims.py` (`--final` at the cut) | Mechanized |
 | Generated-doc cleanliness | `gate_release.sh` (conformance, support matrix, historical notes untouched) | Mechanized |
 | Fresh-install Python package tests | `gate_release_candidate.sh` step 4 and the CI `python-wheels` matrix (`CI_RUN_ID`) | Mechanized |
-| Cut the version only after B | Step 7 above | Procedural |
-| X7 carried forward | This page, the draft notes, `b_exit_report.py` row "B7 X7" | Recorded, no gate needed |
+| Version metadata identifies 2.2.0 before calibration | `set_version.sh --check 2.2.0`; step 1 above | Done; interval licensing still follows measured coverage |
+| X7 carried forward | This page, the 2.2.0 notes, `b_exit_report.py` row "B7 X7" | Recorded, no gate needed |

@@ -4686,6 +4686,7 @@ def classify_inverse_outcome_stage(
     forward: tuple[
         str,
         str,
+        tuple[str | None, str | None, str | None],
         bool,
         bool,
         list[list[float]],

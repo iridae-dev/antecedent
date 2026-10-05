@@ -129,7 +129,9 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
   `V_a + V_b - V_ab` of the same bilinear forms (dyadic), formed by polarization
   `(V(k + l) - V(k - l)) / 4` of the receipt's variance. Uniform weights return the fit's own
   standard error. The contrast standard error, the joint covariance, the max-t band of a batch
-  family and each claim's `reference_df` come from it; the labels are the plan's declared
+  family and each claim's `reference_df` come from it; the band's critical value uses a
+  shared multivariate Student-t scale with that reference df, so a one-claim family
+  reproduces the single-claim t reference. The labels are the plan's declared
   `cluster_ids` (aligned with the table rows), and a table or plan without them keeps the
   iid retarget withheld. The iid max-t score inference stays withheld.
 - A requested bootstrap (which would resample rows and split clusters) or a non-default
@@ -138,8 +140,10 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
 - **Calibration.** The calibration harness is wired and runnable:
   `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
   registered in `scripts/gate_calibration.sh`) scores the facade's published interval over a
-  sample grid of cluster counts and is measured once at the 2.2 cut. The only missing piece is
-  the measured coverage record; the registry keeps the record `point_only` until then.
+  sample grid of cluster counts and is measured once at the 2.2 cut. The one-way
+  cluster interval remains an unlicensed release claim until its coverage record is
+  measured. This construction does not measure the dyadic `multiway` coordinate;
+  a dyadic interval must not inherit its one-way coverage record.
 
 **Known-truth check.** `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs` draws
 clustered data with a cluster-level random effect on the outcome, a covariate and the

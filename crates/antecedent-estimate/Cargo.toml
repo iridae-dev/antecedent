@@ -30,15 +30,15 @@ ml-neural = ["antecedent-learn/ml-neural"]
 calibration-internal = []
 
 [dependencies]
-antecedent-graph = { version = "2.1.1", path = "../antecedent-graph" }
-antecedent-core = { version = "2.1.1", path = "../antecedent-core" }
-antecedent-data = { version = "2.1.1", path = "../antecedent-data" }
-antecedent-expr = { version = "2.1.1", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.1.1", path = "../antecedent-identify" }
-antecedent-kernels = { version = "2.1.1", path = "../antecedent-kernels" }
-antecedent-learn = { version = "2.1.1", path = "../antecedent-learn" }
-antecedent-prob = { version = "2.1.1", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.1.1", path = "../antecedent-stats" }
+antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
+antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
+antecedent-data = { version = "2.2.0", path = "../antecedent-data" }
+antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "2.2.0", path = "../antecedent-identify" }
+antecedent-kernels = { version = "2.2.0", path = "../antecedent-kernels" }
+antecedent-learn = { version = "2.2.0", path = "../antecedent-learn" }
+antecedent-prob = { version = "2.2.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.2.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 serde = { workspace = true }
 

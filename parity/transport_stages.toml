@@ -3111,9 +3111,9 @@ status = "licensed"
 graph = "forward_response_route_graph_no_graph_of_its_own"
 evidence = "inverse_outcome_report_inputs_stored_on_the_report"
 functional = "finite_action_target_mean_feasibility"
-guarantee = "independently_recomputed_from_stored_inputs"
+guarantee = "locally_recomputed_and_compared_with_stored_inputs"
 reference = "docs/guides/inverse-outcome.md"
-limits = "Recomputes the classification and the order-invariant identity from the stored forward response, actions, target, budget and tolerance; detects an edited input."
+limits = "Recomputes the classification and order-invariant identity from the stored forward response, actions, target, budget and tolerance; compares all public classification fields. This is not authentication of the stored inputs or forward model."
 evidence_test = "python/tests/test_inverse_outcome.py"
 evidence_assertion = "test_verify_recomputes_the_report_and_detects_an_edited_one"
 
@@ -3137,6 +3137,13 @@ stage = "evaluate"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "Observational scenarios P(X | Y) are not interventions."
+
+[[routes]]
+route = "antecedent.inverse.allowed_unlicensed_forward"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "A compatibility-only forward result cannot license the inverse causal claim."
 
 # ---- 2.2E.E2.penalized_propensity_aipw ----------------------------------------------------
 
