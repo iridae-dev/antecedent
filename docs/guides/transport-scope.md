@@ -271,7 +271,8 @@ it without refitting the learners.
   membership and randomization laws are listed as marginal.
   Selection stays manual; nothing is recommended.
 - **Bounds.** At most 20 cross-fitting folds and a bootstrap cap of 2000 replicates
-  (floor 199); a consumer admits at most 1,000,000 rows and 256 features.
+  (replicate floor 199 for the closed percentile route); a consumer admits at most
+  1,000,000 rows and 256 features.
 - **Interval.** Call `prepared.interval()` with `bootstrap=0` to obtain the
   pointwise analytic influence interval and its standard error. It uses a
   design-specific variance: a random target count for a nested cohort, or

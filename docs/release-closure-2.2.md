@@ -12,13 +12,15 @@ linked from the published navigation.
   establish a speedup. The condition for starting the lane (a measured whole-analysis gain) is not
   met, so B7 ships nothing. There is no X7 promotion record.
 - **The old calibration backlog does not block the cut.** `parity/calibration_backlog.md` lists
-  44 unmeasured cells across 22 coordinates, the same figure as the 2.1.0 notes, and
+  40 unmeasured cells across 18 coordinates after the targeted 2.2 measurements, and
   `parity/reason_codes.toml` ratchets `estimator_grid_not_measured` (`max_uses`) so it can only
-  shrink. Work it down when cheap (fixed-graph coordinates before graph-posterior ones; the five
-  fixed-graph coordinates need a measurement DGP and are not worked in 2.2), but an unrelated old
+  shrink. Work it down when cheap (the remaining explicit-DAG coordinate before graph-posterior
+  ones; that coordinate needs a measurement DGP and is not worked in 2.2), but an unrelated old
   coordinate never holds back otherwise complete 2.2 work. What must hold is that no *new* 2.2
   interval ships under `estimator_grid_not_measured` (see the checklist).
-- Calibration is measured **once**, at the cut, after B. No B package measures it earlier.
+- Final calibration is measured at the cut, after B. Targeted repairs reuse still-valid
+  records and remeasure only affected coordinates; the attestation gate checks each
+  record against the implementation facet it covers.
 
 ## Release-closure tooling
 
@@ -63,9 +65,9 @@ A version number is not an interval license.
    `bash scripts/measure_calibration.sh --dry-run`,
    `bash scripts/measure_calibration.sh --pilot`, and inspect the resulting
    `--dry-run` projection before `bash scripts/measure_calibration.sh`. The pilot
-   runs smoke replicates and writes no coverage evidence. Measure only the owed coordinates: X1 and X4,
-   smoothed dose response, joint sensitivity, and new 2.2 E interval routes with allocated
-   coverage ids. The collector writes `parity/coverage_records.toml` and
+   runs smoke replicates and writes no coverage evidence. Measure only coordinates
+   owed by the facet audit. The current record set has no owed coordinates; if an
+   execution-affecting change makes one owed, measure it before the cut. The collector writes `parity/coverage_records.toml` and
    `crates/antecedent-io/src/coverage_records_data.rs`. Any code change that affects a
    measured coordinate requires measuring it again.
 3. **Promote measured cells, review the docs, and freeze the matrix.** For a cell whose measurement
