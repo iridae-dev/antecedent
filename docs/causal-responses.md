@@ -553,8 +553,9 @@ sampling coverage of every published derivative interval is gated in
   The Frequentist result is point-only: `uncertainty` is empty and the warning
   `response.derivative_interval_withheld` says why. Each gradient coordinate
   is a linear functional of the target fit's coefficients, so a
-  coefficient-sandwich confidence band exists. It is the analytic counterpart
-  of the Bayesian band below, with the same `n / (n − edf)` leverage factor.
+  coefficient-sandwich confidence band exists. Its analytic variance uses an
+  HC2 correction based on each complete row's leverage in the penalized spline
+  fit; the Bayesian band below uses a separate average-leverage correction.
   Its coverage has not been measured yet. The gate wires it as
   `response_jacobian_dag_frequentist_nominal_90_coverage` and
   `directional_derivative_dag_frequentist_nominal_90_coverage` in

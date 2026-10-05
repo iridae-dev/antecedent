@@ -37,7 +37,7 @@ use antecedent_stats::{
     AdditiveDesign, DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace,
     GaussianMixtureDensity, LeastSquaresWorkspace, LocalQuadraticWorkspace, QuantileRule,
     SmoothSpec, StatsError, equal_tail_interval_sorted, fit_gam, fit_gam_weighted_design,
-    gaussian_density, gaussian_local_quadratic_influence_prechecked, normal_ppf,
+    gaussian_density, gaussian_local_quadratic_influence_prechecked, invert_square, normal_ppf,
     silverman_bandwidth,
 };
 
@@ -1739,8 +1739,8 @@ impl ContinuousResponseEstimator {
     /// influence is the fixed-basis penalized least-squares sandwich already used
     /// for the intervention-response level, with no covariate-average term (the
     /// additive gradient does not depend on the adjustment covariates). The
-    /// variance takes the HC1 factor `n / (n − edf)` of the fit, as the licensed
-    /// Bayesian band inflates its draws. The band conditions on the fixed knots and
+    /// variance uses HC2 row-leverage residuals from the same penalized Gram,
+    /// accounting for unequal leverage of the spline basis. The band conditions on the fixed knots and
     /// adjustment penalty and excludes sieve-approximation bias of a non-additive
     /// or rough outcome surface. The public route withholds this band
     /// (`response.derivative_interval_withheld`) until its coverage records are
@@ -1806,7 +1806,7 @@ impl ContinuousResponseEstimator {
                 }
             };
             for (value, psi) in coordinates {
-                let se = plugin_sandwich_se(&psi, nf, influence.edf);
+                let se = plugin_sandwich_se(&psi, nf);
                 values.push(value);
                 lower.push(value - z * se);
                 upper.push(value + z * se);
@@ -2761,6 +2761,35 @@ impl PluginSandwich {
             })
             .collect())
     }
+
+    /// Diagonal of the fixed-basis penalized smoother `X(X'X + S)⁻¹X'`.
+    /// HC2 divides each in-sample residual by `sqrt(1 - h_ii)` before forming the
+    /// functional's coefficient influence.
+    fn leverage(&self) -> Result<Vec<f64>, EstimationError> {
+        let inverse = invert_square(&self.gram, self.p).ok_or_else(|| {
+            EstimationError::unsupported(
+                "response influence requires an invertible penalized design",
+            )
+        })?;
+        let mut out = Vec::with_capacity(self.n);
+        for i in 0..self.n {
+            let h = (0..self.p)
+                .map(|j| {
+                    let xj = self.design[j * self.n + i];
+                    xj * (0..self.p)
+                        .map(|k| inverse[j * self.p + k] * self.design[k * self.n + i])
+                        .sum::<f64>()
+                })
+                .sum::<f64>();
+            if !(h.is_finite() && h >= 0.0 && h < 1.0) {
+                return Err(EstimationError::unsupported(
+                    "response influence needs finite row leverage below one",
+                ));
+            }
+            out.push(h);
+        }
+        Ok(out)
+    }
 }
 
 fn plugin_smooth(
@@ -2886,8 +2915,6 @@ struct PluginGradientRun {
 struct PluginGradientInfluence {
     /// One centred column per treatment coordinate.
     columns: Vec<Vec<f64>>,
-    /// Effective degrees of freedom of the target fit.
-    edf: f64,
 }
 
 /// Influence of each plug-in gradient coordinate `∂μ̂/∂a_j (at)`.
@@ -2902,6 +2929,13 @@ fn plugin_gradient_influence(
     at: &[f64],
 ) -> Result<PluginGradientInfluence, EstimationError> {
     let sandwich = PluginSandwich::new(fit, sample)?;
+    let leverage = sandwich.leverage()?;
+    let hc2_residuals: Vec<f64> = fit
+        .residuals
+        .iter()
+        .zip(&leverage)
+        .map(|(residual, h)| residual / (1.0 - h).sqrt())
+        .collect();
     let mut columns = Vec::with_capacity(at.len());
     for (j, &point) in at.iter().enumerate() {
         let index = fit.smooth_for_raw_col(j).ok_or_else(|| {
@@ -2912,23 +2946,22 @@ fn plugin_gradient_influence(
         let offset = sandwich.offsets[j];
         gradient[offset..offset + derivative.len() - 1]
             .copy_from_slice(&derivative[..derivative.len() - 1]);
-        let mut psi = sandwich.coefficient_influence(&fit.residuals, &gradient)?;
+        let mut psi = sandwich.coefficient_influence(&hc2_residuals, &gradient)?;
         center_in_place(&mut psi);
         columns.push(psi);
     }
-    Ok(PluginGradientInfluence { columns, edf: fit.edf_approx })
+    Ok(PluginGradientInfluence { columns })
 }
 
-/// HC1 standard error of a centred influence column: `Σψ² / (n (n − edf))`, the
-/// sandwich `Σ a_i² e_i²` with the leverage factor `n / (n − edf)` (see
-/// `inflate_draws_by_edf`). Falls back to `n − 1` when `edf` is not usable.
+/// HC2 standard error of a centred influence column: `sqrt(Σψ²) / n` after
+/// dividing each fit residual by its own `sqrt(1 - h_ii)` in
+/// [`plugin_gradient_influence`].
 #[cfg(feature = "calibration-internal")]
-fn plugin_sandwich_se(psi: &[f64], n: f64, edf: f64) -> f64 {
-    let dof = if edf.is_finite() && edf >= 1.0 && edf < n { n - edf } else { n - 1.0 };
-    if dof <= 0.0 {
+fn plugin_sandwich_se(psi: &[f64], n: f64) -> f64 {
+    if !(n.is_finite() && n > 0.0) {
         return f64::NAN;
     }
-    (psi.iter().map(|x| x * x).sum::<f64>() / (n * dof)).sqrt()
+    (psi.iter().map(|x| x * x).sum::<f64>() / (n * n)).sqrt()
 }
 
 /// Why the Frequentist plug-in gradient publishes no interval.
