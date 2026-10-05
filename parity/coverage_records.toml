@@ -1267,7 +1267,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_analytic_ci_coverage"
 facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1303,7 +1303,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_atc_hc1_boundary_within_band"
 facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1339,7 +1339,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_ate_hc1_ci_coverage"
 facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1375,7 +1375,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_att_cluster_ci_coverage"
 facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1411,7 +1411,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_binary_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_att_hc1_ci_coverage"
 facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1447,7 +1447,43 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::penalized_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_lasso_influence_ci_coverage"
 facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_ridge_influence_ci_coverage"
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "analytic_se"
+se_kind = "homoskedastic"
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean+propensity=ridge_logistic:k3:g0.5|5|50"
+identification = "point"
+nominal = 0.95
+n_min = 300
+n_max = 1200
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.935
+mcse = 0.012326293035621046
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 300, n_max = 300, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { point = 1, n_min = 600, n_max = 600, observed = 0.935, mcse = 0.012326293035621046, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1200, n_max = 1200, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::penalized_scm"
+test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_ridge_influence_ci_coverage"
+facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1483,7 +1519,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::causal_forest_analytic_ci_coverage"
 facets = ["core", "estimator.learner", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1555,7 +1591,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::dml_analytic_ci_coverage"
 facets = ["core", "estimator.learner", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1591,7 +1627,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::dr_learner_analytic_ci_coverage"
 facets = ["core", "estimator.learner", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1627,7 +1663,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_arm_linear_ci_coverage"
 facets = ["core", "estimator.frontdoor", "identity.frontdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1663,7 +1699,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_functional_saturated_ci_coverage"
 facets = ["core", "estimator.frontdoor", "identity.frontdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1699,7 +1735,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_stacked_hc0_ci_coverage"
 facets = ["core", "estimator.frontdoor", "identity.frontdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1735,7 +1771,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_stacked_hc1_ci_coverage"
 facets = ["core", "estimator.frontdoor", "identity.frontdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1771,7 +1807,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_curved_mediator_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::frontdoor_stacked_hc1_curved_mediator_ci_coverage"
 facets = ["core", "estimator.frontdoor", "identity.frontdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1843,7 +1879,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_analytic_ci_coverage"
 facets = ["core", "estimator.propensity_weighting", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1879,7 +1915,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::propensity_ipw_conformance_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_analytic_conformance_scm_ci_coverage"
 facets = ["core", "estimator.propensity_weighting", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1915,7 +1951,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::weak_overlap_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_weak_overlap_adversarial_ci_coverage"
 facets = ["core", "estimator.propensity_weighting", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1951,7 +1987,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::linear_adjustment_analytic_ci_coverage"
 facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -1987,7 +2023,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::linear_adjustment_hc1_ci_coverage"
 facets = ["core", "estimator.linear_adjustment", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2023,7 +2059,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_effect_matching_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::matching_heterogeneous_atc_ci_coverage"
 facets = ["core", "estimator.propensity_matching", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2059,7 +2095,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_effect_matching_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::matching_heterogeneous_ate_ci_coverage"
 facets = ["core", "estimator.propensity_matching", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2095,7 +2131,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heterogeneous_effect_matching_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::matching_heterogeneous_att_ci_coverage"
 facets = ["core", "estimator.propensity_matching", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2131,7 +2167,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::heteroskedastic_matching_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::matching_heteroskedastic_adversarial_ci_coverage"
 facets = ["core", "estimator.propensity_matching", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2167,7 +2203,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::matching_homoskedastic_ci_coverage"
 facets = ["core", "estimator.propensity_matching", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2203,7 +2239,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::rd_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::rd_sharp_analytic_ci_coverage"
 facets = ["core", "estimator.rd", "identity.rd", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2239,7 +2275,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::rd_curved_heterogeneous_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::rd_sharp_hc1_curved_adversarial_ci_coverage"
 facets = ["core", "estimator.rd", "identity.rd", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2275,7 +2311,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::rd_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::rd_sharp_hc1_heteroskedastic_ci_coverage"
 facets = ["core", "estimator.rd", "identity.rd", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2347,7 +2383,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::two_sls_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::iv_2sls_analytic_ci_coverage"
 facets = ["core", "estimator.iv", "identity.iv", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2383,7 +2419,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::binary_iv_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::wald_iv_analytic_ci_coverage"
 facets = ["core", "estimator.iv", "identity.iv", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2419,7 +2455,7 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::weak_iv_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::wald_iv_weak_first_stage_adversarial_ci_coverage"
 facets = ["core", "estimator.iv", "identity.iv", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2492,6 +2528,78 @@ dgp = "crates/antecedent/tests/v110_calibration_estimate.rs::glm_data"
 test = "crates/antecedent/tests/v110_calibration_estimate.rs::glm_adjustment_binary_outcome_nominal_coverage"
 facets = ["core", "estimator.glm", "identity.backdoor", "suite.v110_calibration_estimate"]
 calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.average_effect.dag.frequentist.bootstrap_se.l95.aipw_lasso_refit_bootstrap_ci_coverage"
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "bootstrap_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean+propensity=lasso:k3:g2|10|40"
+identification = "point"
+nominal = 0.95
+n_min = 600
+n_max = 2400
+replicates_min = 40
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9475
+mcse = 0.01115165346484547
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 600, n_max = 600, observed = 0.949, mcse = 0.004919298730510276, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1200, n_max = 1200, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2400, n_max = 2400, observed = 0.9475, mcse = 0.01115165346484547, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::penalized_scm"
+test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_lasso_refit_bootstrap_ci_coverage"
+facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.average_effect.dag.frequentist.bootstrap_se.l95.aipw_ridge_refit_bootstrap_ci_coverage"
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "bootstrap_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean+propensity=ridge_logistic:k3:g0.5|5|50"
+identification = "point"
+nominal = 0.95
+n_min = 600
+n_max = 2400
+replicates_min = 40
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.945
+mcse = 0.011399013115178002
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 600, n_max = 600, observed = 0.9495, mcse = 0.0048964145045124596, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1200, n_max = 1200, observed = 0.9525, mcse = 0.010635289135702893, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 2400, n_max = 2400, observed = 0.945, mcse = 0.011399013115178002, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::penalized_scm"
+test = "crates/antecedent-estimate/src/calibration_coverage.rs::aipw_ridge_refit_bootstrap_ci_coverage"
+facets = ["core", "estimator.aipw", "identity.backdoor", "suite.calibration_coverage"]
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2599,7 +2707,43 @@ grid = [
 dgp = "crates/antecedent-estimate/src/calibration_coverage.rs::confounded_scm"
 test = "crates/antecedent-estimate/src/calibration_coverage.rs::ipw_hajek_bootstrap_ci_coverage"
 facets = ["core", "estimator.propensity_weighting", "identity.backdoor", "suite.calibration_coverage"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.average_effect.dag.frequentist.simultaneous_band.l95.batch_retarget_max_t_simultaneous_band"
+query = "AverageEffect"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "aipw"
+interval_method = "simultaneous_band"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean"
+identification = "point"
+nominal = 0.95
+n_min = 800
+n_max = 3200
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.94
+mcse = 0.011874342087037922
+replicates = 400
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 800, n_max = 800, observed = 0.947, mcse = 0.005009540897128201, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1600, n_max = 1600, observed = 0.94, mcse = 0.011874342087037922, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 3200, n_max = 3200, observed = 0.95, mcse = 0.010897247358851688, replicates = 400, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/batch_retarget_calibration.rs::fixture"
+test = "crates/antecedent/tests/batch_retarget_calibration.rs::batch_retarget_max_t_simultaneous_band"
+facets = ["core", "estimator.aipw", "identity.backdoor", "suite.batch_retarget_calibration"]
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -2999,6 +3143,42 @@ calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
+id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies"
+query = "ClassicalTransport"
+graph_class = "Admg"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "transport.mz_joint_bootstrap"
+interval_method = "percentile_bootstrap"
+se_kind = "percentile"
+dependence = "iid"
+posterior = ""
+functional = "target_interventional_mean"
+identification = "point"
+nominal = 0.95
+n_min = 400
+n_max = 1600
+replicates_min = 999
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.9455
+mcse = 0.005075911248239078
+replicates = 2000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 400, n_max = 400, observed = 0.947, mcse = 0.005009540897128201, replicates = 2000, boundary = false, role = "gated" },
+  { point = 1, n_min = 800, n_max = 800, observed = 0.9625, mcse = 0.009499177595981663, replicates = 400, boundary = false, role = "gated" },
+  { point = 2, n_min = 1600, n_max = 1600, observed = 0.9455, mcse = 0.005075911248239078, replicates = 2000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/mz_transport_calibration.rs::mz_figure_1_independent_studies"
+test = "crates/antecedent/tests/mz_transport_calibration.rs::multi_source_mz_independent_studies"
+facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.mz_transport_calibration"]
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
 id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_shared_units"
 query = "ClassicalTransport"
 graph_class = "Admg"
@@ -3031,7 +3211,7 @@ grid = [
 dgp = "crates/antecedent/tests/mz_transport_calibration.rs::mz_figure_1_shared_units"
 test = "crates/antecedent/tests/mz_transport_calibration.rs::multi_source_mz_shared_units"
 facets = ["core", "estimator.transport", "estimator.transport_empirical", "suite.mz_transport_calibration"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
