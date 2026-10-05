@@ -33,7 +33,7 @@
 //!
 //! `nu_hat` is the Gauss-Legendre quadrature of the fitted curve over the window. The
 //! derivation of the score, its model double robustness and the numerical checks that
-//! verify it are in `docs/smoothed-dose-response-transport.md`.
+//! verify it are in `docs/architecture/smoothed-dose-response-transport.md`.
 //!
 //! The only learned nuisances are `mu(t, x)` (a Regression learner over a deterministic
 //! row-wise dose-by-covariate basis) and source membership (a `BinaryProbability` learner
@@ -2025,7 +2025,7 @@ mod tests {
     /// doubling difference `|I_Q - I_2Q|` falls below the finer rule's own true error at a
     /// visible fraction of positions: an estimate, not a bound, which is why a
     /// piecewise-polynomial fit is split rather than gated. The counts asserted here are
-    /// the ones `docs/smoothed-dose-response-transport.md` and the promotion record cite:
+    /// the ones `docs/architecture/smoothed-dose-response-transport.md` and the promotion record cite:
     /// 1440 (Q = 16) and 1368 (Q = 32) of 20,000 positions, and 56 and 76 positions where
     /// the estimate passes a `1e-6` tolerance that the true error exceeds.
     #[test]

@@ -311,7 +311,7 @@ Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 ## Release candidates
 
 The independent [practitioner acceptance suite](practitioner-acceptance.md)
-is an additional cut requirement for this 2.0.0 tree. Run its Python and Rust jobs and both scale
+is an additional cut requirement for each release. Run its Python and Rust jobs and both scale
 sizes against the candidate, and close its leftover ledger. It remains outside
 `gate_release.sh`; passing the commands below alone does not discharge S.
 
@@ -470,12 +470,14 @@ Before merging the release PR:
 
 1. Commit the reviewed implementation, tests, and documentation with DCO sign-off.
    Keep the generated support/conformance output current and the worktree clean.
-2. Run `cargo test --workspace`, strict all-target Clippy, Python tests against
-   the rebuilt extension, Python lint/type checks, and `bash scripts/gate_release.sh`.
-   `gate_release.sh` is the PR inventory / composition umbrella; a green
-   local run is not an RC. Run `bash scripts/gate_codeql.sh` with the existing
-   query configuration. Require CI on the same commit, including the Python
-   lint/pytest and `python-wheels` jobs.
+   Review release notes as the user-facing version overview, the changelog as
+   the delta from the previous version, and affected guides and API docs for
+   examples, formulas, assumptions, refusal reasons, artifact formats, and
+   Python/Rust agreement. Remove temporary cut notes and provisional wording.
+2. Run the relevant tests, formatters, linters, and documentation checks locally.
+   Open a PR and require the CI jobs on the committed HEAD, including the
+   `gates` job (`gate_release.sh`), Python lint/pytest, and `python-wheels`
+   matrix. The full release gate runs in CI; a local full run is optional.
 3. For an actual release cut, run
    `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. Every coverage
    record must be attested, exactly as on every PR: measured, in a run that

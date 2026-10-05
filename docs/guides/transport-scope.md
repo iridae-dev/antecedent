@@ -673,7 +673,7 @@ of at most 16 doses at one declared bandwidth `h` with the Epanechnikov kernel. 
 estimand is `psi_h(a) = E_target[ integral K_h(a - t) E(Y | X, A=t, S=1) dt ]`; the
 bandwidth and kernel are part of it, never tuned. The derivation of the score, its model
 double robustness and the executed numerical checks are in
-[smoothed-dose-response-transport.md](../smoothed-dose-response-transport.md); record
+[smoothed-dose-response-transport.md](../architecture/smoothed-dose-response-transport.md); record
 `2.2B.X4.smoothed_dose_response_transport`, refusal namespace `dose_response`.
 
 - **Surface.** Rust `StudyBuilder::smoothed_dose_transport` / `PreparedSmoothedDose`

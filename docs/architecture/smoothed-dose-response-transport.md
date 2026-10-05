@@ -4,7 +4,7 @@ One cell: a randomized continuous dose from a trial, transported to a covariate-
 target population, reported on a grid of at most 16 doses at one declared bandwidth.
 Record `2.2B.X4.smoothed_dose_response_transport` in `parity/promotion_2_2.toml`;
 refusal details live in the `dose_response` namespace. The scope summary is in
-[the transport scope guide](guides/transport-scope.md#smoothed-dose-response-transport-22b-x4).
+[the transport scope guide](../guides/transport-scope.md#smoothed-dose-response-transport-22b-x4).
 
 This page states the estimand, derives the estimator's score and its robustness, and
 lists the numerical checks that verify the derivation. The derivation was written for
@@ -302,8 +302,9 @@ is excluded and there is no simultaneous band.
 The estimator is `antecedent_estimate::smoothed_dose_interval_internal`. It is compiled
 only under the `calibration-internal` feature, which only dev-dependencies enable, and
 the calibration harness `crates/antecedent/tests/smoothed_dose_calibration.rs` measures
-it. The public route is closed (`cell_not_licensed`, `dose_response.interval_withheld`)
-until the two coverage records are measured at the 2.2 cut.
+it. The two design-specific coverage records have been measured. The public
+route remains closed (`cell_not_licensed`, `dose_response.interval_withheld`)
+pending promotion of that exact interval coordinate.
 
 A replicate:
 

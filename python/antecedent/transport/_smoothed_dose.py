@@ -22,7 +22,7 @@ records its quadrature (numerical) error estimate and a smoothing-bias diagnosti
 separately; neither is ever added to the estimate. The smoothing-bias diagnostic is
 computed from the fitted curve alone (it is zero for a fit linear in the dose). The whole-estimator interval is not licensed:
 its route is closed with ``cell_not_licensed`` until its coverage records are measured.
-The derivation is in ``docs/smoothed-dose-response-transport.md``.
+The derivation is in ``docs/architecture/smoothed-dose-response-transport.md``.
 """
 
 from __future__ import annotations
