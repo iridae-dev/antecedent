@@ -21,8 +21,9 @@ For docs/release-notes/v2.2.0.md (or --notes PATH) this checks:
   3. inside an entry only ONE vocabulary claim word appears (backticked token, the bare word
      `calibrated`, the phrase `statistical interval` for calibrated, `nominal`), and it equals the
      record's EFFECTIVE claim: the record's `inference_claim`, except that a `calibrated` record
-     whose coverage records are not all in parity/coverage_records.toml is point_only (the
-     interval is withheld) and its entry may not use the word calibrated or `statistical
+     whose coverage records are not all in parity/coverage_records.toml, or which has
+     no licensed uncertainty route, is point_only (the interval is withheld) and its
+     entry may not use the word calibrated or `statistical
      interval` at all, and must say the interval is `withheld`; `nominal` never appears
      affirmatively (negations such as "no nominal" are fine); an entry whose effective claim
      is not `calibrated` may not promise a confidence / credible / bootstrap / prediction /
@@ -162,11 +163,11 @@ def load(root: Path, rel: str) -> dict:
 
 
 def effective_claim(rec: dict, present: set[str]) -> tuple[str, bool]:
-    """(claim the notes must state, whether a calibrated record is still pending coverage)."""
+    """(public claim, whether the allocated interval remains withheld)."""
     claim = rec["inference_claim"]
     if claim == "calibrated":
         owed = list(rec.get("coverage_records") or [])
-        if not owed or not all(c in present for c in owed):
+        if not owed or not all(c in present for c in owed) or not licensed_uncertainty(rec):
             return "point_only", True
     return claim, False
 
@@ -588,6 +589,8 @@ def _rec(
                 "reason_code": "cell_not_licensed",
             }
         ]
+    elif claim == "calibrated":
+        rec["routes"] = [{"name": "r", "stage": "uncertainty", "status": "licensed"}]
     return rec
 
 
@@ -680,10 +683,26 @@ def self_test() -> int:
             "effective",
         )
         expect("calibrated ok once coverage exists", run(cov=True), None)
+        closed_record = _rec("X1", "calibrated", ["cov.x1"], closed=True)
+        expect(
+            "measured but closed interval stays point only",
+            run(cov=True, records=[closed_record, *recs[1:]]),
+            None,
+        )
+        expect(
+            "closed interval cannot advertise calibration",
+            run(
+                cov=True,
+                records=[closed_record, *recs[1:]],
+                mutate=lambda s: s.replace("Claim: `point_only`", "Claim: `calibrated`", 1),
+            ),
+            "Claim line says",
+        )
         expect(
             "calibrated entry wrongly point_only once coverage exists",
             run(
                 cov=True,
+                records=recs,
                 mutate=lambda s: s.replace(
                     "Claim: `calibrated`", "Claim: `point_only`"
                 ),
