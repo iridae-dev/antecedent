@@ -60,8 +60,10 @@ intervals as withheld. A version number is not an interval license.
    the proposed code. Fix any finding and repeat the affected checks. Commit the resulting
    implementation and documentation before measuring coverage.
 2. **Final calibration.** On a clean checkout of the frozen commit, run
-   `bash scripts/measure_calibration.sh --dry-run`, then
-   `bash scripts/measure_calibration.sh`. Measure only the owed coordinates: X1 and X4,
+   `bash scripts/measure_calibration.sh --dry-run`,
+   `bash scripts/measure_calibration.sh --pilot`, and inspect the resulting
+   `--dry-run` projection before `bash scripts/measure_calibration.sh`. The pilot
+   runs smoke replicates and writes no coverage evidence. Measure only the owed coordinates: X1 and X4,
    smoothed dose response, joint sensitivity, and new 2.2 E interval routes with allocated
    coverage ids. The collector writes `parity/coverage_records.toml` and
    `crates/antecedent-io/src/coverage_records_data.rs`. Any code change that affects a

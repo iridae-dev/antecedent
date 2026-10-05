@@ -7,6 +7,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+LOG_DIR="${ANTECEDENT_CALIBRATION_LOG_DIR:-$ROOT/target/calibration-records}"
 
 FAILED=""
 FAILED_COUNT=0
@@ -209,13 +210,13 @@ check() {
     return 0
   fi
   local safe point shown
-  mkdir -p "$ROOT/target/calibration-records"
+  mkdir -p "$LOG_DIR"
   safe="$(echo "${label}" | tr ' /:' '___')"
   if grid_group "$label"; then
     for point in $GRID_POINTS; do
       shown="${label} [grid point ${point}]"
       echo "== grid point ${point}: ${label} =="
-      run_point "$ROOT/target/calibration-records/${safe}.p${point}" "$shown" \
+      run_point "$LOG_DIR/${safe}.p${point}" "$shown" \
         env ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@"
       if [ "$RUN_STATUS" -ne 0 ]; then
         FAILED="${FAILED}  ${shown}"$'\n'
@@ -224,7 +225,7 @@ check() {
     done
     return 0
   fi
-  run_point "$ROOT/target/calibration-records/${safe}" "$label" \
+  run_point "$LOG_DIR/${safe}" "$label" \
     env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@"
   if [ "$RUN_STATUS" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'

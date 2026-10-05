@@ -187,7 +187,9 @@ mode.
 One command, from a clean checkout of the commit you are about to push:
 
 ```bash
-bash scripts/measure_calibration.sh --dry-run   # the groups it would run, with a rough duration
+bash scripts/measure_calibration.sh --dry-run   # the groups it would run
+bash scripts/measure_calibration.sh --pilot     # 8-replicate smoke timings; no coverage evidence
+bash scripts/measure_calibration.sh --dry-run   # projection from this commit's pilot
 bash scripts/measure_calibration.sh             # measure what is owed, collect, re-run the gate
 bash scripts/measure_calibration.sh --all       # re-measure every group
 bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the core count)
@@ -208,7 +210,7 @@ commit. It then works in four steps:
    `target/calibration-records/`, where the collector reads them, and earlier
    logs move to `target/calibration-records.previous/`. Each group's console
    output goes to `target/calibration-console/`, and its wall time is appended
-   to `target/calibration-timings.tsv`, which later `--dry-run` estimates use.
+   to `target/calibration-timings.tsv` for post-run review.
 3. It runs `scripts/collect_coverage_records.py --keep-attested` (without the
    flag under `--all`). Each record is stamped with the commit it was measured
    at. Records that still stand keep their own `calibration_sha`.
@@ -234,18 +236,22 @@ Facets and replay waivers keep the cost proportional to the change:
 - a reviewed change that cannot move a number owes nothing, through a waiver;
 - a `core` edit owes every record, unless a reviewed replay waiver covers it;
 
-**How long it takes.** Groups already run side by side (`measure_calibration.sh
---jobs`). Independent seeds inside a group run across `available_parallelism`
-workers (`map_replicates` in the coverage harness). Each seed still builds a
-serial `ExecutionContext::for_tests` study, so the same seed is the same
-interval.
-
-A full re-measurement is a few hours on an M-series laptop, not an overnight
-one-core job. A Bayesian derivative 2000-replicate recheck that used to pin one
-core for ~10 h is about 1–1.5 h. A change that drifts one suite or facet costs
-only the groups behind its records. `--dry-run` still scales suite timings by
-the three-point grid factor (about 3.5× for linear-in-`n` designs) until local
-per-point timings replace them.
+**How long it takes.** Groups run side by side (`measure_calibration.sh
+--jobs`). Independent seeds inside a group run across `map_replicates` workers;
+each seed uses a serial `ExecutionContext::for_tests`, so changing the worker
+count does not change its interval. The smoke pilot times every selected group
+and grid point on the current clean commit with eight replicates. It stores
+logs separately in `target/calibration-pilot-records/` and timings in
+`target/calibration-pilot-timings.tsv`. Those logs cannot enter the coverage
+collector. The next `--dry-run` projects the 400-replicate pass and expected
+2,000-replicate extensions from these timings and the previous recheck rates.
+The projection is approximate: startup cost and convergence do not scale
+perfectly with replicates, and a changed coverage rate changes the recheck
+count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
+forecast that summed wall times of suites competing on the same CPU substantially
+overstated the full-pass time. The measurement runs longest pilot-timed grid
+jobs first to reduce the final straggler. A change that drifts one suite or
+facet costs only the groups behind its records.
 
 The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
