@@ -1,18 +1,17 @@
 //! Coverage of the learned continuous-outcome trial transport interval (2.2A cell X4)
 //! against known truth.
 //!
-//! The estimator measured is the whole composed one the public route withholds
-//! (`cell_not_licensed`) until these records exist: cross-fitted outcome and membership
-//! nuisances, the augmented inverse-odds score, the overlap gate and the joint outer
-//! refit percentile bootstrap, grouped per design
-//! (`antecedent_estimate::learned_continuous_interval_internal`). No component AIPW
-//! formula is scored on its own.
+//! The estimator measured is the whole composed one the public route withholds:
+//! cross-fitted outcome and membership nuisances, the augmented inverse-odds
+//! score, the overlap gate, and the design-specific analytic influence variance
+//! (`LearnedContinuousOptions::analytic_interval_internal`). The previously
+//! proposed percentile bootstrap failed its sample-size grid and is not scored
+//! as a licensed candidate. No component AIPW formula is scored on its own.
 //!
 //! * `learned_trial_aipw_nested_cohort_continuous_mean_contrast` and
 //!   `learned_trial_aipw_independent_samples_continuous_mean_contrast` are the two
 //!   coverage records: good overlap, both nuisance families correctly specified,
-//!   sample-size grid `n/2, n, 2n` ([`grid_n`]), [`REPLICATES`] bootstrap replicates
-//!   (the replicate floor), `n_sim()` datasets.
+//!   sample-size grid `n/2, n, 2n` ([`grid_n`]), `n_sim()` datasets.
 //! * `learned_trial_aipw_weak_overlap_boundary` measures the boundary: with a target
 //!   far from the trial the estimator must refuse, not extrapolate (at least 90% of
 //!   datasets refuse under both designs).
@@ -48,11 +47,10 @@ use common::calibration::{
 };
 use dgp::{Design, Scenario, draw, graph};
 
-const INTERVAL: &str = "percentile_bootstrap";
 /// Bootstrap replicates per execution: the frozen replicate floor of the cell.
 const REPLICATES: u32 = LEARNED_CONTINUOUS_BOUNDS.1;
 
-fn construction() -> Construction {
+fn analytic_construction() -> Construction {
     Construction {
         query: "ClassicalTransport".into(),
         graph_class: "Admg".into(),
@@ -60,14 +58,51 @@ fn construction() -> Construction {
         modality: "tabular".into(),
         inference: "Frequentist".into(),
         estimator: "transport.learned_trial_aipw".into(),
-        interval_method: INTERVAL.into(),
-        se_kind: "percentile".into(),
+        interval_method: "analytic_se".into(),
+        se_kind: "influence".into(),
         dependence: "iid".into(),
         posterior: String::new(),
         functional: "target_mean_contrast".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
     }
+}
+
+fn analytic_record(design: Design, test: &'static str, dgp_name: &'static str) {
+    let n = sizes();
+    let truth = Scenario::Good.truth();
+    let mut tally = CoverageTally::for_record(
+        RecordKey { test, dgp: dgp_name, interval: "analytic_se" },
+        REPORTED_LEVEL,
+    );
+    let mut analytic_options = options();
+    analytic_options.bootstrap = 0;
+    let (diagram, query, _) = graph();
+    let id = TransportIdentifier::new().identify(&diagram, &query).unwrap();
+    let rows = map_replicates(n_sim(), |rep| {
+        let input = draw(design, Scenario::Good, n.0, n.1, stream_seed(rep, 0x4C43));
+        analytic_options
+            .analytic_interval_internal(&id, &input, &ExecutionContext::for_tests(rep))
+            .ok()
+    });
+    for row in rows {
+        match row {
+            Some((_, band)) => {
+                tally.bind(
+                    &analytic_construction(),
+                    ScopeFacts {
+                        row_count: (n.0 + n.1) as u64,
+                        replicates_ok: None,
+                        posterior_draws: None,
+                        unidentified_mass: 0.0,
+                    },
+                );
+                tally.record(Some(band), truth);
+            }
+            None => tally.skip(),
+        }
+    }
+    tally.assert();
 }
 
 fn options() -> LearnedContinuousOptions {
@@ -100,38 +135,10 @@ fn sizes() -> (usize, usize) {
     (grid_n(300), grid_n(200))
 }
 
-fn record(design: Design, test: &'static str, dgp_name: &'static str) {
-    let n = sizes();
-    let truth = Scenario::Good.truth();
-    let mut tally = CoverageTally::for_record(
-        RecordKey { test, dgp: dgp_name, interval: INTERVAL },
-        REPORTED_LEVEL,
-    );
-    let rows = map_replicates(n_sim(), |rep| execute(design, Scenario::Good, n, rep));
-    for row in rows {
-        match row {
-            Some((band, replicates_ok)) => {
-                tally.bind(
-                    &construction(),
-                    ScopeFacts {
-                        row_count: (n.0 + n.1) as u64,
-                        replicates_ok: Some(replicates_ok),
-                        posterior_draws: None,
-                        unidentified_mass: 0.0,
-                    },
-                );
-                tally.record(Some(band), truth);
-            }
-            None => tally.skip(),
-        }
-    }
-    tally.assert();
-}
-
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn learned_trial_aipw_nested_cohort_continuous_mean_contrast() {
-    record(
+    analytic_record(
         Design::NestedCohort,
         "learned_trial_aipw_nested_cohort_continuous_mean_contrast",
         "learned_continuous_nested_cohort_good_overlap",
@@ -141,7 +148,7 @@ fn learned_trial_aipw_nested_cohort_continuous_mean_contrast() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn learned_trial_aipw_independent_samples_continuous_mean_contrast() {
-    record(
+    analytic_record(
         Design::IndependentSamples,
         "learned_trial_aipw_independent_samples_continuous_mean_contrast",
         "learned_continuous_independent_samples_good_overlap",

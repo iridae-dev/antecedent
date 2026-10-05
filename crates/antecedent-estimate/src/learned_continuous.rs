@@ -410,6 +410,84 @@ pub fn learned_continuous_interval_internal(
     Ok(run)
 }
 
+/// Calibration-only Wald interval from the cross-fitted AIPW score. For a
+/// nested cohort the nonparticipant denominator is random, so the target
+/// contribution is centred at the full estimate. For independent fixed-size
+/// samples, the target and trial contributions are centred within their own
+/// samples and their variances are added. Nuisance estimation is treated as
+/// second order under the usual cross-fitting rate conditions.
+#[cfg(feature = "calibration-internal")]
+fn learned_continuous_analytic_interval_internal(
+    id: &TransportIdentification,
+    input: &TrialAipwInput,
+    options: &LearnedContinuousOptions,
+    ctx: &ExecutionContext,
+) -> Result<(f64, (f64, f64)), EstimationError> {
+    use crate::learned_trial::TrialSampling;
+
+    validate_learned_continuous(id, input, options)?;
+    let run = estimate_trial_aipw(id, input, &options.trial_options(0), ctx)?;
+    check_membership_overlap(&run.membership, options)?;
+    let target_n = input.source.iter().filter(|s| !**s).count() as f64;
+    let trial_n = input.source.len() as f64 - target_n;
+    if target_n <= 1.0 || trial_n <= 1.0 {
+        return Err(EstimationError::data_msg("analytic trial interval needs two rows per sample"));
+    }
+    let mut target = Vec::new();
+    let mut trial = Vec::new();
+    for i in 0..input.source.len() {
+        if input.source[i] {
+            let p = run.membership[i];
+            let e = input.randomization[i];
+            let residual = if input.treatment[i] {
+                (input.outcome[i] - run.mu1[i]) / e
+            } else {
+                -(input.outcome[i] - run.mu0[i]) / (1.0 - e)
+            };
+            trial.push((1.0 - p) / p * residual);
+        } else {
+            target.push(run.mu1[i] - run.mu0[i]);
+        }
+    }
+    let variance = match input.sampling {
+        TrialSampling::NestedCohort => {
+            let sum = target.iter().map(|x| (x - run.estimate).powi(2)).sum::<f64>()
+                + trial.iter().map(|x| x * x).sum::<f64>();
+            sum / (target_n * target_n)
+        }
+        TrialSampling::IndependentSamples => {
+            let target_mean = target.iter().sum::<f64>() / target_n;
+            let trial_mean = trial.iter().sum::<f64>() / trial_n;
+            target.iter().map(|x| (x - target_mean).powi(2)).sum::<f64>()
+                / (target_n * (target_n - 1.0))
+                + trial.iter().map(|x| (x - trial_mean).powi(2)).sum::<f64>() * trial_n
+                    / ((trial_n - 1.0) * target_n * target_n)
+        }
+    };
+    if !variance.is_finite() || variance <= 0.0 {
+        return Err(EstimationError::data_msg(
+            "analytic trial variance is nonpositive or nonfinite",
+        ));
+    }
+    let z = antecedent_stats::normal_ppf(0.5 + options.coverage_level / 2.0);
+    let width = z * variance.sqrt();
+    Ok((run.estimate, (run.estimate - width, run.estimate + width)))
+}
+
+#[cfg(feature = "calibration-internal")]
+impl LearnedContinuousOptions {
+    /// Internal candidate for coverage measurement; no public interval is licensed.
+    #[doc(hidden)]
+    pub fn analytic_interval_internal(
+        &self,
+        id: &TransportIdentification,
+        input: &TrialAipwInput,
+        ctx: &ExecutionContext,
+    ) -> Result<(f64, (f64, f64)), EstimationError> {
+        learned_continuous_analytic_interval_internal(id, input, self, ctx)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
