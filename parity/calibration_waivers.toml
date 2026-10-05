@@ -56,9 +56,9 @@ differences = [
 "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage" = "cb06f139bf27b22a9d6748b8a034f89410cb1757eba4b82655f86c5d630a05ee"
 
 [[waiver]]
-id = "smoothed-dose-dgp-name-20261005"
+id = "smoothed-dose-dgp-and-doc-link-20261005"
 from = "b5f585b633b2e021d978f7cb8b433a643085178c"
-to = "ac78b66b44a6d637f6da75f8a57a316b9596c72b"
+to = "eea7da110706939d7b1acbd136a1768e606eaedd"
 reviewed_by = "Codex DGP call-site review"
 justification = """
 The smoothed-dose calibration test now passes each good-overlap input through
@@ -68,20 +68,24 @@ the previous design, scenario, two sample sizes, and seed. The estimator,
 sample-size grid, replicate streams, truth, and scoring are unchanged. A
 bit-identical nested-cohort replay exercises the edited test file; the waiver
 covers the independent-sample record whose executed numerical path is also
-unchanged.\
+unchanged. Since then, smoothed_dose.rs changed only two Rust doc-comment
+paths pointing to the relocated derivation; no executable item, test input, or
+numeric operation changed. The same replay exercises the estimator source.\
 """
 paths = [
+  "crates/antecedent-estimate/src/smoothed_dose.rs",
   "crates/antecedent/tests/smoothed_dose_calibration.rs",
 ]
 
 [[waiver.replay]]
 record = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_nested_cohort_psi_h"
 exercises = [
+  "crates/antecedent-estimate/src/smoothed_dose.rs",
   "crates/antecedent/tests/smoothed_dose_calibration.rs",
 ]
 
 [waiver.outcome]
-replayed_at = "ac78b66b44a6d637f6da75f8a57a316b9596c72b"
+replayed_at = "eea7da110706939d7b1acbd136a1768e606eaedd"
 identical = true
 records = [
   "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_nested_cohort_psi_h",
