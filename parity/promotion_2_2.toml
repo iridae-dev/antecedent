@@ -327,8 +327,6 @@ surface_internal = [
   { name = "parse_learned_continuous_sampling", why = "Sampling-design name parser shared by the pyo3 binding and lifecycle tests; a pure parse behind the routed prepare surface." },
   { name = "parse_learned_continuous_target", why = "Target name parser shared by the pyo3 binding and lifecycle tests; a pure parse behind the routed prepare surface." },
   { name = "refuse_learned_continuous_interval", why = "Legacy refusal constructor retained for compatibility; the public analytic route no longer calls it." },
-  { name = "learned_continuous_analytic_interval", why = "Pure interval replay shared with the independent artifact consumer; it fits no nuisance." },
-  { name = "estimate_learned_continuous_analytic_interval", why = "Estimator implementation reached through PreparedLearnedContinuous.interval." },
   { name = "analytic_interval_internal", why = "Calibration-only accessor for the same analytic estimator under the calibration-internal feature." },
   { name = "learned_continuous_estimator_menu", why = "Native pyfunction backing the routed Python estimator_menu (antecedent.transport.advanced), reached only through that wrapper; the Python route owns its evidence." },
   { name = "learned_continuous_interval_internal", why = "Joint outer bootstrap behind the closed interval route; compiled only under the calibration-internal feature for the coverage harness and thread-budget test, and no public route reaches it." },
@@ -340,6 +338,7 @@ refusals = [
   { code = "sampling_dependence_unknown", detail = "learned_transport.non_iid_design", when = "Clustered, linked or undeclared sampling; only nested_cohort and independent_samples are declared IID designs." },
   { code = "estimator_inference_mismatch", detail = "learned_transport.bootstrap_below_floor", when = "Requested replicates in 1..198; the point is retained and the interval withheld." },
   { code = "estimator_inference_mismatch", detail = "learned_transport.bootstrap_not_licensed", when = "The interval method is requested with legacy percentile-bootstrap replicates; that method failed coverage." },
+  { code = "cell_not_licensed", detail = "learned_transport.interval_withheld", when = "Compatibility-only refusal constructor from the former closed interval route; the public analytic route does not call it." },
   { code = "route_not_supported", detail = "learned_transport.cate_requested", when = "A heterogeneous, conditional or simultaneous target is requested (also the menu's reason for the DR-Learner CATE entry)." },
   { code = "route_not_supported", detail = "learned_transport.bounds_exceeded", when = "More than 20 folds or more than 2000 bootstrap replicates requested." },
 ]
@@ -357,9 +356,9 @@ routes = [
   { name = "antecedent.StudyBuilder.learned_continuous_menu", stage = "representation", status = "licensed", claim = "none" },
   { name = "antecedent_io.LearnedContinuousArtifactWire.consume", stage = "consume", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.estimate_learned_continuous", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "pointwise_analytic_interval" },
-  { name = "antecedent.transport.advanced.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "pointwise_analytic_interval" },
-  { name = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_analytic_interval_replays_and_the_legacy_bootstrap_refuses" },
+  { name = "antecedent.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "calibrated", covers = ["learned_continuous_analytic_interval", "estimate_learned_continuous_analytic_interval"] },
+  { name = "antecedent.transport.advanced.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
+  { name = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", permanent_in_release = true, refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_analytic_interval_replays_and_the_legacy_bootstrap_refuses" },
 ]
 fixtures = [
   { id = "x4.good_overlap_known_truth.positive", role = "positive", intent = "Known-truth DGP (truth 2.5) with good overlap under nested cohort and independent samples; provider provenance, fold scheme and separate membership/treatment overlap recorded.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "good_overlap_known_truth_under_both_designs" },
@@ -376,7 +375,7 @@ fixtures = [
   { id = "x4.python_roundtrip.artifact", role = "artifact", intent = "Python surface: prepare once, estimate, export after builder disposal, independent consume.", evidence_test = "python/tests/test_learned_continuous_transport.py", evidence_assertion = "test_prepare_once_estimate_export_and_independent_consume_after_builder_disposal" },
   { id = "x4.python_tamper.negative", role = "negative", intent = "Python consumption refuses truncated, foreign and byte-flipped artifacts with typed errors.", evidence_test = "python/tests/test_learned_continuous_transport.py", evidence_assertion = "test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_errors" },
   { id = "x4.python_weak_overlap.negative", role = "negative", intent = "Python surface refuses weak overlap and low randomization probabilities with their reason codes.", evidence_test = "python/tests/test_learned_continuous_transport.py", evidence_assertion = "test_weak_overlap_refuses_rather_than_extrapolating" },
-  { id = "x4.sample_size_grid.calibration", role = "calibration", intent = "Measured analytic influence Wald interval at six design/sample-size coordinates, 2000 datasets each, 95% nominal. The failed percentile-bootstrap diagnostic is retained separately; weak-overlap and misspecified-nuisance tests emit no coverage record."},
+  { id = "x4.sample_size_grid.calibration", role = "calibration", intent = "Measured analytic influence Wald interval at six design/sample-size coordinates, 2000 datasets each, 95% nominal; the public interval and artifact replay are executed in the cited lifecycle test. The failed percentile-bootstrap diagnostic is retained separately.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "the_analytic_interval_replays_and_the_legacy_bootstrap_refuses" },
 ]
 
 [[record]]
