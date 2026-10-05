@@ -178,7 +178,7 @@ def test_an_interval_is_withheld_with_a_typed_refusal():
 
 def test_the_sampling_design_must_be_declared_and_be_the_matched_design():
     stratum, case, exposed = rows(pairs(7, 3))
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="sampling"):
         matched_case_control_odds_ratio(stratum=stratum, case=case, exposed=exposed)
     error = refusal(
         lambda: matched_case_control_odds_ratio(

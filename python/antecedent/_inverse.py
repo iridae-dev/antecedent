@@ -494,7 +494,11 @@ def inverse_outcome(
     if declared_horizons is not None:
         allowed_horizons = set(int(h) for h in declared_horizons)
         for _, point, _, _ in action_rows:
-            if len(point) != 2 or not point[1].is_integer() or int(point[1]) not in allowed_horizons:
+            if (
+                len(point) != 2
+                or not point[1].is_integer()
+                or int(point[1]) not in allowed_horizons
+            ):
                 raise CausalValueError(
                     "a temporal action needs a dose and one horizon declared by the forward query"
                 )

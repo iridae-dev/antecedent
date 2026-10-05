@@ -461,7 +461,9 @@ def test_temporal_reverse_forecast_uses_one_declared_horizon():
         update={
             "estimand": ResponseCurve("t", "y", grid=[0.0, 1.0], horizons=[1, 2]),
             "response": ResponseView(
-                ["t"], ["y"], [[0.0, 1.0], [1.0, 1.0], [0.0, 2.0], [1.0, 2.0]],
+                ["t"],
+                ["y"],
+                [[0.0, 1.0], [1.0, 1.0], [0.0, 2.0], [1.0, 2.0]],
                 [[1.0], [3.0], [2.0], [4.0]],
             ),
             "support": SupportReport(
@@ -489,9 +491,7 @@ def test_temporal_reverse_forecast_uses_one_declared_horizon():
         ),
     )
     with pytest.raises(CausalValueError, match="one horizon declared"):
-        inverse_outcome(
-            forward, query=TargetMean(3.0), actions=[Action("unknown", (0.0, 3.0))]
-        )
+        inverse_outcome(forward, query=TargetMean(3.0), actions=[Action("unknown", (0.0, 3.0))])
 
 
 def test_study_options_and_sensitivity_are_separate_views_outside_the_classification():

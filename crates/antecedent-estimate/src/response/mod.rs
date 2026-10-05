@@ -2781,7 +2781,7 @@ impl PluginSandwich {
                         .sum::<f64>()
                 })
                 .sum::<f64>();
-            if !(h.is_finite() && h >= 0.0 && h < 1.0) {
+            if !(0.0..1.0).contains(&h) {
                 return Err(EstimationError::unsupported(
                     "response influence needs finite row leverage below one",
                 ));

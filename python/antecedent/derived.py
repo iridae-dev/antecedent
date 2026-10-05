@@ -117,9 +117,7 @@ class DerivedTreatment:
         return json.dumps(
             {
                 "name": self.name,
-                "sources": [
-                    {"name": s.name, "role": s.role, "when": s.when} for s in self.sources
-                ],
+                "sources": [{"name": s.name, "role": s.role, "when": s.when} for s in self.sources],
                 "transformation": self.transformation,
                 "legal_values": [float(v) for v in self.legal_values],
                 "intervention": self.intervention,

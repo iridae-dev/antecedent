@@ -4678,7 +4678,6 @@ def replay_study_plan(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
-
 def classify_inverse_outcome_stage(
     query_kind: str,
     threshold: float,
@@ -4704,7 +4703,6 @@ def classify_inverse_outcome_stage(
     tolerance: float = 1e-9,
     cancel: CancellationToken | None = None,
 ) -> dict[str, Any]: ...
-
 def matched_case_control_odds_ratio(
     stratum: list[str],
     case: list[float],
@@ -4715,7 +4713,6 @@ def matched_case_control_odds_ratio(
     interval: bool = False,
     cancel: CancellationToken | None = None,
 ) -> tuple[float, float, int, int, int, int, int]: ...
-
 def derived_treatment_check_json(
     names: list[str],
     columns: list[Any],
@@ -4750,7 +4747,6 @@ def factorized_joint_cells_json(
     threads: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
-
 def raw_vs_adjusted(
     outcome: list[float],
     treatment: list[float],
@@ -4790,7 +4786,6 @@ def transform_raw_arms(
     tuple[int, float, float],
     tuple[list[float], list[tuple[float, float]], list[float] | None],
 ]: ...
-
 def candidate_screen_from_units(
     screen_id: str,
     procedure: str,
@@ -5384,7 +5379,6 @@ def open_provider_result(
     verified_request_digest: str | None = None,
     verified_evidence_digest: str | None = None,
 ) -> tuple[str, bytes | None]: ...
-
 def preflight_json(
     names: list[str],
     columns: Sequence[Any],

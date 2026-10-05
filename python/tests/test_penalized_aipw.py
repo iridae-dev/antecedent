@@ -17,7 +17,7 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalError, CausalValueError
 from antecedent.estimators import Aipw, Overlap, PropensityPenalty
 
 from _refusal import assert_registered_refusal
@@ -57,9 +57,10 @@ def test_the_dataclass_wires_the_declared_penalty_and_validates_it():
         "propensity_penalty": {"kind": "ridge_logistic"},
     }
     # A bootstrap and a dependence-robust SE are accepted with a penalty: the interval routes.
-    assert Aipw(bootstrap=40, propensity_penalty=PropensityPenalty())._wire()[
-        "bootstrap_replicates"
-    ] == 40
+    assert (
+        Aipw(bootstrap=40, propensity_penalty=PropensityPenalty())._wire()["bootstrap_replicates"]
+        == 40
+    )
     assert Aipw(propensity_penalty=PropensityPenalty(kind="lasso", lambdas=[2.0, 8.0]))._wire() == {
         "propensity_penalty": {"kind": "lasso", "lambdas": [2.0, 8.0]}
     }
@@ -167,7 +168,9 @@ def test_a_lasso_propensity_records_its_selected_support_per_fold():
     # z0 is the first data column (variable id 0), the strongest propensity covariate.
     assert all("V0" in fold.names for fold in support)
     assert all(set(fold.names) <= {"V0", "V1"} for fold in support)
-    assert all(spec.startswith("lasso_logistic:") for spec, _, _ in result.estimate.learner_provenance)
+    assert all(
+        spec.startswith("lasso_logistic:") for spec, _, _ in result.estimate.learner_provenance
+    )
 
 
 def test_a_lasso_outside_the_cross_fit_is_refused_with_a_typed_refusal():
@@ -176,7 +179,7 @@ def test_a_lasso_outside_the_cross_fit_is_refused_with_a_typed_refusal():
         propensity_penalty=PropensityPenalty(kind="lasso"),
         overlap=Overlap(trim=0.05),
     )
-    with pytest.raises(Exception) as error:
+    with pytest.raises(CausalError) as error:
         ant.analyze(moderate(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
     assert "selection_inference_not_licensed" in refusal_text(error.value)
     assert_registered_refusal(error.value)
@@ -184,7 +187,7 @@ def test_a_lasso_outside_the_cross_fit_is_refused_with_a_typed_refusal():
 
 def test_a_ridge_penalty_outside_the_cross_fit_is_route_not_supported():
     cfg = Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(), overlap=Overlap(trim=0.05))
-    with pytest.raises(Exception) as error:
+    with pytest.raises(CausalError) as error:
         ant.analyze(moderate(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
     assert "route_not_supported" in refusal_text(error.value)
     assert_registered_refusal(error.value)
@@ -228,7 +231,7 @@ def test_a_failed_glm_fit_runs_the_declared_fallback_and_records_both():
 
 def test_a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded():
     cfg = Aipw(bootstrap=0, nuisance_fallback="ml")
-    with pytest.raises(Exception) as error:
+    with pytest.raises(CausalError) as error:
         ant.analyze(separated(), graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=2)
     text = refusal_text(error.value)
     assert "nuisance_fallback_not_licensed" in text
@@ -255,7 +258,7 @@ def test_a_machine_learning_fallback_is_refused_with_the_failed_fit_recorded():
     ],
 )
 def test_an_invalid_penalty_is_refused_before_any_fit(penalty):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="penalty|propensity_penalty"):
         ant.analyze(
             moderate(),
             graph=GRAPH,

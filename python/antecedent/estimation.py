@@ -5838,9 +5838,7 @@ class PreparedAnalysis(Generic[ResultT]):
 
         return diagnose_prepared(self._native, seed=seed, threads=threads)
 
-    def diagnose_fit(
-        self, *, seed: int = 1, threads: int | None = None
-    ) -> NuisanceFitDiagnostics:
+    def diagnose_fit(self, *, seed: int = 1, threads: int | None = None) -> NuisanceFitDiagnostics:
         """Fit a diagnostic propensity model and report its score range and arm ESS.
 
         Not preflight: the fit is part of the evidence. A fit that fails before any score

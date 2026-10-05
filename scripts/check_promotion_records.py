@@ -1002,7 +1002,7 @@ for rec in records:
                 try:
                     bodies.append(closure_code(root / pth if not outside_repo(pth) else Path(pth), assertion))
                 except (ValueError, SyntaxError, OSError):
-                    pass
+                    continue
         for cname, lst in route_covers.items():
             parts = set(cname.split("."))
             entry_text = "".join(

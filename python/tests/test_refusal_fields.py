@@ -12,7 +12,7 @@ from __future__ import annotations
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent.errors import CausalEstimateError, CausalUnsupportedError
+from antecedent.errors import CausalError, CausalEstimateError, CausalUnsupportedError
 from antecedent.estimation import PreparedBatch, RetargetClaim, RetargetContrast
 from antecedent.estimators import Aipw, ClusterDml
 
@@ -137,7 +137,7 @@ def test_a_retarget_dependence_refusal_has_stage_reason_and_remedy_but_no_number
         bootstrap=0,
     )
     weights = np.exp(0.3 * np.asarray(data["z"]))
-    with pytest.raises(Exception) as raised:
+    with pytest.raises(CausalError) as raised:
         prepared.retarget(weights, ["t"])
     error = raised.value
     assert "must not include the treatment" in str(error)
@@ -233,7 +233,7 @@ def test_a_cluster_count_shortfall_reports_found_and_minimum_counts():
     y = 2.0 * t + z0 + 0.5 * z1 + 0.5 * rng.normal(size=n)
     data = {"z0": z0, "z1": z1, "t": t, "y": y}
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
-    with pytest.raises(Exception) as raised:
+    with pytest.raises(CausalError) as raised:
         ant.analyze(
             data,
             graph=[("z0", "t"), ("z1", "t"), ("z0", "y"), ("z1", "y"), ("t", "y")],

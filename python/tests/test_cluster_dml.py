@@ -14,9 +14,9 @@ import math
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent.errors import CausalValueError
-from antecedent.estimation import CandidateScreen, PreparedBatch, RetargetClaim
 from antecedent._native import analyze_ate
+from antecedent.errors import CausalError, CausalValueError
+from antecedent.estimation import CandidateScreen, PreparedBatch, RetargetClaim
 from antecedent.estimators import Aipw, ClusterDml
 
 from _refusal import assert_registered_refusal
@@ -121,7 +121,7 @@ def test_a_cluster_batch_band_uses_the_cluster_reference():
 def test_few_clusters_are_refused_with_a_registered_reason_code():
     data, cluster = clustered(groups=12, size=20)
     cfg = Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=cluster.tolist(), min_clusters=20))
-    with pytest.raises(Exception) as error:
+    with pytest.raises(CausalError) as error:
         ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
     assert "too_few_clusters" in refusal_text(error.value)
     assert_registered_refusal(error.value)
@@ -140,7 +140,7 @@ def two_way(blocks: int = 30, na: int = 3, nb: int = 4, seed: int = 11):
                 z1 = rng.normal()
                 t = float(rng.uniform() < 1 / (1 + np.exp(-(0.6 * z0 - 0.4 * z1))))
                 y = 2.0 * t + z0 + 0.5 * z1 + u[i] + v[j] + 0.5 * rng.normal()
-                for name, value in zip(("z0", "z1", "t", "y"), (z0, z1, t, y)):
+                for name, value in zip(("z0", "z1", "t", "y"), (z0, z1, t, y), strict=True):
                     cols[name].append(value)
                 first.append(k * na + i)
                 second.append(1_000_000 + k * nb + j)
@@ -192,7 +192,7 @@ def test_unsupported_dyadic_structures_stay_closed_with_a_registered_reason_code
             bootstrap=0,
             cluster_dml=ClusterDml(cluster_ids=first, second_cluster_ids=labels, unit="dyad"),
         )
-        with pytest.raises(Exception) as error:
+        with pytest.raises(CausalError) as error:
             ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
         assert "dyadic_dependence_not_licensed" in refusal_text(error.value)
         assert detail in refusal_text(error.value)
@@ -205,7 +205,7 @@ def test_few_components_per_fold_are_refused_with_a_registered_reason_code():
         bootstrap=0,
         cluster_dml=ClusterDml(cluster_ids=first, second_cluster_ids=second, unit="dyad"),
     )
-    with pytest.raises(Exception) as error:
+    with pytest.raises(CausalError) as error:
         ant.analyze(data, graph=GRAPH, query=QUERY, estimator=cfg, refute=False, seed=1)
     assert "too_few_clusters" in refusal_text(error.value)
     assert_registered_refusal(error.value)
@@ -217,7 +217,7 @@ def test_flexible_learners_refuse_cluster_options(estimator, option):
     data, cluster = clustered(groups=30, size=10)
     names = ["z0", "z1", "t", "y"]
     columns = [data[name] for name in names]
-    with pytest.raises(ValueError) as error:
+    with pytest.raises(ValueError, match="cluster_dml.flexible_learner_closed") as error:
         analyze_ate(
             names,
             columns,
@@ -257,8 +257,8 @@ def test_the_dyad_screen_split_keeps_connected_endpoints_together_and_refuses_on
         return {first[i] for i in rows} | {second[i] for i in rows}
 
     assert endpoints(screen.screen_rows).isdisjoint(endpoints(screen.estimate_rows))
-    with pytest.raises(Exception) as error:
+    with pytest.raises(CausalError) as error:
         CandidateScreen.from_units("d", "bh", first=[0, 1, 2], second=[1, 2, 0], seed=1)
     assert "invalid_argument" in refusal_text(error.value)
-    with pytest.raises(Exception):
+    with pytest.raises(CausalError):
         CandidateScreen.from_units("d", "bh", entity_ids=[0, 1], first=[0], second=[1], seed=1)

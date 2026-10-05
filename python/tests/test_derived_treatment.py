@@ -36,9 +36,7 @@ def draw(n, seed, law):
 
 
 def components(*names):
-    return [
-        SourceColumn(name, "treatment_construction", "at_treatment") for name in names
-    ]
+    return [SourceColumn(name, "treatment_construction", "at_treatment") for name in names]
 
 
 def declaration(**edits):
@@ -122,9 +120,7 @@ def test_a_family_with_one_unsupported_cell_keeps_the_rest():
 def test_constituent_and_descendant_leakage_needs_a_declared_exclusion():
     data = {**draw(400, 3, LAW), "post": np.zeros(400)}
     error = refusal(
-        lambda: check_derived_treatment(
-            data, declaration(), outcome="y", adjustment=["z", "t1"]
-        )
+        lambda: check_derived_treatment(data, declaration(), outcome="y", adjustment=["z", "t1"])
     )
     assert error.reason_code == "derived_treatment_invalid"
     assert "joint_cells.derived_constituent_in_adjustment" in str(error)
@@ -138,9 +134,7 @@ def test_constituent_and_descendant_leakage_needs_a_declared_exclusion():
     assert plan.exclusions == tuple(excluded.exclusions)
 
     error = refusal(
-        lambda: check_derived_treatment(
-            data, declaration(), outcome="y", adjustment=["z", "post"]
-        )
+        lambda: check_derived_treatment(data, declaration(), outcome="y", adjustment=["z", "post"])
     )
     assert "joint_cells.derived_descendant_in_adjustment" in str(error)
     wrong_rule = declaration(
@@ -156,9 +150,7 @@ def test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_na
     data = draw(400, 4, LAW)
     duplicated = {**data, "t1": data["t0"].copy()}
     error = refusal(
-        lambda: check_derived_treatment(
-            duplicated, declaration(), outcome="y", adjustment=["z"]
-        )
+        lambda: check_derived_treatment(duplicated, declaration(), outcome="y", adjustment=["z"])
     )
     assert "joint_cells.derived_duplicate_constituents" in str(error)
     assert error.refusal_fields["implicated_columns"] == ["t0", "t1"]
@@ -180,9 +172,7 @@ def test_exact_duplicate_treatments_and_rank_failure_are_refused_with_columns_na
 def test_illegal_values_and_contradictory_declarations_are_refused():
     data = draw(300, 5, LAW)
     narrow = declaration(legal_values=[0.0, 1.0, 2.0])
-    error = refusal(
-        lambda: check_derived_treatment(data, narrow, outcome="y", adjustment=["z"])
-    )
+    error = refusal(lambda: check_derived_treatment(data, narrow, outcome="y", adjustment=["z"]))
     assert "joint_cells.derived_illegal_value" in str(error)
     for edit in (
         {"intervention": "joint_components", "transformation": "product"},
@@ -214,9 +204,7 @@ def test_intervals_machine_learning_nuisance_and_lasso_are_closed():
     data = draw(300, 6, LAW)
 
     def call(**options):
-        return factorized_joint_cells(
-            data, declaration(), outcome="y", adjustment=["z"], **options
-        )
+        return factorized_joint_cells(data, declaration(), outcome="y", adjustment=["z"], **options)
 
     error = refusal(lambda: call(level=0.95))
     assert error.reason_code == "penalized_interval_not_licensed"
@@ -256,6 +244,7 @@ def test_a_declared_learner_nuisance_is_cross_fitted_and_point_only():
         assert error.reason_code == "route_not_supported"
         assert "joint_cells.learner_unavailable" in str(error)
         pytest.skip("the random_forest provider is not built into this wheel")
+        return
     assert result.claim == "point_only"
     assert len(result.supported) == 4
     for cell in result.cells:
@@ -273,6 +262,4 @@ def test_a_cancelled_fit_is_never_a_result():
     token = CancellationToken()
     token.cancel()
     with pytest.raises((CausalCancelledError, CausalUnsupportedError)):
-        factorized_joint_cells(
-            data, declaration(), outcome="y", adjustment=["z"], cancel=token
-        )
+        factorized_joint_cells(data, declaration(), outcome="y", adjustment=["z"], cancel=token)

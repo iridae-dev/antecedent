@@ -119,7 +119,7 @@ def test_a_one_row_arm_has_no_standard_error_and_no_covariance():
 
 def test_the_gap_is_never_attributed_to_adjustment_columns():
     for call in (
-        lambda: attribute_gap_to_columns(),
+        attribute_gap_to_columns,
         lambda: attribute_gap_to_columns(columns=["age", "sex"], method="leave_one_out"),
     ):
         error = refusal(call)

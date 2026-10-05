@@ -10,9 +10,10 @@ from __future__ import annotations
 import antecedent
 import numpy as np
 import pytest
-from _refusal import assert_registered_refusal
 from antecedent import preflight as pf
 from antecedent.errors import CausalUnsupportedError
+
+from _refusal import assert_registered_refusal
 
 
 def _normals(n: int, k: int, seed: int) -> list[np.ndarray]:
@@ -71,7 +72,9 @@ def test_exact_collinearity_reports_the_hand_computed_relation() -> None:
     )
     assert report.rank is not None
     assert report.rank.numerical_rank == 3
-    by_name = {d.column: {w.column: w.coefficient for w in d.explained_by} for d in report.rank.dependent}
+    by_name = {
+        d.column: {w.column: w.coefficient for w in d.explained_by} for d in report.rank.dependent
+    }
     assert set(by_name) == {"combo", "constant"}
     assert by_name["combo"]["(intercept)"] == pytest.approx(5.0, abs=1e-8)
     assert by_name["combo"]["a"] == pytest.approx(3.0, abs=1e-8)
@@ -122,9 +125,7 @@ def test_separation_and_empty_arms_are_flagged_or_refused() -> None:
         assert fitted.fit is not None
         assert fitted.fit.separated or not fitted.fit.converged or fitted.fit.boundary_saturated
 
-    empty = pf.preflight(
-        _frame(np.zeros(n), w, z=z), treatment="t", outcome="y", adjustment=["z"]
-    )
+    empty = pf.preflight(_frame(np.zeros(n), w, z=z), treatment="t", outcome="y", adjustment=["z"])
     assert [a.rows for a in empty.arms] == [n, 0]
     assert [f.code for f in empty.blocking] == ["arm_not_populated"]
     absent = pf.fit_diagnostics(

@@ -244,7 +244,7 @@ def test_export_requires_an_execution_and_refresh_keeps_the_certificate():
     with pytest.raises(CausalUnsupportedError, match="estimate before exporting"):
         study.export()
     first = study.estimate()
-    fresh_query, fresh = fixture(seed=9)
+    _, fresh = fixture(seed=9)
     study.refresh(fresh)
     with pytest.raises(CausalUnsupportedError, match="estimate before exporting"):
         study.export()
@@ -253,7 +253,6 @@ def test_export_requires_an_execution_and_refresh_keeps_the_certificate():
         study.refresh(dataclasses.replace(fresh, sampling="nested_cohort"))
     with pytest.raises(CausalUnsupportedError, match="learned_transport.treatment_overlap"):
         study.refresh(dataclasses.replace(fresh, randomization=[0.0] * len(fresh.randomization)))
-    del fresh_query
 
 
 def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_errors():
@@ -277,8 +276,12 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
 
 def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     builder_query, builder_data = fixture()
-    study = advanced.prepare_learned_continuous(builder_query, builder_data, options=options(bootstrap=199), seed=4)
-    with pytest.raises(CausalUnsupportedError, match="learned_transport.bootstrap_not_licensed") as info:
+    study = advanced.prepare_learned_continuous(
+        builder_query, builder_data, options=options(bootstrap=199), seed=4
+    )
+    with pytest.raises(
+        CausalUnsupportedError, match="learned_transport.bootstrap_not_licensed"
+    ) as info:
         study.interval()
     assert info.value.reason_code == "estimator_inference_mismatch"
     result = study.estimate()
@@ -289,7 +292,9 @@ def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     consumed = advanced.consume_learned_continuous(study.export())
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None
-    plan = advanced.prepare_learned_continuous(builder_query, builder_data, options=options(), seed=4)
+    plan = advanced.prepare_learned_continuous(
+        builder_query, builder_data, options=options(), seed=4
+    )
     del builder_query, builder_data
     interval = plan.interval()
     assert interval.uncertainty["status"] == "available"

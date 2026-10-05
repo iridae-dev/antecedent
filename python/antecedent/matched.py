@@ -183,9 +183,7 @@ def _bad(why: str) -> CausalSerializationError:
     return CausalSerializationError(f"matched case-control artifact: {why}")
 
 
-def _expanded_rows(
-    set_types: object, max_rows: int
-) -> tuple[list[str], list[float], list[float]]:
+def _expanded_rows(set_types: object, max_rows: int) -> tuple[list[str], list[float], list[float]]:
     """Rebuild one representative row list from the stored sufficient statistic."""
     if not isinstance(set_types, list):
         raise _bad("set_types must be a list")

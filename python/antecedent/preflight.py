@@ -494,7 +494,14 @@ def preflight(
     """
     names, columns = ingest_columns(data)
     raw = _native.preflight_json(
-        names, columns, treatment, outcome, list(adjustment), control, active, seed=seed,
+        names,
+        columns,
+        treatment,
+        outcome,
+        list(adjustment),
+        control,
+        active,
+        seed=seed,
         threads=threads,
     )
     return _report(json.loads(raw))
@@ -518,7 +525,14 @@ def fit_diagnostics(
     """
     names, columns = ingest_columns(data)
     raw = _native.fit_diagnostics_json(
-        names, columns, treatment, outcome, list(adjustment), control, active, seed=seed,
+        names,
+        columns,
+        treatment,
+        outcome,
+        list(adjustment),
+        control,
+        active,
+        seed=seed,
         threads=threads,
     )
     return _fit_diagnostics(json.loads(raw))
@@ -626,9 +640,7 @@ def diagnose_prepared(native: Any, *, seed: int, threads: int | None) -> Preflig
     return _report(_call(native, "diagnose_json", seed=seed, threads=threads))
 
 
-def diagnose_fit_prepared(
-    native: Any, *, seed: int, threads: int | None
-) -> NuisanceFitDiagnostics:
+def diagnose_fit_prepared(native: Any, *, seed: int, threads: int | None) -> NuisanceFitDiagnostics:
     """``PreparedAnalysis.diagnose_fit``: propensity-fit diagnostics of a prepared plan."""
     return _fit_diagnostics(_call(native, "diagnose_fit_json", seed=seed, threads=threads))
 

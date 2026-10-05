@@ -367,7 +367,7 @@ def test_the_simultaneous_interval_is_a_max_t_band_with_a_typed_partial_refusal(
     assert_registered_refusal(refused.value)
     assert refused.value.reason_code == "cell_not_licensed"
     assert "partial_family" in str(refused.value)
-    with pytest.raises(Exception):
+    with pytest.raises(CausalUnsupportedError, match="max_t_invalid_level"):
         batch.retarget([RetargetClaim("a", 0, plus, depends_on=["z"])], simultaneous_level=1.5)
 
 
