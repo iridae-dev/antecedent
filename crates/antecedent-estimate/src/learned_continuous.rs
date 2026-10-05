@@ -58,7 +58,7 @@ use antecedent_identify::TransportIdentification;
 use antecedent_learn::{LearnerProvenance, LearnerSpec};
 use serde::{Deserialize, Serialize};
 
-/// Fewest bootstrap replicates of the calibrated interval; below it the interval is withheld.
+/// Fewest bootstrap replicates accepted by the closed legacy interval request.
 pub const LEARNED_CONTINUOUS_MIN_BOOTSTRAP: u32 = 199;
 /// Most bootstrap replicates one request may ask for.
 pub const LEARNED_CONTINUOUS_MAX_BOOTSTRAP: u32 = 2000;
@@ -222,16 +222,16 @@ fn support_refusal(detail: &str, message: &str) -> EstimationError {
     refuse(antecedent_core::reason_code!("transport_support_failure"), detail, message)
 }
 
-/// The refusal of the closed interval route: the point is retained, the interval is
-/// withheld until this cell's coverage records are measured.
+/// The refusal of the closed interval route: the point is retained while the
+/// measured analytic candidate awaits a separate API and artifact promotion.
 #[must_use]
 #[doc(hidden)]
 pub fn refuse_learned_continuous_interval() -> EstimationError {
     refuse(
         antecedent_core::reason_code!("cell_not_licensed"),
         "learned_transport.interval_withheld",
-        "the joint outer bootstrap interval route is closed until its coverage records are \
-         measured; the point estimate is retained",
+        "the learned continuous interval route is closed pending promotion of the \
+         measured analytic candidate; the point estimate is retained",
     )
 }
 

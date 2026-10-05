@@ -2959,7 +2959,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_independent_samples_good_overlap",
         test: "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_independent_samples_continuous_mean_contrast",
-        calibration_sha: "5306d3dd828ffdf34adab2b106f9f3aa511fd042",
+        calibration_sha: "be7f7e3223ebd6b8adcb31229f1892a5a515d724",
     },
     CoverageRecord {
         id: "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast",
@@ -2992,7 +2992,7 @@ pub static RECORDS: &[CoverageRecord] = &[
         ],
         dgp: "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_nested_cohort_good_overlap",
         test: "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_nested_cohort_continuous_mean_contrast",
-        calibration_sha: "5306d3dd828ffdf34adab2b106f9f3aa511fd042",
+        calibration_sha: "be7f7e3223ebd6b8adcb31229f1892a5a515d724",
     },
     CoverageRecord {
         id: "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies",

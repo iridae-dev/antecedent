@@ -204,12 +204,12 @@ calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 [[gate]]
 group = "learned_continuous_calibration__learned_trial_aipw_misspecified_nuisance_cases"
 passed = 1
-calibration_sha = "5306d3dd828ffdf34adab2b106f9f3aa511fd042"
+calibration_sha = "be7f7e3223ebd6b8adcb31229f1892a5a515d724"
 
 [[gate]]
 group = "learned_continuous_calibration__learned_trial_aipw_weak_overlap_boundary"
 passed = 1
-calibration_sha = "5306d3dd828ffdf34adab2b106f9f3aa511fd042"
+calibration_sha = "be7f7e3223ebd6b8adcb31229f1892a5a515d724"
 
 [[gate]]
 group = "smoothed_dose_calibration__smoothed_dose_transport_grid_points"
