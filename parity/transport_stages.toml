@@ -3234,7 +3234,7 @@ guarantee = "conditional_influence_and_refit_bootstrap_intervals_at_measured_coo
 reference = "docs/guides/penalized-aipw.md"
 limits = "The Python result exposes the AIPW interval; coverage is measured for matching 95% ridge/lasso analytic and bootstrap coordinates, with other configurations explicitly scope_not_assessed."
 evidence_test = "python/tests/test_penalized_aipw.py"
-evidence_assertion = "test_a_penalized_aipw_reports_a_point_the_scores_and_the_influence_interval"
+evidence_assertion = "test_the_refit_bootstrap_publishes_its_se_and_the_penalties_of_every_replicate"
 
 [[routes]]
 route = "antecedent_estimate.AipwAte.glm_fallback"
