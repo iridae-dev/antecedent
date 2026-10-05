@@ -56,6 +56,79 @@ differences = [
 "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage" = "cb06f139bf27b22a9d6748b8a034f89410cb1757eba4b82655f86c5d630a05ee"
 
 [[waiver]]
+id = "response-leverage-clippy-20261005"
+from = "b5f585b633b2e021d978f7cb8b433a643085178c"
+to = "7de81b15b2954498c047bfb450be84d01682cf0e"
+reviewed_by = "Codex floating-point predicate review"
+justification = """
+The response/mod.rs change replaces `h.is_finite() && h >= 0.0 && h < 1.0`
+with `(0.0..1.0).contains(&h)` in the row-leverage guard. For finite h the
+two range comparisons are identical. NaN and either infinity are rejected by
+both forms; signed zero is accepted by both. The branch and every value used
+by the estimator are therefore unchanged. This replay checks a stored
+response-module coverage record bit for bit at the changed commit; the
+unchanged result attests the other response records whose numerical paths
+were not altered by this Clippy-only edit.\
+"""
+paths = [
+  "crates/antecedent-estimate/src/response/mod.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/response/mod.rs",
+]
+
+[waiver.outcome]
+replayed_at = "7de81b15b2954498c047bfb450be84d01682cf0e"
+identical = true
+records = [
+  "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage" = "cb06f139bf27b22a9d6748b8a034f89410cb1757eba4b82655f86c5d630a05ee"
+
+[[waiver]]
+id = "response-leverage-derivative-clippy-20261005"
+from = "b818ece15bc77f79fd2cd8199e118e48b4cc361c"
+to = "7de81b15b2954498c047bfb450be84d01682cf0e"
+reviewed_by = "Codex floating-point predicate review"
+justification = """
+Six directional-derivative and response-Jacobian records were measured after
+the earlier response replay's `from` commit. They also depend on the edited
+row-leverage guard. The replacement of `is_finite() && h >= 0.0 && h < 1.0`
+with `(0.0..1.0).contains(&h)` has the same truth value for every f64,
+including NaN, infinities, and signed zero, and changes no numeric operation
+after the guard. This replay checks a directional-derivative record from that
+measurement point bit for bit at the changed commit.\
+"""
+paths = [
+  "crates/antecedent-estimate/src/response/mod.rs",
+]
+
+[[waiver.replay]]
+record = "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_frequentist_nominal_90_coverage.j_0"
+exercises = [
+  "crates/antecedent-estimate/src/response/mod.rs",
+]
+
+[waiver.outcome]
+replayed_at = "7de81b15b2954498c047bfb450be84d01682cf0e"
+identical = true
+records = [
+  "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_frequentist_nominal_90_coverage.j_0",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_frequentist_nominal_90_coverage.j_0" = "6467d0ea5e6cb6662a54528fcde789c8861fb4756a8b5e45875cff2ad45dfd8c"
+
+[[waiver]]
 id = "smoothed-dose-dgp-and-doc-link-20261005"
 from = "b5f585b633b2e021d978f7cb8b433a643085178c"
 to = "eea7da110706939d7b1acbd136a1768e606eaedd"
