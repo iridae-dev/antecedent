@@ -821,6 +821,14 @@ fn the_analytic_interval_replays_and_the_legacy_bootstrap_refuses() {
     assert!(interval.estimate().uncertainty.available());
     let (low, high) = interval.estimate().interval.unwrap();
     assert!(low < interval.estimate().estimate && interval.estimate().estimate < high);
+    let replayed_band =
+        antecedent_estimate::learned_continuous::learned_continuous_analytic_interval(
+            &interval.wire().input,
+            interval.estimate(),
+            options().coverage_level,
+        )
+        .unwrap();
+    assert_eq!(replayed_band, (interval.estimate().standard_error.unwrap(), (low, high)));
     let replay = consume_learned_continuous_artifact(
         &interval.export().unwrap(),
         LearnedContinuousConsumeLimits::default(),

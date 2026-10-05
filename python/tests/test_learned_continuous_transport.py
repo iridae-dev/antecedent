@@ -290,6 +290,7 @@ def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None
     analytic = advanced.prepare_learned_continuous(query, data, options=options(), seed=4)
+    del query, data
     interval = analytic.interval()
     assert interval.uncertainty["status"] == "available"
     assert interval.standard_error > 0
