@@ -16,3 +16,29 @@
 # than this header are not kept (the justification is the prose).
 # `scripts/gate_calibration_attestation.sh` validates every waiver and reports
 # the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "response-gradient-hc2-20261005"
+from = "b5f585b633b2e021d978f7cb8b433a643085178c"
+to = "HEAD"
+reviewed_by = "charles.hinshaw@iridae.com"
+justification = """
+The change in response/mod.rs computes row leverage and HC2 residuals only in
+plugin_gradient_influence, which plugin_gradient_run calls with with_influence
+only from plugin_gradient_interval_internal. That interval is compiled behind
+calibration-internal and used by the frequentist GAM Jacobian and directional
+derivative calibration tests. The directional records are remeasured at the
+changed commit, and the Jacobian test has no prior passing records. Other
+response estimator paths do not request the changed influence or sandwich SE.
+This replay exercises an unchanged public GAM derivative path through the
+edited module and checks its stored coverage output bit for bit.\
+"""
+paths = [
+  "crates/antecedent-estimate/src/response/mod.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage"
+exercises = [
+  "crates/antecedent-estimate/src/response/mod.rs",
+]
