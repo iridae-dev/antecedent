@@ -346,7 +346,7 @@ routes = [
   { name = "antecedent_estimate.transport_estimator_menu", stage = "representation", status = "licensed", claim = "none" },
   { name = "antecedent.StudyBuilder.learned_continuous_transport", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.PreparedLearnedContinuous.estimate_refresh", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.consume_learned_continuous_artifact", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.consume_learned_continuous_artifact", stage = "consume", status = "licensed", claim = "point_only", covers = ["learned_continuous_analytic_interval"] },
   { name = "antecedent.transport.advanced.estimator_menu", stage = "representation", status = "licensed", claim = "none" },
   { name = "antecedent.transport.advanced.prepare_learned_continuous", stage = "prepare", status = "licensed", claim = "point_only" },
   { name = "antecedent.transport.advanced.PreparedLearnedContinuous.estimate", stage = "evaluate", status = "licensed", claim = "point_only" },
@@ -356,7 +356,7 @@ routes = [
   { name = "antecedent.StudyBuilder.learned_continuous_menu", stage = "representation", status = "licensed", claim = "none" },
   { name = "antecedent_io.LearnedContinuousArtifactWire.consume", stage = "consume", status = "licensed", claim = "point_only" },
   { name = "antecedent_estimate.estimate_learned_continuous", stage = "evaluate", status = "licensed", claim = "point_only" },
-  { name = "antecedent.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "calibrated", covers = ["learned_continuous_analytic_interval", "estimate_learned_continuous_analytic_interval"] },
+  { name = "antecedent.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "calibrated", covers = ["estimate_learned_continuous_analytic_interval"] },
   { name = "antecedent.transport.advanced.PreparedLearnedContinuous.interval", stage = "uncertainty", status = "licensed", claim = "calibrated" },
   { name = "antecedent.transport.learned_continuous.uncertainty_joint_outer_bootstrap", stage = "uncertainty", status = "closed", reason_code = "estimator_inference_mismatch", permanent_in_release = true, refusal_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", refusal_assertion = "the_analytic_interval_replays_and_the_legacy_bootstrap_refuses" },
 ]
