@@ -556,11 +556,13 @@ sampling coverage of every published derivative interval is gated in
   coefficient-sandwich confidence band exists. Its analytic variance uses an
   HC2 correction based on each complete row's leverage in the penalized spline
   fit; the Bayesian band below uses a separate average-leverage correction.
-  Its coverage has not been measured yet. The gate wires it as
+  Its 90% coverage is measured over the gate's three sample-size points as
   `response_jacobian_dag_frequentist_nominal_90_coverage` and
   `directional_derivative_dag_frequentist_nominal_90_coverage` in
-  `v19_derivative_calibration.rs`, and the public route stays closed until
-  those records exist. For an interval today, run the query with Bayesian
+  `v19_derivative_calibration.rs`. The public route remains point-only while
+  those records and the interval route are reviewed for promotion; one
+  directional coordinate narrowly missed an exploratory 8,000-repetition
+  threshold, although the prescribed gate passed. For an interval today, run the query with Bayesian
   inference. A Rust `Jacobian` on a transformed
   `DerivativeScale` (for example an elasticity Jacobian) has no interval
   construction at all, wired or published. The scalar `Elasticity` query is a

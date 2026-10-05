@@ -5041,14 +5041,14 @@ replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 500, n_max = 500, observed = 0.895, mcse = 0.015327671055969331, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 500, n_max = 500, observed = 0.8975, mcse = 0.015165235738358969, replicates = 400, boundary = false, role = "gated" },
   { point = 1, n_min = 1000, n_max = 1000, observed = 0.8825, mcse = 0.016100756969782512, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9035, mcse = 0.006602565789145914, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.907, mcse = 0.006494266702253611, replicates = 2000, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data"
 test = "crates/antecedent/tests/v19_derivative_calibration.rs::directional_derivative_dag_frequentist_nominal_90_coverage"
 facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "b818ece15bc77f79fd2cd8199e118e48b4cc361c"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -5077,14 +5077,14 @@ replicates = 400
 boundary = false
 role = "gated"
 grid = [
-  { point = 0, n_min = 500, n_max = 500, observed = 0.9025, mcse = 0.014831870246196198, replicates = 400, boundary = false, role = "gated" },
+  { point = 0, n_min = 500, n_max = 500, observed = 0.9075, mcse = 0.014486523910172518, replicates = 400, boundary = false, role = "gated" },
   { point = 1, n_min = 1000, n_max = 1000, observed = 0.8825, mcse = 0.016100756969782512, replicates = 400, boundary = false, role = "gated" },
-  { point = 2, n_min = 1500, n_max = 1500, observed = 0.8955, mcse = 0.006840312492861713, replicates = 2000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.9015, mcse = 0.0066632480818291625, replicates = 2000, boundary = false, role = "gated" },
 ]
 dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data"
 test = "crates/antecedent/tests/v19_derivative_calibration.rs::directional_derivative_dag_frequentist_nominal_90_coverage"
 facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
-calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+calibration_sha = "b818ece15bc77f79fd2cd8199e118e48b4cc361c"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -21069,6 +21069,150 @@ dgp = "crates/antecedent/tests/v110_calibration_bayesian_static.rs::gam_data"
 test = "crates/antecedent/tests/v110_calibration_bayesian_static.rs::response_jacobian_bayesian_default_coverage"
 facets = ["core", "estimator.response", "identity.response", "suite.v110_calibration_bayesian_static"]
 calibration_sha = "b5f585b633b2e021d978f7cb8b433a643085178c"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.j_0"
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.gam_derivative"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.8945
+mcse = 0.0034345623811484344
+replicates = 8000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.8945, mcse = 0.0034345623811484344, replicates = 8000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.89875, mcse = 0.0033726554356322846, replicates = 8000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.89525, mcse = 0.0034237668856830776, replicates = 8000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_dag_frequentist_nominal_90_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "b818ece15bc77f79fd2cd8199e118e48b4cc361c"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.j_1"
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.gam_derivative"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.90175
+mcse = 0.003327854742548117
+replicates = 8000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.901875, mcse = 0.0033259676106172473, replicates = 8000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.903375, mcse = 0.0033031918157859067, replicates = 8000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.90175, mcse = 0.003327854742548117, replicates = 8000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_dag_frequentist_nominal_90_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "b818ece15bc77f79fd2cd8199e118e48b4cc361c"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.j_2"
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.gam_derivative"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.895375
+mcse = 0.003421962327652804
+replicates = 8000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.895375, mcse = 0.003421962327652804, replicates = 8000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.900625, mcse = 0.0033447647408861208, replicates = 8000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.89825, mcse = 0.0033800321281757073, replicates = 8000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_dag_frequentist_nominal_90_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "b818ece15bc77f79fd2cd8199e118e48b4cc361c"
+surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+
+[[record]]
+id = "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.j_3"
+query = "ResponseJacobian"
+graph_class = "Dag"
+structure = "fixed"
+modality = "tabular"
+inference = "Frequentist"
+estimator = "response.gam_derivative"
+interval_method = "analytic_se"
+se_kind = ""
+dependence = "iid"
+posterior = ""
+functional = "all_observed.mean.complete"
+identification = "point"
+nominal = 0.9
+n_min = 500
+n_max = 1500
+replicates_min = 0
+posterior_draws_min = 0
+unidentified_mass_max = 0.0
+observed = 0.89375
+mcse = 0.0034453036422788623
+replicates = 8000
+boundary = false
+role = "gated"
+grid = [
+  { point = 0, n_min = 500, n_max = 500, observed = 0.89475, mcse = 0.00343096993392539, replicates = 8000, boundary = false, role = "gated" },
+  { point = 1, n_min = 1000, n_max = 1000, observed = 0.89375, mcse = 0.0034453036422788623, replicates = 8000, boundary = false, role = "gated" },
+  { point = 2, n_min = 1500, n_max = 1500, observed = 0.901, mcse = 0.0033391428540869585, replicates = 8000, boundary = false, role = "gated" },
+]
+dgp = "crates/antecedent/tests/v19_derivative_calibration.rs::gam_data"
+test = "crates/antecedent/tests/v19_derivative_calibration.rs::response_jacobian_dag_frequentist_nominal_90_coverage"
+facets = ["core", "estimator.response", "identity.response", "suite.v19_derivative_calibration"]
+calibration_sha = "b818ece15bc77f79fd2cd8199e118e48b4cc361c"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
