@@ -3175,7 +3175,7 @@ grid = [
 dgp = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_independent_samples_good_overlap"
 test = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_independent_samples_continuous_mean_contrast"
 facets = ["core", "estimator.transport", "estimator.transport_learned", "suite.learned_continuous_calibration"]
-calibration_sha = "be7f7e3223ebd6b8adcb31229f1892a5a515d724"
+calibration_sha = "028de6bb0c0270dc6969215813b679aff4567b92"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
@@ -3211,7 +3211,7 @@ grid = [
 dgp = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_nested_cohort_good_overlap"
 test = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_nested_cohort_continuous_mean_contrast"
 facets = ["core", "estimator.transport", "estimator.transport_learned", "suite.learned_continuous_calibration"]
-calibration_sha = "be7f7e3223ebd6b8adcb31229f1892a5a515d724"
+calibration_sha = "028de6bb0c0270dc6969215813b679aff4567b92"
 surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
 
 [[record]]
