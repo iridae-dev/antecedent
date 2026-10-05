@@ -243,7 +243,7 @@ fn quadrature_matches_exact_integration_and_the_oracle_score_is_centred() {
             let steps = 20_000;
             let mut numeric = 0.0;
             for (x, w) in nodes.iter().zip(&weights) {
-                let z = 0.6 + x;
+                let z = Scenario::Good.target_law().0 + x;
                 let mut inner = 0.0;
                 for s in 0..steps {
                     let u = -1.0 + (f64::from(s) + 0.5) * 2.0 / f64::from(steps);
@@ -1728,7 +1728,7 @@ fn a_target_row_below_the_membership_floor_refuses_even_when_every_source_row_cl
     let ctx = ExecutionContext::for_tests(19);
     let mut input = draw(Design::IndependentSamples, Scenario::Good, 1500, 1000, 19);
     let target = input.source.iter().position(|s| !*s).unwrap();
-    input.covariates[0][target] = 9.0;
+    input.covariates[0][target] = 12.0;
     let error =
         antecedent_estimate::estimate_smoothed_dose(&id, &q, &input, &options(), &ctx).unwrap_err();
     let (code, message) = estimation_refusal(&error);

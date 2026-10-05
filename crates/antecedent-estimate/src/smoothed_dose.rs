@@ -1877,14 +1877,18 @@ pub fn smoothed_dose_interval_internal(
             let (draw, draw_folds) = smoothed_dose_replicate(input, folds, &rows);
             let run = validate_smoothed_dose(id, query, &draw, options)
                 .and_then(|()| fit_and_evaluate(query, &draw, options, &draw_folds, inner));
-            if let Ok((_, evaluation)) = run {
-                Ok((
+            match run {
+                Ok((_, evaluation)) => Ok((
                     replicate,
                     Some(evaluation.grid.iter().map(|p| p.estimate).collect::<Vec<_>>()),
-                ))
-            } else {
-                cancelled(inner)?;
-                Ok((replicate, None))
+                )),
+                Err(err) => {
+                    if std::env::var_os("ANTECEDENT_CALIBRATION_DIAGNOSTIC").is_some() {
+                        eprintln!("smoothed dose bootstrap replicate {replicate}: {err}");
+                    }
+                    cancelled(inner)?;
+                    Ok((replicate, None))
+                }
             }
         },
     )?;

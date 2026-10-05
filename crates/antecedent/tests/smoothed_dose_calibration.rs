@@ -83,8 +83,22 @@ fn execute(
     let id = TransportIdentifier::new().identify(&diagram, &q.transport_query()).unwrap();
     let input = draw(design, scenario, sizes.0, sizes.1, stream_seed(rep, 0x5D05));
     let ctx = ExecutionContext::for_tests(rep);
-    let run = smoothed_dose_interval_internal(&id, &q, &input, &options(), &ctx).ok()?;
+    let run = smoothed_dose_interval_internal(&id, &q, &input, &options(), &ctx)
+        .map_err(|err| {
+            if std::env::var_os("ANTECEDENT_CALIBRATION_DIAGNOSTIC").is_some() {
+                eprintln!("smoothed dose {design:?} rep={rep}: {err}");
+            }
+        })
+        .ok()?;
     let ok = u32::try_from(run.replicates.len()).unwrap_or(u32::MAX);
+    if run.intervals.iter().any(Option::is_none)
+        && std::env::var_os("ANTECEDENT_CALIBRATION_DIAGNOSTIC").is_some()
+    {
+        eprintln!(
+            "smoothed dose {design:?} rep={rep}: interval withheld after {} bootstrap failures: {:?}",
+            run.failures, run.uncertainty_reason
+        );
+    }
     let bands: Option<Vec<_>> = run.intervals.into_iter().collect();
     bands.map(|b| (b, ok))
 }

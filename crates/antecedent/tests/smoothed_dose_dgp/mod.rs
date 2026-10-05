@@ -22,8 +22,11 @@
 //! for the Epanechnikov kernel (second moment `1/5`), and `E_T[z] = m_T`. The point curve
 //! is `psi_0(a) = a^2 + m_T (1 + a / 2)`.
 //!
-//! * `Good`: target `z ~ N(0.6, 1)`; both nuisance families correct with a degree-2
+//! * `Good`: target `z ~ N(0.3, 1)`; both nuisance families correct with a degree-2
 //!   dose basis with interactions and a linear logistic membership (equal variances).
+//!   This moderate, nonzero shift leaves observed membership comfortably above the
+//!   declared 0.05 floor in nearly all outer bootstrap refits; the separate
+//!   `WeakOverlap` scenario tests refusal at the support boundary.
 //! * `Robust`: target `z ~ N(0.8, 1)` and the outcome `y = a^2 + z (1 + a/2) + z a^2 + e`,
 //!   whose smoothed target is `psi_h(a) = (a^2 + h^2/5)(1 + m_T) + m_T (1 + a/2)`. A fit
 //!   linear in the dose (degree-1 basis, interactions kept) misses `(1 + z)` times the
@@ -76,7 +79,8 @@ impl Scenario {
     /// `(mean, sd)` of the target covariate law.
     pub const fn target_law(self) -> (f64, f64) {
         match self {
-            Self::Good | Self::Kinked => (0.6, 1.0),
+            Self::Good => (0.3, 1.0),
+            Self::Kinked => (0.6, 1.0),
             Self::Robust => (0.8, 1.0),
             Self::RobustVarianceShift => (0.5, 1.4),
             Self::WeakOverlap => (3.0, 1.0),
