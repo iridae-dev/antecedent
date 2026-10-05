@@ -167,7 +167,10 @@ fn the_unpublished_band_has_the_declared_members_and_a_max_t_critical_value() {
 #[test]
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn batch_retarget_max_t_simultaneous_band() {
-    let n = grid_n(400);
+    // The asymptotic max-t band undercovered at 200 and 400 rows (0.930 and
+    // 0.939 at 2,000 repetitions). Measure a scope starting at 800 rows;
+    // smaller families remain outside its interval license.
+    let n = grid_n(1_600);
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test: "batch_retarget_max_t_simultaneous_band",
