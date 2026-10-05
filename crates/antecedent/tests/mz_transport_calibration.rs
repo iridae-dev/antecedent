@@ -41,8 +41,13 @@ use transport_fixture::mz_fixture::{
 use transport_fixture::z_scm::vid;
 
 const INTERVAL: &str = "percentile_bootstrap";
-/// Bootstrap replicates per execution, the floor of the sibling transport records.
+/// The joint percentile bootstrap's existing replicate floor.
 const REPLICATES: u32 = 199;
+/// The independent-study interval showed 0.941 coverage in 8,000 datasets at
+/// 1,600 rows/law with 199 bootstrap draws. Its 2.5% tail quantile has only
+/// about five draws there, so measure the same estimator with a more stable
+/// tail before licensing the independent-study coordinate.
+const INDEPENDENT_REPLICATES: u32 = 999;
 
 fn construction(dependence: &str) -> Construction {
     Construction {
@@ -172,6 +177,7 @@ fn measure(
     functional: &BoundMzTransportFunctional,
     n: usize,
     dependence: &str,
+    bootstrap_replicates: u32,
     data: impl Fn(u64) -> ExactTransportData + Sync,
 ) {
     let truth = truth();
@@ -183,7 +189,7 @@ fn measure(
             &data,
             &[request()],
             ExactEvaluationLimits::default(),
-            REPLICATES,
+            bootstrap_replicates,
             REPORTED_LEVEL,
             &ctx,
         )
@@ -235,7 +241,7 @@ fn multi_source_mz_independent_studies() {
         },
         REPORTED_LEVEL,
     );
-    measure(&mut tally, &functional, n, "iid", |rep| {
+    measure(&mut tally, &functional, n, "iid", INDEPENDENT_REPLICATES, |rep| {
         mz_figure_1_independent_studies(&exact, n, rep.wrapping_mul(1_000_003))
     });
     tally.assert();
@@ -258,7 +264,7 @@ fn multi_source_mz_shared_units() {
         },
         REPORTED_LEVEL,
     );
-    measure(&mut tally, &functional, n, "shared_units", |rep| {
+    measure(&mut tally, &functional, n, "shared_units", REPLICATES, |rep| {
         mz_figure_1_shared_units(&exact, &shared, n, rep.wrapping_mul(1_000_033))
     });
     tally.assert();

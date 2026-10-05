@@ -627,12 +627,12 @@ fn penalized_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
     )
 }
 
-/// Base rows of the penalized-propensity designs; the refit bootstrap at 150 rows
-/// covered 0.979 (ridge) and 0.984 (lasso) in 2,000 repetitions, above the
-/// 0.960 precision ceiling. Start the licensed sample-size grid at 300 rows;
-/// the smaller sample remains outside measured scope rather than being called
-/// a nominal interval.
-const PENALIZED_BOOT_N: usize = 600;
+/// The refit bootstrap covered 0.979/0.984 at 150 rows and 0.961/0.965 at
+/// 300 rows (ridge/lasso, 2,000 repetitions each), above the 0.960 precision
+/// ceiling. Begin its measured grid at 600 rows instead of calling either
+/// smaller sample a nominal interval.
+const PENALIZED_BOOT_N: usize = 1_200;
+const PENALIZED_RIDGE_INFLUENCE_N: usize = 600;
 const PENALIZED_INFLUENCE_N: usize = 300;
 
 /// Bootstrap replicates of the refit-bootstrap cells: every replicate repeats the fold plan,
@@ -694,7 +694,7 @@ fn aipw_ridge_influence_ci_coverage() {
         "aipw_ridge_influence_ci_coverage",
         ridge_nuisance(),
         0,
-        PENALIZED_BOOT_N,
+        PENALIZED_RIDGE_INFLUENCE_N,
     );
 }
 
