@@ -20,8 +20,8 @@
 [[waiver]]
 id = "response-gradient-hc2-20261005"
 from = "b5f585b633b2e021d978f7cb8b433a643085178c"
-to = "HEAD"
-reviewed_by = "charles.hinshaw@iridae.com"
+to = "553aeeb08cce3a1ef0784651c1dfe11ed1a1a45e"
+reviewed_by = "Codex call-site review"
 justification = """
 The change in response/mod.rs computes row leverage and HC2 residuals only in
 plugin_gradient_influence, which plugin_gradient_run calls with with_influence
@@ -42,3 +42,15 @@ record = "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist
 exercises = [
   "crates/antecedent-estimate/src/response/mod.rs",
 ]
+
+[waiver.outcome]
+replayed_at = "553aeeb08cce3a1ef0784651c1dfe11ed1a1a45e"
+identical = true
+records = [
+  "cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_derivative.dag.frequentist.analytic_se.l90.ade_frequentist_gaussian_treatment_nominal_90_coverage" = "cb06f139bf27b22a9d6748b8a034f89410cb1757eba4b82655f86c5d630a05ee"
