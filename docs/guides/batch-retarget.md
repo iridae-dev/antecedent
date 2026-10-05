@@ -3,7 +3,9 @@
 A batch answers many average-effect questions on one table. Two additions in 2.2: the batch
 entry points take the same typed estimator configurations as `analyze`, and a prepared batch
 can **retarget** a declared family of claims to caller-declared populations and report their
-joint covariance, named contrasts and, for a complete family, a max-t simultaneous band. The points and plug-in covariance are `point_only`; the band is a calibrated-claim route whose calibration is wired and unmeasured (see [The simultaneous interval](#the-simultaneous-interval)). The record is
+joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
+the max-t simultaneous band has a measured coverage record, but its public
+interval route remains closed pending promotion (see [The simultaneous interval](#the-simultaneous-interval)). The record is
 `2.2E.E3.batch_retarget_covariance_contrasts` in `parity/promotion_2_2.toml`.
 
 ## Typed estimator configurations
@@ -92,9 +94,9 @@ limit of the studentized retargeted points, plug-in `Sigma`) under the single-cl
 retarget's conditions: iid rows or the declared independent cluster units, fixed declared
 weights, positivity and nuisance convergence.
 Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are excluded.
-The claim is `calibrated` with the calibration harness wired and unmeasured:
+The interval's coverage record has been measured, while the public claim remains withheld:
 `crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
-covered" event, is registered in `scripts/gate_calibration.sh` and runs once at the 2.2 cut;
+covered" event, was run through `scripts/gate_calibration.sh`;
 this change allocates no coverage record.
 
 `c` is a Monte-Carlo quantile on the library's one max-t sampler: a deterministic function of

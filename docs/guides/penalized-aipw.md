@@ -149,7 +149,7 @@ interval is conditional on it. Sufficient regimes, stated as assumptions:
   exchangeable with a simple random split; the argument above treats the plan as ancillary
   given the arms (the standard practical reading).
 - Any coverage statement: the calibration suite below measures coverage on designs where
-  (RC) holds, once, at the 2.2 cut.
+  (RC) holds; those design-specific records have been measured.
 
 ## The refit bootstrap
 
@@ -247,15 +247,16 @@ wired: four ignored coverage tests in `crates/antecedent-estimate/src/calibratio
 where both nuisances are correctly specified, registered in `scripts/gate_calibration.sh`,
 swept over the sample-size grid, and bound to the facade's calibration key by
 `crates/antecedent/tests/calibration_binding.rs` (the functional label carries the nuisance).
-Until a record exists the facade reports the interval's scope as not assessed. The fallback
+The four records now exist, while the public interval route remains closed
+pending promotion. The fallback
 route has no coverage test of its own: its destination's interval is the ridge or lasso
 interval, but its calibration key (`propensity=glm_fallback_...`) matches no record, so a
 fallback interval stays unassessed until one is measured. An in-repo, fixed-seed repeated
 sampling test (`the_influence_interval_covers_the_known_effect_in_repeated_sampling`) is a
 guard, not a record.
 
-## What was not measured
+## What these records do not measure
 
-No coverage record exists. The estimate is a point under the identification assumptions of the
+No coverage record licenses the fallback interval. The estimate is a point under the identification assumptions of the
 AIPW average effect plus consistency of the penalized and OLS nuisances; none of that, and not
 (RC), is checked by the library.

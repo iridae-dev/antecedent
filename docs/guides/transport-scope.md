@@ -214,9 +214,9 @@ record's internal estimator has a bootstrap request cap of 2000. The range is
 never a confidence interval, and its guarantee (exact within the declared contamination
 class) covers the range only. The one declared sampling composition (conservative endpoint
 percentile bootstrap, paper-inherited) is record `2.2B.X3.joint_sensitivity_uncertainty`,
-in progress: wired, not measured. Its routes refuse with `cell_not_licensed` until its two
-coverage records (a gated zero-box record and a `one_sided` positive-box record) are
-measured at the cut. Export and consume use a
+in progress: its gated zero-box and `one_sided` positive-box coverage records
+were measured. Its public routes still refuse with `cell_not_licensed` pending
+promotion. Export and consume use a
 separate version 3 artifact. Derivation and scope: [joint-mechanism-sensitivity.md](joint-mechanism-sensitivity.md).
 
 ## Learned continuous-outcome transport (2.2A X4)
@@ -706,7 +706,8 @@ double robustness and the executed numerical checks are in
 - **Interval.** The pointwise joint outer refit percentile bootstrap of the whole
   composed estimator (`smoothed_dose_interval_internal`, `calibration-internal` only)
   is wired in `crates/antecedent/tests/smoothed_dose_calibration.rs`; its route is closed
-  (`cell_not_licensed`) until its two coverage records are measured.
+  (`cell_not_licensed`) pending promotion, although both design-specific
+  coverage records have been measured.
 - **Artifact.** `checked_smoothed_dose_transport_v1`: a consumer re-derives the
   certificate, re-predicts every nuisance from the stored fold models and re-integrates
   every quadrature bit for bit, without fitting, under its own row, covariate, memory and

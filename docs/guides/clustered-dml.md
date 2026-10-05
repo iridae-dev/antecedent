@@ -5,8 +5,9 @@
 standard AIPW average effect with **whole clusters** owning folds. The route publishes the
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
 scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The record is
-`2.2E.E4.clustered_dml_aipw` in `parity/promotion_2_2.toml`; the interval's calibration is
-wired and unmeasured (see [What is published](#what-is-published-and-what-is-not)).
+`2.2E.E4.clustered_dml_aipw` in `parity/promotion_2_2.toml`; the one-way interval's
+coverage record is measured, but its public route remains closed pending promotion
+(see [What is published](#what-is-published-and-what-is-not)).
 
 ```python
 from antecedent.estimators import Aipw, ClusterDml
@@ -140,9 +141,9 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
 - **Calibration.** The calibration harness is wired and runnable:
   `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
   registered in `scripts/gate_calibration.sh`) scores the facade's published interval over a
-  sample grid of cluster counts and is measured once at the 2.2 cut. The one-way
-  cluster interval remains an unlicensed release claim until its coverage record is
-  measured. This construction does not measure the dyadic `multiway` coordinate;
+  sample grid of cluster counts and was measured. The one-way cluster interval
+  remains an unlicensed release claim pending promotion. This construction does
+  not measure the dyadic `multiway` coordinate;
   a dyadic interval must not inherit its one-way coverage record.
 
 **Known-truth check.** `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs` draws

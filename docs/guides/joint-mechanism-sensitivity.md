@@ -3,9 +3,8 @@
 This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
 states what it claims and what it does not. It also records the one sampling
-composition that was designed for the range. That composition is **wired, not
-measured**: every route to it refuses until its coverage is measured at the 2.2
-cut.
+composition that was designed for the range. Its two coverage records have
+been measured, but every public route still refuses pending promotion.
 
 Two records in `parity/promotion_2_2.toml` cover this page:
 
@@ -13,7 +12,7 @@ Two records in `parity/promotion_2_2.toml` cover this page:
   only. It offers no sampling uncertainty.
 - `2.2B.X3.joint_sensitivity_uncertainty` (in progress): the conservative
   endpoint bootstrap, its closed routes and its two coverage ids. Their tests
-  are registered in the calibration gate and are measured at the 2.2 cut.
+  were measured by the registered calibration gate.
 
 The derivation is our own; it is not taken from a source.
 
@@ -192,12 +191,12 @@ cancelled frontier is not exported, because it does not replay.
   covers the range only. Sampling uncertainty is not offered by the range
   record, and the sampling method below is paper-inherited.
 
-## Sampling uncertainty (wired, not measured)
+## Sampling uncertainty (measured, route closed)
 
 Record `2.2B.X3.joint_sensitivity_uncertainty` is in progress. Every route to
-this composition refuses with `cell_not_licensed` until its two coverage
-records are measured. Its tests are registered in `scripts/gate_calibration.sh`
-(`run_js`, over the sample-size grid) and are measured once at the 2.2 cut.
+this composition refuses with `cell_not_licensed` pending promotion. Its two
+coverage records were measured by `scripts/gate_calibration.sh` (`run_js`, over
+the sample-size grid).
 This section records what the composition is and how its coverage is measured.
 
 There is one composition: the percentile bootstrap of the exact endpoints,
