@@ -3175,8 +3175,8 @@ grid = [
 dgp = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_independent_samples_good_overlap"
 test = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_independent_samples_continuous_mean_contrast"
 facets = ["core", "estimator.transport", "estimator.transport_learned", "suite.learned_continuous_calibration"]
-calibration_sha = "5a689ab3649ff6b3ffa0c2de4e0084d3524ad2de"
-surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+calibration_sha = "e6590d712f630f67a040316f08c12d2fdec4ddce"
+surface_list_blob = "2877db376896ebde1a777b253d9a8c0e7185efb2"
 
 [[record]]
 id = "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast"
@@ -3211,8 +3211,8 @@ grid = [
 dgp = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_continuous_nested_cohort_good_overlap"
 test = "crates/antecedent/tests/learned_continuous_calibration.rs::learned_trial_aipw_nested_cohort_continuous_mean_contrast"
 facets = ["core", "estimator.transport", "estimator.transport_learned", "suite.learned_continuous_calibration"]
-calibration_sha = "5a689ab3649ff6b3ffa0c2de4e0084d3524ad2de"
-surface_list_blob = "c5851e60a38ec733e084cf599b0f1439c040b9f8"
+calibration_sha = "e6590d712f630f67a040316f08c12d2fdec4ddce"
+surface_list_blob = "2877db376896ebde1a777b253d9a8c0e7185efb2"
 
 [[record]]
 id = "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies"
