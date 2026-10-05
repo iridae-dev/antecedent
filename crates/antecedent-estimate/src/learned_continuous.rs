@@ -31,14 +31,16 @@
 //!
 //! # Inference
 //!
-//! The single interval method is the joint outer refit percentile bootstrap of this whole
-//! cross-fitted composed estimator (`learned_continuous_interval_internal`, feature-gated), resampled
-//! per design with a replicate floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`]. The public
-//! route is closed (`cell_not_licensed`, interval withheld) until its coverage records
-//! are measured; the public estimate is the point with the interval status.
+//! The original joint outer refit percentile bootstrap, resampled per design with
+//! a floor of [`LEARNED_CONTINUOUS_MIN_BOOTSTRAP`], failed its sample-size coverage
+//! grid. It remains available only to calibration-internal code and to the older
+//! learned-trial route. A design-specific analytic influence interval is now
+//! measured by the calibration harness. The public 2.2A route remains closed
+//! (`cell_not_licensed`, interval withheld) pending promotion; its estimate is
+//! the point with the interval status.
 //!
 //! Two replicate behaviors are documented rather than changed (their effect on coverage is
-//! measured only through the calibration records themselves): a replicate reuses the point
+//! measured in the rejected bootstrap diagnostic): a replicate reuses the point
 //! run's fold label of every resampled row, so fold sizes are not rebalanced (a replicate
 //! whose fold lacks a role fails and is counted; any failure withholds the interval), and
 //! only the point run is gated on membership overlap ([`check_membership_overlap`]) - a

@@ -265,13 +265,14 @@ standardizers (a direct or baseline-standardization certificate, the
   Selection stays manual; nothing is recommended.
 - **Bounds.** At most 20 cross-fitting folds and a bootstrap cap of 2000 replicates
   (floor 199); a consumer admits at most 1,000,000 rows and 256 features.
-- **Interval.** The single method is the joint outer refit percentile bootstrap of the
-  whole cross-fitted estimator, grouped per design, replicate floor 199. Its route is
-  closed (`cell_not_licensed`): the final grid found overcoverage at the smallest
-  sample size and undercoverage for the largest nested-cohort design. Estimates
-  report the interval withheld and artifacts carry no interval field. The calibration
-  harness is in `crates/antecedent/tests/learned_continuous_calibration.rs`; the
-  interval estimator it measures is compiled only under the `calibration-internal`
+- **Interval.** The original joint outer refit percentile bootstrap (replicate
+  floor 199) overcovered at the smallest sample size and undercovered for the
+  largest nested cohort. A design-specific analytic influence interval passed
+  the six-point 95% grid at 2,000 datasets per point. The public route remains
+  closed (`cell_not_licensed`) pending promotion: estimates report the interval
+  withheld and artifacts carry no interval field. The calibration harness is in
+  `crates/antecedent/tests/learned_continuous_calibration.rs`; the candidate
+  interval is compiled only under the `calibration-internal`
   feature of `antecedent-estimate` (enabled by the facade's dev-dependencies alone), so
   no ordinary dependent can obtain the interval around the `cell_not_licensed` refusal.
   The sample-size grid `n/2, n, 2n` is swept by `scripts/gate_calibration.sh` for the two
