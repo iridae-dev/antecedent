@@ -975,7 +975,7 @@ _BUILDER_DISCARDS = (
     re.compile(rf"\bdel\s+{_BUILDER}\b", re.I),
     re.compile(rf"\b{_BUILDER}\s*=\s*None\b", re.I),
 )
-_EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|refresh_series|run|evaluate_exact)\s*\(")
+_EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\(")
 _INSPECTS_PLAN = re.compile(r"\b(?:program|plan|lowering)\b", re.I)
 
 
@@ -985,7 +985,7 @@ def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
     Checked execution runs a licensed route from its retained checked operation
     with no builder alive: the test discards its builder (`drop(builder…)`,
     `del builder`, `builder = None`), executes the prepared plan (`execute`,
-    `estimate…`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
+    `estimate…`, `interval`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
     retained program or plan."""
     if not any(pattern.search(body) for pattern in _BUILDER_DISCARDS):
         return [f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"]

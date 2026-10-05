@@ -276,8 +276,8 @@ def test_a_tampered_artifact_or_relabelled_names_fail_consumption_with_typed_err
 
 
 def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
-    query, data = fixture()
-    study = advanced.prepare_learned_continuous(query, data, options=options(bootstrap=199), seed=4)
+    builder_query, builder_data = fixture()
+    study = advanced.prepare_learned_continuous(builder_query, builder_data, options=options(bootstrap=199), seed=4)
     with pytest.raises(CausalUnsupportedError, match="learned_transport.bootstrap_not_licensed") as info:
         study.interval()
     assert info.value.reason_code == "estimator_inference_mismatch"
@@ -289,12 +289,12 @@ def test_the_analytic_interval_replays_and_the_legacy_bootstrap_refuses():
     consumed = advanced.consume_learned_continuous(study.export())
     assert consumed.uncertainty == result.uncertainty
     assert consumed.interval is None
-    analytic = advanced.prepare_learned_continuous(query, data, options=options(), seed=4)
-    del query, data
-    interval = analytic.interval()
+    plan = advanced.prepare_learned_continuous(builder_query, builder_data, options=options(), seed=4)
+    del builder_query, builder_data
+    interval = plan.interval()
     assert interval.uncertainty["status"] == "available"
     assert interval.standard_error > 0
     assert interval.interval[0] < interval.estimate < interval.interval[1]
-    replay = advanced.consume_learned_continuous(analytic.export())
+    replay = advanced.consume_learned_continuous(plan.export())
     assert replay.interval == interval.interval
     assert replay.standard_error == interval.standard_error
