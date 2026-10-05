@@ -245,8 +245,9 @@ logs separately in `target/calibration-pilot-records/` and timings in
 `target/calibration-pilot-timings.tsv`. Those logs cannot enter the coverage
 collector. The next `--dry-run` projects the 400-replicate pass and expected
 2,000-replicate extensions from these timings and the previous recheck rates.
-The projection is approximate: startup cost and convergence do not scale
-perfectly with replicates, and a changed coverage rate changes the recheck
+Only the test runner's simulation time scales with replicate count; Cargo and
+gate startup are charged once per job. The projection is approximate: convergence
+does not scale perfectly with replicates, and a changed coverage rate changes the recheck
 count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
 forecast that summed wall times of suites competing on the same CPU substantially
 overstated the full-pass time. The measurement runs longest pilot-timed grid

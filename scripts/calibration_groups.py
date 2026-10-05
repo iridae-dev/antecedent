@@ -5,7 +5,7 @@ and running them in parallel on this machine.
 `scripts/gate_calibration.sh` owns the groups, their commands and the
 2000-replicate recheck, which runs inline right after a group that asks for it.
 This module never edits or re-implements a group. It reads the group list from
-the gate's dry run and runs each selected group alone through the unchanged
+the gate's dry run and runs each selected group alone through the
 gate (`ANTECEDENT_CALIBRATION_SHARD=<index-1>/<groups>` selects exactly that
 group), so the gate's recheck and its record logs in `target/calibration-records/`
 are the ones `scripts/collect_coverage_records.py` reads.
@@ -13,7 +13,9 @@ are the ones `scripts/collect_coverage_records.py` reads.
 Which records owe a re-measurement is decided by `scripts/calibration_facets.py`
 (the only drift computation); this module maps those records to groups.
 
-    python3 scripts/calibration_groups.py plan [--all]          # what would run, with estimates
+    python3 scripts/calibration_groups.py plan [--all]          # what would run
+    python3 scripts/calibration_groups.py pilot [--all] [--jobs N]
+    python3 scripts/calibration_groups.py plan [--all]          # pilot-based projection
     python3 scripts/calibration_groups.py run [--all] [--jobs N]
 
 A coverage group that emits records is measured at every point of the
@@ -238,14 +240,20 @@ def pilot_timings() -> dict[str, float]:
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     for line in PILOT_TIMINGS.read_text().splitlines():
         parts = line.split("\t")
-        if len(parts) != 6 or parts[3] != sha or parts[2] != "0":
+        if len(parts) != 7 or parts[3] != sha or parts[2] != "0":
             continue
         try:
-            elapsed, threads, replicates = float(parts[1]), int(parts[4]), int(parts[5])
+            elapsed, threads, replicates, test_seconds = (
+                float(parts[1]), int(parts[4]), int(parts[5]), float(parts[6])
+            )
         except ValueError:
             continue
-        if elapsed > 0 and threads > 0 and replicates == PILOT_NSIM:
-            out[parts[0]] = elapsed * min(threads, CORES) / CORES * FIRST_NSIM / replicates
+        if elapsed > 0 and 0 <= test_seconds <= elapsed and threads > 0 and replicates == PILOT_NSIM:
+            # Scale the test's replicate work, but pay Cargo/gate startup only
+            # once. The old projection multiplied the startup of ~1,100 jobs
+            # by 50 and substantially overstated their full-pass cost.
+            projected = test_seconds * FIRST_NSIM / replicates + elapsed - test_seconds
+            out[parts[0]] = projected * min(threads, CORES) / CORES
     return out
 
 
@@ -428,12 +436,26 @@ def pilot(selection: Selection, total: int, jobs: int) -> int:
                 stdout=out, stderr=subprocess.STDOUT,
             ).returncode
         elapsed = time.monotonic() - begin
+        log = PILOT_LOG_DIR / f"{group.safe}{suffix}.log"
+        test_seconds = sum(
+            float(value) for value in re.findall(
+                r"^test result: ok\..*?finished in ([0-9.]+)s",
+                log.read_text() if log.is_file() else "",
+                re.M,
+            )
+        )
+        # Libtest rounds very short tests to 0.00s. A small positive floor
+        # avoids declaring their future 400-replicate work to be exactly zero.
+        test_seconds = min(elapsed, max(0.01, test_seconds))
         with lock:
             finished += 1
             if status != 0:
                 failed.append(label)
             with PILOT_TIMINGS.open("a") as timings:
-                timings.write(f"{label}\t{elapsed:.2f}\t{status}\t{sha}\t1\t{PILOT_NSIM}\n")
+                timings.write(
+                    f"{label}\t{elapsed:.2f}\t{status}\t{sha}\t1\t{PILOT_NSIM}"
+                    f"\t{test_seconds:.2f}\n"
+                )
             print(
                 f"[{_clock(time.monotonic() - started)}] pilot {finished}/{len(tasks)}: "
                 f"{label}: {_clock(elapsed)} {'ok' if status == 0 else 'FAILED'}",

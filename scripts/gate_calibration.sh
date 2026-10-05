@@ -153,7 +153,7 @@ run_point() {
   status="${PIPESTATUS[0]}"
   require_ran "$status" "$log" || status=1
   stamp_log "$log"
-  if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
+  if [ "$status" -eq 0 ] && [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && grep -q '^calibration-recheck ' "$log"; then
     tests=""
     if per_test_recheck "$@"; then
       tests="$(grep '^calibration-recheck-test ' "$log" | awk '{ print $2 }' | sort -u | tr '\n' ' ')"
