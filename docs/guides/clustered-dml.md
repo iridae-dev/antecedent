@@ -6,7 +6,7 @@ standard AIPW average effect with **whole clusters** owning folds. The route pub
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
 scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The record is
 `2.2E.E4.clustered_dml_aipw` in `parity/promotion_2_2.toml`; the one-way interval's
-coverage record is measured, but its public route remains closed pending promotion
+95% coverage record is measured and the one-way interval is licensed at its measured coordinate
 (see [What is published](#what-is-published-and-what-is-not)).
 
 ```python
@@ -21,7 +21,7 @@ result = ant.analyze(
 `cluster_ids` is the cluster label of every complete-case row, aligned to the rows the
 estimator uses (the same alignment `se="cluster"` has). The cluster-sandwich receipt is a
 Rust value (`ClusterDml::receipt` on the result's score table); the Python result carries
-the point and the score table only.
+the point, standard error, reference degrees of freedom and score table.
 
 A dyadic (two-way) declaration, `ClusterDml(cluster_ids=first, second_cluster_ids=second,
 unit="dyad")`, is the second supported unit (see [Two-way and dyadic units](#two-way-and-dyadic-units)).
@@ -141,8 +141,8 @@ dyadic unit) and `se_reference_df` equal to the receipt's `reference_df`.
 - **Calibration.** The calibration harness is wired and runnable:
   `crates/antecedent/tests/cluster_dml_calibration.rs` (`cluster_dml_t_wald_interval`,
   registered in `scripts/gate_calibration.sh`) scores the facade's published interval over a
-  sample grid of cluster counts and was measured. The one-way cluster interval
-  remains an unlicensed release claim pending promotion. This construction does
+  sample grid of cluster counts and was measured. The one-way 95% cluster interval
+  is licensed for 300–800 rows at that coordinate. This construction does
   not measure the dyadic `multiway` coordinate;
   a dyadic interval must not inherit its one-way coverage record.
 

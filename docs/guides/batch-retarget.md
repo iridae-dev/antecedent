@@ -4,8 +4,8 @@ A batch answers many average-effect questions on one table. Two additions in 2.2
 entry points take the same typed estimator configurations as `analyze`, and a prepared batch
 can **retarget** a declared family of claims to caller-declared populations and report their
 joint covariance and named contrasts. The points and plug-in covariance are `point_only`;
-the max-t simultaneous band has a measured coverage record, but its public
-interval route remains closed pending promotion (see [The simultaneous interval](#the-simultaneous-interval)). The record is
+the 95% max-t simultaneous band is licensed for complete families at its measured
+coordinate (see [The simultaneous interval](#the-simultaneous-interval)). The record is
 `2.2E.E3.batch_retarget_covariance_contrasts` in `parity/promotion_2_2.toml`.
 
 ## Typed estimator configurations
@@ -94,10 +94,12 @@ limit of the studentized retargeted points, plug-in `Sigma`) under the single-cl
 retarget's conditions: iid rows or the declared independent cluster units, fixed declared
 weights, positivity and nuisance convergence.
 Selection and weight-estimation uncertainty and the Monte-Carlo error of `c` are excluded.
-The interval's coverage record has been measured, while the public claim remains withheld:
+The 95% iid interval's coverage record has been measured for 800–3200 rows, and the
+complete-family route is licensed at that coordinate:
 `crates/antecedent/tests/batch_retarget_calibration.rs` scores the joint "all four claims
 covered" event, was run through `scripts/gate_calibration.sh`;
-this change allocates no coverage record.
+other levels, smaller samples and cluster or dyadic dependence coordinates are not covered
+by this record, even though the corresponding band can be computed.
 
 `c` is a Monte-Carlo quantile on the library's one max-t sampler: a deterministic function of
 `(R, level, seed, draws, reference_df)`, with `draws` bounded to 1000 through 2000000, the stop signal

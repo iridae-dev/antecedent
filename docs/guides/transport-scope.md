@@ -463,8 +463,8 @@ Refusals pair a reason code with an `mz_transport.*` detail: `route_not_supporte
 (`empirical_counts_required`).
 
 Points are exact or the empirical plug-in of counted laws. The joint-bootstrap
-interval route is closed (`cell_not_licensed`, `mz_transport.interval_withheld`) until
-its coverage records are measured: no public constructor yields an interval and every
+interval route is closed for 2.2 (`cell_not_licensed`, `mz_transport.interval_withheld`).
+Its coverage records are measured, but no public constructor yields an interval and every
 public consumer (io, facade, Python) refuses an artifact that carries one. The internal
 bootstrap estimator the calibration harness measures (`mz_transport_bootstrap_interval`,
 its draw machinery and interval types) is compiled only under the `calibration-internal`
@@ -706,7 +706,7 @@ double robustness and the executed numerical checks are in
 - **Interval.** The pointwise joint outer refit percentile bootstrap of the whole
   composed estimator (`smoothed_dose_interval_internal`, `calibration-internal` only)
   is wired in `crates/antecedent/tests/smoothed_dose_calibration.rs`; its route is closed
-  (`cell_not_licensed`) pending promotion, although both design-specific
+  (`cell_not_licensed`) for 2.2, although both design-specific
   coverage records have been measured.
 - **Artifact.** `checked_smoothed_dose_transport_v1`: a consumer re-derives the
   certificate, re-predicts every nuisance from the stored fold models and re-integrates

@@ -324,7 +324,7 @@ meaning = "A treatment arm or joint cell has no complete-case rows, so no contra
 [[code]]
 id = "penalized_interval_not_licensed"
 applies_to = ["runtime_refusal"]
-meaning = "A penalized cross-fitted propensity publishes the point estimate and score table only; no analytic or bootstrap interval is licensed because the nuisance remainder is not shown negligible, so a requested interval is refused rather than ignored."
+meaning = "A factorized joint-cell propensity with penalized conditional models publishes cell points and a score table only; its nuisance remainder and interval coverage have not been licensed, so a requested interval is refused. The separately calibrated ridge/lasso AIPW route has its own interval contract."
 
 [[code]]
 id = "selection_inference_not_licensed"
@@ -356,7 +356,7 @@ meaning = "A machine-learning nuisance was declared for joint cells in a way no 
 [[code]]
 id = "cluster_interval_not_licensed"
 applies_to = ["runtime_refusal"]
-meaning = "Cluster-DML AIPW publishes the cross-fitted point estimate, the score table and a cluster-sandwich receipt only; no analytic or bootstrap interval has a coverage record (and a row bootstrap would split clusters), so a requested interval is refused rather than ignored."
+meaning = "Cluster-DML AIPW refuses a requested row bootstrap or alternative analytic SE kind: the row bootstrap would split clusters, and neither requested construction has a coverage license. The default one-way cluster t interval has its own measured coordinate."
 
 [[code]]
 id = "too_few_clusters"

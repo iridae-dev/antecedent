@@ -304,7 +304,7 @@ only under the `calibration-internal` feature, which only dev-dependencies enabl
 the calibration harness `crates/antecedent/tests/smoothed_dose_calibration.rs` measures
 it. The two design-specific coverage records have been measured. The public
 route remains closed (`cell_not_licensed`, `dose_response.interval_withheld`)
-pending promotion of that exact interval coordinate.
+for 2.2 despite the measured interval coordinate.
 
 A replicate:
 

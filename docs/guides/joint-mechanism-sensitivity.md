@@ -4,7 +4,7 @@ This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
 states what it claims and what it does not. It also records the one sampling
 composition that was designed for the range. Its two coverage records have
-been measured, but every public route still refuses pending promotion.
+been measured, but every public route still refuses for 2.2.
 
 Two records in `parity/promotion_2_2.toml` cover this page:
 
@@ -194,7 +194,7 @@ cancelled frontier is not exported, because it does not replay.
 ## Sampling uncertainty (measured, route closed)
 
 Record `2.2B.X3.joint_sensitivity_uncertainty` is in progress. Every route to
-this composition refuses with `cell_not_licensed` pending promotion. Its two
+this composition refuses with `cell_not_licensed` for 2.2. Its two
 coverage records were measured by `scripts/gate_calibration.sh` (`run_js`, over
 the sample-size grid).
 This section records what the composition is and how its coverage is measured.

@@ -13,7 +13,7 @@ influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a re
 that repeats penalty selection and every nuisance fit on each resample. A declared
 GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. The
 record is `2.2E.E2.penalized_propensity_aipw` in `parity/promotion_2_2.toml`; its claim is
-`calibrated` and its calibration is wired but **not yet measured** (see "Calibration").
+`calibrated` at the four measured ridge/lasso 95% analytic and refit-bootstrap coordinates (see "Calibration").
 
 ```python
 from antecedent.estimators import Aipw, PropensityPenalty
@@ -21,16 +21,25 @@ from antecedent.estimators import Aipw, PropensityPenalty
 # Cross-fitted influence-function SE (bootstrap=0) ...
 result = ant.analyze(
     data, graph=graph, query=query,
-    estimator=Aipw(bootstrap=0, propensity_penalty=PropensityPenalty()),
+    estimator=Aipw(bootstrap=0, propensity_penalty=PropensityPenalty(
+        lambdas=[0.5, 5.0, 50.0], inner_folds=3,
+    )),
 )
 # ... or a refit bootstrap that repeats the penalty selection in every replicate.
 result = ant.analyze(
     data, graph=graph, query=query,
-    estimator=Aipw(bootstrap=200, propensity_penalty=PropensityPenalty(kind="lasso")),
+    estimator=Aipw(bootstrap=200, propensity_penalty=PropensityPenalty(
+        kind="lasso", lambdas=[2.0, 10.0, 40.0], inner_folds=3,
+    )),
 )
 result.estimate.penalized_support      # the covariates the lasso kept on each fold
 result.estimate.penalized_bootstrap    # per-replicate penalties, replicate accounting
 ```
+
+The shown grids match measured 95% coordinates. The analytic ridge record covers 300–1200
+rows; the lasso refit-bootstrap record covers 600–2400 rows with at least 40 bootstrap
+replicates. The default tuning grids are useful for estimation but do not match these
+coverage records.
 
 ## What is fixed
 
@@ -240,15 +249,19 @@ cancelled bootstrap reports the stop and publishes no SE.
 
 ## Calibration
 
-The claim is `calibrated`; the coverage records are **not yet measured**. The calibration is
-wired: four ignored coverage tests in `crates/antecedent-estimate/src/calibration_coverage.rs`
-(`aipw_ridge_influence_ci_coverage`, `aipw_ridge_refit_bootstrap_ci_coverage`,
-`aipw_lasso_influence_ci_coverage`, `aipw_lasso_refit_bootstrap_ci_coverage`) on a design
-where both nuisances are correctly specified, registered in `scripts/gate_calibration.sh`,
-swept over the sample-size grid, and bound to the facade's calibration key by
-`crates/antecedent/tests/calibration_binding.rs` (the functional label carries the nuisance).
-The four records now exist, while the public interval route remains closed
-pending promotion. The fallback
+The four 95% ridge/lasso analytic and refit-bootstrap coverage records are measured and
+licensed at their exact calibration coordinates. The tests in
+`crates/antecedent-estimate/src/calibration_coverage.rs` are registered in
+`scripts/gate_calibration.sh`; `crates/antecedent/tests/calibration_binding.rs`
+checks that each record's nuisance label and interval method match the public facade.
+
+| Propensity grid (3 inner folds) | Analytic interval rows | Refit bootstrap rows |
+| --- | ---: | ---: |
+| Ridge: 0.5, 5, 50 | 300–1200 | 600–2400; at least 40 replicates |
+| Lasso: 2, 10, 40 | 150–600 | 600–2400; at least 40 replicates |
+
+A different penalty grid, sample-size range, level or bootstrap count is reported as
+`scope_not_assessed`, not covered by these records. The fallback
 route has no coverage test of its own: its destination's interval is the ridge or lasso
 interval, but its calibration key (`propensity=glm_fallback_...`) matches no record, so a
 fallback interval stays unassessed until one is measured. An in-repo, fixed-seed repeated
