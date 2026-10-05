@@ -267,9 +267,10 @@ standardizers (a direct or baseline-standardization certificate, the
   (floor 199); a consumer admits at most 1,000,000 rows and 256 features.
 - **Interval.** The single method is the joint outer refit percentile bootstrap of the
   whole cross-fitted estimator, grouped per design, replicate floor 199. Its route is
-  closed (`cell_not_licensed`) until its two coverage records are measured: estimates
+  closed (`cell_not_licensed`): the final grid found overcoverage at the smallest
+  sample size and undercoverage for the largest nested-cohort design. Estimates
   report the interval withheld and artifacts carry no interval field. The calibration
-  harness is wired in `crates/antecedent/tests/learned_continuous_calibration.rs`; the
+  harness is in `crates/antecedent/tests/learned_continuous_calibration.rs`; the
   interval estimator it measures is compiled only under the `calibration-internal`
   feature of `antecedent-estimate` (enabled by the facade's dev-dependencies alone), so
   no ordinary dependent can obtain the interval around the `cell_not_licensed` refusal.
