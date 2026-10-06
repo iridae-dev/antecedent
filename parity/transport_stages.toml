@@ -3925,3 +3925,73 @@ stage = "consume"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "2.3 F15 frozen contract. No public producer or consumer is licensed until joint-value, refusal and independent-artifact evidence executes."
+
+[[routes]]
+route = "antecedent.transport.cpdag_completion_scenarios"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A1 X2 bounded CPDAG completion cell is frozen; no class-wide formula or mass claim is licensed."
+
+[[routes]]
+route = "antecedent.transport.scenario_shared_covariance"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A1 X2 shared-row covariance needs a joint-data oracle and independent artifact consumer."
+
+[[routes]]
+route = "antecedent.transport.joint_bayesian"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A2 X4 joint source-target Bayesian transport awaits likelihood and calibration."
+
+[[routes]]
+route = "antecedent.transport.binary_nested_markov"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A3 X4 binary nested-Markov pilot is closed pending an independent likelihood oracle."
+
+[[routes]]
+route = "antecedent.transport.temporal_dependent_interval"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A4 X5 repeated-unit whole-sequence interval needs whole-method calibration and replay."
+
+[[routes]]
+route = "antecedent.transport.temporal_initial_state"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A4 X5 target initial-state integration is frozen pending dynamic-SCM value truth."
+
+[[routes]]
+route = "antecedent.transport.temporal_new_period_refresh"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A4 X5 new-period refresh is frozen; a third slice needs a separate cell."
+
+[[routes]]
+route = "antecedent.cross_world.temporal_fixed_population"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A5 X8 two-step fixed-population counterfactual needs shared-history truth."
+
+[[routes]]
+route = "antecedent.cross_world.transported_path_specific"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A5 X8 static transported path-specific counterfactual needs both transport and fixed-world proofs."
+
+[[routes]]
+route = "antecedent.transport.sampled_observation_recovery"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A6 X10 sampled recovery awaits whole-method effect truth, coverage and replay."

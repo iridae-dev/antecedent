@@ -20,6 +20,8 @@ provider = "Declared joint-draw provider with bounded shape and draw count; inde
 estimand = "A typed joint distribution over named causal quantities, with derived covariance and nonlinear expectations when their required joint law exists."
 inference_claim = "point_only"
 owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = []
+prerequisite_reason = "New cross-cutting representation; it consumes only a separately licensed scientific claim and cannot itself identify or estimate one."
 identity_inputs = ["quantity semantic IDs", "axis names and order", "population, regime, conditioning and time", "draw alignment", "provider and snapshot", "distribution meaning"]
 wire_changes = ["Planned additive versioned joint-distribution artifact; no 2.2 posterior or bootstrap wire reinterpretation."]
 compatibility = "Existing 2.2 posterior artifacts retain their meaning; no 2.3 route is licensed by this frozen record."
@@ -36,4 +38,377 @@ fixtures = [
   { id = "f15.joint_moments.positive", role = "positive", intent = "Compare exported joint means, covariance and a nonlinear functional with an independently enumerated finite joint law." },
   { id = "f15.marginal_pairing.negative", role = "negative", intent = "Reject a nonlinear or covariance request backed only by independent marginal artifacts." },
   { id = "f15.semantic_mutation.artifact", role = "artifact", intent = "A fresh consumer reproduces values and refuses resealed changes to axes, quantity meaning, draw alignment or snapshot." },
+]
+
+# A0 allocations follow the order of TODO.md. These are closed scientific
+# contracts, not claims that the indicated estimators or providers exist.
+
+[[record]]
+id = "2.3A.X2.cpdag_completion_scenarios"
+workstream = "X2"
+milestone = "A"
+work_package = "A1"
+status = "frozen"
+consumer_question = "Does a target effect remain identified and invariant across every DAG completion of a supplied CPDAG when each completion receives evidence bound to its own assumptions?"
+theorem = "Planned finite enumeration of DAG completions, with each completion passed to an already licensed DAG identifier and evaluator. Enumeration does not identify a mixture, assign graph probabilities or transfer evidence by variable name alone. No completeness beyond the declared enumeration bound is inherited."
+reference = "TODO.md A1; prerequisite 2.2A.X2.finite_scenario_envelope"
+guarantee = "bounded_enumeration_pending_value_evidence"
+graph_class = "Supplied CPDAG of at most six fully observed nodes, with each consistent DAG completion retained separately; no latent projection or selection shift in this initial cell."
+population_semantics = "One target population and one snapshot; evidence must be rebound per completion and shared data identity retained across them."
+evidence_family = "A target observational joint or row snapshot with a completion-specific graph certificate; missing factors remain missing, not redistributed mass."
+provider = "The exact finite-law evaluator of each licensed DAG completion; sampled covariance is a separate closed cell."
+estimand = "Per-completion target intervention distribution and its structural envelope, with unidentified and unevaluated completion counts separate."
+inference_claim = "structural_envelope"
+owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.2A.X2.finite_scenario_envelope"]
+identity_inputs = ["CPDAG identity", "canonical completion identity", "target population and intervention", "completion-specific evidence binding", "snapshot", "enumeration limits"]
+wire_changes = ["Planned additive completion receipt with every completion status and its evidence identity."]
+compatibility = "The 2.2 supplied-scenario route is unchanged; this new class-enumeration route is closed."
+search = true
+bounds = { max_nodes = 6, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "completion operations", depth_limit = "six orientations", memory_limit = "live completion bytes" }
+refusals = [
+  { code = "cell_not_licensed", detail = "cpdag_scenarios.route_frozen", when = "A CPDAG completion scenario request reaches the unimplemented 2.3 route." },
+  { code = "route_not_supported", detail = "cpdag_scenarios.selection_or_latent", when = "A selection edge or latent confounding is supplied to the initial complete-DAG cell." },
+]
+routes = [
+  { name = "antecedent.transport.cpdag_completion_scenarios", stage = "identify", status = "closed", claim = "structural_envelope", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x2.cpdag_enumerated_truth.positive", role = "positive", intent = "Enumerate every small CPDAG completion independently and compare the per-graph effect and envelope." },
+  { id = "x2.cpdag_missing_evidence.negative", role = "negative", intent = "Leave a completion unidentified when its required factor is absent and reject latent or selection input." },
+  { id = "x2.cpdag_resealed_graph.artifact", role = "artifact", intent = "A fresh consumer replays the receipt and rejects a changed completion, snapshot or evidence binding." },
+  { id = "x2.cpdag_budget_stop.budget", role = "budget", intent = "Charge each orientation and retain explored versus unevaluated completions under cancellation or a binding limit." },
+]
+
+[[record]]
+id = "2.3A.X2.shared_scenario_covariance"
+workstream = "X2"
+milestone = "A"
+work_package = "A1"
+status = "frozen"
+consumer_question = "How correlated are effect estimates from identified DAG completions that reuse the same observed units?"
+theorem = "Planned whole-row resampling or influence calculation must preserve one replicate ID across graph completions; independent per-graph resamples cannot estimate shared-data covariance. This record makes no interval claim."
+reference = "TODO.md A1; prerequisite 2.3A.X2.cpdag_completion_scenarios"
+guarantee = "shared_data_covariance_pending_oracle"
+graph_class = "The identified subset of the bounded CPDAG-completion cell, all evaluated on the same complete-row target design."
+population_semantics = "One target population and one row snapshot; a replicate selects the same units for all completions."
+evidence_family = "A single iid complete-row target sample with stable row identities."
+provider = "One joint covariance estimator over the licensed completion-specific point estimators."
+estimand = "Joint sampling covariance matrix of the completion-specific effect estimates."
+inference_claim = "point_only"
+owners = ["antecedent-estimate", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.2A.X2.finite_scenario_envelope", "2.3A.X2.cpdag_completion_scenarios"]
+identity_inputs = ["ordered completion identities", "common row snapshot", "unit IDs", "estimand coordinates", "replicate or influence method"]
+wire_changes = ["Planned additive joint covariance field with a common-data receipt."]
+compatibility = "The 2.2 structural envelope remains a structural range without a sampling covariance or interval."
+search = false
+bounds = { cancellation = true, max_completions = 64, max_replicates = 2000 }
+refusals = [
+  { code = "cell_not_licensed", detail = "scenario_covariance.route_frozen", when = "Shared-data covariance is requested before its independent oracle and artifact gate pass." },
+  { code = "route_not_supported", detail = "scenario_covariance.unknown_dependence", when = "Graph estimates use unknown or incompatible row dependence or snapshots." },
+]
+routes = [
+  { name = "antecedent.transport.scenario_shared_covariance", stage = "uncertainty", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x2.shared_rows_covariance.positive", role = "positive", intent = "Compare the full matrix with an independently enumerated or closed-form shared-row oracle." },
+  { id = "x2.independent_rows.negative", role = "negative", intent = "Refuse incompatible units or unknown dependence instead of presenting off-diagonal zeros." },
+  { id = "x2.covariance_replay.artifact", role = "artifact", intent = "A fresh consumer reproduces the full matrix and rejects a changed row snapshot or graph order." },
+]
+
+[[record]]
+id = "2.3A.X4.joint_bayesian_transport"
+workstream = "X4"
+milestone = "A"
+work_package = "A2"
+status = "frozen"
+consumer_question = "What target effect posterior follows from a declared joint source and target model and the supplied transport evidence?"
+theorem = "A new joint-model likelihood and posterior contract is required; the 2.2 point transport or static coefficient prior does not imply a calibrated transported posterior. Model, prior, likelihood and numerical approximation are separate premises."
+reference = "TODO.md A2; prerequisite 2.2A.X4.learned_continuous_trial_transport"
+guarantee = "posterior_route_pending_likelihood_and_calibration"
+graph_class = "The fixed DAG and selection assumptions of a separately licensed 2.2 transport derivation; no ADMG or graph-class posterior in this cell."
+population_semantics = "Named source trial and target population, with separate study lineage and target snapshot; posterior draws preserve source-target parameter coupling."
+evidence_family = "Source trial observations and target covariate observations with explicit sampling designs and non-overlapping unit ownership."
+provider = "Planned native joint Bayesian source-target model with checked prior and likelihood; an external posterior is a distinct trust cell."
+estimand = "Target average intervention effect posterior and its stated credible interval."
+inference_claim = "calibrated"
+coverage_records = ["cov.bayesian_transport.dag.posterior.l95.joint_source_target_iid"]
+owners = ["antecedent-bayesian", "antecedent-estimate", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.2A.X4.learned_continuous_trial_transport"]
+identity_inputs = ["source and target populations", "transport derivation", "trial and target snapshots", "joint model", "prior", "likelihood", "RNG and draw count"]
+wire_changes = ["Planned versioned joint model posterior artifact carrying aligned source-target draws and diagnostics."]
+compatibility = "The 2.2 learned continuous analytic interval is unchanged; neither it nor the closed percentile bootstrap licenses this posterior."
+search = false
+bounds = { cancellation = true, max_draws = 100000, max_model_parameters = 256 }
+refusals = [
+  { code = "cell_not_licensed", detail = "bayesian_transport.route_frozen", when = "The native joint posterior route lacks likelihood, value and calibration evidence." },
+  { code = "route_not_supported", detail = "bayesian_transport.unsupported_graph", when = "An ADMG or graph-posterior transport query is presented to the fixed-DAG model." },
+]
+routes = [
+  { name = "antecedent.transport.joint_bayesian", stage = "evaluate", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x4.joint_posterior_oracle.positive", role = "positive", intent = "Compare small-model posterior moments and transported effects with an independent exact or numerical reference." },
+  { id = "x4.prior_data_overlap.negative", role = "negative", intent = "Refuse reused observations or an unsupported graph and retain fit failure diagnostics." },
+  { id = "x4.posterior_hydration.artifact", role = "artifact", intent = "A fresh consumer retains joint source-target draws, model identity and target-effect summaries." },
+  { id = "x4.joint_credible_coverage.calibration", role = "calibration", intent = "Measure whole-method target-effect interval coverage and posterior decision behavior on the declared sample-size grid." },
+]
+
+[[record]]
+id = "2.3A.X4.binary_nested_markov_pilot"
+workstream = "X4"
+milestone = "A"
+work_package = "A3"
+status = "frozen"
+consumer_question = "Can one bounded binary ADMG transport functional be evaluated through a correctly normalized nested-Markov likelihood?"
+theorem = "The exact binary ADMG functional and likelihood factorization must be derived and independently checked before this research pilot can make a public numerical claim. An ordinary DAG factorization is not an ADMG likelihood."
+reference = "TODO.md A3; prerequisite 2.2B.X2.admg_conditional_transport"
+guarantee = "research_pilot_closed_pending_likelihood_oracle"
+graph_class = "One separately selected finite binary ADMG with an existing checked conditional transport functional; other ADMGs remain outside scope."
+population_semantics = "Named source and target populations with distinct regime evidence and non-overlapping sample lineage."
+evidence_family = "Binary observational and experimental cell counts for the exact regimes cited by the selected functional."
+provider = "Planned bounded binary nested-Markov likelihood; no generic Bayesian ADMG provider."
+estimand = "The selected target interventional contrast and, only if calibrated, its posterior interval."
+inference_claim = "calibrated"
+coverage_records = ["cov.bayesian_transport.binary_admg.posterior.l95.nested_markov_pilot"]
+owners = ["antecedent-identify", "antecedent-bayesian", "antecedent-io"]
+prerequisite_records = ["2.2B.X2.admg_conditional_transport"]
+identity_inputs = ["selected ADMG", "identified functional", "regime-specific count snapshots", "binary parameterization", "prior and likelihood", "fit receipt"]
+wire_changes = ["Planned pilot-specific posterior artifact with likelihood and fit diagnostics."]
+compatibility = "The licensed 2.2 exact conditional ADMG point route remains independent of this closed Bayesian provider."
+search = false
+bounds = { cancellation = true, max_observed = 6, max_draws = 100000 }
+refusals = [
+  { code = "cell_not_licensed", detail = "nested_markov.route_frozen", when = "A numerical or posterior request reaches the pilot before its exact functional, likelihood and calibration gates pass." },
+  { code = "route_not_supported", detail = "nested_markov.outside_binary_pilot", when = "The graph, regime or variable domain is outside the one selected binary pilot." },
+]
+routes = [
+  { name = "antecedent.transport.binary_nested_markov", stage = "evaluate", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x4.nested_likelihood_truth.positive", role = "positive", intent = "Compare normalized likelihood and target effect with an independently enumerated binary SCM." },
+  { id = "x4.nested_outside_class.negative", role = "negative", intent = "Refuse an adjacent ADMG, invalid regime or nonbinary cell without claiming nonidentification." },
+  { id = "x4.nested_fit_replay.artifact", role = "artifact", intent = "A fresh consumer checks the functional, likelihood and fit receipt against the bound evidence." },
+  { id = "x4.nested_interval_grid.calibration", role = "calibration", intent = "Measure coverage and posterior decision calibration for the exact pilot graph and sampling design." },
+]
+
+[[record]]
+id = "2.3A.X5.dependent_temporal_interval"
+workstream = "X5"
+milestone = "A"
+work_package = "A4"
+status = "frozen"
+consumer_question = "What sampling interval surrounds a target two-step sequence effect when observations share a repeated unit?"
+theorem = "The two-step identified functional is inherited from its 2.2 proof, not its point-only uncertainty. A whole-sequence estimator must retain unit dependence through fitting, resampling and interval construction; iid row resampling cannot certify it."
+reference = "TODO.md A4; prerequisite 2.2A.X5.two_step_temporal_transport"
+guarantee = "dependent_interval_pending_whole_method_calibration"
+graph_class = "The fixed two-slice selection ADMG and horizon-two query of the licensed 2.2 temporal transport cell; no longer sequence."
+population_semantics = "Named source and target, two ordered action times and one final outcome; complete histories are grouped by repeated unit."
+evidence_family = "Finite complete repeated-unit trajectories with stable unit and time IDs, and the exact regime catalog required by the 2.2 derivation."
+provider = "Planned unit-owned outer resampling of the whole prepared temporal estimator; no row-IID fallback."
+estimand = "Target mean outcome under one two-step intervention sequence, with a pointwise 95% sampling interval."
+inference_claim = "calibrated"
+coverage_records = ["cov.temporal_transport.selection_admg.frequentist.l95.two_step_repeated_units"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
+prerequisite_records = ["2.2A.X5.two_step_temporal_transport"]
+identity_inputs = ["temporal graph and 2.2 proof", "sequence and horizon", "population and regime catalog", "unit/time/snapshot identity", "resampling design and seed"]
+wire_changes = ["Planned additive temporal interval artifact with whole-unit replicate IDs and refresh receipt."]
+compatibility = "The 2.2 point-only sequence result and its estimator_inference_mismatch refusal remain unchanged."
+search = false
+bounds = { cancellation = true, max_horizon = 2, max_replicates = 2000, max_units = 100000 }
+refusals = [
+  { code = "cell_not_licensed", detail = "temporal_interval.route_frozen", when = "A dependent-sampling interval is requested before its whole-method grid and artifact gate pass." },
+  { code = "route_not_supported", detail = "temporal_interval.unknown_units", when = "Unit ownership, time order or dependence is absent or incompatible." },
+]
+routes = [
+  { name = "antecedent.transport.temporal_dependent_interval", stage = "uncertainty", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x5.dynamic_scm_interval.positive", role = "positive", intent = "Compare the whole estimator with independent dynamic-SCM truth under repeated-unit dependence." },
+  { id = "x5.unknown_unit_dependence.negative", role = "negative", intent = "Refuse an undeclared unit map or an IID-row substitute." },
+  { id = "x5.unit_replicate_replay.artifact", role = "artifact", intent = "A fresh consumer reproduces the interval and rejects changed unit, time or snapshot identity." },
+  { id = "x5.dependent_sequence_grid.calibration", role = "calibration", intent = "Measure whole-sequence pointwise interval coverage on the required sample-size grid and dependence boundary." },
+]
+
+[[record]]
+id = "2.3A.X5.uncertain_initial_state"
+workstream = "X5"
+milestone = "A"
+work_package = "A4"
+status = "frozen"
+consumer_question = "How does uncertainty in the pre-action state change the two-step target response?"
+theorem = "The 2.2 sequence functional conditions on a specified initial-state law. This extension must integrate over a separately identified or supplied initial-state distribution while keeping it coupled to histories; plugging in a single initial state is a different estimand."
+reference = "TODO.md A4; prerequisite 2.2A.X5.two_step_temporal_transport"
+guarantee = "point_integration_pending_independent_dynamic_scm_truth"
+graph_class = "The 2.2 fixed two-slice selection ADMG, with one finite observed pre-action state."
+population_semantics = "Target initial state precedes both actions and has its own snapshot; source and target initial-state laws cannot be interchanged."
+evidence_family = "A finite target initial-state joint, plus the 2.2 source/target regime catalog and complete histories."
+provider = "Exact finite-law integration over the declared target initial-state support."
+estimand = "Target two-step intervention mean marginalized over the uncertain initial state."
+inference_claim = "point_only"
+owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io"]
+prerequisite_records = ["2.2A.X5.two_step_temporal_transport"]
+identity_inputs = ["initial-state variable and target law", "time order", "source/target regimes", "graph and proof", "snapshots"]
+wire_changes = ["Planned additive initial-state factor and its identity in the temporal artifact."]
+compatibility = "The specified-initial-state 2.2 point remains unchanged and cannot be relabeled as marginalized."
+search = false
+bounds = { cancellation = true, max_initial_states = 64, max_horizon = 2 }
+refusals = [
+  { code = "cell_not_licensed", detail = "initial_state.route_frozen", when = "The target initial-state distribution route has not passed truth and artifact evidence." },
+  { code = "transport_missing_evidence", detail = "initial_state.target_law_missing", when = "Only a source initial-state law or a point state is supplied for a target-marginal query." },
+]
+routes = [
+  { name = "antecedent.transport.temporal_initial_state", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x5.initial_state_sum.positive", role = "positive", intent = "Compare the integrated sequence effect with independently enumerated dynamic-SCM state truth." },
+  { id = "x5.source_state_only.negative", role = "negative", intent = "Refuse a source state law passed as target evidence or a missing state cell." },
+  { id = "x5.initial_state_mutation.artifact", role = "artifact", intent = "A fresh consumer re-evaluates the initial-state sum and rejects a changed population or snapshot." },
+]
+
+[[record]]
+id = "2.3A.X5.new_period_refresh"
+workstream = "X5"
+milestone = "A"
+work_package = "A4"
+status = "frozen"
+consumer_question = "Can a prepared two-step result accept a new observation period without reusing stale time or selection premises?"
+theorem = "Semantic refresh contract: period extension changes the time horizon, history support and data snapshot; a derivation or posterior for the old window cannot be silently reused. No new identification theorem is claimed."
+reference = "TODO.md A4; prerequisite 2.2A.X5.two_step_temporal_transport"
+guarantee = "refresh_invalidation_contract_pending"
+graph_class = "The 2.2 fixed two-slice graph when the window advances without extending horizon; a third slice requires a separate cell."
+population_semantics = "Source, target, period boundaries, observation window and unit lineage are distinct identity inputs."
+evidence_family = "A replacement complete-history snapshot with explicit period and unit IDs."
+provider = "Checked prepared-temporal refresh and proof replay for the same scientific window contract."
+estimand = "The existing horizon-two response re-evaluated on a new declared period, or a typed invalidation."
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.2A.X5.two_step_temporal_transport"]
+identity_inputs = ["time window", "observation period", "unit lineage", "selection targets", "regimes", "snapshot and proof"]
+wire_changes = ["Planned temporal artifact refresh receipt binding the new period and invalidation decision."]
+compatibility = "The 2.2 prepared point remains valid only for its original period and snapshot."
+search = false
+bounds = { cancellation = true, max_horizon = 2, max_history_states = 4096 }
+refusals = [
+  { code = "cell_not_licensed", detail = "temporal_refresh.route_frozen", when = "A new-period refresh is requested before semantic replay evidence passes." },
+  { code = "route_not_supported", detail = "temporal_refresh.horizon_changed", when = "The replacement adds a third slice or changes the old selection or regime premises." },
+]
+routes = [
+  { name = "antecedent.transport.temporal_new_period_refresh", stage = "prepare", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x5.period_replace.positive", role = "positive", intent = "Re-evaluate the horizon-two point on a new valid period and compare with a clean preparation." },
+  { id = "x5.third_period.negative", role = "negative", intent = "Invalidate a changed horizon, selection target or regime rather than reuse the old proof." },
+  { id = "x5.period_reseal.artifact", role = "artifact", intent = "A fresh consumer rejects a changed period or stale snapshot even when a payload is resealed." },
+]
+
+[[record]]
+id = "2.3A.X8.temporal_fixed_population_counterfactual"
+workstream = "X8"
+milestone = "A"
+work_package = "A5"
+status = "frozen"
+consumer_question = "What would the same observed unit's final outcome have been under a different two-step action history?"
+theorem = "A fixed Markovian temporal SCM must abduce one exogenous history per unit and replay both action histories against that same history. The 2.2 static edge-intervention proof does not identify a temporal or transported counterfactual."
+reference = "TODO.md A5; prerequisite 2.2A.X8.path_specific_edge_intervention"
+guarantee = "shared_history_counterfactual_pending_scm_truth"
+graph_class = "Fully observed two-slice Markovian temporal DAG with one ordered action per slice and one final outcome; no latent confounding."
+population_semantics = "One fixed population and the same units in factual and counterfactual worlds; histories and observation times remain aligned."
+evidence_family = "Complete two-slice unit trajectories and fitted/supplied finite or linear-Gaussian mechanisms for the selected graph."
+provider = "Coupled abduction-action-prediction over one shared exogenous history per unit."
+estimand = "Per-unit final-outcome counterfactual and its sample mean contrast for two named action histories."
+inference_claim = "point_only"
+owners = ["antecedent-model", "antecedent-estimate", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.2A.X8.path_specific_edge_intervention"]
+identity_inputs = ["temporal graph", "unit and history IDs", "factual observations", "two action histories", "mechanism fit", "snapshot"]
+wire_changes = ["Planned versioned temporal counterfactual artifact carrying both worlds' shared-abduction receipt."]
+compatibility = "The 2.2 static edge-intervention artifact stays fixed-population and atemporal."
+search = false
+bounds = { cancellation = true, max_horizon = 2, max_units = 100000, max_worlds = 2 }
+refusals = [
+  { code = "cell_not_licensed", detail = "temporal_counterfactual.route_frozen", when = "A temporal counterfactual is requested before shared-history truth and artifact checks pass." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.unpaired_histories", when = "Factual and counterfactual histories cannot be paired by the same unit and exogenous draw." },
+]
+routes = [
+  { name = "antecedent.cross_world.temporal_fixed_population", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x8.temporal_shared_scm.positive", role = "positive", intent = "Compare two histories on the same units with an independently enumerated dynamic SCM." },
+  { id = "x8.unpaired_history.negative", role = "negative", intent = "Refuse histories that cannot share a unit or exogenous trajectory." },
+  { id = "x8.temporal_world_replay.artifact", role = "artifact", intent = "A fresh consumer recomputes both worlds and rejects a changed action time or unit history." },
+]
+
+[[record]]
+id = "2.3A.X8.transported_path_specific_counterfactual"
+workstream = "X8"
+milestone = "A"
+work_package = "A5"
+status = "frozen"
+consumer_question = "Can a static path-specific counterfactual answer be transported to a named target using a checked source-to-target derivation?"
+theorem = "Transporting a counterfactual requires both an identified target transport functional and a fixed-population cross-world theorem for the same quantity. Neither a transported mean nor a source counterfactual alone licenses their composition."
+reference = "TODO.md A5; prerequisites 2.2A.X8.path_specific_edge_intervention and 2.2A.X2.finite_scenario_envelope"
+guarantee = "composition_closed_pending_joint_theorem"
+graph_class = "A selected static fully observed Markovian DAG with a finite source/target selection diagram, inside the intersection of the two 2.2 prerequisite graph classes; no ADMG or temporal path-specific claim."
+population_semantics = "Named source and target populations with one fixed observation time and shared source-world exogenous draws; target selection differences require their own proof."
+evidence_family = "The exact source/target regime factors cited by a checked transport derivation plus the fixed-population counterfactual mechanism evidence."
+provider = "A checked composition of the two prerequisite derivations; no provider may swap an observational conditional for an intervention law."
+estimand = "One named target-population path-specific edge-intervention mean contrast."
+inference_claim = "point_only"
+owners = ["antecedent-identify", "antecedent-model", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.2A.X8.path_specific_edge_intervention", "2.2A.X2.finite_scenario_envelope"]
+identity_inputs = ["transport and cross-world proof IDs", "source/target population", "selection graph", "regimes", "edge assignments", "shared exogenous draws", "snapshots"]
+wire_changes = ["Planned composed artifact binding both proof records and the population map."]
+compatibility = "Existing source counterfactual and transported interventional points remain separate results."
+search = true
+bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "joint proof operations", depth_limit = "two-slice proof depth", memory_limit = "live proof and factor bytes" }
+refusals = [
+  { code = "cell_not_licensed", detail = "transported_counterfactual.route_frozen", when = "The selected cross-world transport theorem and joint evidence map have not passed." },
+  { code = "transport_missing_evidence", detail = "transported_counterfactual.factor_missing", when = "A source or target regime factor required by the composed proof is absent." },
+]
+routes = [
+  { name = "antecedent.cross_world.transported_path_specific", stage = "identify", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x8.transported_world_truth.positive", role = "positive", intent = "Compare the target path-specific counterfactual with an independently enumerated two-population static SCM." },
+  { id = "x8.missing_transport_factor.negative", role = "negative", intent = "Refuse a source-world counterfactual offered without the needed target factor." },
+  { id = "x8.composed_proof_replay.artifact", role = "artifact", intent = "A fresh consumer verifies both proofs and rejects a changed population or edge assignment." },
+  { id = "x8.composed_search_stop.budget", role = "budget", intent = "Charge the joint theorem search and retain partial work on cancellation or a bound." },
+]
+
+[[record]]
+id = "2.3A.X10.sampled_observation_recovery"
+workstream = "X10"
+milestone = "A"
+work_package = "A6"
+status = "frozen"
+consumer_question = "What sampling uncertainty surrounds an effect computed from the exact binary observation-recovery formula?"
+theorem = "Only the exact recovery functional of the licensed 2.2 binary m-graph is inherited. A composed sampled estimator must resample observation patterns, rerun recovery and effect evaluation, and measure coverage of the final effect; component-level coverage is insufficient."
+reference = "TODO.md A6; prerequisite 2.2B.X10.binary_observation_recovery"
+guarantee = "sampled_recovery_interval_pending_whole_method_grid"
+graph_class = "The one licensed binary m-graph and exact recoverable effect query of the 2.2 X10 row; other missingness graphs need separate formulas."
+population_semantics = "One population, one observation-pattern sampling design and a snapshot shared by recovery and effect estimation."
+evidence_family = "Finite counted observation-pattern rows with explicit response indicators and positive recovered cells."
+provider = "Planned whole-row empirical recovery and outer resampling through the exact 2.2 formula."
+estimand = "Recovered target interventional effect and a pointwise 95% whole-method sampling interval."
+inference_claim = "calibrated"
+coverage_records = ["cov.recovery.binary_mgraph.frequentist.l95.sampled_whole_method"]
+owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.2B.X10.binary_observation_recovery"]
+identity_inputs = ["m-graph and exact X10 formula", "observation indicators", "row and snapshot IDs", "population/regime", "resampling design and seed"]
+wire_changes = ["Planned sampled-recovery artifact v2 with point, interval, pattern support and bootstrap receipt."]
+compatibility = "The 2.2 exact-law recovery point and its artifact stay unchanged; counted-law intervals remain closed."
+search = false
+bounds = { cancellation = true, max_replicates = 2000, max_rows = 1000000, max_binary_variables = 6 }
+refusals = [
+  { code = "cell_not_licensed", detail = "sampled_recovery.route_frozen", when = "The sampled provider or interval is requested before full-path truth, calibration and replay pass." },
+  { code = "route_not_supported", detail = "sampled_recovery.unrecoverable_pattern", when = "An observation pattern or zero cell violates the selected exact recovery formula." },
+]
+routes = [
+  { name = "antecedent.transport.sampled_observation_recovery", stage = "uncertainty", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "x10.sampled_recovery_truth.positive", role = "positive", intent = "Compare recovered effect and interval center with an independent enumerated missingness SCM." },
+  { id = "x10.unrecoverable_pattern.negative", role = "negative", intent = "Refuse an adjacent m-graph, nonrecoverable pattern or zero denominator." },
+  { id = "x10.sampled_recovery_replay.artifact", role = "artifact", intent = "A fresh consumer reruns the exact formula and refuses a changed pattern, snapshot or interval receipt." },
+  { id = "x10.sampled_recovery_grid.calibration", role = "calibration", intent = "Measure the composed sampled effect interval across the sample-size grid and weak-pattern boundary." },
 ]

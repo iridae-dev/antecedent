@@ -44,6 +44,7 @@ fi
 EVIDENCE="$(mktemp)"
 SELECTED="$(mktemp)"
 trap 'rm -f "$EVIDENCE" "$SELECTED"' EXIT
+python3 scripts/check_2_3_prerequisites.py
 for release in 2_2 2_3; do
   registry="parity/promotion_${release}.toml"
   echo "== ${release/_/.} promotion records =="
