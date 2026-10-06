@@ -25,6 +25,7 @@ table = sys.argv[4] if len(sys.argv) > 4 else "capabilities"
 gate = sys.argv[5] if len(sys.argv) > 5 else "gate_composition"
 
 CARGO_RESULT = re.compile(r"^test result: (ok|FAILED)\. (\d+) passed; (\d+) failed;", re.M)
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def cargo_counts(log: str) -> tuple[int, int]:
@@ -200,7 +201,9 @@ for (crate, target), members in rust_batches.items():
     print(f"{gate}: running Rust target {crate} {' '.join(target)} ({len(members)} cited tests)", flush=True)
     if has_nextest:
         code, log = run(command, root)
-        counts = re.findall(r"(\d+) tests? run: (\d+) passed", log)
+        # CI requests colored Cargo output. Nextest colors the summary's
+        # numbers as well as "passed", so strip terminal codes before parsing.
+        counts = re.findall(r"(\d+) tests? run: (\d+) passed", ANSI_ESCAPE.sub("", log))
         passed = int(counts[-1][1]) if counts else 0
         failed = 0 if code == 0 else 1
     else:
