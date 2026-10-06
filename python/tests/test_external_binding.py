@@ -177,6 +177,65 @@ def test_observational_law_is_refused_without_a_checked_equivalence():
     assert "equivalence:backdoor:x" in [link.id for link in claim.lineage]
 
 
+def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivalence():
+    base = _spec_with_premises()
+    offered = base.observational_quantities()
+    assert [q.conditioning[0].value_id for q in offered] == ["0", "1", "2"]
+    assert {q.regime_id for q in offered} == {external.OBSERVATIONAL}
+
+    with pytest.raises(CausalUnsupportedError) as unlicensed:
+        base.bind(_response(quantities=offered))
+    # Without any equivalence the first observed difference is the conditioning.
+    assert unlicensed.value.detail == "external_binding.coordinate.conditioning"
+    assert (unlicensed.value.expected, unlicensed.value.supplied) == ("", "a=0")
+    assert unlicensed.value.offending == "coordinate[0]"
+    assert "checked equivalence" in unlicensed.value.remedy
+
+    spec = dataclasses.replace(base, equivalences=(base.observational_equivalence("backdoor:x"),))
+    claim = spec.bind(_response(quantities=offered))
+    assert np.allclose(claim.values, [1.0, 3.0, 5.0])
+    # The bound claim answers the interventional request, not the conditional one.
+    assert [q.regime_id for q in claim.quantities] == ["do(a=0)", "do(a=1)", "do(a=2)"]
+    assert all(not q.conditioning for q in claim.quantities)
+    assert "equivalence:backdoor:x" in [link.id for link in claim.lineage]
+    assert "transformation" in claim.stages_behind()
+
+    # A dose mapped to the wrong intervention is not licensed.
+    crossed = external.Equivalence.conditioned(
+        spec.graph_id, "a", {"0": "do(a=0)", "1": "do(a=2)", "2": "do(a=1)"}, "backdoor:x"
+    )
+    with pytest.raises(CausalUnsupportedError) as wrong:
+        dataclasses.replace(spec, equivalences=(crossed,)).bind(_response(quantities=offered))
+    assert wrong.value.detail == "external_binding.unchecked_observational_law"
+    assert wrong.value.offending == "coordinate[1]"
+
+    # Nothing else about the coordinate is rescued by the licence.
+    wrong_population = (
+        offered[0],
+        dataclasses.replace(offered[1], population_id="source"),
+        offered[2],
+    )
+    with pytest.raises(CausalUnsupportedError) as population:
+        spec.bind(_response(quantities=wrong_population))
+    assert population.value.reason_code == "quantity_semantics_mismatch"
+    assert population.value.detail == "external_binding.coordinate.population"
+
+
+def test_equivalence_names_exactly_one_scope():
+    with pytest.raises(CausalValueError, match="exactly one scope"):
+        external.Equivalence("g", None, "check")
+    with pytest.raises(CausalValueError, match="exactly one scope"):
+        external.Equivalence("g", "do(a=1)", "check", "a", {"1": "do(a=1)"})
+    with pytest.raises(CausalValueError, match="go together"):
+        external.Equivalence("g", "do(a=1)", "check", None, {"1": "do(a=1)"})
+    custom = external.response(
+        ac.identify(graph=EDGES, names=NAMES, query=ac.ResponseCurve("a", "y", grid=GRID)),
+        quantities=_spec().quantities,
+    )
+    with pytest.raises(CausalValueError, match="dose grid"):
+        custom.observational_equivalence("check")
+
+
 def test_unknown_capability_names_are_refused_not_ignored():
     with pytest.raises(CausalUnsupportedError) as unknown:
         _spec().bind(_response(provider=_provider(capabilities=("mean", "teleport"))))

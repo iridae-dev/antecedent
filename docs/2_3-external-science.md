@@ -112,6 +112,14 @@ never `native_licensed`. Python builds declarations; Rust owns every identity,
 check and refusal. `crates/antecedent-io/tests/external_binding_wire.rs` and
 `python/tests/test_external_binding.py` assert the same closed-form fixture.
 
-Limitation: a checked equivalence licenses a coordinate that differs from the
-request only in its regime. An observational conditional law over a dose grid
-(whose coordinates differ by conditioning) cannot yet be bound.
+Observational laws offered for interventions need a checked equivalence of one
+of two scopes. `Regime` covers a coordinate that differs from the request only
+in its regime. `ConditionedTreatment` covers `P(Y | T = v)` standing for
+`P(Y | do(T = v))` over a grid: the offered coordinate conditions on exactly
+one entry for the treatment variable, each conditioning value maps to the one
+interventional regime it licenses, and every other field (variable, units,
+population, horizon, functional, transform, remaining conditions) must already
+agree. The equivalence belongs to its graph, and the bound claim carries the
+interventional coordinates with the justification in its lineage. In Python,
+`spec.observational_quantities()` and `spec.observational_equivalence(...)`
+build both sides for a dose grid; asserting the justification is the caller's.

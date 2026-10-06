@@ -270,6 +270,13 @@ impl ExternalBindingError {
                     offending: Some(format!("coordinate[{index}]")),
                     expected: expected.map(|q| dimension_value(q, *mismatch)),
                     supplied: supplied.map(|q| dimension_value(q, *mismatch)),
+                    remedy: (*mismatch == QuantityMismatch::Conditioning
+                        && supplied.is_some_and(|q| {
+                            q.regime_id == crate::external_binding::OBSERVATIONAL_REGIME
+                        }))
+                    .then_some(
+                        "if this observational law is meant to answer the interventional request, provide a checked equivalence for the treatment conditioning",
+                    ),
                     ..at(
                         crate::reason_code!("quantity_semantics_mismatch"),
                         &format!("external_binding.coordinate.{}", dimension_name(*mismatch)),

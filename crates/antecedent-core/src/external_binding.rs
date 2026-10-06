@@ -16,15 +16,78 @@ use crate::{
 /// Regime identity of an unintervened conditional law.
 pub const OBSERVATIONAL_REGIME: &str = "observational";
 
+/// What a checked equivalence lets an observational law stand for.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EquivalenceScope {
+    /// A coordinate that differs from the request only in its regime.
+    Regime {
+        /// Interventional regime that the observational law may stand for.
+        interventional_regime_id: String,
+    },
+    /// A conditional law `P(Y | T = v)` standing for `P(Y | do(T = v))`: the
+    /// observational coordinate conditions on the treatment, and each
+    /// conditioning value maps to exactly the interventional regime it licenses.
+    ConditionedTreatment {
+        /// Treatment variable whose conditioning is replaced by intervention.
+        variable_id: String,
+        /// `(conditioning value id, interventional regime id)` pairs.
+        value_to_regime: Vec<(String, String)>,
+    },
+}
+
 /// A separately checked licence to read an observational law as interventional.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedEquivalence {
     /// Graph for which the equivalence was checked.
     pub graph_id: String,
-    /// Interventional regime that the observational law may stand for.
-    pub interventional_regime_id: String,
     /// Stable identity of the check (for example an adjustment-set proof).
     pub justification_id: String,
+    /// Which observational coordinates it licenses.
+    pub scope: EquivalenceScope,
+}
+
+impl CheckedEquivalence {
+    /// Whether this equivalence licenses reading `offered` as `wanted`.
+    ///
+    /// Everything except the regime (and, for a conditioned treatment, the one
+    /// conditioning entry on the treatment) must already agree; a different
+    /// population, horizon, units or other condition is never rescued.
+    fn licenses(
+        &self,
+        graph_id: &str,
+        offered: &ScientificQuantity,
+        wanted: &ScientificQuantity,
+    ) -> bool {
+        if self.graph_id != graph_id || blank(&self.justification_id) {
+            return false;
+        }
+        let mut as_requested = offered.clone();
+        as_requested.regime_id.clone_from(&wanted.regime_id);
+        match &self.scope {
+            EquivalenceScope::Regime { interventional_regime_id } => {
+                *interventional_regime_id == wanted.regime_id
+                    && as_requested.require_same_coordinate(wanted).is_ok()
+            }
+            EquivalenceScope::ConditionedTreatment { variable_id, value_to_regime } => {
+                let mut matched = offered
+                    .conditioning
+                    .iter()
+                    .filter(|condition| condition.variable_id == *variable_id);
+                let (Some(treatment), None) = (matched.next(), matched.next()) else {
+                    return false;
+                };
+                let maps = value_to_regime
+                    .iter()
+                    .filter(|(value, regime)| {
+                        *value == treatment.value_id && *regime == wanted.regime_id
+                    })
+                    .count()
+                    == 1;
+                as_requested.conditioning.retain(|condition| condition.variable_id != *variable_id);
+                maps && as_requested.require_same_coordinate(wanted).is_ok()
+            }
+        }
+    }
 }
 
 /// What an already identified causal contract requires of an external result.
@@ -340,16 +403,26 @@ fn check_coordinates(
         match got.require_same_coordinate(wanted) {
             Ok(()) => {}
             Err(QuantityMismatch::Regime) if got.regime_id == OBSERVATIONAL_REGIME => {
-                let mut as_requested = got.clone();
-                as_requested.regime_id.clone_from(&wanted.regime_id);
-                as_requested
-                    .require_same_coordinate(wanted)
-                    .map_err(|m| E::CoordinateMismatch(index, m))?;
-                let Some(eq) = contract.equivalences.iter().find(|e| {
-                    e.graph_id == contract.graph_id
-                        && e.interventional_regime_id == wanted.regime_id
-                        && !blank(&e.justification_id)
-                }) else {
+                let Some(eq) = contract
+                    .equivalences
+                    .iter()
+                    .find(|e| e.licenses(&contract.graph_id, got, wanted))
+                else {
+                    // Name a plain mismatch when something besides the regime (and
+                    // any treatment conditioning an equivalence could replace)
+                    // differs; otherwise only the licence is missing.
+                    let mut as_requested = got.clone();
+                    as_requested.regime_id.clone_from(&wanted.regime_id);
+                    for equivalence in &contract.equivalences {
+                        if let EquivalenceScope::ConditionedTreatment { variable_id, .. } =
+                            &equivalence.scope
+                        {
+                            as_requested.conditioning.retain(|c| c.variable_id != *variable_id);
+                        }
+                    }
+                    as_requested
+                        .require_same_coordinate(wanted)
+                        .map_err(|m| E::CoordinateMismatch(index, m))?;
                     return Err(E::UncheckedObservationalLaw(index));
                 };
                 if !equivalence_ids.contains(&eq.justification_id) {
@@ -561,8 +634,8 @@ mod tests {
         let mut c = contract();
         c.equivalences.push(CheckedEquivalence {
             graph_id: "graph-1".into(),
-            interventional_regime_id: "do(a=1)".into(),
             justification_id: "backdoor:z".into(),
+            scope: EquivalenceScope::Regime { interventional_regime_id: "do(a=1)".into() },
         });
         let mut r = response();
         for q in &mut r.header.quantities {
@@ -594,6 +667,95 @@ mod tests {
             Ok(())
         );
         assert_eq!(claim.provenance_chain(" "), Err(ProvenanceChainError::InvalidLink));
+    }
+
+    fn dose_contract() -> (CheckedCausalContract, Vec<ScientificQuantity>) {
+        let mut c = contract();
+        c.estimand = vec![quantity("do(a=0)", 0), quantity("do(a=1)", 0)];
+        c.equivalences.push(CheckedEquivalence {
+            graph_id: "graph-1".into(),
+            justification_id: "backdoor:z".into(),
+            scope: EquivalenceScope::ConditionedTreatment {
+                variable_id: "a".into(),
+                value_to_regime: vec![
+                    ("0".into(), "do(a=0)".into()),
+                    ("1".into(), "do(a=1)".into()),
+                ],
+            },
+        });
+        let offered = ["0", "1"]
+            .iter()
+            .map(|dose| {
+                let mut q = quantity(OBSERVATIONAL_REGIME, 0);
+                q.conditioning = vec![crate::QuantityCondition {
+                    variable_id: "a".into(),
+                    value_id: (*dose).into(),
+                }];
+                q
+            })
+            .collect();
+        (c, offered)
+    }
+
+    fn offer(quantities: Vec<ScientificQuantity>) -> ExternalResult {
+        let mut r = response();
+        r.header.object = law(quantities.clone());
+        r.header.quantities = quantities;
+        ExternalResult::Response(r)
+    }
+
+    #[test]
+    fn observational_conditional_law_over_a_dose_grid_binds_under_its_equivalence() {
+        let (c, offered) = dose_contract();
+        let claim = bind_external_result(&c, &offer(offered.clone())).unwrap();
+        assert_eq!(claim.equivalence_ids(), ["backdoor:z".to_owned()]);
+        assert_eq!(claim.quantities()[1].regime_id, "do(a=1)");
+        assert!(claim.quantities().iter().all(|q| q.conditioning.is_empty()));
+
+        // A dose mapped to a different intervention is refused.
+        let mut crossed = c.clone();
+        if let EquivalenceScope::ConditionedTreatment { value_to_regime, .. } =
+            &mut crossed.equivalences[0].scope
+        {
+            value_to_regime[1].1 = "do(a=0)".into();
+        }
+        assert_eq!(
+            bind_external_result(&crossed, &offer(offered.clone())),
+            Err(ExternalBindingError::UncheckedObservationalLaw(1))
+        );
+        // Another treatment variable's conditioning is not covered.
+        let mut other = c.clone();
+        if let EquivalenceScope::ConditionedTreatment { variable_id, .. } =
+            &mut other.equivalences[0].scope
+        {
+            *variable_id = "b".into();
+        }
+        assert_eq!(
+            bind_external_result(&other, &offer(offered.clone())),
+            Err(ExternalBindingError::CoordinateMismatch(0, QuantityMismatch::Conditioning))
+        );
+        // Nothing else is rescued: a stray extra condition or another population.
+        let mut extra = offered.clone();
+        extra[0]
+            .conditioning
+            .push(crate::QuantityCondition { variable_id: "z".into(), value_id: "high".into() });
+        assert_eq!(
+            bind_external_result(&c, &offer(extra)),
+            Err(ExternalBindingError::CoordinateMismatch(0, QuantityMismatch::Conditioning))
+        );
+        let mut wrong_population = offered.clone();
+        wrong_population[1].population_id = "source".into();
+        assert_eq!(
+            bind_external_result(&c, &offer(wrong_population)),
+            Err(ExternalBindingError::CoordinateMismatch(1, QuantityMismatch::Population))
+        );
+        // The equivalence belongs to its graph.
+        let mut elsewhere = c;
+        elsewhere.equivalences[0].graph_id = "other".into();
+        assert_eq!(
+            bind_external_result(&elsewhere, &offer(offered)),
+            Err(ExternalBindingError::UncheckedObservationalLaw(0))
+        );
     }
 
     #[test]
@@ -678,8 +840,8 @@ mod tests {
         let mut c = contract();
         c.equivalences.push(CheckedEquivalence {
             graph_id: "other".into(),
-            interventional_regime_id: "do(a=1)".into(),
             justification_id: "backdoor:z".into(),
+            scope: EquivalenceScope::Regime { interventional_regime_id: "do(a=1)".into() },
         });
         assert_eq!(bind(&c, &r), Err(ExternalBindingError::UncheckedObservationalLaw(0)));
         c.equivalences[0].graph_id = "graph-1".into();

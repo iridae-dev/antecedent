@@ -10,11 +10,12 @@
 #![allow(clippy::result_large_err)]
 
 use antecedent_core::{
-    CheckedCausalContract, CheckedEquivalence, ExternalBindingError, ExternalContractError,
-    ExternalResponse, ExternalResult, ExternalResultHeader, ExternalScientificObject,
-    ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract,
-    ProviderObjectIdentity, ScientificQuantity, SupportStatus, VerificationProbe,
-    bind_external_result, capability_from_name, probe_from_name, verify_external_object,
+    CheckedCausalContract, CheckedEquivalence, EquivalenceScope, ExternalBindingError,
+    ExternalContractError, ExternalResponse, ExternalResult, ExternalResultHeader,
+    ExternalScientificObject, ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus,
+    LawProviderContract, ProviderObjectIdentity, ScientificQuantity, SupportStatus,
+    VerificationProbe, bind_external_result, capability_from_name, probe_from_name,
+    verify_external_object,
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,14 +25,27 @@ use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 /// Maximum accepted JSON declaration bytes.
 pub const MAX_BINDING_WIRE_BYTES: usize = 4 * 1024 * 1024;
 
+/// `P(Y | T = v)` read as `P(Y | do(T = v))` for each listed value.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConditionedTreatmentWire {
+    /// Treatment variable whose conditioning is replaced by intervention.
+    pub variable_id: String,
+    /// `(conditioning value id, interventional regime id)` pairs.
+    pub value_to_regime: Vec<(String, String)>,
+}
+
 /// A checked equivalence on the wire.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EquivalenceWire {
     /// Graph the equivalence was checked on.
     pub graph_id: String,
-    /// Interventional regime it licenses.
-    pub interventional_regime_id: String,
+    /// Interventional regime it licenses, for a coordinate differing only in regime.
+    pub interventional_regime_id: Option<String>,
+    /// Or: a conditional law on the treatment standing for its intervention.
+    /// Exactly one of the two scopes must be given.
+    pub conditioned_treatment: Option<ConditionedTreatmentWire>,
     /// Stable identity of the check.
     pub justification_id: String,
 }
@@ -185,12 +199,29 @@ fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWi
         equivalences: wire
             .equivalences
             .iter()
-            .map(|e| CheckedEquivalence {
-                graph_id: e.graph_id.clone(),
-                interventional_regime_id: e.interventional_regime_id.clone(),
-                justification_id: e.justification_id.clone(),
+            .map(|e| {
+                let scope = match (&e.interventional_regime_id, &e.conditioned_treatment) {
+                    (Some(regime), None) => {
+                        EquivalenceScope::Regime { interventional_regime_id: regime.clone() }
+                    }
+                    (None, Some(treatment)) => EquivalenceScope::ConditionedTreatment {
+                        variable_id: treatment.variable_id.clone(),
+                        value_to_regime: treatment.value_to_regime.clone(),
+                    },
+                    _ => {
+                        return Err(malformed(
+                            "equivalence",
+                            "give exactly one of interventional_regime_id or conditioned_treatment",
+                        ));
+                    }
+                };
+                Ok(CheckedEquivalence {
+                    graph_id: e.graph_id.clone(),
+                    justification_id: e.justification_id.clone(),
+                    scope,
+                })
             })
-            .collect(),
+            .collect::<Result<Vec<_>, RefusalWire>>()?,
     })
 }
 

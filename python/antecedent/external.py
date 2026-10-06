@@ -24,7 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -141,11 +141,51 @@ class Response:
 
 @dataclass(frozen=True, slots=True)
 class Equivalence:
-    """A separately checked licence to read an observational law as interventional."""
+    """A separately checked licence to read an observational law as interventional.
+
+    Two scopes, exactly one of which is given. ``interventional_regime`` covers
+    a coordinate that differs from the request only in its regime.
+    ``treatment`` with ``value_to_regime`` covers ``P(Y | T=v)`` standing for
+    ``P(Y | do(T=v))`` over a grid: each conditioning value maps to exactly the
+    regime it licenses, and nothing else about the coordinate may differ. Use
+    :meth:`conditioned` or :meth:`ExternalSpec.observational_equivalence`.
+    ``justification`` names the check, for example an adjustment-set proof.
+    """
 
     graph_id: str
-    interventional_regime: str
+    interventional_regime: str | None
     justification: str
+    treatment: str | None = None
+    value_to_regime: Mapping[str, str] | None = None
+
+    def __post_init__(self) -> None:
+        if (self.interventional_regime is None) == (self.treatment is None):
+            raise CausalValueError(
+                "an Equivalence names exactly one scope: interventional_regime, or "
+                "treatment with value_to_regime"
+            )
+        if (self.treatment is None) != (self.value_to_regime is None):
+            raise CausalValueError("treatment and value_to_regime go together")
+
+    @classmethod
+    def conditioned(
+        cls, graph_id: str, treatment: str, value_to_regime: Mapping[str, str], justification: str
+    ) -> Equivalence:
+        """``P(Y | treatment=v)`` read as ``P(Y | do(treatment=v))`` for each listed value."""
+        return cls(graph_id, None, justification, treatment, dict(value_to_regime))
+
+    def _wire(self) -> dict[str, Any]:
+        return {
+            "graph_id": self.graph_id,
+            "justification_id": self.justification,
+            "interventional_regime_id": self.interventional_regime,
+            "conditioned_treatment": None
+            if self.treatment is None
+            else {
+                "variable_id": self.treatment,
+                "value_to_regime": [[v, r] for v, r in (self.value_to_regime or {}).items()],
+            },
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +233,8 @@ class ExternalSpec:
     require_assumptions: tuple[str, ...] = ()
     equivalences: tuple[Equivalence, ...] = ()
     statement: str = ""
+    treatment: str | None = None
+    doses: tuple[float, ...] = ()
 
     def _contract_wire(self) -> dict[str, Any]:
         return {
@@ -202,15 +244,44 @@ class ExternalSpec:
             "accepted_meanings": list(self.accepted_meanings),
             "required_evidence_ids": list(self.require_evidence),
             "required_assumption_ids": list(self.require_assumptions),
-            "equivalences": [
-                {
-                    "graph_id": e.graph_id,
-                    "interventional_regime_id": e.interventional_regime,
-                    "justification_id": e.justification,
-                }
-                for e in self.equivalences
-            ],
+            "equivalences": [e._wire() for e in self.equivalences],
         }
+
+    def observational_quantities(self) -> tuple[ScientificQuantity, ...]:
+        """The coordinates of ``P(Y | treatment=dose)`` over this spec's dose grid.
+
+        What an observational provider reports for the same grid: the regime is
+        ``observational`` and each coordinate conditions on its dose.
+        """
+        if self.treatment is None:
+            raise CausalValueError(
+                "this spec has no treatment dose grid; build the observational "
+                "coordinates explicitly"
+            )
+        return tuple(
+            replace(
+                q,
+                regime_id=OBSERVATIONAL,
+                conditioning=(QuantityCondition(self.treatment, f"{dose:g}"),),
+            )
+            for q, dose in zip(self.quantities, self.doses, strict=True)
+        )
+
+    def observational_equivalence(self, justification: str) -> Equivalence:
+        """The checked equivalence licensing :meth:`observational_quantities`.
+
+        Only call this when ``justification`` names a real check (for example the
+        backdoor adjustment set that identified the query); the license is
+        yours to assert, and it is recorded in the claim's lineage.
+        """
+        if self.treatment is None:
+            raise CausalValueError("this spec has no treatment dose grid")
+        return Equivalence.conditioned(
+            self.graph_id,
+            self.treatment,
+            {f"{dose:g}": q.regime_id for q, dose in zip(self.quantities, self.doses, strict=True)},
+            justification,
+        )
 
     def bind(self, response: Response) -> BoundExternalClaim:
         """Check ``response`` against this contract and bind it, or refuse."""
@@ -479,6 +550,14 @@ def response(
         )
     else:
         coordinates = tuple(quantities)
+    query = identification.query
+    dose_grid = (
+        quantities is None
+        and getattr(query, "kind", None) == "response_curve"
+        and getattr(query, "horizons", None) is None
+    )
+    treatment = query.treatment if dose_grid else None
+    doses = tuple(float(dose) for dose in query.grid) if dose_grid else ()
     identity = graph_id or _graph_identity(identification)
     return ExternalSpec(
         contract_id=contract_id or "contract:" + identity.removeprefix("graph:"),
@@ -490,6 +569,8 @@ def response(
         require_assumptions=tuple(require_assumptions),
         equivalences=tuple(equivalences),
         statement=identification.statement,
+        treatment=treatment,
+        doses=doses,
     )
 
 

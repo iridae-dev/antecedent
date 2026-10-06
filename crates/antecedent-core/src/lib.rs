@@ -105,9 +105,9 @@ pub use external::{
 };
 pub use external_binding::{
     BoundExternalClaim, BoundTrustLevel, CheckedCausalContract, CheckedEquivalence,
-    ExternalBindingError, ExternalDistribution, ExternalPosterior, ExternalResponse,
-    ExternalResult, ExternalResultHeader, ExternalUncertaintyMeaning, OBSERVATIONAL_REGIME,
-    bind_external_result,
+    EquivalenceScope, ExternalBindingError, ExternalDistribution, ExternalPosterior,
+    ExternalResponse, ExternalResult, ExternalResultHeader, ExternalUncertaintyMeaning,
+    OBSERVATIONAL_REGIME, bind_external_result,
 };
 pub use external_refusal::{
     ExternalRefusal, capability_from_name, capability_name, probe_from_name, probe_name,
