@@ -459,11 +459,11 @@ id = "2.3A.F1.aligned_joint_draws"
 workstream = "F1"
 milestone = "A"
 work_package = "A0.2"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can a fresh consumer recover the same joint covariance and nonlinear functional from exported, aligned multivariate draws?"
 theorem = "Finite weighted-sum contract: each draw index denotes one joint realization over all named coordinates; independently sampled marginals do not determine covariance or nonlinear functionals. This cell makes no posterior coverage claim."
 reference = "TODO.md A0.2; prerequisites 2.3A.F15.joint_distribution_semantics and 2.3A.F16.distribution_meanings"
-guarantee = "joint_draw_value_pending_artifact_evidence"
+guarantee = "checked_finite_joint_draw_values_and_artifact_identity_only"
 graph_class = "An already identified finite-coordinate claim; this representation cannot establish a graph theorem."
 population_semantics = "Every coordinate retains its own population, regime, horizon, conditioning and units; compatible joint draws share one declared source and snapshot."
 evidence_family = "Bounded finite draw-major array with joint alignment, optional normalized weights and coordinate support mask."
@@ -479,7 +479,6 @@ compatibility = "The existing PosteriorArtifact remains a distinct wire kind and
 search = false
 bounds = { cancellation = true, max_draws = 100000, max_coordinates = 1024, max_payload_bytes = 16777216 }
 refusals = [
-  { code = "cell_not_licensed", detail = "aligned_joint_draws.route_frozen", when = "The public joint draw consumer is requested before independent artifact evidence passes." },
   { code = "joint_law_required", detail = "aligned_joint_draws.marginals_not_joint", when = "A covariance or nonlinear functional is requested from independent marginal artifacts." },
   { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.identity_expected", when = "A loaded artifact's population, intervention, unit, time, coordinate order or snapshot differs from the consumer's contract." },
   { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.outcome_coordinate", when = "A threshold probability is requested on an observational or non-outcome coordinate." },
@@ -487,12 +486,16 @@ refusals = [
   { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.legacy_binding", when = "A 2.2 posterior coefficient has no named or one-to-one target quantity binding." },
 ]
 routes = [
-  { name = "antecedent_io.DistributionArtifact.consume_joint", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent_io.DistributionArtifact.consume_joint", stage = "consume", status = "licensed", claim = "point_only" },
+  { name = "antecedent.artifacts.JointDistributionArtifact.load", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f1.enumerated_joint.positive", role = "positive", intent = "Compare means, covariance and nonlinear expectation against an independently enumerated finite joint law." },
-  { id = "f1.marginal_pairing.negative", role = "negative", intent = "Reject independent marginals, incompatible coordinates and unsupported masked coordinates before calculation." },
-  { id = "f1.fresh_process_replay.artifact", role = "artifact", intent = "A fresh reader reproduces weighted joint values and refuses a resealed semantic, order or snapshot mutation." },
+  { id = "f1.enumerated_joint.positive", role = "positive", intent = "Compare means, covariance and nonlinear expectation against an independently enumerated finite joint law.", evidence_test = "crates/antecedent-io/src/distribution_artifact.rs", evidence_assertion = "enumerated_joint_values_round_trip_with_independent_expected_identity" },
+  { id = "f1.marginal_pairing.negative", role = "negative", intent = "Reject independent marginals, incompatible coordinates and unsupported masked coordinates before calculation.", evidence_test = "crates/antecedent-io/src/distribution_artifact.rs", evidence_assertion = "marginal_draws_and_wrong_semantics_refuse_before_value_evaluation" },
+  { id = "f1.fresh_process_replay.artifact", role = "artifact", intent = "A fresh reader reproduces joint values and refuses a resealed snapshot mutation.", evidence_test = "crates/antecedent-io/tests/distribution_artifact.rs", evidence_assertion = "fresh_process_consumer_recomputes_enumerated_joint_truth" },
+  { id = "f1.python_value.positive", role = "positive", intent = "Python typed quantities, axes, NumPy copy and joint products match the finite truth.", evidence_test = "python/tests/test_joint_distribution_artifact.py", evidence_assertion = "test_typed_numpy_copy_and_round_trip" },
+  { id = "f1.python_marginals.negative", role = "negative", intent = "Python refuses covariance and nonlinear products for independent marginals.", evidence_test = "python/tests/test_joint_distribution_artifact.py", evidence_assertion = "test_independent_marginals_refuse_python_joint_operations" },
+  { id = "f1.python_fresh_process.artifact", role = "artifact", intent = "A separate Python process loads bytes under an independent identity and reproduces joint truth.", evidence_test = "python/tests/test_joint_distribution_artifact.py", evidence_assertion = "test_fresh_python_process_consumes_with_independent_identity" },
 ]
 
 [[record]]

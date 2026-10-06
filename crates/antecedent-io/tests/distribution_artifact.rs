@@ -47,6 +47,13 @@ fn fresh_process_consumer_recomputes_enumerated_joint_truth() {
         assert!((loaded.mean(1).unwrap() - 1.0).abs() < 1e-12);
         assert!((loaded.covariance(0, 1).unwrap() - 0.5).abs() < 1e-12);
         assert!((loaded.joint_expectation(0, 1, |x, y| x * y).unwrap() - 1.0).abs() < 1e-12);
+        let mut changed = loaded.metadata().clone();
+        changed.identity.snapshot_id = "other-snapshot".into();
+        let resealed = DistributionArtifact::new(changed, loaded.draws().to_vec())
+            .unwrap()
+            .to_bytes("joint-fixture")
+            .unwrap();
+        assert!(DistributionArtifact::from_bytes(&resealed, &expected_identity()).is_err());
         return;
     }
 

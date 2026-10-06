@@ -38,6 +38,7 @@ mod derived_treatment_api;
 mod descriptive_api;
 mod design_api;
 mod discovery_api;
+mod distribution_api;
 mod estimator_config;
 mod experiment_api;
 mod factorial_api;
@@ -2705,6 +2706,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
+    distribution_api::register(m)?;
     provider_api::register(m)?;
     m.add("__version__", antecedent_core::VERSION)?;
     // Surfaced so the Python package can refuse to stay silent when an

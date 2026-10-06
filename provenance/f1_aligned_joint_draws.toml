@@ -11,4 +11,4 @@ implementation_deviations = [
   "The joint artifact preserves supplied finite draws and performs descriptive finite-draw operations. It does not make a calibrated posterior or sampling claim by itself.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-io/src/distribution_artifact.rs", "crates/antecedent-io/tests/distribution_artifact.rs"]
+test_sources = ["crates/antecedent-io/src/distribution_artifact.rs", "crates/antecedent-io/tests/distribution_artifact.rs", "python/tests/test_joint_distribution_artifact.py"]

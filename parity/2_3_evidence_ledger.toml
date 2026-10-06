@@ -233,7 +233,25 @@ tolerance = "absolute 1e-12"
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f1.fresh_process_replay.artifact"
-provider_trust = "native_route_pending_evidence"
+provider_trust = "native_semantic_validation_only; supplied source remains unverified"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "2.3A.F1.aligned_joint_draws"
+route = "antecedent.artifacts.JointDistributionArtifact.load"
+work_package = "A0.2"
+algorithm_provenance = ["provenance/f1_aligned_joint_draws.toml"]
+parity_registry = "parity/promotion_2_3.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "f1.python_value.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "two aligned, equally weighted Python draw rows (0,0) and (1,2) with named quantities and a separately reconstructed consumer identity"
+expected_values = "shape=(2,2); population covariance=0.5; E[XY]=1; independently sampled marginals refuse joint operations"
+tolerance = "absolute 1e-12"
+calibration = "exact_or_point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "f1.python_fresh_process.artifact"
+provider_trust = "native_semantic_validation_only; supplied source remains unverified"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]

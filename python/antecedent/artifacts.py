@@ -21,6 +21,14 @@ from ._native import (
 from ._native import (
     encode_causal_artifact as _encode_causal_artifact,
 )
+from .joint_distribution import (
+    DistributionIdentity,
+    DistributionMeaning,
+    DrawAlignment,
+    JointDistributionArtifact,
+    QuantityCondition,
+    ScientificQuantity,
+)
 
 PayloadKind = Literal[
     "query",
@@ -93,4 +101,8 @@ def accept(data: bytes) -> dict[str, str]:
     return dict(_accept_analysis_result_contract(data))
 
 
-__all__ = ["CausalArtifact", "PayloadKind", "accept", "dumps", "loads"]
+__all__ = [
+    "CausalArtifact", "DistributionIdentity", "DistributionMeaning", "DrawAlignment",
+    "JointDistributionArtifact", "PayloadKind", "QuantityCondition", "ScientificQuantity",
+    "accept", "dumps", "loads",
+]

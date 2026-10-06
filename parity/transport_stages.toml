@@ -4006,9 +4006,14 @@ notes = "2.3 A0.1 F16 distribution meaning remains a frozen semantic contract."
 [[routes]]
 route = "antecedent_io.DistributionArtifact.consume_joint"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.2 F1 aligned joint draws remain closed pending an independent consumer artifact."
+status = "licensed"
+notes = "2.3 A0.2 F1 finite joint-draw representation and checked consumer; no causal identification or interval claim."
+
+[[routes]]
+route = "antecedent.artifacts.JointDistributionArtifact.load"
+stage = "consume"
+status = "licensed"
+notes = "2.3 A0.2 F1 typed Python bounded-copy consumer with independent expected identity."
 
 [[routes]]
 route = "antecedent.inference.mapped_posterior_transfer"

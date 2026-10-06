@@ -16,8 +16,16 @@ The numeric section is little-endian f64 in draw-major order, with named axes
 `[draw, quantity]` and shape `[n_draws, n_quantities]`. Row `i` is one joint
 realization only when `alignment = joint`.
 The Rust value exposes `semantic`, `axes`, `shape`, `n_draws`, `quantities`
-and a read-only draw-major f64 slice. A Python NumPy view and public load/export
-surface remain part of the open A0.2 typed API item.
+and a read-only draw-major f64 slice. Python exposes typed
+`antecedent.artifacts.ScientificQuantity`, `DistributionIdentity` and
+`JointDistributionArtifact` values. The Python constructor accepts only a
+two-dimensional float64 NumPy array; `export(artifact_id)` returns bytes and
+`load(bytes, expected_identity=...)` requires a separate consumer identity.
+`numpy.asarray(artifact)` makes one bounded copy into NumPy-owned row-major
+storage. Mutating that array cannot change the validated artifact; requesting
+`copy=False` raises because the bridge does not expose its Rust buffer.
+Python `mean`, `covariance` and `joint_product_expectation` call the checked
+Rust operations, including the refusal for independently sampled marginals.
 
 A consumer supplies the expected identity from its own causal contract on
 load. Artifact checksums detect corruption; they do not establish that a
