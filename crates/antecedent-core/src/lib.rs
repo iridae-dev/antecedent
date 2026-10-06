@@ -177,6 +177,7 @@ pub use response::{
     CausalResponse, CredibleDraws, DiagnosticScope, HorizonIdentification, IdentifiedSet,
     IntervalInterpretation, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
     ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
+    check_static_point_labels,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,

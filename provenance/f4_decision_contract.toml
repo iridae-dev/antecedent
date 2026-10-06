@@ -1,0 +1,18 @@
+feature_id = "f4_decision_contract"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A durable decision declaration evaluated by finite expected utility over aligned
+# joint rows; the standard expected-utility definition, with no paper algorithm.
+papers = []
+implementation_deviations = [
+  "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
+  "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separate, still frozen records.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/decision_acceptance.rs",
+]

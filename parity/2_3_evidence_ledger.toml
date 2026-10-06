@@ -17,7 +17,7 @@ tolerance = "absolute 1e-12"
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f15.semantic_mutation.artifact"
-provider_trust = "native_route_pending_evidence"
+provider_trust = "native_semantic_validation_only; supplied source remains unverified"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
@@ -215,7 +215,7 @@ tolerance = "exact enum outcome"
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f16.meaning_reseal.artifact"
-provider_trust = "native_route_pending_evidence"
+provider_trust = "native_semantic_validation_only; supplied source remains unverified"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
@@ -366,7 +366,7 @@ exact_request_verification = "independent probes recomputed natively at the comp
 id = "2.3A.F8.coordinate_support"
 route = "antecedent.support.coordinate_grid"
 work_package = "A0.4"
-algorithm_provenance = ["pending:provenance/coordinate_support.toml"]
+algorithm_provenance = ["provenance/f8_coordinate_support.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f8.known_truth.positive"
@@ -377,14 +377,14 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f8.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "native labelling of evidence computed by existing estimators; an external grid keeps its own declared support and is never upgraded"
+exact_request_verification = "not_applicable_no_external_provider_in_this_route"
 
 [[cell]]
 id = "2.3A.F24.composition_provenance"
 route = "antecedent.provenance.composition_chain"
 work_package = "A0.4"
-algorithm_provenance = ["pending:provenance/composition_provenance.toml"]
+algorithm_provenance = ["provenance/f24_composition_provenance.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f24.known_truth.positive"
@@ -395,8 +395,8 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f24.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "native_digest_chain_only; a provider link records its identity digest and never upgrades trust"
+exact_request_verification = "not_applicable_lineage_digests_only; provider verification receipts are validated by their own records"
 
 [[cell]]
 id = "2.3A.F25.structured_refusals"
@@ -456,7 +456,7 @@ exact_request_verification = "pending exact request fingerprint and applicable p
 id = "2.3B.F4.decision_contract"
 route = "antecedent.decision.evaluate_contract"
 work_package = "B0 prerequisite"
-algorithm_provenance = ["pending:provenance/decision_contract.toml"]
+algorithm_provenance = ["provenance/f4_decision_contract.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f4.known_truth.positive"
@@ -467,8 +467,8 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f4.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "native_decision_evaluation_only; supplied distribution sources remain unverified inputs and are never upgraded"
+exact_request_verification = "not_applicable_no_external_provider_in_this_cell; external sources require their own exact-request verification before use"
 
 [[cell]]
 id = "2.3B.F5.decision_functionals"

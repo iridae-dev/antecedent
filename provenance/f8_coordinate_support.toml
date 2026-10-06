@@ -1,0 +1,20 @@
+feature_id = "f8_coordinate_support"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Support labelling and a consistency check, not an estimator: the local effective
+# sample sizes and ranges are computed by the existing response estimators.
+papers = []
+implementation_deviations = [
+  "Labels each requested coordinate (supported, weak overlap, extrapolative, outside empirical support, missing evidence) and checks that a static grid's summary is the worst label; it makes no overlap or positivity theorem claim and grants no interval or causal license.",
+  "A temporal surface keeps its three-way summary; this record covers the static-grid worst-label contract and the missing-evidence distinction only.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/src/response.rs",
+  "crates/antecedent-estimate/src/response/support.rs",
+  "python/tests/test_support_artifact.py",
+]

@@ -3922,9 +3922,8 @@ notes = "The independent numerical span check refuses a drop whose retained colu
 [[routes]]
 route = "antecedent_io.JointDistributionArtifact.consume"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 F15 frozen contract. No public producer or consumer is licensed until joint-value, refusal and independent-artifact evidence executes."
+status = "licensed"
+notes = "2.3 A0.1 F15 aligned joint-draw semantics: joint moments match an enumerated law, independent marginals refuse covariance, resealed axis/alignment/meaning changes refuse; point-only, no identification or coverage claim."
 
 [[routes]]
 route = "antecedent.transport.cpdag_completion_scenarios"
@@ -3999,9 +3998,8 @@ notes = "2.3 A6 X10 sampled recovery awaits whole-method effect truth, coverage 
 [[routes]]
 route = "antecedent.distribution.meaning_check"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.1 F16 distribution meaning remains a frozen semantic contract."
+status = "licensed"
+notes = "2.3 A0.1 F16 distribution-meaning check: only interventional predictive draws answer an interventional outcome threshold; effect posteriors and observational laws refuse; point-only, no identification or calibration claim."
 
 [[routes]]
 route = "antecedent_io.DistributionArtifact.consume_joint"
@@ -4054,16 +4052,14 @@ notes = "2.3 A0.3 F23 trust tier (externally attested or verified extension) pre
 [[routes]]
 route = "antecedent.support.coordinate_grid"
 stage = "evaluate"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.4 F8 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.4 F8 per-coordinate support labels for a static grid with the worst-label summary; missing evidence stays a distinct weakest label; no interval or causal claim."
 
 [[routes]]
 route = "antecedent.provenance.composition_chain"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.4 F24 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.4 F24 composition provenance: ordered Merkle-style predecessor-digest lineage from contract to decision, refused on a missing or changed digest; no causal or interval claim."
 
 [[routes]]
 route = "antecedent.refusal.structured"
@@ -4089,9 +4085,8 @@ notes = "2.3 A4 F18 contract frozen; no public route license or inference claim 
 [[routes]]
 route = "antecedent.decision.evaluate_contract"
 stage = "evaluate"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 B0 prerequisite F4 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 B0 prerequisite F4 durable decision contract: point-only expected-utility evaluation over aligned joint rows with hard-constraint exclusion; decision functionals and structural policy remain frozen; no causal or interval claim."
 
 [[routes]]
 route = "antecedent.decision.typed_functional"

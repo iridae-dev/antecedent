@@ -11,4 +11,8 @@ implementation_deviations = [
   "The enum distinguishes what randomness represents. It grants no causal identification, provider reliability or interval calibration.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-core/src/quantity.rs", "crates/antecedent-io/src/quantity_wire.rs"]
+test_sources = [
+  "crates/antecedent-core/src/quantity.rs",
+  "crates/antecedent-io/src/quantity_wire.rs",
+  "crates/antecedent-io/tests/distribution_meanings.rs",
+]

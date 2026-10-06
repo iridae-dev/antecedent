@@ -8,11 +8,11 @@ id = "2.3A.F15.joint_distribution_semantics"
 workstream = "F15"
 milestone = "A"
 work_package = "A0.1"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can a consumer tell whether supplied draws represent one aligned joint realization, and which causal quantity each axis means?"
 theorem = "Semantic contract: covariance and nonlinear functionals require aligned draws from one joint law; independently sampled marginals cannot supply their dependence. This record makes no identification or coverage claim."
 reference = "TODO.md A0.1 and A0.2"
-guarantee = "semantic_validation_only"
+guarantee = "checked_joint_alignment_and_axis_identity_semantics_only_no_identification_or_coverage"
 graph_class = "A previously identified, finite coordinate causal claim; graph identification belongs to its prerequisite record."
 population_semantics = "Each quantity names its population, intervention or regime, conditioning, and time; these coordinates remain distinct across export and refresh."
 evidence_family = "An externally supplied or native finite array of aligned joint draws with explicit axes and source identity."
@@ -24,20 +24,19 @@ prerequisite_records = []
 prerequisite_reason = "New cross-cutting representation; it consumes only a separately licensed scientific claim and cannot itself identify or estimate one."
 identity_inputs = ["quantity semantic IDs", "axis names and order", "population, regime, conditioning and time", "draw alignment", "provider and snapshot", "distribution meaning"]
 wire_changes = ["Planned additive versioned joint-distribution artifact; no 2.2 posterior or bootstrap wire reinterpretation."]
-compatibility = "Existing 2.2 posterior artifacts retain their meaning; no 2.3 route is licensed by this frozen record."
+compatibility = "Existing 2.2 posterior artifacts retain their meaning; this record licenses only the point-only consumption of aligned joint draws and grants no identification or coverage claim."
 search = false
 bounds = { cancellation = true, max_draws = 100000, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "joint_distribution.route_frozen", when = "The 2.3 joint distribution route is requested before positive, negative and artifact evidence promotes this cell." },
-  { code = "route_not_supported", detail = "joint_distribution.marginals_not_joint", when = "A covariance or nonlinear joint functional is requested from independent marginal draws." },
+  { code = "joint_law_required", detail = "aligned_joint_draws.marginals_not_joint", when = "A covariance or nonlinear joint functional is requested from independent marginal draws." },
 ]
 routes = [
-  { name = "antecedent_io.JointDistributionArtifact.consume", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent_io.JointDistributionArtifact.consume", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f15.joint_moments.positive", role = "positive", intent = "Compare exported joint means, covariance and a nonlinear functional with an independently enumerated finite joint law." },
-  { id = "f15.marginal_pairing.negative", role = "negative", intent = "Reject a nonlinear or covariance request backed only by independent marginal artifacts." },
-  { id = "f15.semantic_mutation.artifact", role = "artifact", intent = "A fresh consumer reproduces values and refuses resealed changes to axes, quantity meaning, draw alignment or snapshot." },
+  { id = "f15.joint_moments.positive", role = "positive", intent = "Compare exported joint means, covariance and a nonlinear functional with an independently enumerated finite joint law.", evidence_test = "crates/antecedent-io/tests/distribution_artifact.rs", evidence_assertion = "f15_joint_moments_match_the_enumerated_law" },
+  { id = "f15.marginal_pairing.negative", role = "negative", intent = "Reject a nonlinear or covariance request backed only by independent marginal artifacts.", evidence_test = "crates/antecedent-io/tests/distribution_artifact.rs", evidence_assertion = "f15_independent_marginals_cannot_supply_covariance" },
+  { id = "f15.semantic_mutation.artifact", role = "artifact", intent = "A fresh consumer reproduces values and refuses resealed changes to axes, quantity meaning, draw alignment or snapshot.", evidence_test = "crates/antecedent-io/tests/distribution_artifact.rs", evidence_assertion = "f15_resealed_axes_alignment_and_meaning_changes_are_refused" },
 ]
 
 # A0 allocations follow the order of TODO.md. These are closed scientific
@@ -420,11 +419,11 @@ id = "2.3A.F16.distribution_meanings"
 workstream = "F16"
 milestone = "A"
 work_package = "A0.1"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can a consumer refuse a distribution whose draws represent the wrong random quantity before evaluating it?"
 theorem = "Semantic contract: a posterior over a causal mean, an estimator sampling law and a predictive outcome law are distinct objects; only a declared interventional outcome law can directly answer an interventional outcome threshold. No identification or calibration theorem is claimed."
 reference = "TODO.md A0.1; prerequisite 2.3A.F15.joint_distribution_semantics"
-guarantee = "semantic_validation_only"
+guarantee = "checked_distribution_meaning_operation_compatibility_only_no_identification_or_calibration"
 graph_class = "A previously identified claim, whose graph and proof are checked outside this representation cell."
 population_semantics = "Distribution meaning is bound to the F15 population, regime, time, conditioning and functional coordinates."
 evidence_family = "A typed distribution object with declared random-quantity meaning and causal-contract identity."
@@ -440,18 +439,18 @@ compatibility = "No 2.2 bootstrap or posterior payload is reinterpreted by this 
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "distribution_meaning.route_frozen", when = "A new 2.3 distribution operation is requested before semantic and artifact evidence passes." },
-  { code = "distribution_meaning_mismatch", detail = "distribution_meaning.incompatible_operation", when = "A posterior over a mean is offered for an interventional outcome probability." },
-  { code = "quantity_semantics_mismatch", detail = "distribution_meaning.observational_not_interventional", when = "An observational outcome law lacks a separately checked interventional equivalence proof." },
-  { code = "distribution_meaning_mismatch", detail = "distribution_meaning.legacy_posterior", when = "A 2.2 posterior's quantity kinds are offered as a different kind of distribution." },
+  { code = "distribution_meaning_mismatch", detail = "distribution_meaning.incompatible_operation", when = "A distribution that is not interventional predictive (for example a posterior over a causal mean) is offered for an interventional outcome threshold probability." },
+  { code = "quantity_semantics_mismatch", detail = "distribution_meaning.observational_not_interventional", when = "An observational outcome law (posterior predictive or empirical outcome) is offered for an interventional outcome threshold without a checked interventional equivalence." },
+  { code = "distribution_meaning_mismatch", detail = "distribution_meaning.legacy_posterior", when = "A 2.2 posterior's quantity kinds are offered as a different kind of distribution than they can support." },
+  { code = "distribution_meaning_mismatch", detail = "distribution_meaning.posterior_interval", when = "A posterior credible interval is requested from draws whose meaning is not a parameter or causal-functional posterior." },
 ]
 routes = [
-  { name = "antecedent.distribution.meaning_check", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.distribution.meaning_check", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f16.meaning_operation.positive", role = "positive", intent = "The interventional predictive law answers its own named outcome threshold." },
-  { id = "f16.effect_posterior.negative", role = "negative", intent = "A posterior over the mean effect and an observational conditional law refuse an interventional outcome threshold." },
-  { id = "f16.meaning_reseal.artifact", role = "artifact", intent = "A fresh consumer refuses a resealed change from bootstrap or functional posterior to predictive outcomes." },
+  { id = "f16.meaning_operation.positive", role = "positive", intent = "The interventional predictive law answers its own named outcome threshold.", evidence_test = "crates/antecedent-io/tests/distribution_meanings.rs", evidence_assertion = "f16_interventional_predictive_law_answers_its_own_outcome_threshold" },
+  { id = "f16.effect_posterior.negative", role = "negative", intent = "A posterior over the mean effect and an observational conditional law refuse an interventional outcome threshold.", evidence_test = "crates/antecedent-io/tests/distribution_meanings.rs", evidence_assertion = "f16_effect_posterior_and_observational_law_refuse_an_interventional_threshold" },
+  { id = "f16.meaning_reseal.artifact", role = "artifact", intent = "A fresh consumer refuses a resealed change from bootstrap or functional posterior to predictive outcomes.", evidence_test = "crates/antecedent-io/tests/distribution_meanings.rs", evidence_assertion = "f16_resealed_meaning_change_is_refused_by_a_fresh_consumer" },
 ]
 
 [[record]]
@@ -758,11 +757,11 @@ id = "2.3A.F8.coordinate_support"
 workstream = "F8"
 milestone = "A"
 work_package = "A0.4"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can finite coordinate support be consumed under a checked semantic contract?"
-theorem = "Frozen acceptance boundary: Only middle dose is excluded; summary status reports partial support and local ESS stays aligned to dose IDs. A missing evidence factor differs from zero overlap and cannot be relabeled as support failure. This record alone grants no causal or interval license."
+theorem = "Acceptance boundary: only the middle dose is non-supported; a static grid's summary status is the worst of its point labels (there is no separate partial status on a static curve) and local ESS stays aligned to dose order. A missing evidence factor is a distinct, weakest label and cannot be relabeled as a support failure or as support. This record alone grants no causal or interval license."
 reference = "TODO.md A0.4; prerequisite feature records F15, F16"
-guarantee = "coordinate_support_pending_executing_evidence"
+guarantee = "per_coordinate_support_labels_and_worst_label_summary_only"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Three ordered doses have support flags [true,false,true] and local ESS [40,0,35]."
@@ -778,16 +777,17 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "coordinate_support.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "quantity_semantics_mismatch", detail = "coordinate_support.wrong_contract", when = "A missing evidence factor differs from zero overlap and cannot be relabeled as support failure." },
+  { code = "invalid_argument", detail = "coordinate_support.point_count_mismatch", when = "A static grid's per-coordinate labels do not number its response values." },
+  { code = "quantity_semantics_mismatch", detail = "coordinate_support.summary_not_worst_label", when = "A static grid's summary status is not the worst of its per-coordinate labels." },
+  { code = "quantity_semantics_mismatch", detail = "coordinate_support.missing_evidence_relabeled", when = "A missing-evidence coordinate is hidden behind a support-failure or supported summary." },
 ]
 routes = [
-  { name = "antecedent.support.coordinate_grid", stage = "evaluate", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.support.coordinate_grid", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f8.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Only middle dose is excluded; summary status reports partial support and local ESS stays aligned to dose IDs." },
-  { id = "f8.wrong_contract.negative", role = "negative", intent = "A missing evidence factor differs from zero overlap and cannot be relabeled as support failure." },
-  { id = "f8.fresh_replay.artifact", role = "artifact", intent = "Fresh reader preserves mask, ordered coordinate identities and per-point diagnostics." },
+  { id = "f8.known_truth.positive", role = "positive", intent = "Three ordered doses with local ESS [40,0,35]: only the middle dose is non-supported, the point labels are [supported, weak_overlap, supported], the summary is the worst label, and the local ESS stays aligned to dose order under relabeling.", evidence_test = "crates/antecedent-estimate/src/response/support.rs", evidence_assertion = "three_doses_exclude_only_the_middle_and_keep_local_ess_aligned" },
+  { id = "f8.wrong_contract.negative", role = "negative", intent = "A missing evidence factor is its own weakest label, distinct from zero overlap, and a summary that hides it as a support failure or as support is refused.", evidence_test = "crates/antecedent-core/src/response.rs", evidence_assertion = "missing_evidence_is_not_relabeled_as_a_support_failure" },
+  { id = "f8.fresh_replay.artifact", role = "artifact", intent = "A fresh reader of an exported static response preserves the per-point labels, the ordered grid and the per-coordinate and global diagnostic scopes.", evidence_test = "python/tests/test_support_artifact.py", evidence_assertion = "test_static_response_artifact_is_readable_by_a_fresh_process_with_its_coordinates" },
 ]
 
 [[record]]
@@ -795,11 +795,11 @@ id = "2.3A.F24.composition_provenance"
 workstream = "F24"
 milestone = "A"
 work_package = "A0.4"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can composition provenance chain be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Every score traces to contract, snapshot, provider, artifact, transform and decision IDs in order. A missing or changed predecessor digest refuses chain validation. This record alone grants no causal or interval license."
 reference = "TODO.md A0.4; prerequisite feature records F8, F23"
-guarantee = "composition_provenance_pending_executing_evidence"
+guarantee = "ordered_predecessor_digest_lineage_only_no_causal_or_interval_claim"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "A response passes through one external provider, a joint distribution transform and a decision score."
@@ -811,20 +811,24 @@ prerequisite_records = ["2.3A.F8.coordinate_support", "2.3A.F23.external_trust_r
 prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
 identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
 wire_changes = ["Allocate composition_provenance_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): typed ordered predecessor digests from causal contract through data/provider/distribution/transform/decision/sensitivity/ranking. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
-compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+compatibility = "Existing 2.2 routes keep their exact scope; this additive cell licenses only point-free lineage validation and grants no causal or interval claim."
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "composition_provenance.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "external_binding_mismatch", detail = "composition_provenance.wrong_contract", when = "A missing or changed predecessor digest refuses chain validation." },
+  { code = "invalid_argument", detail = "composition_provenance.invalid_link", when = "A link has a blank identity or no usable stage." },
+  { code = "invalid_argument", detail = "composition_provenance.duplicate_link", when = "One link identity appears twice in the chain." },
+  { code = "external_binding_mismatch", detail = "composition_provenance.unresolved_parent", when = "A link names a predecessor that is not in the chain." },
+  { code = "external_binding_mismatch", detail = "composition_provenance.unknown_link", when = "The queried identity is not in the chain." },
+  { code = "external_binding_mismatch", detail = "composition_provenance.missing_stage", when = "A required stage is absent from the queried lineage." },
+  { code = "external_binding_mismatch", detail = "composition_provenance.digest_mismatch", when = "A carried or expected link or predecessor digest differs from the recomputed one." },
 ]
 routes = [
-  { name = "antecedent.provenance.composition_chain", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.provenance.composition_chain", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f24.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Every score traces to contract, snapshot, provider, artifact, transform and decision IDs in order." },
-  { id = "f24.wrong_contract.negative", role = "negative", intent = "A missing or changed predecessor digest refuses chain validation." },
-  { id = "f24.fresh_replay.artifact", role = "artifact", intent = "Fresh reader reconstructs the exact lineage without trusting display labels." },
+  { id = "f24.known_truth.positive", role = "positive", intent = "Every score traces to contract, snapshot, provider, artifact, transform and decision links in order, each link digest recomputed from its predecessors.", evidence_test = "crates/antecedent-core/tests/composition_provenance.rs", evidence_assertion = "f24_every_score_traces_contract_snapshot_provider_artifact_transform_and_decision_in_order" },
+  { id = "f24.wrong_contract.negative", role = "negative", intent = "A missing or changed predecessor digest refuses chain validation.", evidence_test = "crates/antecedent-core/tests/composition_provenance.rs", evidence_assertion = "f24_missing_or_changed_predecessor_digest_refuses_chain_validation" },
+  { id = "f24.fresh_replay.artifact", role = "artifact", intent = "A fresh reader reconstructs the exact lineage from digests without trusting display labels.", evidence_test = "crates/antecedent-core/tests/composition_provenance.rs", evidence_assertion = "f24_fresh_reader_reconstructs_the_lineage_from_digests_not_labels" },
 ]
 
 [[record]]
@@ -943,11 +947,11 @@ id = "2.3B.F4.decision_contract"
 workstream = "F4"
 milestone = "B"
 work_package = "B0 prerequisite"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can durable decision contracts be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Expected utility is 0 for A and 1 for B, so B is selected if both are admissible. A hard constraint excludes an action rather than adding a penalty; no admissible action is explicit. This record alone grants no causal or interval license."
 reference = "TODO.md B0 prerequisite; prerequisite feature records F1, F15, F16"
-guarantee = "decision_contract_pending_executing_evidence"
+guarantee = "checked_decision_contract_expected_utility_and_hard_constraint_exclusion_point_only"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Actions A and B have joint outcome states (0,2) and (2,0), equally weighted; utility is x*y for A and constant 1 for B."
@@ -959,20 +963,26 @@ prerequisite_records = ["2.3A.F1.aligned_joint_draws", "2.3A.F15.joint_distribut
 prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
 identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
 wire_changes = ["Allocate decision_contract_result_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): semantic actions; required quantities; utility; hard/resource constraints; criterion; population/horizon; structure/support policy; result values and exclusions. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
-compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+compatibility = "Existing 2.2 routes keep their exact scope; this additive cell licenses only point-only evaluation of a declared decision contract and grants no causal or interval claim."
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "decision_contract.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "decision_contract_unsatisfied", detail = "decision_contract.wrong_contract", when = "A hard constraint excludes an action rather than adding a penalty; no admissible action is explicit." },
+  { code = "invalid_argument", detail = "decision_contract.invalid_declaration", when = "A contract has a blank identity, units or population, fewer than two actions, or an out-of-bounds size." },
+  { code = "invalid_argument", detail = "decision_contract.duplicate_id", when = "Two actions or constraints share an identity." },
+  { code = "invalid_argument", detail = "decision_contract.unknown_input", when = "An expression reads an input position the action does not declare." },
+  { code = "invalid_argument", detail = "decision_contract.unknown_action", when = "A constraint or criterion names an action that is not declared." },
+  { code = "invalid_argument", detail = "decision_contract.invalid_parameter", when = "A utility or constraint parameter is not finite or is out of range." },
+  { code = "quantity_semantics_mismatch", detail = "decision_contract.invalid_quantity", when = "An action input lacks a complete scientific quantity declaration." },
+  { code = "quantity_semantics_mismatch", detail = "decision_contract.outside_decision_scope", when = "An action input is read for a population or horizon other than the decision's target." },
+  { code = "decision_contract_unsatisfied", detail = "decision_contract.missing_source", when = "No supplied source representation can answer the contract's utility." },
 ]
 routes = [
-  { name = "antecedent.decision.evaluate_contract", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.decision.evaluate_contract", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f4.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Expected utility is 0 for A and 1 for B, so B is selected if both are admissible." },
-  { id = "f4.wrong_contract.negative", role = "negative", intent = "A hard constraint excludes an action rather than adding a penalty; no admissible action is explicit." },
-  { id = "f4.fresh_replay.artifact", role = "artifact", intent = "Fresh reader recomputes result from semantic action, utility, constraint and distribution receipts." },
+  { id = "f4.known_truth.positive", role = "positive", intent = "Actions A and B over equally weighted joint rows (0,2) and (2,0): expected utility is 0 for A (x*y) and 1 for B (constant), so B is selected when both are admissible.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f4_two_actions_nonlinear_utility_joint_rows_choose_b" },
+  { id = "f4.wrong_contract.negative", role = "negative", intent = "A hard constraint excludes an action rather than adding a penalty, and an empty admissible set is reported explicitly.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f4_wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_explicit" },
+  { id = "f4.fresh_replay.artifact", role = "artifact", intent = "A fresh-process consumer recomputes the result from the semantic action, utility, constraint and distribution receipts.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f4_artifact_fresh_process_consumer_recomputes_result_from_receipts" },
 ]
 
 [[record]]

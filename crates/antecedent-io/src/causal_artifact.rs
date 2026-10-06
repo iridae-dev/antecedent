@@ -1527,6 +1527,19 @@ fn validate_support(
         ));
     }
     if let Some(cells) = &support.point_status {
+        if let (false, Some(len)) = (temporal, value_len) {
+            let labels: Vec<antecedent_core::SupportStatus> = cells
+                .iter()
+                .map(|cell| crate::response_wire::support_status_from_wire(*cell))
+                .collect();
+            let summary = crate::response_wire::support_status_from_wire(support.status);
+            antecedent_core::check_static_point_labels(&labels, summary, len).map_err(|r| {
+                IoError::Refused {
+                    code: r.code,
+                    message: format!("{}: support labels do not match their response", r.detail),
+                }
+            })?;
+        }
         match value_len {
             Some(len) if cells.len() == len => {}
             Some(_) => {

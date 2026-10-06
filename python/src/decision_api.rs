@@ -228,8 +228,8 @@ fn composition_lineage(links_json: &str) -> PyResult<String> {
         .zip(&parents)
         .map(|((id, stage, _), parents)| (id.as_str(), stage.as_str(), parents.as_slice()))
         .collect();
-    let wire = antecedent_io::external_claim_artifact::lineage_wire(&borrowed)
-        .map_err(serialization)?;
+    let wire =
+        antecedent_io::external_claim_artifact::lineage_wire(&borrowed).map_err(serialization)?;
     serde_json::to_string(&wire).map_err(serialization)
 }
 
