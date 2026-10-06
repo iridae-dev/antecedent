@@ -48,6 +48,7 @@ pub mod node;
 pub mod obligation;
 pub mod plan;
 pub mod provenance;
+pub mod quantity;
 pub mod query;
 pub mod reason_code;
 pub mod reasoning;
@@ -108,6 +109,9 @@ pub use plan::{
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
+pub use quantity::{
+    DistributionMeaning, QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity,
+};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
     AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery,
