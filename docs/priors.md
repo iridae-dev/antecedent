@@ -93,14 +93,20 @@ block is transferred but the residual-variance posterior is not (the target
 keeps its own Inv-Gamma prior), so sequential and pooled agree closely but not
 exactly.
 
+An explicit `NamedParameters` map now also carries the source correlation when
+it is a complete one-to-one map of named coefficient columns. The covariance
+is permuted into target coefficient order; duplicate source or target names
+refuse. This preserves the 2.2 dense hydration path under a changed column
+order, but does not license general 2.3 posterior transfer or a new interval.
+
 Three cases stay **diagonal** and drop posterior correlation between
 coefficients:
 
 - a summary-only artifact (`PosteriorPayload::Summary`), which has no draws to
   estimate a covariance from;
-- `EffectFunctional` and `NamedParameters` mappings, which map single source
-  moments onto a baseline prior (and the per-mechanism mediation bridge built
-  on them);
+- `EffectFunctional` and partial or non-coefficient `NamedParameters` mappings,
+  which map source moments onto a baseline prior (and the per-mechanism
+  mediation bridge built on them);
 - a source whose draw covariance is not positive definite (too few draws, or a
   coefficient with constant draws); the prior then records
   `hydrated_coefficient_covariance_dropped`.
