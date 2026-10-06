@@ -19,6 +19,7 @@ pub mod counterfactual_id_artifact;
 pub mod coverage_records_data;
 pub mod cross_world_artifact;
 pub mod discovery_wire;
+pub mod distribution_artifact;
 mod distribution_replay;
 pub use distribution_replay::distribution_factor_laws_to_wire;
 pub mod error;

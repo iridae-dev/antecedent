@@ -38,7 +38,7 @@ pub struct ScientificQuantityWire {
 }
 
 /// A portable condition bound by stable variable and value IDs.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QuantityConditionWire {
     /// Stable variable ID.

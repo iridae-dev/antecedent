@@ -1,0 +1,14 @@
+feature_id = "f16_distribution_meanings"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A typed semantic distinction; it implements no estimator or paper theorem.
+papers = []
+implementation_deviations = [
+  "The enum distinguishes what randomness represents. It grants no causal identification, provider reliability or interval calibration.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-core/src/quantity.rs", "crates/antecedent-io/src/quantity_wire.rs"]
