@@ -1,0 +1,17 @@
+feature_id = "f23_external_trust_receipt"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Trust-tier bookkeeping: attested versus exact-request verified, never native.
+papers = []
+implementation_deviations = [
+  "A bound claim carries externally attested or verified extension trust and never native licensed; loading never upgrades the tier, and a receipt is rejected once the quantity, provider version, snapshot or capability set changes.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/src/external_binding.rs",
+  "crates/antecedent-io/tests/external_binding_wire.rs",
+]

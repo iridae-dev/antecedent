@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
-use crate::quantity_wire::ScientificQuantityWire;
+use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use crate::reader::ArtifactReader;
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
@@ -51,7 +51,7 @@ impl From<BoundTrustLevel> for ExternalClaimTrust {
 }
 
 /// Everything a consumer must independently agree on before reading numbers.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExternalClaimIdentity {
     /// Independently checked causal-contract identity.
@@ -90,6 +90,31 @@ pub struct ExternalClaimIdentity {
     pub equivalence_ids: Vec<String>,
     /// Derivation chain behind the values, parents before children.
     pub lineage: Vec<LineageLinkWire>,
+    /// What one value of the provider's law means (`DistributionMeaning` wire name).
+    pub provider_meaning: String,
+    /// Operations the provider object declared at this request, sorted.
+    pub capabilities: Vec<String>,
+    /// BLAKE3 of the complete provider contract (identity, meaning, sorted
+    /// capabilities, ordered coordinates); a different request or capability
+    /// set has a different fingerprint.
+    pub provider_fingerprint: String,
+    /// Passed verification probes; present exactly when trust is
+    /// `verified_extension`, and covering only `provider_fingerprint`.
+    pub verification: Option<Vec<VerificationProbeWire>>,
+}
+
+/// One passed verification probe on the wire.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VerificationProbeWire {
+    /// Property name (`normalization`, `moments`, ...).
+    pub kind: String,
+    /// Provider value.
+    pub observed: f64,
+    /// Independent expected value.
+    pub expected: f64,
+    /// Predeclared absolute tolerance.
+    pub tolerance: f64,
 }
 
 /// One derivation step on the wire.
@@ -176,9 +201,75 @@ impl ExternalClaimIdentity {
                     parents: link.parents.clone(),
                 })
                 .collect(),
+            provider_meaning: claim
+                .provider_meaning()
+                .map(|meaning| {
+                    serde_json::to_value(DistributionMeaningWire::from(meaning))
+                        .ok()
+                        .and_then(|v| v.as_str().map(str::to_owned))
+                        .ok_or_else(|| IoError::Convert("unnamed provider meaning".into()))
+                })
+                .transpose()?
+                .ok_or_else(|| IoError::Convert("claim has no provider law meaning".into()))?,
+            capabilities: {
+                let mut names: Vec<String> = claim
+                    .capabilities()
+                    .iter()
+                    .map(|c| antecedent_core::capability_name(*c).to_owned())
+                    .collect();
+                names.sort();
+                names
+            },
+            provider_fingerprint: String::new(),
+            verification: match claim.trust() {
+                BoundTrustLevel::ExactRequestVerified => Some(
+                    claim
+                        .verification()
+                        .iter()
+                        .map(|p| VerificationProbeWire {
+                            kind: antecedent_core::probe_name(p.kind).to_owned(),
+                            observed: p.observed,
+                            expected: p.expected,
+                            tolerance: p.tolerance,
+                        })
+                        .collect(),
+                ),
+                BoundTrustLevel::ExternallyAttested => None,
+            },
         };
+        let value = Self { provider_fingerprint: value.compute_fingerprint(), ..value };
         value.validate()?;
         Ok(value)
+    }
+
+    /// Recompute the complete provider-contract fingerprint from this identity.
+    /// A consumer builds its expected identity from constants and sets this itself.
+    #[must_use]
+    pub fn compute_fingerprint(&self) -> String {
+        let mut hasher = blake3::Hasher::new();
+        let mut put = |value: &str| {
+            hasher.update(&(value.len() as u64).to_le_bytes());
+            hasher.update(value.as_bytes());
+        };
+        for field in [
+            &self.provider_id,
+            &self.object_id,
+            &self.version_id,
+            &self.snapshot_id,
+            &self.request_id,
+            &self.provider_meaning,
+        ] {
+            put(field);
+        }
+        let mut capabilities = self.capabilities.clone();
+        capabilities.sort();
+        for capability in &capabilities {
+            put(capability);
+        }
+        for quantity in &self.quantities {
+            put(&format!("{quantity:?}"));
+        }
+        hasher.finalize().to_hex().to_string()
     }
 
     fn validate(&self) -> Result<(), IoError> {
@@ -213,6 +304,33 @@ impl ExternalClaimIdentity {
         .any(|id| id.trim().is_empty())
         {
             return Err(IoError::Convert("missing external claim identity".into()));
+        }
+        if self.provider_fingerprint != self.compute_fingerprint() {
+            return Err(IoError::Convert("provider fingerprint differs from its contract".into()));
+        }
+        match (&self.verification, self.trust) {
+            (None, ExternalClaimTrust::ExternallyAttested) => {}
+            (Some(probes), ExternalClaimTrust::ExactRequestVerified) => {
+                let passed = !probes.is_empty()
+                    && probes.iter().all(|p| {
+                        antecedent_core::probe_from_name(&p.kind).is_some()
+                            && p.observed.is_finite()
+                            && p.expected.is_finite()
+                            && p.tolerance.is_finite()
+                            && p.tolerance >= 0.0
+                            && (p.observed - p.expected).abs() <= p.tolerance
+                    });
+                if !passed {
+                    return Err(IoError::Convert(
+                        "verification receipt has a failed or unknown probe".into(),
+                    ));
+                }
+            }
+            _ => {
+                return Err(IoError::Convert(
+                    "verification receipt must accompany exactly verified trust".into(),
+                ));
+            }
         }
         self.provenance_chain()?
             .require_stages(

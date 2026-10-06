@@ -162,15 +162,21 @@ impl ExternalContractError {
     #[must_use]
     pub fn to_refusal(&self) -> ExternalRefusal {
         match self {
-            Self::InvalidIdentity => {
-                refusal("invalid_argument", "declare", "external_object.invalid_identity")
-            }
-            Self::InvalidDeclaration => {
-                refusal("invalid_argument", "declare", "external_object.invalid_declaration")
-            }
-            Self::DuplicateDeclaration => {
-                refusal("invalid_argument", "declare", "external_object.duplicate_declaration")
-            }
+            Self::InvalidIdentity => refusal(
+                crate::reason_code!("invalid_argument"),
+                "declare",
+                "external_scientific_providers.invalid_identity",
+            ),
+            Self::InvalidDeclaration => refusal(
+                crate::reason_code!("invalid_argument"),
+                "declare",
+                "external_scientific_providers.invalid_declaration",
+            ),
+            Self::DuplicateDeclaration => refusal(
+                crate::reason_code!("invalid_argument"),
+                "declare",
+                "external_scientific_providers.duplicate_declaration",
+            ),
             Self::MissingCapability(capability) => ExternalRefusal {
                 capability: Some(*capability),
                 offending: Some(capability_name(*capability).to_owned()),
@@ -206,7 +212,7 @@ impl ExternalVerificationError {
             Self::InvalidProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
                 ..refusal(
-                    "invalid_argument",
+                    crate::reason_code!("invalid_argument"),
                     "verify",
                     "external_object_verification.invalid_probe",
                 )
@@ -214,7 +220,7 @@ impl ExternalVerificationError {
             Self::DuplicateProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
                 ..refusal(
-                    "invalid_argument",
+                    crate::reason_code!("invalid_argument"),
                     "verify",
                     "external_object_verification.duplicate_probe",
                 )
@@ -258,9 +264,10 @@ impl ExternalBindingError {
                     "external_response_binding.contract_not_identified",
                 )
             },
-            Self::InvalidContract => {
-                at("invalid_argument", "external_response_binding.invalid_contract")
-            }
+            Self::InvalidContract => at(
+                crate::reason_code!("invalid_argument"),
+                "external_response_binding.invalid_contract",
+            ),
             Self::Object(error) => {
                 let mut value = error.to_refusal();
                 value.stage = "bind";
@@ -314,7 +321,10 @@ impl ExternalBindingError {
             },
             Self::NonFiniteValue(index) => ExternalRefusal {
                 offending: Some(format!("coordinate[{index}]")),
-                ..at("invalid_argument", "external_response_binding.non_finite_value")
+                ..at(
+                    crate::reason_code!("invalid_argument"),
+                    "external_response_binding.non_finite_value",
+                )
             },
             Self::MeaningNotAccepted => ExternalRefusal {
                 expected: Some(
@@ -350,7 +360,7 @@ impl ExternalBindingError {
             },
             Self::TrustMismatch => at(
                 crate::reason_code!("external_verification_failed"),
-                "external_response_binding.trust",
+                "external_trust_receipt.receipt_mismatch",
             ),
         }
     }
@@ -477,7 +487,11 @@ mod tests {
         cases.push((nan, "invalid_argument", "external_response_binding.non_finite_value"));
         let mut native = base.clone();
         native.header.trust = ExternalTrustState::NativeLicensed;
-        cases.push((native, "external_verification_failed", "external_response_binding.trust"));
+        cases.push((
+            native,
+            "external_verification_failed",
+            "external_trust_receipt.receipt_mismatch",
+        ));
         let mut observational = base.clone();
         for q in &mut observational.header.quantities {
             q.regime_id = "observational".into();

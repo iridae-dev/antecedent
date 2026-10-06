@@ -922,4 +922,207 @@ mod tests {
             [P::KnownTruth, P::Normalization, P::UpdateCoherence].map(|kind| probe(kind, 1.0));
         assert!(verify_external_object(&signal, &probes).is_ok());
     }
+
+    // ---- Bernoulli(p = 1/4) acceptance fixtures (F2, F20, F22) ----
+
+    /// Exact pmf of the law the provider declares: `P(0) = 3/4`, `P(1) = 1/4`.
+    const PMF: [(f64, f64); 2] = [(0.0, 0.75), (1.0, 0.25)];
+
+    fn pmf_mean() -> f64 {
+        PMF.iter().map(|(x, p)| x * p).sum()
+    }
+
+    fn pmf_cdf(at: f64) -> f64 {
+        PMF.iter().filter(|(x, _)| *x <= at).map(|(_, p)| p).sum()
+    }
+
+    /// A deterministic seeded sampler standing in for the provider's callback.
+    fn seeded_draws(seed: u64, n: usize) -> Vec<f64> {
+        let mut state = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        (0..n)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                f64::from(u8::from((state >> 11) as f64 / (1_u64 << 53) as f64 >= 0.75))
+            })
+            .collect()
+    }
+
+    fn bernoulli(capabilities: Vec<ExternalCapability>) -> ExternalScientificObject {
+        ExternalScientificObject::Law(LawProviderContract {
+            identity: identity(),
+            quantities: vec![quantity(QuantityRole::Outcome)],
+            meaning: DistributionMeaning::InterventionalPredictive,
+            capabilities,
+        })
+    }
+
+    fn request(operation: ExternalCapability) -> ExternalCapabilityRequest {
+        ExternalCapabilityRequest { expected_identity: identity(), operation }
+    }
+
+    /// F2 frozen boundary: Mean 1/4 and seeded samples are admissible.
+    #[test]
+    fn bernoulli_law_mean_and_seeded_samples_negotiate() {
+        let law = bernoulli(vec![ExternalCapability::Sample, ExternalCapability::Mean]);
+        let mean = law.negotiate(&request(ExternalCapability::Mean)).unwrap();
+        let value = mean.invoke(pmf_mean);
+        assert!((value - 0.25).abs() < 1e-12);
+        let sample = law.negotiate(&request(ExternalCapability::Sample)).unwrap();
+        let first = sample.invoke(|| seeded_draws(7, 64));
+        let second = sample.invoke(|| seeded_draws(7, 64));
+        assert_eq!(first, second, "a seeded draw is reproducible");
+        assert!(
+            first
+                .iter()
+                .all(|x| x.to_bits() == 0.0_f64.to_bits() || x.to_bits() == 1.0_f64.to_bits())
+        );
+        assert_ne!(first, seeded_draws(8, 64), "another seed gives another stream");
+        assert_eq!(mean.identity(), &identity());
+    }
+
+    /// F2 frozen boundary: an outcome posterior or a missing CDF cannot masquerade
+    /// as an interventional law.
+    #[test]
+    fn outcome_posterior_and_missing_cdf_cannot_masquerade_as_an_interventional_law() {
+        for wrong in [
+            DistributionMeaning::ParameterPosterior,
+            DistributionMeaning::CausalFunctionalPosterior,
+        ] {
+            let mut law = bernoulli(vec![ExternalCapability::Mean]);
+            if let ExternalScientificObject::Law(value) = &mut law {
+                value.meaning = wrong;
+            }
+            assert_eq!(law.validate(), Err(ExternalContractError::InvalidDeclaration));
+            assert_eq!(law.validate().unwrap_err().to_refusal().code, "invalid_argument");
+        }
+        let law = bernoulli(vec![ExternalCapability::Sample, ExternalCapability::Mean]);
+        for missing in [ExternalCapability::Cdf, ExternalCapability::Quantile] {
+            assert_eq!(
+                law.negotiate(&request(missing)),
+                Err(ExternalContractError::MissingCapability(missing))
+            );
+        }
+    }
+
+    /// F20 frozen boundary: a mean request accepts; threshold probability (a CDF
+    /// request) and quantile refuse without a licensed approximation receipt.
+    #[test]
+    fn mean_request_accepts_and_threshold_and_quantile_refuse() {
+        let law = bernoulli(vec![ExternalCapability::Sample, ExternalCapability::Mean]);
+        assert!(law.negotiate(&request(ExternalCapability::Mean)).is_ok());
+        for needed in [ExternalCapability::Cdf, ExternalCapability::Quantile] {
+            let refusal = law.negotiate(&request(needed)).unwrap_err().to_refusal();
+            assert_eq!(refusal.code, "external_capability_missing");
+            assert_eq!(refusal.detail, "provider_capability_negotiation.capability_missing");
+            assert_eq!(refusal.capability, Some(needed));
+            assert!(refusal.remedy.is_some_and(|r| r.contains("replicate receipt")));
+        }
+    }
+
+    /// F20 frozen boundary: an absent capability is not inferred from another
+    /// operation or from a provider label.
+    #[test]
+    fn absent_capability_is_not_inferred_from_another_operation_or_label() {
+        let mut labelled = bernoulli(vec![ExternalCapability::Sample, ExternalCapability::Mean]);
+        if let ExternalScientificObject::Law(value) = &mut labelled {
+            value.identity.provider_id = "full-cdf-and-quantile-service".into();
+            value.identity.object_id = "cdf-quantile-capable".into();
+        }
+        let mut asked = request(ExternalCapability::Cdf);
+        asked.expected_identity = labelled.identity().clone();
+        assert_eq!(
+            labelled.negotiate(&asked),
+            Err(ExternalContractError::MissingCapability(ExternalCapability::Cdf))
+        );
+        // Another request fingerprint or snapshot is another object, never reused.
+        let law = bernoulli(vec![ExternalCapability::Mean]);
+        for change in [
+            |i: &mut ProviderObjectIdentity| i.request_id = "other-request".into(),
+            |i: &mut ProviderObjectIdentity| i.snapshot_id = "other-snapshot".into(),
+            |i: &mut ProviderObjectIdentity| i.version_id = "v2".into(),
+        ] {
+            let mut other = request(ExternalCapability::Mean);
+            change(&mut other.expected_identity);
+            let refusal = law.negotiate(&other).unwrap_err();
+            assert_eq!(refusal, ExternalContractError::RequestMismatch);
+            assert_eq!(refusal.to_refusal().code, "external_binding_mismatch");
+        }
+    }
+
+    fn bernoulli_probes() -> Vec<VerificationProbe> {
+        use VerificationProbeKind as P;
+        let seeded_agree = f64::from(u8::from(seeded_draws(3, 32) == seeded_draws(3, 32)));
+        let make = |kind, observed, expected| VerificationProbe {
+            kind,
+            observed,
+            expected,
+            tolerance: 1e-12,
+        };
+        vec![
+            make(P::Shape, 1.0, 1.0),
+            // Normalization: the CDF at the top of the support is one.
+            make(P::Normalization, pmf_cdf(1.0), 1.0),
+            make(P::Moments, pmf_mean(), 0.25),
+            // Known truth: CDF(0) = 3/4 by enumeration.
+            make(P::KnownTruth, pmf_cdf(0.0), 0.75),
+            make(P::Support, seeded_draws(5, 256).iter().copied().fold(f64::MIN, f64::max), 1.0),
+            make(P::SeededBehavior, seeded_agree, 1.0),
+        ]
+    }
+
+    /// F22 frozen boundary: normalization is 1 and the moments and CDF match
+    /// enumeration at this exact fingerprint only.
+    #[test]
+    fn bernoulli_verification_matches_enumeration_at_exact_fingerprint() {
+        let law = bernoulli(vec![
+            ExternalCapability::Sample,
+            ExternalCapability::Mean,
+            ExternalCapability::Cdf,
+        ]);
+        let receipt = verify_external_object(&law, &bernoulli_probes()).unwrap();
+        assert!(receipt.covers(&law));
+        let state = ExternalTrustState::ExactRequestVerified(Box::new(receipt));
+        assert!(state.verifies(&law));
+        assert!(!state.is_native_licensed());
+        let mut other_request = law.clone();
+        if let ExternalScientificObject::Law(value) = &mut other_request {
+            value.identity.request_id = "R2".into();
+        }
+        assert!(
+            !state.verifies(&other_request),
+            "verification of one fingerprint never covers another"
+        );
+    }
+
+    /// F22 frozen boundary: wrong support, normalization, moments or seed behavior
+    /// refuse verification, and so does a different request fingerprint.
+    #[test]
+    fn wrong_support_normalization_moments_seed_or_fingerprint_refuse_verification() {
+        use VerificationProbeKind as P;
+        let law = bernoulli(vec![
+            ExternalCapability::Sample,
+            ExternalCapability::Mean,
+            ExternalCapability::Cdf,
+        ]);
+        for (kind, wrong) in [
+            (P::Normalization, 0.9),
+            (P::Moments, 0.3),
+            (P::Support, 2.0),
+            (P::SeededBehavior, 0.0),
+        ] {
+            let mut probes = bernoulli_probes();
+            probes.iter_mut().find(|p| p.kind == kind).unwrap().observed = wrong;
+            let error = verify_external_object(&law, &probes).unwrap_err();
+            assert_eq!(error, ExternalVerificationError::FailedProbe(kind));
+            assert_eq!(error.to_refusal().code, "external_verification_failed");
+        }
+        let receipt = verify_external_object(&law, &bernoulli_probes()).unwrap();
+        let mut changed = law.clone();
+        if let ExternalScientificObject::Law(value) = &mut changed {
+            value.identity.request_id = "different-fingerprint".into();
+        }
+        assert!(!receipt.covers(&changed));
+    }
 }

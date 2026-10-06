@@ -541,11 +541,11 @@ id = "2.3A.F2.external_scientific_providers"
 workstream = "F2"
 milestone = "A"
 work_package = "A0.3"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can typed external law and posterior provider contracts be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Mean 1/4 and seeded samples are admissible; arbitrary CDF and quantile requests refuse unless those capabilities are declared. An outcome posterior or missing CDF cannot masquerade as an interventional law. This record alone grants no causal or interval license."
 reference = "TODO.md A0.3; prerequisite feature records F15, F16"
-guarantee = "external_scientific_providers_pending_executing_evidence"
+guarantee = "typed_provider_contract_declaration_only_no_causal_or_interval_claim"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Law advertises sample and mean only for a Bernoulli(p=1/4) outcome under do(A=1)."
@@ -561,16 +561,17 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "external_scientific_providers.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "external_capability_missing", detail = "external_scientific_providers.wrong_contract", when = "An outcome posterior or missing CDF cannot masquerade as an interventional law." },
+  { code = "invalid_argument", detail = "external_scientific_providers.invalid_identity", when = "A provider object lacks a stable provider, object, version, snapshot or request identity, coordinates or operations." },
+  { code = "invalid_argument", detail = "external_scientific_providers.invalid_declaration", when = "An outcome posterior meaning is declared as a law, or an operation belongs to another object kind." },
+  { code = "invalid_argument", detail = "external_scientific_providers.duplicate_declaration", when = "A coordinate, action or operation is declared twice." },
 ]
 routes = [
-  { name = "antecedent.external.law_provider", stage = "prepare", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.external.law_provider", stage = "prepare", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f2.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Mean 1/4 and seeded samples are admissible; arbitrary CDF and quantile requests refuse unless those capabilities are declared." },
-  { id = "f2.wrong_contract.negative", role = "negative", intent = "An outcome posterior or missing CDF cannot masquerade as an interventional law." },
-  { id = "f2.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains law kind, operation capabilities, exact request and provider identity." },
+  { id = "f2.known_truth.positive", role = "positive", intent = "A Bernoulli(1/4) law declaring sample and mean negotiates the mean (1/4 by enumeration) and a reproducible seeded sample.", evidence_test = "crates/antecedent-core/src/external.rs", evidence_assertion = "bernoulli_law_mean_and_seeded_samples_negotiate" },
+  { id = "f2.wrong_contract.negative", role = "negative", intent = "An outcome posterior meaning cannot be declared as an interventional law, and a missing CDF or quantile is refused.", evidence_test = "crates/antecedent-core/src/external.rs", evidence_assertion = "outcome_posterior_and_missing_cdf_cannot_masquerade_as_an_interventional_law" },
+  { id = "f2.fresh_replay.artifact", role = "artifact", intent = "A fresh reader retains the law kind, operation capabilities, exact request and provider identity, and refuses a resealed change.", evidence_test = "crates/antecedent-io/tests/external_binding_wire.rs", evidence_assertion = "provider_contract_identity_is_retained_by_the_artifact" },
 ]
 
 [[record]]
@@ -618,7 +619,6 @@ refusals = [
   { code = "external_binding_mismatch", detail = "external_response_binding.missing_assumption", when = "A required assumption is not declared." },
   { code = "external_binding_mismatch", detail = "external_response_binding.unchecked_observational_law", when = "An observational law is offered for an interventional request without a checked equivalence." },
   { code = "distribution_meaning_mismatch", detail = "external_response_binding.distribution_meaning", when = "The provider's law meaning is not one the contract accepts." },
-  { code = "external_verification_failed", detail = "external_response_binding.trust", when = "A provider claims native trust or a verification receipt for another contract." },
   { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_invalid_coordinate", when = "A coordinate is structurally invalid." },
   { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_variable", when = "A coordinate names a different variable or role." },
   { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_units", when = "A coordinate's units differ; none are converted." },
@@ -646,11 +646,11 @@ id = "2.3A.F20.provider_capability_negotiation"
 workstream = "F20"
 milestone = "A"
 work_package = "A0.3"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can provider capability negotiation be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Mean request accepts; threshold probability and quantile refuse unless an explicitly licensed sampling approximation includes replicate/error receipts. An absent capability cannot be inferred from another operation or provider label. This record alone grants no causal or interval license."
 reference = "TODO.md A0.3; prerequisite feature records F2, F16"
-guarantee = "provider_capability_negotiation_pending_executing_evidence"
+guarantee = "exact_operation_negotiation_only_no_approximation_license"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Provider offers sample and mean but no CDF, quantile or intervention operation."
@@ -666,16 +666,16 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "provider_capability_negotiation.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "external_capability_missing", detail = "provider_capability_negotiation.wrong_contract", when = "An absent capability cannot be inferred from another operation or provider label." },
+  { code = "external_capability_missing", detail = "provider_capability_negotiation.capability_missing", when = "The exact requested operation is absent; another operation or a provider label never supplies it, and an approximation needs its own error and replicate receipt." },
+  { code = "external_binding_mismatch", detail = "provider_capability_negotiation.request_mismatch", when = "The request names a different object, version, snapshot or request fingerprint than the declaration." },
 ]
 routes = [
-  { name = "antecedent.external.negotiate_capability", stage = "prepare", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.external.negotiate_capability", stage = "prepare", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f20.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Mean request accepts; threshold probability and quantile refuse unless an explicitly licensed sampling approximation includes replicate/error receipts." },
-  { id = "f20.wrong_contract.negative", role = "negative", intent = "An absent capability cannot be inferred from another operation or provider label." },
-  { id = "f20.fresh_replay.artifact", role = "artifact", intent = "Fresh reader checks exact operation set and request fingerprint." },
+  { id = "f20.known_truth.positive", role = "positive", intent = "A mean request accepts while threshold probability (CDF) and quantile refuse, each naming the missing operation and its remedy.", evidence_test = "crates/antecedent-core/src/external.rs", evidence_assertion = "mean_request_accepts_and_threshold_and_quantile_refuse" },
+  { id = "f20.wrong_contract.negative", role = "negative", intent = "A capability absent from the declaration is not inferred from another operation, a provider label, or another request, version or snapshot.", evidence_test = "crates/antecedent-core/src/external.rs", evidence_assertion = "absent_capability_is_not_inferred_from_another_operation_or_label" },
+  { id = "f20.fresh_replay.artifact", role = "artifact", intent = "A fresh reader checks the exact operation set and request fingerprint and refuses another operation set or request.", evidence_test = "crates/antecedent-io/tests/external_binding_wire.rs", evidence_assertion = "capability_set_and_request_fingerprint_are_retained" },
 ]
 
 [[record]]
@@ -683,11 +683,11 @@ id = "2.3A.F22.external_object_verification"
 workstream = "F22"
 milestone = "A"
 work_package = "A0.3"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can object-level exact-request verification be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Normalization is 1 and the supplied moments/CDF match enumeration at this exact fingerprint only. Wrong support, normalization, moments, seed behavior or a different request fingerprint refuses verification. This record alone grants no causal or interval license."
 reference = "TODO.md A0.3; prerequisite feature records F2, F20"
-guarantee = "external_object_verification_pending_executing_evidence"
+guarantee = "object_verification_at_exact_request_fingerprint_only_not_general_trust"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Bernoulli law on {0,1} declares p=1/4, CDF(0)=3/4, mean=1/4 and seeded sampling."
@@ -703,16 +703,18 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "external_object_verification.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "external_verification_failed", detail = "external_object_verification.wrong_contract", when = "Wrong support, normalization, moments, seed behavior or a different request fingerprint refuses verification." },
+  { code = "invalid_argument", detail = "external_object_verification.invalid_probe", when = "A probe value or tolerance is not finite, or the tolerance is negative." },
+  { code = "invalid_argument", detail = "external_object_verification.duplicate_probe", when = "One property is probed more than once." },
+  { code = "external_verification_failed", detail = "external_object_verification.missing_probe", when = "A property required by the object kind and declared capabilities has no independent probe." },
+  { code = "external_verification_failed", detail = "external_object_verification.failed_probe", when = "Support, normalization, moments or seed behavior differ from the independent expected value beyond the declared tolerance." },
 ]
 routes = [
-  { name = "antecedent.external.verify_object", stage = "evaluate", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.external.verify_object", stage = "evaluate", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f22.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Normalization is 1 and the supplied moments/CDF match enumeration at this exact fingerprint only." },
-  { id = "f22.wrong_contract.negative", role = "negative", intent = "Wrong support, normalization, moments, seed behavior or a different request fingerprint refuses verification." },
-  { id = "f22.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains checks, object kind, fingerprint and verified-extension trust scope." },
+  { id = "f22.known_truth.positive", role = "positive", intent = "Bernoulli(1/4): normalization is 1, the mean is 1/4 and CDF(0) is 3/4 by enumeration, so the receipt covers exactly this fingerprint and not another request.", evidence_test = "crates/antecedent-core/src/external.rs", evidence_assertion = "bernoulli_verification_matches_enumeration_at_exact_fingerprint" },
+  { id = "f22.wrong_contract.negative", role = "negative", intent = "A wrong support, normalization, moment or seed behavior refuses, and a receipt does not cover a different request fingerprint.", evidence_test = "crates/antecedent-core/src/external.rs", evidence_assertion = "wrong_support_normalization_moments_seed_or_fingerprint_refuse_verification" },
+  { id = "f22.fresh_replay.artifact", role = "artifact", intent = "A fresh reader retains the passed checks, law kind, fingerprint and verified-extension trust scope, and refuses a failed, dropped or misattached receipt.", evidence_test = "crates/antecedent-io/tests/external_binding_wire.rs", evidence_assertion = "verification_checks_are_retained_and_cover_only_the_fingerprint" },
 ]
 
 [[record]]
@@ -720,11 +722,11 @@ id = "2.3A.F23.external_trust_receipt"
 workstream = "F23"
 milestone = "A"
 work_package = "A0.3"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can external trust and provenance boundary be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: R1 carries verified_extension; R2 remains external_attested, and neither becomes native_licensed. Reusing an R1 receipt after changed quantity, provider version or snapshot refuses. This record alone grants no causal or interval license."
 reference = "TODO.md A0.3; prerequisite feature records F3, F22"
-guarantee = "external_trust_receipt_pending_executing_evidence"
+guarantee = "trust_tier_preserved_without_upgrade_never_native_licensed"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "One provider object is externally attested, then independently verified for fingerprint R1."
@@ -740,16 +742,15 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "external_trust_receipt.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "external_binding_mismatch", detail = "external_trust_receipt.wrong_contract", when = "Reusing an R1 receipt after changed quantity, provider version or snapshot refuses." },
+  { code = "external_verification_failed", detail = "external_trust_receipt.receipt_mismatch", when = "A provider claims native trust, or reuses a verification receipt after its quantity, provider version, snapshot or capability set changed." },
 ]
 routes = [
-  { name = "antecedent.external.trust_receipt", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.external.trust_receipt", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f23.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: R1 carries verified_extension; R2 remains external_attested, and neither becomes native_licensed." },
-  { id = "f23.wrong_contract.negative", role = "negative", intent = "Reusing an R1 receipt after changed quantity, provider version or snapshot refuses." },
-  { id = "f23.fresh_replay.artifact", role = "artifact", intent = "Fresh reader preserves exact trust tier and provenance chain without upgrade." },
+  { id = "f23.known_truth.positive", role = "positive", intent = "R1 carries verified_extension while R2 stays externally attested, and neither becomes native licensed.", evidence_test = "crates/antecedent-core/src/external_binding.rs", evidence_assertion = "attested_stays_attested_and_verified_is_never_native" },
+  { id = "f23.wrong_contract.negative", role = "negative", intent = "Reusing an R1 receipt after a changed quantity, provider version, snapshot or capability set refuses.", evidence_test = "crates/antecedent-core/src/external_binding.rs", evidence_assertion = "receipt_for_one_fingerprint_does_not_survive_changed_quantity_version_or_snapshot" },
+  { id = "f23.fresh_replay.artifact", role = "artifact", intent = "A fresh reader preserves the exact trust tier and provenance chain, and an upgrade of an attested claim differs from the retained identity.", evidence_test = "crates/antecedent-io/tests/external_binding_wire.rs", evidence_assertion = "trust_tier_and_lineage_survive_without_upgrade" },
 ]
 
 [[record]]

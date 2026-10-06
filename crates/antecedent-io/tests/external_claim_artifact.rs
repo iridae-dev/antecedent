@@ -36,7 +36,7 @@ fn quantity(dose: u32) -> ScientificQuantity {
 
 /// Consumer-retained identity, written from constants rather than the artifact.
 fn expected_identity() -> ExternalClaimIdentity {
-    ExternalClaimIdentity {
+    let mut identity = ExternalClaimIdentity {
         causal_contract_id: "checked-contract".into(),
         graph_id: "graph-1".into(),
         identification: "nonparametrically_identified".into(),
@@ -77,7 +77,13 @@ fn expected_identity() -> ExternalClaimIdentity {
                 &["contract:checked-contract", "provider:external:lab/curve@v3#snap-9"],
             ),
         ],
-    }
+        provider_meaning: "interventional_predictive".into(),
+        capabilities: vec!["mean".into()],
+        provider_fingerprint: String::new(),
+        verification: None,
+    };
+    identity.provider_fingerprint = identity.compute_fingerprint();
+    identity
 }
 
 fn bound_artifact() -> ExternalClaimArtifact {

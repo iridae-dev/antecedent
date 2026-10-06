@@ -1,0 +1,18 @@
+feature_id = "f22_external_object_verification"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Comparison of caller-supplied probe values against independent expected values at predeclared tolerances; the probes are not computed here.
+papers = []
+implementation_deviations = [
+  "Verification covers only the complete contract it was run against (identity, meaning, capabilities and coordinates); it is not general provider trust and does not make the provider native.",
+  "The probe values are supplied by the caller, who must compute them independently of the provider under test.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/src/external.rs",
+  "crates/antecedent-io/tests/external_binding_wire.rs",
+]

@@ -276,7 +276,7 @@ exact_request_verification = "external_source_requires_exact_request_and_named_q
 id = "2.3A.F2.external_scientific_providers"
 route = "antecedent.external.law_provider"
 work_package = "A0.3"
-algorithm_provenance = ["pending:provenance/external_scientific_providers.toml"]
+algorithm_provenance = ["provenance/f2_external_scientific_providers.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f2.known_truth.positive"
@@ -287,8 +287,8 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f2.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "externally_attested or verified_extension only; never native_licensed"
+exact_request_verification = "independent probes recomputed natively at the complete provider contract; a receipt covers only that exact request"
 
 [[cell]]
 id = "2.3A.F3.external_response_binding"
@@ -312,7 +312,7 @@ exact_request_verification = "optional: independent probes are recomputed native
 id = "2.3A.F20.provider_capability_negotiation"
 route = "antecedent.external.negotiate_capability"
 work_package = "A0.3"
-algorithm_provenance = ["pending:provenance/provider_capability_negotiation.toml"]
+algorithm_provenance = ["provenance/f20_provider_capability_negotiation.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f20.known_truth.positive"
@@ -323,14 +323,14 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f20.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "externally_attested or verified_extension only; never native_licensed"
+exact_request_verification = "independent probes recomputed natively at the complete provider contract; a receipt covers only that exact request"
 
 [[cell]]
 id = "2.3A.F22.external_object_verification"
 route = "antecedent.external.verify_object"
 work_package = "A0.3"
-algorithm_provenance = ["pending:provenance/external_object_verification.toml"]
+algorithm_provenance = ["provenance/f22_external_object_verification.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f22.known_truth.positive"
@@ -341,14 +341,14 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f22.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "externally_attested or verified_extension only; never native_licensed"
+exact_request_verification = "independent probes recomputed natively at the complete provider contract; a receipt covers only that exact request"
 
 [[cell]]
 id = "2.3A.F23.external_trust_receipt"
 route = "antecedent.external.trust_receipt"
 work_package = "A0.3"
-algorithm_provenance = ["pending:provenance/external_trust_receipt.toml"]
+algorithm_provenance = ["provenance/f23_external_trust_receipt.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f23.known_truth.positive"
@@ -359,8 +359,8 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f23.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "externally_attested or verified_extension only; never native_licensed"
+exact_request_verification = "independent probes recomputed natively at the complete provider contract; a receipt covers only that exact request"
 
 [[cell]]
 id = "2.3A.F8.coordinate_support"

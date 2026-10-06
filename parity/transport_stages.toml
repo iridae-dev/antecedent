@@ -4024,9 +4024,8 @@ notes = "2.3 A0.2 F19 known-variance point transfer with stable-ID bijection, de
 [[routes]]
 route = "antecedent.external.law_provider"
 stage = "prepare"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.3 F2 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.3 F2 typed provider object declaration (law, posterior, signal, evidence, utility) with exact-request identity; declaration only, no causal or interval claim."
 
 [[routes]]
 route = "antecedent.external.bind_response"
@@ -4037,23 +4036,20 @@ notes = "2.3 A0.3 F3 checked binding of an external response grid to an identifi
 [[routes]]
 route = "antecedent.external.negotiate_capability"
 stage = "prepare"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.3 F20 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.3 F20 exact-operation negotiation at an independently retained request identity; sampling approximation remains unlicensed."
 
 [[routes]]
 route = "antecedent.external.verify_object"
 stage = "evaluate"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.3 F22 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.3 F22 object-level verification from independent probes at the complete contract fingerprint; covers that request only and is not general provider trust."
 
 [[routes]]
 route = "antecedent.external.trust_receipt"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.3 F23 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.3 F23 trust tier (externally attested or verified extension) preserved through artifacts; never native licensed and never upgraded on load."
 
 [[routes]]
 route = "antecedent.support.coordinate_grid"

@@ -7,10 +7,10 @@
 use std::collections::HashSet;
 
 use crate::{
-    CompositionLink, CompositionStage, DistributionMeaning, ExternalContractError,
-    ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState, IdentificationStatus,
-    ProvenanceChain, ProvenanceChainError, ProviderObjectIdentity, QuantityMismatch,
-    ScientificQuantity, SupportStatus,
+    CompositionLink, CompositionStage, DistributionMeaning, ExternalCapability,
+    ExternalContractError, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
+    IdentificationStatus, ProvenanceChain, ProvenanceChainError, ProviderObjectIdentity,
+    QuantityMismatch, ScientificQuantity, SupportStatus, VerificationProbe,
 };
 
 /// Regime identity of an unintervened conditional law.
@@ -239,6 +239,9 @@ pub struct BoundExternalClaim {
     uncertainty: ExternalUncertaintyMeaning,
     execution: ProviderObjectIdentity,
     trust: BoundTrustLevel,
+    provider_meaning: Option<DistributionMeaning>,
+    capabilities: Vec<ExternalCapability>,
+    verification: Vec<VerificationProbe>,
     evidence_ids: Vec<String>,
     assumption_ids: Vec<String>,
     equivalence_ids: Vec<String>,
@@ -295,6 +298,21 @@ impl BoundExternalClaim {
     #[must_use]
     pub const fn trust(&self) -> BoundTrustLevel {
         self.trust
+    }
+    /// Meaning of the law behind a response grid; absent for a posterior object.
+    #[must_use]
+    pub const fn provider_meaning(&self) -> Option<DistributionMeaning> {
+        self.provider_meaning
+    }
+    /// Operations the provider object declared at this exact request.
+    #[must_use]
+    pub fn capabilities(&self) -> &[ExternalCapability] {
+        &self.capabilities
+    }
+    /// Probes that passed when trust is exact-request verified; empty otherwise.
+    #[must_use]
+    pub fn verification(&self) -> &[VerificationProbe] {
+        &self.verification
     }
     /// Evidence factors declared by the provider.
     #[must_use]
@@ -454,27 +472,13 @@ fn check_contract(contract: &CheckedCausalContract) -> Result<(), ExternalBindin
     Ok(())
 }
 
-/// Check an external result against an identified contract and bind it.
-///
-/// # Errors
-/// Refuses unidentified contracts, wrong provider kinds, graph, coordinate,
-/// dimension, meaning, evidence, assumption or trust mismatches, non-finite
-/// values, and observational laws offered for interventions without a
-/// separately checked equivalence.
-pub fn bind_external_result(
+fn check_provider_kind(
     contract: &CheckedCausalContract,
     result: &ExternalResult,
-) -> Result<BoundExternalClaim, ExternalBindingError> {
+    header: &ExternalResultHeader,
+    meaning: Option<DistributionMeaning>,
+) -> Result<(), ExternalBindingError> {
     use ExternalBindingError as E;
-    check_contract(contract)?;
-    let (header, values, meaning, uncertainty) = match result {
-        ExternalResult::Response(r) => (&r.header, Some(&r.values), None, r.uncertainty.clone()),
-        ExternalResult::Distribution(d) => {
-            (&d.header, None, Some(d.meaning), ExternalUncertaintyMeaning::None)
-        }
-        ExternalResult::Posterior(p) => (&p.header, None, None, ExternalUncertaintyMeaning::None),
-    };
-    header.object.validate().map_err(E::Object)?;
     match (result, &header.object) {
         (
             ExternalResult::Response(_) | ExternalResult::Distribution(_),
@@ -496,6 +500,31 @@ pub fn bind_external_result(
         }
         _ => return Err(E::ObjectKindMismatch),
     }
+    Ok(())
+}
+
+/// Check an external result against an identified contract and bind it.
+///
+/// # Errors
+/// Refuses unidentified contracts, wrong provider kinds, graph, coordinate,
+/// dimension, meaning, evidence, assumption or trust mismatches, non-finite
+/// values, and observational laws offered for interventions without a
+/// separately checked equivalence.
+pub fn bind_external_result(
+    contract: &CheckedCausalContract,
+    result: &ExternalResult,
+) -> Result<BoundExternalClaim, ExternalBindingError> {
+    use ExternalBindingError as E;
+    check_contract(contract)?;
+    let (header, values, meaning, uncertainty) = match result {
+        ExternalResult::Response(r) => (&r.header, Some(&r.values), None, r.uncertainty.clone()),
+        ExternalResult::Distribution(d) => {
+            (&d.header, None, Some(d.meaning), ExternalUncertaintyMeaning::None)
+        }
+        ExternalResult::Posterior(p) => (&p.header, None, None, ExternalUncertaintyMeaning::None),
+    };
+    header.object.validate().map_err(E::Object)?;
+    check_provider_kind(contract, result, header, meaning)?;
     if header.graph_id != contract.graph_id {
         return Err(E::GraphMismatch);
     }
@@ -559,6 +588,15 @@ pub fn bind_external_result(
         uncertainty,
         execution: header.object.identity().clone(),
         trust,
+        provider_meaning: match &header.object {
+            ExternalScientificObject::Law(law) => Some(law.meaning),
+            _ => None,
+        },
+        capabilities: header.object.capabilities().to_vec(),
+        verification: match &header.trust {
+            ExternalTrustState::ExactRequestVerified(receipt) => receipt.probes().to_vec(),
+            _ => Vec::new(),
+        },
         evidence_ids: header.evidence_ids.clone(),
         assumption_ids: header.assumption_ids.clone(),
         equivalence_ids,
@@ -972,5 +1010,92 @@ mod tests {
         ok.header.trust = ExternalTrustState::ExactRequestVerified(Box::new(good));
         let claim = bind_external_result(&contract(), &ExternalResult::Response(ok)).unwrap();
         assert_eq!(claim.trust(), BoundTrustLevel::ExactRequestVerified);
+    }
+
+    fn passing_probes() -> Vec<crate::VerificationProbe> {
+        use crate::VerificationProbeKind as P;
+        [P::Shape, P::Support, P::Moments, P::SeededBehavior, P::KnownTruth]
+            .into_iter()
+            .map(|kind| crate::VerificationProbe {
+                kind,
+                observed: 1.0,
+                expected: 1.0,
+                tolerance: 0.0,
+            })
+            .collect()
+    }
+
+    /// F23 frozen boundary: R1 carries `verified_extension`, R2 stays externally
+    /// attested, and neither becomes native.
+    #[test]
+    fn attested_stays_attested_and_verified_is_never_native() {
+        use crate::verify_external_object;
+        let r2 = response();
+        let attested =
+            bind_external_result(&contract(), &ExternalResult::Response(r2.clone())).unwrap();
+        assert_eq!(attested.trust(), BoundTrustLevel::ExternallyAttested);
+        assert!(attested.verification().is_empty());
+
+        let mut r1 = r2;
+        let receipt = verify_external_object(&r1.header.object, &passing_probes()).unwrap();
+        r1.header.trust = ExternalTrustState::ExactRequestVerified(Box::new(receipt));
+        let verified = bind_external_result(&contract(), &ExternalResult::Response(r1)).unwrap();
+        assert_eq!(verified.trust(), BoundTrustLevel::ExactRequestVerified);
+        assert_eq!(verified.verification().len(), 5);
+        for claim in [&attested, &verified] {
+            assert!(!claim.is_native_estimation());
+        }
+        let mut native = response();
+        native.header.trust = ExternalTrustState::NativeLicensed;
+        assert_eq!(
+            bind_external_result(&contract(), &ExternalResult::Response(native)),
+            Err(ExternalBindingError::TrustMismatch)
+        );
+    }
+
+    /// F23 frozen boundary: reusing an R1 receipt after a changed quantity,
+    /// provider version or snapshot refuses.
+    #[test]
+    fn receipt_for_one_fingerprint_does_not_survive_changed_quantity_version_or_snapshot() {
+        use crate::verify_external_object;
+        let r1 = response();
+        let receipt = verify_external_object(&r1.header.object, &passing_probes()).unwrap();
+        let reused = |edit: &dyn Fn(&mut ExternalScientificObject)| {
+            let mut other = r1.clone();
+            edit(&mut other.header.object);
+            other.header.trust =
+                ExternalTrustState::ExactRequestVerified(Box::new(receipt.clone()));
+            bind_external_result(&contract(), &ExternalResult::Response(other))
+        };
+        let edits: [&dyn Fn(&mut ExternalScientificObject); 3] = [
+            &|o| {
+                if let ExternalScientificObject::Law(l) = o {
+                    l.identity.version_id = "v4".into();
+                }
+            },
+            &|o| {
+                if let ExternalScientificObject::Law(l) = o {
+                    l.identity.snapshot_id = "snap-10".into();
+                }
+            },
+            &|o| {
+                if let ExternalScientificObject::Law(l) = o {
+                    l.capabilities.push(ExternalCapability::Cdf);
+                }
+            },
+        ];
+        for edit in edits {
+            assert_eq!(reused(edit), Err(ExternalBindingError::TrustMismatch));
+        }
+        // A changed coordinate of the law is caught by the quantity check or the
+        // receipt, never silently reused.
+        let mut changed_quantity = r1.clone();
+        if let ExternalScientificObject::Law(l) = &mut changed_quantity.header.object {
+            l.quantities[0].units = "kPa".into();
+        }
+        changed_quantity.header.trust = ExternalTrustState::ExactRequestVerified(Box::new(receipt));
+        assert!(
+            bind_external_result(&contract(), &ExternalResult::Response(changed_quantity)).is_err()
+        );
     }
 }
