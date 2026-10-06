@@ -1,0 +1,483 @@
+//! Evaluate a [`DecisionContract`] on an aligned joint distribution artifact.
+//!
+//! Every action's utility is computed per draw from the artifact's aligned
+//! rows, so a nonlinear utility over several quantities sees genuine joint
+//! realizations. Hard constraints exclude actions before the criterion ranks
+//! the rest. The result distinguishes a uniquely best action from actions the
+//! draws cannot tell apart, and from no admissible action; it never turns a
+//! hard constraint into a penalty.
+//!
+//! Minimax over an identified set and maximin over structures need structure
+//! inputs a single draw source does not carry; they refuse here rather than
+//! run a generic scorer.
+
+use antecedent_core::ScientificQuantity;
+use antecedent_io::distribution_artifact::{
+    DistributionArtifact, DistributionCalibration, DrawAlignment,
+};
+
+use crate::decision_contract::{DecisionContract, DecisionContractError, DecisionCriterion};
+
+/// Why an evaluation refused.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DecisionEvalError {
+    /// The contract is invalid.
+    Contract(DecisionContractError),
+    /// Rows are not paired joint realizations, so cross-quantity integration and
+    /// state-by-state comparison are invalid.
+    JointLawRequired,
+    /// An action input has no matching coordinate in the source.
+    QuantityNotFound {
+        /// Action whose input is missing.
+        action: String,
+        /// Input position.
+        input: usize,
+    },
+    /// A source coordinate is masked as unsupported.
+    UnsupportedCoordinate {
+        /// Action that reads it.
+        action: String,
+        /// Input position.
+        input: usize,
+    },
+    /// The source's distribution meaning cannot answer an outcome-law input.
+    MeaningMismatch {
+        /// Action that reads it.
+        action: String,
+        /// Input position.
+        input: usize,
+    },
+    /// The criterion needs structure or identified-set inputs this source lacks.
+    StructureInputsRequired(&'static str),
+    /// A utility expression produced a non-finite value.
+    NonFiniteUtility {
+        /// Action whose utility failed.
+        action: String,
+    },
+}
+
+impl DecisionEvalError {
+    /// Registered runtime reason code for this refusal.
+    #[must_use]
+    pub const fn reason_code(&self) -> &'static str {
+        match self {
+            Self::Contract(_) | Self::NonFiniteUtility { .. } => {
+                antecedent_core::reason_code!("decision_contract_unsatisfied")
+            }
+            Self::JointLawRequired => antecedent_core::reason_code!("joint_law_required"),
+            Self::QuantityNotFound { .. } | Self::UnsupportedCoordinate { .. } => {
+                antecedent_core::reason_code!("quantity_semantics_mismatch")
+            }
+            Self::MeaningMismatch { .. } => {
+                antecedent_core::reason_code!("distribution_meaning_mismatch")
+            }
+            Self::StructureInputsRequired(_) => {
+                antecedent_core::reason_code!("route_not_supported")
+            }
+        }
+    }
+}
+
+/// A hard constraint an action failed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConstraintExclusion {
+    /// Constraint identity.
+    pub constraint_id: String,
+    /// Weighted probability that the constraint held.
+    pub probability: f64,
+    /// Probability the contract required.
+    pub required: f64,
+}
+
+/// One action's outcome.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ActionOutcome {
+    /// Semantic action identity.
+    pub id: String,
+    /// Whether every hard constraint held.
+    pub admissible: bool,
+    /// Constraints it failed; empty when admissible.
+    pub exclusions: Vec<ConstraintExclusion>,
+    /// Weighted expected utility.
+    pub expected_utility: f64,
+    /// The criterion's value for this action, in the criterion's own units.
+    pub value: f64,
+    /// Monte Carlo standard error of `value` when the criterion is a mean or a
+    /// proportion over the draws.
+    pub standard_error: Option<f64>,
+    /// Expected regret against the best admissible action per draw; `None` when
+    /// the action is excluded.
+    pub expected_regret: Option<f64>,
+    /// Largest per-draw regret; `None` when the action is excluded.
+    pub max_regret: Option<f64>,
+}
+
+/// What the evaluation can claim about the choice.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Verdict {
+    /// One action has the best value and the others are distinguishably worse.
+    UniquelyOptimal(String),
+    /// The best-scoring action cannot be told apart from these others within
+    /// the declared error; the first is the point-estimate leader.
+    Indistinguishable(Vec<String>),
+    /// Every action violated a hard constraint.
+    NoAdmissibleAction,
+}
+
+/// Where the draws came from, copied from the artifact identity.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SourceReceipt {
+    /// Provider object.
+    pub provider_id: String,
+    /// Data snapshot or exact-law identity.
+    pub snapshot_id: String,
+    /// RNG algorithm, seed and stream.
+    pub rng_id: String,
+    /// Causal-contract identity the draws were bound to.
+    pub causal_contract_id: String,
+}
+
+/// Decision result with the evidence behind it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecisionResult {
+    /// Identity of the contract that was evaluated.
+    pub contract_identity: String,
+    /// Criterion that ranked the actions.
+    pub criterion: DecisionCriterion,
+    /// Per-action outcomes in declaration order.
+    pub actions: Vec<ActionOutcome>,
+    /// The verdict.
+    pub verdict: Verdict,
+    /// Expected value of perfect information over the admissible actions, when
+    /// any action is admissible: `E[max_a U] - max_a E[U]`.
+    pub evpi: Option<f64>,
+    /// Number of draws.
+    pub n_draws: usize,
+    /// Kish effective sample size of the weights.
+    pub effective_draws: f64,
+    /// Source lineage.
+    pub source: SourceReceipt,
+    /// Assumptions the result stands on.
+    pub assumptions: Vec<String>,
+}
+
+/// Tolerance, in paired standard errors, inside which two actions are
+/// indistinguishable.
+pub const INDISTINGUISHABLE_Z: f64 = 2.0;
+
+struct Table {
+    /// `utilities[a][i]` for action `a`, draw `i`.
+    utilities: Vec<Vec<f64>>,
+    /// Normalized weights.
+    weights: Vec<f64>,
+}
+
+fn locate(
+    source: &DistributionArtifact,
+    action: &str,
+    position: usize,
+    wanted: &ScientificQuantity,
+) -> Result<usize, DecisionEvalError> {
+    let found = source.quantities().iter().position(|candidate| {
+        ScientificQuantity::try_from(candidate.clone())
+            .is_ok_and(|q| q.require_same_coordinate(wanted).is_ok())
+    });
+    found.ok_or_else(|| DecisionEvalError::QuantityNotFound {
+        action: action.to_owned(),
+        input: position,
+    })
+}
+
+fn build_table(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+) -> Result<Table, DecisionEvalError> {
+    if source.metadata().identity.alignment != DrawAlignment::Joint {
+        return Err(DecisionEvalError::JointLawRequired);
+    }
+    let meaning = antecedent_core::DistributionMeaning::from(source.semantic());
+    let [n_draws, width] = source.shape();
+    let draws = source.draws();
+    let mask = source.metadata().supported.as_deref();
+    let mut utilities = Vec::with_capacity(contract.actions.len());
+    for action in &contract.actions {
+        let mut columns = Vec::with_capacity(action.inputs.len());
+        for (position, quantity) in action.inputs.iter().enumerate() {
+            let column = locate(source, &action.id, position, quantity)?;
+            if mask.is_some_and(|m| !m[column]) {
+                return Err(DecisionEvalError::UnsupportedCoordinate {
+                    action: action.id.clone(),
+                    input: position,
+                });
+            }
+            if quantity.functional_id == "outcome"
+                && !meaning.answers_interventional_outcome_threshold()
+            {
+                return Err(DecisionEvalError::MeaningMismatch {
+                    action: action.id.clone(),
+                    input: position,
+                });
+            }
+            columns.push(column);
+        }
+        let mut row_values = vec![0.0; columns.len()];
+        let mut per_draw = Vec::with_capacity(n_draws);
+        for draw in 0..n_draws {
+            for (slot, column) in columns.iter().enumerate() {
+                row_values[slot] = draws[draw * width + column];
+            }
+            let value =
+                action.utility.evaluate(&row_values).map_err(DecisionEvalError::Contract)?;
+            if !value.is_finite() {
+                return Err(DecisionEvalError::NonFiniteUtility { action: action.id.clone() });
+            }
+            per_draw.push(value);
+        }
+        utilities.push(per_draw);
+    }
+    let raw: Vec<f64> = source.metadata().weights.clone().unwrap_or_else(|| vec![1.0; n_draws]);
+    let total: f64 = raw.iter().sum();
+    Ok(Table { utilities, weights: raw.into_iter().map(|w| w / total).collect() })
+}
+
+fn weighted_mean(values: &[f64], weights: &[f64]) -> f64 {
+    values.iter().zip(weights).map(|(v, w)| v * w).sum()
+}
+
+fn effective_draws(weights: &[f64]) -> f64 {
+    1.0 / weights.iter().map(|w| w * w).sum::<f64>()
+}
+
+/// Standard error of a weighted mean of `values`; zero for an exact finite law.
+fn mean_se(values: &[f64], weights: &[f64], exact: bool) -> f64 {
+    if exact {
+        return 0.0;
+    }
+    let mean = weighted_mean(values, weights);
+    let variance: f64 = values.iter().zip(weights).map(|(v, w)| w * (v - mean) * (v - mean)).sum();
+    (variance / effective_draws(weights)).sqrt()
+}
+
+fn weighted_quantile(values: &[f64], weights: &[f64], p: f64) -> f64 {
+    let mut order: Vec<usize> = (0..values.len()).collect();
+    order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
+    let mut cumulative = 0.0;
+    for &index in &order {
+        cumulative += weights[index];
+        if cumulative >= p {
+            return values[index];
+        }
+    }
+    values[*order.last().unwrap_or(&0)]
+}
+
+/// Per-draw score to maximize for the criterion, when it has one.
+fn per_draw_score(
+    criterion: DecisionCriterion,
+    utility: &[f64],
+    regret: &[f64],
+) -> Option<Vec<f64>> {
+    match criterion {
+        DecisionCriterion::PosteriorExpectedUtility => Some(utility.to_vec()),
+        DecisionCriterion::PosteriorExpectedLoss => Some(utility.iter().map(|u| -u).collect()),
+        DecisionCriterion::ThresholdProbability { threshold } => {
+            Some(utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect())
+        }
+        DecisionCriterion::ExpectedRegret => Some(regret.iter().map(|r| -r).collect()),
+        DecisionCriterion::Quantile { .. }
+        | DecisionCriterion::Regret
+        | DecisionCriterion::MinimaxOverIdentifiedSet
+        | DecisionCriterion::MaximinOverStructures => None,
+    }
+}
+
+/// Evaluate `contract` on `source`.
+///
+/// # Errors
+/// Refuses an invalid contract, non-joint draws, a missing or masked
+/// coordinate, a source meaning that cannot answer an outcome-law input, and
+/// criteria that need structure inputs.
+#[allow(clippy::too_many_lines)]
+pub fn evaluate_contract(
+    contract: &DecisionContract,
+    source: &DistributionArtifact,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let identity = contract.identity().map_err(DecisionEvalError::Contract)?;
+    if matches!(
+        contract.criterion,
+        DecisionCriterion::MinimaxOverIdentifiedSet | DecisionCriterion::MaximinOverStructures
+    ) {
+        return Err(DecisionEvalError::StructureInputsRequired(
+            "needs identified-set or structure inputs, not one draw source",
+        ));
+    }
+    let table = build_table(contract, source)?;
+    let n = source.n_draws();
+    // An exact finite law has no sampling error: its draws are the distribution.
+    let exact = source.metadata().calibration == DistributionCalibration::Exact;
+    let weights = &table.weights;
+
+    // Hard constraints exclude actions; they never enter the utility.
+    let mut exclusions: Vec<Vec<ConstraintExclusion>> = vec![Vec::new(); contract.actions.len()];
+    for constraint in &contract.constraints {
+        for (index, action) in contract.actions.iter().enumerate() {
+            if !constraint.applies_to.is_empty() && !constraint.applies_to.contains(&action.id) {
+                continue;
+            }
+            let columns: Vec<usize> = action
+                .inputs
+                .iter()
+                .enumerate()
+                .map(|(p, q)| locate(source, &action.id, p, q))
+                .collect::<Result<_, _>>()?;
+            let [_, width] = source.shape();
+            let mut held = 0.0;
+            let mut row = vec![0.0; columns.len()];
+            for (draw, weight) in weights.iter().enumerate() {
+                for (slot, column) in columns.iter().enumerate() {
+                    row[slot] = source.draws()[draw * width + column];
+                }
+                let value = constraint.expr.evaluate(&row).map_err(DecisionEvalError::Contract)?;
+                if value <= constraint.bound {
+                    held += weight;
+                }
+            }
+            if held + 1e-12 < constraint.min_probability {
+                exclusions[index].push(ConstraintExclusion {
+                    constraint_id: constraint.id.clone(),
+                    probability: held,
+                    required: constraint.min_probability,
+                });
+            }
+        }
+    }
+    let admissible: Vec<usize> =
+        (0..contract.actions.len()).filter(|i| exclusions[*i].is_empty()).collect();
+
+    // Regret is measured against the best admissible action in each draw.
+    let best_per_draw: Vec<f64> = (0..n)
+        .map(|i| {
+            admissible.iter().map(|a| table.utilities[*a][i]).fold(f64::NEG_INFINITY, f64::max)
+        })
+        .collect();
+    let regret_of = |a: usize| -> Vec<f64> {
+        (0..n).map(|i| best_per_draw[i] - table.utilities[a][i]).collect()
+    };
+
+    let mut outcomes = Vec::with_capacity(contract.actions.len());
+    let mut scores: Vec<Option<Vec<f64>>> = Vec::with_capacity(contract.actions.len());
+    for (index, action) in contract.actions.iter().enumerate() {
+        let utility = &table.utilities[index];
+        let is_admissible = exclusions[index].is_empty();
+        let regret = if is_admissible { regret_of(index) } else { Vec::new() };
+        let expected_utility = weighted_mean(utility, weights);
+        let per_draw =
+            if is_admissible { per_draw_score(contract.criterion, utility, &regret) } else { None };
+        let (value, standard_error) = match contract.criterion {
+            DecisionCriterion::PosteriorExpectedUtility
+            | DecisionCriterion::PosteriorExpectedLoss => {
+                (expected_utility, Some(mean_se(utility, weights, exact)))
+            }
+            DecisionCriterion::ThresholdProbability { threshold } => {
+                let indicator: Vec<f64> =
+                    utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect();
+                (weighted_mean(&indicator, weights), Some(mean_se(&indicator, weights, exact)))
+            }
+            DecisionCriterion::Quantile { p } => (weighted_quantile(utility, weights, p), None),
+            DecisionCriterion::ExpectedRegret if is_admissible => {
+                (weighted_mean(&regret, weights), Some(mean_se(&regret, weights, exact)))
+            }
+            DecisionCriterion::Regret if is_admissible => {
+                (regret.iter().copied().fold(0.0, f64::max), None)
+            }
+            _ => (f64::NAN, None),
+        };
+        outcomes.push(ActionOutcome {
+            id: action.id.clone(),
+            admissible: is_admissible,
+            exclusions: exclusions[index].clone(),
+            expected_utility,
+            value,
+            standard_error,
+            expected_regret: is_admissible.then(|| weighted_mean(&regret, weights)),
+            max_regret: is_admissible.then(|| regret.iter().copied().fold(0.0, f64::max)),
+        });
+        scores.push(per_draw);
+    }
+
+    // Rank admissible actions by the criterion. `larger` ranks higher.
+    let larger = |a: &ActionOutcome, b: &ActionOutcome| -> std::cmp::Ordering {
+        let key = |x: &ActionOutcome| match contract.criterion {
+            DecisionCriterion::PosteriorExpectedLoss
+            | DecisionCriterion::Regret
+            | DecisionCriterion::ExpectedRegret => -x.value,
+            _ => x.value,
+        };
+        key(a).total_cmp(&key(b))
+    };
+    let leader = admissible
+        .iter()
+        .copied()
+        .max_by(|a, b| larger(&outcomes[*a], &outcomes[*b]).then(b.cmp(a)));
+    let verdict = match leader {
+        None => Verdict::NoAdmissibleAction,
+        Some(best) => {
+            let mut tied = vec![contract.actions[best].id.clone()];
+            for other in admissible.iter().copied().filter(|a| *a != best) {
+                let indistinct = match (&scores[best], &scores[other]) {
+                    (Some(sb), Some(so)) => {
+                        let diff: Vec<f64> = sb.iter().zip(so).map(|(x, y)| x - y).collect();
+                        let se = mean_se(&diff, weights, exact);
+                        let mean = weighted_mean(&diff, weights);
+                        mean.abs() <= INDISTINGUISHABLE_Z * se + 1e-12
+                    }
+                    // No paired error is defined: only exactly equal values tie.
+                    _ => outcomes[best].value.to_bits() == outcomes[other].value.to_bits(),
+                };
+                if indistinct {
+                    tied.push(contract.actions[other].id.clone());
+                }
+            }
+            if tied.len() == 1 {
+                Verdict::UniquelyOptimal(tied.remove(0))
+            } else {
+                Verdict::Indistinguishable(tied)
+            }
+        }
+    };
+    let evpi = (!admissible.is_empty()).then(|| {
+        let perfect = weighted_mean(&best_per_draw, weights);
+        let best_mean = admissible
+            .iter()
+            .map(|a| weighted_mean(&table.utilities[*a], weights))
+            .fold(f64::NEG_INFINITY, f64::max);
+        perfect - best_mean
+    });
+    let identity_meta = &source.metadata().identity;
+    Ok(DecisionResult {
+        contract_identity: identity,
+        criterion: contract.criterion,
+        actions: outcomes,
+        verdict,
+        evpi,
+        n_draws: n,
+        effective_draws: effective_draws(weights),
+        source: SourceReceipt {
+            provider_id: identity_meta.provider_id.clone(),
+            snapshot_id: identity_meta.snapshot_id.clone(),
+            rng_id: identity_meta.rng_id.clone(),
+            causal_contract_id: identity_meta.causal_contract_id.clone(),
+        },
+        assumptions: vec![
+            "draws are aligned joint realizations of every input quantity".into(),
+            "hard constraints exclude actions and never enter the utility".into(),
+            if exact {
+                "the source is an exact finite law, so values carry no sampling error".to_owned()
+            } else {
+                format!(
+                    "indistinguishable means within {INDISTINGUISHABLE_Z} paired standard errors of the leader"
+                )
+            },
+        ],
+    })
+}

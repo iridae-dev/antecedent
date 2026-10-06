@@ -44,5 +44,38 @@ native support row.
 constraints leaves it unchanged; any semantic edit to an action, quantity,
 utility, constraint, criterion, scope, units or structural policy changes it.
 
-Evaluation, `DecisionResult` and the contract and result artifacts are separate
-steps and are not part of this layer yet.
+The contract and result artifacts are not part of this layer yet.
+
+## Evaluation on aligned draws
+
+`decision_eval::evaluate_contract(contract, source)` evaluates a contract on an
+aligned joint `DistributionArtifact`. Each action's utility is computed per
+draw from the artifact's rows, so a nonlinear utility over several quantities
+sees genuine joint realizations: with `P*Q` and enumerated rows where
+`E[P]E[Q] = 4.5` but `E[PQ] = 2`, only joint rows choose correctly, and
+re-pairing the same marginals flips the choice. It refuses non-joint draws
+(`joint_law_required`), a coordinate it cannot find or that is masked
+(`quantity_semantics_mismatch`), and a source whose meaning cannot answer an
+outcome-law input (`distribution_meaning_mismatch`), such as a posterior over a
+mean offered where an outcome law is read.
+
+Hard constraints exclude actions before the criterion ranks the rest; an
+excluded action keeps its untouched utility and carries the constraint, the
+probability it reached and the probability required. Implemented criteria,
+each scored by its own route: posterior expected utility, expected loss,
+threshold probability, quantile, regret (maximum over draws) and expected
+regret. Minimax over an identified set and maximin over structures need
+structure inputs that one draw source does not carry, so they refuse with
+`route_not_supported`.
+
+`DecisionResult` reports per-action admissibility and exclusions, expected
+utility, criterion value, standard error, expected and maximum regret, EVPI over
+the admissible actions, effective draws, the source lineage and the
+assumptions. The verdict is `UniquelyOptimal`, `Indistinguishable` (the leader
+cannot be separated from the others within two paired standard errors) or
+`NoAdmissibleAction`. An exact finite law has no sampling error, so ties there
+are only exact ties; the same rows read as a Monte Carlo sample are
+indistinguishable when noise covers the gap.
+
+Not yet in the result: structural and support robustness, decision uncertainty
+beyond the standard error, graph-dependent choice and the artifacts.
