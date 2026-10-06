@@ -7,8 +7,16 @@ use antecedent_core::{
     QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
 };
 use antecedent_io::external_claim_artifact::{
-    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust,
+    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, LineageLinkWire,
 };
+
+fn link(id: &str, stage: &str, parents: &[&str]) -> LineageLinkWire {
+    LineageLinkWire {
+        id: id.into(),
+        stage: stage.into(),
+        parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+    }
+}
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 
 fn quantity(dose: u32) -> ScientificQuantity {
@@ -48,6 +56,20 @@ fn expected_identity() -> ExternalClaimIdentity {
         evidence_ids: vec!["factor:z".into()],
         assumption_ids: vec!["ignorability".into()],
         equivalence_ids: vec![],
+        lineage: vec![
+            link("contract:checked-contract", "causal_contract", &[]),
+            link("evidence:factor:z", "evidence", &["contract:checked-contract"]),
+            link(
+                "provider:external:lab/curve@v3#snap-9",
+                "external_provider",
+                &["evidence:factor:z"],
+            ),
+            link(
+                "claim",
+                "claim",
+                &["contract:checked-contract", "provider:external:lab/curve@v3#snap-9"],
+            ),
+        ],
     }
 }
 
@@ -107,13 +129,26 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
         assert!((v[0] - 1.0).abs() < 1e-12);
         assert_eq!(loaded.provenance_label(), "external:lab/curve@v3#snap-9");
         assert!(!loaded.metadata().native_estimation);
+        // The consumer can answer where the numbers came from without the producer.
+        let chain = loaded.metadata().identity.provenance_chain().unwrap();
+        let behind = chain.stages_behind("claim").unwrap();
+        for stage in [
+            antecedent_core::CompositionStage::CausalContract,
+            antecedent_core::CompositionStage::Evidence,
+            antecedent_core::CompositionStage::ExternalProvider,
+        ] {
+            assert!(behind.contains(&stage));
+        }
 
         let reseal = |edit: &dyn Fn(&mut ExternalClaimIdentity)| {
             let mut meta = loaded.metadata().clone();
             edit(&mut meta.identity);
-            ExternalClaimArtifact::new(meta, v.to_vec()).unwrap().to_bytes("claim").unwrap()
+            // A structurally invalid identity is refused even before resealing.
+            ExternalClaimArtifact::new(meta, v.to_vec()).ok().map(|a| a.to_bytes("claim").unwrap())
         };
-        let edits: [&dyn Fn(&mut ExternalClaimIdentity); 8] = [
+        let edits: [&dyn Fn(&mut ExternalClaimIdentity); 10] = [
+            &|i| i.lineage[1].id = "evidence:other".into(),
+            &|i| i.lineage.truncate(3),
             &|i| i.point_status[2] = "supported".into(),
             &|i| i.snapshot_id = "other".into(),
             &|i| i.trust = ExternalClaimTrust::ExactRequestVerified,
@@ -124,9 +159,9 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
             &|i| i.request_id = "req-2".into(),
         ];
         for edit in edits {
-            assert!(
-                ExternalClaimArtifact::from_bytes(&reseal(edit), &expected_identity()).is_err()
-            );
+            if let Some(bytes) = reseal(edit) {
+                assert!(ExternalClaimArtifact::from_bytes(&bytes, &expected_identity()).is_err());
+            }
         }
         let mut native = loaded.metadata().clone();
         native.native_estimation = true;
@@ -151,5 +186,10 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
         .output()
         .unwrap();
     std::fs::remove_file(path).unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

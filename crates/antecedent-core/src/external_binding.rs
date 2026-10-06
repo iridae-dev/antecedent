@@ -7,8 +7,9 @@
 use std::collections::HashSet;
 
 use crate::{
-    DistributionMeaning, ExternalContractError, ExternalPosteriorKind, ExternalScientificObject,
-    ExternalTrustState, IdentificationStatus, ProviderObjectIdentity, QuantityMismatch,
+    CompositionLink, CompositionStage, DistributionMeaning, ExternalContractError,
+    ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState, IdentificationStatus,
+    ProvenanceChain, ProvenanceChainError, ProviderObjectIdentity, QuantityMismatch,
     ScientificQuantity, SupportStatus,
 };
 
@@ -250,6 +251,63 @@ impl BoundExternalClaim {
     pub const fn is_native_estimation(&self) -> bool {
         false
     }
+    /// Identity of the reported claim within [`Self::provenance_chain`].
+    pub const CLAIM_LINK_ID: &'static str = "claim";
+
+    /// Derivation chain behind the reported numbers: the causal contract, each
+    /// evidence factor, each checked equivalence, the exact provider execution
+    /// and the claim itself.
+    ///
+    /// # Errors
+    /// A blank contract identity refuses.
+    pub fn provenance_chain(
+        &self,
+        causal_contract_id: &str,
+    ) -> Result<ProvenanceChain, ProvenanceChainError> {
+        if blank(causal_contract_id) {
+            return Err(ProvenanceChainError::InvalidLink);
+        }
+        let contract = format!("contract:{causal_contract_id}");
+        let mut links = vec![CompositionLink {
+            id: contract.clone(),
+            stage: CompositionStage::CausalContract,
+            parents: vec![],
+        }];
+        let mut claim_parents = vec![contract.clone()];
+        let mut provider_parents = Vec::new();
+        for id in &self.evidence_ids {
+            let link = format!("evidence:{id}");
+            provider_parents.push(link.clone());
+            links.push(CompositionLink {
+                id: link,
+                stage: CompositionStage::Evidence,
+                parents: vec![contract.clone()],
+            });
+        }
+        for id in &self.equivalence_ids {
+            let link = format!("equivalence:{id}");
+            claim_parents.push(link.clone());
+            links.push(CompositionLink {
+                id: link,
+                stage: CompositionStage::Transformation,
+                parents: vec![contract.clone()],
+            });
+        }
+        let provider = format!("provider:{}", self.provenance_label());
+        claim_parents.push(provider.clone());
+        links.push(CompositionLink {
+            id: provider,
+            stage: CompositionStage::ExternalProvider,
+            parents: provider_parents,
+        });
+        links.push(CompositionLink {
+            id: Self::CLAIM_LINK_ID.into(),
+            stage: CompositionStage::Claim,
+            parents: claim_parents,
+        });
+        ProvenanceChain::new(links)
+    }
+
     /// Stable provenance label naming the external execution.
     #[must_use]
     pub fn provenance_label(&self) -> String {
@@ -490,6 +548,47 @@ mod tests {
         // Support not assessed by the provider is missing evidence, not support.
         assert_eq!(claim.point_status(), Some(&[SupportStatus::MissingEvidence; 2][..]));
         assert_eq!(claim.support_status(), Some(SupportStatus::MissingEvidence));
+    }
+
+    #[test]
+    fn bound_claim_answers_where_its_numbers_came_from() {
+        use crate::CompositionStage as S;
+        let mut c = contract();
+        c.equivalences.push(CheckedEquivalence {
+            graph_id: "graph-1".into(),
+            interventional_regime_id: "do(a=1)".into(),
+            justification_id: "backdoor:z".into(),
+        });
+        let mut r = response();
+        for q in &mut r.header.quantities {
+            q.regime_id = OBSERVATIONAL_REGIME.into();
+        }
+        let claim = bind_external_result(&c, &ExternalResult::Response(r)).unwrap();
+        let chain = claim.provenance_chain("checked-contract").unwrap();
+        let ids: Vec<_> = chain
+            .lineage(BoundExternalClaim::CLAIM_LINK_ID)
+            .unwrap()
+            .into_iter()
+            .map(|l| l.id.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                "contract:checked-contract",
+                "evidence:factor:z",
+                "equivalence:backdoor:z",
+                "provider:external:lab/curve@v3#snap-9",
+                "claim"
+            ]
+        );
+        assert_eq!(
+            chain.require_stages(
+                BoundExternalClaim::CLAIM_LINK_ID,
+                &[S::CausalContract, S::Evidence, S::Transformation, S::ExternalProvider]
+            ),
+            Ok(())
+        );
+        assert_eq!(claim.provenance_chain(" "), Err(ProvenanceChainError::InvalidLink));
     }
 
     #[test]

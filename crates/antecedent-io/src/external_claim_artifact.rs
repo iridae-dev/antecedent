@@ -7,7 +7,8 @@
 //! never claims native estimation and grants no interval or calibration.
 
 use antecedent_core::{
-    BoundExternalClaim, BoundTrustLevel, ExternalUncertaintyMeaning, ScientificQuantity,
+    BoundExternalClaim, BoundTrustLevel, CompositionLink, CompositionStage,
+    ExternalUncertaintyMeaning, ProvenanceChain, ScientificQuantity,
 };
 use serde::{Deserialize, Serialize};
 
@@ -82,9 +83,44 @@ pub struct ExternalClaimIdentity {
     pub assumption_ids: Vec<String>,
     /// Checked equivalences licensing an observational law.
     pub equivalence_ids: Vec<String>,
+    /// Derivation chain behind the values, parents before children.
+    pub lineage: Vec<LineageLinkWire>,
+}
+
+/// One derivation step on the wire.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LineageLinkWire {
+    /// Stable link identity.
+    pub id: String,
+    /// `CompositionStage` wire name.
+    pub stage: String,
+    /// Identities of earlier links this one was derived from.
+    pub parents: Vec<String>,
 }
 
 impl ExternalClaimIdentity {
+    /// The derivation chain, rebuilt and validated from the wire.
+    ///
+    /// # Errors
+    /// An unknown stage, unresolved parent or duplicate link refuses.
+    pub fn provenance_chain(&self) -> Result<ProvenanceChain, IoError> {
+        let links = self
+            .lineage
+            .iter()
+            .map(|link| {
+                Ok(CompositionLink {
+                    id: link.id.clone(),
+                    stage: CompositionStage::from_name(&link.stage).ok_or_else(|| {
+                        IoError::Convert(format!("unknown lineage stage `{}`", link.stage))
+                    })?,
+                    parents: link.parents.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, IoError>>()?;
+        ProvenanceChain::new(links).map_err(|error| IoError::Convert(format!("{error:?}")))
+    }
+
     /// Identity of a bound claim under a named causal contract.
     ///
     /// # Errors
@@ -123,6 +159,17 @@ impl ExternalClaimIdentity {
             evidence_ids: claim.evidence_ids().to_vec(),
             assumption_ids: claim.assumption_ids().to_vec(),
             equivalence_ids: claim.equivalence_ids().to_vec(),
+            lineage: claim
+                .provenance_chain(causal_contract_id)
+                .map_err(|error| IoError::Convert(format!("{error:?}")))?
+                .links()
+                .iter()
+                .map(|link| LineageLinkWire {
+                    id: link.id.clone(),
+                    stage: link.stage.as_str().to_owned(),
+                    parents: link.parents.clone(),
+                })
+                .collect(),
         };
         value.validate()?;
         Ok(value)
@@ -156,6 +203,16 @@ impl ExternalClaimIdentity {
         {
             return Err(IoError::Convert("missing external claim identity".into()));
         }
+        self.provenance_chain()?
+            .require_stages(
+                BoundExternalClaim::CLAIM_LINK_ID,
+                &[
+                    CompositionStage::CausalContract,
+                    CompositionStage::ExternalProvider,
+                    CompositionStage::Claim,
+                ],
+            )
+            .map_err(|error| IoError::Convert(format!("incomplete lineage: {error:?}")))?;
         Ok(())
     }
 }

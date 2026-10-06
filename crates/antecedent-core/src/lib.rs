@@ -36,6 +36,7 @@
 pub mod assumption;
 pub mod capability;
 pub mod claim;
+pub mod composition_provenance;
 pub mod diagnostic;
 pub mod error;
 pub mod execution;
@@ -80,6 +81,9 @@ pub use claim::{
     ClaimDomainAxis, ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, ClaimOperation,
     ConsumerProfile, DerivedClaim, DerivedClaimOutcome, DomainStatus, EvidenceDependence,
     HandoffReceipt, HostOperation, SharedEvidenceRef, claim_compatibility, compose_claims,
+};
+pub use composition_provenance::{
+    CompositionLink, CompositionStage, MAX_CHAIN_LINKS, ProvenanceChain, ProvenanceChainError,
 };
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;

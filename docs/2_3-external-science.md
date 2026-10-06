@@ -71,3 +71,16 @@ identity the consumer retained independently; a resealed change to any field
 (including trust, uncertainty or coordinate order) refuses with
 `external_binding_mismatch`. The artifact grants no interval, calibration or
 native licence.
+
+## Lineage
+
+`ProvenanceChain` is a validated derivation chain (parents precede children)
+whose links carry a `CompositionStage`: causal contract, evidence, data,
+external provider, distribution artifact, transformation, decision contract,
+sensitivity input, study-ranking provider or claim. `lineage(id)` returns an
+identity's ancestors and `require_stages` refuses a number whose lineage lacks
+a stage the consumer needs. A bound external response claim builds its chain
+(contract, each evidence factor, each checked equivalence, the exact provider
+execution, the claim), and `ExternalClaimIdentity` carries it so an independent
+consumer answers where the numbers came from; a changed or truncated lineage
+refuses. Other composition kinds attach to the same chain as they land.
