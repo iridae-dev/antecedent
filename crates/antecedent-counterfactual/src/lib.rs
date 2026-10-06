@@ -8,7 +8,9 @@
 pub mod cross_world;
 pub mod engine;
 pub mod error;
+pub mod temporal_cross_world;
 pub mod trajectory;
+pub mod transported_gate;
 
 pub use engine::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualResult,
