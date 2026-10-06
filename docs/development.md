@@ -8,16 +8,18 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 
 GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
-- **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
-  crates.io publish dry-run when manifests change). Three lints that can hide a
+- **`rust`** — fmt, DCO, and the workspace Rust tests and doctests. The facade
+  and remaining packages run in parallel on Ubuntu; both suites also run on
+  macOS after merge. Three lints that can hide a
   real defect (`cast_possible_truncation`, `cast_sign_loss`, `float_cmp`) are
   never allowed file-wide in library code: an allow sits on the smallest item or
   statement that needs it and states its reason (`scripts/gate_lint_allows.sh`).
-- **`features`** — compiles the feature combinations crates.io users get (default
+- **`features`** — Clippy and the feature combinations crates.io users get (default
   features, each optional feature alone, `--no-default-features`), which the
   workspace-wide jobs never build because the `python` member enables `ml-full`
   and `ml-neural`.
-- **`deny`** — `cargo deny check` (licenses, advisories, sources).
+- **`deny`** — `cargo deny check` (licenses, advisories, sources) and the
+  crates.io publish dry-run.
 - **`gates`** — requires every parallel `gate-sections` job to pass. Each starts
   with the calibration attestation (`scripts/gate_calibration_attestation.sh`).
   The sections divide inventory, promotion evidence, graphless and support
@@ -332,7 +334,10 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   every job id listed in `parity/release.toml` `required_jobs` to have
   succeeded. Job ids are `ci.yml` keys (`rust`, `features`, `deny`, `gates`,
   `python-lint`, `python-wheels`); a run reports display names instead, one per matrix
-  combination ("Rust ubuntu-latest", "Wheel macos-14 py3.12").
+  combination ("Rust ubuntu-latest", "Rust ubuntu-latest facade",
+  "Rust macos-latest facade", "Wheel macos-14 py3.12"). The Rust facade
+  and remaining-workspace suites are both required on Ubuntu and macOS;
+  together they execute the workspace's tests and doctests.
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
 - The gate then runs `gate_release.sh` (which includes the same calibration

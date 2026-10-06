@@ -23,8 +23,13 @@ if [[ "${1:-}" == "--self-test" ]]; then
   exec python3 "$ROOT/scripts/test_evidence_selftest.py"
 fi
 mode="${1:-all}"
+matrix_shard=all
+if [[ "$mode" =~ ^--matrix-shard-([0-3])$ ]]; then
+  matrix_shard="${BASH_REMATCH[1]}"
+  mode=--matrix-only
+fi
 case "$mode" in all|--core-only|--graphless-only|--matrix-only|--transport-only) ;; *)
-  echo "usage: $0 [--self-test|--core-only|--graphless-only|--matrix-only|--transport-only]" >&2; exit 2 ;;
+  echo "usage: $0 [--self-test|--core-only|--graphless-only|--matrix-only|--matrix-shard-0..3|--transport-only]" >&2; exit 2 ;;
 esac
 
 if [[ "$mode" == --transport-only ]]; then
@@ -41,7 +46,7 @@ if [[ "$mode" == --graphless-only ]]; then
   exit
 fi
 
-python3 - <<'PY'
+python3 - "$matrix_shard" <<'PY'
 from __future__ import annotations
 
 import ast
@@ -53,6 +58,9 @@ from pathlib import Path
 
 root = Path(".")
 fail: list[str] = []
+matrix_shard = sys.argv[1]
+if matrix_shard != "all":
+    print(f"support matrix: validating all cells and cited tests in shard {matrix_shard}/4", flush=True)
 
 EVIDENCE_KINDS = {
     "implementation_exists",
@@ -546,9 +554,10 @@ for i, row in enumerate(cells, 1):
     has_assertion = isinstance(assertion, str) and bool(assertion.strip())
     if has_test != has_assertion:
         fail.append(f"{label}: evidence_test and evidence_assertion must be set together")
-    elif has_test:
+    elif has_test and (matrix_shard == "all" or (i - 1) % 4 == int(matrix_shard)):
         check_evidence_test(label, row)
-    check_checked_execution(label, row)
+    if matrix_shard == "all" or (i - 1) % 4 == int(matrix_shard):
+        check_checked_execution(label, row)
     if row.get("staged") is True and not (has_test and has_assertion):
         missing_evidence.add("|".join(str(x) for x in (q, g, s, inf, v)))
     key = (q, g, s, inf, v)

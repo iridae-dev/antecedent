@@ -28,7 +28,7 @@ env:
 
 jobs:
   rust:
-    name: Rust ${{ matrix.os }}
+    name: Rust ${{ matrix.display }}
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -44,8 +44,23 @@ jobs:
       SCCACHE_GHA_ENABLED: "true"
     strategy:
       fail-fast: false
+      # The facade owns most integration test targets. Both Ubuntu suites are
+      # required; their package selections cover the workspace without overlap.
+      # Main runs both macOS suites too, preserving its float-sensitive checks.
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            suite: rest
+            display: ubuntu-latest
+          - os: ubuntu-latest
+            suite: facade
+            display: ubuntu-latest facade
+          - os: macos-latest
+            suite: rest
+            display: macos-latest
+          - os: macos-latest
+            suite: facade
+            display: macos-latest facade
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -119,25 +134,33 @@ jobs:
       # The macOS suite is sensitive to float bits and stack size, so it runs
       # on main. PRs keep its format/DCO check but do not wait for its tests.
       - name: Install cargo-nextest
-        if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        if: matrix.os != 'macos-latest' || github.event_name != 'pull_request'
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: nextest
 
       # Doctests stay on `cargo test`; nextest does not run them.
       - name: Test
-        if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        if: matrix.suite != 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         run: |
           trap 'df -h /' EXIT
-          cargo test --workspace --no-run --timings
-          cargo nextest run --workspace
-          cargo test --workspace --doc
+          cargo test --workspace --exclude antecedent --no-run --timings
+          cargo nextest run --workspace --exclude antecedent
+          cargo test --workspace --exclude antecedent --doc
+
+      - name: Test facade
+        if: matrix.suite == 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
+        run: |
+          trap 'df -h /' EXIT
+          cargo test -p antecedent --features ml-full,ml-neural,antecedent-data/arrow --no-run --timings
+          cargo nextest run -p antecedent --features ml-full,ml-neural,antecedent-data/arrow
+          cargo test -p antecedent --features ml-full,ml-neural,antecedent-data/arrow --doc
 
       - name: Upload Cargo timings
-        if: always() && (matrix.os != 'macos-latest' || github.event_name == 'push')
+        if: always() && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cargo-timings-${{ matrix.os }}
+          name: cargo-timings-${{ matrix.os }}-${{ matrix.suite }}
           path: target/cargo-timings/*.html
           if-no-files-found: warn
 
@@ -146,7 +169,7 @@ jobs:
         run: sccache --show-stats
 
       - name: Test optional learner and Gaussian-process features
-        if: matrix.os == 'macos-latest' && github.event_name == 'push'
+        if: matrix.os == 'macos-latest' && matrix.suite == 'rest' && github.event_name != 'pull_request'
         run: |
           cargo nextest run -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
@@ -157,7 +180,7 @@ jobs:
       # the steps above built and fails when a filter they relied on selects nothing.
       - name: Named tests still exist
         if: matrix.os == 'ubuntu-latest'
-        run: bash scripts/gate_named_tests.sh
+        run: bash scripts/gate_named_tests.sh --shard '${{ matrix.suite }}'
 
   # `cargo test --workspace` unifies features through the `python` member
   # (default = ml-full), so the Rust job never compiles the graph a crates.io
@@ -352,7 +375,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion-python, promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, matrix, transport-contracts, checked-0, checked-1, checked-2, checked-3, feature-core, feature-composition, feature-transport, feature-exits, benches]
+        section: [inventory, promotion-python, promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, matrix-0, matrix-1, matrix-2, matrix-3, transport-contracts, checked-0, checked-1, checked-2, checked-3, feature-core, feature-composition, feature-transport, feature-exits, benches]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
