@@ -236,6 +236,7 @@ pub(super) fn multivariate_support(
     at: &[f64],
     treatment_matrix: &[f64],
     dimensions: usize,
+    value_len: usize,
 ) -> SupportReport {
     let n = treatment_matrix.len() / dimensions;
     let mut minima = Vec::with_capacity(dimensions);
@@ -263,9 +264,10 @@ pub(super) fn multivariate_support(
             ),
             scope: DiagnosticScope::Global,
         }],
-        // One joint query point answers a vector-valued derivative; labels are
-        // per response coordinate, so only the summary status applies here.
-        point_status: None,
+        // One joint query point answers the whole vector-valued derivative, so
+        // every component of the value shares that point's label; the summary
+        // `status` is therefore their worst value by construction.
+        point_status: (value_len > 0).then(|| Arc::from(vec![status; value_len])),
         warnings: {
             let mut warnings = vec![Diagnostic::new(
                 "response.plugin_jacobian_model_dependent",
@@ -293,6 +295,22 @@ pub(super) fn multivariate_support(
 #[cfg(test)]
 mod point_status_tests {
     use super::*;
+
+    #[test]
+    fn joint_derivative_labels_every_value_component_with_the_joint_status() {
+        // Two treatments, four rows each (column-major).
+        let matrix = [0.0, 1.0, 2.0, 3.0, 0.0, 1.0, 2.0, 3.0];
+        let inside = multivariate_support(&[1.0, 1.0], &matrix, 2, 4);
+        assert_eq!(inside.point_status.as_deref().map(<[_]>::len), Some(4));
+        assert!(inside.point_status.as_deref().unwrap().iter().all(|s| *s == inside.status));
+        let outside = multivariate_support(&[1.0, 9.0], &matrix, 2, 1);
+        assert_eq!(outside.status, SupportStatus::OutsideEmpiricalSupport);
+        assert_eq!(
+            outside.point_status.as_deref(),
+            Some(&[SupportStatus::OutsideEmpiricalSupport][..])
+        );
+        assert!(multivariate_support(&[1.0, 1.0], &matrix, 2, 0).point_status.is_none());
+    }
 
     #[test]
     fn static_curve_labels_each_coordinate_and_summarizes_to_the_worst() {

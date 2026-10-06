@@ -615,6 +615,12 @@ impl ContinuousResponseEstimator {
                 "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
             ));
         }
+        if !per_grid && scalar {
+            // A shifted-policy query answers one scalar at the shifted mean and is
+            // assessed over the shifted range; its single label is that range's
+            // (worst-endpoint) summary, never a per-grid-point claim.
+            support.point_status = Some(Arc::from([support.status]));
+        }
         assumptions.entries.extend(posterior.assumptions.entries);
         assumptions.push(AssumptionRecord {
             assumption: Assumption::ParametricRestriction(ParametricAssumption {
@@ -1662,7 +1668,8 @@ impl ContinuousResponseEstimator {
                 values.push(transform_derivative(raw, at[j], *level, scale)?);
             }
         }
-        let mut support = multivariate_support(at, &run.all_treatments, treatments.len());
+        let mut support =
+            multivariate_support(at, &run.all_treatments, treatments.len(), values.len());
         support.warnings.push(plugin_gradient_interval_withheld());
         Ok((
             ResponseValue::Jacobian {
@@ -1696,7 +1703,8 @@ impl ContinuousResponseEstimator {
             .iter()
             .map(|gradient| gradient.iter().zip(direction).map(|(a, b)| a * b).sum())
             .collect();
-        let mut support = multivariate_support(at, &run.all_treatments, treatments.len());
+        let mut support =
+            multivariate_support(at, &run.all_treatments, treatments.len(), values.len());
         support.warnings.push(plugin_gradient_interval_withheld());
         Ok((ResponseValue::Vector(Arc::from(values)), ResponseUncertainty::None, support))
     }

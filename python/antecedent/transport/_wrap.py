@@ -711,6 +711,18 @@ def _grid_view(
             support_status=_surface_support(statuses) if statuses else "missing_evidence",
         )
     support_status = _surface_support(statuses)
+    # Evidence availability aligned with the requested rows (one value per entry of
+    # ``point_status``); the per-failure ``grid:`` records below name only the
+    # coordinates that failed.
+    diagnostics.insert(
+        0,
+        SupportDiagnostic(
+            id="transport.evidence_available",
+            values=tuple(1.0 if status == "supported" else 0.0 for status in statuses),
+            detail="1 where the requested coordinate has a transported value, 0 where it has none",
+            scope="per_coordinate",
+        ),
+    )
     region = {treatment: (min(p[0] for p in points), max(p[0] for p in points))}
     result = CausalResponseView(
         estimand=query.question,
