@@ -1,0 +1,204 @@
+# 2.3 A0 dependency allocation. A planned record ID is not a promotion record
+# and does not license a route; it must be frozen in promotion_2_3.toml first.
+version = 1
+release = "2.3"
+
+[[feature]]
+id = "F15"
+package = "A0.1"
+purpose = "typed quantity coordinates"
+depends_on = []
+record = "2.3A.F15.joint_distribution_semantics"
+record_state = "frozen"
+
+[[feature]]
+id = "F16"
+package = "A0.1"
+purpose = "distribution meaning and provider requirements"
+depends_on = ["F15"]
+record = "2.3A.F16.distribution_meanings"
+record_state = "planned"
+
+[[feature]]
+id = "F1"
+package = "A0.2"
+purpose = "portable aligned joint draws"
+depends_on = ["F15", "F16"]
+record = "2.3A.F1.aligned_joint_draws"
+record_state = "planned"
+
+[[feature]]
+id = "F19"
+package = "A0.2"
+purpose = "mapped posterior transfer"
+depends_on = ["F1", "F15"]
+record = "2.3A.F19.mapped_posterior_transfer"
+record_state = "planned"
+
+[[feature]]
+id = "F2"
+package = "A0.3"
+purpose = "typed external law and posterior provider contracts"
+depends_on = ["F15", "F16"]
+record = "2.3A.F2.external_scientific_providers"
+record_state = "planned"
+
+[[feature]]
+id = "F3"
+package = "A0.3"
+purpose = "checked external result binding"
+depends_on = ["F2", "F15"]
+record = "2.3A.F3.external_response_binding"
+record_state = "planned"
+
+[[feature]]
+id = "F20"
+package = "A0.3"
+purpose = "provider capability negotiation"
+depends_on = ["F2", "F16"]
+record = "2.3A.F20.provider_capability_negotiation"
+record_state = "planned"
+
+[[feature]]
+id = "F22"
+package = "A0.3"
+purpose = "object-level exact-request verification"
+depends_on = ["F2", "F20"]
+record = "2.3A.F22.external_object_verification"
+record_state = "planned"
+
+[[feature]]
+id = "F23"
+package = "A0.3"
+purpose = "external trust and provenance boundary"
+depends_on = ["F3", "F22"]
+record = "2.3A.F23.external_trust_receipt"
+record_state = "planned"
+
+[[feature]]
+id = "F8"
+package = "A0.4"
+purpose = "finite coordinate support"
+depends_on = ["F15", "F16"]
+record = "2.3A.F8.coordinate_support"
+record_state = "planned"
+
+[[feature]]
+id = "F24"
+package = "A0.4"
+purpose = "composition provenance chain"
+depends_on = ["F8", "F23"]
+record = "2.3A.F24.composition_provenance"
+record_state = "planned"
+
+[[feature]]
+id = "F25"
+package = "A0.4"
+purpose = "structured cross-stage refusals"
+depends_on = ["F24"]
+record = "2.3A.F25.structured_refusals"
+record_state = "planned"
+
+[[feature]]
+id = "F21"
+package = "A0.5"
+purpose = "Rust and Python composition parity"
+depends_on = ["F1", "F2", "F8", "F25"]
+record = "2.3A.F21.composition_parity"
+record_state = "planned"
+
+[[feature]]
+id = "F18"
+package = "A4"
+purpose = "effect constancy across a declared time partition"
+depends_on = ["F15", "F16"]
+record = "2.3A.F18.temporal_effect_constancy"
+record_state = "planned"
+
+[[feature]]
+id = "F4"
+package = "B0 prerequisite"
+purpose = "durable decision contracts"
+depends_on = ["F1", "F15", "F16"]
+record = "2.3B.F4.decision_contract"
+record_state = "planned"
+
+[[feature]]
+id = "F5"
+package = "B0 prerequisite"
+purpose = "typed expectation, probability and quantile functionals"
+depends_on = ["F4", "F16"]
+record = "2.3B.F5.decision_functionals"
+record_state = "planned"
+
+[[feature]]
+id = "F6"
+package = "B0 prerequisite"
+purpose = "structural decision policy and robustness"
+depends_on = ["F4", "F5"]
+record = "2.3B.F6.structural_decision_policy"
+record_state = "planned"
+
+[[feature]]
+id = "F9"
+package = "B0.1"
+purpose = "machine-readable evidence obligations"
+depends_on = ["F3", "F24"]
+record = "2.3B.F9.evidence_obligations"
+record_state = "planned"
+
+[[feature]]
+id = "F10"
+package = "B0.1"
+purpose = "durable study candidate"
+depends_on = ["F9"]
+record = "2.3B.F10.study_candidate"
+record_state = "planned"
+
+[[feature]]
+id = "F13"
+package = "B0.1"
+purpose = "theorem-scoped identification repair facade"
+depends_on = ["F9", "F10"]
+record = "2.3B.F13.identification_repair"
+record_state = "planned"
+
+[[feature]]
+id = "F11"
+package = "B0.2"
+purpose = "external candidate signal and update"
+depends_on = ["F2", "F4", "F20"]
+record = "2.3B.F11.external_signal"
+record_state = "planned"
+
+[[feature]]
+id = "F12"
+package = "B0.2"
+purpose = "preposterior EVSI and cost mapping"
+depends_on = ["F5", "F11"]
+record = "2.3B.F12.evsi"
+record_state = "planned"
+
+[[feature]]
+id = "F14"
+package = "B0.2"
+purpose = "portable design ranking artifact"
+depends_on = ["F12", "F24"]
+record = "2.3B.F14.design_ranking_artifact"
+record_state = "planned"
+
+[[feature]]
+id = "F17"
+package = "B3"
+purpose = "sensitivity result in durable decisions"
+depends_on = ["F4", "F6", "F24"]
+record = "2.3B.F17.sensitivity_decision_composition"
+record_state = "planned"
+
+[[feature]]
+id = "F7"
+package = "B4"
+purpose = "generalized finite inverse decision query"
+depends_on = ["F4", "F5", "F6", "F8"]
+record = "2.3B.F7.functional_inverse_query"
+record_state = "planned"
