@@ -290,9 +290,10 @@ impl DistributionArtifact {
         let meta = reader.load_section(META_SECTION)?;
         let metadata: DistributionMetadata = from_cbor(meta.as_bytes())?;
         if metadata.identity != *expected {
-            return Err(IoError::Convert(
-                "distribution identity differs from expected contract".into(),
-            ));
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                message: "aligned_joint_draws.identity_expected: distribution identity differs from expected causal contract".into(),
+            });
         }
         validate_metadata(&metadata)?;
         let draw = reader.load_section(DRAW_SECTION)?;
@@ -391,13 +392,23 @@ impl DistributionArtifact {
         threshold: f64,
     ) -> Result<f64, IoError> {
         self.require_coordinate(coordinate)?;
-        if !threshold.is_finite()
-            || self.metadata.identity.semantic != DistributionMeaningWire::InterventionalPredictive
-            || self.metadata.identity.quantities[coordinate].regime_id == "observational"
+        if !threshold.is_finite() {
+            return Err(IoError::Convert("non-finite outcome threshold".into()));
+        }
+        if self.metadata.identity.semantic != DistributionMeaningWire::InterventionalPredictive {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("distribution_meaning_mismatch"),
+                message: "distribution_meaning.incompatible_operation: interventional outcome threshold requires interventional predictive draws".into(),
+            });
+        }
+        if self.metadata.identity.quantities[coordinate].regime_id == "observational"
             || self.metadata.identity.quantities[coordinate].role != "outcome"
             || self.metadata.identity.quantities[coordinate].functional_id != "outcome"
         {
-            return Err(IoError::Convert("incompatible interventional outcome law".into()));
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                message: "aligned_joint_draws.outcome_coordinate: outcome probability requires an interventional outcome coordinate".into(),
+            });
         }
         let width = self.metadata.shape[1];
         Ok(self
@@ -422,7 +433,10 @@ impl DistributionArtifact {
         self.require_coordinate(left)?;
         self.require_coordinate(right)?;
         if self.metadata.identity.alignment != DrawAlignment::Joint {
-            return Err(IoError::Convert("independent marginals do not define a joint law".into()));
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("joint_law_required"),
+                message: "aligned_joint_draws.marginals_not_joint: independent marginals do not define covariance or nonlinear joint expectations".into(),
+            });
         }
         Ok(())
     }
@@ -548,12 +562,21 @@ mod tests {
     #[test]
     fn marginal_draws_and_wrong_semantics_refuse_before_value_evaluation() {
         let marginal = fixture(DrawAlignment::IndependentMarginals);
-        assert!(marginal.covariance(0, 1).is_err());
-        assert!(marginal.joint_expectation(0, 1, |x, y| x * y).is_err());
+        assert_eq!(
+            marginal.covariance(0, 1).unwrap_err().reason_code(),
+            Some("joint_law_required")
+        );
+        assert_eq!(
+            marginal.joint_expectation(0, 1, |x, y| x * y).unwrap_err().reason_code(),
+            Some("joint_law_required")
+        );
         let mut meta = fixture(DrawAlignment::Joint).metadata;
         meta.identity.semantic = DistributionMeaningWire::CausalFunctionalPosterior;
         let posterior = DistributionArtifact::new(meta, vec![0.0, 0.0, 1.0, 2.0]).unwrap();
-        assert!(posterior.interventional_probability_above(1, 1.0).is_err());
+        assert_eq!(
+            posterior.interventional_probability_above(1, 1.0).unwrap_err().reason_code(),
+            Some("distribution_meaning_mismatch")
+        );
     }
 
     #[test]
@@ -566,7 +589,12 @@ mod tests {
             .unwrap()
             .to_bytes("joint-fixture")
             .unwrap();
-        assert!(DistributionArtifact::from_bytes(&resealed, &original.metadata.identity).is_err());
+        assert_eq!(
+            DistributionArtifact::from_bytes(&resealed, &original.metadata.identity)
+                .unwrap_err()
+                .reason_code(),
+            Some("quantity_semantics_mismatch")
+        );
         let mut corrupt = bytes.clone();
         *corrupt.last_mut().unwrap() ^= 1;
         assert!(DistributionArtifact::from_bytes(&corrupt, &original.metadata.identity).is_err());

@@ -192,6 +192,21 @@ applies_to = ["runtime_refusal"]
 meaning = "No execution route implements this combination of query, structure, data and options."
 
 [[code]]
+id = "quantity_semantics_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "A supplied scientific quantity differs from the expected stable variable, units, population, regime, horizon, functional, conditioning or transform. No implicit conversion or causal equivalence is inferred."
+
+[[code]]
+id = "distribution_meaning_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "The randomness in supplied draws does not match the operation's required distribution meaning, such as a posterior over a mean offered as an interventional outcome law."
+
+[[code]]
+id = "joint_law_required"
+applies_to = ["runtime_refusal"]
+meaning = "Covariance or nonlinear joint integration requires aligned realizations from one joint law; separate marginal draws cannot be paired by array index."
+
+[[code]]
 id = "unknown_strategy"
 applies_to = ["runtime_refusal"]
 meaning = "The estimator or identifier id is not in the closed strategy table."

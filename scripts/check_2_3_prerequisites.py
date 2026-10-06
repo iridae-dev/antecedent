@@ -23,11 +23,13 @@ def problems(old: list[dict], new: list[dict]) -> list[str]:
         if not isinstance(dependencies, list) or any(not isinstance(x, str) for x in dependencies):
             errors.append(f"{rid}: prerequisite_records must be a list of record IDs")
             continue
-        if not dependencies and not record.get("prerequisite_reason"):
-            errors.append(f"{rid}: no prerequisite needs an explicit reason")
+        has_older = any(dep in older for dep in dependencies)
+        reason = record.get("prerequisite_reason")
+        if not has_older and (not isinstance(reason, str) or not reason.strip()):
+            errors.append(f"{rid}: no 2.2 executing base needs an explicit prerequisite_reason")
         if len(dependencies) != len(set(dependencies)):
             errors.append(f"{rid}: duplicate prerequisite")
-        if record["workstream"].startswith("X") and not any(dep in older for dep in dependencies):
+        if record["workstream"].startswith("X") and not has_older:
             errors.append(f"{rid}: scientific A cell needs a named 2.2 prerequisite")
         for dependency in dependencies:
             if dependency == rid:
@@ -116,8 +118,15 @@ def self_test() -> None:
         ({"prerequisite_records": ["2.3A.X.test"]}, "self prerequisite"),
     ):
         assert any(expected in item for item in problems(old, [{**base, **change}]))
-    child = {"id": "2.3A.F.test", "workstream": "F", "prerequisite_records": ["2.3A.X.test"]}
+    child = {
+        "id": "2.3A.F.test", "workstream": "F",
+        "prerequisite_records": ["2.3A.X.test"],
+        "prerequisite_reason": "New representation with no 2.2 scientific predecessor",
+    }
     assert not problems(old, [base, child])
+    assert any("explicit prerequisite_reason" in item for item in problems(
+        old, [{key: value for key, value in child.items() if key != "prerequisite_reason"}]
+    ))
     assert any("cyclic" in item for item in problems(old, [
         {**base, "prerequisite_records": ["2.2A.X.test", "2.3A.F.test"]}, child
     ]))

@@ -433,6 +433,7 @@ estimand = "Whether a supplied distribution can answer one declared operation wi
 inference_claim = "point_only"
 owners = ["antecedent-core", "antecedent-io", "antecedent"]
 prerequisite_records = ["2.3A.F15.joint_distribution_semantics"]
+prerequisite_reason = "New random-quantity representation, building on F15; no 2.2 route distinguished all seven meanings or licensed their conversion."
 identity_inputs = ["quantity coordinate", "distribution meaning", "requested operation", "causal contract"]
 wire_changes = ["Versioned additive distribution-meaning tag; existing 2.2 posterior artifacts retain their prior semantics."]
 compatibility = "No 2.2 bootstrap or posterior payload is reinterpreted by this tag."
@@ -440,7 +441,8 @@ search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
   { code = "cell_not_licensed", detail = "distribution_meaning.route_frozen", when = "A new 2.3 distribution operation is requested before semantic and artifact evidence passes." },
-  { code = "route_not_supported", detail = "distribution_meaning.incompatible_operation", when = "A posterior over a mean or an observational law is offered for an interventional outcome probability." },
+  { code = "distribution_meaning_mismatch", detail = "distribution_meaning.incompatible_operation", when = "A posterior over a mean is offered for an interventional outcome probability." },
+  { code = "quantity_semantics_mismatch", detail = "distribution_meaning.observational_not_interventional", when = "An observational outcome law lacks a separately checked interventional equivalence proof." },
 ]
 routes = [
   { name = "antecedent.distribution.meaning_check", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
@@ -469,6 +471,7 @@ estimand = "Finite-draw covariance and nonlinear expectation of named supported 
 inference_claim = "point_only"
 owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
 prerequisite_records = ["2.3A.F15.joint_distribution_semantics", "2.3A.F16.distribution_meanings"]
+prerequisite_reason = "New portable joint-draw representation; the 2.2 posterior wire retains its separate semantics and is not an executing base for generic joint artifacts."
 identity_inputs = ["ordered quantity identities", "draw alignment", "meaning", "source/provider/RNG", "snapshot", "weights", "mask"]
 wire_changes = ["New versioned joint-distribution artifact; no implicit migration of 2.2 posterior or bootstrap wires."]
 compatibility = "The existing PosteriorArtifact remains a distinct wire kind and requires an explicit checked conversion."
@@ -476,7 +479,9 @@ search = false
 bounds = { cancellation = true, max_draws = 100000, max_coordinates = 1024, max_payload_bytes = 16777216 }
 refusals = [
   { code = "cell_not_licensed", detail = "aligned_joint_draws.route_frozen", when = "The public joint draw consumer is requested before independent artifact evidence passes." },
-  { code = "route_not_supported", detail = "aligned_joint_draws.marginals_not_joint", when = "A covariance or nonlinear functional is requested from independent marginal artifacts." },
+  { code = "joint_law_required", detail = "aligned_joint_draws.marginals_not_joint", when = "A covariance or nonlinear functional is requested from independent marginal artifacts." },
+  { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.identity_expected", when = "A loaded artifact's population, intervention, unit, time, coordinate order or snapshot differs from the consumer's contract." },
+  { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.outcome_coordinate", when = "A threshold probability is requested on an observational or non-outcome coordinate." },
 ]
 routes = [
   { name = "antecedent_io.DistributionArtifact.consume_joint", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
