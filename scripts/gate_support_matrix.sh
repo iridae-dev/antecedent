@@ -22,6 +22,17 @@ cd "$ROOT"
 if [[ "${1:-}" == "--self-test" ]]; then
   exec python3 "$ROOT/scripts/test_evidence_selftest.py"
 fi
+mode="${1:-all}"
+case "$mode" in all|--core-only|--transport-only) ;; *)
+  echo "usage: $0 [--self-test|--core-only|--transport-only]" >&2; exit 2 ;;
+esac
+
+if [[ "$mode" == --transport-only ]]; then
+  echo "== transport stage contracts =="
+  python3 "$ROOT/scripts/check_transport_stages.py"
+  python3 "$ROOT/scripts/generate_calibration_backlog.py" --check
+  exit
+fi
 
 bash scripts/gate_graphless_support.sh
 
@@ -459,6 +470,8 @@ def check_checked_execution(label: str, row: dict) -> None:
 
 
 for i, row in enumerate(cells, 1):
+    if i % 50 == 0:
+        print(f"support matrix: checked {i}/{len(cells)} licensed cells", flush=True)
     label = f"parity/support_licensed.toml cell #{i}"
     for key in required:
         if key not in row:
@@ -650,5 +663,9 @@ print(
 )
 PY
 
+if [[ "$mode" == --core-only ]]; then
+  exit
+fi
+echo "== transport stage contracts =="
 python3 "$ROOT/scripts/check_transport_stages.py"
 python3 "$ROOT/scripts/generate_calibration_backlog.py" --check

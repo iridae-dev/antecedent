@@ -30,10 +30,10 @@ section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--section inventory|promotion|support|matrix|checked|features|benches]" >&2
+  echo "usage: $0 [--section inventory|promotion|support|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches]" >&2
   exit 2
 fi
-case "$section" in all|inventory|promotion|support|matrix|checked|features|benches) ;; *)
+case "$section" in all|inventory|promotion|support|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches) ;; *)
   echo "unknown release-gate section: $section" >&2; exit 2 ;;
 esac
 section_start() {
@@ -82,8 +82,15 @@ fi
 if [[ "$section" == all || "$section" == support || "$section" == matrix ]]; then
 section_start matrix
 echo "== public support matrix =="
-bash scripts/gate_support_matrix.sh
+bash scripts/gate_support_matrix.sh --core-only
 section_end matrix
+fi
+
+if [[ "$section" == all || "$section" == support || "$section" == transport-contracts ]]; then
+section_start transport_contracts
+echo "== transport support contracts =="
+bash scripts/gate_support_matrix.sh --transport-only
+section_end transport_contracts
 fi
 
 if [[ "$section" == all || "$section" == support || "$section" == checked ]]; then
@@ -130,8 +137,8 @@ echo "== calibration attestation (every coverage record matches the code) =="
 bash scripts/gate_calibration_attestation.sh
 fi
 
-if [[ "$section" == all || "$section" == features ]]; then
-section_start features
+if [[ "$section" == all || "$section" == features || "$section" == feature-core ]]; then
+section_start feature_core
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
   bash scripts/gate_estimate_ci.sh
@@ -147,8 +154,22 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   # checks their filters still select tests. The calibration script stays on
   # the measurement surface; this job does not invoke it.
   bash scripts/gate_causal_artifacts.sh
+fi
+section_end feature_core
+fi
+
+if [[ "$section" == all || "$section" == features || "$section" == feature-composition ]]; then
+section_start feature_composition
+if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_composition.sh
   bash scripts/gate_transport.sh
+fi
+section_end feature_composition
+fi
+
+if [[ "$section" == all || "$section" == features || "$section" == feature-exits ]]; then
+section_start feature_exits
+if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   # 2.2 A exit gate: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
   # check. PENDING_CALIBRATION (story 3 / X1 coverage records unmeasured) exits 0 here; the
   # release-candidate cut can add --require-calibrated.
@@ -160,7 +181,7 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== 2.2 B exit gate =="
   bash scripts/gate_b_exit.sh
 fi
-section_end features
+section_end feature_exits
 fi
 
 if [[ "$section" == all || "$section" == inventory ]]; then

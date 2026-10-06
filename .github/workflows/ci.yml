@@ -290,10 +290,12 @@ jobs:
     env:
       CARGO_INCREMENTAL: "0"
       SCCACHE_GHA_ENABLED: "true"
+      # Debug-profile libtest threads otherwise overflow on cited CPDAG pins.
+      RUST_MIN_STACK: "67108864"
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion, matrix, checked, features, benches]
+        section: [inventory, promotion, matrix, transport-contracts, checked, feature-core, feature-composition, feature-exits, benches]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -339,6 +341,11 @@ jobs:
       - name: Build native extension
         if: matrix.section != 'benches'
         working-directory: python
+        # A cold compiler-cache backend made this dev-profile build take 8-9m;
+        # use Cargo's incremental build here, then cache test compilations.
+        env:
+          RUSTC_WRAPPER: ""
+          CARGO_INCREMENTAL: "1"
         run: uv run --no-sync maturin develop
 
       - name: Release gate section
@@ -400,6 +407,9 @@ jobs:
 
       - name: Build native extension
         working-directory: python
+        env:
+          RUSTC_WRAPPER: ""
+          CARGO_INCREMENTAL: "1"
         run: uv run --no-sync maturin develop
 
       - name: ruff, ruff format, mypy
