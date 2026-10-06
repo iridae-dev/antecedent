@@ -72,9 +72,9 @@ fi
 
 if [[ "$section" == all || "$section" == promotion ]]; then
 section_start promotion
-# 2.2 cells stay closed until their frozen promotion record carries executed
-# positive, negative and artifact evidence (parity/promotion_2_2.toml).
-echo "== 2.2 promotion records =="
+# Both release registries are checked; frozen or carried-forward 2.3 cells
+# remain closed until their cited evidence executes.
+echo "== 2.2 and 2.3 promotion records =="
 bash scripts/gate_promotion.sh
 section_end promotion
 fi

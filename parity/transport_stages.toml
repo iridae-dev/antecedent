@@ -3918,3 +3918,10 @@ stage = "evaluate"
 status = "closed"
 reason_code = "rank_drop_not_licensed"
 notes = "The independent numerical span check refuses a drop whose retained columns do not span the original design."
+
+[[routes]]
+route = "antecedent_io.JointDistributionArtifact.consume"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 F15 frozen contract. No public producer or consumer is licensed until joint-value, refusal and independent-artifact evidence executes."

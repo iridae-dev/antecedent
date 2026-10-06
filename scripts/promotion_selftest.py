@@ -823,12 +823,22 @@ def baseline() -> tuple[bool, str]:
 
 
 def committed() -> tuple[bool, str]:
-    """The committed registry passes every rule (evidence resolved statically here;
+    """Both committed registries pass every rule (evidence resolved statically here;
     the gate itself lists and executes it for real)."""
-    code, out = run(Path("parity/promotion_2_2.toml"), {"PROMOTION_STATIC_ONLY": "1"})
-    if code != 0:
-        return False, f"SELF-TEST FAIL: the committed registry does not pass\n{out[-2500:]}"
-    return True, "self-test ok: committed registry passes the checker"
+    for release in ("2_2", "2_3"):
+        path = Path(f"parity/promotion_{release}.toml")
+        code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
+        if code != 0:
+            return False, f"SELF-TEST FAIL: {path} does not pass\n{out[-2500:]}"
+    # The 2.3 filename must not accidentally accept the 2.2 release marker.
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "promotion_2_3.toml"
+        source = (ROOT / "parity/promotion_2_3.toml").read_text()
+        path.write_text(source.replace('release = "2.3"', 'release = "2.2"', 1))
+        code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
+        if code == 0 or "promotion registry requires version 1 and release 2.3 [registry_header]" not in out:
+            return False, f"SELF-TEST FAIL: 2.3 release mismatch was accepted\n{out[-2500:]}"
+    return True, "self-test ok: both committed registries pass the checker"
 
 
 def rule_ids() -> tuple[list[str], set[str]]:

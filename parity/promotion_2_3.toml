@@ -1,0 +1,39 @@
+# 2.3 promotion cells. Frozen records allocate a contract and evidence plan; they
+# do not license a route. Add cells here before implementing their public path.
+version = 1
+release = "2.3"
+
+[[record]]
+id = "2.3A.F15.joint_distribution_semantics"
+workstream = "F15"
+milestone = "A"
+work_package = "A0.1"
+status = "frozen"
+consumer_question = "Can a consumer tell whether supplied draws represent one aligned joint realization, and which causal quantity each axis means?"
+theorem = "Semantic contract: covariance and nonlinear functionals require aligned draws from one joint law; independently sampled marginals cannot supply their dependence. This record makes no identification or coverage claim."
+reference = "TODO.md A0.1 and A0.2"
+guarantee = "semantic_validation_only"
+graph_class = "A previously identified, finite coordinate causal claim; graph identification belongs to its prerequisite record."
+population_semantics = "Each quantity names its population, intervention or regime, conditioning, and time; these coordinates remain distinct across export and refresh."
+evidence_family = "An externally supplied or native finite array of aligned joint draws with explicit axes and source identity."
+provider = "Declared joint-draw provider with bounded shape and draw count; independent marginals are an unsupported provider for joint functionals."
+estimand = "A typed joint distribution over named causal quantities, with derived covariance and nonlinear expectations when their required joint law exists."
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+identity_inputs = ["quantity semantic IDs", "axis names and order", "population, regime, conditioning and time", "draw alignment", "provider and snapshot", "distribution meaning"]
+wire_changes = ["Planned additive versioned joint-distribution artifact; no 2.2 posterior or bootstrap wire reinterpretation."]
+compatibility = "Existing 2.2 posterior artifacts retain their meaning; no 2.3 route is licensed by this frozen record."
+search = false
+bounds = { cancellation = true, max_draws = 100000, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "joint_distribution.route_frozen", when = "The 2.3 joint distribution route is requested before positive, negative and artifact evidence promotes this cell." },
+  { code = "route_not_supported", detail = "joint_distribution.marginals_not_joint", when = "A covariance or nonlinear joint functional is requested from independent marginal draws." },
+]
+routes = [
+  { name = "antecedent_io.JointDistributionArtifact.consume", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f15.joint_moments.positive", role = "positive", intent = "Compare exported joint means, covariance and a nonlinear functional with an independently enumerated finite joint law." },
+  { id = "f15.marginal_pairing.negative", role = "negative", intent = "Reject a nonlinear or covariance request backed only by independent marginal artifacts." },
+  { id = "f15.semantic_mutation.artifact", role = "artifact", intent = "A fresh consumer reproduces values and refuses resealed changes to axes, quantity meaning, draw alignment or snapshot." },
+]

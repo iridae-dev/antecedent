@@ -1,4 +1,4 @@
-"""Validate the 2.2 promotion records (parity/promotion_2_2.toml).
+"""Validate a versioned promotion registry (2.2 or 2.3).
 
 A record freezes a cell's scientific surface before implementation. A route is
 licensed only when its record carries the evidence for it: a promoted record
@@ -108,7 +108,7 @@ root = Path(__file__).resolve().parents[1]
 # --mutation-check, proves the case stops failing when the rule is switched off).
 RULES = {
     # registry and frozen fields
-    "registry_header": "registry is version 1, release 2.2",
+    "registry_header": "registry is version 1, release matches its versioned filename",
     "frozen_field": "every frozen field is present and non-empty",
     "duplicate_record": "record ids are unique",
     "unknown_status": "status is frozen, in_progress, promoted or carried_forward",
@@ -215,6 +215,11 @@ if "--emit-evidence" in args:
     del args[at : at + 2]
 registry_path = Path(args[0]) if args else root / "parity/promotion_2_2.toml"
 registry = tomllib.loads(registry_path.read_text())
+expected_release = {"promotion_2_2.toml": "2.2", "promotion_2_3.toml": "2.3"}.get(
+    registry_path.name
+)
+if expected_release is None:
+    expected_release = "2.2"  # Synthetic self-test registries retain the 2.2 contract.
 
 DISABLED = {r for r in os.environ.get("PROMOTION_DISABLE_RULES", "").split(",") if r}
 STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest
@@ -290,8 +295,8 @@ def fail(rule: str, message: str) -> None:
         errors.append(f"{message} [{rule}]")
 
 
-if registry.get("version") != 1 or registry.get("release") != "2.2":
-    fail("registry_header", "promotion registry requires version 1 and release 2.2")
+if registry.get("version") != 1 or registry.get("release") != expected_release:
+    fail("registry_header", f"promotion registry requires version 1 and release {expected_release}")
 
 
 # A surface_values type also covers the INHERENT methods and associated functions
