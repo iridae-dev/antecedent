@@ -4018,6 +4018,5 @@ notes = "2.3 A0.2 F1 typed Python bounded-copy consumer with independent expecte
 [[routes]]
 route = "antecedent.inference.mapped_posterior_transfer"
 stage = "prepare"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.2 F19 mapped transfer remains closed pending dense-covariance pooled truth, named mapping and independent replay."
+status = "licensed"
+notes = "2.3 A0.2 F19 known-variance point transfer with stable-ID bijection, dense covariance, pooled heterogeneous-design truth and fresh-process replay."

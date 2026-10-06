@@ -7,8 +7,8 @@ copied_tests = false
 
 papers = []
 implementation_deviations = [
-  "Freeze a closed-form known-residual-variance conjugate oracle for heterogeneous named designs before implementing 2.3 mapped transfer.",
-  "Existing 2.2 dense covariance hydration is an implementation base, not evidence for changed-design transfer or a new interval license.",
+  "Use the existing 2.2 dense-covariance hydration under a strict stable-ID bijection and independently checked 2.3 source artifact identity.",
+  "The finite quadrature fixture represents the exact source posterior first two moments; it does not grant interval calibration or upgrade source trust.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-estimate/src/bayesian.rs", "crates/antecedent/tests/dense_prior_hydration.rs"]
+test_sources = ["crates/antecedent-estimate/src/bayesian.rs", "crates/antecedent/tests/dense_prior_hydration.rs", "crates/antecedent/tests/mapped_posterior_transfer.rs"]

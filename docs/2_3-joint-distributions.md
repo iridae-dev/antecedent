@@ -80,3 +80,28 @@ The converted artifact is marked `unverified` and `unmeasured`; the conversion
 cannot inherit a 2.2 provider or interval license. The 2.2 wire does not carry
 population, regime or snapshot identities, so the caller must establish those
 in the independently retained causal contract before conversion.
+
+## Mapped Gaussian posterior transfer
+
+`antecedent::inference::mapped_posterior_transfer` consumes a 2.3 aligned
+parameter-posterior artifact under a separately supplied expected source
+identity. The caller gives a complete mapping from stable source variable IDs
+to stable target variable IDs, plus target snapshot and causal-contract IDs;
+target quantities are in design-column order. The resulting prior retains a
+mapping and source/target identity receipt in its restrictions.
+It checks units, population, regime, horizon, conditioning, role and transform
+for every mapped coefficient. It requires one constant residual-variance
+coordinate equal to the target prior's known variance, no unsupported or
+weighted coordinates, and no extra parameters. It computes the source's full
+finite-draw covariance and passes it to the existing 2.2 dense covariance
+hydration, permuted into target order. An old posterior must first pass the
+explicit checked conversion above. Positional or partial mappings refuse.
+
+The F19 oracle uses batch A design row `(1, 1)` with response `1` and batch B
+row `(1, -1)` with response `3`, under `N(0, I)` and known residual variance
+`1`. A four-draw quadrature artifact has the exact first two moments of the
+batch A Gaussian posterior. With target columns reversed, sequential and
+pooled conjugate fits both produce mean `(-2/3, 4/3)` and covariance `I/3`.
+This licenses a point-only transfer calculation. Upstream posterior trust and
+causal identification still come from the independently checked source
+contract; the artifact's trust label is not such proof.

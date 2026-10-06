@@ -503,11 +503,11 @@ id = "2.3A.F19.mapped_posterior_transfer"
 workstream = "F19"
 milestone = "A"
 work_package = "A0.2"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can a posterior over named coefficients become a prior for a changed design without losing covariance, identities or residual-variance meaning?"
 theorem = "For a Gaussian linear model with known shared residual variance, sequential conjugate updating under an explicit coefficient map equals pooled updating when the complete mean and covariance are transported. Draw-based transfer requires aligned parameter-posterior draws; marginal summaries cannot establish off-diagonal covariance. No interval license transfers to a changed method or coordinate."
 reference = "TODO.md A0.2 F19; 2.2 dense covariance hydration and docs/priors.md"
-guarantee = "mapped_posterior_transfer_pending_pooled_oracle"
+guarantee = "checked_named_known_variance_point_transfer_with_dense_covariance"
 graph_class = "A fixed identified Gaussian linear design with stable named coefficient identities; causal identification belongs to the source and target claims."
 population_semantics = "Source and target design columns require explicit named mappings, one known residual-variance meaning and separately checked snapshot and regime identities."
 evidence_family = "A checked 2.2 posterior source with mean vector and full dense covariance, or a 2.3 aligned parameter-posterior draw artifact."
@@ -523,16 +523,15 @@ compatibility = "A 2.2 posterior may be converted only by checked named binding;
 search = false
 bounds = { cancellation = true, max_draws = 100000, max_coordinates = 1024, max_payload_bytes = 16777216 }
 refusals = [
-  { code = "cell_not_licensed", detail = "mapped_posterior_transfer.route_frozen", when = "The mapped transfer route is requested before pooled known-truth and independent artifact evidence passes." },
   { code = "quantity_semantics_mismatch", detail = "mapped_posterior_transfer.coefficient_map", when = "A coefficient lacks a unique named source-to-target mapping or the mapped quantity coordinates differ." },
   { code = "distribution_meaning_mismatch", detail = "mapped_posterior_transfer.parameter_posterior", when = "An outcome, bootstrap or estimator-sampling distribution is offered as a coefficient posterior." },
   { code = "prior_transfer_not_hydrated", detail = "mapped_posterior_transfer.residual_variance", when = "A source and target have incompatible or unverified residual-variance and likelihood semantics." },
 ]
 routes = [
-  { name = "antecedent.inference.mapped_posterior_transfer", stage = "prepare", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.inference.mapped_posterior_transfer", stage = "prepare", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f19.heterogeneous_design_pool.positive", role = "positive", intent = "Two named coefficients with source row (1,1) and target row (1,-1) retain dense covariance and match exact pooled Gaussian posterior mean and covariance, including reversed target column order." },
-  { id = "f19.positional_or_variance.negative", role = "negative", intent = "Reject unnamed or reused coefficient bindings, outcome or bootstrap draws, diagonal-only source summaries and a changed residual-variance meaning." },
-  { id = "f19.mapped_replay.artifact", role = "artifact", intent = "A fresh consumer checks source receipt, named mapping, full covariance or aligned draw order, residual variance and snapshot before updating." },
+  { id = "f19.heterogeneous_design_pool.positive", role = "positive", intent = "Two named coefficients with source row (1,1) and target row (1,-1) retain dense covariance and match exact pooled Gaussian posterior mean and covariance, including reversed target column order.", evidence_test = "crates/antecedent/tests/mapped_posterior_transfer.rs", evidence_assertion = "heterogeneous_design_sequential_equals_exact_pooled" },
+  { id = "f19.positional_or_variance.negative", role = "negative", intent = "Reject reused or incomplete coefficient bindings, wrong distribution meaning, incompatible units and a changed residual variance.", evidence_test = "crates/antecedent/tests/mapped_posterior_transfer.rs", evidence_assertion = "incompatible_sources_and_mapping_refuse" },
+  { id = "f19.mapped_replay.artifact", role = "artifact", intent = "A fresh consumer checks independent source identity, full covariance, named mapping, residual variance and snapshot before updating.", evidence_test = "crates/antecedent/tests/mapped_posterior_transfer.rs", evidence_assertion = "fresh_process_replays_mapped_prior" },
 ]
