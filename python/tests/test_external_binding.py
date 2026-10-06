@@ -95,13 +95,13 @@ def test_verified_trust_is_recomputed_from_independent_probes():
     with pytest.raises(CausalUnsupportedError) as missing:
         _spec().bind(_response(attested_by=None, probes=probes[:2]))
     assert missing.value.reason_code == "external_verification_failed"
-    assert missing.value.detail == "external_verification.missing_probe"
+    assert missing.value.detail == "external_object_verification.missing_probe"
     assert missing.value.offending == "known_truth"
 
     failing = (*probes[:3], external.VerificationProbe("known_truth", 1.5, 1.0, 1e-9))
     with pytest.raises(CausalUnsupportedError) as failed:
         _spec().bind(_response(attested_by=None, probes=failing))
-    assert failed.value.detail == "external_verification.failed_probe"
+    assert failed.value.detail == "external_object_verification.failed_probe"
 
 
 def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
@@ -112,7 +112,7 @@ def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
     with pytest.raises(CausalUnsupportedError) as units:
         spec.bind(_response(quantities=wrong_units))
     assert units.value.reason_code == "quantity_semantics_mismatch"
-    assert units.value.detail == "external_binding.coordinate.units"
+    assert units.value.detail == "external_response_binding.coordinate_units"
     assert (units.value.offending, units.value.expected, units.value.supplied) == (
         "coordinate[1]",
         "mmHg",
@@ -123,7 +123,7 @@ def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
     with pytest.raises(CausalUnsupportedError) as graph:
         spec.bind(_response(graph_id="graph:other"))
     assert graph.value.reason_code == "external_binding_mismatch"
-    assert graph.value.detail == "external_binding.graph"
+    assert graph.value.detail == "external_response_binding.graph"
 
     with pytest.raises(CausalUnsupportedError) as evidence:
         spec.bind(_response(evidence=()))
@@ -132,7 +132,7 @@ def test_each_mismatch_refuses_with_a_registered_code_and_structured_fields():
 
     with pytest.raises(CausalUnsupportedError) as short:
         spec.bind(_response(values=[1.0, 3.0]))
-    assert short.value.detail == "external_binding.dimension"
+    assert short.value.detail == "external_response_binding.dimension"
 
     with pytest.raises(CausalUnsupportedError) as unattested:
         spec.bind(_response(attested_by=None))
@@ -162,7 +162,7 @@ def test_observational_law_is_refused_without_a_checked_equivalence():
     }
     with pytest.raises(CausalUnsupportedError) as refused:
         spec.bind(_response(**offered))
-    assert refused.value.detail == "external_binding.unchecked_observational_law"
+    assert refused.value.detail == "external_response_binding.unchecked_observational_law"
     assert refused.value.remedy
 
     other_graph = external.Equivalence("graph:other", "do(a=1)", "backdoor:x")
@@ -186,7 +186,7 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     with pytest.raises(CausalUnsupportedError) as unlicensed:
         base.bind(_response(quantities=offered))
     # Without any equivalence the first observed difference is the conditioning.
-    assert unlicensed.value.detail == "external_binding.coordinate.conditioning"
+    assert unlicensed.value.detail == "external_response_binding.coordinate_conditioning"
     assert (unlicensed.value.expected, unlicensed.value.supplied) == ("", "a=0")
     assert unlicensed.value.offending == "coordinate[0]"
     assert "checked equivalence" in unlicensed.value.remedy
@@ -206,7 +206,7 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     )
     with pytest.raises(CausalUnsupportedError) as wrong:
         dataclasses.replace(spec, equivalences=(crossed,)).bind(_response(quantities=offered))
-    assert wrong.value.detail == "external_binding.unchecked_observational_law"
+    assert wrong.value.detail == "external_response_binding.unchecked_observational_law"
     assert wrong.value.offending == "coordinate[1]"
 
     # Nothing else about the coordinate is rescued by the licence.
@@ -218,7 +218,7 @@ def test_observational_conditional_law_over_a_dose_grid_binds_under_its_equivale
     with pytest.raises(CausalUnsupportedError) as population:
         spec.bind(_response(quantities=wrong_population))
     assert population.value.reason_code == "quantity_semantics_mismatch"
-    assert population.value.detail == "external_binding.coordinate.population"
+    assert population.value.detail == "external_response_binding.coordinate_population"
 
 
 def test_equivalence_names_exactly_one_scope():
@@ -240,7 +240,7 @@ def test_unknown_capability_names_are_refused_not_ignored():
     with pytest.raises(CausalUnsupportedError) as unknown:
         _spec().bind(_response(provider=_provider(capabilities=("mean", "teleport"))))
     assert unknown.value.reason_code == "invalid_argument"
-    assert unknown.value.detail == "external_wire.capability"
+    assert unknown.value.detail == "external_response_binding.malformed_capability"
 
 
 def test_fresh_process_consumer_loads_only_under_its_own_identity():

@@ -578,11 +578,11 @@ id = "2.3A.F3.external_response_binding"
 workstream = "F3"
 milestone = "A"
 work_package = "A0.3"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can checked external result binding be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Bound risk difference is 1/2 under the exact graph, population, regime and snapshot identity. Observational P(Y|A), wrong graph, population or missing grid coordinate refuses. This record alone grants no causal or interval license."
 reference = "TODO.md A0.3; prerequisite feature records F2, F15"
-guarantee = "external_response_binding_pending_executing_evidence"
+guarantee = "checked_external_response_binding_point_only_no_interval_no_native_claim"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Identified binary do(A) query with supplied response grid P(Y=1|do(A=0))=1/4 and P(Y=1|do(A=1))=3/4."
@@ -598,16 +598,47 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "external_response_binding.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "external_binding_mismatch", detail = "external_response_binding.wrong_contract", when = "Observational P(Y|A), wrong graph, population or missing grid coordinate refuses." },
+  { code = "effect_not_identified", detail = "external_response_binding.contract_not_identified", when = "The causal contract is not identified, so no foreign number can be bound to it." },
+  { code = "invalid_argument", detail = "external_response_binding.invalid_contract", when = "The contract has blank identities or no coordinates." },
+  { code = "invalid_argument", detail = "external_response_binding.non_finite_value", when = "A supplied response value is not finite." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_quantity", when = "A declared coordinate is invalid." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_identification", when = "The contract names an unknown identification status." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_capability", when = "A provider declares an operation name that does not exist." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_probe", when = "A verification probe names an unknown property." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_trust", when = "A response carries neither an attestor nor verification probes." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_support", when = "A support label is not a registered status." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_equivalence", when = "An equivalence does not name exactly one scope." },
+  { code = "invalid_argument", detail = "external_response_binding.malformed_artifact", when = "The bound claim cannot be encoded as an artifact." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.graph", when = "The provider used a different graph than the contract." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.dimension", when = "The supplied coordinates or values do not number the contract's coordinates, so a grid coordinate is missing." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.object_kind", when = "The provider object kind cannot supply this result type." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.object_quantities", when = "Response coordinates differ from the provider object's declaration." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.posterior_kind", when = "A posterior's kind differs from the provider declaration." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.missing_evidence", when = "A required evidence factor is not declared." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.missing_assumption", when = "A required assumption is not declared." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.unchecked_observational_law", when = "An observational law is offered for an interventional request without a checked equivalence." },
+  { code = "distribution_meaning_mismatch", detail = "external_response_binding.distribution_meaning", when = "The provider's law meaning is not one the contract accepts." },
+  { code = "external_verification_failed", detail = "external_response_binding.trust", when = "A provider claims native trust or a verification receipt for another contract." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_invalid_coordinate", when = "A coordinate is structurally invalid." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_variable", when = "A coordinate names a different variable or role." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_units", when = "A coordinate's units differ; none are converted." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_population", when = "A coordinate's population differs from the contract." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_regime", when = "A coordinate's regime differs and no equivalence applies." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_horizon", when = "A coordinate's horizon differs." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_functional", when = "A coordinate's functional differs." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_conditioning", when = "A coordinate's conditioning differs." },
+  { code = "quantity_semantics_mismatch", detail = "external_response_binding.coordinate_transform", when = "A coordinate's scale or transform differs." },
 ]
 routes = [
-  { name = "antecedent.external.bind_response", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.external.bind_response", stage = "consume", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f3.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Bound risk difference is 1/2 under the exact graph, population, regime and snapshot identity." },
-  { id = "f3.wrong_contract.negative", role = "negative", intent = "Observational P(Y|A), wrong graph, population or missing grid coordinate refuses." },
-  { id = "f3.fresh_replay.artifact", role = "artifact", intent = "Fresh reader checks contract fingerprint, response coordinates and external execution receipt." },
+  { id = "f3.known_truth.positive", role = "positive", intent = "The identified binary do(A) grid P(Y=1|do(A=0))=1/4, P(Y=1|do(A=1))=3/4 binds with risk difference 1/2 under the exact graph, population, regime and snapshot identity.", evidence_test = "crates/antecedent-io/tests/external_binding_wire.rs", evidence_assertion = "bernoulli_risk_difference_binds_under_exact_identity" },
+  { id = "f3.wrong_contract.negative", role = "negative", intent = "Observational P(Y|A), a wrong graph, a wrong population and a missing grid coordinate each refuse before a claim exists.", evidence_test = "crates/antecedent-io/tests/external_binding_wire.rs", evidence_assertion = "observational_wrong_graph_population_and_missing_coordinate_refuse" },
+  { id = "f3.fresh_replay.artifact", role = "artifact", intent = "A fresh reader checks the contract fingerprint, coordinates, values digest and external execution receipt, and refuses resealed mutations.", evidence_test = "crates/antecedent-io/tests/external_claim_artifact.rs", evidence_assertion = "fresh_process_consumer_recomputes_closed_form_and_refuses_mutations" },
+  { id = "f3.python_value.positive", role = "positive", intent = "Python binds a typed response, exposes values, trust, support and lineage, and never calls it native.", evidence_test = "python/tests/test_external_binding.py", evidence_assertion = "test_bound_claim_is_inspectable_exportable_and_never_native" },
+  { id = "f3.python_wrong_contract.negative", role = "negative", intent = "Python raises each binding mismatch as a registered-code refusal with structured fields.", evidence_test = "python/tests/test_external_binding.py", evidence_assertion = "test_each_mismatch_refuses_with_a_registered_code_and_structured_fields" },
+  { id = "f3.python_fresh_process.artifact", role = "artifact", intent = "A separate Python process loads the claim under its own retained identity and recomputes the closed form.", evidence_test = "python/tests/test_external_binding.py", evidence_assertion = "test_fresh_process_consumer_loads_only_under_its_own_identity" },
 ]
 
 [[record]]

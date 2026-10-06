@@ -120,17 +120,21 @@ pub const fn probe_name(kind: VerificationProbeKind) -> &'static str {
     }
 }
 
-const fn dimension_name(mismatch: QuantityMismatch) -> &'static str {
+/// Namespaced detail for a coordinate mismatch; each is a literal so the
+/// promotion gate can match it against the record's declared refusals.
+const fn coordinate_detail(mismatch: QuantityMismatch) -> &'static str {
     match mismatch {
-        QuantityMismatch::InvalidCoordinate => "invalid_coordinate",
-        QuantityMismatch::Variable => "variable",
-        QuantityMismatch::Units => "units",
-        QuantityMismatch::Population => "population",
-        QuantityMismatch::Regime => "regime",
-        QuantityMismatch::Horizon => "horizon",
-        QuantityMismatch::Functional => "functional",
-        QuantityMismatch::Conditioning => "conditioning",
-        QuantityMismatch::Transform => "transform",
+        QuantityMismatch::InvalidCoordinate => {
+            "external_response_binding.coordinate_invalid_coordinate"
+        }
+        QuantityMismatch::Variable => "external_response_binding.coordinate_variable",
+        QuantityMismatch::Units => "external_response_binding.coordinate_units",
+        QuantityMismatch::Population => "external_response_binding.coordinate_population",
+        QuantityMismatch::Regime => "external_response_binding.coordinate_regime",
+        QuantityMismatch::Horizon => "external_response_binding.coordinate_horizon",
+        QuantityMismatch::Functional => "external_response_binding.coordinate_functional",
+        QuantityMismatch::Conditioning => "external_response_binding.coordinate_conditioning",
+        QuantityMismatch::Transform => "external_response_binding.coordinate_transform",
     }
 }
 
@@ -176,13 +180,13 @@ impl ExternalContractError {
                 ..refusal(
                     crate::reason_code!("external_capability_missing"),
                     "negotiate",
-                    "external_object.capability_missing",
+                    "provider_capability_negotiation.capability_missing",
                 )
             },
             Self::RequestMismatch => refusal(
                 crate::reason_code!("external_binding_mismatch"),
                 "negotiate",
-                "external_object.request_mismatch",
+                "provider_capability_negotiation.request_mismatch",
             ),
         }
     }
@@ -201,20 +205,28 @@ impl ExternalVerificationError {
             }
             Self::InvalidProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
-                ..refusal("invalid_argument", "verify", "external_verification.invalid_probe")
+                ..refusal(
+                    "invalid_argument",
+                    "verify",
+                    "external_object_verification.invalid_probe",
+                )
             },
             Self::DuplicateProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
-                ..refusal("invalid_argument", "verify", "external_verification.duplicate_probe")
+                ..refusal(
+                    "invalid_argument",
+                    "verify",
+                    "external_object_verification.duplicate_probe",
+                )
             },
             Self::MissingProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
                 remedy: Some("supply an independently computed probe for this property"),
-                ..refusal(code, "verify", "external_verification.missing_probe")
+                ..refusal(code, "verify", "external_object_verification.missing_probe")
             },
             Self::FailedProbe(kind) => ExternalRefusal {
                 offending: Some(probe_name(*kind).to_owned()),
-                ..refusal(code, "verify", "external_verification.failed_probe")
+                ..refusal(code, "verify", "external_object_verification.failed_probe")
             },
         }
     }
@@ -243,31 +255,33 @@ impl ExternalBindingError {
                 expected: Some("an identified estimand".to_owned()),
                 ..at(
                     crate::reason_code!("effect_not_identified"),
-                    "external_binding.contract_not_identified",
+                    "external_response_binding.contract_not_identified",
                 )
             },
-            Self::InvalidContract => at("invalid_argument", "external_binding.invalid_contract"),
+            Self::InvalidContract => {
+                at("invalid_argument", "external_response_binding.invalid_contract")
+            }
             Self::Object(error) => {
                 let mut value = error.to_refusal();
                 value.stage = "bind";
                 value
             }
-            Self::ObjectKindMismatch => at(binding, "external_binding.object_kind"),
+            Self::ObjectKindMismatch => at(binding, "external_response_binding.object_kind"),
             Self::ObjectQuantityMismatch => ExternalRefusal {
                 remedy: Some(
                     "label the result with the exact coordinates declared by its provider object",
                 ),
-                ..at(binding, "external_binding.object_quantities")
+                ..at(binding, "external_response_binding.object_quantities")
             },
             Self::GraphMismatch => ExternalRefusal {
                 expected: Some(contract.graph_id.clone()),
                 supplied: Some(header.graph_id.clone()),
-                ..at(binding, "external_binding.graph")
+                ..at(binding, "external_response_binding.graph")
             },
             Self::DimensionMismatch => ExternalRefusal {
                 expected: Some(contract.estimand.len().to_string()),
                 supplied: Some(header.quantities.len().to_string()),
-                ..at(binding, "external_binding.dimension")
+                ..at(binding, "external_response_binding.dimension")
             },
             Self::CoordinateMismatch(index, mismatch) => {
                 let expected = contract.estimand.get(*index);
@@ -285,7 +299,7 @@ impl ExternalBindingError {
                     ),
                     ..at(
                         crate::reason_code!("quantity_semantics_mismatch"),
-                        &format!("external_binding.coordinate.{}", dimension_name(*mismatch)),
+                        coordinate_detail(*mismatch),
                     )
                 }
             }
@@ -296,11 +310,11 @@ impl ExternalBindingError {
                 remedy: Some(
                     "provide a checked observational-to-interventional equivalence for this graph and regime",
                 ),
-                ..at(binding, "external_binding.unchecked_observational_law")
+                ..at(binding, "external_response_binding.unchecked_observational_law")
             },
             Self::NonFiniteValue(index) => ExternalRefusal {
                 offending: Some(format!("coordinate[{index}]")),
-                ..at("invalid_argument", "external_binding.non_finite_value")
+                ..at("invalid_argument", "external_response_binding.non_finite_value")
             },
             Self::MeaningNotAccepted => ExternalRefusal {
                 expected: Some(
@@ -320,23 +334,24 @@ impl ExternalBindingError {
                 },
                 ..at(
                     crate::reason_code!("distribution_meaning_mismatch"),
-                    "external_binding.distribution_meaning",
+                    "external_response_binding.distribution_meaning",
                 )
             },
-            Self::PosteriorKindMismatch => at(binding, "external_binding.posterior_kind"),
+            Self::PosteriorKindMismatch => at(binding, "external_response_binding.posterior_kind"),
             Self::MissingEvidence(id) => ExternalRefusal {
                 offending: Some(id.clone()),
                 remedy: Some("declare the evidence factor the proof requires"),
-                ..at(binding, "external_binding.missing_evidence")
+                ..at(binding, "external_response_binding.missing_evidence")
             },
             Self::MissingAssumption(id) => ExternalRefusal {
                 offending: Some(id.clone()),
                 remedy: Some("declare the assumption the identification relies on"),
-                ..at(binding, "external_binding.missing_assumption")
+                ..at(binding, "external_response_binding.missing_assumption")
             },
-            Self::TrustMismatch => {
-                at(crate::reason_code!("external_verification_failed"), "external_binding.trust")
-            }
+            Self::TrustMismatch => at(
+                crate::reason_code!("external_verification_failed"),
+                "external_response_binding.trust",
+            ),
         }
     }
 }
@@ -433,7 +448,7 @@ mod tests {
         let value = refused(&contract, response);
         assert_eq!(value.code, "quantity_semantics_mismatch");
         assert_eq!(value.stage, "bind");
-        assert_eq!(value.detail, "external_binding.coordinate.units");
+        assert_eq!(value.detail, "external_response_binding.coordinate_units");
         assert_eq!(value.offending.as_deref(), Some("coordinate[1]"));
         assert_eq!(value.expected.as_deref(), Some("mmHg"));
         assert_eq!(value.supplied.as_deref(), Some("kPa"));
@@ -441,7 +456,7 @@ mod tests {
         let (contract, mut response) = fixtures();
         response.header.quantities[0].horizon = 7;
         let value = refused(&contract, response);
-        assert_eq!(value.detail, "external_binding.coordinate.horizon");
+        assert_eq!(value.detail, "external_response_binding.coordinate_horizon");
         assert_eq!(value.expected.as_deref(), Some("0"));
         assert_eq!(value.supplied.as_deref(), Some("7"));
     }
@@ -453,16 +468,16 @@ mod tests {
         let mut cases: Vec<(ExternalResponse, &str, &str)> = Vec::new();
         let mut graph = base.clone();
         graph.header.graph_id = "g2".into();
-        cases.push((graph, "external_binding_mismatch", "external_binding.graph"));
+        cases.push((graph, "external_binding_mismatch", "external_response_binding.graph"));
         let mut short = base.clone();
         short.values.pop();
-        cases.push((short, "external_binding_mismatch", "external_binding.dimension"));
+        cases.push((short, "external_binding_mismatch", "external_response_binding.dimension"));
         let mut nan = base.clone();
         nan.values[0] = f64::NAN;
-        cases.push((nan, "invalid_argument", "external_binding.non_finite_value"));
+        cases.push((nan, "invalid_argument", "external_response_binding.non_finite_value"));
         let mut native = base.clone();
         native.header.trust = ExternalTrustState::NativeLicensed;
-        cases.push((native, "external_verification_failed", "external_binding.trust"));
+        cases.push((native, "external_verification_failed", "external_response_binding.trust"));
         let mut observational = base.clone();
         for q in &mut observational.header.quantities {
             q.regime_id = "observational".into();
@@ -470,7 +485,7 @@ mod tests {
         cases.push((
             observational,
             "external_binding_mismatch",
-            "external_binding.unchecked_observational_law",
+            "external_response_binding.unchecked_observational_law",
         ));
         for (response, code, detail) in cases {
             let value = refused(&contract, response);
@@ -500,17 +515,17 @@ mod tests {
         assert!(value.remedy.is_some());
         assert_eq!(
             ExternalContractError::RequestMismatch.to_refusal().detail,
-            "external_object.request_mismatch"
+            "provider_capability_negotiation.request_mismatch"
         );
 
         let missing = ExternalVerificationError::MissingProbe(VerificationProbeKind::Normalization)
             .to_refusal();
         assert_eq!(missing.code, "external_verification_failed");
         assert_eq!(missing.offending.as_deref(), Some("normalization"));
-        assert_eq!(missing.detail, "external_verification.missing_probe");
+        assert_eq!(missing.detail, "external_object_verification.missing_probe");
         let failed =
             ExternalVerificationError::FailedProbe(VerificationProbeKind::Moments).to_refusal();
-        assert_eq!(failed.detail, "external_verification.failed_probe");
+        assert_eq!(failed.detail, "external_object_verification.failed_probe");
         let contract = ExternalVerificationError::Contract(ExternalContractError::RequestMismatch)
             .to_refusal();
         assert_eq!((contract.stage, contract.code), ("verify", "external_binding_mismatch"));

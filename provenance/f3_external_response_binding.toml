@@ -1,0 +1,23 @@
+feature_id = "f3_external_response_binding"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A semantic contract check and a portable artifact, not an estimator: the
+# numerical values are supplied by a foreign provider and are never computed here.
+papers = []
+implementation_deviations = [
+  "No numerical algorithm: the binding checks that a provider's declared coordinates, graph, meaning, evidence, assumptions and trust match an already identified contract, then carries the supplied values unchanged.",
+  "Provider-declared uncertainty stays a declaration. The artifact grants no interval, calibration or native-estimation claim, and an exact-request verification covers only the contract it names.",
+  "An observational law is read as interventional only under a separately checked equivalence of an explicit scope (regime-only, or a conditioned treatment with a per-value regime map).",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/src/external_binding.rs",
+  "crates/antecedent-core/src/external_refusal.rs",
+  "crates/antecedent-io/tests/external_binding_wire.rs",
+  "crates/antecedent-io/tests/external_claim_artifact.rs",
+  "python/tests/test_external_binding.py",
+]

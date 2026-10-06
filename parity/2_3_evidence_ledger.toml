@@ -294,7 +294,7 @@ exact_request_verification = "pending exact request fingerprint and applicable p
 id = "2.3A.F3.external_response_binding"
 route = "antecedent.external.bind_response"
 work_package = "A0.3"
-algorithm_provenance = ["pending:provenance/external_response_binding.toml"]
+algorithm_provenance = ["provenance/f3_external_response_binding.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f3.known_truth.positive"
@@ -305,8 +305,8 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f3.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "externally_attested or verified_extension only; a bound claim is never native_licensed and never native estimation"
+exact_request_verification = "optional: independent probes are recomputed natively at the complete provider contract, and the receipt covers only that exact request"
 
 [[cell]]
 id = "2.3A.F20.provider_capability_negotiation"

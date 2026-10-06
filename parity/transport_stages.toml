@@ -4031,9 +4031,8 @@ notes = "2.3 A0.3 F2 contract frozen; no public route license or inference claim
 [[routes]]
 route = "antecedent.external.bind_response"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.3 F3 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.3 F3 checked binding of an external response grid to an identified contract: point-only, attested or exact-request verified, never native; no interval or calibration claim."
 
 [[routes]]
 route = "antecedent.external.negotiate_capability"

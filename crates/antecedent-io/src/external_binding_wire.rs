@@ -166,11 +166,11 @@ impl From<antecedent_core::ExternalRefusal> for RefusalWire {
     }
 }
 
-fn malformed(slot: &str, message: &str) -> RefusalWire {
+fn malformed(detail: &'static str, message: &str) -> RefusalWire {
     RefusalWire {
         code: antecedent_core::reason_code!("invalid_argument").to_owned(),
         stage: "declare".into(),
-        detail: format!("external_wire.{slot}"),
+        detail: detail.to_owned(),
         offending: Some(message.to_owned()),
         expected: None,
         supplied: None,
@@ -182,7 +182,8 @@ fn malformed(slot: &str, message: &str) -> RefusalWire {
 fn quantities(wire: &[ScientificQuantityWire]) -> Result<Vec<ScientificQuantity>, RefusalWire> {
     wire.iter()
         .map(|q| {
-            ScientificQuantity::try_from(q.clone()).map_err(|error| malformed("quantity", error))
+            ScientificQuantity::try_from(q.clone())
+                .map_err(|error| malformed("external_response_binding.malformed_quantity", error))
         })
         .collect()
 }
@@ -190,8 +191,9 @@ fn quantities(wire: &[ScientificQuantityWire]) -> Result<Vec<ScientificQuantity>
 fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWire> {
     Ok(CheckedCausalContract {
         graph_id: wire.graph_id.clone(),
-        identification: IdentificationStatus::from_name(&wire.identification)
-            .ok_or_else(|| malformed("identification", &wire.identification))?,
+        identification: IdentificationStatus::from_name(&wire.identification).ok_or_else(|| {
+            malformed("external_response_binding.malformed_identification", &wire.identification)
+        })?,
         estimand: quantities(&wire.estimand)?,
         accepted_meanings: wire.accepted_meanings.iter().copied().map(Into::into).collect(),
         required_evidence_ids: wire.required_evidence_ids.clone(),
@@ -210,7 +212,7 @@ fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWi
                     },
                     _ => {
                         return Err(malformed(
-                            "equivalence",
+                            "external_response_binding.malformed_equivalence",
                             "give exactly one of interventional_regime_id or conditioned_treatment",
                         ));
                     }
@@ -241,7 +243,10 @@ pub fn bind_response(
         .provider
         .capabilities
         .iter()
-        .map(|name| capability_from_name(name).ok_or_else(|| malformed("capability", name)))
+        .map(|name| {
+            capability_from_name(name)
+                .ok_or_else(|| malformed("external_response_binding.malformed_capability", name))
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let object = ExternalScientificObject::Law(LawProviderContract {
         identity: ProviderObjectIdentity {
@@ -262,8 +267,9 @@ pub fn bind_response(
                 .iter()
                 .map(|p| {
                     Ok(VerificationProbe {
-                        kind: probe_from_name(&p.kind)
-                            .ok_or_else(|| malformed("probe", &p.kind))?,
+                        kind: probe_from_name(&p.kind).ok_or_else(|| {
+                            malformed("external_response_binding.malformed_probe", &p.kind)
+                        })?,
                         observed: p.observed,
                         expected: p.expected,
                         tolerance: p.tolerance,
@@ -276,7 +282,12 @@ pub fn bind_response(
         }
         (None, Some(attestor)) => ExternalTrustState::attest(&object, attestor)
             .map_err(|e| RefusalWire::from(e.to_refusal()))?,
-        (None, None) => return Err(malformed("trust", "attestor or probes required")),
+        (None, None) => {
+            return Err(malformed(
+                "external_response_binding.malformed_trust",
+                "attestor or probes required",
+            ));
+        }
     };
     let point_support = response
         .point_support
@@ -284,7 +295,10 @@ pub fn bind_response(
         .map(|labels| {
             labels
                 .iter()
-                .map(|l| SupportStatus::from_name(l).ok_or_else(|| malformed("support", l)))
+                .map(|l| {
+                    SupportStatus::from_name(l)
+                        .ok_or_else(|| malformed("external_response_binding.malformed_support", l))
+                })
                 .collect::<Result<Vec<_>, _>>()
         })
         .transpose()?;
@@ -310,6 +324,7 @@ pub fn bind_response(
         bind_external_result(&contract_core, &result).map_err(|e: ExternalBindingError| {
             RefusalWire::from(e.to_refusal(&contract_core, &result))
         })?;
-    ExternalClaimArtifact::from_bound_claim(&claim, causal_contract_id)
-        .map_err(|error| malformed("artifact", &error.to_string()))
+    ExternalClaimArtifact::from_bound_claim(&claim, causal_contract_id).map_err(|error| {
+        malformed("external_response_binding.malformed_artifact", &error.to_string())
+    })
 }

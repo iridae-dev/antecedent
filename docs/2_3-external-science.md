@@ -92,8 +92,8 @@ convert to an `ExternalRefusal` with a registered runtime reason code
 (`external_capability_missing`, `external_verification_failed`,
 `external_binding_mismatch`, `quantity_semantics_mismatch`,
 `distribution_meaning_mismatch`, `effect_not_identified`, `invalid_argument`),
-a namespaced detail (`external_binding.coordinate.units`,
-`external_verification.missing_probe`, ...), the stage, the offending
+a namespaced detail (`external_response_binding.coordinate_units`,
+`external_object_verification.missing_probe`, ...), the stage, the offending
 coordinate or probe, expected versus supplied semantics, the missing
 capability and a remedy when one is known. Binding refusals read expected and
 supplied values from the contract and result that were presented.
@@ -110,7 +110,7 @@ offending coordinate and expected/supplied semantics. Trust is the shared
 `ProviderTrust` vocabulary (`externally_attested`, `verified_extension`) and is
 never `native_licensed`. Python builds declarations; Rust owns every identity,
 check and refusal. `crates/antecedent-io/tests/external_binding_wire.rs` and
-`python/tests/test_external_binding.py` assert the same closed-form fixture.
+`python/tests/test_external_response_binding.py` assert the same closed-form fixture.
 
 Observational laws offered for interventions need a checked equivalence of one
 of two scopes. `Regime` covers a coordinate that differs from the request only
