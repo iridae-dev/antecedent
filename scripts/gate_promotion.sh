@@ -63,7 +63,7 @@ fi
 # Cited fixtures and closed-route refusal tests are executed, not just resolved.
 # Frozen records cite nothing yet, so there may be nothing to run.
 if [[ -s "$EVIDENCE" ]]; then
-  if ! command -v uv >/dev/null 2>&1; then
+  if [[ "$group" == all || "$group" == python ]] && ! command -v uv >/dev/null 2>&1; then
     echo "FAIL: uv is required; unexecuted Python rows are not promotion evidence"
     exit 1
   fi
