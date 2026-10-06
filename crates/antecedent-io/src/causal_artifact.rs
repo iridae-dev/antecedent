@@ -1138,6 +1138,7 @@ pub(crate) fn validate_response_result(
             "response identification status does not match its identification payload".into(),
         ));
     }
+    validate_response_coordinates(wire.coordinates.as_deref(), value_len)?;
     validate_uncertainty(&wire.uncertainty, value_len)?;
     validate_support(
         &wire.support,
@@ -1147,6 +1148,42 @@ pub(crate) fn validate_response_result(
     )?;
     if wire.provenance_id.trim().is_empty() {
         return Err(IoError::Convert("response provenance id must be non-blank".into()));
+    }
+    Ok(())
+}
+
+/// Check optional per-value scientific coordinates: one valid, distinct
+/// descriptor per response value. Absent coordinates change nothing.
+fn validate_response_coordinates(
+    coordinates: Option<&[crate::quantity_wire::ScientificQuantityWire]>,
+    value_len: Option<usize>,
+) -> Result<(), IoError> {
+    let Some(coordinates) = coordinates else {
+        return Ok(());
+    };
+    if value_len != Some(coordinates.len()) {
+        return Err(IoError::Convert(
+            "response coordinates must provide exactly one descriptor per response value".into(),
+        ));
+    }
+    let mut seen = HashSet::with_capacity(coordinates.len());
+    for wire in coordinates {
+        let quantity = antecedent_core::ScientificQuantity::try_from(wire.clone())
+            .map_err(|reason| IoError::Convert(format!("response coordinates: {reason}")))?;
+        let identity = (
+            quantity.variable_id,
+            quantity.population_id,
+            quantity.regime_id,
+            quantity.horizon,
+            quantity.functional_id,
+            quantity.conditioning,
+            quantity.transform_id,
+        );
+        if !seen.insert(identity) {
+            return Err(IoError::Convert(
+                "response coordinates must not repeat a scientific coordinate".into(),
+            ));
+        }
     }
     Ok(())
 }
@@ -1952,6 +1989,7 @@ mod tests {
             provenance_id: "estimate.response.kennedy_dr".into(),
             horizon_identification: None,
             interaction_structurally_zero: false,
+            coordinates: None,
         };
         let payload = CausalPayloadWire::ResponseResult(Box::new(response));
         let artifact = encode_causal_payload_artifact(
@@ -1961,6 +1999,122 @@ mod tests {
         )
         .unwrap();
         assert_eq!(decode(&artifact).unwrap(), payload);
+    }
+
+    fn coordinate_wire(dose: f64) -> crate::quantity_wire::ScientificQuantityWire {
+        crate::quantity_wire::ScientificQuantityWire {
+            version: crate::quantity_wire::QUANTITY_WIRE_VERSION,
+            variable_id: "schema:y".into(),
+            variable_name: "y".into(),
+            role: "outcome".into(),
+            units: "kg".into(),
+            population_id: "target".into(),
+            regime_id: format!("do(a={dose})"),
+            horizon: 0,
+            functional_id: "mean".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn three_point_response(
+        coordinates: Option<Vec<crate::quantity_wire::ScientificQuantityWire>>,
+    ) -> CausalResponseWire {
+        let mut response = CausalResponseWire {
+            estimand: ResponseFunctionalWire::MeanCurve {
+                outcome: 1,
+                treatment: crate::ContinuousDomainWire {
+                    variable: 0,
+                    grid: crate::GridSpecWire::Values(vec![0.0, 1.0, 2.0]),
+                },
+            },
+            identification_status: IdentificationStatusWire::NonparametricallyIdentified,
+            estimate: ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
+                grid: vec![0.0, 1.0, 2.0],
+                dimension: 1,
+                mean: vec![1.0, 2.0, 3.0],
+            }),
+            uncertainty: ResponseUncertaintyWire::None,
+            support: SupportReportWire {
+                status: SupportStatusWire::Supported,
+                query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![2.0] },
+                diagnostics: Vec::new(),
+                warnings: Vec::new(),
+                point_status: None,
+            },
+            assumptions: Vec::new(),
+            provenance_id: "estimate.response.coordinates".into(),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+            coordinates: None,
+        };
+        response.coordinates = coordinates;
+        response
+    }
+
+    fn decode_three_point(response: CausalResponseWire) -> Result<CausalPayloadWire, IoError> {
+        let artifact = unchecked_artifact(
+            &CausalPayloadWire::ResponseResult(Box::new(response)),
+            &CausalPayloadHeader {
+                payload_kind: CausalPayloadKind::ResponseResult,
+                variable_names: vec!["a".into(), "y".into()],
+            },
+        );
+        decode(&artifact)
+    }
+
+    #[test]
+    fn response_coordinates_round_trip_in_order() {
+        let coordinates = vec![coordinate_wire(0.0), coordinate_wire(1.0), coordinate_wire(2.0)];
+        let payload = CausalPayloadWire::ResponseResult(Box::new(three_point_response(Some(
+            coordinates.clone(),
+        ))));
+        let artifact = encode_causal_payload_artifact(
+            &payload,
+            vec!["a".into(), "y".into()],
+            "estimate.response.coordinates",
+        )
+        .unwrap();
+        let CausalPayloadWire::ResponseResult(decoded) = decode(&artifact).unwrap() else {
+            unreachable!()
+        };
+        assert_eq!(decoded.coordinates, Some(coordinates));
+    }
+
+    #[test]
+    fn response_coordinates_refuse_wrong_length() {
+        let response = three_point_response(Some(vec![coordinate_wire(0.0), coordinate_wire(1.0)]));
+        let error = decode_three_point(response).unwrap_err().to_string();
+        assert!(error.contains("response coordinates"), "{error}");
+    }
+
+    #[test]
+    fn response_coordinates_refuse_duplicate_coordinate() {
+        let response = three_point_response(Some(vec![
+            coordinate_wire(0.0),
+            coordinate_wire(1.0),
+            coordinate_wire(1.0),
+        ]));
+        let error = decode_three_point(response).unwrap_err().to_string();
+        assert!(error.contains("response coordinates"), "{error}");
+    }
+
+    #[test]
+    fn response_coordinates_refuse_invalid_descriptor() {
+        let mut blank_units = coordinate_wire(2.0);
+        blank_units.units.clear();
+        let response = three_point_response(Some(vec![
+            coordinate_wire(0.0),
+            coordinate_wire(1.0),
+            blank_units,
+        ]));
+        let error = decode_three_point(response).unwrap_err().to_string();
+        assert!(error.contains("response coordinates"), "{error}");
+    }
+
+    #[test]
+    fn response_without_coordinates_is_unchanged() {
+        assert!(decode_three_point(three_point_response(None)).is_ok());
     }
 
     fn temporal_mean_curve_response() -> CausalResponseWire {
@@ -2014,6 +2168,7 @@ mod tests {
                 },
             ]),
             interaction_structurally_zero: false,
+            coordinates: None,
         }
     }
 
@@ -2197,6 +2352,7 @@ mod tests {
             provenance_id: "identify.binary_iv_bounds".into(),
             horizon_identification: None,
             interaction_structurally_zero: false,
+            coordinates: None,
         }
     }
 
@@ -2417,6 +2573,7 @@ mod tests {
             provenance_id: "estimate.response.kennedy_dr".into(),
             horizon_identification: None,
             interaction_structurally_zero: false,
+            coordinates: None,
         };
         let artifact = unchecked_artifact(
             &CausalPayloadWire::ResponseResult(Box::new(response)),

@@ -15,6 +15,7 @@ from pydantic import Field, PrivateAttr, model_validator
 
 from .._verdict import describe_status
 from ..errors import CausalValueError
+from ..joint_distribution import ScientificQuantity
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
 from ._report import ResultModel
@@ -437,6 +438,10 @@ class CausalResponseView(ResultModel, ResultAPI):
     data_snapshot_id: str | None = None
     #: T5–T9 transport lineage when the estimand was ``transport.Transport``.
     transport: Any = None
+    #: Optional scientific coordinate of each response value, in value order.
+    #: Identify a value by its descriptor, never by grid position or label.
+    #: See ``antecedent.results.coordinates.response_coordinates``.
+    quantities: tuple[ScientificQuantity, ...] | None = None
     _prepared: Any = PrivateAttr(default=None)
     _execution: Any = PrivateAttr(default=None)
 
