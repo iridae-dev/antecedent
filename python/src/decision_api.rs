@@ -17,7 +17,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use antecedent_core::ScientificQuantity;
+use antecedent_core::{ExternalRefusal, ScientificQuantity};
 
 use crate::CausalSerializationError;
 use crate::distribution_api::PyJointDistributionArtifact;
@@ -26,8 +26,17 @@ fn serialization(error: impl std::fmt::Display) -> PyErr {
     CausalSerializationError::new_err(error.to_string())
 }
 
-fn refusal_json(code: &str, detail: &str, offending: Option<&str>) -> String {
-    serde_json::json!({ "code": code, "detail": detail, "offending": offending }).to_string()
+fn refusal_json(value: &ExternalRefusal) -> String {
+    serde_json::json!({
+        "code": value.code,
+        "stage": value.stage,
+        "detail": value.detail,
+        "offending": value.offending,
+        "expected": value.expected,
+        "supplied": value.supplied,
+        "remedy": value.remedy,
+    })
+    .to_string()
 }
 
 fn check_size(json: &str) -> PyResult<()> {
@@ -37,23 +46,31 @@ fn check_size(json: &str) -> PyResult<()> {
     Ok(())
 }
 
-fn io_refusal(error: &IoError) -> String {
-    match error {
+fn io_refusal(error: &IoError, stage: &'static str) -> String {
+    let (code, detail, offending) = match error {
         IoError::Refused { code, message } => {
-            let detail = message.split(':').next().unwrap_or("decision_artifact");
-            refusal_json(code, detail, None)
+            (*code, message.split(':').next().unwrap_or("decision_artifact").to_owned(), None)
         }
-        other => refusal_json(
+        other => (
             antecedent_core::reason_code!("decision_contract_unsatisfied"),
-            "decision.contract_invalid",
-            Some(&other.to_string()),
+            "decision_contract.invalid_declaration".to_owned(),
+            Some(other.to_string()),
         ),
-    }
+    };
+    refusal_json(&ExternalRefusal {
+        code,
+        stage,
+        detail,
+        offending,
+        expected: None,
+        supplied: None,
+        capability: None,
+        remedy: None,
+    })
 }
 
 fn eval_refusal(error: &DecisionEvalError) -> String {
-    let refusal = error.refusal();
-    refusal_json(refusal.code, refusal.detail, refusal.offending.as_deref())
+    refusal_json(&error.to_refusal())
 }
 
 /// Validate a contract declaration; returns its normalized JSON (with the
@@ -63,7 +80,7 @@ fn decision_contract_normalize(contract_json: &str) -> PyResult<(Option<String>,
     check_size(contract_json)?;
     match contract_from_json(contract_json).and_then(|c| contract_to_json(&c)) {
         Ok(json) => Ok((Some(json), None)),
-        Err(error) => Ok((None, Some(io_refusal(&error)))),
+        Err(error) => Ok((None, Some(io_refusal(&error, "declare")))),
     }
 }
 
@@ -76,7 +93,7 @@ fn evaluate_decision(
     check_size(contract_json)?;
     let contract = match contract_from_json(contract_json) {
         Ok(contract) => contract,
-        Err(error) => return Ok((None, Some(io_refusal(&error)))),
+        Err(error) => return Ok((None, Some(io_refusal(&error, "declare")))),
     };
     match evaluate_contract(&contract, source.inner()) {
         Ok(result) => {
@@ -102,7 +119,7 @@ fn evaluate_decision_means(
     check_size(coordinates_json)?;
     let contract = match contract_from_json(contract_json) {
         Ok(contract) => contract,
-        Err(error) => return Ok((None, Some(io_refusal(&error)))),
+        Err(error) => return Ok((None, Some(io_refusal(&error, "declare")))),
     };
     let wires: Vec<ScientificQuantityWire> = serde_json::from_str(coordinates_json)
         .map_err(|e| PyValueError::new_err(format!("invalid coordinates: {e}")))?;
@@ -179,7 +196,7 @@ fn replay_decision_result(
     check_size(contract_json)?;
     let contract = match contract_from_json(contract_json) {
         Ok(contract) => contract,
-        Err(error) => return Ok((None, Some(io_refusal(&error)))),
+        Err(error) => return Ok((None, Some(io_refusal(&error, "declare")))),
     };
     let identity = contract.identity().map_err(|e| serialization(format!("{e:?}")))?;
     let outcome =
@@ -190,8 +207,30 @@ fn replay_decision_result(
             Some(result_to_json(artifact.result(), source.inner()).map_err(serialization)?),
             None,
         )),
-        Err(error) => Ok((None, Some(io_refusal(&error)))),
+        Err(error) => Ok((None, Some(io_refusal(&error, "replay")))),
     }
+}
+
+/// Validate a derivation chain given as `[id, stage, [parent ids]]` rows and
+/// return every link with its Merkle digest and its parents' digests, as JSON.
+///
+/// Python cannot hash, so a chain it extends (a decision over an external claim)
+/// gets its digests here.
+#[pyfunction]
+fn composition_lineage(links_json: &str) -> PyResult<String> {
+    check_size(links_json)?;
+    let rows: Vec<(String, String, Vec<String>)> =
+        serde_json::from_str(links_json).map_err(serialization)?;
+    let parents: Vec<Vec<&str>> =
+        rows.iter().map(|(_, _, parents)| parents.iter().map(String::as_str).collect()).collect();
+    let borrowed: Vec<(&str, &str, &[&str])> = rows
+        .iter()
+        .zip(&parents)
+        .map(|((id, stage, _), parents)| (id.as_str(), stage.as_str(), parents.as_slice()))
+        .collect();
+    let wire = antecedent_io::external_claim_artifact::lineage_wire(&borrowed)
+        .map_err(serialization)?;
+    serde_json::to_string(&wire).map_err(serialization)
 }
 
 /// BLAKE3 digest of a source's aligned draws, for retaining alongside a result.
@@ -208,5 +247,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(load_decision_contract, m)?)?;
     m.add_function(wrap_pyfunction!(export_decision_result, m)?)?;
     m.add_function(wrap_pyfunction!(replay_decision_result, m)?)?;
+    m.add_function(wrap_pyfunction!(composition_lineage, m)?)?;
     m.add_function(wrap_pyfunction!(decision_source_digest, m)?)
 }

@@ -155,7 +155,13 @@ fn independent_marginals_are_refused_not_paired_by_index() {
     let error =
         evaluate_contract(&contract(DecisionCriterion::PosteriorExpectedUtility), &marginals)
             .unwrap_err();
-    assert_eq!(error, DecisionEvalError::JointLawRequired);
+    assert_eq!(
+        error,
+        DecisionEvalError::JointLawRequired {
+            action: Some("risky".into()),
+            supplied_alignment: "independent_marginals",
+        }
+    );
     assert_eq!(error.reason_code(), "joint_law_required");
 }
 

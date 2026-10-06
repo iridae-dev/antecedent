@@ -113,6 +113,12 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process():
     assert links[-1].id == "decision_result"
     assert f"decision:{contract.identity}" in [link.id for link in links]
     assert "provider:external:lab/curve@v3#snap-9" in [link.id for link in links]
+    # Every link, including the two appended after the claim, has a Merkle digest
+    # that chains to its parents' digests.
+    by_id = {link.id: link for link in links}
+    for link in links:
+        assert len(link.digest) == 64, link.id
+        assert [by_id[p].digest for p in link.parents] == list(link.parent_digests), link.id
     stages = result.stages_behind()
     assert {
         "causal_contract",
@@ -205,7 +211,9 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
     with pytest.raises(decision.DecisionRefusal) as nonlinear_refusal:
         nonlinear.evaluate(claim)
     assert nonlinear_refusal.value.reason_code == "decision_contract_unsatisfied"
-    assert nonlinear_refusal.value.detail == "decision.mean_source_insufficient"
+    assert nonlinear_refusal.value.detail == "decision_evaluation.mean_source_insufficient"
+    assert nonlinear_refusal.value.supplied == "mean"
+    assert nonlinear_refusal.value.remedy is not None
 
     cap = decision.Constraint("cap", decision.x(0), bound=10.0, units="mmHg", min_probability=0.9)
     constrained = decision.Contract(
@@ -217,7 +225,7 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
     )
     with pytest.raises(decision.DecisionRefusal) as constraint_refusal:
         constrained.evaluate(claim)
-    assert constraint_refusal.value.detail == "decision.mean_source_insufficient"
+    assert constraint_refusal.value.detail == "decision_evaluation.mean_source_insufficient"
 
     # An outcome-law input cannot be read from a mean grid.
     outcome = decision.Contract(
@@ -242,7 +250,7 @@ def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():
     with pytest.raises(decision.DecisionRefusal) as export_refusal:
         result.export()
     assert export_refusal.value.reason_code == "route_not_supported"
-    assert export_refusal.value.detail == "decision.mean_source_not_replayable"
+    assert export_refusal.value.detail == "decision_evaluation.mean_source_not_replayable"
 
 
 def _as_outcome(quantity: ScientificQuantity) -> ScientificQuantity:

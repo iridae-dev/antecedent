@@ -124,9 +124,9 @@ fn a_nonlinear_utility_needs_more_than_a_mean() {
         panic!("expected MeanSourceInsufficient, got {error:?}");
     };
     assert!(needed.contains(&SourceRepresentation::JointDraws));
-    let refusal = error.refusal();
+    let refusal = error.to_refusal();
     assert_eq!(refusal.code, "decision_contract_unsatisfied");
-    assert_eq!(refusal.detail, "decision.mean_source_insufficient");
+    assert_eq!(refusal.detail, "decision_evaluation.mean_source_insufficient");
 
     let clipped = UtilityExpr::maximum(UtilityExpr::Input(0), UtilityExpr::Const(0.0));
     assert!(matches!(
@@ -171,7 +171,7 @@ fn a_mean_grid_is_not_an_outcome_law() {
     let error = evaluate_contract_on_means(&contract_with("outcome", affine()), &source("outcome"))
         .unwrap_err();
     assert_eq!(error, DecisionEvalError::MeaningMismatch { action: "wait".into(), input: 0 });
-    assert_eq!(error.refusal().code, "distribution_meaning_mismatch");
+    assert_eq!(error.to_refusal().code, "distribution_meaning_mismatch");
 }
 
 #[test]

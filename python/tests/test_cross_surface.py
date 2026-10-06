@@ -237,5 +237,9 @@ def test_refusal_details_match_the_strings_the_rust_tests_assert():
         gen.decision_contract().evaluate(independent)
     assert isinstance(joint.value, decision.DecisionRefusal)
     assert joint.value.reason_code == "joint_law_required"
-    assert joint.value.detail == "decision.joint_law_required"
-    assert joint.value.offending is None
+    assert joint.value.detail == "decision_evaluation.joint_law_required"
+    assert joint.value.stage == "evaluate"
+    assert joint.value.offending == "risky"
+    assert joint.value.expected == "joint"
+    assert joint.value.supplied == "independent_marginals"
+    assert joint.value.remedy is not None

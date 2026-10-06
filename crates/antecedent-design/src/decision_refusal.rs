@@ -102,7 +102,10 @@ impl DecisionEvalError {
                 value.stage = "evaluate";
                 value
             }
-            Self::JointLawRequired => ExternalRefusal {
+            Self::JointLawRequired { action, supplied_alignment } => ExternalRefusal {
+                offending: action.clone(),
+                expected: Some("joint".to_owned()),
+                supplied: Some((*supplied_alignment).to_owned()),
                 remedy: Some("supply aligned joint draws, not independent marginals"),
                 ..at(
                     antecedent_core::reason_code!("joint_law_required"),
@@ -317,15 +320,22 @@ mod tests {
     fn evaluation_errors_have_exact_codes_details_and_remedies() {
         use DecisionEvalError as E;
         let a = || "treat".to_owned();
-        let value = E::JointLawRequired.to_refusal();
+        let joint = |action: Option<&str>| E::JointLawRequired {
+            action: action.map(str::to_owned),
+            supplied_alignment: "independent_marginals",
+        };
+        let value = joint(Some("risky")).to_refusal();
         check(
             &value,
             "joint_law_required",
             "evaluate",
             "decision_evaluation.joint_law_required",
-            None,
+            Some("risky"),
         );
+        assert_eq!(value.expected.as_deref(), Some("joint"));
+        assert_eq!(value.supplied.as_deref(), Some("independent_marginals"));
         assert_eq!(value.remedy, Some("supply aligned joint draws, not independent marginals"));
+        assert!(joint(None).to_refusal().offending.is_none());
 
         let value = E::QuantityNotFound { action: a(), input: 2 }.to_refusal();
         check(
@@ -381,7 +391,7 @@ mod tests {
             "decision_contract.unknown_input",
             Some("1"),
         );
-        for error in [E::JointLawRequired, E::StructureInputsRequired("x")] {
+        for error in [joint(None), E::StructureInputsRequired("x")] {
             assert_eq!(error.to_refusal().code, error.reason_code());
         }
     }

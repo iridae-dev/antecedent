@@ -122,6 +122,9 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
         _contract().evaluate(_source(alignment="independent_marginals"))
     assert marginals.value.reason_code == "joint_law_required"
     assert isinstance(marginals.value, decision.DecisionRefusal)
+    assert marginals.value.detail == "decision_evaluation.joint_law_required"
+    assert marginals.value.supplied == "independent_marginals"
+    assert marginals.value.expected == "joint"
 
     with pytest.raises(decision.DecisionRefusal) as meaning:
         _contract().evaluate(_source(semantic="causal_functional_posterior"))
@@ -138,7 +141,8 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
     with pytest.raises(decision.DecisionRefusal) as missing:
         other.evaluate(_source())
     assert missing.value.reason_code == "quantity_semantics_mismatch"
-    assert missing.value.detail == "decision.quantity_not_found"
+    assert missing.value.detail == "decision_evaluation.quantity_not_found"
+    assert missing.value.stage == "evaluate"
 
     with pytest.raises(decision.DecisionRefusal) as structure:
         _contract(decision.Criterion.maximin_over_structures()).evaluate(_source())
@@ -322,6 +326,10 @@ def test_decision_names_the_stages_and_identities_behind_it():
         "claim",
     ]
     assert links[-1].parents == (links[2].id, links[3].id)
+    # Merkle digests: each link records its parents' digests, and a different
+    # source changes the distribution digest and the result digest downstream.
+    assert all(len(link.digest) == 64 for link in links)
+    assert links[-1].parent_digests == (links[2].digest, links[3].digest)
     assert result.stages_behind() == {
         "causal_contract",
         "external_provider",
@@ -337,6 +345,9 @@ def test_decision_names_the_stages_and_identities_behind_it():
     other = _contract().evaluate(_source(q=[0.0, 6.0, 2.0, 4.0]))
     assert other.lineage[2].id != links[2].id
     assert other.lineage[3].id == links[3].id
+    assert other.lineage[3].digest == links[3].digest
+    assert other.lineage[2].digest != links[2].digest
+    assert other.lineage[4].digest != links[4].digest
 
     # A replayed result re-derives the same lineage from the same inputs.
     replayed = decision.replay(result.export(), contract=_contract(), source=_source())

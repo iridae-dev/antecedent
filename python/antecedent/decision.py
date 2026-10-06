@@ -33,6 +33,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ._native import composition_lineage as _composition_lineage
 from ._native import decision_contract_normalize as _normalize
 from ._native import decision_source_digest as _source_digest
 from ._native import evaluate_decision as _evaluate
@@ -55,17 +56,22 @@ StructuralPolicy = Literal[
 class DecisionRefusal(CausalUnsupportedError):
     """A decision refusal carrying the structured Rust fields.
 
-    ``reason_code`` is inherited and registered. ``detail`` is the namespaced
-    ``family.slot``; ``offending`` names the action input (``action[input]``)
-    when there is one.
+    ``reason_code`` and ``remedy`` are inherited; the code is registered.
+    ``stage`` is the stage that refused. ``detail`` is the namespaced
+    ``family.slot``; ``offending`` names the action input (``action[input]``) or
+    action when there is one; ``expected`` and ``supplied`` carry the compared
+    semantics (for example ``joint`` against ``independent_marginals``).
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         offending = refusal.get("offending")
         text = str(refusal["detail"]) + (f" at {offending}" if offending else "")
-        super().__init__(text, reason_code=refusal["code"])
+        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
+        self.stage: str = refusal.get("stage", "")
         self.detail: str = refusal["detail"]
         self.offending: str | None = offending
+        self.expected: str | None = refusal.get("expected")
+        self.supplied: str | None = refusal.get("supplied")
 
 
 def _raise(refusal: str | None) -> None:
@@ -325,7 +331,7 @@ class Contract:
         A :class:`~antecedent.external.BoundExternalClaim` supplies one mean per
         coordinate, so it answers only the expectation of an affine utility: a
         nonlinear utility, a hard constraint or any other criterion refuses with
-        ``decision_contract_unsatisfied`` (``decision.mean_source_insufficient``).
+        ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
         if isinstance(source, BoundExternalClaim):
@@ -467,17 +473,33 @@ class Decision:
 
         For a joint-draw source Rust derives it (contract, provider, distribution,
         decision contract, ``decision_result``). For an external claim it is the
-        claim's own lineage plus the decision contract and ``decision_result``.
+        claim's own lineage plus the decision contract and ``decision_result``,
+        re-chained natively so every link, including the two appended ones, has
+        its Merkle digest (Python cannot hash).
         """
         if isinstance(self._source, BoundExternalClaim):
             decision_id = f"decision:{self.contract_identity}"
-            return (
-                *self._source.lineage,
-                LineageLink(decision_id, "decision_contract", ()),
-                LineageLink(RESULT_LINK_ID, "claim", ("claim", decision_id)),
+            rows = [[link.id, link.stage, list(link.parents)] for link in self._source.lineage]
+            rows.append([decision_id, "decision_contract", []])
+            rows.append([RESULT_LINK_ID, "claim", ["claim", decision_id]])
+            return tuple(
+                LineageLink(
+                    item["id"],
+                    item["stage"],
+                    tuple(item["parents"]),
+                    item["digest"],
+                    tuple(item["parent_digests"]),
+                )
+                for item in json.loads(_composition_lineage(json.dumps(rows)))
             )
         return tuple(
-            LineageLink(item["id"], item["stage"], tuple(item["parents"]))
+            LineageLink(
+                item["id"],
+                item["stage"],
+                tuple(item["parents"]),
+                item["digest"],
+                tuple(item["parent_digests"]),
+            )
             for item in self._body["lineage"]
         )
 
@@ -538,8 +560,12 @@ class Decision:
             raise DecisionRefusal(
                 {
                     "code": "route_not_supported",
-                    "detail": "decision.mean_source_not_replayable",
+                    "stage": "export",
+                    "detail": "decision_evaluation.mean_source_not_replayable",
                     "offending": None,
+                    "expected": "joint_draws",
+                    "supplied": "mean",
+                    "remedy": "export a decision evaluated on aligned joint draws",
                 }
             )
         return bytes(

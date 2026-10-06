@@ -28,7 +28,12 @@ pub enum DecisionEvalError {
     Contract(DecisionContractError),
     /// Rows are not paired joint realizations, so cross-quantity integration and
     /// state-by-state comparison are invalid.
-    JointLawRequired,
+    JointLawRequired {
+        /// First action whose utility reads more than one input, when there is one.
+        action: Option<String>,
+        /// Alignment the source supplied, as its wire name.
+        supplied_alignment: &'static str,
+    },
     /// An action input has no matching coordinate in the source.
     QuantityNotFound {
         /// Action whose input is missing.
@@ -75,7 +80,7 @@ impl DecisionEvalError {
             | Self::MeanSourceInsufficient { .. } => {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
-            Self::JointLawRequired => antecedent_core::reason_code!("joint_law_required"),
+            Self::JointLawRequired { .. } => antecedent_core::reason_code!("joint_law_required"),
             Self::QuantityNotFound { .. } | Self::UnsupportedCoordinate { .. } => {
                 antecedent_core::reason_code!("quantity_semantics_mismatch")
             }
@@ -86,43 +91,6 @@ impl DecisionEvalError {
                 antecedent_core::reason_code!("route_not_supported")
             }
         }
-    }
-}
-
-/// A structured, coded view of a refusal for host languages.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EvalRefusal {
-    /// Registered runtime reason code.
-    pub code: &'static str,
-    /// Namespaced `family.slot` detail.
-    pub detail: &'static str,
-    /// Offending action input (`action[input]`) when there is one.
-    pub offending: Option<String>,
-}
-
-impl DecisionEvalError {
-    /// Coded, structured form of this refusal.
-    #[must_use]
-    pub fn refusal(&self) -> EvalRefusal {
-        let (detail, offending) = match self {
-            Self::Contract(_) => ("decision.contract_invalid", None),
-            Self::JointLawRequired => ("decision.joint_law_required", None),
-            Self::QuantityNotFound { action, input } => {
-                ("decision.quantity_not_found", Some(format!("{action}[{input}]")))
-            }
-            Self::UnsupportedCoordinate { action, input } => {
-                ("decision.unsupported_coordinate", Some(format!("{action}[{input}]")))
-            }
-            Self::MeaningMismatch { action, input } => {
-                ("decision.distribution_meaning", Some(format!("{action}[{input}]")))
-            }
-            Self::StructureInputsRequired(_) => ("decision.structure_inputs_required", None),
-            Self::NonFiniteUtility { action } => {
-                ("decision.non_finite_utility", Some(action.clone()))
-            }
-            Self::MeanSourceInsufficient { .. } => ("decision.mean_source_insufficient", None),
-        };
-        EvalRefusal { code: self.reason_code(), detail, offending }
     }
 }
 
@@ -240,8 +208,19 @@ fn build_table(
     contract: &DecisionContract,
     source: &DistributionArtifact,
 ) -> Result<Table, DecisionEvalError> {
-    if source.metadata().identity.alignment != DrawAlignment::Joint {
-        return Err(DecisionEvalError::JointLawRequired);
+    let alignment = source.metadata().identity.alignment;
+    if alignment != DrawAlignment::Joint {
+        return Err(DecisionEvalError::JointLawRequired {
+            action: contract
+                .actions
+                .iter()
+                .find(|a| a.utility.inputs_used().len() > 1)
+                .map(|a| a.id.clone()),
+            supplied_alignment: match alignment {
+                DrawAlignment::Joint => "joint",
+                DrawAlignment::IndependentMarginals => "independent_marginals",
+            },
+        });
     }
     let meaning = antecedent_core::DistributionMeaning::from(source.semantic());
     let [n_draws, width] = source.shape();
