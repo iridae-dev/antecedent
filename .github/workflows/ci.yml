@@ -330,16 +330,16 @@ jobs:
           tool: nextest
 
       - name: Install uv
-        if: matrix.section != 'benches' && matrix.section != 'transport-contracts' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Sync Python dependencies
-        if: matrix.section != 'benches' && matrix.section != 'transport-contracts' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         run: uv sync --group dev --no-install-project
 
       - name: Build native extension
-        if: matrix.section != 'benches' && matrix.section != 'transport-contracts' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         # A cold compiler-cache backend made this dev-profile build take 8-9m;
         # use Cargo's incremental build here, then cache test compilations.
