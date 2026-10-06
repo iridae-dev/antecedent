@@ -453,6 +453,225 @@ impl ExternalScientificObject {
     }
 }
 
+/// Independent numerical or structural check applied to one provider object.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum VerificationProbeKind {
+    /// Declared dimensions or axis count against an independent expectation.
+    Shape,
+    /// Total mass, CDF limit or factor sum against one.
+    Normalization,
+    /// Mean or covariance entry against known truth.
+    Moments,
+    /// Value at a point with an independently known answer.
+    KnownTruth,
+    /// Two draws or evaluations at one seed must agree.
+    SeededBehavior,
+    /// Declared support or bound respected at boundary probes.
+    Support,
+    /// Posterior update agrees with an independently computed update.
+    UpdateCoherence,
+    /// Declared utility monotonicity holds on probed inputs.
+    Monotonicity,
+}
+
+/// One observed value compared with an independent expected value.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VerificationProbe {
+    /// Property exercised.
+    pub kind: VerificationProbeKind,
+    /// Value returned by the provider.
+    pub observed: f64,
+    /// Independent expected value.
+    pub expected: f64,
+    /// Predeclared absolute tolerance.
+    pub tolerance: f64,
+}
+
+/// Object verification could not be completed or did not pass.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ExternalVerificationError {
+    /// The object declaration itself is invalid.
+    Contract(ExternalContractError),
+    /// A probe has a non-finite value or a negative or non-finite tolerance.
+    InvalidProbe(VerificationProbeKind),
+    /// One property was supplied more than once.
+    DuplicateProbe(VerificationProbeKind),
+    /// A property required for this object kind and capabilities is absent.
+    MissingProbe(VerificationProbeKind),
+    /// A probe differed from its expected value by more than its tolerance.
+    FailedProbe(VerificationProbeKind),
+}
+
+/// Evidence that one complete contract passed its required probes.
+///
+/// It covers only an object equal in every declared field, including the
+/// exact request; any other contract needs its own verification.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ObjectVerificationReceipt {
+    contract: ExternalScientificObject,
+    probes: Vec<VerificationProbe>,
+}
+
+impl ObjectVerificationReceipt {
+    /// Contract that was verified.
+    #[must_use]
+    pub fn contract(&self) -> &ExternalScientificObject {
+        &self.contract
+    }
+
+    /// Probes that passed.
+    #[must_use]
+    pub fn probes(&self) -> &[VerificationProbe] {
+        &self.probes
+    }
+
+    /// Whether this receipt covers exactly the supplied contract.
+    #[must_use]
+    pub fn covers(&self, object: &ExternalScientificObject) -> bool {
+        &self.contract == object
+    }
+}
+
+/// Trust held by a supplied scientific object.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExternalTrustState {
+    /// Implemented and licensed natively by Antecedent; never held by a provider.
+    NativeLicensed,
+    /// Supplier-asserted only; no numerical check was performed here.
+    ExternallyAttested {
+        /// Party making the assertion.
+        attestor: String,
+    },
+    /// The exact contract passed object-level verification.
+    ExactRequestVerified(Box<ObjectVerificationReceipt>),
+}
+
+impl ExternalTrustState {
+    /// Record a supplier assertion without any verification.
+    ///
+    /// # Errors
+    /// An invalid object or blank attestor refuses.
+    pub fn attest(
+        object: &ExternalScientificObject,
+        attestor: &str,
+    ) -> Result<Self, ExternalContractError> {
+        object.validate()?;
+        if !nonblank(attestor) {
+            return Err(ExternalContractError::InvalidIdentity);
+        }
+        Ok(Self::ExternallyAttested { attestor: attestor.to_owned() })
+    }
+
+    /// Whether this state licenses native Antecedent behavior; only
+    /// `NativeLicensed` does, so a verified extension never does.
+    #[must_use]
+    pub const fn is_native_licensed(&self) -> bool {
+        matches!(self, Self::NativeLicensed)
+    }
+
+    /// Whether this state is exact-request verification of `object`.
+    #[must_use]
+    pub fn verifies(&self, object: &ExternalScientificObject) -> bool {
+        matches!(self, Self::ExactRequestVerified(receipt) if receipt.covers(object))
+    }
+}
+
+fn required_probes(object: &ExternalScientificObject) -> Vec<VerificationProbeKind> {
+    use VerificationProbeKind as P;
+    let has = |op| object.capabilities().contains(&op);
+    let mut required = vec![P::KnownTruth];
+    match object {
+        ExternalScientificObject::Law(_) => {
+            required.extend([P::Shape, P::Support]);
+            if has(ExternalCapability::Cdf)
+                || has(ExternalCapability::Quantile)
+                || has(ExternalCapability::LogProbability)
+            {
+                required.push(P::Normalization);
+            }
+            if has(ExternalCapability::Mean) || has(ExternalCapability::Covariance) {
+                required.push(P::Moments);
+            }
+            if has(ExternalCapability::Sample) {
+                required.push(P::SeededBehavior);
+            }
+        }
+        ExternalScientificObject::Posterior(_) => {
+            required.extend([P::Shape, P::Support]);
+            if has(ExternalCapability::Mean) || has(ExternalCapability::Covariance) {
+                required.push(P::Moments);
+            }
+            if has(ExternalCapability::Sample) {
+                required.push(P::SeededBehavior);
+            }
+        }
+        ExternalScientificObject::Signal(_) => {
+            required.push(P::UpdateCoherence);
+            if has(ExternalCapability::Factor) {
+                required.push(P::Normalization);
+            }
+            if has(ExternalCapability::Sample) {
+                required.push(P::SeededBehavior);
+            }
+        }
+        ExternalScientificObject::Evidence(_) => {
+            required.extend([P::Normalization, P::Support]);
+        }
+        ExternalScientificObject::Utility(value) => {
+            if value.bounds.is_some() {
+                required.push(P::Support);
+            }
+            if value.monotonicity.iter().any(|m| *m != UtilityMonotonicity::Unspecified) {
+                required.push(P::Monotonicity);
+            }
+            if value.stochastic {
+                required.push(P::SeededBehavior);
+            }
+        }
+    }
+    required
+}
+
+/// Verify one complete provider contract against independent probe values.
+///
+/// Every property required by the object kind and declared capabilities must
+/// be present once and within its predeclared tolerance. Extra probes of
+/// other kinds are accepted only if they also pass.
+///
+/// # Errors
+/// An invalid contract, ill-formed or duplicate probe, a missing required
+/// property or any out-of-tolerance probe refuses.
+pub fn verify_external_object(
+    object: &ExternalScientificObject,
+    probes: &[VerificationProbe],
+) -> Result<ObjectVerificationReceipt, ExternalVerificationError> {
+    object.validate().map_err(ExternalVerificationError::Contract)?;
+    let mut seen = HashSet::new();
+    for probe in probes {
+        if !probe.observed.is_finite()
+            || !probe.expected.is_finite()
+            || !probe.tolerance.is_finite()
+            || probe.tolerance < 0.0
+        {
+            return Err(ExternalVerificationError::InvalidProbe(probe.kind));
+        }
+        if !seen.insert(probe.kind) {
+            return Err(ExternalVerificationError::DuplicateProbe(probe.kind));
+        }
+    }
+    for kind in required_probes(object) {
+        if !seen.contains(&kind) {
+            return Err(ExternalVerificationError::MissingProbe(kind));
+        }
+    }
+    if let Some(bad) =
+        probes.iter().find(|probe| (probe.observed - probe.expected).abs() > probe.tolerance)
+    {
+        return Err(ExternalVerificationError::FailedProbe(bad.kind));
+    }
+    Ok(ObjectVerificationReceipt { contract: object.clone(), probes: probes.to_vec() })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -521,9 +740,9 @@ mod tests {
         assert_eq!(
             negotiated.invoke(|| {
                 called.set(true);
-                0.25
+                0.25_f64.to_bits()
             }),
-            0.25
+            0.25_f64.to_bits()
         );
         assert!(called.get());
     }
@@ -575,5 +794,132 @@ mod tests {
             value.action_ids[1] = value.action_ids[0].clone();
         }
         assert_eq!(bad.validate(), Err(ExternalContractError::DuplicateDeclaration));
+    }
+
+    fn probe(kind: VerificationProbeKind, observed: f64) -> VerificationProbe {
+        VerificationProbe { kind, observed, expected: 1.0, tolerance: 1e-9 }
+    }
+
+    fn mean_law() -> ExternalScientificObject {
+        ExternalScientificObject::Law(LawProviderContract {
+            identity: identity(),
+            quantities: vec![quantity(QuantityRole::Outcome)],
+            meaning: DistributionMeaning::InterventionalPredictive,
+            capabilities: vec![
+                ExternalCapability::Sample,
+                ExternalCapability::Mean,
+                ExternalCapability::Cdf,
+            ],
+        })
+    }
+
+    fn all_probes(observed: f64) -> Vec<VerificationProbe> {
+        use VerificationProbeKind as P;
+        [P::Shape, P::Support, P::Normalization, P::Moments, P::SeededBehavior, P::KnownTruth]
+            .into_iter()
+            .map(|kind| probe(kind, observed))
+            .collect()
+    }
+
+    #[test]
+    fn verification_requires_every_capability_property_and_values() {
+        let law = mean_law();
+        let receipt = verify_external_object(&law, &all_probes(1.0)).unwrap();
+        assert!(receipt.covers(&law));
+        let mut missing = all_probes(1.0);
+        missing.retain(|p| p.kind != VerificationProbeKind::Moments);
+        assert_eq!(
+            verify_external_object(&law, &missing),
+            Err(ExternalVerificationError::MissingProbe(VerificationProbeKind::Moments))
+        );
+        let mut wrong = all_probes(1.0);
+        wrong[2].observed = 1.01;
+        assert_eq!(
+            verify_external_object(&law, &wrong),
+            Err(ExternalVerificationError::FailedProbe(VerificationProbeKind::Normalization))
+        );
+        let mut duplicate = all_probes(1.0);
+        duplicate.push(probe(VerificationProbeKind::Shape, 1.0));
+        assert_eq!(
+            verify_external_object(&law, &duplicate),
+            Err(ExternalVerificationError::DuplicateProbe(VerificationProbeKind::Shape))
+        );
+        let mut nan = all_probes(1.0);
+        nan[0].observed = f64::NAN;
+        assert_eq!(
+            verify_external_object(&law, &nan),
+            Err(ExternalVerificationError::InvalidProbe(VerificationProbeKind::Shape))
+        );
+    }
+
+    #[test]
+    fn verification_covers_only_the_exact_contract_and_is_not_native() {
+        let law = mean_law();
+        let state = ExternalTrustState::ExactRequestVerified(Box::new(
+            verify_external_object(&law, &all_probes(1.0)).unwrap(),
+        ));
+        assert!(state.verifies(&law));
+        assert!(!state.is_native_licensed());
+        let mut other_request = law.clone();
+        if let ExternalScientificObject::Law(value) = &mut other_request {
+            value.identity.request_id = "exact-request-2".into();
+        }
+        assert!(!state.verifies(&other_request));
+        let mut other_capabilities = law.clone();
+        if let ExternalScientificObject::Law(value) = &mut other_capabilities {
+            value.capabilities.push(ExternalCapability::Quantile);
+        }
+        assert!(!state.verifies(&other_capabilities));
+
+        let attested = ExternalTrustState::attest(&law, "outside-lab").unwrap();
+        assert!(!attested.verifies(&law));
+        assert!(!attested.is_native_licensed());
+        assert_eq!(
+            ExternalTrustState::attest(&law, " "),
+            Err(ExternalContractError::InvalidIdentity)
+        );
+        assert!(ExternalTrustState::NativeLicensed.is_native_licensed());
+    }
+
+    #[test]
+    fn each_object_kind_has_its_own_required_properties() {
+        use VerificationProbeKind as P;
+        let utility = ExternalScientificObject::Utility(UtilityProviderContract {
+            identity: identity(),
+            inputs: vec![quantity(QuantityRole::Outcome)],
+            output: quantity(QuantityRole::Utility),
+            action_ids: vec!["a".into()],
+            stochastic: true,
+            bounds: Some((0.0, 1.0)),
+            monotonicity: vec![UtilityMonotonicity::Nondecreasing],
+            capabilities: vec![ExternalCapability::EvaluateUtility, ExternalCapability::Sample],
+        });
+        let kinds = [P::KnownTruth, P::Support, P::Monotonicity];
+        let partial: Vec<_> = kinds.into_iter().map(|k| probe(k, 1.0)).collect();
+        assert_eq!(
+            verify_external_object(&utility, &partial),
+            Err(ExternalVerificationError::MissingProbe(P::SeededBehavior))
+        );
+        let evidence = ExternalScientificObject::Evidence(EvidenceProviderContract {
+            identity: identity(),
+            factor_id: "proof:z".into(),
+            kind: ExternalEvidenceKind::Exact,
+            quantities: vec![quantity(QuantityRole::Covariate)],
+            capabilities: vec![ExternalCapability::Factor],
+        });
+        assert_eq!(
+            verify_external_object(&evidence, &[probe(P::KnownTruth, 1.0)]),
+            Err(ExternalVerificationError::MissingProbe(P::Normalization))
+        );
+        let signal = ExternalScientificObject::Signal(SignalProviderContract {
+            identity: identity(),
+            candidate_id: "study-1".into(),
+            prior_id: "prior-1".into(),
+            observation: quantity(QuantityRole::Outcome),
+            capabilities: vec![ExternalCapability::Factor, ExternalCapability::Update],
+        });
+        let probes =
+            [P::KnownTruth, P::Normalization, P::UpdateCoherence].map(|kind| probe(kind, 1.0));
+        assert!(verify_external_object(&signal, &probes).is_ok());
     }
 }

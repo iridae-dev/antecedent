@@ -25,7 +25,17 @@ available only after that check. This direct route refuses a missing CDF even
 when sampling exists. Sampling approximations remain closed until a separate
 method and numerical-error/replicate receipt are licensed.
 
-These are declarations only. Object-level numerical verification,
-identification-to-result binding, trust receipts, and an executable provider
-lifecycle have separate 2.3 gates. A declaration or provider label alone
+`ExternalTrustState` keeps `NativeLicensed`, `ExternallyAttested` and
+`ExactRequestVerified` apart; a verified extension is never native.
+`verify_external_object` takes independent probe values (shape, normalization,
+moments, known truth, seeded behavior, support, update coherence,
+monotonicity). Required properties depend on the object kind and declared
+capabilities; each must be present once and within its predeclared tolerance.
+The receipt stores the complete contract, so it covers only an equal contract:
+a different request, snapshot, version or capability set needs its own check.
+Probe values are supplied by the caller, who must compute them independently;
+this layer does not invoke providers.
+
+Identification-to-result binding and an executable provider lifecycle have
+separate 2.3 gates. A declaration or provider label alone
 does not certify a causal or inferential claim.

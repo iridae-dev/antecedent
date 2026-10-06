@@ -91,9 +91,11 @@ pub use execution::{
 };
 pub use external::{
     EvidenceProviderContract, ExternalCapability, ExternalCapabilityRequest, ExternalContractError,
-    ExternalEvidenceKind, ExternalPosteriorKind, ExternalScientificObject, LawProviderContract,
-    NegotiatedExternalOperation, PosteriorProviderContract, ProviderObjectIdentity,
-    SignalProviderContract, UtilityMonotonicity, UtilityProviderContract,
+    ExternalEvidenceKind, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
+    ExternalVerificationError, LawProviderContract, NegotiatedExternalOperation,
+    ObjectVerificationReceipt, PosteriorProviderContract, ProviderObjectIdentity,
+    SignalProviderContract, UtilityMonotonicity, UtilityProviderContract, VerificationProbe,
+    VerificationProbeKind, verify_external_object,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{
