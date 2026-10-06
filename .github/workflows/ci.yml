@@ -295,7 +295,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion, matrix, transport-contracts, checked, feature-core, feature-composition, feature-exits, benches]
+        section: [inventory, promotion-python, promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, matrix, transport-contracts, checked, feature-core, feature-composition, feature-exits, benches]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -324,22 +324,22 @@ jobs:
         run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
 
       - name: Install cargo-nextest for cited promotion tests
-        if: matrix.section == 'promotion'
+        if: startsWith(matrix.section, 'promotion-') && matrix.section != 'promotion-python'
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: nextest
 
       - name: Install uv
-        if: matrix.section != 'benches'
+        if: matrix.section != 'benches' && matrix.section != 'transport-contracts' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Sync Python dependencies
-        if: matrix.section != 'benches'
+        if: matrix.section != 'benches' && matrix.section != 'transport-contracts' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         run: uv sync --group dev --no-install-project
 
       - name: Build native extension
-        if: matrix.section != 'benches'
+        if: matrix.section != 'benches' && matrix.section != 'transport-contracts' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         # A cold compiler-cache backend made this dev-profile build take 8-9m;
         # use Cargo's incremental build here, then cache test compilations.
@@ -558,5 +558,7 @@ jobs:
       - name: Attest wheel build provenance
         if: github.event_name == 'push'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: python/dist/*.whl
         with:
           subject-path: python/dist/*.whl

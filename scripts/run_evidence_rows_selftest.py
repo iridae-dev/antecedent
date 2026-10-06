@@ -23,7 +23,10 @@ if '--list' in args:
     if '--ignored' in args and os.environ.get('IGNORED') == '1': print('evidence_test: test')
 elif 'nextest' in args:
     count = 0 if os.environ.get('EMPTY') == '1' else 1
-    print(f'Summary 1 test run: {count} passed, {1-count} skipped')
+    if os.environ.get('COLOR') == '1':
+        print(f'\x1b[32;1mSummary\x1b[0m \x1b[1m1\x1b[0m test run: \x1b[1m{count}\x1b[0m \x1b[32;1mpassed\x1b[0m')
+    else:
+        print(f'Summary 1 test run: {count} passed, {1-count} skipped')
 """)
     cargo.chmod(0o755)
     (bin_dir / "cargo-nextest").write_text("#!/bin/sh\nexit 0\n")
@@ -53,6 +56,9 @@ evidence_assertion = "evidence_test"
     assert good.returncode == 0, good.stdout + good.stderr
     assert "ok: first" in good.stdout and "ok: second" in good.stdout
     assert sum("nextest run" in line for line in calls.read_text().splitlines()) == 1
+    colored = run(COLOR="1")
+    assert colored.returncode == 0, colored.stdout + colored.stderr
+    assert sum("--exact" in line for line in calls.read_text().splitlines()) == 0
     for setting, expected in (("IGNORED", "ignored"), ("MISSING", "no test"),
                               ("EMPTY", "passed=0")):
         bad = run(**{setting: "1"})

@@ -34,10 +34,31 @@ if [[ "${1:-}" == "--mutation-check" ]]; then
   exit $?
 fi
 
+group=all
+if [[ "${1:-}" == "--evidence-group" && $# -eq 2 ]]; then
+  group="$2"
+elif [[ $# -ne 0 ]]; then
+  echo "usage: $0 [--self-test|--mutation-check|--evidence-group GROUP]" >&2
+  exit 2
+fi
+
 echo "== 2.2 promotion records =="
 EVIDENCE="$(mktemp)"
-trap 'rm -f "$EVIDENCE"' EXIT
-python3 scripts/check_promotion_records.py --emit-evidence "$EVIDENCE"
+SELECTED="$(mktemp)"
+EMITTED="$EVIDENCE"
+trap 'rm -f "$EMITTED" "$SELECTED"' EXIT
+if [[ "$group" == all || "$group" == python ]]; then
+  python3 scripts/check_promotion_records.py --emit-evidence "$EVIDENCE"
+else
+  # The required Python group performs full Cargo/Pytest collection checks.
+  # Rust groups independently validate the registry and execute their exact
+  # cited assertions without paying for the native Python extension.
+  PROMOTION_STATIC_ONLY=1 python3 scripts/check_promotion_records.py --emit-evidence "$EVIDENCE"
+fi
+if [[ "$group" != all ]]; then
+  python3 scripts/partition_promotion_evidence.py "$EVIDENCE" "$SELECTED" "$group"
+  EVIDENCE="$SELECTED"
+fi
 
 # Cited fixtures and closed-route refusal tests are executed, not just resolved.
 # Frozen records cite nothing yet, so there may be nothing to run.

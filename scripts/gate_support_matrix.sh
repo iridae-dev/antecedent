@@ -23,8 +23,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   exec python3 "$ROOT/scripts/test_evidence_selftest.py"
 fi
 mode="${1:-all}"
-case "$mode" in all|--core-only|--transport-only) ;; *)
-  echo "usage: $0 [--self-test|--core-only|--transport-only]" >&2; exit 2 ;;
+case "$mode" in all|--core-only|--graphless-only|--matrix-only|--transport-only) ;; *)
+  echo "usage: $0 [--self-test|--core-only|--graphless-only|--matrix-only|--transport-only]" >&2; exit 2 ;;
 esac
 
 if [[ "$mode" == --transport-only ]]; then
@@ -34,7 +34,12 @@ if [[ "$mode" == --transport-only ]]; then
   exit
 fi
 
-bash scripts/gate_graphless_support.sh
+if [[ "$mode" != --matrix-only ]]; then
+  bash scripts/gate_graphless_support.sh
+fi
+if [[ "$mode" == --graphless-only ]]; then
+  exit
+fi
 
 python3 - <<'PY'
 from __future__ import annotations
@@ -663,7 +668,7 @@ print(
 )
 PY
 
-if [[ "$mode" == --core-only ]]; then
+if [[ "$mode" == --core-only || "$mode" == --matrix-only ]]; then
   exit
 fi
 echo "== transport stage contracts =="

@@ -30,18 +30,18 @@ section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--section inventory|promotion|support|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches]" >&2
+  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches]" >&2
   exit 2
 fi
-case "$section" in all|inventory|promotion|support|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches) ;; *)
+case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches) ;; *)
   echo "unknown release-gate section: $section" >&2; exit 2 ;;
 esac
 section_start() {
-  printf -v "section_since_$1" '%s' "$SECONDS"
+  printf -v "section_since_${1//-/_}" '%s' "$SECONDS"
   echo "== $1 started $(date -u +%FT%TZ) =="
 }
 section_end() {
-  local since="section_since_$1"
+  local since="section_since_${1//-/_}"
   echo "== $1 finished in $((SECONDS - ${!since}))s =="
 }
 
@@ -79,10 +79,23 @@ bash scripts/gate_promotion.sh
 section_end promotion
 fi
 
+if [[ "$section" == promotion-* ]]; then
+section_start "$section"
+bash scripts/gate_promotion.sh --evidence-group "${section#promotion-}"
+section_end "$section"
+fi
+
+if [[ "$section" == all || "$section" == support || "$section" == graphless ]]; then
+section_start graphless
+echo "== graphless support evidence =="
+bash scripts/gate_support_matrix.sh --graphless-only
+section_end graphless
+fi
+
 if [[ "$section" == all || "$section" == support || "$section" == matrix ]]; then
 section_start matrix
 echo "== public support matrix =="
-bash scripts/gate_support_matrix.sh --core-only
+bash scripts/gate_support_matrix.sh --matrix-only
 section_end matrix
 fi
 
