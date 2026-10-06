@@ -180,6 +180,23 @@ pub(super) fn support_report(
             "at least one row hit the conditional treatment-density floor; the doubly robust weight for those rows is bounded by the floor, not estimated from data",
         ));
     }
+    // One label per requested coordinate; `status` above is their worst value.
+    let point_status = (points.len() == ess.len() && !points.is_empty()).then(|| {
+        let labels: Vec<SupportStatus> = points
+            .iter()
+            .zip(ess)
+            .map(|(point, local_ess)| {
+                if *point < minimum || *point > maximum {
+                    SupportStatus::OutsideEmpiricalSupport
+                } else if *local_ess < minimum_ess || clamped {
+                    SupportStatus::WeakOverlap
+                } else {
+                    SupportStatus::Supported
+                }
+            })
+            .collect();
+        Arc::from(labels)
+    });
     SupportReport {
         status,
         query_region: SupportRegion {
@@ -206,7 +223,7 @@ pub(super) fn support_report(
             },
         ],
         warnings,
-        point_status: None,
+        point_status,
     }
 }
 
@@ -225,12 +242,10 @@ pub(super) fn multivariate_support(
         maxima.push(hi);
         outside |= point < lo || point > hi;
     }
+    let status =
+        if outside { SupportStatus::OutsideEmpiricalSupport } else { SupportStatus::Extrapolative };
     SupportReport {
-        status: if outside {
-            SupportStatus::OutsideEmpiricalSupport
-        } else {
-            SupportStatus::Extrapolative
-        },
+        status,
         query_region: SupportRegion {
             minima: Arc::from(at.to_vec()),
             maxima: Arc::from(at.to_vec()),
@@ -242,7 +257,8 @@ pub(super) fn multivariate_support(
                 "per-treatment minima followed by maxima; joint support is not established",
             ),
         }],
-        point_status: None,
+        // The single requested joint coordinate carries the whole summary.
+        point_status: Some(Arc::from([status])),
         warnings: {
             let mut warnings = vec![Diagnostic::new(
                 "response.plugin_jacobian_model_dependent",
@@ -264,5 +280,32 @@ pub(super) fn multivariate_support(
             }
             warnings
         },
+    }
+}
+
+#[cfg(test)]
+mod point_status_tests {
+    use super::*;
+
+    #[test]
+    fn static_curve_labels_each_coordinate_and_summarizes_to_the_worst() {
+        let observed = [0.0, 1.0, 2.0, 3.0];
+        let report =
+            support_report(&[1.0, 2.0, 9.0], &observed, &[50.0, 2.0, 50.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            report.point_status.as_deref(),
+            Some(
+                &[
+                    SupportStatus::Supported,
+                    SupportStatus::WeakOverlap,
+                    SupportStatus::OutsideEmpiricalSupport
+                ][..]
+            )
+        );
+        let worst = report.point_status.as_ref().unwrap().iter().max_by_key(|s| s.severity());
+        assert_eq!(worst.copied(), Some(report.status));
+        let floored = support_report(&[1.0], &observed, &[50.0], vec![0.1], 10.0, 3);
+        assert_eq!(floored.point_status.as_deref(), Some(&[SupportStatus::WeakOverlap][..]));
+        assert_eq!(floored.status, SupportStatus::WeakOverlap);
     }
 }

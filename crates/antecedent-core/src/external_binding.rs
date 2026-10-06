@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use crate::{
     DistributionMeaning, ExternalContractError, ExternalPosteriorKind, ExternalScientificObject,
     ExternalTrustState, IdentificationStatus, ProviderObjectIdentity, QuantityMismatch,
-    ScientificQuantity,
+    ScientificQuantity, SupportStatus,
 };
 
 /// Regime identity of an unintervened conditional law.
@@ -83,6 +83,10 @@ pub struct ExternalResponse {
     pub values: Vec<f64>,
     /// Uncertainty meaning.
     pub uncertainty: ExternalUncertaintyMeaning,
+    /// Provider-declared support per coordinate, in coordinate order. Absent
+    /// means support was not assessed, so every coordinate is
+    /// `MissingEvidence`, never `Supported`.
+    pub point_support: Option<Vec<SupportStatus>>,
 }
 
 /// A supplied outcome or functional law.
@@ -164,6 +168,7 @@ pub struct BoundExternalClaim {
     identification: IdentificationStatus,
     quantities: Vec<ScientificQuantity>,
     values: Option<Vec<f64>>,
+    point_status: Option<Vec<SupportStatus>>,
     meaning: Option<DistributionMeaning>,
     uncertainty: ExternalUncertaintyMeaning,
     execution: ProviderObjectIdentity,
@@ -193,6 +198,17 @@ impl BoundExternalClaim {
     #[must_use]
     pub fn values(&self) -> Option<&[f64]> {
         self.values.as_deref()
+    }
+    /// Per-coordinate support of a response grid; `MissingEvidence` where the
+    /// provider declared none. Absent for laws and posteriors.
+    #[must_use]
+    pub fn point_status(&self) -> Option<&[SupportStatus]> {
+        self.point_status.as_deref()
+    }
+    /// Worst per-coordinate support, matching `SupportReport::status`.
+    #[must_use]
+    pub fn support_status(&self) -> Option<SupportStatus> {
+        self.point_status.as_ref()?.iter().copied().max_by_key(|status| status.severity())
     }
     /// Distribution meaning, when this is a law.
     #[must_use]
@@ -340,8 +356,13 @@ pub fn bind_external_result(
     if header.graph_id != contract.graph_id {
         return Err(E::GraphMismatch);
     }
+    let declared_support = match result {
+        ExternalResult::Response(r) => r.point_support.as_ref(),
+        _ => None,
+    };
     if header.quantities.len() != contract.estimand.len()
         || values.is_some_and(|v| v.len() != header.quantities.len())
+        || declared_support.is_some_and(|p| p.len() != header.quantities.len())
     {
         return Err(E::DimensionMismatch);
     }
@@ -373,6 +394,11 @@ pub fn bind_external_result(
         identification: contract.identification,
         quantities: contract.estimand.clone(),
         values: values.cloned(),
+        point_status: values.map(|v| {
+            declared_support
+                .cloned()
+                .unwrap_or_else(|| vec![SupportStatus::MissingEvidence; v.len()])
+        }),
         meaning,
         uncertainty,
         execution: header.object.identity().clone(),
@@ -447,6 +473,7 @@ mod tests {
             },
             values: vec![1.5, 2.5],
             uncertainty: ExternalUncertaintyMeaning::ProviderDeclared { method_id: "m".into() },
+            point_support: None,
         }
     }
 
@@ -460,6 +487,28 @@ mod tests {
         assert_eq!(claim.execution(), &identity());
         assert_eq!(claim.provenance_label(), "external:lab/curve@v3#snap-9");
         assert_eq!(claim.identification(), IdentificationStatus::NonparametricallyIdentified);
+        // Support not assessed by the provider is missing evidence, not support.
+        assert_eq!(claim.point_status(), Some(&[SupportStatus::MissingEvidence; 2][..]));
+        assert_eq!(claim.support_status(), Some(SupportStatus::MissingEvidence));
+    }
+
+    #[test]
+    fn declared_point_support_is_kept_per_coordinate() {
+        let mut r = response();
+        r.point_support =
+            Some(vec![SupportStatus::Supported, SupportStatus::OutsideEmpiricalSupport]);
+        let claim =
+            bind_external_result(&contract(), &ExternalResult::Response(r.clone())).unwrap();
+        assert_eq!(
+            claim.point_status(),
+            Some(&[SupportStatus::Supported, SupportStatus::OutsideEmpiricalSupport][..])
+        );
+        assert_eq!(claim.support_status(), Some(SupportStatus::OutsideEmpiricalSupport));
+        r.point_support = Some(vec![SupportStatus::Supported]);
+        assert_eq!(
+            bind_external_result(&contract(), &ExternalResult::Response(r)),
+            Err(ExternalBindingError::DimensionMismatch)
+        );
     }
 
     #[test]

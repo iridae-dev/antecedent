@@ -4,7 +4,7 @@ use antecedent_core::{
     CheckedCausalContract, DistributionMeaning, ExternalCapability, ExternalResponse,
     ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
     ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProviderObjectIdentity,
-    QuantityRole, ScientificQuantity, bind_external_result,
+    QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
 };
 use antecedent_io::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust,
@@ -39,6 +39,11 @@ fn expected_identity() -> ExternalClaimIdentity {
         snapshot_id: "snap-9".into(),
         request_id: "req-1".into(),
         trust: ExternalClaimTrust::ExternallyAttested,
+        point_status: vec![
+            "supported".into(),
+            "supported".into(),
+            "outside_empirical_support".into(),
+        ],
         uncertainty_method: None,
         evidence_ids: vec!["factor:z".into()],
         assumption_ids: vec!["ignorability".into()],
@@ -81,6 +86,11 @@ fn bound_artifact() -> ExternalClaimArtifact {
         // Closed form: E[Y | do(a)] = 1 + 2a.
         values: vec![1.0, 3.0, 5.0],
         uncertainty: ExternalUncertaintyMeaning::None,
+        point_support: Some(vec![
+            SupportStatus::Supported,
+            SupportStatus::Supported,
+            SupportStatus::OutsideEmpiricalSupport,
+        ]),
     };
     let claim = bind_external_result(&contract, &ExternalResult::Response(response)).unwrap();
     ExternalClaimArtifact::from_bound_claim(&claim, "checked-contract").unwrap()
@@ -103,7 +113,8 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
             edit(&mut meta.identity);
             ExternalClaimArtifact::new(meta, v.to_vec()).unwrap().to_bytes("claim").unwrap()
         };
-        let edits: [&dyn Fn(&mut ExternalClaimIdentity); 7] = [
+        let edits: [&dyn Fn(&mut ExternalClaimIdentity); 8] = [
+            &|i| i.point_status[2] = "supported".into(),
             &|i| i.snapshot_id = "other".into(),
             &|i| i.trust = ExternalClaimTrust::ExactRequestVerified,
             &|i| i.graph_id = "graph-2".into(),

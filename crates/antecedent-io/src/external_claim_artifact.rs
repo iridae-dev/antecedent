@@ -25,6 +25,8 @@ pub const MAX_EXTERNAL_CLAIM_COORDINATES: usize = 100_000;
 const ARTIFACT_KIND: &str = "external_response_claim_v1";
 const META_SECTION: &str = "external_claim.meta";
 const VALUES_SECTION: &str = "external_claim.values";
+const LABELS: [&str; 5] =
+    ["supported", "weak_overlap", "extrapolative", "outside_empirical_support", "missing_evidence"];
 
 /// Trust label preserved without upgrading it during load.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -69,6 +71,9 @@ pub struct ExternalClaimIdentity {
     pub request_id: String,
     /// Trust held by the provider object.
     pub trust: ExternalClaimTrust,
+    /// Support label per coordinate (`SupportStatus` names); `missing_evidence`
+    /// where the provider declared none.
+    pub point_status: Vec<String>,
     /// Provider-declared uncertainty method; absent means no uncertainty claim.
     pub uncertainty_method: Option<String>,
     /// Evidence factors used.
@@ -103,6 +108,12 @@ impl ExternalClaimIdentity {
             snapshot_id: execution.snapshot_id.clone(),
             request_id: execution.request_id.clone(),
             trust: claim.trust().into(),
+            point_status: claim
+                .point_status()
+                .unwrap_or_default()
+                .iter()
+                .map(|status| status.as_str().to_owned())
+                .collect(),
             uncertainty_method: match claim.uncertainty() {
                 ExternalUncertaintyMeaning::None => None,
                 ExternalUncertaintyMeaning::ProviderDeclared { method_id } => {
@@ -124,6 +135,11 @@ impl ExternalClaimIdentity {
         for quantity in &self.quantities {
             ScientificQuantity::try_from(quantity.clone())
                 .map_err(|error| IoError::Convert(error.into()))?;
+        }
+        if self.point_status.len() != self.quantities.len()
+            || self.point_status.iter().any(|label| !LABELS.contains(&label.as_str()))
+        {
+            return Err(IoError::Convert("invalid external claim support labels".into()));
         }
         if [
             &self.causal_contract_id,

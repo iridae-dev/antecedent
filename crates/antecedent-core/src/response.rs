@@ -98,9 +98,11 @@ pub struct SupportReport {
     pub diagnostics: Vec<SupportDiagnostic>,
     /// Non-fatal warnings.
     pub warnings: Vec<Diagnostic>,
-    /// Per-cell status on a temporal surface, dose-major like the mean:
-    /// `point_status[d * n_horizons + h]`. Intervention paths have length
-    /// `n_horizons`. `None` on static curves.
+    /// Per-coordinate status. Static curves, joint interventions and external
+    /// response grids have one label per requested coordinate; a temporal
+    /// surface is dose-major like the mean: `point_status[d * n_horizons + h]`,
+    /// and intervention paths have length `n_horizons`. `status` is the summary
+    /// of these labels; `None` only where no finite grid was assessed.
     pub point_status: Option<Arc<[SupportStatus]>>,
 }
 
