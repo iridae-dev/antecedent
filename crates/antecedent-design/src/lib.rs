@@ -24,6 +24,7 @@ pub mod candidate;
 pub mod decision;
 pub mod decision_contract;
 pub mod decision_eval;
+pub mod decision_structural;
 pub mod error;
 pub mod objective;
 mod plan_common;

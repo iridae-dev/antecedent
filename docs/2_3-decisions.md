@@ -79,3 +79,30 @@ indistinguishable when noise covers the gap.
 
 Not yet in the result: structural and support robustness, decision uncertainty
 beyond the standard error, graph-dependent choice and the artifacts.
+
+## Structural uncertainty
+
+`decision_structural::evaluate_structural(contract, atoms)` evaluates the
+contract in each structure (a graph, completion or supplied scenario) and
+combines the structures under the contract's `StructuralPolicy`:
+
+- `RequireInvariantBestAction` names an action only when it is uniquely best in
+  every structure, otherwise `NoInvariantBest` lists each structure's leader.
+- `Maximin`, and the `MaximinOverStructures` criterion, choose the best worst
+  case. `MinimaxOverIdentifiedSet` reads the contract's utilities as losses and
+  chooses the smallest worst-case expected loss; the two can differ.
+- `BayesOverStructures` weights by supplied structure probabilities and refuses
+  without them (`ProbabilitiesRequired`): completion counts are not
+  probabilities.
+- `ReportOnly` returns each structure's answer without choosing.
+
+An atom is `Evaluated`, `Unidentified` or `Unevaluated` (with the registered
+reason code when its evidence could not answer the contract). Unidentified and
+unevaluated mass is reported beside the evaluated mass and is never
+renormalized away: a Bayes choice states the evaluated mass it rests on, and a
+worst case or invariance claim that needs every structure returns
+`InsufficientScience` when one is unresolved. A hard constraint that fails in
+any structure excludes the action, and when every action is excluded the verdict
+is `NoAdmissibleAction`. Per action the result keeps the criterion value in
+each structure, its range, the probability-weighted value, the mass where it
+leads and the structures that excluded it.
