@@ -39,6 +39,7 @@ pub mod claim;
 pub mod diagnostic;
 pub mod error;
 pub mod execution;
+pub mod external;
 pub mod identification;
 pub mod identity;
 pub mod ids;
@@ -87,6 +88,12 @@ pub use execution::{
     ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
     MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
     StreamDomain, default_user_threads,
+};
+pub use external::{
+    EvidenceProviderContract, ExternalCapability, ExternalContractError, ExternalEvidenceKind,
+    ExternalPosteriorKind, ExternalScientificObject, LawProviderContract,
+    PosteriorProviderContract, ProviderObjectIdentity, SignalProviderContract, UtilityMonotonicity,
+    UtilityProviderContract,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{
