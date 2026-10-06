@@ -535,3 +535,782 @@ fixtures = [
   { id = "f19.positional_or_variance.negative", role = "negative", intent = "Reject reused or incomplete coefficient bindings, wrong distribution meaning, incompatible units and a changed residual variance.", evidence_test = "crates/antecedent/tests/mapped_posterior_transfer.rs", evidence_assertion = "incompatible_sources_and_mapping_refuse" },
   { id = "f19.mapped_replay.artifact", role = "artifact", intent = "A fresh consumer checks independent source identity, full covariance, named mapping, residual variance and snapshot before updating.", evidence_test = "crates/antecedent/tests/mapped_posterior_transfer.rs", evidence_assertion = "fresh_process_replays_mapped_prior" },
 ]
+
+[[record]]
+id = "2.3A.F2.external_scientific_providers"
+workstream = "F2"
+milestone = "A"
+work_package = "A0.3"
+status = "frozen"
+consumer_question = "Can typed external law and posterior provider contracts be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Mean 1/4 and seeded samples are admissible; arbitrary CDF and quantile requests refuse unless those capabilities are declared. An outcome posterior or missing CDF cannot masquerade as an interventional law. This record alone grants no causal or interval license."
+reference = "TODO.md A0.3; prerequisite feature records F15, F16"
+guarantee = "external_scientific_providers_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Law advertises sample and mean only for a Bernoulli(p=1/4) outcome under do(A=1)."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "typed external law and posterior provider contracts"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F15.joint_distribution_semantics", "2.3A.F16.distribution_meanings"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate external_provider_contract_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): Law/Posterior/Signal/Evidence/Utility kind; provider/object/version IDs; scientific quantities; operation capabilities; support; exact request fingerprint. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "external_scientific_providers.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "external_capability_missing", detail = "external_scientific_providers.wrong_contract", when = "An outcome posterior or missing CDF cannot masquerade as an interventional law." },
+]
+routes = [
+  { name = "antecedent.external.law_provider", stage = "prepare", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f2.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Mean 1/4 and seeded samples are admissible; arbitrary CDF and quantile requests refuse unless those capabilities are declared." },
+  { id = "f2.wrong_contract.negative", role = "negative", intent = "An outcome posterior or missing CDF cannot masquerade as an interventional law." },
+  { id = "f2.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains law kind, operation capabilities, exact request and provider identity." },
+]
+
+[[record]]
+id = "2.3A.F3.external_response_binding"
+workstream = "F3"
+milestone = "A"
+work_package = "A0.3"
+status = "frozen"
+consumer_question = "Can checked external result binding be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Bound risk difference is 1/2 under the exact graph, population, regime and snapshot identity. Observational P(Y|A), wrong graph, population or missing grid coordinate refuses. This record alone grants no causal or interval license."
+reference = "TODO.md A0.3; prerequisite feature records F2, F15"
+guarantee = "external_response_binding_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Identified binary do(A) query with supplied response grid P(Y=1|do(A=0))=1/4 and P(Y=1|do(A=1))=3/4."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "checked external result binding"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F2.external_scientific_providers", "2.3A.F15.joint_distribution_semantics"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate external_response_binding_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): causal contract digest; provider result ID; estimand and ordered quantity IDs; regime/population/graph/snapshot; support; meaning; trust. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "external_response_binding.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "external_binding_mismatch", detail = "external_response_binding.wrong_contract", when = "Observational P(Y|A), wrong graph, population or missing grid coordinate refuses." },
+]
+routes = [
+  { name = "antecedent.external.bind_response", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f3.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Bound risk difference is 1/2 under the exact graph, population, regime and snapshot identity." },
+  { id = "f3.wrong_contract.negative", role = "negative", intent = "Observational P(Y|A), wrong graph, population or missing grid coordinate refuses." },
+  { id = "f3.fresh_replay.artifact", role = "artifact", intent = "Fresh reader checks contract fingerprint, response coordinates and external execution receipt." },
+]
+
+[[record]]
+id = "2.3A.F20.provider_capability_negotiation"
+workstream = "F20"
+milestone = "A"
+work_package = "A0.3"
+status = "frozen"
+consumer_question = "Can provider capability negotiation be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Mean request accepts; threshold probability and quantile refuse unless an explicitly licensed sampling approximation includes replicate/error receipts. An absent capability cannot be inferred from another operation or provider label. This record alone grants no causal or interval license."
+reference = "TODO.md A0.3; prerequisite feature records F2, F16"
+guarantee = "provider_capability_negotiation_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Provider offers sample and mean but no CDF, quantile or intervention operation."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "provider capability negotiation"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F2.external_scientific_providers", "2.3A.F16.distribution_meanings"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate provider_capability_receipt_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): provider/object/version ID; exact request fingerprint; required/available operations; approximation method; numerical error and replicate receipt. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "provider_capability_negotiation.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "external_capability_missing", detail = "provider_capability_negotiation.wrong_contract", when = "An absent capability cannot be inferred from another operation or provider label." },
+]
+routes = [
+  { name = "antecedent.external.negotiate_capability", stage = "prepare", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f20.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Mean request accepts; threshold probability and quantile refuse unless an explicitly licensed sampling approximation includes replicate/error receipts." },
+  { id = "f20.wrong_contract.negative", role = "negative", intent = "An absent capability cannot be inferred from another operation or provider label." },
+  { id = "f20.fresh_replay.artifact", role = "artifact", intent = "Fresh reader checks exact operation set and request fingerprint." },
+]
+
+[[record]]
+id = "2.3A.F22.external_object_verification"
+workstream = "F22"
+milestone = "A"
+work_package = "A0.3"
+status = "frozen"
+consumer_question = "Can object-level exact-request verification be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Normalization is 1 and the supplied moments/CDF match enumeration at this exact fingerprint only. Wrong support, normalization, moments, seed behavior or a different request fingerprint refuses verification. This record alone grants no causal or interval license."
+reference = "TODO.md A0.3; prerequisite feature records F2, F20"
+guarantee = "external_object_verification_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Bernoulli law on {0,1} declares p=1/4, CDF(0)=3/4, mean=1/4 and seeded sampling."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "object-level exact-request verification"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F2.external_scientific_providers", "2.3A.F20.provider_capability_negotiation"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate external_object_verification_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): object kind and fingerprint; normalization/support/moment/seed/update checks; tested coordinate; expiry and verifier identity. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "external_object_verification.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "external_verification_failed", detail = "external_object_verification.wrong_contract", when = "Wrong support, normalization, moments, seed behavior or a different request fingerprint refuses verification." },
+]
+routes = [
+  { name = "antecedent.external.verify_object", stage = "evaluate", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f22.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Normalization is 1 and the supplied moments/CDF match enumeration at this exact fingerprint only." },
+  { id = "f22.wrong_contract.negative", role = "negative", intent = "Wrong support, normalization, moments, seed behavior or a different request fingerprint refuses verification." },
+  { id = "f22.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains checks, object kind, fingerprint and verified-extension trust scope." },
+]
+
+[[record]]
+id = "2.3A.F23.external_trust_receipt"
+workstream = "F23"
+milestone = "A"
+work_package = "A0.3"
+status = "frozen"
+consumer_question = "Can external trust and provenance boundary be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: R1 carries verified_extension; R2 remains external_attested, and neither becomes native_licensed. Reusing an R1 receipt after changed quantity, provider version or snapshot refuses. This record alone grants no causal or interval license."
+reference = "TODO.md A0.3; prerequisite feature records F3, F22"
+guarantee = "external_trust_receipt_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "One provider object is externally attested, then independently verified for fingerprint R1."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "external trust and provenance boundary"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F3.external_response_binding", "2.3A.F22.external_object_verification"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate external_trust_receipt_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): attested/verified/native tier; exact object/request/quantity/provider/snapshot digest; verifier; predecessor receipt. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "external_trust_receipt.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "external_binding_mismatch", detail = "external_trust_receipt.wrong_contract", when = "Reusing an R1 receipt after changed quantity, provider version or snapshot refuses." },
+]
+routes = [
+  { name = "antecedent.external.trust_receipt", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f23.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: R1 carries verified_extension; R2 remains external_attested, and neither becomes native_licensed." },
+  { id = "f23.wrong_contract.negative", role = "negative", intent = "Reusing an R1 receipt after changed quantity, provider version or snapshot refuses." },
+  { id = "f23.fresh_replay.artifact", role = "artifact", intent = "Fresh reader preserves exact trust tier and provenance chain without upgrade." },
+]
+
+[[record]]
+id = "2.3A.F8.coordinate_support"
+workstream = "F8"
+milestone = "A"
+work_package = "A0.4"
+status = "frozen"
+consumer_question = "Can finite coordinate support be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Only middle dose is excluded; summary status reports partial support and local ESS stays aligned to dose IDs. A missing evidence factor differs from zero overlap and cannot be relabeled as support failure. This record alone grants no causal or interval license."
+reference = "TODO.md A0.4; prerequisite feature records F15, F16"
+guarantee = "coordinate_support_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Three ordered doses have support flags [true,false,true] and local ESS [40,0,35]."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "finite coordinate support"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F15.joint_distribution_semantics", "2.3A.F16.distribution_meanings"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate coordinate_support_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): ordered semantic coordinate IDs; per-point status/reason; local ESS/propensity/evidence/overlap diagnostics; summary status. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "coordinate_support.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "quantity_semantics_mismatch", detail = "coordinate_support.wrong_contract", when = "A missing evidence factor differs from zero overlap and cannot be relabeled as support failure." },
+]
+routes = [
+  { name = "antecedent.support.coordinate_grid", stage = "evaluate", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f8.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Only middle dose is excluded; summary status reports partial support and local ESS stays aligned to dose IDs." },
+  { id = "f8.wrong_contract.negative", role = "negative", intent = "A missing evidence factor differs from zero overlap and cannot be relabeled as support failure." },
+  { id = "f8.fresh_replay.artifact", role = "artifact", intent = "Fresh reader preserves mask, ordered coordinate identities and per-point diagnostics." },
+]
+
+[[record]]
+id = "2.3A.F24.composition_provenance"
+workstream = "F24"
+milestone = "A"
+work_package = "A0.4"
+status = "frozen"
+consumer_question = "Can composition provenance chain be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Every score traces to contract, snapshot, provider, artifact, transform and decision IDs in order. A missing or changed predecessor digest refuses chain validation. This record alone grants no causal or interval license."
+reference = "TODO.md A0.4; prerequisite feature records F8, F23"
+guarantee = "composition_provenance_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "A response passes through one external provider, a joint distribution transform and a decision score."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "composition provenance chain"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F8.coordinate_support", "2.3A.F23.external_trust_receipt"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate composition_provenance_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): typed ordered predecessor digests from causal contract through data/provider/distribution/transform/decision/sensitivity/ranking. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "composition_provenance.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "external_binding_mismatch", detail = "composition_provenance.wrong_contract", when = "A missing or changed predecessor digest refuses chain validation." },
+]
+routes = [
+  { name = "antecedent.provenance.composition_chain", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f24.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Every score traces to contract, snapshot, provider, artifact, transform and decision IDs in order." },
+  { id = "f24.wrong_contract.negative", role = "negative", intent = "A missing or changed predecessor digest refuses chain validation." },
+  { id = "f24.fresh_replay.artifact", role = "artifact", intent = "Fresh reader reconstructs the exact lineage without trusting display labels." },
+]
+
+[[record]]
+id = "2.3A.F25.structured_refusals"
+workstream = "F25"
+milestone = "A"
+work_package = "A0.4"
+status = "frozen"
+consumer_question = "Can structured cross-stage refusals be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Refusal carries stage=decision, action=A1, joint_law_required, supplied meaning and required capability/remedy. Wrong population, action, unit and capability each retain distinct stable reason and detail. This record alone grants no causal or interval license."
+reference = "TODO.md A0.4; prerequisite feature records F24"
+guarantee = "structured_refusals_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "A decision requests a joint outcome utility from independent marginals at action A1."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "structured cross-stage refusals"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F24.composition_provenance"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate structured_refusal_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): stage; stable reason code/detail; offending coordinate/action; expected/supplied semantics; required capability; remedy; predecessor digest. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "structured_refusals.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "decision_contract_unsatisfied", detail = "structured_refusals.wrong_contract", when = "Wrong population, action, unit and capability each retain distinct stable reason and detail." },
+]
+routes = [
+  { name = "antecedent.refusal.structured", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f25.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Refusal carries stage=decision, action=A1, joint_law_required, supplied meaning and required capability/remedy." },
+  { id = "f25.wrong_contract.negative", role = "negative", intent = "Wrong population, action, unit and capability each retain distinct stable reason and detail." },
+  { id = "f25.fresh_replay.artifact", role = "artifact", intent = "Rust, Python and fresh artifact reader preserve code, detail and offending coordinate." },
+]
+
+[[record]]
+id = "2.3A.F21.composition_parity"
+workstream = "F21"
+milestone = "A"
+work_package = "A0.5"
+status = "frozen"
+consumer_question = "Can Rust and Python composition parity be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Both surfaces report means (1/2,1), covariance 1/2, identical quantity/trust/support identities and the same refusal details. A changed semantic ID or wrong distribution meaning refuses on both language surfaces. This record alone grants no causal or interval license."
+reference = "TODO.md A0.5; prerequisite feature records F1, F2, F8, F25"
+guarantee = "composition_parity_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Rust creates a two-coordinate aligned finite law; Python evaluates its covariance; Python creates a contract consumed by Rust."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "Rust and Python composition parity"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F1.aligned_joint_draws", "2.3A.F2.external_scientific_providers", "2.3A.F8.coordinate_support", "2.3A.F25.structured_refusals"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate composition_cross_language_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): canonical Rust wire IDs for quantities, distribution, support, binding, obligations and decisions; Python typed wrappers preserve all fields. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "composition_parity.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "quantity_semantics_mismatch", detail = "composition_parity.wrong_contract", when = "A changed semantic ID or wrong distribution meaning refuses on both language surfaces." },
+]
+routes = [
+  { name = "antecedent.composition.cross_language", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f21.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Both surfaces report means (1/2,1), covariance 1/2, identical quantity/trust/support identities and the same refusal details." },
+  { id = "f21.wrong_contract.negative", role = "negative", intent = "A changed semantic ID or wrong distribution meaning refuses on both language surfaces." },
+  { id = "f21.fresh_replay.artifact", role = "artifact", intent = "Both directions round-trip through one bounded versioned wire format." },
+]
+
+[[record]]
+id = "2.3A.F18.temporal_effect_constancy"
+workstream = "F18"
+milestone = "A"
+work_package = "A4"
+status = "frozen"
+consumer_question = "Can effect constancy across a declared time partition be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Difference is 0 and Wald heterogeneity statistic is 0; a 1 versus 2 case has statistic 2 under the same variance. Changed estimand, incompatible partition or unknown cross-period covariance refuses the global test. This record alone grants no causal or interval license."
+reference = "TODO.md A4; prerequisite feature records F15, F16"
+guarantee = "temporal_effect_constancy_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Two disjoint periods estimate the same defined effect, 1 and 1, each with variance 1/4 and zero covariance."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "effect constancy across a declared time partition"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F15.joint_distribution_semantics", "2.3A.F16.distribution_meanings"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate effect_constancy_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): partition and estimand IDs; per-partition effect/covariance/support; null; heterogeneity statistic; multiplicity; calibration coordinate. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "temporal_effect_constancy.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "route_not_supported", detail = "temporal_effect_constancy.wrong_contract", when = "Changed estimand, incompatible partition or unknown cross-period covariance refuses the global test." },
+]
+routes = [
+  { name = "antecedent.temporal.effect_constancy", stage = "uncertainty", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f18.known_truth.positive", role = "positive", intent = "Compare against independent closed_form: Difference is 0 and Wald heterogeneity statistic is 0; a 1 versus 2 case has statistic 2 under the same variance." },
+  { id = "f18.wrong_contract.negative", role = "negative", intent = "Changed estimand, incompatible partition or unknown cross-period covariance refuses the global test." },
+  { id = "f18.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains partition identities, covariance, multiplicity and calibration coordinate." },
+]
+
+[[record]]
+id = "2.3B.F4.decision_contract"
+workstream = "F4"
+milestone = "B"
+work_package = "B0 prerequisite"
+status = "frozen"
+consumer_question = "Can durable decision contracts be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Expected utility is 0 for A and 1 for B, so B is selected if both are admissible. A hard constraint excludes an action rather than adding a penalty; no admissible action is explicit. This record alone grants no causal or interval license."
+reference = "TODO.md B0 prerequisite; prerequisite feature records F1, F15, F16"
+guarantee = "decision_contract_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Actions A and B have joint outcome states (0,2) and (2,0), equally weighted; utility is x*y for A and constant 1 for B."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "durable decision contracts"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F1.aligned_joint_draws", "2.3A.F15.joint_distribution_semantics", "2.3A.F16.distribution_meanings"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate decision_contract_result_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): semantic actions; required quantities; utility; hard/resource constraints; criterion; population/horizon; structure/support policy; result values and exclusions. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "decision_contract.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "decision_contract_unsatisfied", detail = "decision_contract.wrong_contract", when = "A hard constraint excludes an action rather than adding a penalty; no admissible action is explicit." },
+]
+routes = [
+  { name = "antecedent.decision.evaluate_contract", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f4.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Expected utility is 0 for A and 1 for B, so B is selected if both are admissible." },
+  { id = "f4.wrong_contract.negative", role = "negative", intent = "A hard constraint excludes an action rather than adding a penalty; no admissible action is explicit." },
+  { id = "f4.fresh_replay.artifact", role = "artifact", intent = "Fresh reader recomputes result from semantic action, utility, constraint and distribution receipts." },
+]
+
+[[record]]
+id = "2.3B.F5.decision_functionals"
+workstream = "F5"
+milestone = "B"
+work_package = "B0 prerequisite"
+status = "frozen"
+consumer_question = "Can typed expectation, probability and quantile functionals be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: E[Y]=3/2, Var(Y)=3/4, P(Y>1)=3/4, q_0.5=2 and tail expectation follows explicitly selected tail rule. Mean-only input cannot answer quantile or threshold probability; independent marginals cannot answer nonlinear joint utility. This record alone grants no causal or interval license."
+reference = "TODO.md B0 prerequisite; prerequisite feature records F4, F16"
+guarantee = "decision_functionals_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Finite outcome law puts mass 1/4 at 0 and 3/4 at 2; quantile uses left inverse F^-1(u)=inf{x:F(x)>=u}."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "typed expectation, probability and quantile functionals"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F4.decision_contract", "2.3A.F16.distribution_meanings"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate decision_functional_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): functional discriminant; target quantity IDs; threshold/quantile/tail convention; required distribution meaning; units; integration receipt. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "decision_functionals.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "decision_contract_unsatisfied", detail = "decision_functionals.wrong_contract", when = "Mean-only input cannot answer quantile or threshold probability; independent marginals cannot answer nonlinear joint utility." },
+]
+routes = [
+  { name = "antecedent.decision.typed_functional", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f5.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: E[Y]=3/2, Var(Y)=3/4, P(Y>1)=3/4, q_0.5=2 and tail expectation follows explicitly selected tail rule." },
+  { id = "f5.wrong_contract.negative", role = "negative", intent = "Mean-only input cannot answer quantile or threshold probability; independent marginals cannot answer nonlinear joint utility." },
+  { id = "f5.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains functional kind, threshold/quantile convention, input law and units." },
+]
+
+[[record]]
+id = "2.3B.F6.structural_decision_policy"
+workstream = "F6"
+milestone = "B"
+work_package = "B0 prerequisite"
+status = "frozen"
+consumer_question = "Can structural decision policy and robustness be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Maximin selects B (minimum 0 versus -1); report-only shows graph dependence and no probability-weighted winner. Bayes-over-structures refuses without genuine atom probabilities; unevaluated mass is never normalized away. This record alone grants no causal or interval license."
+reference = "TODO.md B0 prerequisite; prerequisite feature records F4, F5"
+guarantee = "structural_decision_policy_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Two structural atoms prefer opposite actions: utilities A=(2,-1), B=(0,1), with no atom probabilities."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "structural decision policy and robustness"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F4.decision_contract", "2.3B.F5.decision_functionals"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate structural_decision_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): ordered structure atoms and probability status; action utility by atom; unidentified/unevaluated mass; policy; regret and robustness. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "structural_decision_policy.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "decision_contract_unsatisfied", detail = "structural_decision_policy.wrong_contract", when = "Bayes-over-structures refuses without genuine atom probabilities; unevaluated mass is never normalized away." },
+]
+routes = [
+  { name = "antecedent.decision.structural_policy", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f6.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Maximin selects B (minimum 0 versus -1); report-only shows graph dependence and no probability-weighted winner." },
+  { id = "f6.wrong_contract.negative", role = "negative", intent = "Bayes-over-structures refuses without genuine atom probabilities; unevaluated mass is never normalized away." },
+  { id = "f6.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains atom IDs, unidentified mass and declared robustness policy." },
+]
+
+[[record]]
+id = "2.3B.F9.evidence_obligations"
+workstream = "F9"
+milestone = "B"
+work_package = "B0.1"
+status = "frozen"
+consumer_question = "Can machine-readable evidence obligations be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Two typed obligations retain exact population, regime, variables and proof-step IDs. Separate marginal studies cannot satisfy one required joint-regime factor. This record alone grants no causal or interval license."
+reference = "TODO.md B0.1; prerequisite feature records F3, F24"
+guarantee = "evidence_obligations_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "A transport derivation needs a target P(Z) factor and a joint-regime P(Y,Z|do(A)) factor."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "machine-readable evidence obligations"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F3.external_response_binding", "2.3A.F24.composition_provenance"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate evidence_obligation_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): stable obligation ID and kind; variables; population/regime; required factor slots; originating proof step; status. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "evidence_obligations.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "transport_missing_evidence", detail = "evidence_obligations.wrong_contract", when = "Separate marginal studies cannot satisfy one required joint-regime factor." },
+]
+routes = [
+  { name = "antecedent.design.evidence_obligations", stage = "identify", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f9.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Two typed obligations retain exact population, regime, variables and proof-step IDs." },
+  { id = "f9.wrong_contract.negative", role = "negative", intent = "Separate marginal studies cannot satisfy one required joint-regime factor." },
+  { id = "f9.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains obligation IDs, factor slots and originating proof steps." },
+]
+
+[[record]]
+id = "2.3B.F10.study_candidate"
+workstream = "F10"
+milestone = "B"
+work_package = "B0.1"
+status = "frozen"
+consumer_question = "Can durable study candidate be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Declared expected evidence matches that joint regime and preserves sample, timing, unit and cost identities. A candidate observing separate regimes cannot claim the joint factor; missing unit or cost semantics refuse. This record alone grants no causal or interval license."
+reference = "TODO.md B0.1; prerequisite feature records F9"
+guarantee = "study_candidate_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Candidate C observes joint (Y,Z) under do(A=1) in population T with n=100 and cost 10 USD."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "durable study candidate"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F9.evidence_obligations"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate study_candidate_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): semantic candidate ID; population/regime; sample/recruitment/timing/unit rules; cost and units; expected evidence; provider. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "study_candidate.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "design_signal_invalid", detail = "study_candidate.wrong_contract", when = "A candidate observing separate regimes cannot claim the joint factor; missing unit or cost semantics refuse." },
+]
+routes = [
+  { name = "antecedent.design.study_candidate", stage = "prepare", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f10.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Declared expected evidence matches that joint regime and preserves sample, timing, unit and cost identities." },
+  { id = "f10.wrong_contract.negative", role = "negative", intent = "A candidate observing separate regimes cannot claim the joint factor; missing unit or cost semantics refuse." },
+  { id = "f10.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains semantic candidate ID, recruitment, timing, sample and provider receipt." },
+]
+
+[[record]]
+id = "2.3B.F13.identification_repair"
+workstream = "F13"
+milestone = "B"
+work_package = "B0.1"
+status = "frozen"
+consumer_question = "Can theorem-scoped identification repair facade be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: A target-Z observation repairs the first only; a Z-measuring study repairs the second only after each theorem checker reruns. A variable-name match without the required population, regime or joint law stays insufficient. This record alone grants no causal or interval license."
+reference = "TODO.md B0.1; prerequisite feature records F9, F10"
+guarantee = "identification_repair_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "One transport contract misses target P(Z); another fixed-graph contract misses a measured backdoor Z."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "theorem-scoped identification repair facade"
+inference_claim = "none"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F9.evidence_obligations", "2.3B.F10.study_candidate"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate repair_search_receipt_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): causal contract/candidate IDs; hypothetical evidence deltas; theorem checker and derivation; classification; SearchReceipt. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = true
+bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "finite candidate/action evaluations", depth_limit = "finite catalog/grid", memory_limit = "bounded receipts" }
+refusals = [
+  { code = "cell_not_licensed", detail = "identification_repair.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "transport_not_certified", detail = "identification_repair.wrong_contract", when = "A variable-name match without the required population, regime or joint law stays insufficient." },
+]
+routes = [
+  { name = "antecedent.design.repair", stage = "identify", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f13.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: A target-Z observation repairs the first only; a Z-measuring study repairs the second only after each theorem checker reruns." },
+  { id = "f13.wrong_contract.negative", role = "negative", intent = "A variable-name match without the required population, regime or joint law stays insufficient." },
+  { id = "f13.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains candidate subset, proof derivation, failures and SearchReceipt." },
+  { id = "f13.bounded_search.budget", role = "budget", intent = "Charge every finite search operation and retain explored versus unevaluated candidates under a binding limit or cancellation." },
+]
+
+[[record]]
+id = "2.3B.F11.external_signal"
+workstream = "F11"
+milestone = "B"
+work_package = "B0.2"
+status = "frozen"
+consumer_question = "Can external candidate signal and update be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: P(signal=1)=1/2; posterior P(theta=1|signal=1)=3/4 and P(theta=1|signal=0)=1/4. A predictive law without coherent posterior update or wrong candidate/sample ID refuses. This record alone grants no causal or interval license."
+reference = "TODO.md B0.2; prerequisite feature records F2, F4, F20"
+guarantee = "external_signal_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Binary latent state has prior P(theta=1)=1/2; one signal has sensitivity and specificity 3/4."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "external candidate signal and update"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F2.external_scientific_providers", "2.3B.F4.decision_contract", "2.3A.F20.provider_capability_negotiation"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate signal_update_receipt_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): candidate/prior IDs; predictive observation law; update mode; posterior quantity IDs; provider trust; RNG/error/source lineage. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "external_signal.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "design_signal_invalid", detail = "external_signal.wrong_contract", when = "A predictive law without coherent posterior update or wrong candidate/sample ID refuses." },
+]
+routes = [
+  { name = "antecedent.design.signal_provider", stage = "prepare", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f11.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: P(signal=1)=1/2; posterior P(theta=1|signal=1)=3/4 and P(theta=1|signal=0)=1/4." },
+  { id = "f11.wrong_contract.negative", role = "negative", intent = "A predictive law without coherent posterior update or wrong candidate/sample ID refuses." },
+  { id = "f11.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains signal, update mode, exact candidate request, RNG and source-overlap receipt." },
+]
+
+[[record]]
+id = "2.3B.F12.evsi"
+workstream = "F12"
+milestone = "B"
+work_package = "B0.2"
+status = "frozen"
+consumer_question = "Can preposterior EVSI and cost mapping be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Current value 1/2, post-signal value 3/4, EVSI 1/4, EVPI 1/2; utility-unit study cost 1/10 gives net 3/20. Cost in currency without a cost-to-utility map and changed terminal action set refuse net-value comparison. This record alone grants no causal or interval license."
+reference = "TODO.md B0.2; prerequisite feature records F5, F11"
+guarantee = "evsi_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Binary-state decision: choose state guess for utility 1 if correct, 0 otherwise; prior is 1/2 and signal accuracy is 3/4."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "preposterior EVSI and cost mapping"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F5.decision_functionals", "2.3B.F11.external_signal"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate preposterior_evsi_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): decision/signal/candidate IDs; branch law and posterior values; EVSI/EVPI/error; action set; cost-to-utility mapping. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "evsi.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "design_cost_units_mismatch", detail = "evsi.wrong_contract", when = "Cost in currency without a cost-to-utility map and changed terminal action set refuse net-value comparison." },
+]
+routes = [
+  { name = "antecedent.design.evsi", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f12.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Current value 1/2, post-signal value 3/4, EVSI 1/4, EVPI 1/2; utility-unit study cost 1/10 gives net 3/20." },
+  { id = "f12.wrong_contract.negative", role = "negative", intent = "Cost in currency without a cost-to-utility map and changed terminal action set refuse net-value comparison." },
+  { id = "f12.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains preposterior branches, numerical error, cost map and signal provider." },
+]
+
+[[record]]
+id = "2.3B.F14.design_ranking_artifact"
+workstream = "F14"
+milestone = "B"
+work_package = "B0.2"
+status = "frozen"
+consumer_question = "Can portable design ranking artifact be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Net values are 3/20 and 1/40, in that order, invariant to input candidate ordering. Altered signal/update fingerprint, overlapping source data or incompatible cost unit refuses replay. This record alone grants no causal or interval license."
+reference = "TODO.md B0.2; prerequisite feature records F12, F24"
+guarantee = "design_ranking_artifact_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Two candidates have EVSI 1/4 and 1/8 under identical utility and cost unit; costs are 1/10 each."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "portable design ranking artifact"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F12.evsi", "2.3A.F24.composition_provenance"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate design_ranking_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): decision contract; semantic candidate IDs; EVSI/net values and error; signal/update fingerprints; costs/units; support/trust/RNG. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "design_ranking_artifact.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "design_cost_units_mismatch", detail = "design_ranking_artifact.wrong_contract", when = "Altered signal/update fingerprint, overlapping source data or incompatible cost unit refuses replay." },
+]
+routes = [
+  { name = "antecedent.design.ranking_artifact", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f14.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Net values are 3/20 and 1/40, in that order, invariant to input candidate ordering." },
+  { id = "f14.wrong_contract.negative", role = "negative", intent = "Altered signal/update fingerprint, overlapping source data or incompatible cost unit refuses replay." },
+  { id = "f14.fresh_replay.artifact", role = "artifact", intent = "Fresh reader recomputes ranking from contract, candidate, signal, RNG and cost receipts." },
+]
+
+[[record]]
+id = "2.3B.F17.sensitivity_decision_composition"
+workstream = "F17"
+milestone = "B"
+work_package = "B3"
+status = "frozen"
+consumer_question = "Can sensitivity result in durable decisions be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: A wins at gamma=0, tie at 1, B wins at 2; no invariant unique action over the full range. A sensitivity range is not a sampling interval; unsupported gamma and mixed estimands refuse. This record alone grants no causal or interval license."
+reference = "TODO.md B3; prerequisite feature records F4, F6, F24"
+guarantee = "sensitivity_decision_composition_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Sensitivity parameter gamma in {0,1,2}; action A utility is 2-gamma and B utility is 1."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "sensitivity result in durable decisions"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F4.decision_contract", "2.3B.F6.structural_decision_policy", "2.3A.F24.composition_provenance"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate sensitivity_decision_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): assumption coordinates; effect/distribution surface; support; tipping points; action utilities; uncertainty kind and provenance. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "sensitivity_decision_composition.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "decision_contract_unsatisfied", detail = "sensitivity_decision_composition.wrong_contract", when = "A sensitivity range is not a sampling interval; unsupported gamma and mixed estimands refuse." },
+]
+routes = [
+  { name = "antecedent.decision.sensitivity_surface", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f17.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: A wins at gamma=0, tie at 1, B wins at 2; no invariant unique action over the full range." },
+  { id = "f17.wrong_contract.negative", role = "negative", intent = "A sensitivity range is not a sampling interval; unsupported gamma and mixed estimands refuse." },
+  { id = "f17.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains assumption coordinates, effect/utility surface, support and tipping point." },
+]
+
+[[record]]
+id = "2.3B.F7.functional_inverse_query"
+workstream = "F7"
+milestone = "B"
+work_package = "B4"
+status = "frozen"
+consumer_question = "Can generalized finite inverse decision query be consumed under a checked semantic contract?"
+theorem = "Frozen acceptance boundary: Finite inverse returns action 1; target mean 1/2 and median under declared left-quantile rule are separately checked. Mean-only input cannot satisfy a probability or quantile target; independent marginals refuse nonlinear utility inversion. This record alone grants no causal or interval license."
+reference = "TODO.md B4; prerequisite feature records F4, F5, F6, F8"
+guarantee = "functional_inverse_query_pending_executing_evidence"
+graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
+population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
+evidence_family = "Ordered actions 0,1,2 have outcome laws Bernoulli(p=1/4,1/2,3/4); seek least action with P(Y=1)>=1/2."
+provider = "Native implementation or separately scoped exact-request external provider; provider trust is never upgraded by representation alone."
+estimand = "generalized finite inverse decision query"
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3B.F4.decision_contract", "2.3B.F5.decision_functionals", "2.3B.F6.structural_decision_policy", "2.3A.F8.coordinate_support"]
+prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
+identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
+wire_changes = ["Allocate inverse_functional_query_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): ordered action grid; forward claim IDs; typed target functional and threshold; constraints; feasibility class; selection rule. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+search = true
+bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "finite candidate/action evaluations", depth_limit = "finite catalog/grid", memory_limit = "bounded receipts" }
+refusals = [
+  { code = "cell_not_licensed", detail = "functional_inverse_query.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
+  { code = "inverse_functional_unsupported", detail = "functional_inverse_query.wrong_contract", when = "Mean-only input cannot satisfy a probability or quantile target; independent marginals refuse nonlinear utility inversion." },
+]
+routes = [
+  { name = "antecedent.decision.inverse_functional", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f7.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Finite inverse returns action 1; target mean 1/2 and median under declared left-quantile rule are separately checked." },
+  { id = "f7.wrong_contract.negative", role = "negative", intent = "Mean-only input cannot satisfy a probability or quantile target; independent marginals refuse nonlinear utility inversion." },
+  { id = "f7.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains ordered action grid, functional, feasibility classifications and source law." },
+  { id = "f7.bounded_search.budget", role = "budget", intent = "Charge every finite search operation and retain explored versus unevaluated candidates under a binding limit or cancellation." },
+]

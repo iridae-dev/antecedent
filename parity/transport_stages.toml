@@ -4020,3 +4020,150 @@ route = "antecedent.inference.mapped_posterior_transfer"
 stage = "prepare"
 status = "licensed"
 notes = "2.3 A0.2 F19 known-variance point transfer with stable-ID bijection, dense covariance, pooled heterogeneous-design truth and fresh-process replay."
+
+[[routes]]
+route = "antecedent.external.law_provider"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.3 F2 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.external.bind_response"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.3 F3 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.external.negotiate_capability"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.3 F20 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.external.verify_object"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.3 F22 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.external.trust_receipt"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.3 F23 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.support.coordinate_grid"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.4 F8 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.provenance.composition_chain"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.4 F24 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.refusal.structured"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.4 F25 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.composition.cross_language"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.5 F21 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.temporal.effect_constancy"
+stage = "uncertainty"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A4 F18 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.decision.evaluate_contract"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0 prerequisite F4 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.decision.typed_functional"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0 prerequisite F5 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.decision.structural_policy"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0 prerequisite F6 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.design.evidence_obligations"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0.1 F9 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.design.study_candidate"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0.1 F10 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.design.repair"
+stage = "identify"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0.1 F13 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.design.signal_provider"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0.2 F11 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.design.evsi"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0.2 F12 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.design.ranking_artifact"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B0.2 F14 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.decision.sensitivity_surface"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B3 F17 contract frozen; no public route license or inference claim until evidence executes."
+
+[[routes]]
+route = "antecedent.decision.inverse_functional"
+stage = "evaluate"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 B4 F7 contract frozen; no public route license or inference claim until evidence executes."

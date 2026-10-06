@@ -202,6 +202,41 @@ applies_to = ["runtime_refusal"]
 meaning = "The randomness in supplied draws does not match the operation's required distribution meaning, such as a posterior over a mean offered as an interventional outcome law."
 
 [[code]]
+id = "external_capability_missing"
+applies_to = ["runtime_refusal"]
+meaning = "An external scientific object lacks the exact operation required by the request; approximation requires a separately licensed error and replicate receipt."
+
+[[code]]
+id = "external_verification_failed"
+applies_to = ["runtime_refusal"]
+meaning = "An external object failed normalization, support, moment, seed, update or exact-request fingerprint verification."
+
+[[code]]
+id = "external_binding_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "An external result or receipt does not match the identified causal contract, scientific quantity, snapshot or provider request being bound."
+
+[[code]]
+id = "decision_contract_unsatisfied"
+applies_to = ["runtime_refusal"]
+meaning = "A decision action or requested functional cannot satisfy its hard constraint, admissibility, structural policy, support or scientific input contract."
+
+[[code]]
+id = "inverse_functional_unsupported"
+applies_to = ["runtime_refusal"]
+meaning = "An inverse decision request needs a forward law, functional, finite action support or joint alignment that the supplied claim cannot provide."
+
+[[code]]
+id = "design_signal_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A candidate signal or update is incoherent with the prior, candidate, observation regime, action set or source lineage."
+
+[[code]]
+id = "design_cost_units_mismatch"
+applies_to = ["runtime_refusal"]
+meaning = "Study cost has no declared compatible conversion to the decision's utility units, so net value and cost-aware ranking refuse."
+
+[[code]]
 id = "joint_law_required"
 applies_to = ["runtime_refusal"]
 meaning = "Covariance or nonlinear joint integration requires aligned realizations from one joint law; separate marginal draws cannot be paired by array index."
