@@ -72,6 +72,9 @@ pub struct ExternalClaimIdentity {
     pub snapshot_id: String,
     /// Exact request fingerprint.
     pub request_id: String,
+    /// BLAKE3 digest of the ordered little-endian f64 value payload, retained
+    /// independently by the consumer alongside the scientific identity.
+    pub values_blake3: String,
     /// Trust held by the provider object.
     pub trust: ExternalClaimTrust,
     /// Support label per coordinate (`SupportStatus` names); `missing_evidence`
@@ -145,6 +148,7 @@ impl ExternalClaimIdentity {
             version_id: execution.version_id.clone(),
             snapshot_id: execution.snapshot_id.clone(),
             request_id: execution.request_id.clone(),
+            values_blake3: values_digest(claim.values().expect("response claim checked above")),
             trust: claim.trust().into(),
             point_status: claim
                 .point_status()
@@ -189,6 +193,11 @@ impl ExternalClaimIdentity {
             || self.point_status.iter().any(|label| !LABELS.contains(&label.as_str()))
         {
             return Err(IoError::Convert("invalid external claim support labels".into()));
+        }
+        if self.values_blake3.len() != 64
+            || !self.values_blake3.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err(IoError::Convert("invalid external claim value digest".into()));
         }
         if [
             &self.causal_contract_id,
@@ -249,7 +258,18 @@ fn validate(meta: &ExternalClaimMetadata, values: &[f64]) -> Result<(), IoError>
     if values.len() != meta.identity.quantities.len() || values.iter().any(|v| !v.is_finite()) {
         return Err(IoError::Convert("invalid external claim values or length".into()));
     }
+    if values_digest(values) != meta.identity.values_blake3 {
+        return Err(IoError::Convert("external claim values differ from retained identity".into()));
+    }
     Ok(())
+}
+
+fn values_digest(values: &[f64]) -> String {
+    let mut hasher = blake3::Hasher::new();
+    for value in values {
+        hasher.update(&value.to_le_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
 }
 
 impl ExternalClaimArtifact {

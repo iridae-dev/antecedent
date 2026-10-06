@@ -46,6 +46,13 @@ fn expected_identity() -> ExternalClaimIdentity {
         version_id: "v3".into(),
         snapshot_id: "snap-9".into(),
         request_id: "req-1".into(),
+        values_blake3: {
+            let mut hasher = blake3::Hasher::new();
+            for value in [1.0_f64, 3.0, 5.0] {
+                hasher.update(&value.to_le_bytes());
+            }
+            hasher.finalize().to_hex().to_string()
+        },
         trust: ExternalClaimTrust::ExternallyAttested,
         point_status: vec![
             "supported".into(),
@@ -163,6 +170,26 @@ fn fresh_process_consumer_recomputes_closed_form_and_refuses_mutations() {
                 assert!(ExternalClaimArtifact::from_bytes(&bytes, &expected_identity()).is_err());
             }
         }
+        // A container can be resealed with valid section checksums, but the
+        // independently retained identity still fixes the actual values.
+        let mut changed_values = v.to_vec();
+        changed_values[1] = 30.0;
+        assert!(
+            ExternalClaimArtifact::new(loaded.metadata().clone(), changed_values.clone()).is_err()
+        );
+        let mut resealed_meta = loaded.metadata().clone();
+        resealed_meta.identity.values_blake3 = {
+            let mut hasher = blake3::Hasher::new();
+            for value in &changed_values {
+                hasher.update(&value.to_le_bytes());
+            }
+            hasher.finalize().to_hex().to_string()
+        };
+        let resealed = ExternalClaimArtifact::new(resealed_meta, changed_values)
+            .unwrap()
+            .to_bytes("claim")
+            .unwrap();
+        assert!(ExternalClaimArtifact::from_bytes(&resealed, &expected_identity()).is_err());
         let mut native = loaded.metadata().clone();
         native.native_estimation = true;
         assert!(ExternalClaimArtifact::new(native, v.to_vec()).is_err());

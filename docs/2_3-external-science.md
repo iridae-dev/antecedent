@@ -64,13 +64,13 @@ lifecycle are separate gates.
 `antecedent_io::external_claim_artifact::ExternalClaimArtifact` serializes a
 `BoundExternalClaim` response grid through the checksummed container. The
 metadata names the causal contract, graph, identification status, ordered
-coordinates, provider/object/version/snapshot/request, trust level,
-provider-declared uncertainty method, evidence, assumptions and checked
+coordinates, provider/object/version/snapshot/request, trust level, the
+BLAKE3 digest of the ordered little-endian response values, provider-declared
+uncertainty method, evidence, assumptions and checked
 equivalences, and records `native_estimation = false`. Loading requires an
 identity the consumer retained independently; a resealed change to any field
-(including trust, uncertainty or coordinate order) refuses with
-`external_binding_mismatch`. The artifact grants no interval, calibration or
-native licence.
+(including values, trust, uncertainty or coordinate order) refuses. The
+artifact grants no interval, calibration or native licence.
 
 ## Lineage
 

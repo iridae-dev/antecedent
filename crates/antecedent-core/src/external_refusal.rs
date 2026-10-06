@@ -253,6 +253,12 @@ impl ExternalBindingError {
                 value
             }
             Self::ObjectKindMismatch => at(binding, "external_binding.object_kind"),
+            Self::ObjectQuantityMismatch => ExternalRefusal {
+                remedy: Some(
+                    "label the result with the exact coordinates declared by its provider object",
+                ),
+                ..at(binding, "external_binding.object_quantities")
+            },
             Self::GraphMismatch => ExternalRefusal {
                 expected: Some(contract.graph_id.clone()),
                 supplied: Some(header.graph_id.clone()),

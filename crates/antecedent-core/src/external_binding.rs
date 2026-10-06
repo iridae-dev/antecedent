@@ -193,6 +193,8 @@ pub enum ExternalBindingError {
     Object(ExternalContractError),
     /// Object kind cannot supply this result type.
     ObjectKindMismatch,
+    /// The values are labeled with different coordinates than the provider object declares.
+    ObjectQuantityMismatch,
     /// Result graph differs from the contract graph.
     GraphMismatch,
     /// The coordinate count differs from the contract or the value count.
@@ -509,6 +511,19 @@ pub fn bind_external_result(
         return Err(E::MeaningNotAccepted);
     }
     let equivalence_ids = check_coordinates(contract, &header.quantities)?;
+    let object_quantities = match &header.object {
+        ExternalScientificObject::Law(law) => &law.quantities,
+        ExternalScientificObject::Posterior(post) => &post.quantities,
+        _ => unreachable!("object kind was checked above"),
+    };
+    if object_quantities.len() != header.quantities.len()
+        || object_quantities
+            .iter()
+            .zip(&header.quantities)
+            .any(|(declared, supplied)| declared.require_same_coordinate(supplied).is_err())
+    {
+        return Err(E::ObjectQuantityMismatch);
+    }
     if let Some(id) = declared(&contract.required_evidence_ids, &header.evidence_ids) {
         return Err(E::MissingEvidence(id));
     }
@@ -641,6 +656,7 @@ mod tests {
         for q in &mut r.header.quantities {
             q.regime_id = OBSERVATIONAL_REGIME.into();
         }
+        r.header.object = law(r.header.quantities.clone());
         let claim = bind_external_result(&c, &ExternalResult::Response(r)).unwrap();
         let chain = claim.provenance_chain("checked-contract").unwrap();
         let ids: Vec<_> = chain
@@ -771,6 +787,26 @@ mod tests {
     }
 
     #[test]
+    fn result_cannot_relabel_a_provider_objects_declared_coordinates() {
+        let mut r = response();
+        if let ExternalScientificObject::Law(law) = &mut r.header.object {
+            law.quantities[1].horizon = 2;
+        }
+        assert_eq!(
+            bind_external_result(&contract(), &ExternalResult::Response(r)),
+            Err(ExternalBindingError::ObjectQuantityMismatch)
+        );
+        let mut r = response();
+        if let ExternalScientificObject::Law(law) = &mut r.header.object {
+            law.quantities.swap(0, 1);
+        }
+        assert_eq!(
+            bind_external_result(&contract(), &ExternalResult::Response(r)),
+            Err(ExternalBindingError::ObjectQuantityMismatch)
+        );
+    }
+
+    #[test]
     fn declared_point_support_is_kept_per_coordinate() {
         let mut r = response();
         r.point_support =
@@ -833,6 +869,7 @@ mod tests {
         for q in &mut r.header.quantities {
             q.regime_id = OBSERVATIONAL_REGIME.into();
         }
+        r.header.object = law(r.header.quantities.clone());
         let bind = |c: &CheckedCausalContract, r: &ExternalResponse| {
             bind_external_result(c, &ExternalResult::Response(r.clone()))
         };
