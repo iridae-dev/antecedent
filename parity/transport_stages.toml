@@ -4064,9 +4064,8 @@ notes = "2.3 A0.4 F24 composition provenance: ordered Merkle-style predecessor-d
 [[routes]]
 route = "antecedent.refusal.structured"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.4 F25 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.4 F25 validated structured refusal envelope (stage, registered code, namespaced detail, offending input, expected and supplied, remedy) preserved across Rust and Python; each family keeps its own details."
 
 [[routes]]
 route = "antecedent.composition.cross_language"

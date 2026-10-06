@@ -150,7 +150,10 @@ def test_independent_marginals_and_wrong_meanings_refuse_with_registered_codes()
 
     with pytest.raises(decision.DecisionRefusal) as invalid:
         _contract(actions=_contract().actions[:1]).evaluate(_source())
-    assert invalid.value.reason_code == "decision_contract_unsatisfied"
+    # The Python bridge keeps the typed Rust refusal, not a generic declaration error.
+    assert invalid.value.reason_code == "invalid_argument"
+    assert invalid.value.detail == "decision_contract.invalid_declaration"
+    assert invalid.value.stage == "declare"
 
 
 def test_hard_constraints_exclude_and_never_penalize():

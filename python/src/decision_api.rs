@@ -6,7 +6,8 @@
 
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
-    contract_from_json, contract_to_json, mean_result_to_json, result_to_json, source_digest,
+    contract_from_json, contract_from_json_refusal, contract_to_json, mean_result_to_json,
+    result_to_json, source_digest,
 };
 use antecedent_design::decision_eval::{
     DecisionEvalError, MeanSource, evaluate_contract, evaluate_contract_on_means,
@@ -78,9 +79,9 @@ fn eval_refusal(error: &DecisionEvalError) -> String {
 #[pyfunction]
 fn decision_contract_normalize(contract_json: &str) -> PyResult<(Option<String>, Option<String>)> {
     check_size(contract_json)?;
-    match contract_from_json(contract_json).and_then(|c| contract_to_json(&c)) {
-        Ok(json) => Ok((Some(json), None)),
-        Err(error) => Ok((None, Some(io_refusal(&error, "declare")))),
+    match contract_from_json_refusal(contract_json) {
+        Ok(contract) => Ok((Some(contract_to_json(&contract).map_err(serialization)?), None)),
+        Err(refusal) => Ok((None, Some(refusal_json(&refusal)))),
     }
 }
 
@@ -91,9 +92,9 @@ fn evaluate_decision(
     source: &PyJointDistributionArtifact,
 ) -> PyResult<(Option<String>, Option<String>)> {
     check_size(contract_json)?;
-    let contract = match contract_from_json(contract_json) {
+    let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(error) => return Ok((None, Some(io_refusal(&error, "declare")))),
+        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
     };
     match evaluate_contract(&contract, source.inner()) {
         Ok(result) => {
@@ -117,9 +118,9 @@ fn evaluate_decision_means(
 ) -> PyResult<(Option<String>, Option<String>)> {
     check_size(contract_json)?;
     check_size(coordinates_json)?;
-    let contract = match contract_from_json(contract_json) {
+    let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(error) => return Ok((None, Some(io_refusal(&error, "declare")))),
+        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
     };
     let wires: Vec<ScientificQuantityWire> = serde_json::from_str(coordinates_json)
         .map_err(|e| PyValueError::new_err(format!("invalid coordinates: {e}")))?;
@@ -194,9 +195,9 @@ fn replay_decision_result(
     source: &PyJointDistributionArtifact,
 ) -> PyResult<(Option<String>, Option<String>)> {
     check_size(contract_json)?;
-    let contract = match contract_from_json(contract_json) {
+    let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(error) => return Ok((None, Some(io_refusal(&error, "declare")))),
+        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
     };
     let identity = contract.identity().map_err(|e| serialization(format!("{e:?}")))?;
     let outcome =

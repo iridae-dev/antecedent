@@ -1,0 +1,17 @@
+feature_id = "f25_structured_refusals"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A typed refusal envelope and its validator; no estimator.
+papers = []
+implementation_deviations = [
+  "Validates that a refusal names a registered runtime reason code, a stage and a detail of the shape <namespace>.<snake_case>; it makes no scientific claim and adds no refusal beyond the three envelope details. Each family's own details stay in its own record.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/tests/structured_refusals.rs",
+  "python/tests/test_structured_refusals.py",
+]

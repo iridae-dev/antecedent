@@ -836,11 +836,11 @@ id = "2.3A.F25.structured_refusals"
 workstream = "F25"
 milestone = "A"
 work_package = "A0.4"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can structured cross-stage refusals be consumed under a checked semantic contract?"
-theorem = "Frozen acceptance boundary: Refusal carries stage=decision, action=A1, joint_law_required, supplied meaning and required capability/remedy. Wrong population, action, unit and capability each retain distinct stable reason and detail. This record alone grants no causal or interval license."
+theorem = "Acceptance boundary: a refusal carries the stage that refused (evaluate for a decision), the offending action A1, the code joint_law_required, the supplied meaning and the capability or remedy. Wrong population, action, unit and capability each retain distinct stable reason and detail. This record alone grants no causal or interval license."
 reference = "TODO.md A0.4; prerequisite feature records F24"
-guarantee = "structured_refusals_pending_executing_evidence"
+guarantee = "typed_refusal_envelope_validated_and_preserved_across_surfaces_only"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "A decision requests a joint outcome utility from independent marginals at action A1."
@@ -851,21 +851,23 @@ owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
 prerequisite_records = ["2.3A.F24.composition_provenance"]
 prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
 identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
-wire_changes = ["Allocate structured_refusal_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): stage; stable reason code/detail; offending coordinate/action; expected/supplied semantics; required capability; remedy; predecessor digest. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+wire_changes = ["No new artifact kind. The refusal envelope (stage, reason code, namespaced detail, offending coordinate or action, expected and supplied semantics, capability, remedy) is a typed value in Rust and travels as JSON across the Python bridge; each family keeps its own literal details and this record adds the envelope validator."]
 compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "structured_refusals.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "decision_contract_unsatisfied", detail = "structured_refusals.wrong_contract", when = "Wrong population, action, unit and capability each retain distinct stable reason and detail." },
+  { code = "invalid_argument", detail = "structured_refusals.unregistered_code", when = "A refusal names a reason code that is not registered as a runtime refusal." },
+  { code = "invalid_argument", detail = "structured_refusals.malformed_detail", when = "A refusal's detail is not of the shape <namespace>.<snake_case>." },
+  { code = "invalid_argument", detail = "structured_refusals.missing_stage", when = "A refusal does not name the stage that refused." },
 ]
 routes = [
-  { name = "antecedent.refusal.structured", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.refusal.structured", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f25.known_truth.positive", role = "positive", intent = "Compare against independent semantic_contract: Refusal carries stage=decision, action=A1, joint_law_required, supplied meaning and required capability/remedy." },
-  { id = "f25.wrong_contract.negative", role = "negative", intent = "Wrong population, action, unit and capability each retain distinct stable reason and detail." },
-  { id = "f25.fresh_replay.artifact", role = "artifact", intent = "Rust, Python and fresh artifact reader preserve code, detail and offending coordinate." },
+  { id = "f25.known_truth.positive", role = "positive", intent = "A decision asking for a joint outcome utility from independent marginals at action A1 refuses at stage evaluate with offending action A1, code joint_law_required, expected joint, supplied independent_marginals and a remedy, and the envelope validates.", evidence_test = "crates/antecedent-design/tests/structured_refusals.rs", evidence_assertion = "f25_decision_refusal_carries_stage_action_reason_supplied_meaning_and_remedy" },
+  { id = "f25.wrong_contract.negative", role = "negative", intent = "A wrong population, a wrong action, a wrong unit and a missing capability stay four distinct (code, detail) pairs from their own families, each a well-formed envelope.", evidence_test = "crates/antecedent-design/tests/structured_refusals.rs", evidence_assertion = "f25_wrong_population_action_unit_and_capability_stay_four_distinct_refusals" },
+  { id = "f25.malformed.negative", role = "negative", intent = "A refusal with an unregistered code, a malformed detail or no stage is itself refused with its own detail.", evidence_test = "crates/antecedent-design/tests/structured_refusals.rs", evidence_assertion = "f25_malformed_refusal_envelopes_are_themselves_refused" },
+  { id = "f25.fresh_replay.artifact", role = "artifact", intent = "The same decision refusal crosses the Rust-to-Python bridge with stage, offending action, expected and supplied semantics, remedy, code and detail unchanged.", evidence_test = "python/tests/test_structured_refusals.py", evidence_assertion = "test_f25_decision_refusal_fields_survive_the_bridge" },
 ]
 
 [[record]]

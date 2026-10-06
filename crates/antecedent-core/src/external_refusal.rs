@@ -50,6 +50,55 @@ fn refusal(code: &'static str, stage: &'static str, detail: &str) -> ExternalRef
     }
 }
 
+fn snake_case(part: &str) -> bool {
+    !part.is_empty()
+        && part.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+
+impl ExternalRefusal {
+    /// Check the refusal envelope itself, independent of which family built it.
+    ///
+    /// A well-formed refusal has a registered runtime reason code, a non-blank
+    /// stage, and a detail of the shape `<namespace>.<snake_case>`. A refusal that
+    /// is itself malformed is refused with its own detail, so a consumer never
+    /// receives an unregistered reason or an unparseable detail.
+    ///
+    /// # Errors
+    /// An unregistered code, a malformed detail, or a missing stage.
+    // The refusal is the cold path of a once-per-refusal check; boxing would not pay.
+    #[allow(clippy::result_large_err)]
+    pub fn validate(&self) -> Result<(), ExternalRefusal> {
+        let invalid = crate::reason_code!("invalid_argument");
+        if !crate::reason_code::is_runtime_refusal(self.code) {
+            return Err(ExternalRefusal {
+                offending: Some(self.code.to_owned()),
+                remedy: Some("use a reason code registered in parity/reason_codes.toml"),
+                ..refusal(invalid, "refuse", "structured_refusals.unregistered_code")
+            });
+        }
+        let mut parts = self.detail.split('.');
+        let shaped = matches!(
+            (parts.next(), parts.next(), parts.next()),
+            (Some(namespace), Some(slot), None) if snake_case(namespace) && snake_case(slot)
+        );
+        if !shaped {
+            return Err(ExternalRefusal {
+                offending: Some(self.detail.clone()),
+                remedy: Some("name the detail <namespace>.<snake_case>"),
+                ..refusal(invalid, "refuse", "structured_refusals.malformed_detail")
+            });
+        }
+        if self.stage.trim().is_empty() {
+            return Err(ExternalRefusal {
+                offending: Some(self.detail.clone()),
+                remedy: Some("name the stage that refused"),
+                ..refusal(invalid, "refuse", "structured_refusals.missing_stage")
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Stable `snake_case` name of an operation.
 #[must_use]
 pub const fn capability_name(capability: ExternalCapability) -> &'static str {

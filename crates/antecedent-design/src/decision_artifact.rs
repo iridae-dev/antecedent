@@ -775,6 +775,37 @@ pub fn contract_from_json(json: &str) -> Result<DecisionContract, IoError> {
     Ok(contract)
 }
 
+/// Parse and validate a contract declaration, refusing with the typed structured
+/// refusal a Rust caller would get: a malformed declaration is
+/// `decision_contract.invalid_declaration`, and a declaration that parses but is
+/// invalid keeps the exact code and detail of its [`DecisionContractError`].
+///
+/// # Errors
+/// A malformed or invalid declaration, as a structured refusal.
+// The refusal is the cold path of a once-per-declaration check; boxing would not pay.
+#[allow(clippy::result_large_err)]
+pub fn contract_from_json_refusal(
+    json: &str,
+) -> Result<DecisionContract, antecedent_core::ExternalRefusal> {
+    let malformed = |why: String| antecedent_core::ExternalRefusal {
+        code: antecedent_core::reason_code!("invalid_argument"),
+        stage: "declare",
+        detail: "decision_contract.invalid_declaration".to_owned(),
+        offending: Some(why),
+        expected: None,
+        supplied: None,
+        capability: None,
+        remedy: Some("declare the contract with the documented fields"),
+    };
+    if json.len() > MAX_DECISION_ARTIFACT_BYTES {
+        return Err(malformed("declaration is too large".to_owned()));
+    }
+    let body: ContractBody = serde_json::from_str(json).map_err(|e| malformed(e.to_string()))?;
+    let contract = contract_from_body(body).map_err(|e| malformed(e.to_string()))?;
+    contract.validate().map_err(|e| e.to_refusal())?;
+    Ok(contract)
+}
+
 /// The JSON declaration of a contract, including its recomputed identity.
 ///
 /// # Errors
