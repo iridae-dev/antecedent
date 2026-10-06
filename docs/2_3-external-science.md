@@ -39,3 +39,22 @@ this layer does not invoke providers.
 Identification-to-result binding and an executable provider lifecycle have
 separate 2.3 gates. A declaration or provider label alone
 does not certify a causal or inferential claim.
+
+## Binding to a checked contract
+
+`bind_external_result` takes a `CheckedCausalContract` (graph identity,
+identification status, ordered estimand coordinates, accepted distribution
+meanings, required evidence and assumption IDs, checked equivalences) and a
+typed `ExternalResponse`, `ExternalDistribution` or `ExternalPosterior`. It
+refuses an unidentified contract, a provider of the wrong kind, a different
+graph, dimension, coordinate (population, regime, horizon, conditioning,
+transform, units), distribution meaning or posterior kind, non-finite values,
+missing evidence or assumptions, a native-licensed provider, and a verification
+receipt for another contract. An observational law offered for an interventional
+coordinate is accepted only with a `CheckedEquivalence` for the same graph and
+regime, and only if every other coordinate field agrees.
+
+`BoundExternalClaim` carries the provider execution identity and trust level,
+and `is_native_estimation()` is always false. Provider-declared uncertainty
+stays a provider declaration. Export of the bound claim and the Python
+lifecycle are separate gates.

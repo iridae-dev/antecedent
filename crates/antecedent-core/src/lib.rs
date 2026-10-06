@@ -40,6 +40,7 @@ pub mod diagnostic;
 pub mod error;
 pub mod execution;
 pub mod external;
+pub mod external_binding;
 pub mod identification;
 pub mod identity;
 pub mod ids;
@@ -96,6 +97,12 @@ pub use external::{
     ObjectVerificationReceipt, PosteriorProviderContract, ProviderObjectIdentity,
     SignalProviderContract, UtilityMonotonicity, UtilityProviderContract, VerificationProbe,
     VerificationProbeKind, verify_external_object,
+};
+pub use external_binding::{
+    BoundExternalClaim, BoundTrustLevel, CheckedCausalContract, CheckedEquivalence,
+    ExternalBindingError, ExternalDistribution, ExternalPosterior, ExternalResponse,
+    ExternalResult, ExternalResultHeader, ExternalUncertaintyMeaning, OBSERVATIONAL_REGIME,
+    bind_external_result,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{
