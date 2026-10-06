@@ -18,6 +18,9 @@ import os, sys
 from pathlib import Path
 args = sys.argv[1:]
 with Path(os.environ['FAKE_CALLS']).open('a') as out: out.write(' '.join(args) + '\\n')
+if os.environ.get('CACHE_TIMEOUT') == '1' and os.environ.get('RUSTC_WRAPPER') == 'sccache':
+    print('sccache: error: Timed out waiting for server startup. Maybe the remote service is unreachable?', file=sys.stderr)
+    sys.exit(2)
 if '--list' in args:
     if '--ignored' not in args and os.environ.get('MISSING') != '1': print('evidence_test: test')
     if '--ignored' in args and os.environ.get('IGNORED') == '1': print('evidence_test: test')
@@ -59,6 +62,8 @@ evidence_assertion = "evidence_test"
     colored = run(COLOR="1")
     assert colored.returncode == 0, colored.stdout + colored.stderr
     assert sum("--exact" in line for line in calls.read_text().splitlines()) == 0
+    recovered = run(CACHE_TIMEOUT="1", RUSTC_WRAPPER="sccache")
+    assert recovered.returncode == 0 and "retrying without wrapper" in recovered.stdout
     for setting, expected in (("IGNORED", "ignored"), ("MISSING", "no test"),
                               ("EMPTY", "passed=0")):
         bad = run(**{setting: "1"})

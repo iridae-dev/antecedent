@@ -8,6 +8,7 @@ of rows (`id`, `evidence_test`, `evidence_assertion`, optional
 `composition_filter`); GATE labels the summary lines.
 """
 
+import os
 import re
 import shutil
 import subprocess
@@ -37,19 +38,36 @@ def cargo_counts(log: str) -> tuple[int, int]:
 
 
 def run(cmd: list[str], cwd: Path) -> tuple[int, str]:
-    proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    since = time.monotonic()
-    try:
-        while True:
-            try:
-                stdout, stderr = proc.communicate(timeout=30)
-                return proc.returncode, stdout + stderr
-            except subprocess.TimeoutExpired:
-                print(f"{gate}: still running {' '.join(cmd[:8])} ({time.monotonic() - since:.0f}s)", flush=True)
-    except BaseException:
-        proc.kill()
-        proc.communicate()
-        raise
+    def once(env: dict[str, str] | None = None) -> tuple[int, str]:
+        proc = subprocess.Popen(
+            cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        since = time.monotonic()
+        try:
+            while True:
+                try:
+                    stdout, stderr = proc.communicate(timeout=30)
+                    return proc.returncode, stdout + stderr
+                except subprocess.TimeoutExpired:
+                    print(
+                        f"{gate}: still running {' '.join(cmd[:8])} "
+                        f"({time.monotonic() - since:.0f}s)", flush=True
+                    )
+        except BaseException:
+            proc.kill()
+            proc.communicate()
+            raise
+
+    code, log = once()
+    if (
+        code != 0
+        and cmd[0] == "cargo"
+        and os.environ.get("RUSTC_WRAPPER", "").endswith("sccache")
+        and "sccache: error: Timed out waiting for server startup" in log
+    ):
+        print(f"{gate}: sccache server unavailable; retrying without wrapper", flush=True)
+        return once({**os.environ, "RUSTC_WRAPPER": ""})
+    return code, log
 
 
 failures: list[str] = []

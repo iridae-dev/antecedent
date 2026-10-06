@@ -472,9 +472,19 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "wheels_built_before_attestation",
+            "docs_built_before_attestation",
             {".github/workflows/publish-release.yml": replace("    needs: prepare\n", "")},
-            ["publish-release.yml: job 'wheels' does not depend on the attestation job 'prepare'"],
+            ["publish-release.yml: job 'docs' does not depend on the attestation job 'prepare'"],
+        ),
+        case(
+            g,
+            "pypi_without_attestation",
+            {
+                ".github/workflows/publish-release.yml": replace(
+                    "    needs: [prepare, crates-dry-run]\n", "    needs: []\n"
+                )
+            },
+            ["publish-release.yml: job 'publish-pypi' does not depend on the attestation job 'prepare'"],
         ),
         case(
             g,

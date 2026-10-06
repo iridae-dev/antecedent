@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import os
 import re
 import subprocess
 import sys
@@ -417,12 +418,18 @@ def cargo_listed(
         return _CARGO_LIST_CACHE[key]
 
     def listing(extra: list[str]) -> tuple[set[str], str | None]:
-        proc = subprocess.run(
-            ["cargo", "test", "-q", "-p", crate, *target, "--", "--list", *extra],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-        )
+        command = ["cargo", "test", "-q", "-p", crate, *target, "--", "--list", *extra]
+        proc = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
+        if (
+            proc.returncode != 0
+            and os.environ.get("RUSTC_WRAPPER", "").endswith("sccache")
+            and "sccache: error: Timed out waiting for server startup" in proc.stderr
+        ):
+            print(f"cargo listing: sccache server unavailable; retrying {crate} without wrapper", flush=True)
+            proc = subprocess.run(
+                command, cwd=cwd, capture_output=True, text=True,
+                env={**os.environ, "RUSTC_WRAPPER": ""},
+            )
         if proc.returncode != 0:
             return set(), (proc.stdout + proc.stderr)[-2000:]
         return {
