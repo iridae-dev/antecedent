@@ -124,3 +124,17 @@ it was resealed under the same identities. A fresh process rebuilds the contract
 and source identity from constants and replays the decision without the producer.
 
 A result over structures (`StructuralDecisionResult`) has no artifact yet.
+
+## Python surface
+
+`antecedent.decision` follows the Python flow rather than mirroring the Rust
+types. A `Contract` is built from `Action`s, a closed utility `Expr` written with
+ordinary operators (`decision.x(0) * decision.x(1)`, `decision.maximum(...)`),
+`Constraint`s and a `Criterion`. `contract.evaluate(joint_distribution)` returns
+a `Decision` with `verdict`, `actions`, `evpi`, `assumptions`, `explain()` and
+`export()`; `decision.replay(bytes, contract=..., source=...)` recomputes a stored
+result exactly. Python only builds declarations: identity, validation,
+evaluation, artifacts and refusals are Rust's, and each refusal raises
+`DecisionRefusal`, a `CausalUnsupportedError` with the registered `reason_code`,
+`detail` and `offending` action input. `python/tests/test_decision.py` asserts
+the same enumerated fixture as the Rust integration tests.

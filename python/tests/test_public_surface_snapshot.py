@@ -149,6 +149,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "attribution",
         "counterfactual",
         "data",
+        "decision",
         "derived",
         "design",
         "discovery",

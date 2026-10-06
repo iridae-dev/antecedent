@@ -91,7 +91,7 @@ Each of those seventeen modules has an explicit, separately frozen `__all__`
 surface. The 64-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**20** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**21** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -105,7 +105,7 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other fifteen are left off because they're a narrower surface than the stage
+The other sixteen are left off because they're a narrower surface than the stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
@@ -118,6 +118,15 @@ directly:
 - ``antecedent.estimators`` — the typed `estimator_config=` front-end; a real,
   documented stage module, but its content (per-estimator dataclasses) has no
   root-level re-export the way queries/selectors do.
+- ``antecedent.decision`` — a durable decision problem. `decision.Contract` names
+  actions by stable ID with the `ScientificQuantity` inputs each utility reads and a
+  closed utility `Expr` built with ordinary operators (`decision.x(0) * decision.x(1)`),
+  hard `Constraint`s that exclude and never penalize, a `Criterion` and a structural
+  policy. `contract.evaluate(joint_distribution)` needs aligned joint draws and
+  returns a `Decision` (`verdict`, `actions`, `evpi`, `explain()`, `export()`);
+  `decision.replay(bytes, contract=, source=)` recomputes a stored result exactly.
+  Refusals raise `DecisionRefusal`, a `CausalUnsupportedError` with a registered
+  `reason_code`.
 - ``antecedent.external`` — bind a foreign provider's finite response grid to an
   identified query. `external.response(identification, outcome_units=...)` derives the
   required coordinates from the query (override with `quantities=`); `spec.bind(Response(...))`
@@ -198,6 +207,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
 | Intervention response | `ResponseFunctional::InterventionResponse` | `InterventionResponse(..., intervention=intervention.Set/Shift/Bernoulli/Gaussian/Categorical(...))` |
 | Bind a foreign response grid (2.3) | `CheckedCausalContract` + `ExternalResponse` → `bind_external_result` → `BoundExternalClaim`; `ExternalClaimArtifact` (`antecedent-io`); refusals as `ExternalRefusal` | `antecedent.external.response(identification, outcome_units=...)` → `ExternalSpec.bind(Response(provider=ProviderObject(...), ...))` → `BoundExternalClaim` (`.inspect()`, `.export()`, `.lineage`); `ExternalSpec.load(bytes, expected=claim.identity)`; refusals raise `ExternalRefusal` |
+| Decision contract (2.3) | `DecisionContract` / `DecisionAction` / `UtilityExpr` / `HardConstraint` / `DecisionCriterion` (`antecedent-design`); `evaluate_contract`, `evaluate_structural`; `DecisionContractArtifact` / `DecisionResultArtifact` | `antecedent.decision.Contract` / `Action` / `Expr` (`decision.x(i)`) / `Constraint` / `Criterion`; `Contract.evaluate(joint_distribution)` → `Decision`; `Contract.load` / `.export()`; `decision.replay(...)`; refusals raise `DecisionRefusal` |
 | Provider trust (shared) | `ExternalTrustState` (`NativeLicensed` / `ExternallyAttested` / `ExactRequestVerified`) | `ProviderTrust` (`native_licensed` / `externally_attested` / `verified_extension`); a bound external claim is never `native_licensed` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
 | Structural transport (2.0 compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |

@@ -21,6 +21,13 @@ pub(crate) struct PyJointDistributionArtifact {
     artifact: DistributionArtifact,
 }
 
+impl PyJointDistributionArtifact {
+    /// The validated artifact, for bridges that consume its aligned draws.
+    pub(crate) fn inner(&self) -> &DistributionArtifact {
+        &self.artifact
+    }
+}
+
 #[pymethods]
 impl PyJointDistributionArtifact {
     #[new]

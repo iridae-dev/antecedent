@@ -34,6 +34,7 @@ mod callbacks;
 mod candidate_screen_api;
 mod counterfactual_id_api;
 mod cross_world_api;
+mod decision_api;
 mod derived_treatment_api;
 mod descriptive_api;
 mod design_api;
@@ -2707,6 +2708,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
+    decision_api::register(m)?;
     distribution_api::register(m)?;
     external_api::register(m)?;
     provider_api::register(m)?;

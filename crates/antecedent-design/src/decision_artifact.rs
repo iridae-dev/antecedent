@@ -149,6 +149,7 @@ struct ConstraintWire {
 #[serde(deny_unknown_fields)]
 struct ContractBody {
     version: u16,
+    #[serde(default)]
     identity: String,
     actions: Vec<ActionWire>,
     utility_units: String,
@@ -632,4 +633,42 @@ impl DecisionResultArtifact {
         }
         Ok(())
     }
+}
+
+/// Parse a contract from its JSON declaration (the wire a host language builds).
+/// A stored `identity` field is ignored: the identity is always recomputed.
+///
+/// # Errors
+/// Malformed JSON, unknown fields or an invalid declaration refuse.
+pub fn contract_from_json(json: &str) -> Result<DecisionContract, IoError> {
+    if json.len() > MAX_DECISION_ARTIFACT_BYTES {
+        return Err(IoError::TooLarge);
+    }
+    let body: ContractBody =
+        serde_json::from_str(json).map_err(|e| IoError::Convert(e.to_string()))?;
+    let contract = contract_from_body(body)?;
+    contract.validate().map_err(|e| IoError::Convert(format!("{e:?}")))?;
+    Ok(contract)
+}
+
+/// The JSON declaration of a contract, including its recomputed identity.
+///
+/// # Errors
+/// An invalid contract refuses.
+pub fn contract_to_json(contract: &DecisionContract) -> Result<String, IoError> {
+    serde_json::to_string(&body_from_contract(contract)?)
+        .map_err(|e| IoError::Convert(e.to_string()))
+}
+
+/// The JSON form of a result bound to its source digest. Values that are
+/// undefined for an excluded action are `null`.
+///
+/// # Errors
+/// Serialization failure.
+pub fn result_to_json(
+    result: &DecisionResult,
+    source: &DistributionArtifact,
+) -> Result<String, IoError> {
+    serde_json::to_string(&result_to_body(result, &source_digest(source)))
+        .map_err(|e| IoError::Convert(e.to_string()))
 }

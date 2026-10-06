@@ -78,6 +78,42 @@ impl DecisionEvalError {
     }
 }
 
+/// A structured, coded view of a refusal for host languages.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvalRefusal {
+    /// Registered runtime reason code.
+    pub code: &'static str,
+    /// Namespaced `family.slot` detail.
+    pub detail: &'static str,
+    /// Offending action input (`action[input]`) when there is one.
+    pub offending: Option<String>,
+}
+
+impl DecisionEvalError {
+    /// Coded, structured form of this refusal.
+    #[must_use]
+    pub fn refusal(&self) -> EvalRefusal {
+        let (detail, offending) = match self {
+            Self::Contract(_) => ("decision.contract_invalid", None),
+            Self::JointLawRequired => ("decision.joint_law_required", None),
+            Self::QuantityNotFound { action, input } => {
+                ("decision.quantity_not_found", Some(format!("{action}[{input}]")))
+            }
+            Self::UnsupportedCoordinate { action, input } => {
+                ("decision.unsupported_coordinate", Some(format!("{action}[{input}]")))
+            }
+            Self::MeaningMismatch { action, input } => {
+                ("decision.distribution_meaning", Some(format!("{action}[{input}]")))
+            }
+            Self::StructureInputsRequired(_) => ("decision.structure_inputs_required", None),
+            Self::NonFiniteUtility { action } => {
+                ("decision.non_finite_utility", Some(action.clone()))
+            }
+        };
+        EvalRefusal { code: self.reason_code(), detail, offending }
+    }
+}
+
 /// A hard constraint an action failed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConstraintExclusion {
