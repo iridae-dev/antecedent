@@ -4070,9 +4070,8 @@ notes = "2.3 A0.4 F25 validated structured refusal envelope (stage, registered c
 [[routes]]
 route = "antecedent.composition.cross_language"
 stage = "consume"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 A0.5 F21 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 A0.5 F21 the aligned joint law built on either surface is read on the other under constants with identical values, identities and refusal details; no interval or causal claim."
 
 [[routes]]
 route = "antecedent.temporal.effect_constancy"

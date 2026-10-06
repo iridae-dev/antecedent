@@ -420,7 +420,7 @@ exact_request_verification = "not_applicable_no_provider_in_this_route"
 id = "2.3A.F21.composition_parity"
 route = "antecedent.composition.cross_language"
 work_package = "A0.5"
-algorithm_provenance = ["pending:provenance/composition_parity.toml"]
+algorithm_provenance = ["provenance/f21_composition_parity.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f21.known_truth.positive"
@@ -431,8 +431,8 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f21.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "native_semantic_validation_only; supplied source remains unverified"
+exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "2.3A.F18.temporal_effect_constancy"

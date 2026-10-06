@@ -152,6 +152,41 @@ def decision_contract() -> decision.Contract:
     )
 
 
+def joint_law_identity(
+    *, semantic: str = "interventional_predictive", alignment: str = "joint", second: str = "y"
+) -> DistributionIdentity:
+    """The two-coordinate enumerated law's identity, written from constants."""
+    quantities = tuple(
+        ScientificQuantity(
+            variable_id=name,
+            variable_name=name,
+            role="outcome",
+            units="units",
+            population_id="target",
+            regime_id="do(a=1)",
+            horizon=0,
+            functional_id="outcome",
+        )
+        for name in ("x", second)
+    )
+    return DistributionIdentity(
+        semantic=semantic,  # type: ignore[arg-type]
+        quantities=quantities,
+        alignment=alignment,  # type: ignore[arg-type]
+        source_id="enumerated-law",
+        provider_id="exact-law",
+        rng_id="deterministic_exact",
+        snapshot_id="law-snapshot",
+        causal_contract_id="checked-contract",
+    )
+
+
+def joint_law() -> JointDistributionArtifact:
+    """Two equally weighted aligned draws (0, 0) and (1, 2): means (1/2, 1), covariance 1/2."""
+    draws = np.array([[0.0, 0.0], [1.0, 2.0]], dtype=np.float64)
+    return JointDistributionArtifact(joint_law_identity(), draws, calibration="exact")
+
+
 def main() -> None:
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -169,6 +204,7 @@ def main() -> None:
         "py_decision_contract.bin": contract.export(artifact_id="decision-contract"),
         "py_decision_result.bin": result.export(artifact_id="decision-result"),
         "py_decision_source.bin": source.export("source"),
+        "py_joint_law.bin": joint_law().export("joint-law"),
         "py_decision.identities.json": (
             json.dumps(
                 {

@@ -875,11 +875,11 @@ id = "2.3A.F21.composition_parity"
 workstream = "F21"
 milestone = "A"
 work_package = "A0.5"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can Rust and Python composition parity be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Both surfaces report means (1/2,1), covariance 1/2, identical quantity/trust/support identities and the same refusal details. A changed semantic ID or wrong distribution meaning refuses on both language surfaces. This record alone grants no causal or interval license."
 reference = "TODO.md A0.5; prerequisite feature records F1, F2, F8, F25"
-guarantee = "composition_parity_pending_executing_evidence"
+guarantee = "cross_language_joint_law_parity_point_only_no_interval"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Rust creates a two-coordinate aligned finite law; Python evaluates its covariance; Python creates a contract consumed by Rust."
@@ -890,21 +890,24 @@ owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
 prerequisite_records = ["2.3A.F1.aligned_joint_draws", "2.3A.F2.external_scientific_providers", "2.3A.F8.coordinate_support", "2.3A.F25.structured_refusals"]
 prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
 identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
-wire_changes = ["Allocate composition_cross_language_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): canonical Rust wire IDs for quantities, distribution, support, binding, obligations and decisions; Python typed wrappers preserve all fields. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
+wire_changes = ["No new artifact kind: the joint distribution artifact is the one bounded versioned wire format both surfaces read and write, with canonical Rust quantity, meaning, trust and calibration identities that the Python wrappers preserve. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
 compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "composition_parity.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "quantity_semantics_mismatch", detail = "composition_parity.wrong_contract", when = "A changed semantic ID or wrong distribution meaning refuses on both language surfaces." },
+  { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.identity_expected", when = "A loaded joint artifact's semantic ID, quantity or distribution meaning differs from the consumer's retained identity, on either surface." },
+  { code = "joint_law_required", detail = "aligned_joint_draws.marginals_not_joint", when = "A covariance or nonlinear joint functional is requested from independent marginals, on either surface." },
 ]
 routes = [
-  { name = "antecedent.composition.cross_language", stage = "consume", status = "closed", claim = "none", reason_code = "cell_not_licensed" },
+  { name = "antecedent.composition.cross_language", stage = "consume", status = "licensed", claim = "none" },
 ]
 fixtures = [
-  { id = "f21.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Both surfaces report means (1/2,1), covariance 1/2, identical quantity/trust/support identities and the same refusal details." },
-  { id = "f21.wrong_contract.negative", role = "negative", intent = "A changed semantic ID or wrong distribution meaning refuses on both language surfaces." },
-  { id = "f21.fresh_replay.artifact", role = "artifact", intent = "Both directions round-trip through one bounded versioned wire format." },
+  { id = "f21.known_truth.positive", role = "positive", intent = "On the enumerated law of aligned draws (0,0) and (1,2), the Python-built artifact read in Rust under constants reports means (1/2,1), covariance 1/2, E[XY]=1 and identical quantity, trust and calibration identities to the Rust-built twin.", evidence_test = "crates/antecedent-io/tests/cross_surface_joint_law.rs", evidence_assertion = "f21_python_built_joint_law_reports_the_enumerated_truth_under_constants" },
+  { id = "f21.python_value.positive", role = "positive", intent = "The Rust-built artifact read in Python under constants reports the same means, covariance and product expectation and the same identities.", evidence_test = "python/tests/test_cross_surface.py", evidence_assertion = "test_f21_rust_built_joint_law_reports_the_enumerated_truth" },
+  { id = "f21.wrong_contract.negative", role = "negative", intent = "A changed semantic ID, a wrong distribution meaning and independent marginals refuse in Rust with the shared details.", evidence_test = "crates/antecedent-io/tests/cross_surface_joint_law.rs", evidence_assertion = "f21_changed_semantic_id_wrong_meaning_and_marginals_refuse" },
+  { id = "f21.python_wrong_contract.negative", role = "negative", intent = "The same changed semantic ID, wrong meaning and independent-marginals mistakes refuse in Python with the same details.", evidence_test = "python/tests/test_cross_surface.py", evidence_assertion = "test_f21_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surface_too" },
+  { id = "f21.fresh_replay.artifact", role = "artifact", intent = "Both directions round-trip through the one bounded versioned wire format, and a tampered byte is refused.", evidence_test = "crates/antecedent-io/tests/cross_surface_joint_law.rs", evidence_assertion = "f21_both_directions_round_trip_through_one_wire_format" },
+  { id = "f21.python_fresh_replay.artifact", role = "artifact", intent = "Python reads both the Python-built and the Rust-built bytes as the same draws and identity.", evidence_test = "python/tests/test_cross_surface.py", evidence_assertion = "test_f21_both_directions_use_one_wire_format" },
 ]
 
 [[record]]

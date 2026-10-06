@@ -243,3 +243,51 @@ def test_refusal_details_match_the_strings_the_rust_tests_assert():
     assert joint.value.expected == "joint"
     assert joint.value.supplied == "independent_marginals"
     assert joint.value.remedy is not None
+
+
+# ---- F21: the two-coordinate aligned law, built on each surface and read on the other ----
+
+
+def test_f21_rust_built_joint_law_reports_the_enumerated_truth():
+    """Means (1/2, 1), covariance 1/2 and E[XY] = 1, under an identity built from constants."""
+    expected = gen.joint_law_identity()
+    loaded = JointDistributionArtifact.load(_read("rust_joint_law.bin"), expected_identity=expected)
+    assert loaded.mean(0) == pytest.approx(0.5, abs=1e-12)
+    assert loaded.mean(1) == pytest.approx(1.0, abs=1e-12)
+    assert loaded.covariance(0, 1) == pytest.approx(0.5, abs=1e-12)
+    assert loaded.joint_product_expectation(0, 1) == pytest.approx(1.0, abs=1e-12)
+    assert loaded.identity == expected
+    assert loaded.trust == "unverified"
+    assert loaded.calibration == "exact"
+    # The Python twin carries byte-for-byte the same draws and identity.
+    assert np.array_equal(np.asarray(loaded), np.asarray(gen.joint_law()))
+
+
+def test_f21_changed_semantic_id_wrong_meaning_and_marginals_refuse_on_this_surface_too():
+    data = _read("rust_joint_law.bin")
+    for changed in (
+        gen.joint_law_identity(second="z"),
+        gen.joint_law_identity(semantic="bootstrap"),
+        gen.joint_law_identity(semantic="causal_functional_posterior"),
+    ):
+        with pytest.raises(REFUSED, match="identity_expected"):
+            JointDistributionArtifact.load(data, expected_identity=changed)
+    marginals = JointDistributionArtifact(
+        gen.joint_law_identity(alignment="independent_marginals"),
+        np.array([[0.0, 0.0], [1.0, 2.0]], dtype=np.float64),
+        calibration="exact",
+    )
+    with pytest.raises(REFUSED, match="aligned_joint_draws.marginals_not_joint"):
+        marginals.covariance(0, 1)
+
+
+def test_f21_both_directions_use_one_wire_format():
+    python_bytes = _read("py_joint_law.bin")
+    rust_bytes = _read("rust_joint_law.bin")
+    expected = gen.joint_law_identity()
+    from_python = JointDistributionArtifact.load(python_bytes, expected_identity=expected)
+    from_rust = JointDistributionArtifact.load(rust_bytes, expected_identity=expected)
+    assert np.array_equal(np.asarray(from_python), np.asarray(from_rust))
+    assert from_python.identity == from_rust.identity
+    with pytest.raises(REFUSED):
+        JointDistributionArtifact.load(_flip_last_byte(rust_bytes), expected_identity=expected)
