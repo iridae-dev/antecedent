@@ -63,47 +63,76 @@ Python example: [`examples/python/prior_bank_surveys.py`](https://github.com/iri
   `tags["population"]` via `populations_from_prior_sources` — callers need not
   thread population tags manually when catalog meta is available.
 
-## Coefficient priors are diagonal
+## Coefficient priors: diagonal or dense `V0`
 
-`GaussianCoefficientPrior` stores a mean and a **diagonal** conjugate scale
-(`V0`) per coefficient in `β | σ² ~ N(mean, σ² · diag(V0))`; there is no
-off-diagonal prior covariance. Absolute prior variance of coefficient `i` is
-`σ² · V0[i]` — use `GaussianCoefficientPrior::absolute_variance` /
-`from_absolute_variance` at the boundary; do not write absolute SD² into `V0`.
+`GaussianCoefficientPrior` stores a mean and the **diagonal** of the conjugate
+scale `V0` per coefficient in `β | σ² ~ N(mean, σ² · V0)`. A prior set may add a
+`PriorSpec::CoefficientCorrelation` (a positive-definite correlation matrix
+`R`); `V0` is then dense, `V0 = D^{1/2} R D^{1/2}` with `D = diag(variance)`,
+and every backend (conjugate known-σ² and Normal–Inv-Gamma, Laplace, HMC, GLM)
+uses the full prior precision `V0⁻¹`. Without it `V0` is diagonal, as before.
+Absolute prior variance of coefficient `i` is `σ² · V0[i]` — use
+`GaussianCoefficientPrior::absolute_variance` / `from_absolute_variance` at the
+boundary; do not write absolute SD² into `V0`.
 
-Hydrating a prior from a posterior artifact (`IdenticalCoefficientSubspace`,
-`EffectFunctional`, `NamedParameters`, and every power / mixture compose built
-on them) reads only the per-coefficient posterior **means and standard
-deviations**, converts absolute SD² → `V0` with the source residual-variance
-mean, and **drops** posterior correlation between coefficients. A source that
-records no residual variance (a known-σ² Gaussian fit, a GLM, or a draws-free
-`PosteriorArtifact.from_moments` summary) has no scale for that conversion, so
-the hydrated prior keeps the **absolute** SD² and marks it
-(`absolute_coefficient_scale:<indices>` in the prior's restrictions). A Gaussian
-target fit then plugs in its own residual variance, `V0 = SD² / σ̂²` with the
-known σ² or else the target's least-squares residual variance (df `n − p`), and
-records the plug-in and `σ̂²` in the posterior's diagnostic notes; a GLM target
-reads `V0` at `σ² ≡ 1`, where absolute and `V0` coincide. An absolute-scale
-prior cannot enter a power / mixture compose, whose precisions must share one
-scale. That diagonal
-approximation **can be tighter than the source marginal** on linear
-combinations of coefficients: dropping the covariance replaces `Σ` by
-`diag(Σ)`, and `diag(Σ) − Σ` is not positive semidefinite in general, so a
-combination along which the source was uncertain because of correlated
-coefficients can receive a *tighter* prior than the source supports. For two
+Hydrating a prior from a posterior artifact with the identical-subspace mapping
+(`IdenticalCoefficientSubspace`, the sequential-updating case) reads the
+per-coefficient posterior **means and standard deviations**, converts absolute
+SD² → `V0` with the source residual-variance mean, and — when the artifact
+carries draws — carries the **posterior coefficient correlation** estimated
+from those draws, so the hydrated `V0` is the source's full posterior
+covariance divided by its σ². The prior records
+`hydrated_coefficient_covariance` in its restrictions and the fit's assumption
+says "dense V0". For a known-σ² conjugate Gaussian source, fitting batch B under
+the prior hydrated from batch A reproduces the pooled A ∪ B posterior up to
+the Monte Carlo error of the draws the moments are estimated from (exactly,
+given the analytic moments). On a confounded two-batch example the dense
+sequential effect SD matches the pooled one to 0.01% at 40 000 draws, while the
+old diagonal hydration was 11% too narrow. With an unknown σ² the coefficient
+block is transferred but the residual-variance posterior is not (the target
+keeps its own Inv-Gamma prior), so sequential and pooled agree closely but not
+exactly.
+
+Three cases stay **diagonal** and drop posterior correlation between
+coefficients:
+
+- a summary-only artifact (`PosteriorPayload::Summary`), which has no draws to
+  estimate a covariance from;
+- `EffectFunctional` and `NamedParameters` mappings, which map single source
+  moments onto a baseline prior (and the per-mechanism mediation bridge built
+  on them);
+- a source whose draw covariance is not positive definite (too few draws, or a
+  coefficient with constant draws); the prior then records
+  `hydrated_coefficient_covariance_dropped`.
+
+A diagonal transferred prior **can be tighter than the source marginal** on
+linear combinations of coefficients: dropping the covariance replaces `Σ` by
+`diag(Σ)`, and `diag(Σ) − Σ` is not positive semidefinite in general. For two
 coefficients the transferred variance of `β₁ ± β₂` is `σ₁² + σ₂²` instead of
 `σ₁² + σ₂² ± 2σ₁₂`: positive source correlation makes the transferred prior on
 the sum too narrow, negative correlation (typical of collinear lags such as
 `coef_x@lag1` and `coef_x@lag2`) makes the prior on their difference too
 narrow. Inspect the source's posterior correlation before transferring a
-strongly correlated source, or down-weight it (`α`).
+strongly correlated source through one of the diagonal paths, or down-weight it
+(`α`). Power and mixture composition (`compose_external_priors`) compose dense
+sources on full matrices and pass the composed correlation on.
 
-Sequential updating inherits the same approximation. Fitting batch B with a
-prior hydrated from batch A's posterior is not equivalent to fitting A and B
-together: on a confounded two-batch linear example the sequential posterior
-standard deviation of the effect is about 16% smaller than the pooled one
-(0.0385 against 0.0458). Treat a sequential posterior as possibly
-overconfident when the source coefficients are correlated.
+### Source residual variance
+
+The `V0` conversion needs the source's σ². A Gaussian posterior with an unknown
+σ² records it as its `residual_variance` draws; a known-σ² Gaussian fit records
+its fixed σ² as a constant `residual_variance` quantity (2.2 and later), so
+hydration converts with the source's σ². A source with no residual-variance
+quantity (a GLM, a summary built without one, or a known-σ² artifact written
+before 2.2) keeps the earlier behaviour rather than being refused: the hydrated
+prior keeps the **absolute** SD² and marks it
+(`absolute_coefficient_scale:<indices>` in the prior's restrictions). A Gaussian
+target fit then plugs in its own residual variance, `V0 = SD² / σ̂²` with the
+known σ² or else the target's least-squares residual variance (df `n − p`), and
+records the plug-in and `σ̂²` in the posterior's diagnostic notes; a GLM target
+reads `V0` at `σ² ≡ 1`, where absolute and `V0` coincide. Refit such a source
+to record its σ². An absolute-scale prior cannot enter a power / mixture
+compose, whose precisions must share one scale.
 
 ## Temporal transfer is lag-aware
 

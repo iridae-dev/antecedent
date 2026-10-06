@@ -1,5 +1,9 @@
 {
   "mediated_min": 0.1,
   "decomposition_tol": 0.2,
-  "tolerance_class": "Numeric"
+  "tolerance_class": "Numeric",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "path-product rule on the toy linear temporal SEM: the mediated effect is positive and total = direct + mediated"
+  }
 }

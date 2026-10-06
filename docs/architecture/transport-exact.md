@@ -167,8 +167,7 @@ with samples. Earlier T6 artifacts lack these checks and must be regenerated.
 Missing observations require an explicit missingness model, which the current
 empirical provider does not supply. There is no implicit complete-case deletion.
 Nominal pointwise uncertainty is separate from an execution-specific calibration
-binding; unbound executions report that status explicitly. See the
-[2.0 milestone audit](../audits/2.0-milestone-audit.md) for fixes and calibration scope.
+binding; unbound executions report that status explicitly.
 
 ## Complementary sources and retained grids
 

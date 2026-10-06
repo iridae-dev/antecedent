@@ -131,5 +131,9 @@
     }
   ],
   "tol": 1e-9,
-  "notes": "Two constructors per family, replacing an earlier single from_moments(mean, variance, target_ess) whose variance argument never affected the output (the rescale to target_ess discarded the moment match's magnitude). from_moments(mean, variance) matches both moments exactly: Beta kappa = mean*(1-mean)/variance - 1 (total concentration), alpha = mean*kappa, beta = (1-mean)*kappa; Gamma shape = mean^2/variance, rate = mean/variance. Its ess() is a derived consequence and may be negative (a proper prior weaker than the flat/reference prior) -- not an error. from_mean_and_ess(mean, ess) has no variance parameter: Beta alpha = mean*(ess+2), beta = (1-mean)*(ess+2); Gamma shape = ess+1, rate = shape/mean. Every (mean, ess >= 0) request is satisfiable, so from_mean_and_ess has no support gate to violate the way from_moments does."
+  "notes": "Two constructors per family, replacing an earlier single from_moments(mean, variance, target_ess) whose variance argument never affected the output (the rescale to target_ess discarded the moment match's magnitude). from_moments(mean, variance) matches both moments exactly: Beta kappa = mean*(1-mean)/variance - 1 (total concentration), alpha = mean*kappa, beta = (1-mean)*kappa; Gamma shape = mean^2/variance, rate = mean/variance. Its ess() is a derived consequence and may be negative (a proper prior weaker than the flat/reference prior) -- not an error. from_mean_and_ess(mean, ess) has no variance parameter: Beta alpha = mean*(ess+2), beta = (1-mean)*(ess+2); Gamma shape = ess+1, rate = shape/mean. Every (mean, ess >= 0) request is satisfiable, so from_mean_and_ess has no support gate to violate the way from_moments does.",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "Beta and Gamma moment-matching equations evaluated by hand (see `notes` for the formulas)"
+  }
 }

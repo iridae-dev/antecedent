@@ -15,12 +15,12 @@ the result's support, uncertainty, and assumptions.
 
 Calibration has the same discipline: a reported interval is `calibrated` only
 when a matching coverage record still attests the current code and the
-execution lies inside that record's measured scope. The committed 2.0
-measurements remain available for audit, but the current 2.1.0 source changes
-owe remeasurement before those records can attest this build.
+execution lies inside that record's measured scope. The release attestation
+gate checks that every published record still matches this build, including
+any scoped replay waiver for a change that cannot move its measured number.
 
-Licensed does not mean measured. Of the 472 licensed cells, 424 cite coverage
-records, 44 have no coverage measurement for their estimator
+Licensed does not mean measured. Of the 472 licensed cells, 428 cite coverage
+records, 40 have no coverage measurement for their estimator
 (`estimator_grid_not_measured`), and 4 report no interval; the
 [support matrix](support-matrix.md) states these counts and each cell's
 `calibration_reason`.

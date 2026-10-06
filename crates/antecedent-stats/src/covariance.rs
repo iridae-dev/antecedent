@@ -394,8 +394,10 @@ fn cluster_meat(
 fn cluster_finite_sample(n: usize, p: usize, g: usize) -> Result<f64, StatsError> {
     // Standard cluster DF correction: (G/(G−1)) · ((n−1)/(n−p)).
     if g < 2 {
-        return Err(StatsError::Shape {
-            message: "cluster-robust variance requires at least 2 clusters",
+        return Err(StatsError::FewClusters {
+            clusters: u64::try_from(g).unwrap_or(u64::MAX),
+            minimum: 2,
+            rendered: "shape error: cluster-robust variance requires at least 2 clusters",
         });
     }
     if n <= p {

@@ -8,4 +8,4 @@ prediction coincides with the interventional mean here.
 
 ## Expected summary
 
-Top-level keys: `mean_prediction_target, tol, tolerance_class` (3 fields).
+Top-level keys: `mean_prediction_target, oracle, tol, tolerance_class` (4 fields).

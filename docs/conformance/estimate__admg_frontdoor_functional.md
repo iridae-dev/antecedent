@@ -26,4 +26,4 @@ test also pins prepared estimate and same-schema refresh reuse.
 
 ## Expected summary
 
-Top-level keys: `case, columns, contingency_table, frequentist, graph, identification, query, schema_version` (8 fields).
+Top-level keys: `case, columns, contingency_table, frequentist, graph, identification, oracle, query, schema_version` (9 fields).

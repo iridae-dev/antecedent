@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "oracle": {
+    "kind": "external_package",
     "project": "ArviZ",
     "version": "0.20.0",
     "numpy_version": "2.1.3",

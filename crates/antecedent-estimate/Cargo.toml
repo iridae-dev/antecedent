@@ -22,21 +22,31 @@ ml-gbdt = ["antecedent-learn/ml-gbdt"]
 ml-forest = ["antecedent-learn/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-learn/ml-neural"]
+# Exposes the closed interval estimators (X4 `learned_continuous_interval_internal`, X1
+# `mz_transport_bootstrap_interval` and its draw machinery, the Frequentist plug-in
+# gradient band `ContinuousResponseEstimator::plugin_gradient_interval_internal`) to the
+# calibration harness. Enabled only by dev-dependencies (resolver 2 keeps it out of normal
+# builds); no released build carries it.
+calibration-internal = []
 
 [dependencies]
-antecedent-graph = { version = "2.1.1", path = "../antecedent-graph" }
-antecedent-core = { version = "2.1.1", path = "../antecedent-core" }
-antecedent-data = { version = "2.1.1", path = "../antecedent-data" }
-antecedent-expr = { version = "2.1.1", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.1.1", path = "../antecedent-identify" }
-antecedent-kernels = { version = "2.1.1", path = "../antecedent-kernels" }
-antecedent-learn = { version = "2.1.1", path = "../antecedent-learn" }
-antecedent-prob = { version = "2.1.1", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.1.1", path = "../antecedent-stats" }
+antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
+antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
+antecedent-data = { version = "2.2.0", path = "../antecedent-data" }
+antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "2.2.0", path = "../antecedent-identify" }
+antecedent-kernels = { version = "2.2.0", path = "../antecedent-kernels" }
+antecedent-learn = { version = "2.2.0", path = "../antecedent-learn" }
+antecedent-prob = { version = "2.2.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.2.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+# Self dev-dependency: the integration tests and benches measure the closed X1 mz bootstrap
+# estimator (and X4's interval), compiled only under `calibration-internal`. Dev-dependencies
+# never reach a normal or Python build (resolver 2).
+antecedent-estimate = { path = ".", features = ["calibration-internal"] }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 

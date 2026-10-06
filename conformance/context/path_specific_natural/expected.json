@@ -1,5 +1,9 @@
 {
   "method": "path_specific.natural",
   "ate": 0.3,
-  "tolerance": 1e-12
+  "tolerance": 1e-12,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "discrete T -> M -> Y chain: the mediated-path effect 0.3 follows from its stated conditional tables"
+  }
 }

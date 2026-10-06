@@ -101,7 +101,11 @@ library) may back known truth only for the inference modes its oracle lists in
 `independent_inferences`. Every conformance `oracle` block carries a `kind` from
 one closed vocabulary (`external_package`, `closed_form`, `enumeration`,
 `independent_reimplementation`, `regression_pin`), enforced by
-`gate_evidence_reachability.sh`. A `process_attested` row exists only in
+`gate_evidence_reachability.sh`; the same gate requires that block on every
+fixture a registry cites as `known_truth_fixture`, so a known-truth fixture
+always states where its truth comes from. A pinned upstream run is
+`external_package` (the oracle kind; `frozen_external_oracle` is a row's
+`evidence_kind`, not an oracle kind). A `process_attested` row exists only in
 `release.toml`, for a release-process fact no test can execute; its notes name the
 gate or workflow that enforces it.
 
@@ -207,3 +211,20 @@ Release: artifact format freeze, wheel matrix, conformance docs, hot-path
 baselines, security review (`release.toml`, ADR 0017). Package version is
 whatever `[workspace.package].version` in `Cargo.toml` says — do not restate it
 here; a hardcoded copy in this file sat five minor releases behind for months.
+
+2.2 promotion: `promotion_2_2.toml` freezes each 2.2 cell (theorem, graph class,
+population semantics, evidence family, provider, estimand, inference claim,
+bounds, refusal codes, identity inputs, wire changes, fixture ids, coverage-record
+ids) before implementation. Its routes stay closed until the record is
+`promoted` with executed positive, negative and artifact fixtures (budget for a
+search, calibration for an interval); while a record is `in_progress` it may
+license only a non-uncertainty route claiming `point_only` or `none`, and only
+once those same fixture roles cite executed evidence. `gate_promotion.sh`
+enforces this (`check_promotion_records.py` resolves every cited test, then
+`run_evidence_rows.py` executes each one and requires it to pass: exactly one
+Rust test, at least one collected Python test, none failing), and no
+2.2 interval may cite `estimator_grid_not_measured`. Every new bounded search
+runs under `antecedent_core::SearchBudget` (operation and depth limits, plus the
+context's cancellation and hard memory limit on every charge), charged inside a
+loop or recursion that live code reaches, and a promoted search's budget fixture
+must exercise it.

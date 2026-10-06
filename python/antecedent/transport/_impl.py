@@ -44,6 +44,7 @@ from ..query import (
     ResponseJacobian,
     SemiElasticity,
 )
+from ._status import identification_status as _canonical_status
 
 
 class TransportStage(TypedDict):
@@ -191,6 +192,11 @@ class EvidenceRegime:
 
     ``do(A)`` and ``do(B)`` never imply ``do(A,B)``. Separate marginals never
     imply a joint measurement. Only ``available`` evidence can satisfy a factor.
+    ``study`` names the study that produced the regime (``None``: only the
+    population is known); independence between regimes is never assumed from
+    their populations alone. A law collected in a sample selected on
+    ``selected_on``, or produced by the model ``model_artifact``, never stands in
+    for a population law.
     """
 
     id: str
@@ -202,10 +208,19 @@ class EvidenceRegime:
     distribution: DistributionAvailabilityName = "joint"
     intervention_values: Mapping[str, float] = field(default_factory=dict)
     conditioned_on: Sequence[str] = ()
+    study: str | None = None
+    selected_on: Sequence[str] = ()
+    model_artifact: str | None = None
 
     def __post_init__(self) -> None:
         if not self.id.strip() or not self.population.strip():
             raise CausalValueError("regime id and population must be non-empty")
+        if self.study is not None and not self.study.strip():
+            raise CausalValueError("regime study must be non-empty when given")
+        if self.model_artifact is not None and not self.model_artifact.strip():
+            raise CausalValueError("regime model_artifact must be non-empty when given")
+        if len(set(self.selected_on)) != len(self.selected_on):
+            raise CausalValueError("regime selected_on variables must be unique")
         if self.kind not in get_args(RegimeKindName):
             raise CausalValueError(f"unknown regime kind {self.kind!r}")
         if self.evidence_kind not in get_args(EvidenceKindName):
@@ -237,6 +252,8 @@ class EvidenceRegime:
     def available_experiment_on(self, population: str, variables: Sequence[str]) -> bool:
         return (
             self.evidence_kind == "available"
+            and not self.selected_on
+            and self.model_artifact is None
             and self.kind == "experimental"
             and self.population == population
             and set(self.interventions) == set(variables)
@@ -570,6 +587,13 @@ class TransportIdentification:
     @property
     def transportable(self) -> bool:
         return self.formula is not None
+
+    @property
+    def identification_status(self) -> str:
+        """Canonical identification status (``identified``, ``proven_non_transportable``,
+        ``missing_evidence``, ``not_certified`` or ``budget_cancel``); ``outcome`` keeps
+        its earlier spelling."""
+        return _canonical_status(self.outcome)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1197,6 +1221,13 @@ class ClassicalTransportIdentification:
     rules: tuple[str, ...]
     outcomes: tuple[str, ...]
     _native: Any = field(repr=False, compare=False)
+
+    @property
+    def identification_status(self) -> str:
+        """Canonical identification status (``identified``, ``proven_non_transportable``,
+        ``missing_evidence``, ``not_certified`` or ``budget_cancel``); ``outcome`` keeps
+        its earlier spelling."""
+        return _canonical_status(self.outcome)
 
     def export(self) -> bytes:
         """Export the retained checked proof or conservative/negative certificate."""

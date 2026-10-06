@@ -875,7 +875,7 @@ fn finish_series_graph_posterior(
 pub struct PyPreparedAnalysis {
     /// Arc so per-click estimate/refute detach with a refcount bump, not a
     /// deep `PreparedStudy` clone; `refresh` clones-on-write to swap data.
-    inner: Arc<PreparedStudy>,
+    pub(crate) inner: Arc<PreparedStudy>,
     names: Vec<String>,
     /// Last estimate result retained for second-click refute.
     last: Option<Arc<antecedent::StudyResult>>,

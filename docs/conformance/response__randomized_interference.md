@@ -10,4 +10,4 @@ parity with Aronow–Samii's exact joint-exposure variance.
 
 ## Expected summary
 
-Top-level keys: `assignment, contract, design, directed_edges, expected, fixture_id, from, mapping, outcomes, to, tolerance` (11 fields).
+Top-level keys: `assignment, contract, design, directed_edges, expected, fixture_id, from, mapping, oracle, outcomes, to, tolerance` (12 fields).

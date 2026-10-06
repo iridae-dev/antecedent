@@ -1,5 +1,9 @@
 {
   "ate_target": 3.0,
   "ate_tol": 0.3,
-  "tolerance_class": "Numeric"
+  "tolerance_class": "Numeric",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear interaction law Y = 1 + 2T + 0.5TW with mean W about 2: the marginal ATE is about 3"
+  }
 }

@@ -6,4 +6,4 @@ Known-truth Gaussian linear structural equations. Inputs are reproduced by the c
 
 ## Expected summary
 
-Top-level keys: `direct, mediated, tolerance, total` (4 fields).
+Top-level keys: `direct, mediated, oracle, tolerance, total` (5 fields).

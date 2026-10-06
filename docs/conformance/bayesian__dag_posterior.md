@@ -22,4 +22,4 @@ the test checks the collider posterior with that gate off.
 
 ## Expected summary
 
-Top-level keys: `chain_fixture, collider_fixture, dbn_lag1_fixture, engines, exact_max_nodes, reference, score_family, tolerance_class` (8 fields).
+Top-level keys: `chain_fixture, collider_fixture, dbn_lag1_fixture, engines, exact_max_nodes, oracle, reference, score_family, tolerance_class` (9 fields).

@@ -1,5 +1,17 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-10-05
+Scope: workspace crates + `python` extension (package version **2.2.0**)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+Pre-calibration source review of the 2.2.0 branch: the current changes add no
+`unsafe` block and `Cargo.lock` changes only workspace package versions. The
+inverse-outcome route binds forward provenance and refuses unlicensed forward
+claims; batch retargeting requires one row snapshot; dependency and overlap
+failures have typed refusals. Ordinary test and documentation gates run before
+the final calibration and matrix pass. Calibration and the release candidate
+gate are still required before publication.
+
 Date: 2026-09-29
 Scope: workspace crates + `python` extension (package version **2.1.1**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)

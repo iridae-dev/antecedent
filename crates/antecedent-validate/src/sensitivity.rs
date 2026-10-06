@@ -973,16 +973,6 @@ fn standardize_columns(cov: &mut [f64], n: usize, dim: usize) {
     }
 }
 
-/// Silverman's (1986) multivariate normal-reference bandwidth for covariates standardized to unit
-/// SD: `h = (4 / (d + 2))^(1/(d+4)) · n^(−1/(d+4))`.
-fn silverman_bandwidth(n: usize, dim: usize) -> f64 {
-    if n == 0 || dim == 0 {
-        return 1.0;
-    }
-    let d = dim as f64;
-    (4.0 / (d + 2.0)).powf(1.0 / (d + 4.0)) * (n as f64).powf(-1.0 / (d + 4.0))
-}
-
 /// Largest complete-case sample the O(n²·d) leave-one-out kernel smoother accepts.
 const MAX_NONPARAMETRIC_ROWS: usize = 20_000;
 
@@ -1155,7 +1145,12 @@ fn kernel_residuals(
                       limited to 20000 complete-case rows",
         });
     }
-    let h = bandwidth.unwrap_or_else(|| silverman_bandwidth(n, dim));
+    // Covariates are standardized to unit SD, so Silverman's (1986) multivariate
+    // normal-reference factor is the bandwidth. With no covariates every kernel distance
+    // is zero and the width is immaterial.
+    let h = bandwidth.unwrap_or_else(|| {
+        antecedent_stats::silverman_normal_reference_factor(n, dim).unwrap_or(1.0)
+    });
     if !h.is_finite() || h <= 0.0 {
         return Err(ValidationError::data_msg(
             "nonparametric sensitivity bandwidth must be finite and positive",
@@ -1242,8 +1237,7 @@ mod kernel_regressions {
     use antecedent_core::ExecutionContext;
 
     use super::{
-        MAX_NONPARAMETRIC_ROWS, nw_loo_predict_pair, orthogonalize_confounder, silverman_bandwidth,
-        standardize_columns,
+        MAX_NONPARAMETRIC_ROWS, nw_loo_predict_pair, orthogonalize_confounder, standardize_columns,
     };
     use crate::common::sample_sd;
 
@@ -1329,17 +1323,6 @@ mod kernel_regressions {
             assert!((sample_sd(&column) - 1.0).abs() < 1e-12, "column {d}");
         }
         assert!((0..n).all(|r| cov[r * dim + 2] == 4.0));
-    }
-
-    #[test]
-    fn silverman_rule_matches_the_multivariate_normal_reference_formula() {
-        // d = 1: (4/3)^(1/5) n^(-1/5); d = 2: 1^(1/6) n^(-1/6).
-        let n = 1000_usize;
-        assert!(
-            (silverman_bandwidth(n, 1) - (4.0_f64 / 3.0).powf(0.2) * 1000.0_f64.powf(-0.2)).abs()
-                < 1e-12
-        );
-        assert!((silverman_bandwidth(n, 2) - 1000.0_f64.powf(-1.0 / 6.0)).abs() < 1e-12);
     }
 
     #[test]

@@ -4,5 +4,9 @@
   "tolerance_class": "PosteriorDistribution",
   "frequentist": "linear_adjustment",
   "bayesian": "conjugate_gcomp",
-  "notes": "Y = 2T + 0.5Z; both engines share backdoor.adjustment IR"
+  "notes": "Y = 2T + 0.5Z; both engines share backdoor.adjustment IR",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear law Y = 2T + 0.5Z: the identified backdoor functional equals the coefficient 2"
+  }
 }

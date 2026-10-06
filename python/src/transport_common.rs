@@ -117,12 +117,104 @@ impl TransportPyErr for antecedent_io::z_transport_artifact::ZTransportArtifactE
     }
 }
 
+impl TransportPyErr for antecedent_io::mixed_source_artifact::MixedSourceArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::mixed_source_artifact::MixedSourceArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            E::ProofMismatch(inner) | E::CatalogBinding(inner) if inner.is_budget_or_cancel() => {
+                inner.into_transport_py_err()
+            }
+            // Every other consumer check is a consistency failure of the artifact.
+            other => serialization_error(other),
+        }
+    }
+}
+
+impl TransportPyErr for antecedent_io::mz_transport_artifact::MzTransportArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::mz_transport_artifact::MzTransportArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            E::ProofMismatch(inner) | E::CatalogBinding(inner) if inner.is_budget_or_cancel() => {
+                inner.into_transport_py_err()
+            }
+            // Every other consumer check is a consistency failure of the artifact;
+            // a proof or binding that does not check also carries the X1 record's
+            // frozen `(reason code, mz_transport.* detail)` pair.
+            other => match other.refusal() {
+                Some((code, detail)) => {
+                    crate::with_reason_code(serialization_error(format!("{detail}: {other}")), code)
+                }
+                None => serialization_error(other),
+            },
+        }
+    }
+}
+
+impl TransportPyErr for antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::learned_continuous_artifact::LearnedContinuousArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            // Every other consumer check is a consistency failure of the artifact.
+            other => serialization_error(other),
+        }
+    }
+}
+
+impl TransportPyErr for antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::smoothed_dose_artifact::SmoothedDoseArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            // A replay the consumer cancelled is a cancellation, still reason-coded.
+            E::ReplayRefused { code, message }
+                if code == reason_code!("transport_budget_cancel") =>
+            {
+                crate::with_reason_code(crate::CausalCancelledError::new_err(message), code)
+            }
+            // A replay the request no longer passes carries the record's reason code.
+            E::ReplayRefused { code, message } => {
+                crate::with_reason_code(serialization_error(message), code)
+            }
+            other => serialization_error(other),
+        }
+    }
+}
+
+impl TransportPyErr for antecedent_io::transport_scenario_artifact::TransportScenarioArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::transport_scenario_artifact::TransportScenarioArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            other => serialization_error(other),
+        }
+    }
+}
+
+impl TransportPyErr for antecedent_io::temporal_transport_artifact::TemporalTransportArtifactError {
+    fn into_transport_py_err(self) -> PyErr {
+        use antecedent_io::temporal_transport_artifact::TemporalTransportArtifactError as E;
+        match self {
+            E::LimitsExceeded(_) => crate::CausalResourceError::new_err(self.to_string()),
+            other => serialization_error(other),
+        }
+    }
+}
+
 impl TransportPyErr for antecedent_io::IoError {
     fn into_transport_py_err(self) -> PyErr {
         use antecedent_io::IoError as E;
         match self {
             E::Refused { code, message } => coded_refusal(code, message),
             E::ZTransport(inner) => inner.into_transport_py_err(),
+            E::MzTransport(inner) => inner.into_transport_py_err(),
+            E::MixedSource(inner) => inner.into_transport_py_err(),
+            E::TransportScenario(inner) => inner.into_transport_py_err(),
+            E::TemporalTransport(inner) => inner.into_transport_py_err(),
+            E::LearnedContinuous(inner) => inner.into_transport_py_err(),
+            E::SmoothedDose(inner) => inner.into_transport_py_err(),
             E::UnsupportedVersion { .. } => serialization_error(self),
             // The facade still carries some refusals as converted messages.
             E::Convert(message) => classify(&message),

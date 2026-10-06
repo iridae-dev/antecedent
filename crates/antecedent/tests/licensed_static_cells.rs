@@ -761,11 +761,29 @@ fn counterfactual_dag_interaction_outcome_recovers_subgroup_unit_effects() {
                     diagnostic(&result, "gcm.counterfactual.uncertainty_unavailable").is_none()
                 );
             } else {
+                // Deliberately None (see `IteResult::unit_effect_intervals`): no
+                // frequentist per-unit interval is synthesised, and the diagnostic
+                // says why and where the per-unit interval does live.
                 assert!(cf.unit_effect_intervals.is_none(), "{label}");
-                assert!(
-                    diagnostic(&result, "gcm.counterfactual.uncertainty_unavailable").is_some(),
-                    "{label}: Frequentist unit effects must keep saying uncertainty is unavailable"
-                );
+                let unavailable = diagnostic(&result, "gcm.counterfactual.uncertainty_unavailable")
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{label}: Frequentist unit effects must keep saying \
+                                 uncertainty is unavailable"
+                        )
+                    });
+                for needle in [
+                    "sampling uncertainty is unavailable",
+                    "not identified",
+                    "selected",
+                    "unit_posterior_quantile",
+                ] {
+                    assert!(
+                        unavailable.message.contains(needle),
+                        "{label}: diagnostic must name `{needle}`: {}",
+                        unavailable.message
+                    );
+                }
             }
         }
     }

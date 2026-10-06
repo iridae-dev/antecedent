@@ -21,6 +21,19 @@ pub enum CounterfactualError {
     /// Nested interventions not allowed.
     #[error("nested counterfactuals not enabled")]
     NestedNotAllowed,
+    /// Abduction is ill-posed or not exact inversion: the observed values do not
+    /// determine each unit's exogenous terms (a deterministic mechanism given
+    /// varying data, or a posterior or prior-drawn exogenous term). This is not a
+    /// model-adequacy test: an invertible mechanism always regenerates the data it
+    /// abduces from.
+    #[error("abduction is not exact inversion: {message}")]
+    AbductionNotExact {
+        /// What failed to invert.
+        message: String,
+    },
+    /// Cooperative cancellation was observed between evaluation steps.
+    #[error("cancelled during cross-world evaluation")]
+    Cancelled,
     /// Numerical failure.
     #[error("numerical error: {message}")]
     Numerical {

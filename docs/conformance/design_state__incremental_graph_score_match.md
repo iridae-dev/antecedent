@@ -7,4 +7,4 @@ score rebuild on a 3-node linear chain.
 
 ## Expected summary
 
-Top-level keys: `min_delta, n_rows, notes, stable_float_tol` (4 fields).
+Top-level keys: `min_delta, n_rows, notes, oracle, stable_float_tol` (5 fields).

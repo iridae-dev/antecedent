@@ -601,6 +601,60 @@ pub fn evaluate_exact_transport(
     prepare_exact_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
 }
 
+/// A checked formula whose factor leaves are bound to catalog regimes: the
+/// single-source z functional or a multi-source mz functional. The exact and
+/// empirical z providers evaluate either through this one view.
+pub(crate) trait BoundZFormula {
+    fn arena(&self) -> &antecedent_expr::CausalExprArena;
+    fn root(&self) -> antecedent_expr::ExprId;
+    fn catalog(&self) -> &antecedent_core::EvidenceCatalog;
+    fn cited_regimes(&self) -> &[antecedent_core::RegimeId];
+    fn outcomes(&self) -> &std::sync::Arc<[antecedent_core::VariableId]>;
+    fn treatments(&self) -> &[antecedent_core::VariableId];
+}
+
+impl BoundZFormula for antecedent_identify::BoundZTransportFunctional {
+    fn arena(&self) -> &antecedent_expr::CausalExprArena {
+        self.arena()
+    }
+    fn root(&self) -> antecedent_expr::ExprId {
+        self.root()
+    }
+    fn catalog(&self) -> &antecedent_core::EvidenceCatalog {
+        self.catalog()
+    }
+    fn cited_regimes(&self) -> &[antecedent_core::RegimeId] {
+        self.cited_regimes()
+    }
+    fn outcomes(&self) -> &std::sync::Arc<[antecedent_core::VariableId]> {
+        &self.derivation().query().outcomes
+    }
+    fn treatments(&self) -> &[antecedent_core::VariableId] {
+        &self.derivation().query().treatments
+    }
+}
+
+impl BoundZFormula for antecedent_identify::BoundMzTransportFunctional {
+    fn arena(&self) -> &antecedent_expr::CausalExprArena {
+        self.arena()
+    }
+    fn root(&self) -> antecedent_expr::ExprId {
+        self.root()
+    }
+    fn catalog(&self) -> &antecedent_core::EvidenceCatalog {
+        self.catalog()
+    }
+    fn cited_regimes(&self) -> &[antecedent_core::RegimeId] {
+        self.cited_regimes()
+    }
+    fn outcomes(&self) -> &std::sync::Arc<[antecedent_core::VariableId]> {
+        &self.derivation().query().outcomes
+    }
+    fn treatments(&self) -> &[antecedent_core::VariableId] {
+        &self.derivation().query().treatments
+    }
+}
+
 /// Evaluate the currently licensed point-only z-surrogate functional against
 /// exact or empirical joint-law tables. Empirical inputs produce a plug-in
 /// point estimate; this route publishes no interval or sampling guarantee.
@@ -615,6 +669,41 @@ pub fn evaluate_exact_z_transport(
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError> {
     prepare_exact_z_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+}
+
+/// Evaluate a checked multi-source limited-experiment functional against exact
+/// laws, or empirical tables as a plug-in point. Each leaf reads only the law of
+/// the regime it is bound to, so every factor is evaluated from the source whose
+/// premises certified it; there is no separate estimator route.
+///
+/// # Errors
+/// Provider/catalog disagreement, a request outside the cited levels, missing
+/// support, or resource limits.
+pub fn evaluate_exact_mz_transport(
+    functional: &antecedent_identify::BoundMzTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactDistribution, antecedent_expr::EvalError> {
+    prepare_exact_mz_transport(functional, data, request, limits, ctx)?.evaluate(ctx)
+}
+
+/// Validate the supplied laws against the frozen catalog and compile the checked
+/// mz formula once, without evaluating it.
+///
+/// # Errors
+/// Provider/catalog disagreement, a request outside the cited levels, or a
+/// compile-time resource limit.
+pub fn prepare_exact_mz_transport(
+    functional: &antecedent_identify::BoundMzTransportFunctional,
+    data: antecedent_expr::ExactTransportData,
+    request: antecedent_expr::Assignment,
+    limits: antecedent_expr::ExactEvaluationLimits,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_expr::ExactEvaluationPlan, antecedent_expr::EvalError> {
+    validate_exact_laws(functional.catalog(), &data)?;
+    compile_exact_z_transport(functional, data, request, limits, ctx)
 }
 
 /// Validate source joint-law providers and compile the checked zTR formula.
@@ -640,7 +729,7 @@ pub fn prepare_exact_z_transport(
 /// A request that does not bind the certified treatments at a cited level, or
 /// a compile-time resource limit.
 pub(crate) fn compile_exact_z_transport(
-    functional: &antecedent_identify::BoundZTransportFunctional,
+    functional: &dyn BoundZFormula,
     data: antecedent_expr::ExactTransportData,
     request: antecedent_expr::Assignment,
     limits: antecedent_expr::ExactEvaluationLimits,
@@ -649,8 +738,7 @@ pub(crate) fn compile_exact_z_transport(
     use antecedent_core::same_intervention_level;
     use antecedent_expr::{EvalError, ExactEvaluationPlan, LawTolerance};
 
-    let query = functional.derivation().query();
-    require_treatment_request(&query.treatments, &request)?;
+    require_treatment_request(functional.treatments(), &request)?;
     // A source factor that exchanged a treatment cites the experiment at the
     // concrete level recorded in the proof, whatever the root shape (a bare
     // direct-exchange distribution, or a summed product on the recursive
@@ -681,7 +769,7 @@ pub(crate) fn compile_exact_z_transport(
         functional.arena(),
         functional.root(),
         data.with_world_bound_leaves(functional.cited_regimes()),
-        query.outcomes.clone(),
+        functional.outcomes().clone(),
         request,
         limits,
         LawTolerance::default(),
@@ -705,7 +793,8 @@ fn require_treatment_request(
 }
 
 /// Check every supplied law against the evidence regime it claims to realize:
-/// the regime must be satisfiable, joint and unconditioned, the law's
+/// the regime must supply a measured population law (available, not a model
+/// artifact, not a selected sample), be joint and unconditioned, the law's
 /// interventions and axes must be the regime's, every catalog binding of the
 /// regime must name the law's snapshot, and every declared coordinate domain
 /// must agree with the law's axis values. Shared by the classical and z routes.
@@ -724,7 +813,7 @@ pub(crate) fn validate_exact_laws(
             .iter()
             .find(|r| r.id == law.regime() && r.population.as_ref() == law.population())
             .ok_or(EvalError::ProviderKind("exact provider names an unknown evidence regime"))?;
-        if !regime.evidence_kind.can_satisfy_factor()
+        if !regime.supplies_population_law()
             || !matches!(regime.distribution, DistributionAvailability::Joint)
             || !regime.conditioned_on.is_empty()
             || law.interventions().len() != regime.interventions.len()
@@ -787,7 +876,7 @@ pub(crate) fn validate_exact_laws(
 
 /// Whether a cited source regime supplies the requested level of `treatment`.
 fn request_level_is_cited(
-    functional: &antecedent_identify::BoundZTransportFunctional,
+    functional: &dyn BoundZFormula,
     treatment: antecedent_core::VariableId,
     requested: Option<&antecedent_core::Value>,
 ) -> bool {
@@ -811,11 +900,11 @@ fn request_level_is_cited(
 /// concrete level, or `None` when the factor leaves it symbolic for the request
 /// to bind.
 fn cited_treatment_levels(
-    functional: &antecedent_identify::BoundZTransportFunctional,
+    functional: &dyn BoundZFormula,
 ) -> Vec<(antecedent_core::VariableId, Option<antecedent_core::Value>)> {
     use antecedent_expr::ExprNode;
     let arena = functional.arena();
-    let treatments = &functional.derivation().query().treatments;
+    let treatments = functional.treatments();
     let mut pending = vec![functional.root()];
     let mut seen = std::collections::BTreeSet::new();
     let mut cited = Vec::new();
@@ -1480,5 +1569,30 @@ mod tests {
         assert!((result.overlap.selection.probability_max - 0.6).abs() < 1e-12);
         assert!((result.overlap.treatment.probability_min - 0.5).abs() < 1e-12);
         assert!((result.overlap.treatment.probability_max - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_model_artifact_or_selected_sample_regime_never_validates_a_supplied_law() {
+        let (functional, data) = checked_z_fixture(false);
+        validate_exact_laws(functional.catalog(), &data).unwrap();
+        let edits: [fn(&mut antecedent_core::EvidenceRegime); 2] = [
+            |r| r.origin = antecedent_core::LawOrigin::ModelArtifact { artifact: Arc::from("m") },
+            |r| {
+                r.selection = antecedent_core::SamplingSelection::SelectedOn {
+                    variables: Arc::from([VariableId::from_raw(0)]),
+                };
+            },
+        ];
+        for edit in edits {
+            let mut catalog = functional.catalog().clone();
+            let mut regimes = catalog.regimes.to_vec();
+            regimes.iter_mut().for_each(edit);
+            catalog.regimes = regimes.into();
+            assert!(matches!(
+                validate_exact_laws(&catalog, &data),
+                Err(antecedent_expr::EvalError::ProviderKind(message))
+                    if message.contains("disagrees with its evidence regime")
+            ));
+        }
     }
 }

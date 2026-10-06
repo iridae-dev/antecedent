@@ -25,11 +25,13 @@ use crate::backend::{
 };
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
-use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model};
+use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_precision};
 use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
 use crate::linalg::{cholesky_spd, condition_from_chol, invert_spd, solve_spd_into};
 use crate::posterior::{PosteriorDraws, PosteriorSchema};
-use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};
+use crate::prior::{
+    CoefficientPrecision, GaussianCoefficientPrior, GaussianVarianceModel, PriorSet,
+};
 
 /// Native Laplace Bayesian GLM backend.
 #[derive(Clone, Copy, Debug, Default)]
@@ -79,8 +81,9 @@ pub fn fit_laplace_glm(
         return Err(ProbError::InvalidPrior { message: "coefficient prior length != ncols" });
     }
     coef_prior.validate()?;
-    // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1.
-    let prec = coef_prior.absolute_precision(1.0)?;
+    // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1
+    // (dense when the prior set carries a coefficient correlation).
+    let prec = prior.coefficient_precision(&coef_prior)?;
 
     // Initialize at prior mean (often 0).
     for i in 0..ncols {
@@ -105,12 +108,13 @@ pub fn fit_laplace_glm(
             true,
         )?;
 
-        // Add prior: log π(β) = -0.5 Σ prec_i (β_i - μ_i)²
-        for i in 0..ncols {
-            let diff = workspace.beta[i] - coef_prior.mean[i];
-            workspace.grad[i] -= prec[i] * diff;
-            workspace.neg_hessian[i * ncols + i] += prec[i];
-        }
+        // Add prior: log π(β) = -0.5 (β - μ)' P (β - μ)
+        prec.sub_prior_gradient(
+            &workspace.beta[..ncols],
+            &coef_prior.mean,
+            &mut workspace.grad[..ncols],
+        );
+        prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
 
         grad_inf = 0.0;
         for i in 0..ncols {
@@ -209,11 +213,12 @@ pub fn fit_laplace_glm(
         1.0,
         true,
     )?;
-    for i in 0..ncols {
-        let diff = workspace.beta[i] - coef_prior.mean[i];
-        workspace.grad[i] -= prec[i] * diff;
-        workspace.neg_hessian[i * ncols + i] += prec[i];
-    }
+    prec.sub_prior_gradient(
+        &workspace.beta[..ncols],
+        &coef_prior.mean,
+        &mut workspace.grad[..ncols],
+    );
+    prec.add_divided_to(&mut workspace.neg_hessian[..ncols * ncols], ncols, 1.0);
     grad_inf = 0.0;
     for i in 0..ncols {
         grad_inf = grad_inf.max(workspace.grad[i].abs());
@@ -300,7 +305,8 @@ fn fit_gaussian_laplace(
         GaussianVarianceModel::Known { sigma2 } => {
             crate::conjugate::fit_with_absolute_scale_resolved(design, prior, |prior| {
                 let coef_prior = prior.gaussian_coefficients().unwrap_or(&coef_prior);
-                fit_gaussian_laplace_known(design, coef_prior, sigma2, options, workspace)
+                let prec = prior.coefficient_precision(coef_prior)?;
+                fit_gaussian_laplace_known(design, coef_prior, &prec, sigma2, options, workspace)
             })
         }
         GaussianVarianceModel::InvGamma { .. } => {
@@ -316,10 +322,12 @@ fn fit_gaussian_laplace(
 fn gaussian_normal_equations(
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
 ) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
     let nrows = design.nrows;
     let ncols = design.ncols;
-    let prec = coef_prior.precision();
+    let mut prec_mean = vec![0.0; ncols];
+    prec.mul_into(&coef_prior.mean, &mut prec_mean);
     let mut a_beta = vec![0.0; ncols * ncols];
     let mut b_beta = vec![0.0; ncols];
     for c1 in 0..ncols {
@@ -341,9 +349,9 @@ fn gaussian_normal_equations(
             let x = design.x_colmajor[c1 * nrows + r];
             acc += w * x * (design.y[r] - offset);
         }
-        b_beta[c1] = acc + prec[c1] * coef_prior.mean[c1];
-        a_beta[c1 * ncols + c1] += prec[c1];
+        b_beta[c1] = acc + prec_mean[c1];
     }
+    prec.add_divided_to(&mut a_beta, ncols, 1.0);
     Ok((a_beta, b_beta))
 }
 
@@ -367,13 +375,14 @@ fn solve_map_from_normal_eq(
 fn fit_gaussian_laplace_known(
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
     sigma2: f64,
     options: &BayesFitOptions,
     workspace: &mut LaplaceWorkspace,
 ) -> Result<BayesFitResult, ProbError> {
     let ncols = design.ncols;
     workspace.prepare(design.nrows, ncols, options.n_draws);
-    let (a_beta, b_beta) = gaussian_normal_equations(design, coef_prior)?;
+    let (a_beta, b_beta) = gaussian_normal_equations(design, coef_prior, prec)?;
     let map = solve_map_from_normal_eq(&a_beta, &b_beta, ncols)?;
     let a_inv = invert_spd(&a_beta, ncols)?;
     let mut cov = vec![0.0; ncols * ncols];
@@ -381,9 +390,10 @@ fn fit_gaussian_laplace_known(
         cov[i] = sigma2 * a_inv[i];
     }
 
-    let mut target = gaussian_target_from_model(
+    let mut target = gaussian_target_from_model_with_precision(
         design,
         coef_prior.clone(),
+        prec.clone(),
         GaussianVarianceModel::Known { sigma2 },
     )?;
     let mut grad = vec![0.0; ncols];
@@ -470,7 +480,7 @@ pub fn sample_gaussian_mvn(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gaussian_target::{prior_quadratic, rss_and_xtwr};
+    use crate::gaussian_target::{gaussian_target_from_model, prior_quadratic, rss_and_xtwr};
     use crate::prior::PriorSpec;
 
     fn deterministic_unit(i: usize) -> f64 {
@@ -739,8 +749,12 @@ mod tests {
         assert!((fit.map[1] - conj.map[1]).abs() < 1e-9);
         let cov = fit.cov.as_ref().expect("cov");
         // Analytic Cov = σ² A^{-1}; rebuild A and compare.
-        let (a_beta, b_beta) =
-            gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap()).unwrap();
+        let (a_beta, b_beta) = gaussian_normal_equations(
+            design,
+            prior.gaussian_coefficients().unwrap(),
+            &prior.gaussian_coefficients().unwrap().precision().into(),
+        )
+        .unwrap();
         let map_ref = solve_map_from_normal_eq(&a_beta, &b_beta, 2).unwrap();
         let a_inv = invert_spd(&a_beta, 2).unwrap();
         for i in 0..2 {
@@ -829,16 +843,24 @@ mod tests {
             fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
                 .unwrap();
 
-        let (a_beta, b_beta) =
-            gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap()).unwrap();
+        let (a_beta, b_beta) = gaussian_normal_equations(
+            design,
+            prior.gaussian_coefficients().unwrap(),
+            &prior.gaussian_coefficients().unwrap().precision().into(),
+        )
+        .unwrap();
         let beta_ref = solve_map_from_normal_eq(&a_beta, &b_beta, 2).unwrap();
         let mut xtwr = vec![0.0; 2];
         let mut p_diff = vec![0.0; 2];
         let rss = rss_and_xtwr(design, &beta_ref, &mut xtwr).unwrap();
         let prec = prior.gaussian_coefficients().unwrap().precision();
-        let quad =
-            prior_quadratic(prior.gaussian_coefficients().unwrap(), &prec, &beta_ref, &mut p_diff)
-                .unwrap();
+        let quad = prior_quadratic(
+            prior.gaussian_coefficients().unwrap(),
+            &prec.clone().into(),
+            &beta_ref,
+            &mut p_diff,
+        )
+        .unwrap();
         let a_const = shape + 0.5 * (n as f64 + 2.0);
         let b_at = scale + 0.5 * (rss + quad);
         let lambda_ref = (b_at / a_const).ln();
@@ -913,8 +935,12 @@ mod tests {
         let fit =
             fit_laplace_glm(BayesLikelihood::GaussianIdentity, design, &prior, &opts, &mut ws)
                 .unwrap();
-        let (a_beta, b_beta) =
-            gaussian_normal_equations(design, prior.gaussian_coefficients().unwrap()).unwrap();
+        let (a_beta, b_beta) = gaussian_normal_equations(
+            design,
+            prior.gaussian_coefficients().unwrap(),
+            &prior.gaussian_coefficients().unwrap().precision().into(),
+        )
+        .unwrap();
         let map_ref = solve_map_from_normal_eq(&a_beta, &b_beta, 1).unwrap();
         // Strong pull toward 0: MAP far below OLS (~5).
         assert!(fit.map[0] < 1.0, "map={}", fit.map[0]);
@@ -1027,7 +1053,7 @@ mod tests {
             design,
             &beta,
             coef,
-            &prec,
+            &prec.clone().into(),
             &mut eta,
             1.0,
         )

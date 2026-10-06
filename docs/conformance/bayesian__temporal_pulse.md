@@ -8,4 +8,4 @@ temporal design via the `Study` facade. Posterior mean ≈ 0.9; finite
 
 ## Expected summary
 
-Top-level keys: `backend, expected_ate, horizon_steps, n, n_draws, outcome, require_artifact_round_trip, require_finite_p_below_zero, scm, tolerance, treatment, treatment_lag, true_effect_per_unit` (13 fields).
+Top-level keys: `backend, expected_ate, horizon_steps, n, n_draws, oracle, outcome, require_artifact_round_trip, require_finite_p_below_zero, scm, tolerance, treatment, treatment_lag, true_effect_per_unit` (14 fields).

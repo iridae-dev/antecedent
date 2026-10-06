@@ -1128,7 +1128,8 @@ pub(crate) fn validate_response_result(
         (&wire.estimate, &wire.support.status, &wire.uncertainty),
         (
             crate::ResponseIdentificationWire::Unidentified { .. },
-            crate::SupportStatusWire::OutsideEmpiricalSupport,
+            crate::SupportStatusWire::OutsideEmpiricalSupport
+                | crate::SupportStatusWire::MissingEvidence,
             crate::ResponseUncertaintyWire::None
         )
     );

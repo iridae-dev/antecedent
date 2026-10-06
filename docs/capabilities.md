@@ -370,7 +370,13 @@ and publish the completion identified set when completions disagree. Frequentist
 TemporalCpdag/Pag cells retain completion identified sets; DAG-posterior cells
 retain atom probabilities and unidentified mass.
 `ConditionalEffect` is licensed on `Dag`, `Cpdag`, and `Pag`. The public
-license is that matrix, not this page.
+license is that matrix, not this page. The frequentist interaction regression
+(`conditional.linear.adjustment`) fits one modifier, and its calibration record
+covers that one-modifier coordinate only; over several modifiers it refuses and
+names, in the refusal's `remedy`, the routes that take a modifier set: the
+Bayesian conditional estimator (`conditional.bayesian`, Rust) and the EconML
+handoff (`antecedent.handoff.econml(result, modifiers=[...])`). The Python
+`ConditionalEffect` query carries one modifier column.
 
 Three of these carry parametric scope conditions that the estimator cannot check
 at runtime:
@@ -419,6 +425,25 @@ at runtime:
 * **Propensity-matching standard errors** use a pooled homoskedastic variance
   proxy rather than the full Abadie–Imbens conditional variance estimator. Under
   heteroskedastic outcome variance the reported standard error is biased.
+  Clustered, multiway, and HAC (Newey–West and panel cluster-HAC) standard
+  errors for propensity and covariate-distance matching are refused with
+  `estimator_inference_mismatch`, because no clustered influence function
+  exists for this estimator. One-nearest-neighbour matching with a fixed number
+  of matches is not asymptotically linear in a per-observation influence
+  function. Its only linear form is the martingale representation of Abadie and
+  Imbens (2006, 2012), in which each unit's residual enters with weight
+  `1 + K_i` (how often it is reused as a donor), and that representation is
+  proved for random samples only. A cluster sum of it would need per-unit
+  residuals and per-unit conditional effects. The estimator's linear bias
+  correction on the match feature does not estimate those consistently, and
+  Abadie and Imbens recover only the per-unit variance from same-arm matches.
+  Matching on an estimated propensity also needs the Abadie–Imbens (2016)
+  estimated-score adjustment, which is not implemented. Resampling does not
+  close the gap: the bootstrap (including a cluster bootstrap) is inconsistent
+  for fixed-match matching (Abadie and Imbens 2008), and the wild bootstrap of
+  the martingale representation (Otsu and Rai 2017) is proved for independent
+  samples only. For clustered or serially dependent data use AIPW, which
+  implements cluster, multiway, and HAC standard errors.
 
 Applying the first two outside their assumed regime produces a biased estimate
 with no runtime signal.
@@ -1315,7 +1340,17 @@ Counterfactual primitives exist:
 validation `none`, Frequentist and Bayesian, as a two-world GCM ITE. Unit ITEs
 are exact only for invertible additive-noise mechanisms; downstream of a
 discrete or state-space mechanism a unit effect is one sampled counterfactual
-that varies with the seed. Nested counterfactuals, temporal trajectories,
+that varies with the seed. Per-unit intervals (`IteResult::unit_effect_intervals`)
+are published only under Bayesian inference, as the posterior quantiles of each
+unit's mechanism-refit draws (`unit_posterior_quantile`). Frequentist unit effects
+carry none, by design: a unit ITE is not identified from data, it depends jointly
+on every fitted path mechanism and on disturbances abducted with those same
+parameters, and mechanism families are selected on the same data, so a
+delta-method interval would ignore selection (diagnostic
+`gcm.counterfactual.uncertainty_unavailable`). A pointwise interval for the
+conditional average effect tau(x), a different estimand, is
+[`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md) (uncalibrated).
+Nested counterfactuals, temporal trajectories,
 graph-posterior structure, and cheap/full validation remain refused. The public license is the
 [support matrix](support-matrix.md).
 

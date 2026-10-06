@@ -11,7 +11,9 @@
 //! bounds use the representer norm: an unobserved confounder that shifts the
 //! outcome residual by at most `δ` in L2 can change the ATE by at most
 //! `δ · ||α||_2 / √n`-scaled norms; we report the smallest `δ` on a grid that
-//! can push the estimate through zero (or flip sign).
+//! can push the estimate through zero (or flip sign). The interval is centred on
+//! the published estimate the report is attached to (`original_ate`), not on the
+//! diagnostic fit's clipped IPW contrast, which supplies only `α`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -121,16 +123,24 @@ impl RieszSensitivity {
             });
         }
         let Representer { alpha, y, ipw_ate, .. } = representer;
-        // The bound is computed around the clipped inverse-probability-weighted ATE, not around
-        // the published estimate; a bound for an effect of the opposite sign does not describe
-        // the published one.
-        if ipw_ate != 0.0
-            && problem.original.ate != 0.0
-            && ipw_ate.signum() != problem.original.ate.signum()
-        {
+        // Centring. `|E[αΔ]| ≤ δ·sd(Y)·‖α‖₂` bounds the confounding bias of the ATE functional,
+        // not of any one estimator of it, so the interval is centred on the published estimate:
+        // the report carries that estimate as `original_ate`, and the tipping δ must be the
+        // confounding needed to explain *it* away. The clipped IPW contrast is only the
+        // diagnostic fit's own reading of the effect; it supplies the representer norm and a
+        // consistency check, never the centre. An IPW contrast of the opposite sign means the
+        // diagnostic propensity fit does not describe the published adjustment, so its norm
+        // is not used.
+        let centre = problem.original.ate;
+        if !centre.is_finite() {
+            return Err(ValidationError::NotApplicable {
+                message: "Riesz sensitivity requires a finite published estimate",
+            });
+        }
+        if ipw_ate != 0.0 && centre != 0.0 && ipw_ate.signum() != centre.signum() {
             return Err(ValidationError::NotApplicable {
                 message: "the inverse-probability-weighted ATE has the opposite sign of the \
-                          published estimate, so the Riesz bound around it does not describe it",
+                          published estimate, so the diagnostic fit's representer does not describe it",
             });
         }
         let sd_y = crate::common::sample_sd(&y).max(1e-12);
@@ -144,18 +154,18 @@ impl RieszSensitivity {
 
         let mut sorted = self.delta_grid.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        let original_sign = ipw_ate.signum();
-        let mut last_bound_ate = ipw_ate;
+        let original_sign = centre.signum();
+        let mut last_bound_ate = centre;
         let mut explained_away_at = None;
         for &delta in &sorted {
             // Worst-case shift: |bias| ≤ δ·sd(Y) · ||α||_2 (population L2 product bound;
             // δ expressed in sd(Y) units keeps the grid scale-free).
             let bias = delta * sd_y * alpha_l2;
-            let lower = ipw_ate - bias;
-            let upper = ipw_ate + bias;
+            let lower = centre - bias;
+            let upper = centre + bias;
             // "Explained away" once the interval [ate − bias, ate + bias] covers 0. The bias is
-            // non-negative, so the interval always contains `ipw_ate` and covering zero is
-            // exactly the nearer endpoint reaching or crossing it.
+            // non-negative, so the interval always contains the published estimate and covering
+            // zero is exactly the nearer endpoint reaching or crossing it.
             let covers_zero = lower <= 0.0 && upper >= 0.0;
             last_bound_ate = if original_sign >= 0.0 { lower } else { upper };
             if covers_zero {
@@ -361,6 +371,72 @@ mod tests {
             report.comparison
         );
         assert!(report.informative);
+    }
+
+    /// The worst-case bias `δ·sd(Y)·‖α‖₂` at the reported robustness must reach the magnitude
+    /// of the estimate the report is attached to, the previous grid point's must not, and
+    /// `refuted_ate` must be that estimate moved toward zero by the bias.
+    fn assert_robustness_magnitude_matches(
+        report: &RefutationReport,
+        grid: &[f64],
+        sd_y: f64,
+        alpha_l2: f64,
+    ) {
+        let ate = report.original_ate;
+        let unit = sd_y * alpha_l2;
+        let tip = grid.iter().copied().find(|&d| d * unit >= ate.abs());
+        match tip {
+            Some(delta) => {
+                assert_eq!(report.comparison, delta, "robustness for |ate|={}", ate.abs());
+                let expected_bound = ate - ate.signum() * delta * unit;
+                assert!(
+                    (report.refuted_ate - expected_bound).abs() <= 1e-12 * unit.max(1.0),
+                    "refuted_ate={} expected {expected_bound}",
+                    report.refuted_ate
+                );
+            }
+            None => assert!(report.comparison.is_infinite(), "comparison={}", report.comparison),
+        }
+        if let Some(prev) = grid.iter().copied().filter(|&d| d < report.comparison).last() {
+            assert!(prev * unit < ate.abs(), "δ={prev} already explains away |ate|={}", ate.abs());
+        }
+    }
+
+    #[test]
+    fn riesz_robustness_is_centred_on_the_published_estimate() {
+        let (data, estimand) = toy();
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = LinearAdjustmentAte { bootstrap_replicates: 0, ..LinearAdjustmentAte::new() };
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = EstimationWorkspace::default();
+        let ctx = ExecutionContext::for_tests(1);
+        let fitted = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
+        let riesz = RieszSensitivity::new();
+        let grid = riesz.delta_grid.clone();
+        // The clipped IPW contrast of the diagnostic fit is ≈ 2; publish smaller and larger
+        // same-sign estimates so a bound centred on the IPW contrast would tip at the wrong δ.
+        for published in [fitted.ate, 0.5, 0.3, 4.0] {
+            let mut original = fitted.clone();
+            original.ate = published;
+            let problem = RefutationProblem::new(
+                &data,
+                &estimand,
+                &query,
+                &original,
+                Some("linear.adjustment.ate"),
+                None,
+            );
+            let mut prop = antecedent_stats::PropensityWorkspace::default();
+            let rep = riesz.representer_and_ipw(&problem, &mut prop).unwrap();
+            assert!((rep.ipw_ate - 2.0).abs() < 0.1, "ipw={}", rep.ipw_ate);
+            let sd_y = crate::common::sample_sd(&rep.y);
+            let n = rep.alpha.len() as f64;
+            let alpha_l2 = (rep.alpha.iter().map(|a| a * a).sum::<f64>() / n).sqrt();
+            let report = riesz.refute(&problem, &mut ws, &ctx).unwrap();
+            assert_eq!(report.original_ate, published);
+            assert_robustness_magnitude_matches(&report, &grid, sd_y, alpha_l2);
+        }
     }
 
     #[test]

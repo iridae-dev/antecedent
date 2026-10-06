@@ -7,4 +7,4 @@ weakly informative prior. Workspace reuse is gated by the laplace_glm bench.
 
 ## Expected summary
 
-Top-level keys: `backend, likelihood, notes, tolerance, tolerance_class, true_coefficients` (6 fields).
+Top-level keys: `backend, likelihood, notes, oracle, tolerance, tolerance_class, true_coefficients` (7 fields).

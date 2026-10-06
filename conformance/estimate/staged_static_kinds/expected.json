@@ -7,5 +7,9 @@
   "indirect": 4.8,
   "total": 6.6,
   "counterfactual_mean": 6.6,
-  "tolerance": 0.03
+  "tolerance": 0.03,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear law in `dgp`: direct 3*(0.8-0.2) = 1.8, indirect 4*2*0.6 = 4.8, total 6.6"
+  }
 }

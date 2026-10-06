@@ -7,5 +7,9 @@
   "tolerance_class": "StableFloat",
   "backend": "laplace",
   "likelihood": "gaussian_identity",
-  "notes": "MAP must converge with Hessian diagnostics"
+  "notes": "MAP must converge with Hessian diagnostics",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "noiseless linear design: the Laplace MAP under a weak prior recovers the generating coefficients"
+  }
 }

@@ -2,5 +2,9 @@
   "n_rows": 40,
   "stable_float_tol": 1e-10,
   "min_delta": 1.0,
-  "notes": "Adding true parent of x1 improves Gaussian BIC; incremental total matches full rebuild."
+  "notes": "Adding true parent of x1 improves Gaussian BIC; incremental total matches full rebuild.",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "known 3-node linear chain: adding the true parent of x1 must improve Gaussian BIC; the incremental total is checked against a full rebuild (internal consistency)"
+  }
 }

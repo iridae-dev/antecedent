@@ -142,7 +142,8 @@ impl Dag {
     ///
     /// # Errors
     ///
-    /// Unknown nodes.
+    /// Unknown nodes, or a conditioning set containing an endpoint (for which
+    /// no active-path witness can be issued).
     pub fn d_separation(
         &self,
         x: DenseNodeId,
@@ -167,13 +168,13 @@ impl Dag {
         for &v in z {
             self.validate_node_pub(v)?;
         }
+        if z.iter().any(|&v| v == x || v == y) {
+            return Err(GraphError::InvalidEndpoints {
+                message: "d-separation witness requires conditioning disjoint from endpoints",
+            });
+        }
         if x == y {
             return Ok(SeparationResult::Connected { active_path: vec![PathStep { node: x }] });
-        }
-        if z.iter().any(|&v| v == x || v == y) {
-            return Ok(SeparationResult::Connected {
-                active_path: vec![PathStep { node: x }, PathStep { node: y }],
-            });
         }
         if self.d_sep_connected(x, y, z, ws, overlay, true) {
             Ok(SeparationResult::Connected {

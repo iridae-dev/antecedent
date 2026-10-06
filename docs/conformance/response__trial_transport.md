@@ -8,4 +8,4 @@ It is a paper-equation calibration, not an external package parity claim.
 
 ## Expected summary
 
-Top-level keys: `contract, expected, fixture_id, inputs, tolerance` (5 fields).
+Top-level keys: `contract, expected, fixture_id, inputs, oracle, tolerance` (6 fields).

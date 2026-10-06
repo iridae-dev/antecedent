@@ -20,4 +20,4 @@ the exact linear coefficients even with zero outcome noise.
 
 ## Expected summary
 
-Top-level keys: `claim, contract, estimator_contract, fixture_id, generation, tolerance` (6 fields).
+Top-level keys: `claim, contract, estimator_contract, fixture_id, generation, oracle, tolerance` (7 fields).

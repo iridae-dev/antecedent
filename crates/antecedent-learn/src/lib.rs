@@ -22,6 +22,7 @@ pub mod error;
 pub mod forest;
 #[cfg(feature = "ml-gbdt")]
 pub mod gbt;
+pub mod lasso_logistic;
 pub mod learner;
 pub mod portable;
 pub use portable::{PortablePredictor, PredictionMap, PredictionNode};
@@ -48,6 +49,7 @@ pub use design::{
 };
 pub use elastic_net::ElasticNetLearner;
 pub use error::LearnError;
+pub use lasso_logistic::LassoLogisticLearner;
 pub use learner::{
     FittedPredictor, LearnerCapabilities, LearnerFactory, LearnerProvenance, PredictionTask,
 };

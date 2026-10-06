@@ -9,5 +9,9 @@
   "average": 2.0,
   "jacobian": [2.0, -0.5, 0.25, 1.5],
   "directional": [1.0, 3.25],
-  "tolerance": 0.15
+  "tolerance": 0.15,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "linear law in `dgp`: derivatives, elasticities and the Jacobian follow from its coefficients"
+  }
 }

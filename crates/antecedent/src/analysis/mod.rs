@@ -4,8 +4,12 @@
 
 #![allow(clippy::too_many_lines, clippy::doc_markdown, clippy::too_many_arguments)]
 
+mod admg_conditional_transport;
 mod batch;
+mod batch_export;
+mod batch_retarget;
 mod builder;
+mod candidate_screen_units;
 mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
 mod checked_bayesian_temporal_class_effect;
@@ -22,13 +26,33 @@ mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
 mod contract;
 mod contract_identity;
+mod cost;
+mod derived_treatment;
 mod exact;
 mod execute;
+mod inverse_outcome;
+mod joint_sensitivity;
+mod joint_sensitivity_uncertainty;
+mod learned_continuous;
 mod learned_trial;
+mod mixed_source;
+mod mz_transport;
+mod preflight;
+mod rank_drop_estimate;
+mod recovery;
+mod smoothed_dose;
 mod statistical;
+mod temporal_transport;
+mod tier_diagnostics;
 mod transport_grid;
+mod transport_scenarios;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
+pub use admg_conditional_transport::{
+    AdmgConditionalResult, PreparedAdmgConditionalTransport,
+    consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,
+    export_admg_conditional_obstruction,
+};
 pub(crate) use checked_bayesian_class_conditional::CheckedBayesianClassConditional;
 pub(crate) use checked_bayesian_graph_posterior::CheckedBayesianGraphPosteriorAte;
 pub(crate) use checked_bayesian_temporal_class_effect::CheckedBayesianTemporalClassEffectOperation;
@@ -48,19 +72,63 @@ pub(crate) use checked_temporal_graph_posterior_effect::{
 pub(crate) use checked_temporal_graph_posterior_response::{
     CheckedTemporalGraphPosteriorResponse, TemporalPosteriorResponseProof,
 };
+pub use cost::{
+    BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
+    estimate_joint_cell_cost,
+};
+pub use derived_treatment::{
+    ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
+    ExclusionRule, InterventionMeaning, SourceColumn, TemporalPosition, Transformation,
+    check_derived_treatment, estimate_derived_joint_cells,
+};
 pub use exact::{
     ExactFactorRequirement, ExactPreparedState, ExactStudyIdentities, ExactStudyInspection,
     ExactStudyResult,
 };
+pub use inverse_outcome::{
+    ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
+    ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
+    InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
+    SupportBasis, TargetDirection, classify_inverse_outcome,
+};
+pub use joint_sensitivity::{
+    JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
+    JointProvenanceWire, JointReceiptWire, JointSensitivityArtifactWire, JointSensitivityBodyWire,
+    JointSensitivityConsumeLimits, JointTippingWire,
+};
+pub use joint_sensitivity_uncertainty::JointSamplingWire;
+pub use learned_continuous::{
+    LearnedContinuousResult, PreparedLearnedContinuous, consume_learned_continuous_artifact,
+};
 pub use learned_trial::{LearnedTrialResult, LearnedTrialState};
+pub use mixed_source::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_artifact};
+pub use mz_transport::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
+pub use preflight::{
+    ArmCount, ArmSpec, ArmWeightEss, BatchPreflightReport, ColumnMissingness, ColumnPriority,
+    ColumnWeight, DependentColumn, DroppedColumn, DuplicateGroup, FindingSeverity,
+    FittedPropensity, NuisanceFitDiagnostics, PreflightFinding, PreflightInput, PreflightReport,
+    PropensityOutcome, RankDropPlan, RankDropPolicy, RankReport, ScoreQuantile, SpanCheck,
+    fit_diagnostics_design, plan_rank_drop, preflight_design,
+};
+pub use rank_drop_estimate::{RankDropEstimate, estimate_with_rank_drop};
+pub use recovery::{
+    ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
+};
+pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,
+};
+pub use temporal_transport::{PreparedTemporalTransport, consume_temporal_transport_artifact};
+pub use tier_diagnostics::{
+    TierDesign, TierDiagnostics, TierDiagnosticsError, TierEvalue, TierPointEvalue, TierScenario,
+    tier_diagnostics,
 };
 pub use transport_grid::{
     TransportGridData, TransportGridFailure, TransportGridPoint, TransportGridQuery,
     TransportGridResult, TransportGridState,
 };
+pub use transport_scenarios::{PreparedTransportScenarios, consume_transport_scenarios_artifact};
 pub use z_transport::{PreparedZTransport, ZTransportResult, consume_z_transport_artifact};
 pub use z_transport_sensitivity_artifact::ZTransportSensitivityArtifactWire;
 mod graph_posterior_target;
@@ -81,7 +149,19 @@ pub use batch::{
     BatchQuery, BatchStudy, CandidateProcedure, CandidateScreen, CandidateSelection,
     CellFamilyContrast, PreparedBatch, SharedBatchDesign, SharedCovariateDesign,
 };
+pub use batch_export::{TidyKind, TidyRow};
+pub use batch_retarget::{
+    BATCH_RETARGET_SCOPE_NOTE, BandMember, BatchRetargetError, BatchRetargetReport,
+    BatchRetargetRequest, BatchScores, ClaimPoint, ClaimReport, ContrastPoint, ContrastReport,
+    FamilyCovariance, MAX_T_MAX_DRAWS, MAX_T_MIN_DRAWS, MemberFailure, RetargetClaim,
+    RetargetContrast, ScoreSource, SimultaneousBand, UncertaintyKind,
+};
+// Max-t evaluator entries kept for the calibration wiring (the published route is
+// `BatchRetargetReport::simultaneous_interval`).
+#[doc(hidden)]
+pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
+pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub use contract::CausalContract;
 pub use execute::DagResponseOrigin;
 pub use execute::Study;

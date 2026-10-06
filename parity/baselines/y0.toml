@@ -1,0 +1,6 @@
+# Immutable released-package oracle pin for the 2.2B X8 counterfactual-identification parity case.
+project = "y0"
+version = "0.2.11"
+source = "https://pypi.org/project/y0/0.2.11/"
+license = "BSD-3-Clause"
+notes = "Black-box oracle for conformance/identify/counterfactual_id_y0 (id_star on the effect-on-the-treated conjunction, identify_outcomes on every returned interventional term). Executed once in a temporary environment (CPython 3.11.5; networkx 3.6.1, numpy 2.4.6, pandas 3.0.6, scipy 1.17.1, statsmodels 0.15.0) that was deleted after the output was recorded; source/tests are not copied."

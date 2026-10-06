@@ -10,4 +10,4 @@ assumption record includes `external_effect_prior`.
 
 ## Expected summary
 
-Top-level keys: `identical_mapping_errors, mapped_closer_than_baseline, mapped_mean_tol, notes, required_assumption_ids, source_ate_true` (6 fields).
+Top-level keys: `identical_mapping_errors, mapped_closer_than_baseline, mapped_mean_tol, notes, oracle, required_assumption_ids, source_ate_true` (7 fields).

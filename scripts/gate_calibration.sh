@@ -7,6 +7,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+LOG_DIR="${ANTECEDENT_CALIBRATION_LOG_DIR:-$ROOT/target/calibration-records}"
 
 FAILED=""
 FAILED_COUNT=0
@@ -56,6 +57,19 @@ grid_group() {
   case "$1" in
     "antecedent-estimate: bayesian_"*) return 1 ;;
     antecedent-estimate:*|v19_*|v110_*|v20_*) return 0 ;;
+    # 2.2 coverage records: X1 (both mz suites) and the two X4 coverage records. The X4
+    # weak-overlap and misspecified-nuisance tests print measurements, emit no record,
+    # and run once at the base point.
+    mz_transport_calibration:*) return 0 ;;
+    learned_continuous_calibration:*_mean_contrast) return 0 ;;
+    # 2.2B X4 smoothed dose-response: the two *_psi_h coverage records only.
+    smoothed_dose_calibration:*_psi_h) return 0 ;;
+    # 2.2B X3 joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
+    joint_sensitivity_calibration:*) return 0 ;;
+    # 2.2E E3 batch retarget: the unpublished family-level max-t band (wired, unmeasured).
+    batch_retarget_calibration:*) return 0 ;;
+    # 2.2E E4 clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
+    cluster_dml_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -139,7 +153,7 @@ run_point() {
   status="${PIPESTATUS[0]}"
   require_ran "$status" "$log" || status=1
   stamp_log "$log"
-  if [ "$status" -eq 0 ] && grep -q '^calibration-recheck ' "$log"; then
+  if [ "$status" -eq 0 ] && [ "${ANTECEDENT_CALIBRATION_SMOKE:-}" != "1" ] && grep -q '^calibration-recheck ' "$log"; then
     tests=""
     if per_test_recheck "$@"; then
       tests="$(grep '^calibration-recheck-test ' "$log" | awk '{ print $2 }' | sort -u | tr '\n' ' ')"
@@ -188,16 +202,21 @@ check() {
   fi
   if [ -n "${ANTECEDENT_CALIBRATION_DRY_RUN:-}" ]; then
     echo "group ${GROUP_INDEX}: ${label}"
+    # scripts/calibration_groups.py reads which groups are measured over the grid
+    # from here, so the two never carry separate copies of grid_group.
+    if grid_group "$label"; then
+      echo "grid ${GROUP_INDEX}"
+    fi
     return 0
   fi
   local safe point shown
-  mkdir -p "$ROOT/target/calibration-records"
+  mkdir -p "$LOG_DIR"
   safe="$(echo "${label}" | tr ' /:' '___')"
   if grid_group "$label"; then
     for point in $GRID_POINTS; do
       shown="${label} [grid point ${point}]"
       echo "== grid point ${point}: ${label} =="
-      run_point "$ROOT/target/calibration-records/${safe}.p${point}" "$shown" \
+      run_point "$LOG_DIR/${safe}.p${point}" "$shown" \
         env ANTECEDENT_CALIBRATION_GRID_POINT="$point" "$@"
       if [ "$RUN_STATUS" -ne 0 ]; then
         FAILED="${FAILED}  ${shown}"$'\n'
@@ -206,7 +225,7 @@ check() {
     done
     return 0
   fi
-  run_point "$ROOT/target/calibration-records/${safe}" "$label" \
+  run_point "$LOG_DIR/${safe}" "$label" \
     env -u ANTECEDENT_CALIBRATION_GRID_POINT "$@"
   if [ "$RUN_STATUS" -ne 0 ]; then
     FAILED="${FAILED}  ${label}"$'\n'
@@ -240,6 +259,13 @@ run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
 # runs about 3% short of the Monte Carlo SD at n = 600).
 run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
 run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
+# 2.2E E2 penalized propensity: the cross-fitted influence-function SE and the refit
+# bootstrap (penalty and support selection repeated in every replicate), ridge and lasso.
+# Wired, measured once at the 2.2 cut; records 2.2E.E2.penalized_propensity_aipw.
+run_ignored antecedent-estimate aipw_ridge_influence_ci_coverage
+run_ignored antecedent-estimate aipw_ridge_refit_bootstrap_ci_coverage
+run_ignored antecedent-estimate aipw_lasso_influence_ci_coverage
+run_ignored antecedent-estimate aipw_lasso_refit_bootstrap_ci_coverage
 run_ignored antecedent-estimate matching_homoskedastic_ci_coverage
 run_ignored antecedent-estimate wald_iv_analytic_ci_coverage
 run_ignored antecedent-estimate wald_iv_hc1_ci_coverage
@@ -399,6 +425,11 @@ run_ignored_derivative elasticity_dag_accepted_frequentist_nominal_95_coverage
 # replicates on the gate's seeds; the band covers 0.892-0.897 over 10 000 designs.
 run_ignored_derivative response_jacobian_bayesian_boundary_within_band
 run_ignored_derivative directional_derivative_bayesian_nominal_90_coverage
+# Closed Frequentist GAM-gradient band (the public route publishes the point only
+# until these records exist): the internal coefficient-sandwich band on the same
+# gam_data replicates as the two Bayesian cells above.
+run_ignored_derivative response_jacobian_dag_frequentist_nominal_90_coverage
+run_ignored_derivative directional_derivative_dag_frequentist_nominal_90_coverage
 
 echo "== Bayesian temporal Pulse / Sustained under serial dependence (antecedent) =="
 run_ignored_bayes_temporal() {
@@ -733,6 +764,83 @@ run_v20 shared_factor_target_observational_nominal_coverage
 run_v20 source_target_imbalance_standardize_nominal_coverage
 run_v20 recursive_frontdoor_nominal_coverage
 run_v20 weak_overlap_near_empty_conditioner_boundary
+
+echo "== 2.2 multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
+run_mz() {
+  local filter="$1"
+  echo "== antecedent: mz_transport_calibration ${filter} =="
+  check "mz_transport_calibration: ${filter}" \
+    cargo test --release -p antecedent --test mz_transport_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_mz multi_source_mz_independent_studies
+run_mz multi_source_mz_shared_units
+
+echo "== 2.2 learned continuous-outcome trial transport joint bootstrap (antecedent) =="
+run_lc() {
+  local filter="$1"
+  echo "== antecedent: learned_continuous_calibration ${filter} =="
+  check "learned_continuous_calibration: ${filter}" \
+    cargo test --release -p antecedent --test learned_continuous_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_lc learned_trial_aipw_nested_cohort_continuous_mean_contrast
+run_lc learned_trial_aipw_independent_samples_continuous_mean_contrast
+run_lc learned_trial_aipw_weak_overlap_boundary
+run_lc learned_trial_aipw_misspecified_nuisance_cases
+
+echo "== 2.2B smoothed dose-response transport joint bootstrap (antecedent) =="
+run_sd() {
+  local filter="$1"
+  echo "== antecedent: smoothed_dose_calibration ${filter} =="
+  check "smoothed_dose_calibration: ${filter}" \
+    cargo test --release -p antecedent --test smoothed_dose_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_sd smoothed_dose_transport_nested_cohort_psi_h
+run_sd smoothed_dose_transport_independent_samples_psi_h
+run_sd smoothed_dose_transport_grid_points
+run_sd smoothed_dose_transport_weak_overlap_boundary
+
+echo "== 2.2B joint mechanism sensitivity conservative endpoint bootstrap (antecedent) =="
+# Record 2.2B.X3.joint_sensitivity_uncertainty. The zero box is a two-sided gated record;
+# the positive box is a `one_sided` record (CoverageTally::assert_one_sided, side upper):
+# coverage of the true upper extremal bound at least nominal, no upper band or ceiling.
+run_js() {
+  local filter="$1"
+  echo "== antecedent: joint_sensitivity_calibration ${filter} =="
+  check "joint_sensitivity_calibration: ${filter}" \
+    cargo test --release -p antecedent --test joint_sensitivity_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_js z_joint_sensitivity_zero_box
+run_js z_joint_sensitivity_positive_box
+
+echo "== 2.2E batch retarget unpublished max-t simultaneous band (antecedent) =="
+# Record 2.2E.E3.batch_retarget_covariance_contrasts. The family-level simultaneous interval
+# route is closed (cell_not_licensed); the band is scored through the unpublished evaluator
+# and measured once at the 2.2 cut. Nothing is measured before it.
+run_br() {
+  local filter="$1"
+  echo "== antecedent: batch_retarget_calibration ${filter} =="
+  check "batch_retarget_calibration: ${filter}" \
+    cargo test --release -p antecedent --test batch_retarget_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_br batch_retarget_max_t_simultaneous_band
+
+echo "== 2.2E clustered DML published t Wald interval (antecedent) =="
+# Record 2.2E.E4.clustered_dml_aipw. The cluster-sandwich interval estimate +- t_(G-1) se is
+# scored through the facade's published interval and measured once at the 2.2 cut; the
+# coverage record is the only missing piece.
+run_cd() {
+  local filter="$1"
+  echo "== antecedent: cluster_dml_calibration ${filter} =="
+  check "cluster_dml_calibration: ${filter}" \
+    cargo test --release -p antecedent --test cluster_dml_calibration "$filter" \
+    -- --ignored --exact --nocapture
+}
+run_cd cluster_dml_t_wald_interval
 
 echo "== response/observation/transport/interference =="
 check "gate_response_calibration.sh" bash scripts/gate_response_calibration.sh

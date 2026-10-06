@@ -27,5 +27,9 @@
     "expected_log_likelihood": -2.305232894324563
   },
   "contract": "Independent closed-form evaluations of the cited IPW/AIPW, product-limit IPCW, and Gaussian censored/truncated likelihood equations; no external implementation parity is claimed.",
-  "tolerance": {"atol": 1e-12}
+  "tolerance": {"atol": 1e-12},
+  "oracle": {
+    "kind": "closed_form",
+    "method": "independent closed-form evaluations of the cited IPW/AIPW, product-limit IPCW and Gaussian censored/truncated likelihood equations (see `contract`); no external package parity"
+  }
 }

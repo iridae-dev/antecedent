@@ -58,6 +58,13 @@ pub struct PreparedPropensityProblem {
     /// Optional complete-case fold ids. `None` draws a seeded, arm-stratified, unit-level
     /// plan from [`Self::fold_seed`] (see `learn_nuisance::crossfit_fold_plan`).
     pub fold_assignment: Option<Arc<[u32]>>,
+    /// Independence unit (cluster label) of each complete-case row. When set, the default
+    /// fold plan deals whole units to folds (`cluster_dml_aipw::cluster_fold_plan`) instead
+    /// of arm-stratified row units. Ignored when [`Self::fold_assignment`] is set.
+    pub fold_units: Option<Arc<[u32]>>,
+    /// What [`Self::fold_units`] are (cluster labels, or connected components of a dyadic
+    /// endpoint graph); only read for the score-table provenance.
+    pub fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit,
     /// Seed of the cross-fit fold plan used when [`Self::fold_assignment`] is `None`.
     /// Callers holding an execution context set it to the master seed so the recorded
     /// cross-fit seed controls the folds as well as the learners.
@@ -69,6 +76,11 @@ pub struct PreparedPropensityProblem {
     /// (every query draws its own `crossfit_fold_plan`), so this reflects covariate sharing
     /// only.
     pub shared_design: bool,
+    /// Declared binary-propensity nuisance: the unpenalized logistic by default, or an
+    /// explicit penalty the cross-fitted AIPW fits on each fold's training rows. It is part
+    /// of the problem so every score-table build over it, however it is reached, fits the
+    /// nuisance it was prepared for.
+    pub propensity: crate::propensity::PropensityNuisance,
 }
 
 /// Fitted propensity model shared by weighting, stratification, and matching estimators.
@@ -150,8 +162,9 @@ pub(crate) fn clamp_linear_predictor(eta: f64, clip: Option<f64>) -> f64 {
 /// no floor, so the fit is refused instead of silently flooring at a hidden constant.
 pub(crate) fn require_interior_propensities(scores: &[f64]) -> Result<(), EstimationError> {
     if scores.iter().any(|&e| !(e > 0.0 && e < 1.0)) {
-        return Err(EstimationError::Overlap {
+        return Err(EstimationError::OverlapWithFields {
             message: "a fitted propensity is 0 or 1 (or not finite) and no clip is set;                       the inverse-probability weight is infinite — set an overlap clip",
+            fields: Box::new(crate::overlap::propensity_score_fields(scores)),
         });
     }
     Ok(())
@@ -402,8 +415,11 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         },
         treatment_id: treatment,
         fold_assignment: None,
+        fold_units: None,
+        fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit::Cluster,
         fold_seed: 0,
         shared_design: false,
+        propensity: crate::propensity::PropensityNuisance::default(),
     })
 }
 
@@ -588,5 +604,26 @@ mod tests {
         for bad in [0.0, 1.0, f64::NAN] {
             assert!(require_interior_propensities(&[0.5, bad]).is_err(), "{bad}");
         }
+    }
+
+    /// The positivity refusal keeps its message and, as a refusal on fitted scores, reports
+    /// their range and quantiles.
+    #[test]
+    fn the_positivity_refusal_reports_the_scores_it_refused() {
+        let error = require_interior_propensities(&[0.25, 0.5, 0.75, 1.0]).unwrap_err();
+        assert!(matches!(error, EstimationError::OverlapWithFields { .. }), "{error:?}");
+        let text = error.to_string();
+        assert!(
+            text.starts_with("a fitted propensity is 0 or 1 (or not finite) and no clip is set;")
+                && text
+                    .ends_with("the inverse-probability weight is infinite — set an overlap clip"),
+            "{text}"
+        );
+        let fields = error.refusal_fields().unwrap();
+        assert_eq!(fields.stage.as_deref(), Some("positivity"));
+        assert_eq!(fields.propensity_min.map(|v| v.0), Some(0.25));
+        assert_eq!(fields.propensity_max.map(|v| v.0), Some(1.0));
+        assert_eq!(fields.propensity_quantiles.len(), 7);
+        assert!(fields.remedy.is_some());
     }
 }

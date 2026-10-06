@@ -21,7 +21,7 @@ use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity, VariableId
 use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace, NodeRef};
 
 use crate::crossfit_aipw::{WeightedSupport, weighted_support};
-use crate::error::EstimationError;
+use crate::error::{EstimationError, ExactF64, RefusalFields};
 use crate::joint_if::{JointCovariance, monotone_decreasing};
 use crate::scores::{LinearContrast, ScoreSummary, ScoreTable};
 
@@ -76,7 +76,7 @@ pub(crate) fn extreme_propensity_share<'a>(
 }
 
 /// Why retargeting was refused.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RetargetRefusal {
     /// `depends_on` names the treatment, an intervened coordinate, or a descendant.
     IllegalDependence,
@@ -111,6 +111,127 @@ impl RetargetRefusal {
                 "nonempty depends_on is required for nonconstant target weights"
             }
         }
+    }
+    /// Structured diagnostics of this refusal: stage, a short reason and the remedy. None of
+    /// them needs a fitted score, so the numeric entries stay absent (see
+    /// [`weighted_overlap_fields`] for the overlap figures a failed support gate measured).
+    #[must_use]
+    pub fn fields(self) -> RefusalFields {
+        let (reason, remedy) = match self {
+            Self::IllegalDependence => (
+                "weights_depend_on_treatment_or_descendant",
+                "declare depends_on over adjustment-set columns that are neither the treatment, \
+                 an intervened coordinate, nor a descendant of either",
+            ),
+            Self::OutsideAdjustmentSet => (
+                "weights_outside_adjustment_set",
+                "restrict depends_on to columns of the certified adjustment set",
+            ),
+            Self::WeightedOverlap => (
+                "weighted_overlap_failed",
+                "declare target weights that both arms of the plan's scores support",
+            ),
+            Self::DescendantClosureUnavailable => (
+                "descendant_closure_unavailable",
+                "supply a directed graph (DAG or ADMG) so the descendant check can run",
+            ),
+            Self::UndeclaredNonconstantWeights => (
+                "undeclared_nonconstant_weights",
+                "declare depends_on for nonconstant weights, or pass constant weights",
+            ),
+        };
+        RefusalFields {
+            stage: Some("retarget".to_string()),
+            reason: Some(reason.to_string()),
+            remedy: Some(remedy.to_string()),
+            ..RefusalFields::default()
+        }
+    }
+
+    /// The refusal as an estimator error: the same message as [`Self::as_str`], carrying
+    /// [`Self::fields`].
+    pub(crate) fn error(self) -> EstimationError {
+        EstimationError::unsupported_with_fields(self.as_str(), self.fields())
+    }
+}
+
+/// Structured diagnostics of a failed weighted-overlap gate on `table`'s support under the
+/// target `weights`; see [`weighted_support_fields`]. The propensity quantiles are those of the
+/// finite raw held-out propensities of rows the target weights (`w > 0`), over every score
+/// column; a table that holds no propensities (or no such row) reports none.
+#[must_use]
+pub fn weighted_overlap_fields(
+    table: &ScoreTable,
+    weights: &[f64],
+    support: &WeightedSupport,
+) -> RefusalFields {
+    // The arms `support.n_eff_by_arm` is ordered by: the table's observed arms, or the binary
+    // pair when the support came from a raw treatment column.
+    let arms: Vec<u32> = if table.observed_arm.len() == table.n_rows {
+        table
+            .columns
+            .iter()
+            .map(|c| c.arm)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    } else {
+        vec![0, 1]
+    };
+    let mut fields = weighted_support_fields(&arms, support);
+    if table.observed_arm.len() == table.n_rows && weights.len() == table.n_rows {
+        let mut scores: Vec<f64> = table
+            .propensities
+            .chunks(table.n_rows.max(1))
+            .flat_map(|column| column.iter().zip(weights))
+            .filter(|(p, w)| **w > 0.0 && p.is_finite())
+            .map(|(p, _)| *p)
+            .collect();
+        scores.sort_by(f64::total_cmp);
+        fields.propensity_quantiles = crate::overlap::nearest_rank_quantiles(&scores);
+    }
+    fields
+}
+
+/// Structured diagnostics of a failed weighted-overlap gate: per-arm Kish `n_eff` (`arms`
+/// names the arms `support.n_eff_by_arm` is ordered by) and the raw propensity range under
+/// the target weights, plus which condition failed. An arm count is reported only for arms
+/// the support measured, and the propensity extrema only when propensities were supplied; an
+/// entry the support did not compute stays absent (never zero). [`WeightedSupport`] holds no
+/// quantiles; [`weighted_overlap_fields`] adds them from the table.
+#[must_use]
+pub fn weighted_support_fields(arms: &[u32], support: &WeightedSupport) -> RefusalFields {
+    let labels: Vec<String> = arms
+        .iter()
+        .map(|&arm| match (arm, arms.len()) {
+            (0, 2) => "control".to_string(),
+            (1, 2) => "active".to_string(),
+            _ => format!("arm {arm}"),
+        })
+        .collect();
+    let arm_ess: Vec<(String, ExactF64)> = support
+        .n_eff_by_arm
+        .iter()
+        .enumerate()
+        .map(|(i, &n)| (labels.get(i).cloned().unwrap_or_else(|| format!("arm {i}")), ExactF64(n)))
+        .collect();
+    let reason = if arm_ess.is_empty() {
+        "arm_support_not_computed"
+    } else if arm_ess.iter().any(|(_, n)| n.0 < MIN_WEIGHTED_ARM_N_EFF) {
+        "arm_effective_sample_size_below_minimum"
+    } else if support.propensity_range.is_none() {
+        "propensity_range_unavailable"
+    } else if support.propensity_range.is_some_and(|(lo, hi)| lo <= 1e-6 || hi >= 1.0 - 1e-6) {
+        "propensity_range_touches_zero_or_one"
+    } else {
+        "extreme_propensity_share_above_limit"
+    };
+    RefusalFields {
+        reason: Some(reason.to_string()),
+        arm_ess,
+        propensity_min: support.propensity_range.map(|(lo, _)| ExactF64(lo)),
+        propensity_max: support.propensity_range.map(|(_, hi)| ExactF64(hi)),
+        ..RetargetRefusal::WeightedOverlap.fields()
     }
 }
 
@@ -160,6 +281,10 @@ pub struct RetargetResult {
     pub monotone_rearranged: bool,
     /// Diagnostics (rearrangement, overlap).
     pub diagnostics: Vec<Diagnostic>,
+    /// `Some(df)` when [`Self::covariance`] and [`Self::contrast`] were replaced by their
+    /// cluster-summed counterparts (cluster-DML score table, labels declared on the plan);
+    /// `df` is the few-cluster reference degrees of freedom. `None`: the iid plug-in.
+    pub cluster_reference_df: Option<usize>,
 }
 
 /// Validate `depends_on` against the frozen certificate and graph.
@@ -178,24 +303,20 @@ pub fn check_depends_on(
 ) -> Result<(), EstimationError> {
     for &v in depends_on {
         if v == table.treatment || table.intervened.iter().any(|&x| x == v) {
-            return Err(EstimationError::unsupported(RetargetRefusal::IllegalDependence.as_str()));
+            return Err(RetargetRefusal::IllegalDependence.error());
         }
         if !table.adjustment_set.iter().any(|&z| z == v) {
-            return Err(EstimationError::unsupported(
-                RetargetRefusal::OutsideAdjustmentSet.as_str(),
-            ));
+            return Err(RetargetRefusal::OutsideAdjustmentSet.error());
         }
     }
     if depends_on.is_empty() {
         return Ok(());
     }
     let Some(graph) = graph else {
-        return Err(EstimationError::unsupported(
-            RetargetRefusal::DescendantClosureUnavailable.as_str(),
-        ));
+        return Err(RetargetRefusal::DescendantClosureUnavailable.error());
     };
     if descendant_of_intervened(depends_on, table, graph)? {
-        return Err(EstimationError::unsupported(RetargetRefusal::IllegalDependence.as_str()));
+        return Err(RetargetRefusal::IllegalDependence.error());
     }
     Ok(())
 }
@@ -216,14 +337,10 @@ fn descendant_of_intervened(
     let mut dense = Vec::with_capacity(sources.len());
     for &id in &sources {
         let Some(pos) = graph.nodes().iter().position(|n| n.variable() == id) else {
-            return Err(EstimationError::unsupported(
-                RetargetRefusal::DescendantClosureUnavailable.as_str(),
-            ));
+            return Err(RetargetRefusal::DescendantClosureUnavailable.error());
         };
         let Ok(raw) = u32::try_from(pos) else {
-            return Err(EstimationError::unsupported(
-                RetargetRefusal::DescendantClosureUnavailable.as_str(),
-            ));
+            return Err(RetargetRefusal::DescendantClosureUnavailable.error());
         };
         dense.push(DenseNodeId::from_raw(raw));
     }
@@ -277,9 +394,7 @@ pub fn retarget(
         ));
     }
     if depends_on.is_empty() && !weights_are_constant(weights) {
-        return Err(EstimationError::unsupported(
-            RetargetRefusal::UndeclaredNonconstantWeights.as_str(),
-        ));
+        return Err(RetargetRefusal::UndeclaredNonconstantWeights.error());
     }
     check_depends_on(depends_on, table, graph)?;
 
@@ -320,6 +435,7 @@ pub fn retarget(
             depends_on: Arc::from(depends_on.to_vec()),
             monotone_rearranged,
             diagnostics,
+            cluster_reference_df: None,
         },
         overlap_failed,
     ))

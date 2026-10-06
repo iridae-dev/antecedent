@@ -73,6 +73,98 @@ average effect, prepare the all-observed AIPW or cell-AIPW study and `retarget`
 its frozen scores. `analyze_many` and `PreparedBatch.prepare` estimate each
 query's own population.
 
+## Read counterfactual unit effects
+
+A `Counterfactual` result (a two-world GCM ITE; see
+[interventions and counterfactuals](capabilities.md#interventions-and-counterfactuals))
+carries its per-unit output on the result itself, aligned row for row:
+
+- `result.unit_effects`: one effect per unit.
+- `result.unit_effect_intervals`: per-unit `(lower, upper)` pairs, with
+  `unit_effect_intervals_level` and `unit_effect_intervals_method`. They are
+  published under `inference=ant.Bayesian()`, as posterior quantiles of each
+  unit's draws (`unit_posterior_quantile`). On the frequentist path all three
+  are `None`; the `gcm.counterfactual.uncertainty_unavailable` diagnostic says
+  why. Rust callers read the same fields on `IteResult`.
+- `result.unit_extrapolative`: support flags, `True` where the unit's
+  prediction into the arm it did not receive leaves that arm's observed
+  support (its covariate cell or its abducted disturbance). The
+  `gcm.counterfactual.support` diagnostic counts each kind.
+- `result.estimate.unit_effects_homogeneous`: `True` when no
+  effect-modifying mechanism family was fit, so equal unit effects hold by
+  construction rather than as a finding.
+
+A unit ITE is not a conditional average effect. For a pointwise interval on
+the CATE `tau(x)` at prespecified covariate profiles, use the Rust
+[`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md).
+
+## Estimate a family of average effects
+
+`antecedent.estimation.analyze_many(data, graph=..., queries=[...])` ingests
+the table once and returns one result per `AverageEffect` query, in query
+order. `antecedent.estimation.PreparedBatch.prepare` freezes the same batch for
+`estimate(new_data)`, and `PreparedBatch.prepare_cells` batches discrete joint
+`InterventionResponse` cells. Run any other query through `ant.analyze`.
+
+- **One seed for the family.** Every query cross-fits with the batch's `seed`
+  and fold count, so it draws the same fold plan as the same query passed to
+  `ant.analyze(..., seed=seed)` and returns the same estimate.
+- **Shared nuisance fits.** Queries that would fit the identical cross-fitted
+  AIPW nuisance share one fit. The propensity model is shared when the
+  treatment coding, adjustment set, complete-case rows, fold plan and learner
+  options all match (for example, one treatment against several outcomes); the
+  outcome regressions are shared when the outcome column matches as well. A
+  fit is reused only on bit-identical inputs, so a shared result is
+  bit-identical to the query's own `ant.analyze` fit, and different data,
+  seeds, folds or learners never share. Each result's `batch.shared_design`
+  diagnostic says whether its propensity (`shares_propensity`) and outcome
+  regressions (`shares_outcome_residualization`) were shared. Bootstrap
+  replicates and joint-cell (`cell.aipw`) nuisances are fit per query.
+- **Simultaneous intervals (max-t).** With two or more queries on the
+  all-observed population, the batch stacks each query's influence function
+  on the shared rows into one covariance (`result.estimate.joint_covariance`)
+  and sets `result.estimate.simultaneous_interval` to `(lower, upper, 0.95)`.
+  The critical value is the 95% quantile of `max_j |Z_j|` for Gaussian `Z`
+  with the family's correlation, so the intervals hold jointly across the
+  family instead of one query at a time.
+- **Multiplicity-adjusted p-values (BH/BY).** `result.estimate.adjusted_p_values`
+  is `(bh, by)`: Benjamini–Hochberg and Benjamini–Yekutieli adjustments of
+  each query's two-sided Wald test of a zero effect across the family. BY
+  allows arbitrary dependence among the estimates; BH assumes positive
+  dependence. A degenerate standard error gives `NaN`, which is never ranked
+  as a discovery.
+- **Screen, then estimate.** `candidate_screen=CandidateScreen(screen_id,
+  procedure, screen_rows, estimate_rows)` records a screen/estimate split, with
+  `procedure` one of `"max_t"`, `"bh"`, `"by"` or `"unrecorded"`;
+  `result.estimate.candidate_selection` reports the winning index, the family
+  size and whether the two row sets are disjoint.
+
+When the family cannot be formed (a declared target population, or a query
+without an influence function), the joint fields stay `None` and each result
+carries `batch.joint_if.unavailable`. If only the max-t critical value fails,
+the p-values remain and each result carries `batch.joint_if.max_t_unavailable`.
+For joint cells, `simultaneous_interval` is on the cell levels, and the
+p-values test the declared `family_contrast` (default `cell_minus_control`;
+`None` publishes no p-values).
+
+**What a batch covers.** `analyze_many` and `PreparedBatch.prepare` take
+`AverageEffect` queries; `PreparedBatch.prepare_cells` takes static discrete
+joint `InterventionResponse` cells (two or more `Set` interventions). Any other
+query (a single-variable or temporal `InterventionResponse`, a
+`ResponseCurve`, a `ConditionalEffect`, and so on) is refused before any data is
+read with `CausalUnsupportedError`, `reason_code="route_not_supported"`, and a
+`remedy` naming `ant.analyze`, which estimates it one query at a time. The Rust
+`BatchStudy` has the same boundary: `estimate_many` and `prepare` take
+`AverageEffectQuery`, and `prepare_cells` refuses any other response query with
+`route_not_supported`.
+
+**Configured batches and retarget.** The batch entry points take `estimator=` as a string
+id or a typed configuration (`Aipw(...)`) and the `estimator_config=` dict, exactly as
+`ant.analyze` does; one configuration governs the batch. `PreparedBatch.retarget` reports the
+points, joint score covariance and named contrasts of a declared family over one row snapshot
+(`point_only`; the simultaneous interval is closed). See
+[the guide](guides/batch-retarget.md).
+
 ## Configure response estimates
 
 `PulseEffect` and `SustainedEffect` take `control_level` as well as
@@ -121,6 +213,43 @@ the weights, and `trim` drops units whose propensity lies outside
 `None` turns either one off. A non-default policy changes the inference-binding
 identity and is part of the calibration key, so it reports
 `scope_not_assessed` unless a coverage record measured that policy.
+
+## Penalize the AIPW propensity
+
+`Aipw(propensity_penalty=PropensityPenalty())` fits a ridge-logistic propensity on each
+cross-fit fold's training rows, with the penalty chosen from a fixed grid by seeded inner
+cross-validation on those rows only; `PropensityPenalty(kind="lasso")` fits an L1-penalized
+one and also selects its support on those rows (recorded per fold in
+`estimate.penalized_support`). The route keeps the score table and retargeting (with its
+covariance) and publishes the cross-fitted influence-function SE; with `bootstrap > 0` it
+publishes a bootstrap SE whose every replicate repeats penalty selection and nuisance
+fitting (`estimate.penalized_bootstrap` lists the penalties each replicate selected). Both
+rest on a stated remainder condition and are calibration-wired but not yet measured, so
+they report `scope_not_assessed`. `nuisance_fallback="ridge_logistic"` / `"lasso"` (or a
+`PropensityPenalty` for its tuning) re-runs the route with that propensity when the plain
+GLM fit fails and records the failed fit in `estimate.penalized_fallback`;
+`nuisance_fallback="ml"` stays closed (`nuisance_fallback_not_licensed`) and a lasso outside
+the cross-fitted untrimmed mean ATE is refused (`selection_inference_not_licensed`). This is
+distinct from `GlmOptions.ridge_on_separation`. See [the guide](guides/penalized-aipw.md).
+
+## Declare the independence unit of the AIPW cross-fit
+
+`Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))` cross-fits
+with whole clusters owning folds (not an IID cross-fit followed by `se="cluster"`). It
+reports the cross-fitted point, keeps the score table and reports the cluster-sandwich
+standard error of the scores as `se_analytic`: a bootstrap or a non-default `se` is refused
+up front (`cluster_interval_not_licensed`), fewer clusters than
+`min_clusters` refuse `too_few_clusters`. `ClusterDml(unit="dyad", cluster_ids=...,
+second_cluster_ids=...)` declares two-way dependence: folds own whole connected components of
+the endpoint graph (no endpoint crosses folds) and `se_analytic` is the two-way sandwich; an entity used in both
+endpoint roles or one giant component refuses `dyadic_dependence_not_licensed`, and fewer
+than `min_components_per_fold` components per fold refuse `too_few_clusters`. `DML`,
+`DRLearner` and `CausalForest` take no cluster option: a `cluster_ids`/`cluster_dml`/
+`multiway_ids` key in their `estimator_config` refuses `route_not_supported`.
+`CandidateScreen.from_units(...)` builds a
+deterministic screen/estimate split from entity labels, or from dyad endpoints so that
+connected endpoints never cross the split, and records the seed and a unit digest in
+`screen_id`. See [the guide](guides/clustered-dml.md).
 
 ## Read identification details
 

@@ -991,6 +991,12 @@ impl super::Study {
     ///
     /// Compile / execute failures.
     pub fn run(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
+        // A stats-layer refusal of a one-shot run is named against the plan the study implies.
+        self.run_unnamed(ctx)
+            .map_err(|error| crate::analysis::preflight::name_run_refusal(self, error, ctx))
+    }
+
+    fn run_unnamed(&self, ctx: &ExecutionContext) -> Result<StudyResult, CausalError> {
         if let Some(result) = self.run_checked_bayesian_static_mediation(ctx)? {
             return Ok(*result);
         }

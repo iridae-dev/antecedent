@@ -4,4 +4,4 @@
 
 ## Expected summary
 
-Top-level keys: `active, control, counterfactual_mean, dgp, direct, fixture_id, indirect, tolerance, total` (9 fields).
+Top-level keys: `active, control, counterfactual_mean, dgp, direct, fixture_id, indirect, oracle, tolerance, total` (10 fields).

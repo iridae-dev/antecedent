@@ -588,11 +588,12 @@ impl PriorPredictiveCheck {
         let mut disp_summaries = Vec::with_capacity(self.n_sims as usize);
         let mut beta = vec![0.0; p];
         let mut y_pred = vec![0.0; n];
+        let corr_chol = prior_correlation_cholesky(prior)?;
         for _ in 0..self.n_sims {
             // Draw β ~ prior once per simulation, then μ_i = g^{-1}(x_i'β).
+            let z = prior_standard_normals(corr_chol.as_deref(), p, &mut rng);
             for c in 0..p {
-                beta[c] =
-                    coef_prior.mean[c] + coef_prior.variance[c].sqrt() * standard_normal(&mut rng);
+                beta[c] = coef_prior.mean[c] + coef_prior.variance[c].sqrt() * z[c];
             }
             fitted_means(problem, &beta, self.family, &mut y_pred);
             let sigma = match residual {
@@ -2739,6 +2740,7 @@ mod tests {
             for _ in 0..draws {
                 let (sigma2, beta) = draw_generating_parameters(
                     &coefficients,
+                    None,
                     GeneratingVariance::Known(4.0),
                     &mut rng,
                 );
@@ -2758,6 +2760,7 @@ mod tests {
                 .map(|_| {
                     draw_generating_parameters(
                         &coefficients,
+                        None,
                         GeneratingVariance::InvGamma { shape: 5.0, scale: 4.0 },
                         &mut rng,
                     )
@@ -2766,6 +2769,28 @@ mod tests {
                 .sum::<f64>()
                 / draws as f64;
             assert!((sigma2_mean - 1.0).abs() < 0.03, "sigma2 mean {sigma2_mean}");
+            // A dense prior (coefficient correlation 0.7) draws correlated coefficients.
+            let corr = antecedent_prob::CoefficientCorrelation::new(2, vec![1.0, 0.7, 0.7, 1.0])
+                .unwrap()
+                .cholesky()
+                .unwrap();
+            let pairs: Vec<(f64, f64)> = (0..draws)
+                .map(|_| {
+                    let (_, b) = draw_generating_parameters(
+                        &coefficients,
+                        Some(&corr),
+                        GeneratingVariance::Known(4.0),
+                        &mut rng,
+                    );
+                    (b[0], b[1])
+                })
+                .collect();
+            let (a0, a1): (Vec<f64>, Vec<f64>) = pairs.iter().copied().unzip();
+            let ((m0, v0), (m1, v1)) = (stats(&a0), stats(&a1));
+            let cov =
+                pairs.iter().map(|(x, y)| (x - m0) * (y - m1)).sum::<f64>() / (draws - 1) as f64;
+            let rho = cov / (v0 * v1).sqrt();
+            assert!((rho - 0.7).abs() < 0.02, "dense prior draw correlation {rho}");
         }
 
         #[test]
@@ -3128,10 +3153,31 @@ enum GeneratingVariance {
     InvGamma { shape: f64, scale: f64 },
 }
 
+/// Cholesky factor of the prior's coefficient correlation, when it is dense.
+fn prior_correlation_cholesky(prior: &PriorSet) -> Result<Option<Vec<f64>>, ValidationError> {
+    prior
+        .coefficient_correlation()
+        .map(antecedent_prob::CoefficientCorrelation::cholesky)
+        .transpose()
+        .map_err(|e| ValidationError::estimation_msg(e.to_string()))
+}
+
+/// `p` standard normals with the prior's coefficient correlation: `L z` under
+/// a dense prior, the iid draws themselves (same stream order) otherwise.
+fn prior_standard_normals(chol: Option<&[f64]>, p: usize, rng: &mut CausalRng) -> Vec<f64> {
+    let z: Vec<f64> = (0..p).map(|_| standard_normal(rng)).collect();
+    let Some(l) = chol else {
+        return z;
+    };
+    (0..p).map(|i| (0..=i).map(|j| l[i * p + j] * z[j]).sum()).collect()
+}
+
 /// Draw `(σ², β)` from the fitted prior: `σ²` from its residual model, then
-/// `β_c = μ_c + σ √V0_c · z` (the conjugate `β | σ² ~ N(μ, σ² · diag V0)`).
+/// `β = μ + σ D^{1/2} L z` (the conjugate `β | σ² ~ N(μ, σ² V0)`, `V0` dense
+/// under a coefficient correlation `R = L L'`, diagonal otherwise).
 fn draw_generating_parameters(
     coefficients: &GaussianCoefficientPrior,
+    corr_chol: Option<&[f64]>,
     variance: GeneratingVariance,
     rng: &mut CausalRng,
 ) -> (f64, Vec<f64>) {
@@ -3140,10 +3186,9 @@ fn draw_generating_parameters(
         GeneratingVariance::InvGamma { shape, scale } => sample_inv_gamma(shape, scale, rng),
     };
     let sigma = sigma2.sqrt();
+    let z = prior_standard_normals(corr_chol, coefficients.mean.len(), rng);
     let beta = (0..coefficients.mean.len())
-        .map(|c| {
-            coefficients.mean[c] + sigma * coefficients.variance[c].sqrt() * standard_normal(rng)
-        })
+        .map(|c| coefficients.mean[c] + sigma * coefficients.variance[c].sqrt() * z[c])
         .collect();
     (sigma2, beta)
 }
@@ -3280,20 +3325,21 @@ impl SimulationBasedCalibration {
         let mut est = estimator.clone();
         est.n_draws = self.n_draws;
 
+        let corr_chol = prior_correlation_cholesky(&prior)?;
         for rep in 0..self.n_reps {
             crate::common::check_cancelled(ctx)?;
             let (sigma2, beta) = if let Some(variance) = variance {
-                draw_generating_parameters(coefficients, variance, &mut rng)
+                draw_generating_parameters(coefficients, corr_chol.as_deref(), variance, &mut rng)
             } else {
+                let z = prior_standard_normals(corr_chol.as_deref(), p, &mut rng);
                 (
                     1.0,
                     coefficients
                         .mean
                         .iter()
                         .zip(coefficients.variance.iter())
-                        .map(|(&mean, &variance)| {
-                            mean + variance.sqrt() * standard_normal(&mut rng)
-                        })
+                        .zip(&z)
+                        .map(|((&mean, &variance), &z)| mean + variance.sqrt() * z)
                         .collect(),
                 )
             };

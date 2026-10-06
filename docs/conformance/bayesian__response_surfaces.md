@@ -6,4 +6,4 @@ Known-truth Gaussian linear structural equations. Inputs are reproduced by the c
 
 ## Expected summary
 
-Top-level keys: `static_mean, static_tolerance, temporal_mean, temporal_tolerance, window_effect, window_tolerance` (6 fields).
+Top-level keys: `oracle, static_mean, static_tolerance, temporal_mean, temporal_tolerance, window_effect, window_tolerance` (7 fields).

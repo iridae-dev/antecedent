@@ -383,8 +383,9 @@ fn crossfit_cell_scores(
         // weight) is refused rather than silently floored at a hidden constant.
         let floor = clip.unwrap_or(0.0);
         if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
-            return Err(EstimationError::Overlap {
+            return Err(EstimationError::OverlapWithFields {
                 message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
+                fields: Box::new(crate::overlap::propensity_score_fields(&e_valid)),
             });
         }
 

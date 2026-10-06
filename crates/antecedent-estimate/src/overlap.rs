@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::TargetPopulation;
 
-use crate::error::EstimationError;
+use crate::error::{EstimationError, ExactF64, RefusalFields};
 
 /// Library-default propensity clip: propensities are clamped into `[0.01, 0.99]` unless a
 /// policy says otherwise. Also the reference bound of the weighted-support gate, which asks how
@@ -56,6 +56,53 @@ impl OverlapPolicy {
         }
         Ok(())
     }
+}
+
+/// Probabilities at which refused propensity scores are summarized (nearest rank), the
+/// levels `diagnose_fit` reports.
+const REFUSAL_PROPENSITY_QUANTILES: [f64; 7] = [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99];
+
+/// Structured fields of a positivity refusal raised on fitted propensity scores: the extrema
+/// and nearest-rank quantiles of the finite scores. Only what the scores themselves give:
+/// arm effective sizes need the treatment and weights, so they stay absent, and with no
+/// finite score nothing numeric is reported.
+pub(crate) fn propensity_score_fields(scores: &[f64]) -> RefusalFields {
+    let mut sorted: Vec<f64> = scores.iter().copied().filter(|e| e.is_finite()).collect();
+    sorted.sort_by(f64::total_cmp);
+    let mut fields = RefusalFields {
+        stage: Some("positivity".to_string()),
+        reason: Some("propensity_not_interior".to_string()),
+        remedy: Some(
+            "set an overlap clip, or drop the columns that determine treatment".to_string(),
+        ),
+        ..RefusalFields::default()
+    };
+    if let (Some(&min), Some(&max)) = (sorted.first(), sorted.last()) {
+        fields.propensity_min = Some(ExactF64(min));
+        fields.propensity_max = Some(ExactF64(max));
+        fields.propensity_quantiles = nearest_rank_quantiles(&sorted);
+    }
+    fields
+}
+
+/// Nearest-rank quantiles of ascending-sorted, finite, nonempty `sorted` at the levels refusals
+/// report; empty for an empty slice (nothing is invented).
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a probability times a score count is a small non-negative rank"
+)]
+pub(crate) fn nearest_rank_quantiles(sorted: &[f64]) -> Vec<(ExactF64, ExactF64)> {
+    if sorted.is_empty() {
+        return Vec::new();
+    }
+    REFUSAL_PROPENSITY_QUANTILES
+        .iter()
+        .map(|&p| {
+            let rank = ((p * sorted.len() as f64).ceil() as usize).clamp(1, sorted.len());
+            (ExactF64(p), ExactF64(sorted[rank - 1]))
+        })
+        .collect()
 }
 
 /// Closed propensity interval excluded from the target population.
@@ -519,5 +566,31 @@ mod tests {
             assert!(clip.validate().is_err(), "clip {bad}");
             assert!(trim.validate().is_err(), "trim {bad}");
         }
+    }
+    /// Refused-score fields are the finite scores' own extrema and nearest-rank quantiles;
+    /// with no finite score nothing numeric is reported (absent, never zero).
+    #[test]
+    fn propensity_score_fields_summarize_only_finite_scores() {
+        let fields = propensity_score_fields(&[0.0, 0.2, 0.4, 0.6, 0.8, 1.0, f64::NAN]);
+        assert_eq!(fields.stage.as_deref(), Some("positivity"));
+        assert_eq!(fields.reason.as_deref(), Some("propensity_not_interior"));
+        assert_eq!(
+            (fields.propensity_min, fields.propensity_max),
+            (Some(ExactF64(0.0)), Some(ExactF64(1.0)))
+        );
+        // Nearest rank over the six finite scores: ceil(p * 6) - 1.
+        let expected = [0.0, 0.0, 0.2, 0.4, 0.8, 1.0, 1.0];
+        let levels = [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99];
+        assert_eq!(fields.propensity_quantiles.len(), 7);
+        for ((p, v), (want_p, want_v)) in
+            fields.propensity_quantiles.iter().zip(levels.iter().zip(expected))
+        {
+            assert_eq!((p.0, v.0), (*want_p, want_v));
+        }
+        assert!(fields.arm_ess.is_empty(), "arm sizes need the treatment, not the scores");
+
+        let none = propensity_score_fields(&[f64::NAN, f64::INFINITY]);
+        assert!(none.propensity_min.is_none() && none.propensity_max.is_none());
+        assert!(none.propensity_quantiles.is_empty());
     }
 }

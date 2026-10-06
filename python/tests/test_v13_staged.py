@@ -212,6 +212,46 @@ def test_derivative_stages_and_artifacts(kind, pin_key, accepted):
         )
 
 
+@pytest.mark.parametrize("kind", ["jacobian", "directional"])
+def test_frequentist_plugin_gradient_is_point_only_and_says_why(kind):
+    """The Frequentist Jacobian / directional derivative publishes no interval.
+
+    Its coefficient-sandwich band is wired for calibration but stays closed until
+    its coverage is measured; the warning names that, and Bayesian inference is
+    the route with a band.
+    """
+    rng = np.random.default_rng(23)
+    x = rng.normal(size=400)
+    a = 0.5 * x + rng.normal(size=400)
+    b = 0.3 * x + rng.normal(size=400)
+    data = {
+        "a": a,
+        "b": b,
+        "x": x,
+        "y": 1 + 2 * a - 0.5 * b + x + rng.normal(size=400),
+        "v": 0.25 * a + 1.5 * b + 0.5 * x + rng.normal(size=400),
+    }
+    graph = ac.Dag.from_edges(
+        list(data),
+        [("x", "a"), ("x", "b"), ("x", "y"), ("x", "v")]
+        + [(t, o) for t in ("a", "b") for o in ("y", "v")],
+    )
+    query = {
+        "jacobian": ac.ResponseJacobian(["a", "b"], ["y", "v"], at=[0.5, 0.0]),
+        "directional": ac.DirectionalDerivative(
+            ["a", "b"], ["y", "v"], at=[0.5, 0.0], direction=[1, 2]
+        ),
+    }[kind]
+    result = ac.analyze(data, graph=graph, query=query, refute="none", seed=3)
+    assert np.all(np.isfinite(np.asarray(result.estimate, dtype=float)))
+    assert result.uncertainty.kind == "none"
+    assert result.uncertainty.lower is None and result.uncertainty.upper is None
+    withheld = [w for w in result.support.warnings if "response.derivative_interval_withheld" in w]
+    assert withheld, result.support.warnings
+    assert "not yet measured" in withheld[0]
+    assert "Bayesian" in withheld[0]
+
+
 @pytest.mark.parametrize("kind", ["selected", "right_km", "left_km", "right_cox", "left_cox"])
 @pytest.mark.parametrize("accepted", [False, True])
 def test_observation_pair_fixture(kind, accepted):

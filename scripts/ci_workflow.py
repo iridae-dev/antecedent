@@ -4,7 +4,8 @@
 Workflow job ids (the keys under `jobs:`) are what `parity/release.toml`
 names in `required_jobs`. `gh run view --json jobs` reports display names
 instead: the job's `name:` with every `${{ matrix.* }}` expanded, one job
-per matrix combination ("Rust ubuntu-latest", "Wheel macos-14 py3.12").
+per matrix combination ("Rust ubuntu-latest", "Rust ubuntu-latest facade",
+"Wheel macos-14 py3.12").
 This module parses the workflow as YAML and owns that id -> display-name
 mapping, so no gate re-derives it with a regex.
 

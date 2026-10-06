@@ -292,3 +292,84 @@ meaning = "A TransportPolicy wire name is not one the library defines."
 id = "transport_coef_index_out_of_range"
 applies_to = ["runtime_refusal"]
 meaning = "A coefficient index passed to a transport reweighting is outside the prior's dimension."
+
+# 2.2 (parity/promotion_2_2.toml). Registered before any route returns them.
+[[code]]
+id = "sampling_dependence_unknown"
+applies_to = ["runtime_refusal"]
+meaning = "The point is retained but its interval is withheld: sampling dependence between the studies or units it combines is undeclared, and independence is never assumed."
+
+[[code]]
+id = "scenario_aggregate_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are licensed."
+
+# 2.2 E1 preflight (parity/promotion_2_2.toml carries no record: diagnostics add no inferential claim).
+[[code]]
+id = "design_rank_deficient"
+applies_to = ["runtime_refusal"]
+meaning = "The adjustment design is numerically rank deficient (an exact duplicate or linear dependency among its columns), so regression-based nuisance fits would refuse it; the refusal names the dependent columns and the rank."
+
+[[code]]
+id = "rank_drop_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "An opt-in rank-deficiency drop would remove a column the query needs (a treatment, outcome or effect modifier) or the declared column priority does not cover the design; nothing is dropped."
+
+[[code]]
+id = "arm_not_populated"
+applies_to = ["runtime_refusal"]
+meaning = "A treatment arm or joint cell has no complete-case rows, so no contrast against it is estimable; the refusal names the arm and its counts."
+
+# 2.2 E2 penalized AIPW (promotion record: aipw.penalized_propensity in parity/promotion_2_2.toml).
+[[code]]
+id = "penalized_interval_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A factorized joint-cell propensity with penalized conditional models publishes cell points and a score table only; its nuisance remainder and interval coverage have not been licensed, so a requested interval is refused. The separately calibrated ridge/lasso AIPW route has its own interval contract."
+
+[[code]]
+id = "selection_inference_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "The nuisance learner selects variables from the data (lasso), which changes the inference contract; an ordinary influence-function interval is not valid after selection, so the option is closed."
+
+[[code]]
+id = "nuisance_fallback_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A declared fallback from a failed GLM nuisance fit to a flexible learner has no support or uncertainty license on this route; the failed fit is reported and no fallback result is produced."
+
+# 2.2 E5 factorized joint cells and derived treatments (promotion record: 2.2E.E5.factorized_joint_cells).
+[[code]]
+id = "joint_cell_unsupported"
+applies_to = ["runtime_refusal"]
+meaning = "One discrete joint treatment cell cannot be evaluated (a conditional factor or outcome model is unsupported, or the cell's weights have too small an effective sample); the cell is refused individually with its reason and the rest of the family is kept."
+
+[[code]]
+id = "derived_treatment_invalid"
+applies_to = ["runtime_refusal"]
+meaning = "A derived-treatment declaration is inconsistent, a constituent column or forbidden descendant sits in the adjustment set without a declared causal exclusion rule, or an observed value is outside the declared legal values; nothing is dropped to repair it."
+
+[[code]]
+id = "ml_nuisance_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "A machine-learning nuisance was declared for joint cells in a way no record licenses: an interval or joint covariance over learner-supplied nuisances (which need their own remainder and coverage license), or a machine-learning name that is not a declared joint-cell learner; refused rather than silently replaced by the ridge-logistic factors."
+
+# 2.2 E4 clustered DML (promotion record: 2.2E.E4.clustered_dml_aipw).
+[[code]]
+id = "cluster_interval_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "Cluster-DML AIPW refuses a requested row bootstrap or alternative analytic SE kind: the row bootstrap would split clusters, and neither requested construction has a coverage license. The default one-way cluster t interval has its own measured coordinate."
+
+[[code]]
+id = "too_few_clusters"
+applies_to = ["runtime_refusal"]
+meaning = "The number of independent clusters is below the declared minimum, so a sandwich over cluster sums and a whole-cluster cross-fit are not formed; the refusal states the count found and the minimum declared."
+
+[[code]]
+id = "dyadic_dependence_not_licensed"
+applies_to = ["runtime_refusal"]
+meaning = "Rows share endpoints (dyads) in a structure the two-way cluster-DML construction does not cover: an entity used as both a first and a second endpoint, or one connected component of the endpoint graph holding more than a fold's share of the rows, so whole-component folds and the two-way variance are not licensed."
+
+# 2.2 E7 tier diagnostics (promotion record: tier_diagnostics in parity/promotion_2_2.toml).
+[[code]]
+id = "diagnostic_not_available"
+applies_to = ["runtime_refusal"]
+meaning = "A diagnostic is requested that the executed route's own design does not carry (no propensity score, an E-value that embeds an interval endpoint, a result with no single effect); it is reported absent with this code and a detail, never fabricated and never refit from a different design."

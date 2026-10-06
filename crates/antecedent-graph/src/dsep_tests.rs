@@ -41,6 +41,16 @@ fn endpoint_in_z_is_not_d_separated() {
     let y = DenseNodeId::from_raw(2);
     assert!(!g.is_d_separated(x, y, &[x], &mut ws).unwrap());
     assert!(!g.is_d_separated(x, y, &[y], &mut ws).unwrap());
+    for endpoint in [x, y] {
+        assert!(matches!(
+            g.d_separation(x, y, &[endpoint], &mut ws),
+            Err(GraphError::InvalidEndpoints { .. })
+        ));
+    }
+    assert!(matches!(
+        g.d_separation(x, x, &[x], &mut ws),
+        Err(GraphError::InvalidEndpoints { .. })
+    ));
 }
 
 #[test]

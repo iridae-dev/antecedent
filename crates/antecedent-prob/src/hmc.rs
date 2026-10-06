@@ -34,11 +34,13 @@ use crate::backend::{
 };
 use crate::diagnostics::{HessianFactorization, InferenceDiagnostics};
 use crate::error::ProbError;
-use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model};
+use crate::gaussian_target::{PosteriorTarget, gaussian_target_from_model_with_precision};
 use crate::likelihood_terms::{accumulate_likelihood, log_posterior_value, validate_design};
 use crate::mcmc_stats::{all_chains_moved, mcmc_summary};
 use crate::posterior::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
-use crate::prior::{GaussianCoefficientPrior, GaussianVarianceModel, PriorSet};
+use crate::prior::{
+    CoefficientPrecision, GaussianCoefficientPrior, GaussianVarianceModel, PriorSet,
+};
 
 /// Default HMC sampler settings.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -392,14 +394,16 @@ fn fit_hmc_resolved(
     let include_sigma2 =
         gaussian_model.is_some_and(super::prior::GaussianVarianceModel::include_sigma2);
     let dim = ncols + usize::from(include_sigma2);
-    // GLM has no residual σ²; absolute prior precision is V0^{-1} at σ² ≡ 1.
-    let prec =
-        if gaussian_model.is_none() { coef_prior.absolute_precision(1.0)? } else { Vec::new() };
+    // Conjugate-scale V0^{-1} (dense under a coefficient correlation). GLM has no
+    // residual σ², so its absolute prior precision is V0^{-1} at σ² ≡ 1.
+    let prec = prior.coefficient_precision(&coef_prior)?;
     let n_keep = fit_opts.n_draws;
 
     let run = |chain: usize, ws: &mut LaplaceWorkspace| -> Result<ChainRun, ProbError> {
         match gaussian_model {
-            Some(model) => run_gaussian_chain(chain, design, &coef_prior, model, fit_opts, hmc, ws),
+            Some(model) => {
+                run_gaussian_chain(chain, design, &coef_prior, &prec, model, fit_opts, hmc, ws)
+            }
             None => run_glm_chain(chain, likelihood, design, &coef_prior, &prec, fit_opts, hmc, ws),
         }
     };
@@ -442,7 +446,7 @@ fn run_glm_chain(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
-    prec: &[f64],
+    prec: &CoefficientPrecision,
     fit_opts: &BayesFitOptions,
     hmc: HmcOptions,
     ws: &mut LaplaceWorkspace,
@@ -548,13 +552,15 @@ fn run_gaussian_chain(
     chain: usize,
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
+    prec: &CoefficientPrecision,
     model: GaussianVarianceModel,
     fit_opts: &BayesFitOptions,
     hmc: HmcOptions,
     ws: &mut LaplaceWorkspace,
 ) -> Result<ChainRun, ProbError> {
     let ncols = design.ncols;
-    let mut target = gaussian_target_from_model(design, coef_prior.clone(), model)?;
+    let mut target =
+        gaussian_target_from_model_with_precision(design, coef_prior.clone(), prec.clone(), model)?;
     let dim = target.dim();
     let n_keep = fit_opts.n_draws;
     let mut rng = chain_rng(fit_opts.seed, chain);
@@ -869,7 +875,7 @@ fn hmc_step_glm(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
-    prec: &[f64],
+    prec: &CoefficientPrecision,
     beta: &[f64],
     gradu_old: &[f64],
     step_size: f64,
@@ -993,7 +999,7 @@ fn neg_log_posterior_grad_slices(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
     coef_prior: &GaussianCoefficientPrior,
-    prec: &[f64],
+    prec: &CoefficientPrecision,
     beta: &[f64],
     grad_lp: &mut [f64],
     neg_hessian: &mut [f64],
@@ -1002,9 +1008,8 @@ fn neg_log_posterior_grad_slices(
     grad_out: &mut [f64],
 ) -> Result<(), ProbError> {
     accumulate_likelihood(likelihood, design, beta, grad_lp, neg_hessian, eta, work_w, 1.0, false)?;
+    prec.sub_prior_gradient(beta, &coef_prior.mean, grad_lp);
     for i in 0..beta.len() {
-        let diff = beta[i] - coef_prior.mean[i];
-        grad_lp[i] -= prec[i] * diff;
         grad_out[i] = -grad_lp[i];
     }
     Ok(())
@@ -1046,6 +1051,7 @@ fn leapfrog_trajectory(
 mod tests {
     use super::*;
     use crate::conjugate::fit_conjugate_gaussian;
+    use crate::gaussian_target::gaussian_target_from_model;
     use crate::prior::{InvGammaPrior, PriorSpec};
     use antecedent_core::{RngFactory, StreamDomain};
 
@@ -1120,7 +1126,7 @@ mod tests {
         let y = vec![1.0; n];
         let prior = PriorSet::weakly_informative(1);
         let coef = prior.gaussian_coefficients().unwrap().clone();
-        let prec = coef.precision();
+        let prec = CoefficientPrecision::Diagonal(coef.precision());
         let design = BayesDesignRef {
             x_colmajor: &x,
             nrows: n,

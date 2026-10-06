@@ -271,10 +271,16 @@ pub fn compose_external_priors_with_alphas(
     }
 
     let use_mixture = sources.iter().any(|s| s.weight.mixture_weight.is_some());
-    let composed_coef = if use_mixture {
-        compose_mixture(base_coef, sources, alphas_applied)?
+    // A dense (correlated) baseline or source composes on full matrices; an
+    // all-diagonal composition keeps the per-coefficient arithmetic.
+    let any_dense = baseline.coefficient_correlation().is_some()
+        || sources.iter().any(|s| s.prior.coefficient_correlation().is_some());
+    let (composed_coef, composed_corr) = if any_dense {
+        compose_dense(baseline, sources, alphas_applied, use_mixture)?
+    } else if use_mixture {
+        (compose_mixture(base_coef, sources, alphas_applied)?, None)
     } else {
-        compose_power_add(base_coef, sources, alphas_applied)?
+        (compose_power_add(base_coef, sources, alphas_applied)?, None)
     };
 
     let mut prior = PriorSet {
@@ -284,6 +290,9 @@ pub fn compose_external_priors_with_alphas(
         restrictions: Vec::new(),
     };
     prior.push(PriorSpec::GaussianCoefficients(composed_coef));
+    if let Some(corr) = composed_corr {
+        prior.push(PriorSpec::CoefficientCorrelation(corr));
+    }
     if let Some(ig) = baseline.residual_inv_gamma() {
         prior.push(PriorSpec::ResidualInvGamma(ig));
     } else if let Some(v) = baseline.known_residual_variance() {
@@ -441,6 +450,118 @@ fn compose_power_add(
     let out = GaussianCoefficientPrior { mean: Arc::from(mean), variance: Arc::from(variance) };
     out.validate()?;
     Ok(out)
+}
+
+/// Dense `V0` of a prior set's coefficient prior (diagonal when uncorrelated).
+fn dense_scale(set: &PriorSet) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
+    let coef = set.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+        message: "external prior missing GaussianCoefficients",
+    })?;
+    let n = coef.len();
+    let v0 = match set.coefficient_correlation() {
+        Some(corr) => corr.scale_matrix(&coef.variance)?,
+        None => {
+            let mut v0 = vec![0.0; n * n];
+            for i in 0..n {
+                v0[i * n + i] = coef.variance[i];
+            }
+            v0
+        }
+    };
+    Ok((coef.mean.to_vec(), v0))
+}
+
+/// Power / mixture composition on full `V0` matrices, for a baseline or source
+/// that carries a [`crate::CoefficientCorrelation`].
+///
+/// Power: `Λ = Λ_base + Σ α_k Λ_k`, `m = Λ⁻¹ (Λ_base m_base + Σ α_k Λ_k m_k)`.
+/// Mixture: moment-matched `Σ = Σ_k w_k (V_k / α_k + m_k m_k') − μ μ'`.
+fn compose_dense(
+    baseline: &PriorSet,
+    sources: &[ExternalPriorSource],
+    alphas: &[f64],
+    use_mixture: bool,
+) -> Result<(GaussianCoefficientPrior, Option<crate::CoefficientCorrelation>), ProbError> {
+    let (base_mean, base_v0) = dense_scale(baseline)?;
+    let n = base_mean.len();
+    let (mean, cov) = if use_mixture {
+        let mut comps: Vec<(f64, Vec<f64>, Vec<f64>, f64)> = Vec::new();
+        let mut active_w = 0.0;
+        for (src, &alpha) in sources.iter().zip(alphas.iter()) {
+            let w = src.weight.mixture_weight.unwrap_or(0.0);
+            if alpha <= 0.0 || w <= 0.0 {
+                continue;
+            }
+            let (m, v) = dense_scale(&src.prior)?;
+            comps.push((w, m, v, alpha));
+            active_w += w;
+        }
+        let leftover = (1.0 - active_w).max(0.0);
+        if leftover > 0.0 {
+            comps.push((leftover, base_mean, base_v0, 1.0));
+        }
+        if comps.is_empty() {
+            return Err(ProbError::InvalidPrior {
+                message: "compose_external_priors: mixture has no positive-mass components",
+            });
+        }
+        let mut mu = vec![0.0; n];
+        let mut second = vec![0.0; n * n];
+        for (w, m, v, alpha) in &comps {
+            for i in 0..n {
+                mu[i] += w * m[i];
+                for j in 0..n {
+                    second[i * n + j] += w * (v[i * n + j] / alpha + m[i] * m[j]);
+                }
+            }
+        }
+        for i in 0..n {
+            for j in 0..n {
+                second[i * n + j] -= mu[i] * mu[j];
+            }
+        }
+        (mu, second)
+    } else {
+        let mut lam = crate::linalg::invert_spd(&base_v0, n)?;
+        let mut num = vec![0.0; n];
+        for i in 0..n {
+            for j in 0..n {
+                num[i] += lam[i * n + j] * base_mean[j];
+            }
+        }
+        for (src, &alpha) in sources.iter().zip(alphas.iter()) {
+            if alpha == 0.0 {
+                continue;
+            }
+            let (m, v) = dense_scale(&src.prior)?;
+            let p = crate::linalg::invert_spd(&v, n)?;
+            for i in 0..n {
+                for j in 0..n {
+                    let a_p = alpha * p[i * n + j];
+                    lam[i * n + j] += a_p;
+                    num[i] += a_p * m[j];
+                }
+            }
+        }
+        let cov = crate::linalg::invert_spd(&lam, n).map_err(|_| ProbError::Numerical {
+            message: "compose_external_priors: non-positive-definite composed precision".into(),
+        })?;
+        let mut mean = vec![0.0; n];
+        for i in 0..n {
+            for j in 0..n {
+                mean[i] += cov[i * n + j] * num[j];
+            }
+        }
+        (mean, cov)
+    };
+    let mut variance = vec![0.0; n];
+    for i in 0..n {
+        variance[i] = cov[i * n + i].max(COMPOSE_VAR_FLOOR);
+    }
+    let corr = crate::CoefficientCorrelation::from_covariance(&cov, n)?;
+    let out = GaussianCoefficientPrior { mean: Arc::from(mean), variance: Arc::from(variance) };
+    out.validate()?;
+    Ok((out, corr))
 }
 
 fn compose_mixture(
@@ -827,5 +948,59 @@ mod tests {
         // The transport adjustment reports the same hand value.
         let adj = TransportAdjustment::new([1.0, 2.0, 3.0], [0.5, 0.25, 0.25]).unwrap();
         assert!((adj.kish_ess() - expected).abs() < 1e-12);
+    }
+
+    fn dense_source(alpha: f64, mixture: Option<f64>) -> ExternalPriorSource {
+        let mut prior = PriorSet::new();
+        prior.push(PriorSpec::GaussianCoefficients(GaussianCoefficientPrior {
+            mean: Arc::from(vec![1.0, -1.0]),
+            variance: Arc::from(vec![0.04, 0.09]),
+        }));
+        prior.push(PriorSpec::CoefficientCorrelation(
+            crate::CoefficientCorrelation::new(2, vec![1.0, -0.8, -0.8, 1.0]).unwrap(),
+        ));
+        let weight = match mixture {
+            Some(w) => ExternalPriorWeight::power_mixture(alpha, w).unwrap(),
+            None => ExternalPriorWeight::power(alpha).unwrap(),
+        };
+        ExternalPriorSource { id: Arc::from("dense"), prior, weight, ess: None }
+    }
+
+    /// A correlated source composes on full matrices: a near-flat baseline and
+    /// α = 1 return the source's correlation; α = ½ doubles its covariance.
+    #[test]
+    fn power_compose_keeps_dense_source_correlation() {
+        let baseline = PriorSet::weakly_informative(2);
+        for alpha in [1.0, 0.5] {
+            let composed =
+                compose_external_priors(&[dense_source(alpha, None)], &baseline).unwrap();
+            let coef = composed.prior.gaussian_coefficients().unwrap();
+            let corr = composed.prior.coefficient_correlation().expect("dense composed prior");
+            assert!((corr.matrix()[1] + 0.8).abs() < 1e-3, "corr {}", corr.matrix()[1]);
+            // The weakly informative baseline (V0 = 100) shrinks V by about V²/100.
+            assert!((coef.variance[0] * alpha / 0.04 - 1.0).abs() < 1e-2);
+            assert!((coef.variance[1] * alpha / 0.09 - 1.0).abs() < 1e-2);
+            assert!((coef.mean[0] - 1.0).abs() < 1e-2 && (coef.mean[1] + 1.0).abs() < 1e-2);
+        }
+    }
+
+    /// Mixture composition moment-matches the full covariance.
+    #[test]
+    fn mixture_compose_moment_matches_dense_covariance() {
+        let mut baseline = PriorSet::new();
+        baseline.push(PriorSpec::GaussianCoefficients(
+            GaussianCoefficientPrior::shared(2, 0.0, 1.0).unwrap(),
+        ));
+        let composed = compose_external_priors(&[dense_source(1.0, Some(0.5))], &baseline).unwrap();
+        let coef = composed.prior.gaussian_coefficients().unwrap();
+        // μ = ½(1, −1); Σ = ½ V_src + ½ I + ½ m m' − μ μ'.
+        let cov01 = 0.5 * (-0.8 * 0.2 * 0.3) + 0.5 * (-1.0) - 0.25 * (-1.0);
+        let var0 = 0.5 * 0.04 + 0.5 + 0.5 - 0.25;
+        let var1 = 0.5 * 0.09 + 0.5 + 0.5 - 0.25;
+        assert!((coef.mean[0] - 0.5).abs() < 1e-12 && (coef.mean[1] + 0.5).abs() < 1e-12);
+        assert!((coef.variance[0] - var0).abs() < 1e-12);
+        assert!((coef.variance[1] - var1).abs() < 1e-12);
+        let corr = composed.prior.coefficient_correlation().unwrap();
+        assert!((corr.matrix()[1] - cov01 / (var0 * var1).sqrt()).abs() < 1e-12);
     }
 }

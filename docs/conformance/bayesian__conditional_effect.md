@@ -6,4 +6,4 @@ Known linear interaction law Y = 1 + 2T + 0.5TW, with observed mean W = 2. The a
 
 ## Expected summary
 
-Top-level keys: `effect, tolerance` (2 fields).
+Top-level keys: `effect, oracle, tolerance` (3 fields).

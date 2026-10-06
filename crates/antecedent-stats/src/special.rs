@@ -60,6 +60,46 @@ pub fn gauss_hermite_standard_normal(n: usize) -> (Vec<f64>, Vec<f64>) {
     (nodes, weights)
 }
 
+/// Gauss–Legendre rule on `[-1, 1]`: `(nodes, weights)` with
+/// `∫_{-1}^{1} g(u) du ≈ Σ w_i g(u_i)`, exact for polynomials of degree up to `2n − 1`.
+///
+/// Nodes are the roots of the Legendre polynomial `P_n`, found by Newton iteration on
+/// the three-term recurrence from the asymptotic starting values
+/// `cos(π (i + 3/4) / (n + 1/2))`; the weights are `2 / ((1 − u²) P_n'(u)²)`. Nodes are
+/// returned in ascending order, symmetric about zero. `n = 0` returns empty vectors.
+#[must_use]
+pub fn gauss_legendre(n: usize) -> (Vec<f64>, Vec<f64>) {
+    let mut nodes = vec![0.0; n];
+    let mut weights = vec![0.0; n];
+    let nf = n as f64;
+    for i in 0..n.div_ceil(2) {
+        let mut u = (std::f64::consts::PI * (i as f64 + 0.75) / (nf + 0.5)).cos();
+        let mut derivative = 1.0;
+        for _ in 0..100 {
+            let (mut p1, mut p2) = (1.0, 0.0);
+            for j in 0..n {
+                let p3 = p2;
+                p2 = p1;
+                let jf = j as f64;
+                p1 = ((2.0 * jf + 1.0) * u * p2 - jf * p3) / (jf + 1.0);
+            }
+            derivative = nf * (u * p1 - p2) / (u * u - 1.0);
+            let step = p1 / derivative;
+            u -= step;
+            if step.abs() < 1e-16 {
+                break;
+            }
+        }
+        // `i` counts down from the largest root; store ascending.
+        nodes[n - 1 - i] = u;
+        nodes[i] = -u;
+        let weight = 2.0 / ((1.0 - u * u) * derivative * derivative);
+        weights[n - 1 - i] = weight;
+        weights[i] = weight;
+    }
+    (nodes, weights)
+}
+
 /// The 97.5% standard-normal quantile — the two-sided 95% critical value `z_{0.975}`.
 ///
 /// A single owner for the constant that a Wald 95% interval multiplies its standard error
@@ -504,6 +544,41 @@ mod tests {
         let (nodes, weights) = gauss_hermite_standard_normal(2);
         assert!((nodes[0] - 1.0).abs() < 1e-13 && (nodes[1] + 1.0).abs() < 1e-13);
         assert!((weights[0] - 0.5).abs() < 1e-13 && (weights[1] - 0.5).abs() < 1e-13);
+    }
+
+    #[test]
+    fn gauss_legendre_integrates_monomials_up_to_degree_2n_minus_1_exactly() {
+        for n in [1usize, 2, 3, 5, 8, 16, 32, 64] {
+            let (nodes, weights) = gauss_legendre(n);
+            assert_eq!((nodes.len(), weights.len()), (n, n));
+            assert!(nodes.windows(2).all(|w| w[0] < w[1]), "n = {n}: ascending");
+            assert!(nodes.iter().zip(nodes.iter().rev()).all(|(a, b)| (a + b).abs() < 1e-15));
+            for degree in 0..2 * n {
+                let rule: f64 = nodes
+                    .iter()
+                    .zip(&weights)
+                    .map(|(u, w)| w * u.powi(i32::try_from(degree).unwrap()))
+                    .sum();
+                let exact = if degree % 2 == 1 { 0.0 } else { 2.0 / (degree as f64 + 1.0) };
+                assert!(
+                    (rule - exact).abs() < 1e-13,
+                    "n = {n}, degree {degree}: {rule} vs {exact}"
+                );
+            }
+            // Degree 2n is not integrated exactly: the rule is exactly as strong as stated
+            // (checked where the error of the degree-2n monomial is visible in f64).
+            if n <= 8 {
+                let rule: f64 = nodes
+                    .iter()
+                    .zip(&weights)
+                    .map(|(u, w)| w * u.powi(i32::try_from(2 * n).unwrap()))
+                    .sum();
+                assert!((rule - 2.0 / (2.0 * n as f64 + 1.0)).abs() > 1e-6, "n = {n}");
+            }
+        }
+        let (nodes, weights) = gauss_legendre(1);
+        assert!(nodes[0].abs() < 1e-15 && (weights[0] - 2.0).abs() < 1e-15);
+        assert!(gauss_legendre(0).0.is_empty());
     }
 
     #[test]

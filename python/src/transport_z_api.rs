@@ -146,6 +146,16 @@ fn decision_json(
     catalog: &antecedent_core::EvidenceCatalog,
     names: &[String],
 ) -> serde_json::Value {
+    let mut value = decision_body(decision, catalog, names);
+    value["identification_status"] = decision.identification_status().as_str().into();
+    value
+}
+
+fn decision_body(
+    decision: &ZTransportDecision,
+    catalog: &antecedent_core::EvidenceCatalog,
+    names: &[String],
+) -> serde_json::Value {
     match decision {
         ZTransportDecision::Identified(proof) => serde_json::json!({
             "outcome": "identified",
@@ -207,6 +217,7 @@ fn limits_receipt_json(
 ) -> serde_json::Value {
     serde_json::json!({
         "outcome": "exhausted",
+        "identification_status": antecedent_core::TransportOutcomeKind::BudgetCancel.as_str(),
         "limits_receipt": {
             "budget": receipt.budget,
             "steps_limit": receipt.steps_limit,
@@ -219,7 +230,7 @@ fn limits_receipt_json(
     })
 }
 
-fn to_py_json(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
+pub(crate) fn to_py_json(py: Python<'_>, value: &serde_json::Value) -> PyResult<Py<PyAny>> {
     Ok(py.import("json")?.call_method1("loads", (value.to_string(),))?.unbind())
 }
 
@@ -333,6 +344,13 @@ impl ZTransportStage {
         to_py_json(py, &value)
     }
 
+    /// Identification status in the shared transport vocabulary: `identified`,
+    /// `proven_non_transportable`, `missing_evidence`, `not_certified` or
+    /// `budget_cancel`. `outcome` keeps its earlier spelling.
+    #[getter]
+    fn identification_status(&self) -> &'static str {
+        self.result.identification_status().as_str()
+    }
     #[getter]
     fn outcome(&self) -> &'static str {
         match &self.result {
@@ -627,7 +645,7 @@ impl ZTransportStage {
 }
 
 #[pyclass(skip_from_py_object)]
-struct PreparedZTransportStage {
+pub(crate) struct PreparedZTransportStage {
     inner: antecedent::PreparedZTransport,
     graph: Admg,
     diagram: SelectionDiagram,
@@ -758,7 +776,7 @@ impl PreparedZTransportStage {
         })
     }
 
-    fn ctx(
+    pub(crate) fn ctx(
         &self,
         memory_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
@@ -776,13 +794,18 @@ impl PreparedZTransportStage {
     }
 
     /// The raw io-crate artifact of the last execution.
-    fn raw_export(&self, what: &str) -> PyResult<Vec<u8>> {
+    pub(crate) fn raw_export(&self, what: &str) -> PyResult<Vec<u8>> {
         self.last_result(what)?.export(&self.inner).map_err(error)
     }
 
     /// Interval JSON for one execution: availability is the presence of mean
     /// intervals, never a string test on the method name. `method` is the
     /// interval constructor and `reason` why it is withheld or uncalibrated.
+    /// The retained prepared z stage (shared, immutable).
+    pub(crate) const fn prepared(&self) -> &antecedent::PreparedZTransport {
+        &self.inner
+    }
+
     fn interval_json(&self, result: &antecedent::ZTransportResult) -> serde_json::Value {
         let names = &self.graph.names;
         if result.mean_intervals().is_empty() {
@@ -1227,7 +1250,7 @@ fn identify_z_transport_stage(
     Ok(ZTransportStage { result, graph: named_graph, diagram, query, limits })
 }
 
-fn intervention_assignments(
+pub(crate) fn intervention_assignments(
     names: &[String],
     assignment: BTreeMap<String, f64>,
 ) -> PyResult<Arc<[antecedent_core::InterventionAssignment]>> {
@@ -1309,7 +1332,8 @@ fn decide_two_source_z_transport_stage(
             &ctx,
         )
         .map_err(error)?;
-        Ok(match decision {
+        let status = decision.identification_status().as_str();
+        let mut value = match decision {
             TwoSourceZTransportDecision::Identified { source, derivation } => {
                 let index = usize::from(query.sources[1].population == source);
                 serde_json::json!({
@@ -1354,7 +1378,9 @@ fn decide_two_source_z_transport_stage(
                 "outcome": "not_certified",
                 "reason": reason,
             }),
-        })
+        };
+        value["identification_status"] = status.into();
+        Ok(value)
     })?;
     to_py_json(py, &value)
 }

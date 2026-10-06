@@ -8,4 +8,4 @@ interchange also ship in `antecedent-io` (separate fixtures).
 
 ## Expected summary
 
-Top-level keys: `description, dot, expected_edges, expected_node_count, fixture, json` (6 fields).
+Top-level keys: `description, dot, expected_edges, expected_node_count, fixture, json, oracle` (7 fields).

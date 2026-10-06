@@ -34,12 +34,28 @@
 
 mod distance;
 mod matching;
+mod penalized;
+mod penalized_report;
 mod prepare;
 mod stratification;
 pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
 pub use matching::{CaliperScale, PropensityMatching};
+pub use penalized::{
+    DEFAULT_LASSO_GRID, DEFAULT_RIDGE_GRID, DEFAULT_RIDGE_INNER_FOLDS, NuisanceFallback,
+    PropensityNuisance, PropensityPenalty, RidgeTuning, provenance_marks_penalized,
+    provenance_withholds_interval,
+};
+pub(crate) use penalized::{
+    RidgeFoldInput, RidgeFoldSelection, fallback_provenance, fit_penalized_fold, fit_ridge_fold,
+    fold_supports, refuse,
+};
+pub use penalized_report::{
+    FailedFit, FallbackRecord, FoldSupport, PROPENSITY_FIT_STAGE, PenalizedReport,
+    PenalizedVarianceReport, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties,
+    crossfit_influence_se,
+};
 pub use prepare::{
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap,
@@ -619,6 +635,72 @@ mod tests {
             matches!(err, EstimationError::Refused { code: "estimator_inference_mismatch", .. }),
             "{err}"
         );
+    }
+
+    /// Clustered, multiway and HAC matching standard errors stay refused through the public
+    /// estimators: no clustered influence function exists for this matching estimator (see
+    /// `matching::matching_contrast` and docs/capabilities.md). Labels are supplied and
+    /// aligned, so the refusal is the variance kind itself, not a missing or misaligned label.
+    #[test]
+    fn matching_refuses_clustered_multiway_and_hac_se_through_both_estimators() {
+        let (data, estimand) = confounded_scm(400, 17);
+        let n = data.row_count();
+        let clusters: Vec<u32> = (0..n).map(|i| u32::try_from(i % 20).unwrap_or(0)).collect();
+        let other: Vec<u32> = (0..n).map(|i| u32::try_from(i % 15).unwrap_or(0)).collect();
+        let times: Vec<i64> = (0..n).map(|i| i64::try_from(i / 20).unwrap_or(0)).collect();
+        let kinds = [
+            crate::se::AnalyticSeKind::Cluster,
+            crate::se::AnalyticSeKind::Multiway,
+            crate::se::AnalyticSeKind::NeweyWest { lag: 2 },
+            crate::se::AnalyticSeKind::PanelClusterHac { lag: 2 },
+        ];
+        for target in [TargetPopulation::AllObserved, TargetPopulation::Treated] {
+            let query =
+                AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1))
+                    .with_target_population(target.clone());
+            for kind in kinds {
+                let propensity =
+                    PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() }
+                        .with_se_kind(kind)
+                        .with_cluster_ids(clusters.clone())
+                        .with_multiway_ids(vec![clusters.clone(), other.clone()])
+                        .with_panel_times(times.clone());
+                let mut ws = PropensityEstimationWorkspace::default();
+                let prep = propensity.prepare(&data, &estimand, &query).unwrap();
+                let err = propensity.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
+                assert!(
+                    matches!(
+                        err,
+                        EstimationError::Refused { code: "estimator_inference_mismatch", .. }
+                    ),
+                    "propensity matching {target:?} {kind:?}: {err}"
+                );
+
+                let distance =
+                    DistanceMatching { bootstrap_replicates: 0, ..DistanceMatching::new() }
+                        .with_se_kind(kind)
+                        .with_cluster_ids(clusters.clone())
+                        .with_multiway_ids(vec![clusters.clone(), other.clone()])
+                        .with_panel_times(times.clone());
+                let mut ws = PropensityEstimationWorkspace::default();
+                let prep = distance.prepare(&data, &estimand, &query).unwrap();
+                let err = distance.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap_err();
+                assert!(
+                    matches!(
+                        err,
+                        EstimationError::Refused { code: "estimator_inference_mismatch", .. }
+                    ),
+                    "distance matching {target:?} {kind:?}: {err}"
+                );
+            }
+            // The licensed Abadie–Imbens homoskedastic SE is still published on the same data.
+            let licensed =
+                PropensityMatching { bootstrap_replicates: 0, ..PropensityMatching::new() };
+            let mut ws = PropensityEstimationWorkspace::default();
+            let prep = licensed.prepare(&data, &estimand, &query).unwrap();
+            let fit = licensed.fit(&prep, &mut ws, &ctx(), AssumptionSet::new()).unwrap();
+            assert!(fit.se_analytic.is_finite() && fit.se_analytic > 0.0, "{target:?}");
+        }
     }
 
     #[test]

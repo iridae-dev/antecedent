@@ -29,5 +29,9 @@
     "project": "causal-library",
     "command": "cargo test -p antecedent-discovery --test dag_posterior_conformance",
     "notes": "Internal known truth: every engine runs on a known SEM defined in the consuming test and must meet these mass thresholds; no external oracle package"
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "known SEMs (chain, collider, lag-1 series) defined in crates/antecedent-discovery/tests/dag_posterior_conformance.rs: the true structure is known by construction and the fixture states minimum posterior mass on it; no external package"
   }
 }

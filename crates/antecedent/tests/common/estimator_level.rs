@@ -75,6 +75,37 @@ pub const CASES: &[EstimatorLevelCase] = &[
     case("aipw_atc_hc1_boundary_within_band", "aipw", "analytic_se", "hc1", "untreated.mean"),
     case("aipw_ate_hc1_ci_coverage", "aipw", "analytic_se", "hc1", "all_observed.mean"),
     case("aipw_att_cluster_ci_coverage", "aipw", "analytic_se", "cluster", "treated.mean"),
+    // A penalized propensity changes the nuisance the interval is about, so its functional
+    // label carries it (`PropensityNuisance::calibration_label`): a record measured under
+    // one penalty grid never binds to another nuisance.
+    case(
+        "aipw_ridge_influence_ci_coverage",
+        "aipw",
+        "analytic_se",
+        "homoskedastic",
+        "all_observed.mean+propensity=ridge_logistic:k3:g0.5|5|50",
+    ),
+    case(
+        "aipw_ridge_refit_bootstrap_ci_coverage",
+        "aipw",
+        "bootstrap_se",
+        "",
+        "all_observed.mean+propensity=ridge_logistic:k3:g0.5|5|50",
+    ),
+    case(
+        "aipw_lasso_influence_ci_coverage",
+        "aipw",
+        "analytic_se",
+        "homoskedastic",
+        "all_observed.mean+propensity=lasso:k3:g2|10|40",
+    ),
+    case(
+        "aipw_lasso_refit_bootstrap_ci_coverage",
+        "aipw",
+        "bootstrap_se",
+        "",
+        "all_observed.mean+propensity=lasso:k3:g2|10|40",
+    ),
     case(
         "matching_homoskedastic_ci_coverage",
         "propensity.matching",

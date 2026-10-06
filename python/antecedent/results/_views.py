@@ -177,6 +177,56 @@ class DistributionAtomView(ResultModel):
         return f"<DistributionAtomView {' '.join(parts)}>"
 
 
+class PenalizedFallback(ResultModel):
+    """A declared GLM-to-penalized propensity fallback that ran.
+
+    ``stage``, ``fold``, ``reason`` and ``message`` record the failed GLM propensity fit
+    (``reason`` is ``separated``, ``non_converged``, ``boundary_saturated``,
+    ``rank_deficient`` or ``fit_failed``); ``destination`` is the canonical key of the
+    penalized route that produced the result. The result's claim is the destination's.
+    """
+
+    stage: str
+    fold: int
+    reason: str
+    message: str
+    destination: str
+
+
+class PenalizedFoldSupport(ResultModel):
+    """Covariates a lasso propensity kept on one cross-fit fold's training rows."""
+
+    fold: int
+    names: tuple[str, ...]
+
+
+class ReplicatePenalties(ResultModel):
+    """Penalties the refit bootstrap selected in one successful replicate (one per fold)."""
+
+    replicate: int
+    lambdas: tuple[float, ...]
+
+
+class RefitBootstrapReport(ResultModel):
+    """What the refit bootstrap of a penalized propensity did beside its scalar SE.
+
+    Every replicate resamples the units and repeats the fold plan, the penalty (and lasso
+    support) selection and all nuisance fits. ``se`` equals ``EstimateView.se_bootstrap``;
+    ``influence_se`` is the cross-fitted influence-function SE of the out-of-fold scores,
+    for comparison. ``uncertainty_kind`` names the construction; neither SE states a
+    coverage (the calibration suite measures it).
+    """
+
+    uncertainty_kind: str
+    se: float | None
+    replicates_requested: int
+    replicates_ok: int
+    replicates_failed: int
+    cancelled: bool
+    replicate_penalties: tuple[ReplicatePenalties, ...]
+    influence_se: float
+
+
 class EstimateView(ResultModel):
     ate: float | None
     se_analytic: float
@@ -237,6 +287,12 @@ class EstimateView(ResultModel):
     crossfit_folds: int | None = None
     crossfit_seed: int | None = None
     learner_provenance: tuple[tuple[str, str, str], ...] = ()
+    #: The failed GLM propensity fit and the declared penalized fallback that replaced it.
+    penalized_fallback: PenalizedFallback | None = None
+    #: Per-fold selected support of a lasso propensity (empty for ridge / unpenalized).
+    penalized_support: tuple[PenalizedFoldSupport, ...] = ()
+    #: The refit bootstrap's record (per-replicate penalties, influence SE) when requested.
+    penalized_bootstrap: RefitBootstrapReport | None = None
 
     def __repr__(self) -> str:
         if self.limitation is not None:
@@ -661,9 +717,17 @@ class AnalysisResult(ResultModel, ResultAPI):
     #: Bayesian counterfactuals publish the equal-tailed posterior quantiles of
     #: each unit's ITE draws (``"unit_posterior_quantile"``): a credible interval for
     #: that observed unit's contrast under the fitted mechanism, carrying
-    #: mechanism-refit uncertainty only. Frequentist counterfactuals have no
-    #: per-unit construction and leave all three ``None``
-    #: (``gcm.counterfactual.uncertainty_unavailable``).
+    #: mechanism-refit uncertainty only. Frequentist counterfactuals leave all
+    #: three ``None`` by design (``gcm.counterfactual.uncertainty_unavailable``):
+    #: a unit's ITE is not identified from data, only computed under the fitted
+    #: SCM; it depends jointly on every path mechanism and on disturbances
+    #: abducted with the same fitted parameters (or one seeded noise draw
+    #: downstream of a discrete mechanism), and mechanism families are selected
+    #: on the same data. The refit construction that carries this uncertainty is
+    #: the Bayesian one above (``inference=Bayesian(...)``). For a frequentist
+    #: pointwise interval on the conditional average effect ``tau(x)`` rather
+    #: than a unit ITE, see the Rust ``DrLearner::fit_pointwise_profiles``
+    #: (uncalibrated; ``docs/dr-pointwise-cate.md``).
     unit_effect_intervals: list[tuple[float, float]] | None = None
     unit_effect_intervals_level: float | None = None
     unit_effect_intervals_method: str | None = None

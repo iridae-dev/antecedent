@@ -7,7 +7,8 @@ use std::sync::Arc;
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::BayesianBackendKind;
 use antecedent_estimate::{
-    HydrateMapping, PreparedBayesianProblem, hydrate_prior, is_temporal_coefficient_name,
+    HydrateMapping, PreparedBayesianProblem, coefficient_covariance_from_draws,
+    hydrate_prior_with_coefficient_covariance, is_temporal_coefficient_name,
 };
 use antecedent_io::PosteriorQuantityWire;
 use antecedent_io::PriorMapping;
@@ -524,6 +525,10 @@ pub fn decode_prior_hydrate_source(
 
 /// Hydrate a [`PriorSet`] from posterior artifact bytes under a [`HydrateMapping`].
 ///
+/// Identical-subspace hydration reads the coefficient covariance from the
+/// artifact's draws and carries it as a dense `V0`; an artifact without draws
+/// (summary-only) hydrates the diagonal prior, as before.
+///
 /// # Errors
 ///
 /// Decode failures or hydrate validation errors.
@@ -535,14 +540,17 @@ pub fn hydrate_prior_from_posterior_bytes(
     treatment_col: Option<usize>,
     fallback_contrast: Option<f64>,
 ) -> Result<PriorSet, CausalError> {
-    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
+    let (wire, draws) = decode_causal_posterior_bytes(bytes)?;
     let quantities = wire_quantities_to_kinds(&wire.quantities);
     let source_contrast = wire.treatment_contrast.or(fallback_contrast);
-    hydrate_prior(
+    let covariance = coefficient_covariance_from_draws(&quantities, &draws, wire.n_draws as usize)
+        .map_err(CausalError::from)?;
+    hydrate_prior_with_coefficient_covariance(
         mapping,
         &quantities,
         &wire.mean,
         &wire.sd,
+        covariance.as_deref(),
         baseline,
         target_coef_names,
         treatment_col,

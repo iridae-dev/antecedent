@@ -65,5 +65,11 @@
         }
       }
     }
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "Tigramite",
+    "version": "5.2.1.30",
+    "source": "the `reference` block: a black-box run of tigramite==5.2.1.30 (parity/baselines/tigramite.toml) whose statistics and p-values the consuming test compares within the stated bands; generator deleted after artifact import"
   }
 }

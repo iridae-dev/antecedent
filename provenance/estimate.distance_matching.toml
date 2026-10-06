@@ -14,6 +14,7 @@ implementation_deviations = [
  "Implements standardized-Euclidean one-nearest-neighbor matching with replacement, an optional caliper, and a linear donor-arm bias correction; it does not implement arbitrary matching metrics, multiple matches, or the paper's broader matching-estimator class.",
  "The function labelled Abadie-Imbens standard error is a simplified reuse-count formula using one half of the matched-effect sample variance; it is not the conditional-residual variance estimator derived in Abadie and Imbens and therefore does not inherit that variance theory.",
  "An ordinary row bootstrap is enabled by default even though the separately cited Abadie-Imbens paper proves ordinary bootstrap inconsistency for fixed-match nearest-neighbor estimators.",
+ "Clustered, multiway and HAC standard errors are refused rather than derived: fixed-M nearest-neighbor matching has no per-observation influence function, and its martingale representation (Abadie and Imbens 2006, 2012) is proved for random samples only; a cluster sum of it would need per-unit residuals and conditional effects that the linear bias correction does not estimate consistently.",
 ]
 
 upstream_implementations_observed = [

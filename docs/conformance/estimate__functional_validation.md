@@ -6,4 +6,4 @@ Uses the frozen discrete chain and confounded binary count table in the staged p
 
 ## Expected summary
 
-Top-level keys: `cheap_distribution_reports, cheap_path_reports, distribution_mean, full_distribution_reports, full_path_reports, path_effect, tolerance` (7 fields).
+Top-level keys: `cheap_distribution_reports, cheap_path_reports, distribution_mean, full_distribution_reports, full_path_reports, oracle, path_effect, tolerance` (8 fields).

@@ -11,5 +11,9 @@
   "backend": "conjugate_gaussian",
   "require_finite_p_below_zero": true,
   "require_artifact_round_trip": true,
-  "n_draws": 256
+  "n_draws": 256,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "lag-1 SCM y_t = 0.9 x_{t-1}: the pulse effect is the coefficient 0.9"
+  }
 }

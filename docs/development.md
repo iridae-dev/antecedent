@@ -8,21 +8,24 @@ day-1 facade: `antecedent` (`cargo add antecedent`). Supporting crates are
 
 GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
 
-- **`rust`** — fmt, clippy, `cargo test --workspace`, DCO (plus an optional
-  crates.io publish dry-run when manifests change). Three lints that can hide a
+- **`rust`** — fmt, DCO, and the workspace Rust tests and doctests. The facade
+  and remaining packages run in parallel on Ubuntu; both suites also run on
+  macOS after merge. Three lints that can hide a
   real defect (`cast_possible_truncation`, `cast_sign_loss`, `float_cmp`) are
   never allowed file-wide in library code: an allow sits on the smallest item or
   statement that needs it and states its reason (`scripts/gate_lint_allows.sh`).
-- **`features`** — compiles the feature combinations crates.io users get (default
+- **`features`** — Clippy and the feature combinations crates.io users get (default
   features, each optional feature alone, `--no-default-features`), which the
   workspace-wide jobs never build because the `python` member enables `ml-full`
   and `ml-neural`.
-- **`deny`** — `cargo deny check` (licenses, advisories, sources).
-- **`gates`** — first the calibration attestation
-  (`scripts/gate_calibration_attestation.sh`, seconds), then
-  `scripts/gate_release.sh`, which runs the parity-manifest schema check,
-  provenance and metadata checks, support-matrix and evidence checks, feature
-  gates, artifact tests, and Criterion benchmark smokes.
+- **`deny`** — `cargo deny check` (licenses, advisories, sources) and the
+  crates.io publish dry-run.
+- **`gates`** — requires every parallel `gate-sections` job to pass. Each starts
+  with the calibration attestation (`scripts/gate_calibration_attestation.sh`).
+  The sections divide inventory, promotion evidence, graphless and support
+  matrix checks, checked execution, feature gates, and benchmark smokes.
+  Running `scripts/gate_release.sh` without `--section` still executes all of
+  them for a local release-candidate check.
 - **`python-lint`** — `scripts/gate_python_lint.sh` (Ruff, mypy), then pytest with an
   85% coverage floor after building the native extension.
 - **`python-wheels`** — builds and tests the supported wheel matrix.
@@ -187,7 +190,9 @@ mode.
 One command, from a clean checkout of the commit you are about to push:
 
 ```bash
-bash scripts/measure_calibration.sh --dry-run   # the groups it would run, with a rough duration
+bash scripts/measure_calibration.sh --dry-run   # the groups it would run
+bash scripts/measure_calibration.sh --pilot     # 8-replicate smoke timings; no coverage evidence
+bash scripts/measure_calibration.sh --dry-run   # projection from this commit's pilot
 bash scripts/measure_calibration.sh             # measure what is owed, collect, re-run the gate
 bash scripts/measure_calibration.sh --all       # re-measure every group
 bash scripts/measure_calibration.sh --jobs 6    # parallel groups (default: the core count)
@@ -208,7 +213,7 @@ commit. It then works in four steps:
    `target/calibration-records/`, where the collector reads them, and earlier
    logs move to `target/calibration-records.previous/`. Each group's console
    output goes to `target/calibration-console/`, and its wall time is appended
-   to `target/calibration-timings.tsv`, which later `--dry-run` estimates use.
+   to `target/calibration-timings.tsv` for post-run review.
 3. It runs `scripts/collect_coverage_records.py --keep-attested` (without the
    flag under `--all`). Each record is stamped with the commit it was measured
    at. Records that still stand keep their own `calibration_sha`.
@@ -234,18 +239,23 @@ Facets and replay waivers keep the cost proportional to the change:
 - a reviewed change that cannot move a number owes nothing, through a waiver;
 - a `core` edit owes every record, unless a reviewed replay waiver covers it;
 
-**How long it takes.** Groups already run side by side (`measure_calibration.sh
---jobs`). Independent seeds inside a group run across `available_parallelism`
-workers (`map_replicates` in the coverage harness). Each seed still builds a
-serial `ExecutionContext::for_tests` study, so the same seed is the same
-interval.
-
-A full re-measurement is a few hours on an M-series laptop, not an overnight
-one-core job. A Bayesian derivative 2000-replicate recheck that used to pin one
-core for ~10 h is about 1–1.5 h. A change that drifts one suite or facet costs
-only the groups behind its records. `--dry-run` still scales suite timings by
-the three-point grid factor (about 3.5× for linear-in-`n` designs) until local
-per-point timings replace them.
+**How long it takes.** Groups run side by side (`measure_calibration.sh
+--jobs`). Independent seeds inside a group run across `map_replicates` workers;
+each seed uses a serial `ExecutionContext::for_tests`, so changing the worker
+count does not change its interval. The smoke pilot times every selected group
+and grid point on the current clean commit with eight replicates. It stores
+logs separately in `target/calibration-pilot-records/` and timings in
+`target/calibration-pilot-timings.tsv`. Those logs cannot enter the coverage
+collector. The next `--dry-run` projects the 400-replicate pass and expected
+2,000-replicate extensions from these timings and the previous recheck rates.
+Only the test runner's simulation time scales with replicate count; Cargo and
+gate startup are charged once per job. The projection is approximate: convergence
+does not scale perfectly with replicates, and a changed coverage rate changes the recheck
+count. Without a pilot at HEAD, `--dry-run` gives no duration estimate. An old
+forecast that summed wall times of suites competing on the same CPU substantially
+overstated the full-pass time. The measurement runs longest pilot-timed grid
+jobs first to reduce the final straggler. A change that drifts one suite or
+facet costs only the groups behind its records.
 
 The collector refuses to stamp HEAD while the surface its records depend on
 differs from HEAD. It keeps a rechecked point's more precise run, rewrites the
@@ -304,7 +314,7 @@ Statuses: `pending` | `in_progress` | `done`. No waiver vocabulary.
 ## Release candidates
 
 The independent [practitioner acceptance suite](practitioner-acceptance.md)
-is an additional cut requirement for this 2.0.0 tree. Run its Python and Rust jobs and both scale
+is an additional cut requirement for each release. Run its Python and Rust jobs and both scale
 sizes against the candidate, and close its leftover ledger. It remains outside
 `gate_release.sh`; passing the commands below alone does not discharge S.
 
@@ -324,7 +334,10 @@ CI_RUN_ID=<GitHub Actions ci run on this exact HEAD> \
   every job id listed in `parity/release.toml` `required_jobs` to have
   succeeded. Job ids are `ci.yml` keys (`rust`, `features`, `deny`, `gates`,
   `python-lint`, `python-wheels`); a run reports display names instead, one per matrix
-  combination ("Rust ubuntu-latest", "Wheel macos-14 py3.12").
+  combination ("Rust ubuntu-latest", "Rust ubuntu-latest facade",
+  "Rust macos-latest facade", "Wheel macos-14 py3.12"). The Rust facade
+  and remaining-workspace suites are both required on Ubuntu and macOS;
+  together they execute the workspace's tests and doctests.
   `scripts/ci_workflow.py` parses `ci.yml` as YAML and expands every matrix
   combination, so a missing or failed wheel leg fails the cut.
 - The gate then runs `gate_release.sh` (which includes the same calibration
@@ -430,7 +443,7 @@ New `unsafe` needs justification in review. Dependency and license policy:
 
 ## Versions
 
-Workspace and Python package version are kept in sync (currently **2.1.1**).
+Workspace and Python package version are kept in sync (currently **2.2.0**).
 Artifact format is frozen separately — see [artifacts.md](artifacts.md).
 
 MSRV: Rust 1.85, edition 2024. Python: CPython 3.11–3.14.
@@ -463,12 +476,14 @@ Before merging the release PR:
 
 1. Commit the reviewed implementation, tests, and documentation with DCO sign-off.
    Keep the generated support/conformance output current and the worktree clean.
-2. Run `cargo test --workspace`, strict all-target Clippy, Python tests against
-   the rebuilt extension, Python lint/type checks, and `bash scripts/gate_release.sh`.
-   `gate_release.sh` is the PR inventory / composition umbrella; a green
-   local run is not an RC. Run `bash scripts/gate_codeql.sh` with the existing
-   query configuration. Require CI on the same commit, including the Python
-   lint/pytest and `python-wheels` jobs.
+   Review release notes as the user-facing version overview, the changelog as
+   the delta from the previous version, and affected guides and API docs for
+   examples, formulas, assumptions, refusal reasons, artifact formats, and
+   Python/Rust agreement. Remove temporary cut notes and provisional wording.
+2. Run the relevant tests, formatters, linters, and documentation checks locally.
+   Open a PR and require the CI jobs on the committed HEAD, including the
+   `gates` job (`gate_release.sh`), Python lint/pytest, and `python-wheels`
+   matrix. The full release gate runs in CI; a local full run is optional.
 3. For an actual release cut, run
    `CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh`. Every coverage
    record must be attested, exactly as on every PR: measured, in a run that
@@ -493,9 +508,10 @@ name that version, and release-status text matches the cut. Coverage records mus
 HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
-Tagged releases drive wheel + docs publishing (GitHub Release assets and public
-PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
-`scripts/set_version.sh` before maturin.
+Tagged releases drive docs and artifact publishing (GitHub Release assets and
+public PyPI). The tag `vX.Y.Z` must point to a commit with a successful exact-SHA
+`main` CI run. The tag workflow checks the committed version and all 16 wheels
+from that run before any publishing job starts; it does not rebuild the wheels.
 
 ```bash
 # Optional: bump and commit on main first (X.Y.Z is the version being cut)
@@ -512,13 +528,15 @@ git push origin vX.Y.Z
 ```
 
 Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/main/.github/workflows/publish-release.yml)
-builds the full wheel matrix, then publishes to public PyPI and the GitHub
-Release as **independent jobs**. Trusted publishing (`id-token: write`) must not
+reuses the 16 wheels built and fully tested by the green `main` CI run on the
+exact tag commit, then publishes to public PyPI and the GitHub Release as
+**independent jobs**. It builds the docs bundle from that run's Python 3.12
+Linux wheel. Trusted publishing (`id-token: write`) must not
 wait on GitHub asset uploads: a unicorn on `uploads.github.com` skipped PyPI
-for 1.10.0 while crates.io (a separate workflow) succeeded. Release assets are
-uploaded one file at a time with retries. If wheels already exist, dispatch
-with `version` plus `reuse_run_id` set to the Actions run that built them —
-do not rebuild a newer branch and stamp it as an older version.
+for 1.10.0 while crates.io succeeded. Release assets are
+uploaded one file at a time with retries. A manual retry may supply
+`reuse_run_id`, but that run must be a successful `main` push CI run on the
+exact tag commit and contain the complete wheel matrix.
 
 Configure a pending/trusted publisher on [pypi.org](https://pypi.org) for this
 repo and workflow file `publish-release.yml` (Environment blank unless the job

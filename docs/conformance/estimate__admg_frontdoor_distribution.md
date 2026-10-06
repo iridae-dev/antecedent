@@ -44,4 +44,4 @@ Bayesian, fresh and prepared.
 
 ## Expected summary
 
-Top-level keys: `bayesian, case, columns, contingency_table, frequentist, graph, identification, rows, schema_version, scm, truth` (11 fields).
+Top-level keys: `bayesian, case, columns, contingency_table, frequentist, graph, identification, oracle, rows, schema_version, scm, truth` (12 fields).

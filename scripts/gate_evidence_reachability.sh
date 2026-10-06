@@ -258,6 +258,36 @@ for expected in sorted((root / "conformance").glob("**/expected.json")):
                 f"{expected}: independent_inferences belongs on a regression_pin oracle only"
             )
 
+# Every fixture a registry cites as known truth states where its truth comes from: an
+# unlabelled fixture reads as truth whether it holds an analytic value, a pinned
+# upstream run or a frozen output of this library. A cited directory means its
+# expected.json; a cited .json file means that file.
+_kt_cited: dict[str, str] = {}
+for _toml in sorted((root / "parity").glob("*.toml")) + sorted(
+    (root / "provenance").glob("*.toml")
+):
+    for _m in re.finditer(r'known_truth_fixture\s*=\s*"([^"]+)"', _toml.read_text()):
+        _kt_cited.setdefault(_m.group(1), str(_toml))
+for _fixture, _cited_by in sorted(_kt_cited.items()):
+    if _fixture.endswith(".json"):
+        _path = root / _fixture
+    elif (root / _fixture).is_dir():
+        _path = root / _fixture / "expected.json"
+    else:
+        continue  # a cited test file or a missing path; other gates own those
+    if not _path.is_file():
+        continue
+    try:
+        _oracle = json.loads(_path.read_text()).get("oracle")
+    except (json.JSONDecodeError, AttributeError):
+        fail.append(f"{_path}: known_truth_fixture (cited by {_cited_by}) is not a JSON object")
+        continue
+    if not isinstance(_oracle, dict) or _oracle.get("kind") not in ORACLE_KINDS:
+        fail.append(
+            f"{_path}: known_truth_fixture (cited by {_cited_by}) carries no `oracle.kind` "
+            f"in {sorted(ORACLE_KINDS)}; state where its truth comes from"
+        )
+
 # ------------------------------------ 6. calibration tests are run by the gate
 # A test whose `#[ignore]` reason says it runs via scripts/gate_calibration.sh must
 # be selected by a group of that gate (its dry-run list): a whole-file group of

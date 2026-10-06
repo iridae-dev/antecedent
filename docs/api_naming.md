@@ -91,7 +91,7 @@ Each of those seventeen modules has an explicit, separately frozen `__all__`
 surface. The 64-name count is only the package-root contract; it does not add
 the stage-module names a second time.
 
-**17** further modules are reachable as ``antecedent.<name>`` (nothing stops
+**19** further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -105,7 +105,7 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other thirteen are left off because they're a narrower surface than the stage
+The other fourteen are left off because they're a narrower surface than the stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
@@ -130,6 +130,13 @@ directly:
   package import does not scan or execute plugins.
 - ``antecedent.learners`` — typed nuisance learners shared by estimators and
   transport providers.
+- ``antecedent.matched`` — conditional odds ratio of matched case-control sets, point
+  only (`matched_case_control_odds_ratio`); risk-scale estimands and intervals are
+  typed refusals.
+- ``antecedent.derived`` — derived-treatment declarations (source roles, transformation,
+  legal values, causal-rule exclusions) and factorized-propensity AIPW over bounded
+  binary joint cells, point only (`check_derived_treatment`, `factorized_joint_cells`);
+  intervals, machine-learning nuisances and unsupported cells are typed refusals.
 - ``antecedent.interference`` — randomization designs and exposure mappings for
   interference queries.
 - ``antecedent.intervention`` — typed intervention specifications for
@@ -175,6 +182,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Outcome functional | `OutcomeFunctional::{Mean, Exceedance, ExceedanceGrid}` | `antecedent.query.Mean` / `Exceedance` / `ExceedanceGrid` on `AverageEffect`, `ConditionalEffect`, `InterventionResponse` |
 | Re-execute a carried retarget | `PreparedStudy::reexecute_retarget(section, ctx)` — the weights an exported contract carries; refuses `row_weights_bound_to_snapshot` on another snapshot or score table | `PreparedAnalysis.reexecute_retarget(artifact)` — same, from the exported bytes |
 | Retarget prepared plan | `PreparedStudy::retarget(weights, depends_on, ctx)` — requires a frozen AllObserved iid AIPW or cell-AIPW score table; nonempty `depends_on` needs a directed graph (DAG or ADMG); nonconstant weights require nonempty `depends_on` | `PreparedAnalysis.retarget(weights, depends_on)` — same; `analyze(...).study` retains the prepared handle on supported routes; scores require a licensed score-table estimator |
+| Retarget a batch family | `PreparedBatch::retarget(&scores, &request, ctx)` with `estimate_scored` / `prepared_scores` — points, joint plug-in score covariance and named contrasts over one row snapshot; `BatchRetargetReport::simultaneous_interval(level, seed, draws, ctx)` is the family max-t band of a complete family | `PreparedBatch.retarget(claims, contrasts)` → `BatchRetarget` (`RetargetClaim`, `RetargetContrast`; `to_rows()` tidy export; `BatchRetarget.simultaneous_interval()`) |
 | Tiered background | `StudyBuilder::tiered_background(TieredBackground)` | `antecedent.graph.TieredBackground` / `WithinTier` as `analyze(..., graph=…)` |
 | Cell-saturated joint AIPW | `EstimatorId::CellAipw` (`cell.aipw`) | `Estimator.CELL_AIPW` / `"cell.aipw"` |
 | Average effect | `AverageEffectQuery` | `AverageEffect` |

@@ -1,5 +1,9 @@
 {
   "mean_prediction_target": 2.0,
   "tol": 0.25,
-  "tolerance_class": "Numeric"
+  "tolerance_class": "Numeric",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "unconfounded linear law Y = 2 X_{t-1}: the prediction at X_{t-1} = 1 is 2"
+  }
 }

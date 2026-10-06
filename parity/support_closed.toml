@@ -259,3 +259,10 @@ graph_classes = ["Admg", "Cpdag", "Pag"]
 structures = ["graph_posterior"]
 validations = ["cheap", "full"]
 reason = "Graph-posterior ResponseCurve on Admg/Cpdag/Pag is licensed at validation none. cheap/full name the ATE-shaped scalar refuter suite; the curve remains function-valued or atom-mixed with no licensed scalar-refuter state."
+
+# -- 2.2 promotion records (parity/promotion_2_2.toml): sub-cell contrasts a
+# record keeps closed. The support axes cannot name a contrast, so these rows are
+# [[closed_contrast]], not [[closed]]: the support-matrix gates read only
+# [[closed]], and scripts/check_promotion_records.py requires one row here for
+# every closed support_licensed route of a record, with the record's reason_code.
+# (No record keeps one closed today: 2.2A X8 owns its routes in transport_stages.toml.)

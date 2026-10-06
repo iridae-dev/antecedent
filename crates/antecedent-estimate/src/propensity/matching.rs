@@ -566,6 +566,29 @@ pub(crate) fn matching_contrast(
         // residual to the query's cluster (or time) mis-assigns the donor noise, so a
         // cluster, multiway or HAC sandwich over those contributions is not a valid
         // variance for the matching estimator.
+        //
+        // Kept as a refusal (2.2) rather than derived, because no clustered influence
+        // function is available for this exact estimator:
+        // - Fixed-M nearest-neighbour matching is not asymptotically linear in an influence
+        //   function of one observation; its only linear representation is the
+        //   martingale one, √N(τ̂ − τ) ≈ N^{-1/2} Σ_i [τ(X_i) − τ + (2W_i − 1)(1 + K_i/M) ε_i]
+        //   (Abadie–Imbens 2006, Econometrica 74(1); 2012, JASA 107(498)), proved for
+        //   random samples. Its K_i distribution and the negligibility of the
+        //   bias-corrected conditional bias are not established under within-cluster or
+        //   serial dependence of the covariates and of the matches themselves.
+        // - Even granting that representation, a cluster sum needs per-unit ε_i
+        //   (within-cluster cross products ε_i ε_j) and per-unit τ(X_i). Abadie–Imbens
+        //   recover only the diagonal σ²(X_i) from same-arm matches; here the bias
+        //   correction is a linear fit on the match feature (the one-dimensional score
+        //   for propensity matching), which is not a consistent μ_w(X), and the
+        //   published SE is a pooled ½·Var(τ̂_i) proxy, not the conditional estimator.
+        // - Propensity matching on an estimated score needs the Abadie–Imbens (2016,
+        //   Econometrica 84(2)) estimated-score adjustment, which is not implemented even
+        //   for iid data; a clustered version would also need it.
+        // - Resampling does not fill the gap: the (cluster) bootstrap is inconsistent for
+        //   fixed-M matching (Abadie–Imbens 2008, Econometrica 76(6)), and the wild
+        //   bootstrap of the martingale representation (Otsu–Rai 2017, JASA 112(520)) is
+        //   proved for iid samples only.
         AnalyticSeKind::Cluster
         | AnalyticSeKind::Multiway
         | AnalyticSeKind::NeweyWest { .. }
@@ -574,7 +597,8 @@ pub(crate) fn matching_contrast(
                 antecedent_core::reason_code!("estimator_inference_mismatch"),
                 "matching has no valid cluster, multiway or HAC standard error (donor outcomes \
                  belong to other clusters and times than the matched unit); use Homoskedastic \
-                 (Abadie–Imbens), or a weighting or AIPW estimator for clustered data",
+                 (Abadie–Imbens), or AIPW, which implements cluster, multiway and HAC standard \
+                 errors, for clustered or serially dependent data",
             ));
         }
     };

@@ -112,6 +112,24 @@ impl CausalForest {
         )
     }
 
+    /// Cross-fitted AIPW score table of the marginal ATE [`Self::fit`] reports. That ATE is the
+    /// [`DmlAte`] orthogonal AIPW score, so this is [`DmlAte::score_table`] on the same
+    /// nuisances; the forest's CATE contributes no score.
+    ///
+    /// # Errors
+    ///
+    /// A target other than `AllObserved` or a failed nuisance fit.
+    pub fn score_table(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<crate::scores::ScoreTable>, EstimationError> {
+        if !matches!(problem.target_population, TargetPopulation::AllObserved) {
+            return Err(EstimationError::TargetPopulation);
+        }
+        DmlAte::new().with_folds(5.min(problem.nrows)).score_table(problem, ctx)
+    }
+
     /// Grow CATE trees and estimate the marginal ATE with cross-fitted AIPW.
     ///
     /// # Errors

@@ -16,4 +16,4 @@ Separate 300-replicate low-level and public exact-law checks cover the true effe
 
 ## Expected summary
 
-Top-level keys: `first_stage_f_threshold, fixture, model, true_structural_effect` (4 fields).
+Top-level keys: `first_stage_f_threshold, fixture, model, oracle, true_structural_effect` (5 fields).

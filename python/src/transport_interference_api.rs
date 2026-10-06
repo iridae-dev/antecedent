@@ -828,6 +828,27 @@ pub(crate) fn parse_catalog(
             })
             .collect::<PyResult<Vec<_>>>()?;
         let conditioned_on = names(&regime, "conditioned_on")?;
+        // Descriptor fields are optional so regime-like objects without them
+        // keep today's semantics: a measured law of the whole population.
+        let optional = |field: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
+            Ok(regime.getattr(field).ok().filter(|value| !value.is_none()))
+        };
+        let study = optional("study")?.map(|v| v.extract::<String>()).transpose()?.map(Arc::from);
+        let selected = match optional("selected_on")? {
+            Some(value) => resolve_names(graph, &value.extract::<Vec<String>>()?)?,
+            None => Vec::new().into(),
+        };
+        let selection = if selected.is_empty() {
+            antecedent_core::SamplingSelection::Population
+        } else {
+            antecedent_core::SamplingSelection::SelectedOn { variables: selected }
+        };
+        let origin = match optional("model_artifact")? {
+            Some(value) => antecedent_core::LawOrigin::ModelArtifact {
+                artifact: Arc::from(value.extract::<String>()?),
+            },
+            None => antecedent_core::LawOrigin::Measured,
+        };
         regimes.push(
             EvidenceRegime::try_new(
                 id,
@@ -841,6 +862,9 @@ pub(crate) fn parse_catalog(
             )
             .and_then(|mut r| {
                 r.label = Some(Arc::from(name.as_str()));
+                r.study = study;
+                r.selection = selection;
+                r.origin = origin;
                 r.project(antecedent_core::EvidenceProjection::Condition { on: conditioned_on })
             })
             .map_err(error)?,

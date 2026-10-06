@@ -2804,13 +2804,8 @@ pub(super) fn mix_support_reports(
     mixed
 }
 
-fn support_rank(status: antecedent_core::SupportStatus) -> u8 {
-    match status {
-        antecedent_core::SupportStatus::Supported => 0,
-        antecedent_core::SupportStatus::WeakOverlap => 1,
-        antecedent_core::SupportStatus::Extrapolative => 2,
-        antecedent_core::SupportStatus::OutsideEmpiricalSupport => 3,
-    }
+const fn support_rank(status: antecedent_core::SupportStatus) -> u8 {
+    status.severity()
 }
 
 /// E-value / overlap on cell.aipw use the requested cell minus the all-zero control cell.

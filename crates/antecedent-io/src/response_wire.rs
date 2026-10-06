@@ -533,6 +533,9 @@ fn observation_assumption_from_wire(a: &ObservationAssumptionWire) -> Observatio
 }
 
 /// Empirical support status on the wire.
+///
+/// `missing_evidence` is additive (2.2): every earlier spelling decodes unchanged, and
+/// a writer emits it only for a coordinate whose required evidence is absent.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SupportStatusWire {
@@ -540,6 +543,7 @@ pub enum SupportStatusWire {
     WeakOverlap,
     Extrapolative,
     OutsideEmpiricalSupport,
+    MissingEvidence,
 }
 
 /// Region evaluated by support diagnostics on the wire.
@@ -1014,6 +1018,7 @@ fn support_status_to_wire(status: SupportStatus) -> SupportStatusWire {
         SupportStatus::WeakOverlap => SupportStatusWire::WeakOverlap,
         SupportStatus::Extrapolative => SupportStatusWire::Extrapolative,
         SupportStatus::OutsideEmpiricalSupport => SupportStatusWire::OutsideEmpiricalSupport,
+        SupportStatus::MissingEvidence => SupportStatusWire::MissingEvidence,
     }
 }
 
@@ -1023,6 +1028,7 @@ fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
         SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,
         SupportStatusWire::Extrapolative => SupportStatus::Extrapolative,
         SupportStatusWire::OutsideEmpiricalSupport => SupportStatus::OutsideEmpiricalSupport,
+        SupportStatusWire::MissingEvidence => SupportStatus::MissingEvidence,
     }
 }
 
@@ -1228,6 +1234,29 @@ mod tests {
         let bytes = to_cbor(&wire).unwrap();
         let decoded: CausalResponseWire = from_cbor(&bytes).unwrap();
         assert_eq!(causal_response_from_wire(&decoded).unwrap(), response);
+    }
+    #[test]
+    fn support_status_wire_spellings_are_the_core_spellings_and_stay_readable() {
+        // The four earlier spellings decode as before; `missing_evidence` is additive.
+        for status in [
+            SupportStatus::Supported,
+            SupportStatus::WeakOverlap,
+            SupportStatus::Extrapolative,
+            SupportStatus::OutsideEmpiricalSupport,
+            SupportStatus::MissingEvidence,
+        ] {
+            let wire = support_status_to_wire(status);
+            let bytes = to_cbor(&status.as_str()).unwrap();
+            let decoded: SupportStatusWire = from_cbor(&bytes).unwrap();
+            assert_eq!(decoded, wire, "{} decodes to its own wire variant", status.as_str());
+            assert_eq!(
+                to_cbor(&wire).unwrap(),
+                bytes,
+                "{} encodes as its core spelling",
+                status.as_str()
+            );
+            assert_eq!(support_status_from_wire(decoded), status);
+        }
     }
     #[test]
     fn credible_and_confidence_intervals_stay_distinct_on_the_wire() {

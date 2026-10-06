@@ -90,4 +90,4 @@ quantity (requested vs. read back).
 
 ## Expected summary
 
-Top-level keys: `beta_mean_and_ess_matches_any_request, beta_mean_and_ess_rejected_inputs, beta_mean_and_ess_zero, beta_moment_match, beta_moment_match_negative_ess, beta_moment_match_rejected_inputs, gamma_mean_and_ess_matches_any_request, gamma_mean_and_ess_rejected_inputs, gamma_mean_and_ess_zero, gamma_moment_match, gamma_moment_match_negative_ess, gamma_moment_match_rejected_inputs, notes, tol` (14 fields).
+Top-level keys: `beta_mean_and_ess_matches_any_request, beta_mean_and_ess_rejected_inputs, beta_mean_and_ess_zero, beta_moment_match, beta_moment_match_negative_ess, beta_moment_match_rejected_inputs, gamma_mean_and_ess_matches_any_request, gamma_mean_and_ess_rejected_inputs, gamma_mean_and_ess_zero, gamma_moment_match, gamma_moment_match_negative_ess, gamma_moment_match_rejected_inputs, notes, oracle, tol` (15 fields).

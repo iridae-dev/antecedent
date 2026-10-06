@@ -9,7 +9,8 @@ use antecedent_core::{
     RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 use antecedent_data::{
-    Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
+    Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TabularData,
+    TimeIndex, TimeSeriesData, ValidityBitmap,
 };
 use antecedent_estimate::{EffectEstimate, EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_expr::ExprId;
@@ -54,6 +55,36 @@ pub(crate) fn tabular(columns: &[Vec<f64>]) -> TabularData {
     TabularData::new(
         OwnedColumnarStorage::try_new(builder.build().unwrap(), cols, None, None).unwrap(),
     )
+}
+
+/// Regular time series over the columns of [`tabular`], with each `(column, row)` of `missing`
+/// marked invalid.
+pub(crate) fn series_with_missing(
+    columns: &[Vec<f64>],
+    missing: &[(usize, usize)],
+) -> TimeSeriesData {
+    let n = columns[0].len();
+    let schema = tabular(columns).schema().clone();
+    let cols = columns
+        .iter()
+        .enumerate()
+        .map(|(j, values)| {
+            let flags: Vec<bool> = (0..n).map(|i| !missing.contains(&(j, i))).collect();
+            OwnedColumn::Float64(
+                Float64Column::new(
+                    VariableId::from_raw(u32::try_from(j).unwrap()),
+                    Arc::from(values.clone()),
+                    crate::common::validity_from_flags(&flags).unwrap(),
+                )
+                .unwrap(),
+            )
+        })
+        .collect();
+    TimeSeriesData::try_new(
+        OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap(),
+        TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n },
+    )
+    .unwrap()
 }
 
 /// Backdoor estimand adjusting for every covariate column of [`tabular`].

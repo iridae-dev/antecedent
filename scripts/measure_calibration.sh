@@ -25,6 +25,7 @@
 #   bash scripts/measure_calibration.sh --all          # every group
 #   bash scripts/measure_calibration.sh --jobs 6       # default: one job per core, one worker thread each
 #   bash scripts/measure_calibration.sh --dry-run      # list the groups, rough duration
+#   bash scripts/measure_calibration.sh --pilot        # smoke-time selected jobs; no coverage evidence
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -35,11 +36,13 @@ usage() {
 
 ALL=""
 DRY_RUN=0
+PILOT=0
 JOBS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all) ALL="--all" ;;
     --dry-run) DRY_RUN=1 ;;
+    --pilot) PILOT=1 ;;
     --jobs)
       [[ $# -ge 2 ]] || { echo "--jobs needs a number" >&2; exit 2; }
       JOBS="$2"
@@ -67,6 +70,15 @@ if [[ "$DRY_RUN" == "1" ]]; then
   fi
   python3 scripts/calibration_groups.py plan $ALL --jobs "$JOBS"
   exit 0
+fi
+
+if [[ "$PILOT" == "1" ]]; then
+  if [[ -n "$DIRTY" ]]; then
+    echo "FAIL: commit the calibration implementation before timing its pilot." >&2
+    exit 1
+  fi
+  python3 scripts/calibration_groups.py pilot $ALL --jobs "$JOBS"
+  exit $?
 fi
 
 if [[ -n "$DIRTY" ]]; then

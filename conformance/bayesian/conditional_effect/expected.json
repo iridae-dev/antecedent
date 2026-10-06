@@ -1,1 +1,1 @@
-{"effect":3.0,"tolerance":0.1}
+{"effect":3.0,"tolerance":0.1,"oracle":{"kind":"closed_form","method":"linear interaction law Y = 1 + 2T + 0.5TW with mean W = 2: the averaged contrast is 2 + 0.5*2 = 3"}}

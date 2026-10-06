@@ -17,5 +17,9 @@
     "probability_method": "exact"
   },
   "contract": "Full enumeration of the four Bernoulli assignments, followed by the cited exposure-mapping HT/Hajek equations and Antecedent's documented covariance-free Young variance bound.",
-  "tolerance": {"atol": 1e-12}
+  "tolerance": {"atol": 1e-12},
+  "oracle": {
+    "kind": "enumeration",
+    "method": "full enumeration of the four Bernoulli assignments, then the cited exposure-mapping HT/Hajek equations (see `contract`); the Young variance bound is a repository contract"
+  }
 }

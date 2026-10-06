@@ -16,18 +16,28 @@ readme = "README.md"
 [lints]
 workspace = true
 
+[features]
+default = []
+# Exposes the closed 2.2B X3 joint-sensitivity endpoint bootstrap
+# (`joint_sensitivity_bootstrap_interval_internal`) to the calibration harness. Enabled only
+# by dev-dependencies (resolver 2 keeps it out of normal builds); no released build carries it.
+calibration-internal = ["antecedent-estimate/calibration-internal"]
+
 [dependencies]
-antecedent-core = { version = "2.1.1", path = "../antecedent-core" }
-antecedent-data = { version = "2.1.1", path = "../antecedent-data" }
-antecedent-estimate = { version = "2.1.1", path = "../antecedent-estimate" }
-antecedent-expr = { version = "2.1.1", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.1.1", path = "../antecedent-identify" }
-antecedent-discovery = { version = "2.1.1", path = "../antecedent-discovery" }
-antecedent-graph = { version = "2.1.1", path = "../antecedent-graph" }
-antecedent-prob = { version = "2.1.1", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.1.1", path = "../antecedent-stats" }
-antecedent-kernels = { version = "2.1.1", path = "../antecedent-kernels" }
+antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
+antecedent-data = { version = "2.2.0", path = "../antecedent-data" }
+antecedent-estimate = { version = "2.2.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "2.2.0", path = "../antecedent-identify" }
+antecedent-discovery = { version = "2.2.0", path = "../antecedent-discovery" }
+antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
+antecedent-prob = { version = "2.2.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.2.0", path = "../antecedent-stats" }
+antecedent-kernels = { version = "2.2.0", path = "../antecedent-kernels" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+# Self dev-dependency: the X3 integration tests exercise the closed endpoint bootstrap,
+# compiled only under `calibration-internal`.
+antecedent-validate = { path = ".", features = ["calibration-internal"] }
 serde_json = { workspace = true }

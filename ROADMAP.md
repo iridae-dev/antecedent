@@ -1,6 +1,6 @@
 # Antecedent 2.x
 
-Last updated: 2026-09-26.
+Last updated: 2026-09-30.
 This file outlines the 2.x release cycle. Each workstream starts with a
 bounded scientific contract and ends with an executable, calibrated, portable
 capability. A workstream may span releases; X1–X11 are workstream labels, and
@@ -51,7 +51,36 @@ its refusal visible; do not silently broaden the release claim.
 | **2.2 A — More study designs and responses** | Combine a limited catalog of experiments across sources; compare finite graph/selection scenarios; estimate one overlap-supported continuous-outcome transport effect; transport a finite two-step intervention sequence; see why a graph-specific estimator is eligible. | **X1:** separately scoped limited-experiment multi-source route, including explicit incomplete-search outcomes. **X2:** finite supplied scenarios with shared coordinates, evidence binding, structural envelopes, and unidentified/unevaluated mass; no CPDAG/PAG-native claim. **X4:** one named conditional-mean/effect functional through `antecedent-learn`, plus a graph-specific estimator menu with reasons and inferential limits. **X5:** one unrolled finite-horizon discrete sequence with time-varying confounding and history-support refusal. **X8:** next fixed-DAG nested/path-specific cell only where its cross-world contract is proven. **X9:** one bounded mixed-source distribution search with internally checked derivation and explicit incomplete-search outcome. |
 | **2.2 B — Confounding and calibrated execution** | Handle one latent-confounded transport setting; execute a smoothed dose-response grid; plan studies against the new restricted catalogs; quantify a joint mechanism-deviation scenario; recover one law from a bounded incomplete-observation case. | **X2:** one bounded semi-Markovian ADMG transport theorem and executable evidence row, with obstruction cases; selection-diagram variants only if their evidence maps to that row. **X4:** one smoothed dose-response grid with its estimand, bias, numerical tolerances, and licensed whole-estimator uncertainty stated separately. **X3:** compatible jointly varying deviations and a licensed composition with sampling error. **X6:** sufficient additions across restricted catalogs and competing designs, with search-limit receipts. **X8:** a bounded ADMG counterfactual-ID cell only after its fixed-population theorem, engine, and refusal fixtures pass. **X10:** one exact binary observation-recovery cell, conditional on X9 source and proof contracts. |
 | **2.3 A — Population and time uncertainty** | Carry a licensed transport claim across more graph/selection assumptions, model a source and target jointly where justified, and report uncertainty for temporal transport; evaluate a model-based binary ADMG provider. | **X2:** additional selection-diagram or enumerated class-completion rows with scenario-specific evidence and shared-data covariance. **X4:** one Bayesian transport provider with a joint source/target model and calibrated posterior decisions; pilot a binary nested-Markov likelihood on a separately licensed ADMG row. Add further sampling designs only as separate rows. **X5:** dependence-preserving inference, initial-state uncertainty, and explicit refresh/invalidation for new periods. **X8:** temporal fixed-population counterfactuals with shared unit histories; transported counterfactuals only where both underlying transport and counterfactual rows are already licensed. **X10:** sampled observation recovery only after the exact formula and whole-path uncertainty pass. |
-| **2.3 B — Decisions and breadth** | Compare candidate studies using a licensed decision objective and extend the strongest earlier transport and counterfactual paths to additional supported evidence regimes. | **X6:** a prior-bank-compatible decision model and candidate signal feed the existing `ReduceDecisionRegret` objective, with an exact or Monte Carlo error receipt and source-overlap checks; retain verified structural/cost planning when that model is unavailable. **X4:** additional response grids, linked/clustered designs, or model providers one complete row at a time; treat incomplete observation and heterogeneous measurement as separate research contracts. **X5/X8:** additional finite sequences and transported counterfactual rows after the relevant time, transport, and cross-world gates. **X9/X10:** additional mixed-source and observation-recovery rows only with complete evidence and provider contracts. **X3:** discrepancy diagnostics and further sensitivity families only with a stated interpretation and evidence. |
+| **2.3 B — Decisions and breadth** | Compare candidate studies using a licensed decision objective and extend the strongest earlier transport and counterfactual paths to additional supported evidence regimes. | **X6:** a prior-bank-compatible decision model and candidate signal feed the existing `ReduceDecisionRegret` objective, with an exact or Monte Carlo error receipt and source-overlap checks; retain verified structural/cost planning when that model is unavailable. **X4:** additional response grids, linked/clustered designs, or model providers one complete row at a time; treat incomplete observation and heterogeneous measurement as separate research contracts. **X5/X8:** additional finite sequences and transported counterfactual rows after the relevant time, transport, and cross-world gates. **X9/X10:** additional mixed-source and observation-recovery rows only with complete evidence and provider contracts. **X3:** discrepancy diagnostics and further sensitivity families only with a stated interpretation and evidence. **Reported by 2.1.1 users, one complete row at a time:** joint vector-treatment coefficients with covariance under one shared adjustment set; ordered and unordered categorical treatments with per-level contrasts and a monotonicity test; a compact runtime export (coefficients, covariance, declared support, refusal mask) with a verifier that refuses out-of-support queries; an inverse (target-quantile) query; nonlinear continuous-mediator mediation; latent-class or mixture effects for regimes. Each needs its own estimand, evidence and calibration record. An effect-constancy test across a declared partition, including a time partition, is scheduled with 2.3 A temporal inference (X5). |
+
+**2.2 expansion cells (reported by 2.1.1 users).** Alongside the A and B cells,
+2.2 carries a set of independently gated expansion cells. Each has its own promotion
+record and ships only if its fixtures and any required calibration pass. The
+interval evaluators below are implemented for the calibration pass; their
+repeated-sampling records have not yet been measured.
+
+- Preflight diagnostics, structured refusal fields and count-only cost estimates for
+  prepared plans (no inferential claim).
+- Penalized propensity AIPW: ridge and lasso logistic propensities with training-fold
+  tuning, score-based and refit-bootstrap intervals awaiting calibration, and a
+  declared GLM-to-penalized fallback. An unrestricted ML fallback stays closed.
+- Configured estimators in batches, and batch retarget with the joint score covariance and
+  named contrasts of a claim family; its implemented max-t simultaneous interval
+  awaits calibration.
+- Clustered DML AIPW with whole-cluster cross-fitting and entity-owned candidate
+  screens. The cluster and bounded two-way dyadic standard errors and intervals
+  await calibration; other flexible-learner dependence claims stay closed.
+- Derived-treatment declarations and factorized joint cells (up to three binary
+  components); point only.
+- A finite-action inverse query on a **target mean** (`E[Y^do(a)] >= threshold`) over a
+  caller-supplied action grid. This is distinct from the inverse **target-quantile** query,
+  which remains on the 2.3 B row, as do probability targets and observational scenarios.
+- Matched case-control conditional odds ratio, and descriptive raw-versus-adjusted
+  comparison with tier-aware overlap and E-value diagnostics; point only.
+- Sparse or columnar ingest was measured and the dense path is retained.
+
+A narrow clustered DML cell does not displace the general linked or clustered sampling
+designs scheduled for 2.3 B.
 
 **Carried from the 2.1 line.** Known limitations recorded in 2.1.1 and
 scheduled for 2.2:
@@ -73,6 +102,15 @@ scheduled for 2.2:
   CI mask; refuse or override other masks.
 - Transport grid support statuses do not distinguish missing evidence from a
   support failure; extend the support vocabulary.
+- Clustered, multiway, and HAC matching standard errors are refused because
+  matching has no clustered influence function; derive and calibrate one, or keep
+  the refusal with its reason visible.
+- Identification status is spelled differently across the transport bindings;
+  unify the spelling (and the Rust/Python names) behind one vocabulary without
+  changing any refusal's reason code.
+- Known-truth conformance fixtures without a stated provenance carry no
+  `oracle.kind`; label each one (frozen external oracle, closed-form truth,
+  enumerated SCM, or behavioral parity) so the evidence kind is checkable.
 
 **Accelerator lane (X7).** Benchmark a representative cross-fitted neural
 workload during 2.1. If end-to-end transfer and fold orchestration show a
@@ -412,6 +450,8 @@ learning materially faster without weakening Antecedent's reproducibility,
 resource, provenance, or distribution contracts? **Depends on:** the 2.0
 learner substrate and the CPU-native `NeuralNet` provider. This is an execution
 provider project, not a new causal estimator or an inference claim.
+
+**Status (2.2):** carried forward to 2.3 or later. The 2.1 neural cross-fit baseline is CPU-only and records no accelerator measurement, so the start condition was not met; no X7 code ships in 2.2.
 
 - [ ] Define the first supported accelerator/backend and platform scope. Treat
       WGPU, Metal, CUDA, and any remote backend as separate contracts with their

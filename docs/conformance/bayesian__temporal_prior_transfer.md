@@ -33,4 +33,4 @@ same EffectFunctional filter.
 
 ## Expected summary
 
-Top-level keys: `atol, compatibility_filter, fixture_id, grid, horizon_steps, horizons, incompatible, n, n_draws, notes, outcome, seed, sequence_refuses, source_cells, target_cells, treatment, treatment_lag, true_effect` (18 fields).
+Top-level keys: `atol, compatibility_filter, fixture_id, grid, horizon_steps, horizons, incompatible, n, n_draws, notes, oracle, outcome, seed, sequence_refuses, source_cells, target_cells, treatment, treatment_lag, true_effect` (19 fields).

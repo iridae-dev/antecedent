@@ -2351,23 +2351,31 @@ def self_test() -> int:
         "a temporal record carries core, its estimator, identity and suite; not mechanism",
     )
     split = []
+    transport_facets = {
+        "transport.empirical_table_plugin": {"estimator.transport", "estimator.transport_empirical"},
+        "transport.learned_trial_aipw": {"estimator.transport", "estimator.transport_learned"},
+        "transport.mz_joint_bootstrap": {"estimator.transport", "estimator.transport_empirical"},
+        "transport.smoothed_dose_transport_aipw": {"estimator.transport", "estimator.transport_smoothed_dose"},
+        "transport.z_joint_sensitivity_endpoint_bootstrap": {
+            "estimator.transport", "estimator.transport_empirical", "estimator.transport_joint_sensitivity"
+        },
+    }
     for rec in load_records():
         est = str(rec.get("estimator", ""))
         if est.startswith("gcm."):
             continue
         got = [f for f in record_facets(rec, base) if f.startswith("estimator.")]
-        # Empirical transport intentionally carries both the shared transport
-        # surface and its empirical fitting/bootstrap surface. Keep both
-        # attestation obligations; an exact-one assertion predates this route.
-        if est == "transport.empirical_table_plugin":
-            if set(got) != {"estimator.transport", "estimator.transport_empirical"}:
-                split.append((est, got))
-        elif len(got) != 1:
+        # Transport records can depend on both shared and route-specific
+        # estimator surfaces. Keep every such attestation obligation explicit.
+        expected = transport_facets.get(est)
+        if expected is not None and set(got) != expected:
+            split.append((est, got))
+        elif expected is None and len(got) != 1:
             split.append((est, got))
     expect(
         split == [],
         "non-mechanism estimators carry their expected estimator facets "
-        "(shared and empirical facets for empirical transport)",
+        "(shared and route-specific facets for transport)",
     )
     counterfactual |= {"id": "cf", "calibration_sha": "a" * 40}
     temporal_rec |= {"id": "tp", "calibration_sha": "a" * 40}

@@ -53,7 +53,7 @@ use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
 use common::calibration::{
     CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n,
-    map_replicates, n_sim, normal_interval, quantile_interval, unit_uniform,
+    map_replicates, n_sim, normal_interval, quantile_interval, smoke, unit_uniform,
 };
 use common::calibration_bind::{bind, bind_all};
 use common::fixtures::{
@@ -1493,7 +1493,9 @@ fn bayesian_cpdag_mediation_case(name: &str, kappa: f64, seed: u64) {
         fixtures::mediation_truth(),
         fixtures::mediation_backdoor_only_plim(kappa)
     );
-    close(&format!("{name} shared-design ate"), mean_ate, fixtures::mediation_truth(), 0.02);
+    if !smoke() {
+        close(&format!("{name} shared-design ate"), mean_ate, fixtures::mediation_truth(), 0.02);
+    }
     for tally in &tallies {
         tally.assert();
     }

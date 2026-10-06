@@ -9,5 +9,9 @@
     "tolerance": 0.25,
     "total_change_min": 3.0,
     "notes": "Two-period intercept-shift chain (same as conformance/attribution/distribution_change_y_shift). Study uses DistributionChangeOptions::default() (MeanDiff, 2000 samples, seed 0)."
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "planted outlier (y = 200 on the last row of y = 2x) and a two-period intercept shift of 5: both answers hold by construction"
   }
 }

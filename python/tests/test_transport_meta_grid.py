@@ -660,6 +660,11 @@ def test_retained_support_failure_and_checked_irrelevant_zero():
         identified, catalog, transport.ExactTransportData((source, target)), at=[{"x": 1.0}]
     ).estimate()
     assert result.points[0]["status"] == "support_failure"
+    # A support failure in supplied evidence, not missing evidence.
+    assert result.points[0].support_status == "outside_empirical_support"
+    assert "(0 missing evidence, 1 support failure)" in str(
+        result.inspect().support.payload["slot"]["empirical"]
+    )
     assert result.points[0]["factor_diagnostic"]["assignment"]
     assert load(result.export()).points == result.points
     valid = transport.prepare_response_grid(

@@ -26,6 +26,11 @@
 //! Dirichlet-weight band takes exchangeable-rank quantiles of the draws and is
 //! inflated by the fit's degrees of freedom; the directional cell is gated at
 //! nominal and the Jacobian cell is a named boundary (`JACOBIAN_MEASURED`).
+//! The Frequentist cells publish the point only; their coefficient-sandwich
+//! band (`plugin_gradient_interval_internal`) is scored on the same DGP and
+//! seeds by `response_jacobian_dag_frequentist_nominal_90_coverage` and
+//! `directional_derivative_dag_frequentist_nominal_90_coverage`, and the public
+//! route stays closed until those records are measured.
 //!
 //! The skewed / heteroskedastic treatment-law ADE run is a misspecification
 //! probe outside the Gaussian-score assumption: it records coverage and checks
@@ -52,11 +57,11 @@ use antecedent_core::{
     ResponseValue, VariableId,
 };
 use antecedent_data::TabularData;
-use antecedent_estimate::ContinuousResponseOptions;
+use antecedent_estimate::{ContinuousResponseEstimator, ContinuousResponseOptions};
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{
-    CoverageTally, GRID_POINTS, RecordKey, SampleGrid, coverage_band, gaussian, map_replicates,
-    n_sim,
+    Construction, CoverageTally, GRID_POINTS, RecordKey, SampleGrid, ScopeFacts, coverage_band,
+    gaussian, map_replicates, n_sim,
 };
 use common::calibration_bind::{bind, bind_all};
 
@@ -977,6 +982,146 @@ fn directional_derivative_bayesian_nominal_90_coverage() {
     assert_all_nominal(&tallies);
 }
 
+// --- Multivariate GAM plug-in, Frequentist: the closed band ------------------
+//
+// The Frequentist Jacobian / directional derivative publishes the point only
+// (`response.derivative_interval_withheld`). Its coefficient-sandwich band is
+// built by `ContinuousResponseEstimator::plugin_gradient_interval_internal` and
+// stays closed until these records are measured at the release cut; the two
+// tests below score that internal band on the Bayesian cells' DGP and seeds.
+
+/// The construction the closed band is keyed under once the route opens: the
+/// Frequentist analytic interval of `response.gam_derivative` on the explicit
+/// Dag cell (the runtime keys an explicit structure as `fixed`). Declared here
+/// because the public route does not report the interval it withholds.
+fn gam_frequentist_construction(query: &str) -> Construction {
+    Construction {
+        query: query.into(),
+        graph_class: "Dag".into(),
+        structure: "fixed".into(),
+        modality: "tabular".into(),
+        inference: "Frequentist".into(),
+        estimator: "response.gam_derivative".into(),
+        interval_method: response_interval(false).into(),
+        se_kind: String::new(),
+        dependence: "iid".into(),
+        posterior: String::new(),
+        functional: "all_observed.mean.complete".into(),
+        identification: "point".into(),
+        reported_level: LEVEL,
+    }
+}
+
+/// The estimator the Frequentist facade runs for the GAM plug-in cells of
+/// [`gam_graph`] (adjustment set `{x}`), at the gate's level.
+fn gam_frequentist_estimator() -> ContinuousResponseEstimator {
+    let mut estimator = ContinuousResponseEstimator::new([vid(2)]);
+    estimator.options = ContinuousResponseOptions {
+        confidence_level: LEVEL,
+        ..ContinuousResponseOptions::default()
+    };
+    estimator
+}
+
+/// Point values and per-coordinate `(lower, upper)` of the internal band.
+type GamBand = (Vec<f64>, Vec<(f64, f64)>);
+
+/// The internal band's point values and per-coordinate intervals.
+fn gam_internal_band(data: &TabularData, functional: &F) -> GamBand {
+    try_gam_internal_band(data, functional).unwrap()
+}
+
+/// [`gam_internal_band`], keeping the estimator's refusal.
+fn try_gam_internal_band(data: &TabularData, functional: &F) -> Result<GamBand, String> {
+    let (value, uncertainty) = gam_frequentist_estimator()
+        .plugin_gradient_interval_internal(data, functional)
+        .map_err(|error| error.to_string())?;
+    let values = match value {
+        ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values) => values.to_vec(),
+        other => panic!("unexpected plug-in value {other:?}"),
+    };
+    let ResponseUncertainty::PointwiseBand { lower, upper, level, .. } = uncertainty else {
+        panic!("expected a pointwise band, got {uncertainty:?}");
+    };
+    assert!((level - LEVEL).abs() < 1e-12, "band level {level} != {LEVEL}");
+    Ok((values, lower.iter().copied().zip(upper.iter().copied()).collect()))
+}
+
+/// Per-coordinate tallies of the closed Frequentist band on the Bayesian cells'
+/// replicates of [`gam_data`].
+fn gam_frequentist_coverage(
+    test: &'static str,
+    name: &str,
+    query: &str,
+    functional: &F,
+    truth: &[f64],
+) -> Vec<CoverageTally> {
+    let key = RecordKey { test, dgp: "gam_data", interval: response_interval(false) };
+    let mut tallies: Vec<_> = (0..truth.len())
+        .map(|j| CoverageTally::for_record(key, LEVEL).labelled(format!("j={j}")))
+        .collect();
+    let construction = gam_frequentist_construction(query);
+    let runs = map_replicates(n_sim(), |rep| {
+        let seed = replicate_seed(0x0D0F, rep);
+        let n = SampleGrid::HEAVY.n(N_GAM);
+        try_gam_internal_band(&gam_data(n, seed), functional)
+            .map(|band| (n as u64, band))
+            .map_err(|error| format!("{name}: replicate {rep} refused: {error}"))
+    });
+    for scored in &runs {
+        match scored {
+            Ok((rows, (values, bands))) => {
+                for (j, tally) in tallies.iter_mut().enumerate() {
+                    tally.bind(
+                        &construction,
+                        ScopeFacts {
+                            row_count: *rows,
+                            replicates_ok: None,
+                            posterior_draws: None,
+                            unidentified_mass: 0.0,
+                        },
+                    );
+                    tally.record(Some(bands[j]), truth[j]);
+                }
+                debug_assert_eq!(values.len(), truth.len());
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                for tally in &mut tallies {
+                    tally.skip();
+                }
+            }
+        }
+    }
+    tallies
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn response_jacobian_dag_frequentist_nominal_90_coverage() {
+    let tallies = gam_frequentist_coverage(
+        "response_jacobian_dag_frequentist_nominal_90_coverage",
+        "response_jacobian_frequentist",
+        "ResponseJacobian",
+        &jacobian_query(),
+        &JACOBIAN_TRUTH,
+    );
+    assert_all_nominal(&tallies);
+}
+
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn directional_derivative_dag_frequentist_nominal_90_coverage() {
+    let tallies = gam_frequentist_coverage(
+        "directional_derivative_dag_frequentist_nominal_90_coverage",
+        "directional_derivative_frequentist",
+        "DirectionalDerivative",
+        &directional_query(),
+        &DIRECTIONAL_TRUTH,
+    );
+    assert_all_nominal(&tallies);
+}
+
 // --- Point-derivative transforms now publish a delta-method interval ----------
 //
 // Every scalar point-derivative scale (elasticity, semi-elasticities, and the
@@ -1056,15 +1201,33 @@ fn frequentist_point_derivative_transforms_publish_a_delta_method_interval() {
         let response = run(&data, &graph, functional, Some(BANDWIDTH), None, 7).unwrap();
         assert!(scalar_interval(&response).is_some(), "{label}: interval is published");
     }
-    // The multivariate GAM plug-in still withholds the Frequentist interval.
+    // The multivariate GAM plug-in still withholds the Frequentist interval and
+    // says why; the closed band the gate measures is around the published point.
     let gam = gam_data(300, 7);
     for (label, functional) in
         [("jacobian", jacobian_query()), ("directional", directional_query())]
     {
-        let response = run(&gam, &gam_graph(), functional, None, None, 7).unwrap();
+        let response = run(&gam, &gam_graph(), functional.clone(), None, None, 7).unwrap();
         assert!(
             matches!(response.uncertainty, ResponseUncertainty::None),
             "{label}: Frequentist GAM plug-in still publishes no interval"
         );
+        assert!(
+            response
+                .support
+                .warnings
+                .iter()
+                .any(|w| w.code.as_ref() == "response.derivative_interval_withheld"),
+            "{label}: the withheld interval is disclosed"
+        );
+        let ResponseIdentification::PointIdentified(
+            ResponseValue::Jacobian { values, .. } | ResponseValue::Vector(values),
+        ) = &response.estimate
+        else {
+            panic!("{label}: unexpected estimate {:?}", response.estimate);
+        };
+        let (internal, bands) = gam_internal_band(&gam, &functional);
+        assert_eq!(internal, values.to_vec(), "{label}: the gate measures the published point");
+        assert!(bands.iter().zip(&internal).all(|(&(lo, hi), &v)| lo < v && v < hi));
     }
 }

@@ -933,11 +933,36 @@ fn parse_ate_batch_query_specs(queries: Vec<PyBatchQuery<'_>>) -> PyResult<Vec<A
     Ok(parsed)
 }
 
+/// The typed estimator configuration of a batch, parsed with the single-query `analyze`
+/// parser so both entry points accept the same keys and refuse the same mistakes.
+fn parse_batch_estimator_config(
+    estimator_config: Option<&Bound<'_, PyDict>>,
+    estimator: Option<&str>,
+    bootstrap: Option<u32>,
+) -> PyResult<Option<antecedent::EstimatorSpec>> {
+    let parsed = crate::estimator_config::parse_estimator_config(
+        estimator_config,
+        estimator,
+        bootstrap.unwrap_or(antecedent::StudyBuilder::OMITTED_BOOTSTRAP),
+    )?;
+    if parsed.rd_running_variable.is_some()
+        || parsed.rd_cutoff.is_some()
+        || parsed.rd_bandwidth.is_some()
+        || parsed.rd_se_kind.is_some()
+    {
+        return Err(PyValueError::new_err(
+            "estimator_config for rd.sharp does not apply to a batch of average effects",
+        ));
+    }
+    Ok(parsed.spec)
+}
+
 fn compile_batch_study(
     data: antecedent_data::TabularData,
     edges: Vec<(String, String)>,
     identifier: Option<String>,
     estimator: Option<String>,
+    configured_spec: Option<antecedent::EstimatorSpec>,
     suite: Option<antecedent::RefuteSuite>,
     bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
@@ -960,7 +985,9 @@ fn compile_batch_study(
         let dag = dag_from_named_edges(data.schema(), &edges)?;
         antecedent::BatchStudy::new(data, dag)
     };
-    if let Some(replicates) = bootstrap {
+    // A configured estimator carries its own bootstrap count (the study refuses both), as
+    // for a single-query `analyze`.
+    if let Some(replicates) = bootstrap.filter(|_| configured_spec.is_none()) {
         batch = batch.bootstrap_replicates(replicates);
     }
     if let Some(suite) = suite {
@@ -975,7 +1002,9 @@ fn compile_batch_study(
                 .map_err(|e| PyValueError::new_err(e.to_string()))?,
         );
     }
-    if let Some(est) = estimator {
+    if let Some(spec) = configured_spec {
+        batch = batch.estimator_spec(spec);
+    } else if let Some(est) = estimator {
         batch = batch.estimator(
             est.parse::<antecedent::EstimatorId>()
                 .map_err(|e| PyValueError::new_err(e.to_string()))?,
@@ -995,6 +1024,7 @@ fn compile_ate_batch(
     parsed_queries: Vec<AteBatchQuerySpec>,
     identifier: Option<String>,
     estimator: Option<String>,
+    configured_spec: Option<antecedent::EstimatorSpec>,
     suite: Option<antecedent::RefuteSuite>,
     bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
@@ -1023,6 +1053,7 @@ fn compile_ate_batch(
         edges,
         identifier,
         estimator,
+        configured_spec,
         suite,
         bootstrap,
         latency_mode,
@@ -1063,6 +1094,7 @@ fn compile_cell_batch(
     parsed_queries: Vec<CellBatchQuerySpec>,
     identifier: Option<String>,
     estimator: Option<String>,
+    configured_spec: Option<antecedent::EstimatorSpec>,
     suite: Option<antecedent::RefuteSuite>,
     bootstrap: Option<u32>,
     latency_mode: Option<antecedent::LatencyMode>,
@@ -1102,6 +1134,7 @@ fn compile_cell_batch(
         edges,
         identifier,
         estimator,
+        configured_spec,
         suite,
         bootstrap,
         latency_mode,
@@ -1129,6 +1162,7 @@ fn compile_cell_batch(
     *,
     identifier=None,
     estimator=None,
+    estimator_config=None,
     refute=None,
     seed=1,
     bootstrap=None,
@@ -1149,6 +1183,7 @@ fn analyze_ate_many(
     queries: Vec<PyBatchQuery<'_>>,
     identifier: Option<String>,
     estimator: Option<String>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: Option<u32>,
@@ -1165,6 +1200,8 @@ fn analyze_ate_many(
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
+    let configured_spec =
+        parse_batch_estimator_config(estimator_config.as_ref(), estimator.as_deref(), bootstrap)?;
     detach_catch(py, move || {
         let (batch, ate_queries) = compile_ate_batch(
             data,
@@ -1172,6 +1209,7 @@ fn analyze_ate_many(
             parsed_queries,
             identifier,
             estimator,
+            configured_spec,
             suite,
             bootstrap,
             latency_mode,
@@ -3124,8 +3162,22 @@ fn parse_candidate_screen(
 /// Frozen multi-query batch: identify once, estimate on later tables.
 #[pyclass(name = "PreparedBatch")]
 pub struct PyPreparedBatch {
-    inner: std::sync::Arc<antecedent::PreparedBatch>,
-    names: Vec<String>,
+    pub(crate) inner: std::sync::Arc<antecedent::PreparedBatch>,
+    pub(crate) names: Vec<String>,
+    /// Score tables of the last `estimate`, retained so a retarget after it reweights that
+    /// estimate's rows; `None` until an estimate ran (a retarget then reweights the
+    /// prepare-time tables).
+    pub(crate) last_scores: std::sync::Mutex<Option<std::sync::Arc<antecedent::BatchScores>>>,
+}
+
+impl PyPreparedBatch {
+    fn new(prepared: antecedent::PreparedBatch, names: Vec<String>) -> Self {
+        Self {
+            inner: std::sync::Arc::new(prepared),
+            names,
+            last_scores: std::sync::Mutex::new(None),
+        }
+    }
 }
 
 #[pymethods]
@@ -3169,11 +3221,22 @@ impl PyPreparedBatch {
         }
         let (data, _) = tabular_from_py_columns(py, names.clone(), columns)?;
         let inner = std::sync::Arc::clone(&self.inner);
-        detach_catch(py, move || {
+        let (results, scores) = detach_catch(py, move || {
             let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
-            let results = inner.estimate(&data, &ctx).map_err(py_err)?;
-            results.into_iter().map(|r| ate_result_from_analysis(&names, r, false)).collect()
-        })
+            let (results, scores) = inner.estimate_scored(&data, &ctx).map_err(py_err)?;
+            let results = results
+                .into_iter()
+                .map(|r| ate_result_from_analysis(&names, r, false))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok((results, scores))
+        })?;
+        // A retarget after this estimate reweights this estimate's rows.
+        *self
+            .last_scores
+            .lock()
+            .map_err(|_| PyValueError::new_err("batch scores lock poisoned"))? =
+            Some(std::sync::Arc::new(scores));
+        Ok(results)
     }
 }
 
@@ -3186,6 +3249,7 @@ impl PyPreparedBatch {
     *,
     identifier=None,
     estimator=None,
+    estimator_config=None,
     refute=None,
     seed=1,
     bootstrap=None,
@@ -3206,6 +3270,7 @@ fn prepare_ate_batch(
     queries: Vec<PyBatchQuery<'_>>,
     identifier: Option<String>,
     estimator: Option<String>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: Option<u32>,
@@ -3222,6 +3287,8 @@ fn prepare_ate_batch(
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_ate_batch_query_specs(queries)?;
+    let configured_spec =
+        parse_batch_estimator_config(estimator_config.as_ref(), estimator.as_deref(), bootstrap)?;
     detach_catch(py, move || {
         let (batch, ate_queries) = compile_ate_batch(
             data,
@@ -3229,6 +3296,7 @@ fn prepare_ate_batch(
             parsed_queries,
             identifier,
             estimator,
+            configured_spec,
             suite,
             bootstrap,
             latency_mode,
@@ -3241,7 +3309,7 @@ fn prepare_ate_batch(
         )?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let prepared = batch.prepare(&ate_queries, &ctx).map_err(py_err)?;
-        Ok(PyPreparedBatch { inner: std::sync::Arc::new(prepared), names })
+        Ok(PyPreparedBatch::new(prepared, names))
     })
 }
 
@@ -3254,6 +3322,7 @@ fn prepare_ate_batch(
     *,
     identifier=None,
     estimator=None,
+    estimator_config=None,
     refute=None,
     seed=1,
     bootstrap=None,
@@ -3275,6 +3344,7 @@ fn prepare_cells_batch(
     queries: Vec<PyCellBatchQuery<'_>>,
     identifier: Option<String>,
     estimator: Option<String>,
+    estimator_config: Option<Bound<'_, PyDict>>,
     refute: Option<Bound<'_, PyAny>>,
     seed: u64,
     bootstrap: Option<u32>,
@@ -3292,6 +3362,8 @@ fn prepare_cells_batch(
     let suite = refute.as_ref().map(|r| suite_from_refute(Some(r))).transpose()?;
     let latency_mode = parse_latency_mode(latency.as_deref())?;
     let parsed_queries = parse_cell_batch_query_specs(queries)?;
+    let configured_spec =
+        parse_batch_estimator_config(estimator_config.as_ref(), estimator.as_deref(), bootstrap)?;
     let family_contrast = family_contrast.map(str::to_owned);
     detach_catch(py, move || {
         let (batch, cell_queries) = compile_cell_batch(
@@ -3300,6 +3372,7 @@ fn prepare_cells_batch(
             parsed_queries,
             identifier,
             estimator,
+            configured_spec,
             suite,
             bootstrap,
             latency_mode,
@@ -3313,7 +3386,7 @@ fn prepare_cells_batch(
         )?;
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let prepared = batch.prepare_cells(&cell_queries, &ctx).map_err(py_err)?;
-        Ok(PyPreparedBatch { inner: std::sync::Arc::new(prepared), names })
+        Ok(PyPreparedBatch::new(prepared, names))
     })
 }
 

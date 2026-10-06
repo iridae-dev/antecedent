@@ -53,6 +53,17 @@ nav:
       - Transport and interference: transport-interference.md
       - Transport failures: guides/transport-failure.md
       - Transport theorem scope: guides/transport-scope.md
+      - Finite-action inverse outcome: guides/inverse-outcome.md
+      - Matched case-control odds ratio: guides/matched-case-control.md
+      - Descriptive raw-versus-adjusted comparison: guides/descriptive-comparison.md
+      - Tier-aware overlap and E-value diagnostics: guides/tier-diagnostics.md
+      - Sparse ingest evaluation: guides/sparse-ingest-evaluation.md
+      - Penalized propensity for AIPW: guides/penalized-aipw.md
+      - Joint cells and derived treatments: guides/joint-cells.md
+      - Clustered DML and entity-owned screens: guides/clustered-dml.md
+      - Preflight diagnostics and cost: guides/preflight-diagnostics.md
+      - Configured batches and batch retarget: guides/batch-retarget.md
+      - Cross-fitted DML scores and retarget covariance: guides/dml-scores.md
       - Transport names moved in 2.0: migrations/2.0-transport-day1.md
       - Prior bank: priors.md
       - Graph uncertainty: graph_uncertainty.md
@@ -85,12 +96,11 @@ nav:
   - Evidence and development:
       - Development: development.md
       - Conformance: conformance/README.md
-      - 2.0 learner audit: audits/2.0-learner-audit.md
-      - 2.0 milestone audit: audits/2.0-milestone-audit.md
       - Hot paths: hot_paths.md
       - Practitioner acceptance: practitioner-acceptance.md
       - Security review: security_review.md
   - Release notes:
+      - "2.2.0": release-notes/v2.2.0.md
       - "2.1.1": release-notes/v2.1.1.md
       - "2.1.0": release-notes/v2.1.0.md
       - "2.0.0": release-notes/v2.0.0.md

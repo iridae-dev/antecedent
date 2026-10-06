@@ -21,6 +21,16 @@
 //! table's covariance and simultaneous bands are exported only under the iid SE. ATT/ATC,
 //! trimmed, and predicate-target fits stay on the full-sample path and do not export that table.
 //!
+//! An explicit penalized propensity ([`PropensityNuisance`]) is a separate, narrower route:
+//! the untrimmed `AllObserved` mean ATE only, with a ridge- or lasso-logistic penalty (and, for
+//! the lasso, the selected support) chosen on each cross-fit fold's training rows. It keeps the
+//! score table, row identity, overlap report and retargetability, and publishes the
+//! cross-fitted influence-function SE of the out-of-fold scores or, with
+//! `bootstrap_replicates > 0`, a bootstrap SE that repeats penalty selection and every nuisance
+//! fit on each resample. `docs/guides/penalized-aipw.md` states the remainder condition each
+//! rests on and what is not shown. A declared GLM-to-penalized fallback re-runs the whole
+//! route with the penalized destination when the GLM propensity fit fails.
+//!
 //! Analytic SEs on the full-sample path correct ψ for parametric nuisances:
 //! ATE-type targets add the exact stacked-M terms for the logistic and the two arm OLS fits
 //! (valid under a misspecified propensity too); ATT/ATC use the
@@ -62,11 +72,14 @@ use antecedent_stats::{
 };
 
 use crate::adjustment::EffectEstimate;
+use crate::cluster_dml_aipw::ClusterDml;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::propensity::{
-    PreparedPropensityProblem, PropensityModel, clamp_scores, clip_of, default_propensity_overlap,
-    gather, gather_into, prepare_propensity_problem_with_registry, split_by_treatment, trim_of,
+    PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem, PropensityModel,
+    PropensityNuisance, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, clamp_scores,
+    clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports, gather, gather_into,
+    prepare_propensity_problem_with_registry, refuse, split_by_treatment, trim_of,
     trim_retained_rows,
 };
 use crate::se::AnalyticSeKind;
@@ -156,6 +169,11 @@ pub struct CheckedAipwLowering {
     pub se_kind: AnalyticSeKind,
     /// Bootstrap replicate count (zero disables bootstrap uncertainty).
     pub bootstrap_replicates: u32,
+    /// Declared binary-propensity nuisance. A penalized one keeps the cross-fitted
+    /// `procedure` but withholds every interval; the configuration is part of the receipt.
+    pub propensity: PropensityNuisance,
+    /// Declared cluster-DML independence unit, when the cross-fit owns whole clusters.
+    pub cluster_dml: Option<ClusterDml>,
     /// Complete-case source row identities bound during preparation.
     pub rows: Arc<[u32]>,
 }
@@ -224,12 +242,21 @@ pub struct AipwAte {
     pub se_kind: AnalyticSeKind,
     /// Optional cluster ids for [`AnalyticSeKind::Cluster`] (aligned to prepared rows).
     pub cluster_ids: Option<Vec<u32>>,
+    /// Second-endpoint labels of a dyadic [`ClusterDml`] declaration (aligned to prepared
+    /// rows); [`Self::cluster_ids`] are then the first endpoints.
+    pub cluster_ids_second: Option<Vec<u32>>,
     /// Optional bindings for named predicates / custom target distributions.
     pub population_registry: Option<PopulationRegistry>,
     /// Multiway cluster ids (one `Vec<u32>` per clustering dimension).
     pub multiway_ids: Option<Vec<Vec<u32>>>,
     /// Optional panel time labels for [`AnalyticSeKind::PanelClusterHac`].
     pub panel_times: Option<Vec<i64>>,
+    /// Declared binary-propensity nuisance: the unpenalized logistic by default, or an
+    /// explicit ridge-logistic penalty (distinct from `glm_options.ridge_on_separation`).
+    pub propensity: PropensityNuisance,
+    /// Declared cluster-DML independence unit over [`Self::cluster_ids`]: whole clusters are
+    /// cross-fit together and no interval is published (see [`ClusterDml`]).
+    pub cluster_dml: Option<ClusterDml>,
 }
 
 /// Per-row influence of the control-to-treated score contrast: the plain score difference
@@ -272,10 +299,35 @@ impl AipwAte {
             glm_options: GlmOptions::default(),
             se_kind: AnalyticSeKind::Homoskedastic,
             cluster_ids: None,
+            cluster_ids_second: None,
             population_registry: None,
             multiway_ids: None,
             panel_times: None,
+            propensity: PropensityNuisance::default(),
+            cluster_dml: None,
         }
+    }
+
+    /// Declare the binary-propensity nuisance (see [`PropensityNuisance`]).
+    ///
+    /// A ridge- or lasso-logistic penalty is licensed for the untrimmed `AllObserved` mean ATE:
+    /// it publishes the cross-fitted point estimate, the score table and the intervals
+    /// described in the module docs. A ridge or lasso fallback re-runs that route when the GLM
+    /// fit fails; an ML fallback is declarable but closed.
+    #[must_use]
+    pub fn with_propensity_nuisance(mut self, propensity: PropensityNuisance) -> Self {
+        self.propensity = propensity;
+        self
+    }
+
+    /// Declare the independence unit of the cross-fit: whole clusters of [`Self::cluster_ids`]
+    /// (which this does not set) share a fold, and the route publishes the cross-fitted point
+    /// estimate and score table with no interval. Licensed for the untrimmed `AllObserved`
+    /// mean ATE with `bootstrap_replicates == 0`; see [`ClusterDml`].
+    #[must_use]
+    pub const fn with_cluster_dml(mut self, cluster_dml: ClusterDml) -> Self {
+        self.cluster_dml = Some(cluster_dml);
+        self
     }
 
     /// Set the number of bootstrap replicates used for the bootstrap standard error.
@@ -318,6 +370,13 @@ impl AipwAte {
         self
     }
 
+    /// Set the second-endpoint labels of a dyadic [`ClusterDml`] declaration.
+    #[must_use]
+    pub fn with_second_cluster_ids(mut self, cluster_ids: Vec<u32>) -> Self {
+        self.cluster_ids_second = Some(cluster_ids);
+        self
+    }
+
     /// Set multiway cluster ids (one `Vec<u32>` per clustering dimension) for
     /// [`AnalyticSeKind::Multiway`].
     #[must_use]
@@ -347,6 +406,26 @@ impl AipwAte {
         estimand: &IdentifiedEstimand,
         query: &AverageEffectQuery,
     ) -> Result<PreparedPropensityProblem, EstimationError> {
+        self.propensity.validate_for_execution()?;
+        if self.propensity.is_penalized() {
+            self.require_penalized_scope(
+                query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+                &query.target_population,
+                self.overlap,
+            )?;
+        }
+        if self.cluster_dml.is_some() {
+            crate::cluster_dml_aipw::require_unpenalized(self.propensity.is_penalized())?;
+            crate::cluster_dml_aipw::require_scope(
+                query.outcome_functional == antecedent_core::OutcomeFunctional::Mean,
+                &query.target_population,
+                self.overlap,
+            )?;
+            crate::cluster_dml_aipw::refuse_interval_request(
+                self.bootstrap_replicates,
+                self.se_kind,
+            )?;
+        }
         if let TargetPopulation::CustomDistribution(id) = query.target_population {
             let depends = self.population_registry.as_ref().and_then(|r| r.distribution_dependencies(id))
                 .ok_or_else(|| EstimationError::unsupported("AIPW custom weights require declared depends_on via insert_distribution_with_dependence"))?;
@@ -357,13 +436,63 @@ impl AipwAte {
                 ));
             }
         }
-        prepare_propensity_problem_with_registry(
+        let mut problem = prepare_propensity_problem_with_registry(
             data,
             estimand,
             query,
             self.overlap,
             self.population_registry.as_ref(),
-        )
+        )?;
+        problem.propensity = self.propensity.clone();
+        if let Some(cluster_dml) = &self.cluster_dml {
+            problem.fold_units = Some(cluster_dml.declare_units(
+                self.cluster_ids.as_deref(),
+                self.cluster_ids_second.as_deref(),
+                problem.nrows,
+            )?);
+            problem.fold_unit_kind = cluster_dml.independence_unit();
+        }
+        Ok(problem)
+    }
+
+    /// A penalized propensity is licensed for one construction only: the untrimmed
+    /// `AllObserved` mean ATE, whose cross-fitted scores keep the table, row identity,
+    /// overlap report and retargetability.
+    fn require_penalized_scope(
+        &self,
+        mean_functional: bool,
+        population: &TargetPopulation,
+        overlap: OverlapPolicy,
+    ) -> Result<(), EstimationError> {
+        if !mean_functional
+            || !matches!(population, TargetPopulation::AllObserved)
+            || trim_of(overlap).is_some()
+        {
+            // A lasso outside the cross-fit would select on the rows it scores.
+            if self.propensity.is_lasso() {
+                return Err(PropensityNuisance::lasso_not_cross_fitted());
+            }
+            return Err(refuse(
+                antecedent_core::reason_code!("route_not_supported"),
+                "penalized_propensity.scope",
+                "a penalized propensity is licensed only for the untrimmed AllObserved mean \
+                ATE: other functionals and populations, and trimmed fits, refit full-sample \
+                nuisances and have no cross-fitted penalized route",
+            ));
+        }
+        Ok(())
+    }
+
+    /// The cluster-DML route publishes no bootstrap, so a request for one is refused instead
+    /// of ignored.
+    fn require_no_interval_request(&self) -> Result<(), EstimationError> {
+        if self.cluster_dml.is_some() {
+            crate::cluster_dml_aipw::refuse_interval_request(
+                self.bootstrap_replicates,
+                self.se_kind,
+            )?;
+        }
+        Ok(())
     }
 
     /// Prepare the licensed logistic/OLS AIPW route from one identified mean ATE claim.
@@ -477,6 +606,8 @@ impl AipwAte {
             folds: procedure.folds(),
             se_kind: self.se_kind,
             bootstrap_replicates: self.bootstrap_replicates,
+            propensity: self.propensity.clone(),
+            cluster_dml: self.cluster_dml,
             rows: Arc::clone(&problem.row_index),
         };
         Ok(CheckedAipwPreparation {
@@ -516,6 +647,8 @@ impl AipwAte {
             || checked.lowering.folds != checked.lowering.procedure.folds()
             || checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
+            || checked.lowering.propensity != self.propensity
+            || checked.lowering.cluster_dml != self.cluster_dml
         {
             return Err(EstimationError::data_msg(
                 "checked AIPW target, procedure, bindings, or semantic schema changed",
@@ -536,6 +669,8 @@ impl AipwAte {
     ) -> Result<EffectEstimate, EstimationError> {
         if checked.lowering.se_kind != self.se_kind
             || checked.lowering.bootstrap_replicates != self.bootstrap_replicates
+            || checked.lowering.propensity != self.propensity
+            || checked.lowering.cluster_dml != self.cluster_dml
             || checked.lowering.overlap != self.overlap
             || checked.problem.overlap != self.overlap
             || checked.lowering.procedure != CheckedAipwProcedure::for_overlap(self.overlap)
@@ -570,6 +705,13 @@ impl AipwAte {
     /// the one the point fit's route implies: cross-fitted score-table refits for custom
     /// weights and the untrimmed ATE, per-replicate nuisance refits otherwise.
     ///
+    /// A penalized propensity (declared, or the destination of a fallback that ran) repeats the
+    /// fold plan, the penalty (and lasso support) selection and every nuisance fit on each
+    /// resample, and records the penalties each replicate selected in
+    /// [`EffectEstimate::penalized`]. When the point came from a fallback, the replicates run
+    /// the destination (the claim is the destination's); when it came from the GLM, they run
+    /// the GLM without the fallback, so a failing replicate is counted rather than replaced.
+    ///
     /// # Errors
     ///
     /// Bootstrap failure.
@@ -580,6 +722,7 @@ impl AipwAte {
         ctx: &ExecutionContext,
         point: EffectEstimate,
     ) -> Result<EffectEstimate, EstimationError> {
+        self.require_no_interval_request()?;
         if self.bootstrap_replicates == 0 {
             return Ok(point);
         }
@@ -592,6 +735,10 @@ impl AipwAte {
         } else if matches!(problem.target_population, TargetPopulation::AllObserved)
             && trim_of(problem.overlap).is_none()
         {
+            let nuisance = self.replicate_nuisance(&point);
+            if nuisance.is_penalized() {
+                return self.attach_penalized_bootstrap(problem, ctx, nuisance, point);
+            }
             self.crossfit_bootstrap(problem, ctx, None)?
         } else {
             self.bootstrap_se(problem, workspace, ctx)?
@@ -607,6 +754,44 @@ impl AipwAte {
         ctx: &ExecutionContext,
         assumptions: AssumptionSet,
     ) -> Result<EffectEstimate, EstimationError> {
+        if problem.propensity != self.propensity {
+            return Err(EstimationError::data_msg(
+                "AIPW propensity nuisance differs from the one the problem was prepared with",
+            ));
+        }
+        self.propensity.validate_for_execution()?;
+        if self.propensity.is_penalized() {
+            self.require_penalized_scope(true, &problem.target_population, problem.overlap)?;
+        }
+        if self.cluster_dml.is_some() {
+            crate::cluster_dml_aipw::require_unpenalized(self.propensity.is_penalized())?;
+            crate::cluster_dml_aipw::require_scope(
+                true,
+                &problem.target_population,
+                problem.overlap,
+            )?;
+            crate::cluster_dml_aipw::refuse_interval_request(
+                self.bootstrap_replicates,
+                self.se_kind,
+            )?;
+        }
+        let declared_units = self.cluster_dml.and_then(|spec| {
+            spec.declare_units(
+                self.cluster_ids.as_deref(),
+                self.cluster_ids_second.as_deref(),
+                problem.nrows,
+            )
+            .ok()
+        });
+        if problem.fold_units.as_deref() != declared_units.as_deref()
+            || self
+                .cluster_dml
+                .is_some_and(|spec| spec.independence_unit() != problem.fold_unit_kind)
+        {
+            return Err(EstimationError::data_msg(
+                "AIPW cluster-DML declaration differs from the one the problem was prepared with",
+            ));
+        }
         if !matches!(
             problem.target_population,
             TargetPopulation::AllObserved
@@ -634,7 +819,8 @@ impl AipwAte {
             &self.backend,
             &mut workspace.propensity,
             &self.glm_options,
-        )?;
+        )
+        .map_err(|error| self.propensity.record_failed_fit(error))?;
         // Trim on raw scores: excluded units match the overlap report's common-support claim.
         let retained = trim_retained_rows(&model.fit.scores, trim_of(problem.overlap))?;
         let ncols = problem.design_ncols;
@@ -776,7 +962,20 @@ impl AipwAte {
     ) -> Result<EffectEstimate, EstimationError> {
         let seeded = Self::crossfit_problem(problem, ctx);
         let problem = &seeded;
-        let table = self.crossfit_table(problem)?;
+        let (table, nuisance) = self.crossfit_table(problem, true, ctx)?;
+        let crate::crossfit_aipw::NuisanceFit { selections, fallback } = nuisance;
+        let n_folds = table.n_folds as usize;
+        let report = PenalizedReport {
+            fallback,
+            selected_support: fold_supports(&selections, &problem.adjustment_set),
+            variance: None,
+        };
+        let penalized_route = self.propensity.is_penalized() || report.fallback.is_some();
+        let penalized_provenance: Vec<_> = if penalized_route {
+            selections.iter().map(|s| s.provenance.clone()).collect()
+        } else {
+            Vec::new()
+        };
         let summary = table.summarize(weights)?;
         let contrast = table.linear_contrast(&summary, &[-1.0, 1.0])?;
         let iid_se = matches!(self.se_kind, AnalyticSeKind::Homoskedastic);
@@ -786,7 +985,14 @@ impl AipwAte {
         // rather than published at the wrong strength.
         let inference = table.inference(weights)?;
         if refuse_overlap && !inference.support.overlap_ok {
-            return Err(EstimationError::unsupported("custom target weighted overlap failed"));
+            return Err(EstimationError::unsupported_with_fields(
+                "custom target weighted overlap failed",
+                crate::retarget::weighted_overlap_fields(
+                    &table,
+                    weights.unwrap_or(&[]),
+                    &inference.support,
+                ),
+            ));
         }
         let se_analytic = if iid_se {
             contrast.se
@@ -813,6 +1019,15 @@ impl AipwAte {
                 IpwTarget::from_population(&problem.target_population).ok(),
             )
         });
+        // Whole-cluster folds: the sandwich standard error of the same scores, under the declared
+        // independence unit (`docs/guides/clustered-dml.md`).
+        let cluster_se = match (self.cluster_dml, self.cluster_ids.as_deref()) {
+            (Some(spec), Some(labels)) => {
+                let receipt = spec.receipt(&table, labels, self.cluster_ids_second.as_deref())?;
+                Some((receipt.cluster_sandwich_se, receipt.reference_df))
+            }
+            _ => None,
+        };
         let mut result =
             EffectEstimate::new(contrast.value, se_analytic, assumptions, problem.overlap)
                 .with_se_kind(self.se_kind)
@@ -821,6 +1036,42 @@ impl AipwAte {
                 .with_influence(Some(influence.into()))
                 .with_score_table(Some(table));
         result.score_inference = iid_se.then_some(inference);
+        if penalized_route {
+            // The penalized route publishes the same cross-fitted scores, influence values and
+            // iid / robust SE as the unpenalized one (the interval rests on the remainder
+            // condition of `docs/guides/penalized-aipw.md`) and records which nuisances it
+            // selected, which fold selected them, and any fallback that replaced a failed fit.
+            result.crossfit_folds = Some(n_folds);
+            result.crossfit_seed = Some(problem.fold_seed);
+            result.learner_provenance = penalized_provenance;
+        }
+        if !report.is_empty() {
+            result.penalized = Some(Box::new(report));
+        }
+        if self.cluster_dml.is_some() {
+            // The cluster-DML route publishes the cluster-sandwich SE below; the iid
+            // covariance and influence values of these scores are not a licensed sampling
+            // distribution for it (see `docs/guides/clustered-dml.md`).
+            result.se_analytic = f64::NAN;
+            result.se_kind = None;
+            result.joint_covariance = None;
+            result.score_inference = None;
+            result.influence = None;
+            result.crossfit_folds = Some(n_folds);
+            result.crossfit_seed = Some(problem.fold_seed);
+            result.learner_provenance = selections.into_iter().map(|s| s.provenance).collect();
+            if let Some((se, df)) = cluster_se {
+                // The cluster sandwich replaces the iid standard error; the iid joint
+                // covariance and influence values stay withheld (wrong dependence).
+                result.se_analytic = se;
+                result.se_reference_df = Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+                result.se_kind = Some(if self.cluster_ids_second.is_some() {
+                    AnalyticSeKind::Multiway
+                } else {
+                    AnalyticSeKind::Cluster
+                });
+            }
+        }
         Ok(result)
     }
 
@@ -834,17 +1085,26 @@ impl AipwAte {
         seeded
     }
 
+    /// `share`: whether a batch's shared nuisance cache may serve this table (the
+    /// point fit) or not (bootstrap replicates).
+    /// A penalized propensity's per-fold selections, and any fallback that ran, come back
+    /// beside the table.
     fn crossfit_table(
         &self,
         p: &PreparedPropensityProblem,
-    ) -> Result<crate::scores::ScoreTable, EstimationError> {
-        crate::crossfit_aipw::build_binary_scores(
+        share: bool,
+        ctx: &ExecutionContext,
+    ) -> Result<(crate::scores::ScoreTable, crate::crossfit_aipw::NuisanceFit), EstimationError>
+    {
+        crate::crossfit_aipw::build_binary_scores_in(
             p,
             p.treatment_id,
             &[None],
             crate::crossfit_aipw::DEFAULT_AIPW_FOLDS,
             &self.glm_options,
             self.backend,
+            share,
+            Some(ctx),
         )
     }
 
@@ -859,34 +1119,138 @@ impl AipwAte {
         let seeded = Self::crossfit_problem(problem, ctx);
         let problem = &seeded;
         bootstrap_se(self.bootstrap_replicates, ctx, 0xA1D5, problem.nrows, |idx| {
-            let mut p = problem.clone();
-            let mut design = Vec::new();
-            select_rows_colmajor(
-                &problem.design_matrix,
-                problem.nrows,
-                problem.design_ncols,
-                idx,
-                &mut design,
-            );
-            p.design_matrix = design.into();
-            p.treatment = gather(&problem.treatment, idx).into();
-            p.outcome = gather(&problem.outcome, idx).into();
-            // Copies of one original row keep that row's identity (and shared fold), so
-            // no unit is both in a training set and in its own validation fold.
-            p.row_index = idx.iter().map(|&i| problem.row_index[i]).collect::<Vec<_>>().into();
-            p.fold_assignment = problem
-                .fold_assignment
-                .as_deref()
-                .map(|ids| idx.iter().map(|&i| ids[i]).collect::<Vec<_>>().into());
-            if let Some(w) = weights {
-                p.target_weights = Some(gather(w, idx).into());
-            }
-            let Ok(t) = self.crossfit_table(&p) else {
+            let mut p = resampled_problem(problem, idx, weights);
+            // The point is the GLM result: a replicate whose GLM fit fails is a failed
+            // replicate, never silently a ridge fit.
+            p.propensity = PropensityNuisance::default();
+            let Ok((t, _)) = self.crossfit_table(&p, false, ctx) else {
                 return Ok(None);
             };
             let ss = t.summarize(p.target_weights.as_deref())?;
             Ok(Some(ss.means[1] - ss.means[0]))
         })
+    }
+
+    /// The nuisance configuration a bootstrap replicate runs: the fallback destination when
+    /// the point came from a fallback, the declared penalized propensity, or the plain GLM.
+    fn replicate_nuisance(&self, point: &EffectEstimate) -> PropensityNuisance {
+        let fell_back = point.penalized.as_ref().is_some_and(|report| report.fallback.is_some());
+        if fell_back {
+            self.propensity.fallback_destination().unwrap_or_default()
+        } else if self.propensity.is_penalized() {
+            self.propensity.clone()
+        } else {
+            PropensityNuisance::default()
+        }
+    }
+
+    /// Unit-resample bootstrap of the penalized cross-fitted contrast.
+    ///
+    /// Every replicate draws `n` rows with replacement (copies keep their unit identity, so a
+    /// unit is never in a training set and in its own validation fold) and re-runs the whole
+    /// pipeline on the resample under `nuisance`: the arm-stratified unit fold plan, each
+    /// fold's inner-CV penalty (and lasso support) selection and every nuisance fit. The
+    /// penalties each successful replicate selected are recorded in replicate order, so the
+    /// record replays from the seed under any thread count. A replicate that fails softly
+    /// (a fold missing an arm, a failed fit, a boundary propensity) is counted, never
+    /// replaced; a cancelled one stops the loop and is reported as a stop.
+    #[allow(clippy::too_many_lines)]
+    fn attach_penalized_bootstrap(
+        &self,
+        problem: &PreparedPropensityProblem,
+        ctx: &ExecutionContext,
+        nuisance: PropensityNuisance,
+        point: EffectEstimate,
+    ) -> Result<EffectEstimate, EstimationError> {
+        enum Replicate {
+            Done(f64, Vec<f64>),
+            Failed,
+            Cancelled,
+        }
+        let mut base = Self::crossfit_problem(problem, ctx);
+        base.propensity = nuisance;
+        let n = base.nrows;
+        let n_rep = self.bootstrap_replicates as usize;
+        let len = n.checked_mul(n_rep).ok_or_else(|| {
+            EstimationError::data_msg("bootstrap index allocation exceeds addressable capacity")
+        })?;
+        if u32::try_from(n.saturating_sub(1)).is_err() {
+            return Err(EstimationError::data_msg("bootstrap rows exceed u32 index capacity"));
+        }
+        let mut indexes = vec![0u32; len];
+        let planned = antecedent_data::fill_resample_index_batch(
+            antecedent_data::ResamplingPlan::IidBootstrap,
+            n,
+            n_rep,
+            None,
+            ctx,
+            PENALIZED_BOOTSTRAP_STREAM,
+            &mut indexes,
+        );
+        let outcomes: Vec<Replicate> = match planned {
+            Ok(()) => ctx.map_indexed(n_rep, |r, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Ok::<_, EstimationError>(Replicate::Cancelled);
+                }
+                let idx: Vec<usize> =
+                    indexes[r * n..(r + 1) * n].iter().map(|&i| i as usize).collect();
+                let p = resampled_problem(&base, &idx, None);
+                Ok(match self.crossfit_table(&p, false, inner) {
+                    Ok((table, fit)) => match table.summarize(None) {
+                        Ok(summary) => {
+                            let ate = summary.means[1] - summary.means[0];
+                            if ate.is_finite() {
+                                let lambdas = fit.selections.iter().map(|s| s.lambda).collect();
+                                Replicate::Done(ate, lambdas)
+                            } else {
+                                Replicate::Failed
+                            }
+                        }
+                        Err(_) => Replicate::Failed,
+                    },
+                    Err(_) if inner.cancellation.is_cancelled() => Replicate::Cancelled,
+                    Err(_) => Replicate::Failed,
+                })
+            })?,
+            Err(antecedent_data::DataError::Cancelled) => vec![Replicate::Cancelled],
+            Err(error) => return Err(error.into()),
+        };
+        let mut ates = Vec::with_capacity(n_rep);
+        let mut penalties = Vec::with_capacity(n_rep);
+        let (mut attempted, mut cancelled) = (0u32, false);
+        for (r, outcome) in outcomes.into_iter().enumerate() {
+            match outcome {
+                Replicate::Done(ate, lambdas) => {
+                    attempted += 1;
+                    ates.push(ate);
+                    penalties.push(ReplicatePenalties {
+                        replicate: u32::try_from(r).unwrap_or(u32::MAX),
+                        lambdas,
+                    });
+                }
+                Replicate::Failed => attempted += 1,
+                Replicate::Cancelled => cancelled = true,
+            }
+        }
+        let boot = crate::util::finalize_bootstrap_se_ex(&ates, attempted, cancelled, false);
+        let influence_se = match point.score_table.as_ref() {
+            Some(table) => crossfit_influence_se(table)?,
+            None => f64::NAN,
+        };
+        let mut report = point.penalized.as_deref().cloned().unwrap_or_default();
+        report.variance = Some(PenalizedVarianceReport {
+            uncertainty_kind: REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
+            refit_bootstrap_se: boot.se,
+            replicates_requested: self.bootstrap_replicates,
+            replicates_ok: boot.replicates_ok,
+            replicates_failed: boot.replicates_failed,
+            cancelled: boot.cancelled,
+            replicate_penalties: penalties,
+            influence_se,
+        });
+        let mut estimate = point.with_bootstrap(Some(boot));
+        estimate.penalized = Some(Box::new(report));
+        Ok(estimate)
     }
 
     fn bootstrap_se(
@@ -986,6 +1350,41 @@ impl AipwAte {
             },
         )
     }
+}
+
+/// Stream tag of the penalized refit bootstrap's resample plan.
+const PENALIZED_BOOTSTRAP_STREAM: u64 = 0xA1D7_0001;
+
+/// The prepared problem restricted to the resampled rows `idx`. Copies of one original row
+/// keep that row's identity (and shared fold), so no unit is both in a training set and in
+/// its own validation fold. `weights` are the custom-target weights (`None` = uniform).
+pub(crate) fn resampled_problem(
+    problem: &PreparedPropensityProblem,
+    idx: &[usize],
+    weights: Option<&[f64]>,
+) -> PreparedPropensityProblem {
+    let mut p = problem.clone();
+    let mut design = Vec::new();
+    select_rows_colmajor(
+        &problem.design_matrix,
+        problem.nrows,
+        problem.design_ncols,
+        idx,
+        &mut design,
+    );
+    p.design_matrix = design.into();
+    p.nrows = idx.len();
+    p.treatment = gather(&problem.treatment, idx).into();
+    p.outcome = gather(&problem.outcome, idx).into();
+    p.row_index = idx.iter().map(|&i| problem.row_index[i]).collect::<Vec<_>>().into();
+    p.fold_assignment = problem
+        .fold_assignment
+        .as_deref()
+        .map(|ids| idx.iter().map(|&i| ids[i]).collect::<Vec<_>>().into());
+    if let Some(w) = weights {
+        p.target_weights = Some(gather(w, idx).into());
+    }
+    p
 }
 
 /// Extract rows `idx` from a column-major `nrows × ncols` matrix into a fresh column-major
@@ -1842,5 +2241,128 @@ mod tests {
             assert!(fit.score_table.is_some());
             assert!(fit.joint_covariance.is_none() && fit.score_inference.is_none());
         }
+    }
+
+    fn ridge_estimator(grid: &[f64], inner_folds: usize) -> AipwAte {
+        AipwAte {
+            bootstrap_replicates: 0,
+            propensity: PropensityNuisance::ridge_logistic(
+                crate::propensity::RidgeTuning::new(grid, inner_folds).unwrap(),
+            ),
+            ..AipwAte::new()
+        }
+    }
+
+    /// A resample that lists every row once, in order, is the original problem: the same score
+    /// table and the same selections, to the bit.
+    #[test]
+    fn the_identity_resample_is_the_original_problem() {
+        let (data, estimand) = confounded_scm(300, 71);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let est = ridge_estimator(&[0.5, 5.0], 3);
+        let original =
+            AipwAte::crossfit_problem(&est.prepare(&data, &estimand, &query).unwrap(), &ctx());
+        let idx: Vec<usize> = (0..original.nrows).collect();
+        let same = resampled_problem(&original, &idx, None);
+        let (a, fit_a) = est.crossfit_table(&original, false, &ctx()).unwrap();
+        let (b, fit_b) = est.crossfit_table(&same, false, &ctx()).unwrap();
+        let bits = |t: &crate::scores::ScoreTable| -> Vec<u64> {
+            t.scores.iter().map(|v| v.to_bits()).collect()
+        };
+        assert_eq!(bits(&a), bits(&b));
+        assert_eq!(fit_a.selections, fit_b.selections);
+    }
+
+    /// The refit bootstrap's replicate selects every fold's penalty on the resample only.
+    ///
+    /// The resample draws only from the first half of the rows, repeating them. (1) The
+    /// penalty of each fold equals one re-derived here from that fold's training rows of the
+    /// resample alone (the resample's own fold plan, designs, treatment and unit identities).
+    /// (2) Rewriting every row the resample did not draw (covariates, treatment, outcome)
+    /// leaves every selection, and therefore the replicate, unchanged.
+    #[test]
+    fn a_bootstrap_replicate_selects_its_penalty_on_the_resample_only() {
+        use crate::propensity::RidgeFoldInput;
+        let (data, estimand) = confounded_scm(300, 73);
+        let query =
+            AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+        let tuning = crate::propensity::RidgeTuning::new(&[0.1, 1.0, 10.0, 100.0], 3).unwrap();
+        let est = ridge_estimator(&[0.1, 1.0, 10.0, 100.0], 3);
+        let original =
+            AipwAte::crossfit_problem(&est.prepare(&data, &estimand, &query).unwrap(), &ctx());
+        let n = original.nrows;
+        let idx: Vec<usize> = (0..n).map(|k| (k * 7) % (n / 2)).collect();
+        let replicate = resampled_problem(&original, &idx, None);
+        let (_, fit) = est.crossfit_table(&replicate, false, &ctx()).unwrap();
+        assert_eq!(fit.selections.len(), 5);
+
+        let arms: Vec<u32> = replicate.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
+        let folds = crate::learn_nuisance::crossfit_fold_plan(
+            &arms,
+            &replicate.row_index,
+            5,
+            replicate.fold_seed,
+        )
+        .unwrap();
+        for selection in &fit.selections {
+            let (train, valid): (Vec<usize>, Vec<usize>) =
+                (0..n).partition(|&i| folds[i] as usize != selection.fold);
+            let (mut design_train, mut design_valid) = (Vec::new(), Vec::new());
+            let ncols = replicate.design_ncols;
+            select_rows_colmajor(&replicate.design_matrix, n, ncols, &train, &mut design_train);
+            select_rows_colmajor(&replicate.design_matrix, n, ncols, &valid, &mut design_valid);
+            let t_train = gather(&replicate.treatment, &train);
+            let units: Vec<u32> = train.iter().map(|&i| replicate.row_index[i]).collect();
+            let (_, again) = crate::propensity::fit_ridge_fold(
+                &tuning,
+                &RidgeFoldInput {
+                    design_train: &design_train,
+                    n_train: train.len(),
+                    design_valid: &design_valid,
+                    n_valid: valid.len(),
+                    ncols,
+                    t_train: &t_train,
+                    units: &units,
+                    fold: selection.fold,
+                    seed: replicate.fold_seed,
+                },
+                &ctx(),
+            )
+            .unwrap();
+            assert_eq!(
+                again.lambda.to_bits(),
+                selection.lambda.to_bits(),
+                "fold {}",
+                selection.fold
+            );
+        }
+
+        let ncols = original.design_ncols;
+        let mut design = original.design_matrix.to_vec();
+        for c in 1..ncols {
+            for i in n / 2..n {
+                design[c * n + i] += 5.0;
+            }
+        }
+        let mut rewritten = original.clone();
+        rewritten.design_matrix = design.into();
+        rewritten.treatment = original
+            .treatment
+            .iter()
+            .enumerate()
+            .map(|(i, &t)| if i >= n / 2 { 1.0 - t } else { t })
+            .collect::<Vec<_>>()
+            .into();
+        rewritten.outcome = original
+            .outcome
+            .iter()
+            .enumerate()
+            .map(|(i, &y)| if i >= n / 2 { y + 40.0 } else { y })
+            .collect::<Vec<_>>()
+            .into();
+        let replicate_b = resampled_problem(&rewritten, &idx, None);
+        let (_, fit_b) = est.crossfit_table(&replicate_b, false, &ctx()).unwrap();
+        assert_eq!(fit_b.selections, fit.selections);
     }
 }

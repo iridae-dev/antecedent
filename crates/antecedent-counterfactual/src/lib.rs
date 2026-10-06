@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod cross_world;
 pub mod engine;
 pub mod error;
 pub mod trajectory;

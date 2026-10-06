@@ -1077,9 +1077,7 @@ fn stacked_cluster_meat(
     }
     let n_clusters = totals.len();
     if n_clusters < 2 {
-        return Err(EstimationError::stats_msg(
-            "cluster-robust variance requires at least 2 clusters",
-        ));
+        return Err(crate::se::few_clusters(n_clusters));
     }
     let mut meat = vec![0.0; n_params * n_params];
     for score_g in totals.values() {

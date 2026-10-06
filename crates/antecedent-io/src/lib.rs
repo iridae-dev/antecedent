@@ -5,6 +5,7 @@
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod admg_conditional_transport_artifact;
 pub mod analysis_result_artifact;
 pub mod analysis_wire;
 pub mod arrow_section;
@@ -14,7 +15,9 @@ pub mod container;
 pub mod contract_section;
 pub mod contrast_wire;
 pub mod convert;
+pub mod counterfactual_id_artifact;
 pub mod coverage_records_data;
+pub mod cross_world_artifact;
 pub mod discovery_wire;
 mod distribution_replay;
 pub use distribution_replay::distribution_factor_laws_to_wire;
@@ -30,12 +33,14 @@ pub mod graph_networkx;
 pub mod identity;
 pub mod mechanism_wire;
 pub mod migrate;
+pub mod mixed_source_artifact;
 /// Thin mmap wrapper — sole `unsafe` boundary in antecedent-io.
 ///
 /// SPDX-License-Identifier: MIT OR Apache-2.0
 #[allow(unsafe_code)]
 pub mod mmap_file;
 pub mod model_bundle;
+pub mod mz_transport_artifact;
 pub mod plan_wire;
 pub mod posterior;
 pub mod posterior_convert;
@@ -44,12 +49,15 @@ pub mod provenance_wire;
 pub mod provider_envelope;
 pub mod query_wire;
 pub mod reader;
+pub mod recovery_artifact;
 pub mod response_wire;
+pub mod temporal_transport_artifact;
 pub mod trace;
 pub mod transport_catalog_wire;
 pub mod transport_certificate;
 pub mod transport_interference_wire;
 pub mod transport_proof;
+pub mod transport_scenario_artifact;
 pub mod wire;
 pub mod z_transport_artifact;
 
@@ -362,5 +370,9 @@ mod tests {
 /// Transport grid artifact records and encoding.
 pub mod transport_grid_wire;
 
+/// Learned continuous-outcome trial transport artifact verification (2.2A X4).
+pub mod learned_continuous_artifact;
 /// Learner-backed trial transport artifact verification.
 pub mod learned_trial_wire;
+/// Smoothed dose-response transport grid artifact verification (2.2B X4).
+pub mod smoothed_dose_artifact;

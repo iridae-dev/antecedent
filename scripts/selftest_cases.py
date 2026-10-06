@@ -280,15 +280,22 @@ status = "pending"
 """
 
 
-def gridded_record(grid: list[tuple[int, float, bool]], boundary: bool) -> str:
+def gridded_record(
+    grid: list[tuple[int, float, bool]],
+    boundary: bool,
+    role: str = "gated",
+    one_sided: str | None = None,
+) -> str:
     """A coverage record measured on the sample-size grid, as the collector writes
-    one: `grid` holds `(n, observed, boundary)` per point, smallest first."""
+    one: `grid` holds `(n, observed, boundary)` per point, smallest first; every
+    point carries `role`, and `one_sided` (an inline table) follows `role`."""
     suite = "crates/antecedent-estimate/src/calibration_coverage.rs"
     points = "".join(
         f"  {{ point = {k}, n_min = {n}, n_max = {n}, observed = {obs}, mcse = 0.011, "
-        f'replicates = 400, boundary = {str(b).lower()}, role = "gated" }},\n'
+        f'replicates = 400, boundary = {str(b).lower()}, role = "{role}" }},\n'
         for k, (n, obs, b) in enumerate(grid)
     )
+    one_sided_line = f"one_sided = {one_sided}\n" if one_sided is not None else ""
     governing = min([p for p in grid if p[2]] or grid, key=lambda p: p[1])
     rid = "cov.average_effect.dag.frequentist.analytic_se.l95"
     return f"""[[record]]
@@ -315,8 +322,8 @@ observed = {governing[1]}
 mcse = 0.011
 replicates = 400
 boundary = {str(boundary).lower()}
-role = "gated"
-grid = [
+role = "{role}"
+{one_sided_line}grid = [
 {points}]
 dgp = "{suite}::confounded_scm"
 test = "{suite}::linear_adjustment_analytic_ci_coverage"
@@ -375,8 +382,8 @@ def schema_cases() -> list[bool]:
             "no_interval_reported_out_of_scope",
             {
                 "parity/reason_codes.toml": replace(
-                    'queries = ["Counterfactual", "AnomalyAttribution", "ChangeAttribution"]',
-                    'queries = ["Counterfactual", "AnomalyAttribution"]',
+                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution", "ChangeAttribution"]',
+                    'queries = ["Counterfactual", "NestedCounterfactualEffect", "AnomalyAttribution"]',
                 )
             },
             ["no_interval_reported on a ChangeAttribution cell"],
@@ -465,9 +472,19 @@ def schema_cases() -> list[bool]:
         ),
         case(
             g,
-            "wheels_built_before_attestation",
+            "docs_built_before_attestation",
             {".github/workflows/publish-release.yml": replace("    needs: prepare\n", "")},
-            ["publish-release.yml: job 'wheels' does not depend on the attestation job 'prepare'"],
+            ["publish-release.yml: job 'docs' does not depend on the attestation job 'prepare'"],
+        ),
+        case(
+            g,
+            "pypi_without_attestation",
+            {
+                ".github/workflows/publish-release.yml": replace(
+                    "    needs: [prepare, crates-dry-run]\n", "    needs: []\n"
+                )
+            },
+            ["publish-release.yml: job 'publish-pypi' does not depend on the attestation job 'prepare'"],
         ),
         case(
             g,
@@ -534,6 +551,50 @@ def schema_cases() -> list[bool]:
                 )
             },
             ["grid sample sizes must strictly increase point to point"],
+        ),
+        # One-sided role: a floor at the level, no upper band, and a stated side and target.
+        case(
+            g,
+            "one_sided_record_without_side_and_target",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.99, False), (300, 0.985, False), (600, 1.0, False)],
+                        False,
+                        role="one_sided",
+                    )
+                )
+            },
+            ["a one_sided record must state one_sided"],
+        ),
+        case(
+            g,
+            "one_sided_point_below_its_floor",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.99, False), (300, 0.9, False), (600, 1.0, False)],
+                        False,
+                        role="one_sided",
+                        one_sided='{ side = "upper", target = "true upper extremal bound" }',
+                    )
+                )
+            },
+            ["one-sided coverage 0.9 is below the 0.95 floor"],
+        ),
+        case(
+            g,
+            "one_sided_statement_on_a_gated_record",
+            {
+                "parity/coverage_records.toml": append(
+                    gridded_record(
+                        [(150, 0.95, False), (300, 0.9475, False), (600, 0.95, False)],
+                        False,
+                        one_sided='{ side = "upper", target = "true upper extremal bound" }',
+                    )
+                )
+            },
+            ["one_sided on a gated record"],
         ),
         case(
             g,
@@ -727,6 +788,17 @@ def reachability_cases() -> list[bool]:
                 )
             },
             ["`oracle` must be an object with `kind` in"],
+        ),
+        # A fixture a registry cites as known truth loses its oracle block.
+        case(
+            g,
+            "known_truth_fixture_without_oracle_kind",
+            {
+                "conformance/bayesian/conjugate_gaussian/expected.json": replace(
+                    '"oracle": {', '"provenance": {'
+                )
+            },
+            ["conformance/bayesian/conjugate_gaussian/expected.json: known_truth_fixture"],
         ),
     ]
 

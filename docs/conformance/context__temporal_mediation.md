@@ -6,4 +6,4 @@ Path-product mediated effect > 0.1 on the toy SEM; total ≈ direct + mediated w
 
 ## Expected summary
 
-Top-level keys: `decomposition_tol, mediated_min, tolerance_class` (3 fields).
+Top-level keys: `decomposition_tol, mediated_min, oracle, tolerance_class` (4 fields).

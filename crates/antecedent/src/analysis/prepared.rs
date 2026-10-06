@@ -1905,6 +1905,14 @@ impl CheckedAipwOperation {
         result.population_registry.clone_from(&self.population_registry);
         result.custom_validator_names = self.custom_validator_names.to_vec();
         super::helpers::mirror_refuted_evalue(&mut result.estimate, &result.refutations);
+        super::helpers::attach_tiered_evalue_for_cell(
+            &mut result.estimate,
+            data,
+            self.query.outcome,
+            self.query.outcome_functional.quantile_level().is_some(),
+            self.tiered_background.as_ref(),
+            &mut result.diagnostics,
+        );
         Ok(result)
     }
 }
@@ -5052,6 +5060,15 @@ impl PreparedStudy {
     /// Estimate `E_Q[μ_a(X)]` from frozen scores. Does not refit or re-identify.
     ///
     /// `weights` must align with the score-table complete-case rows.
+    ///
+    /// **Score-table lifetime.** The table is the one frozen at prepare (or rebuilt by
+    /// [`Self::refresh`], which replaces the retained data and its scores together).
+    /// [`Self::estimate`] takes `&self` and never replaces it, so a retarget after an
+    /// `estimate` on new rows still reweights the prepare-time rows; retarget the estimate's
+    /// own rows through its result's `score_table` or, for a batch, through
+    /// [`super::PreparedBatch::estimate_scored`]. Where no table exists the refusal is
+    /// `score_table_unavailable`, never a silent fall back to another construction.
+    ///
     /// `depends_on` is the declared parent set of `w`; it must be a subset of
     /// the certified adjustment set and must not name the treatment, an
     /// intervened coordinate, or a descendant.
@@ -5068,6 +5085,24 @@ impl PreparedStudy {
     ) -> Result<StudyResult, CausalError> {
         let _ = ctx;
         let table = self.retarget_score_table()?;
+        let out = self.retarget_table(table, weights, depends_on)?;
+        let inference = table.inference(Some(weights))?;
+        self.retarget_to_result(out, inference, weights, depends_on)
+    }
+
+    /// Reweight `table` (this handle's prepare-time table, or the scores of a later
+    /// estimate on the same plan) under the declared target, with the handle's graph for the
+    /// `depends_on` check. The one gate behind [`Self::retarget`] and the batch retarget.
+    ///
+    /// # Errors
+    ///
+    /// Illegal `depends_on`, weight shape, or a weighted-overlap support refusal.
+    pub(crate) fn retarget_table(
+        &self,
+        table: &ScoreTable,
+        weights: &[f64],
+        depends_on: &[antecedent_core::VariableId],
+    ) -> Result<RetargetResult, CausalError> {
         let graph: Option<&dyn antecedent_estimate::DirectedAncestry> = self
             .analysis
             .graph
@@ -5075,22 +5110,100 @@ impl PreparedStudy {
             .map(|g| g as _)
             .or_else(|| self.analysis.graph.as_admg().map(|g| g as _));
         let treatment = score_table_treatment_col(&self.analysis, table);
-        let (out, overlap_failed) = antecedent_estimate::retarget(
+        let (mut out, overlap_failed) = antecedent_estimate::retarget(
             table,
             weights,
             depends_on,
             graph,
             treatment.as_deref(),
             None,
-        )?;
+        )
+        .map_err(|error| {
+            super::preflight::with_plan_subject(&self.analysis, CausalError::from(error))
+        })?;
         if overlap_failed {
-            return Err(CausalError::Support {
+            let refusal = CausalError::Support {
                 id: crate::support::SupportRefusal::Refused,
                 message: antecedent_estimate::RetargetRefusal::WeightedOverlap.as_str(),
+            }
+            .diagnosed(antecedent_estimate::weighted_overlap_fields(
+                table,
+                weights,
+                &out.support,
+            ));
+            return Err(super::preflight::with_plan_subject(&self.analysis, refusal));
+        }
+        self.apply_cluster_covariance(table, weights, &mut out)?;
+        Ok(out)
+    }
+
+    /// Declared independence units of a cluster-DML plan (labels aligned with the rows of its
+    /// score table), or `None` for any other plan.
+    pub(crate) fn cluster_units(&self) -> Option<ClusterUnits> {
+        match self.analysis.estimator_spec.as_ref() {
+            Some(crate::estimator_spec::EstimatorSpec::Aipw(config)) => Some(ClusterUnits {
+                spec: config.cluster_dml?,
+                first: config.cluster_ids.clone()?,
+                second: config.cluster_ids_second.clone(),
+            }),
+            _ => None,
+        }
+    }
+
+    /// Replace the iid plug-in covariance of a retarget over a cluster-DML score table by the
+    /// covariance of the cluster-summed weighted influence columns (the receipt's
+    /// `G/(G-1)` sandwich, or the two-way `V_a + V_b - V_ab`), and the arm contrast's standard
+    /// error with it. A plan without declared units, or a table that is not a cluster-DML mean
+    /// table, is left as the iid retarget (whose cluster-marked provenance withholds it).
+    fn apply_cluster_covariance(
+        &self,
+        table: &ScoreTable,
+        weights: &[f64],
+        out: &mut RetargetResult,
+    ) -> Result<(), CausalError> {
+        if !table.nuisance_provenance.contains("cluster_dml=unit=")
+            || table.distinct_threshold_count() > 0
+        {
+            return Ok(());
+        }
+        let Some(units) = self.cluster_units() else {
+            return Ok(());
+        };
+        if units.first.len() != table.n_rows {
+            return Err(CausalError::Unsupported {
+                message: "cluster labels are not aligned with the score table rows",
             });
         }
-        let inference = table.inference(Some(weights))?;
-        self.retarget_to_result(out, inference, weights, depends_on)
+        let n = table.n_rows as f64;
+        let total: f64 = weights.iter().sum();
+        let mut columns: Vec<Vec<f64>> = Vec::with_capacity(table.n_columns());
+        for j in 0..table.n_columns() {
+            let theta = out.summary.means[j];
+            columns.push(
+                table
+                    .column(j)?
+                    .iter()
+                    .zip(weights)
+                    .map(|(phi, w)| n * (w / total) * (phi - theta))
+                    .collect(),
+            );
+        }
+        let refs: Vec<&[f64]> = columns.iter().map(Vec::as_slice).collect();
+        let covariance =
+            units.spec.influence_covariance(&refs, &units.first, units.second.as_deref())?;
+        let arm = |arm: u32| table.columns.iter().position(|c| c.arm == arm);
+        if let (Some(contrast), Some(control), Some(active)) =
+            (out.contrast.as_mut(), arm(0), arm(1))
+        {
+            let variance = covariance.get(active, active) + covariance.get(control, control)
+                - 2.0 * covariance.get(active, control);
+            contrast.se = variance.max(0.0).sqrt();
+        }
+        out.summary.covariance = covariance.clone();
+        out.covariance = covariance;
+        out.cluster_reference_df =
+            Some(units.spec.reference_df(&units.first, units.second.as_deref()));
+        Ok(())
     }
 
     #[allow(clippy::float_cmp)] // Exact membership in binary intervention levels.
@@ -5158,6 +5271,14 @@ impl PreparedStudy {
             _ => return Err(CausalError::Unsupported { message: "unsupported retarget query" }),
         };
         let cdf = self.score_table.as_ref().and_then(|t| exceedance_cdf_values(&out.summary, t));
+        // Scores of whole-cluster folds or learner-supplied joint cells retarget to a point; their
+        // iid covariance is not a licensed sampling distribution, so no standard error, joint
+        // covariance or band.
+        let cluster_df = out.cluster_reference_df;
+        let interval_withheld =
+            antecedent_estimate::provenance_withholds_interval(&table.nuisance_provenance)
+                && cluster_df.is_none();
+        let se = if interval_withheld { f64::NAN } else { se };
         let mut estimate = EffectEstimate::new(
             ate,
             se,
@@ -5165,10 +5286,23 @@ impl PreparedStudy {
             OverlapPolicy::RequireDiagnostics { clip: Some(0.01), trim: None },
         )
         .with_score_table(self.score_table.clone())
-        .with_joint_covariance(Some(out.covariance.clone()))
+        .with_joint_covariance((!interval_withheld).then(|| out.covariance.clone()))
         .with_exceedance_cdf(cdf)
         .with_monotone_rearranged(out.monotone_rearranged);
-        estimate.score_inference = Some(inference);
+        // The iid max-t score inference is not a cluster object: it stays withheld there.
+        estimate.score_inference =
+            (!interval_withheld && cluster_df.is_none()).then_some(inference);
+        if let Some(df) = cluster_df {
+            // The cluster-summed standard error is published with its few-cluster t reference.
+            estimate.se_analytic = se;
+            estimate.se_reference_df = Some(f64::from(u32::try_from(df).unwrap_or(u32::MAX)));
+            estimate.se_kind =
+                Some(if self.cluster_units().is_some_and(|units| units.second.is_some()) {
+                    antecedent_estimate::AnalyticSeKind::Multiway
+                } else {
+                    antecedent_estimate::AnalyticSeKind::Cluster
+                });
+        }
         if let Some((value, influence)) = quantile.as_ref() {
             estimate.ate = *value;
             estimate.se_analytic =
@@ -5188,6 +5322,14 @@ impl PreparedStudy {
             }
         };
         let mut diagnostics = out.diagnostics;
+        if interval_withheld {
+            diagnostics.push(antecedent_core::Diagnostic::new(
+                "estimate.aipw.penalized_interval_withheld",
+                antecedent_core::DiagnosticKind::Scientific,
+                antecedent_core::DiagnosticSeverity::Info,
+                "the prepared scores come from whole-cluster folds or learner-supplied joint-cell nuisances; the retargeted point is reported without a standard error, covariance or band because no iid interval is licensed for that construction",
+            ));
+        }
         if quantile.is_some() {
             diagnostics.push(antecedent_core::Diagnostic::new(
                 "estimate.functional.quantile", antecedent_core::DiagnosticKind::Scientific,
@@ -5341,6 +5483,20 @@ impl PreparedStudy {
     }
 
     pub(crate) fn estimate_with_shared(
+        &self,
+        data: &TabularData,
+        shared: Option<Arc<super::batch::SharedBatchDesign>>,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        // A stats-layer refusal of a regression, GLM, IV or matching design fit learns here
+        // which plan it was for and, for a rank refusal, which columns are dependent on the
+        // table the fit read.
+        self.estimate_with_shared_unnamed(data, shared, ctx).map_err(|error| {
+            super::preflight::name_stats_refusal(&self.analysis, Some(data), error, ctx)
+        })
+    }
+
+    fn estimate_with_shared_unnamed(
         &self,
         data: &TabularData,
         shared: Option<Arc<super::batch::SharedBatchDesign>>,
@@ -10257,8 +10413,80 @@ impl Study {
         )?))
     }
 
+    /// Cross-fitted AIPW scores of the marginal ATE a DML, DR-Learner or CausalForest plan
+    /// reports (the estimator's own out-of-fold nuisances and fold plan, so a retarget under
+    /// uniform weights returns the route's point). `None` where the route keeps no such
+    /// table: a partially linear score, trimming, a non-mean functional or a non-`AllObserved`
+    /// target. A CATE prediction contributes no score.
+    fn prepare_learner_score_table(
+        &self,
+        data: &TabularData,
+        query: &antecedent_core::AverageEffectQuery,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<ScoreTable>, CausalError> {
+        use crate::estimator_spec::EstimatorSpec;
+        if !query.outcome_functional.is_mean()
+            || !matches!(query.target_population, TargetPopulation::AllObserved)
+        {
+            return Ok(None);
+        }
+        let Some(cache) = self.identification_cache.as_ref() else {
+            return Ok(None);
+        };
+        let method = cache.estimand.method.as_ref();
+        if !(method.contains("adjustment")
+            || method.contains("backdoor")
+            || method.starts_with("tiered."))
+        {
+            return Ok(None);
+        }
+        let estimand = &cache.estimand;
+        let spec = self.estimator_spec.as_ref();
+        let table = match self.estimator {
+            Some(EstimatorId::Dml) => {
+                let mut est = match spec {
+                    Some(EstimatorSpec::Dml(config)) => (**config).clone(),
+                    _ => antecedent_estimate::DmlAte::new(),
+                };
+                if let Some(overlap) = self.overlap_policy {
+                    est.overlap = overlap;
+                }
+                let problem = est.prepare(data, estimand, query)?;
+                est.score_table(&problem, ctx)?
+            }
+            Some(EstimatorId::DrLearner) => {
+                let mut est = match spec {
+                    Some(EstimatorSpec::DrLearner(config)) => (**config).clone(),
+                    _ => antecedent_estimate::DrLearner::new(),
+                };
+                if let Some(overlap) = self.overlap_policy {
+                    est.overlap = overlap;
+                }
+                let problem = est.prepare(data, estimand, query)?;
+                est.score_table(&problem, ctx)?
+            }
+            _ => {
+                // The forest's marginal ATE is the DML AIPW score; no forest option enters it.
+                let est = antecedent_estimate::CausalForest::new();
+                let problem = est.prepare(data, estimand, query)?;
+                est.score_table(&problem, ctx)?
+            }
+        };
+        Ok(table)
+    }
+
     /// Cross-fitted AIPW scores for retarget / exceedance / joint cells.
     pub(crate) fn prepare_score_table(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<ScoreTable>, CausalError> {
+        // A stats-layer refusal of a fit learns here which treatment or cell it was for and,
+        // for a rank refusal, which columns are dependent.
+        self.prepare_score_table_unnamed(ctx)
+            .map_err(|error| super::preflight::name_stats_refusal(self, None, error, ctx))
+    }
+
+    fn prepare_score_table_unnamed(
         &self,
         ctx: &ExecutionContext,
     ) -> Result<Option<ScoreTable>, CausalError> {
@@ -10277,6 +10505,14 @@ impl Study {
             return Ok(None);
         }
         match &self.query {
+            CausalQuery::AverageEffect(query)
+                if matches!(
+                    self.estimator,
+                    Some(EstimatorId::Dml | EstimatorId::DrLearner | EstimatorId::CausalForest)
+                ) =>
+            {
+                self.prepare_learner_score_table(data, query, ctx)
+            }
             CausalQuery::AverageEffect(query) => {
                 // Score artifacts are an explicit AIPW execution contract; do not
                 // silently fit a second estimator for linear/IV/matching plans.
@@ -10431,6 +10667,14 @@ fn discrete_set_treatments(interventions: &[Intervention]) -> Vec<antecedent_cor
             _ => None,
         })
         .collect()
+}
+
+/// The declared independence units of a cluster-DML plan.
+#[derive(Clone, Debug)]
+pub(crate) struct ClusterUnits {
+    pub(crate) spec: antecedent_estimate::ClusterDml,
+    pub(crate) first: Vec<u32>,
+    pub(crate) second: Option<Vec<u32>>,
 }
 
 fn score_table_treatment_col(analysis: &Study, table: &ScoreTable) -> Option<Vec<f64>> {

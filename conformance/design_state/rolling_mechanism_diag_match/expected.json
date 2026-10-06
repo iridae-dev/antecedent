@@ -5,5 +5,9 @@
   "beta1": 3.0,
   "stable_float_tol": 1e-08,
   "expected_version_after_two_appends": 2,
-  "notes": "RollingMechanismDiagnostics on last W rows matches batch OLS; AppendData does not clear the slot; ReplaceData clears."
+  "notes": "RollingMechanismDiagnostics on last W rows matches batch OLS; AppendData does not clear the slot; ReplaceData clears.",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "known linear law with the stated beta0/beta1: the trailing-window diagnostics match a batch OLS on the same rows (internal consistency)"
+  }
 }

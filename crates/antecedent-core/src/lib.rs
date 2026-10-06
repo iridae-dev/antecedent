@@ -55,6 +55,10 @@ pub mod transport_result;
 pub use transport_result::TransportGridFailure;
 pub mod response;
 pub mod schema;
+pub mod search;
+pub use search::{
+    DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
+};
 pub mod temporal;
 pub mod tolerance;
 pub mod transform;
@@ -106,14 +110,14 @@ pub use plan::{
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use query::{
     AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
-    AttributionComponents, AverageEffectQuery, CausalQuery, ChangeAttributionQuery,
-    ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery, CounterfactualQuery,
-    DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
+    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery,
+    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery,
+    CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
     EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime, ExposureLevel,
     ExposureMapping, ExposurePropensityProvenance, FactorNeed, FixedCandidateRegretInputs,
     FixedGroupDosePolicy, GridSpec, InterferenceFunctional, InterferenceQuery,
-    InterventionAssignment, InterventionalDistributionQuery, KnownCensoringSurvival,
+    InterventionAssignment, InterventionalDistributionQuery, KnownCensoringSurvival, LawOrigin,
     LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
     MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
@@ -121,15 +125,21 @@ pub use query::{
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
     PopulationRegistry, PopulationSelection, PopulationSelector, PredicateExpr, QueryError,
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
-    ResponseFunctional, ResponseQuery, SamplingDesign, ShapleyConfig, ShapleyMode,
-    SurvivalFunctional, SurvivalQuery, SyntheticControlQuery, SyntheticPanelMethod,
-    TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TargetSampling, TemporalEffectQuery,
-    TemporalResponseLicense, TemporalResponseSpec, TheoremFamily, TheoremScope,
-    TransportEvaluateSupport, TransportIdentifySupport, TransportLocation, TransportOutcome,
-    TransportOutcomeKind, TransportQuery, TransportSupportCoordinate, TransportUncertaintySupport,
-    UnitChangeQuery, UnmetDependency, VariableCoordinate, VariableDomain,
-    policy_graphless_coordinate, randomized_graphless_coordinate,
+    ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, ShapleyConfig,
+    ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery, SyntheticControlQuery,
+    SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TargetSampling,
+    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TheoremFamily,
+    TheoremScope, TransportEvaluateSupport, TransportIdentifySupport, TransportLocation,
+    TransportOutcome, TransportOutcomeKind, TransportQuery, TransportSupportCoordinate,
+    TransportUncertaintySupport, UnitChangeQuery, UnmetDependency, VariableCoordinate,
+    VariableDomain, policy_graphless_coordinate, randomized_graphless_coordinate,
 };
+pub use query::{CounterfactualEvent, CounterfactualEventQuery};
+pub use query::{
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
+    WorldSpec,
+};
+pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use reasoning::{
     AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,
     UncertaintyComponent, UncertaintySlot, UncertaintySource,

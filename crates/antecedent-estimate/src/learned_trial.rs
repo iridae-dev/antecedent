@@ -228,10 +228,6 @@ fn cancelled(ctx: &ExecutionContext) -> Result<(), EstimationError> {
 /// Fit the certified score with shared OOF roles and joint outer refits.
 /// # Errors
 /// Invalid inputs, unsupported certificate, cancellation, or numerical fit failure.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "i % folds is below the fold count, which the input check bounds by u16::MAX + 1"
-)]
 pub fn estimate_trial_aipw(
     id: &TransportIdentification,
     input: &TrialAipwInput,
@@ -252,20 +248,9 @@ pub fn estimate_trial_aipw(
     if ctx.memory.hard_limit_bytes.is_some_and(|limit| bytes as u64 > limit) {
         return Err(EstimationError::data_msg("trial workspace budget"));
     }
-    let mut folds = vec![0u16; n];
-    for rows in strata(input) {
-        for (i, row) in rows.into_iter().enumerate() {
-            folds[row] = (i % options.folds) as u16;
-        }
-    }
+    let folds = trial_fold_assignment(input, options.folds);
     let mut result = fit_point(id, input, options, &folds, ctx)?;
-    let groups = match input.sampling {
-        TrialSampling::NestedCohort => vec![(0..n).collect::<Vec<_>>()],
-        TrialSampling::IndependentSamples => vec![
-            (0..n).filter(|i| input.source[*i]).collect(),
-            (0..n).filter(|i| !input.source[*i]).collect(),
-        ],
-    };
+    let groups = bootstrap_groups(input);
     // Replicates are independent: each draws from a stream keyed by (group, replicate)
     // and refits every nuisance on its own resample, so they run under the context's
     // thread budget (inner fits stay serial) and come back in replicate order.
@@ -274,22 +259,7 @@ pub fn estimate_trial_aipw(
         |index, inner| -> Result<_, EstimationError> {
             cancelled(inner)?;
             let replicate = u32::try_from(index).unwrap_or(u32::MAX);
-            let mut rows = Vec::with_capacity(n);
-            for (group, members) in groups.iter().enumerate() {
-                let mut rng = inner.rng.stream_for(
-                    StreamDomain::Estimate,
-                    0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate),
-                );
-                let mut selected = Vec::new();
-                fill_resample_indexes(
-                    ResamplingPlan::IidBootstrap,
-                    members.len(),
-                    &mut rng,
-                    &mut selected,
-                )
-                .map_err(|e| EstimationError::data_msg(e.to_string()))?;
-                rows.extend(selected.into_iter().map(|i| members[i as usize]));
-            }
+            let rows = bootstrap_rows(&groups, replicate, inner)?;
             let draw = TrialAipwInput {
                 features: input.features.clone(),
                 covariates: input
@@ -328,6 +298,65 @@ pub fn estimate_trial_aipw(
     result.interval = interval;
     result.uncertainty_reason = reason.map(str::to_owned);
     Ok(result)
+}
+
+/// Stratified round-robin fold of every row: each source arm and the target sample
+/// is dealt across the `folds` folds in row order, so every fold holds every role.
+///
+/// The assignment is deterministic in the input alone; no seed enters it.
+#[must_use]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "i % folds is below the fold count, which validation bounds by u16::MAX + 1"
+)]
+pub fn trial_fold_assignment(input: &TrialAipwInput, folds: usize) -> Vec<u16> {
+    let mut assignment = vec![0u16; input.source.len()];
+    for rows in strata(input) {
+        for (i, row) in rows.into_iter().enumerate() {
+            assignment[row] = (i % folds) as u16;
+        }
+    }
+    assignment
+}
+
+/// The resampling units of the joint outer bootstrap: one cohort for a nested
+/// cohort, and the trial and target samples separately (each keeping its fixed
+/// size) for independent samples.
+#[must_use]
+pub fn bootstrap_groups(input: &TrialAipwInput) -> Vec<Vec<usize>> {
+    let n = input.source.len();
+    match input.sampling {
+        TrialSampling::NestedCohort => vec![(0..n).collect()],
+        TrialSampling::IndependentSamples => vec![
+            (0..n).filter(|i| input.source[*i]).collect(),
+            (0..n).filter(|i| !input.source[*i]).collect(),
+        ],
+    }
+}
+
+/// One replicate's resampled rows: every group is drawn with replacement from its own
+/// members on a stream keyed by `(group, replicate)`, so the draw depends on neither
+/// the thread budget nor the other replicates.
+///
+/// # Errors
+/// A resampling failure.
+pub fn bootstrap_rows(
+    groups: &[Vec<usize>],
+    replicate: u32,
+    ctx: &ExecutionContext,
+) -> Result<Vec<usize>, EstimationError> {
+    let mut rows = Vec::with_capacity(groups.iter().map(Vec::len).sum());
+    for (group, members) in groups.iter().enumerate() {
+        let mut rng = ctx.rng.stream_for(
+            StreamDomain::Estimate,
+            0x5452_0000_0000_0000 | ((group as u64) << 32) | u64::from(replicate),
+        );
+        let mut selected = Vec::new();
+        fill_resample_indexes(ResamplingPlan::IidBootstrap, members.len(), &mut rng, &mut selected)
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        rows.extend(selected.into_iter().map(|i| members[i as usize]));
+    }
+    Ok(rows)
 }
 
 /// The pointwise interval of a learned-trial bootstrap, or why it is withheld.
@@ -517,6 +546,38 @@ mod tests {
             randomization: vec![0.5; n as usize],
             sampling,
         }
+    }
+
+    #[test]
+    fn bootstrap_grouping_follows_the_declared_sampling_design() {
+        let ctx = ExecutionContext::for_tests(3);
+        let trial_rows = |input: &TrialAipwInput, replicate: u32| {
+            let groups = bootstrap_groups(input);
+            let rows = bootstrap_rows(&groups, replicate, &ctx).unwrap();
+            assert_eq!(rows.len(), input.source.len());
+            rows.iter().filter(|i| input.source[**i]).count()
+        };
+        // Independent samples: the trial and target sizes are fixed, so every replicate
+        // holds exactly the observed number of trial rows.
+        let independent = intercept_only_input(TrialSampling::IndependentSamples);
+        assert_eq!(bootstrap_groups(&independent).len(), 2);
+        assert!((0..40).all(|r| trial_rows(&independent, r) == 80));
+        // Nested cohort: one cohort is resampled, so the participant count is random.
+        let nested = intercept_only_input(TrialSampling::NestedCohort);
+        assert_eq!(bootstrap_groups(&nested).len(), 1);
+        let counts: std::collections::BTreeSet<_> =
+            (0..40).map(|r| trial_rows(&nested, r)).collect();
+        assert!(counts.len() > 1, "{counts:?}");
+        // A replicate's draw depends on its index alone.
+        let groups = bootstrap_groups(&independent);
+        assert_eq!(
+            bootstrap_rows(&groups, 7, &ctx).unwrap(),
+            bootstrap_rows(&groups, 7, &ctx).unwrap()
+        );
+        assert_ne!(
+            bootstrap_rows(&groups, 7, &ctx).unwrap(),
+            bootstrap_rows(&groups, 8, &ctx).unwrap()
+        );
     }
 
     #[test]

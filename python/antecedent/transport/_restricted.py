@@ -37,6 +37,7 @@ from ._impl import (
     consume_z_transport_artifact,
     identify_z_transport,
 )
+from ._status import identification_status as _canonical_status
 
 SCOPE = "single_source_z_transport_cited_joints_sound_incomplete"
 #: The native two-source decider's stable refusal detail. It is not itself a
@@ -98,6 +99,13 @@ class RestrictedTransportIdentification:
     #: How the combined factors' product equals the target law, when combined:
     #: ``independent_disconnected_components`` or ``intervention_separated_groups``.
     combination: str | None = None
+
+    @property
+    def identification_status(self) -> str:
+        """Canonical identification status (``identified``, ``proven_non_transportable``,
+        ``missing_evidence``, ``not_certified`` or ``budget_cancel``); ``outcome`` keeps
+        its earlier spelling."""
+        return _canonical_status(self.outcome)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "rules", tuple(self.rules))

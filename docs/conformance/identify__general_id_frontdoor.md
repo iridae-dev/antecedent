@@ -11,4 +11,4 @@ and `graph_dot` before checking Antecedent on the same graph.
 
 ## Expected summary
 
-Top-level keys: `case, expected_status_family, generation, graph_dot, notes, outcome, reference, tolerance_class, treatment` (9 fields).
+Top-level keys: `case, expected_status_family, generation, graph_dot, notes, oracle, outcome, reference, tolerance_class, treatment` (10 fields).

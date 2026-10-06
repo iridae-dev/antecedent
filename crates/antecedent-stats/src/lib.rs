@@ -63,7 +63,7 @@ pub use divergence::{
     likelihood_ratio_permutations, max_abs_cusum, mean_diff_two_sample, mean_var, quantile_type7,
     residual_likelihood_ratio, sample_std,
 };
-pub use error::StatsError;
+pub use error::{GlmRefusalKind, StatsError};
 pub use faer_backend::FaerBackend;
 pub use fdr::{
     FdrAdjustment, MultipleTestingMethod, adjust_pvalues, benjamini_hochberg, benjamini_yekutieli,
@@ -114,7 +114,7 @@ pub use response::{
     LocalPolynomialPoint, LocalQuadraticWorkspace, gaussian_density, gaussian_local_quadratic,
     gaussian_local_quadratic_bias_corrected, gaussian_local_quadratic_influence,
     gaussian_local_quadratic_influence_prechecked, gaussian_local_quadratic_influence_with,
-    gaussian_local_quadratic_weighted, silverman_bandwidth,
+    gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{
     NORMAL_Q975, digamma, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,

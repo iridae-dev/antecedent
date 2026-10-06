@@ -7,5 +7,9 @@
   "tolerance_class": "StableFloat",
   "backend": "conjugate_gaussian",
   "prior": "known_residual_variance",
-  "notes": "noiseless y = 1 + 2x; MAP must match OLS"
+  "notes": "noiseless y = 1 + 2x; MAP must match OLS",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "noiseless design y = 1 + 2x: the posterior mean recovers the generating coefficients"
+  }
 }

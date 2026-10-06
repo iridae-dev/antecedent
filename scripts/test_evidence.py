@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import ast
 import functools
+import os
 import re
 import subprocess
 import sys
@@ -417,12 +418,18 @@ def cargo_listed(
         return _CARGO_LIST_CACHE[key]
 
     def listing(extra: list[str]) -> tuple[set[str], str | None]:
-        proc = subprocess.run(
-            ["cargo", "test", "-q", "-p", crate, *target, "--", "--list", *extra],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-        )
+        command = ["cargo", "test", "-q", "-p", crate, *target, "--", "--list", *extra]
+        proc = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
+        if (
+            proc.returncode != 0
+            and os.environ.get("RUSTC_WRAPPER", "").endswith("sccache")
+            and "sccache: error: Timed out waiting for server startup" in proc.stderr
+        ):
+            print(f"cargo listing: sccache server unavailable; retrying {crate} without wrapper", flush=True)
+            proc = subprocess.run(
+                command, cwd=cwd, capture_output=True, text=True,
+                env={**os.environ, "RUSTC_WRAPPER": ""},
+            )
         if proc.returncode != 0:
             return set(), (proc.stdout + proc.stderr)[-2000:]
         return {
@@ -571,10 +578,7 @@ def static_python_test(path: Path, name: str) -> list[str]:
 
 
 @functools.cache
-def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
-    problems = static_python_test(path, name)
-    if problems:
-        return problems
+def _python_collection(path: Path, cwd: Path) -> tuple[int, str]:
     rel = path.resolve().relative_to((cwd / "python").resolve())
     # Evidence collection is read-only. CI and local release gates install the
     # project environment first; resolving one test must not fetch packages.
@@ -591,14 +595,26 @@ def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
             "-q",
             "-p",
             "no:cacheprovider",
-            f"{rel}::{name}",
+            str(rel),
         ],
         cwd=cwd / "python",
         capture_output=True,
         text=True,
     )
-    if proc.returncode != 0 or f"::{name}" not in proc.stdout:
-        return [f"pytest does not collect {rel}::{name}: {(proc.stdout + proc.stderr)[-500:]}"]
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+@functools.cache
+def resolve_python_test(path: Path, name: str, cwd: Path = ROOT) -> list[str]:
+    problems = static_python_test(path, name)
+    if problems:
+        return problems
+    rel = path.resolve().relative_to((cwd / "python").resolve())
+    code, listing = _python_collection(path, cwd)
+    nodes = (line.split()[0] for line in listing.splitlines() if line.startswith(str(rel) + "::"))
+    if code != 0 or not any(node.endswith("::" + name) or
+                            node.split("[")[0].endswith("::" + name) for node in nodes):
+        return [f"pytest does not collect {rel}::{name}: {listing[-500:]}"]
     return []
 
 
@@ -975,7 +991,7 @@ _BUILDER_DISCARDS = (
     re.compile(rf"\bdel\s+{_BUILDER}\b", re.I),
     re.compile(rf"\b{_BUILDER}\s*=\s*None\b", re.I),
 )
-_EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|refresh_series|run|evaluate_exact)\s*\(")
+_EXECUTES = re.compile(r"\b(?:execute|estimate(?:_[A-Za-z0-9_]+)?|interval|refresh_series|run|evaluate_exact)\s*\(")
 _INSPECTS_PLAN = re.compile(r"\b(?:program|plan|lowering)\b", re.I)
 
 
@@ -985,7 +1001,7 @@ def checked_execution_body_problems(body: str, assertion: str) -> list[str]:
     Checked execution runs a licensed route from its retained checked operation
     with no builder alive: the test discards its builder (`drop(builder…)`,
     `del builder`, `builder = None`), executes the prepared plan (`execute`,
-    `estimate…`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
+    `estimate…`, `interval`, `refresh_series`, `run`, `evaluate_exact`), and inspects the
     retained program or plan."""
     if not any(pattern.search(body) for pattern in _BUILDER_DISCARDS):
         return [f"evidence assertion {assertion!r} does not explicitly discard its builder before execution"]

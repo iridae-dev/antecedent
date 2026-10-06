@@ -64,7 +64,10 @@ use crate::frontdoor_functional::{
     ARM_LINEAR_ASSUMPTION_ID, FrontDoorFunctional, SATURATED_ASSUMPTION_ID,
 };
 use crate::iv::{TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
-use crate::propensity::{PropensityEstimationWorkspace, PropensityMatching, PropensityWeighting};
+use crate::propensity::{
+    PropensityEstimationWorkspace, PropensityMatching, PropensityNuisance, PropensityWeighting,
+    RidgeTuning,
+};
 use crate::rd::{RdWorkspace, SharpRegressionDiscontinuity};
 use crate::se::AnalyticSeKind;
 
@@ -587,6 +590,148 @@ fn aipw_analytic_ci_coverage() {
     // Grid point 0 measures 0.939 at 2000 replicates against the precision floor
     // 0.940 (1878/2000): a named boundary, not a band failure.
     tally.assert_boundary_at("aipw", [Some(0.939), None, None]);
+}
+
+// ------------------------------------------------ AIPW with a penalized propensity
+
+/// `Z0..Z3 ~ N(0, 1)`, `T ~ Bern(expit(0.8 Z0 - 0.5 Z1))` (`Z2`, `Z3` are noise for the
+/// propensity), `Y = 2 T + 1.5 Z0 + 0.5 Z1 + 0.5 Z2 + 0.5 eps`. The propensity is logistic in
+/// the four covariates and each arm's outcome regression is linear in them, so both nuisances
+/// are correctly specified and the penalized intervals are judged inside their assumptions.
+fn penalized_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
+    let mut rng = CausalRng::from_seed(grid_seed(seed));
+    let mut z = vec![vec![0.0; n]; 4];
+    let (mut t, mut y) = (vec![0.0; n], vec![0.0; n]);
+    for i in 0..n {
+        for column in &mut z {
+            column[i] = standard_normal(&mut rng);
+        }
+        let p = 1.0 / (1.0 + (-(0.8 * z[0][i] - 0.5 * z[1][i])).exp());
+        t[i] = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
+        y[i] = TRUE_ATE * t[i]
+            + 1.5 * z[0][i]
+            + 0.5 * z[1][i]
+            + 0.5 * z[2][i]
+            + 0.5 * standard_normal(&mut rng);
+    }
+    let data =
+        table(&[("t", &t), ("y", &y), ("z0", &z[0]), ("z1", &z[1]), ("z2", &z[2]), ("z3", &z[3])]);
+    let adjustment: Vec<VariableId> = (2..6).map(VariableId::from_raw).collect();
+    (
+        data,
+        IdentifiedEstimand::backdoor(
+            "backdoor.adjustment",
+            Arc::from(adjustment),
+            ExprId::from_raw(0),
+        ),
+    )
+}
+
+/// The refit bootstrap covered 0.979/0.984 at 150 rows and 0.961/0.965 at
+/// 300 rows (ridge/lasso, 2,000 repetitions each), above the 0.960 precision
+/// ceiling. Begin its measured grid at 600 rows instead of calling either
+/// smaller sample a nominal interval.
+const PENALIZED_BOOT_N: usize = 1_200;
+const PENALIZED_RIDGE_INFLUENCE_N: usize = 600;
+const PENALIZED_INFLUENCE_N: usize = 300;
+
+/// Bootstrap replicates of the refit-bootstrap cells: every replicate repeats the fold plan,
+/// the inner-CV penalty (and lasso support) selection and all nuisance fits.
+const PENALIZED_BOOT_REPS: u32 = 40;
+
+fn ridge_nuisance() -> PropensityNuisance {
+    PropensityNuisance::ridge_logistic(RidgeTuning::new(&[0.5, 5.0, 50.0], 3).unwrap())
+}
+
+fn lasso_nuisance() -> PropensityNuisance {
+    PropensityNuisance::lasso_with(RidgeTuning::new(&[2.0, 10.0, 40.0], 3).unwrap())
+}
+
+/// Coverage of the penalized AIPW interval: the cross-fitted influence-function SE
+/// (`bootstrap_replicates == 0`) or the refit-bootstrap SE.
+fn penalized_aipw_coverage(
+    test: &'static str,
+    nuisance: PropensityNuisance,
+    bootstrap_replicates: u32,
+    base_n: usize,
+) {
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
+    let est = AipwAte { bootstrap_replicates, propensity: nuisance, ..AipwAte::new() };
+    let mut tally = Tally::for_record(test, "penalized_scm");
+    let effects = map_replicates(n_sim(), |s| {
+        // One context per simulation: a shared context would hand every simulation the same
+        // bootstrap resample indices and the same fold plan.
+        let ctx = ExecutionContext::for_tests(7000 + s);
+        let (data, estimand) = penalized_scm(grid_n(base_n), 7000 + s);
+        let prep = est.prepare(&data, &estimand, &query).unwrap();
+        let mut ws = crate::aipw::AipwWorkspace::default();
+        est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap()
+    });
+    for effect in &effects {
+        if bootstrap_replicates == 0 {
+            tally.bind(grid_n(base_n), None);
+            tally.record(effect.ate, effect.se_analytic, TRUE_ATE);
+        } else {
+            let Some(se_b) = effect.se_bootstrap else {
+                // A withheld SE is a miss in the coverage rate, not a dropped replicate.
+                if let Some((record, _)) = tally.record.as_mut() {
+                    record.skip();
+                }
+                continue;
+            };
+            tally.bind(grid_n(base_n), effect.bootstrap_replicates_ok);
+            tally.record(effect.ate, se_b, TRUE_ATE);
+        }
+    }
+    tally.assert(test);
+}
+
+/// Ridge-logistic propensity, cross-fitted influence-function SE.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_ridge_influence_ci_coverage() {
+    penalized_aipw_coverage(
+        "aipw_ridge_influence_ci_coverage",
+        ridge_nuisance(),
+        0,
+        PENALIZED_RIDGE_INFLUENCE_N,
+    );
+}
+
+/// Ridge-logistic propensity, refit bootstrap (penalty selection repeated per replicate).
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_ridge_refit_bootstrap_ci_coverage() {
+    penalized_aipw_coverage(
+        "aipw_ridge_refit_bootstrap_ci_coverage",
+        ridge_nuisance(),
+        PENALIZED_BOOT_REPS,
+        PENALIZED_BOOT_N,
+    );
+}
+
+/// Lasso-logistic propensity, cross-fitted influence-function SE.
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_lasso_influence_ci_coverage() {
+    penalized_aipw_coverage(
+        "aipw_lasso_influence_ci_coverage",
+        lasso_nuisance(),
+        0,
+        PENALIZED_INFLUENCE_N,
+    );
+}
+
+/// Lasso-logistic propensity, refit bootstrap (penalty and support selection repeated).
+#[test]
+#[ignore = "calibration: run via scripts/gate_calibration.sh"]
+fn aipw_lasso_refit_bootstrap_ci_coverage() {
+    penalized_aipw_coverage(
+        "aipw_lasso_refit_bootstrap_ci_coverage",
+        lasso_nuisance(),
+        PENALIZED_BOOT_REPS,
+        PENALIZED_BOOT_N,
+    );
 }
 
 // ------------------------------------------------ AIPW residualized branch

@@ -43,5 +43,12 @@
       "max_lag": 2,
       "pin_note": "PyPI 5.2.1.25 unavailable; fixture generated with 5.2.1.30 (same 5.2.1 line as parity pin)"
     }
+  },
+  "oracle": {
+    "kind": "external_package",
+    "project": "Tigramite",
+    "version": "5.2.1.30",
+    "source": "the `reference` block: a black-box run of the pinned package (parity/baselines/tigramite.toml) whose outputs the consuming test compares; generator deleted after artifact import",
+    "note": "the recovered parent set is also the generating SCM's (scm field)"
   }
 }

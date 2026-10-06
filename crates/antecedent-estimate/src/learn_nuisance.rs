@@ -28,6 +28,16 @@ pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
     EstimationError::stats_msg(err.to_string())
 }
 
+/// The stop of a cancelled cross-fit: no nuisance bundle is returned or cached.
+fn nuisance_cancelled() -> EstimationError {
+    crate::propensity::refuse(
+        antecedent_core::reason_code!("cancelled_no_claim"),
+        "dml.cancelled",
+        "the cross-fitted nuisance fit was cancelled; no estimate or score table is reported \
+         and the stop is not a verdict on the data",
+    )
+}
+
 pub(crate) fn intercept_is_constant(design: &[f64], nrows: usize) -> bool {
     if nrows == 0 {
         return false;
@@ -141,6 +151,9 @@ pub(crate) fn cross_fit_nuisance(
     folds: usize,
     ctx: &ExecutionContext,
 ) -> Result<CrossFittedPrediction, EstimationError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(nuisance_cancelled());
+    }
     let (factory, _) = resolve_nuisance(spec, task, design, nrows, ncols, y, ctx)?;
     let view = design_for_spec(spec, design, nrows, ncols)?;
     let rows: Vec<u32> = (0..nrows)
@@ -206,7 +219,9 @@ pub(crate) fn cross_fit_aipw_nuisances(
                 inner,
             )
         })
-        .map_err(learn_err)?;
+        .map_err(|error| {
+            if ctx.cancellation.is_cancelled() { nuisance_cancelled() } else { learn_err(error) }
+        })?;
 
     let mut mu0 = vec![0.0; nrows];
     let mut mu1 = vec![0.0; nrows];
@@ -256,6 +271,12 @@ fn fit_aipw_fold(
     fold: u16,
     ctx: &ExecutionContext,
 ) -> Result<AipwFold, antecedent_learn::LearnError> {
+    // The fold is the unit of work: cancellation is observed before its three fits.
+    if ctx.cancellation.is_cancelled() {
+        return Err(antecedent_learn::LearnError::Backend(
+            "nuisance fitting cancelled".to_string(),
+        ));
+    }
     let mut train = Vec::new();
     let mut train0 = Vec::new();
     let mut train1 = Vec::new();
@@ -394,11 +415,7 @@ pub(crate) fn cached_aipw_nuisances(
 ) -> Result<std::sync::Arc<AipwPredictions>, EstimationError> {
     use std::sync::Arc;
     let check_cancel = || {
-        if ctx.cancellation.is_cancelled() {
-            Err(EstimationError::stats_msg("nuisance fitting cancelled"))
-        } else {
-            Ok(())
-        }
+        if ctx.cancellation.is_cancelled() { Err(nuisance_cancelled()) } else { Ok(()) }
     };
     check_cancel()?;
     let entry = {

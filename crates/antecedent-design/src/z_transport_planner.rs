@@ -21,6 +21,7 @@ pub use antecedent_io::z_transport_artifact::ZTransportQueryWire;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::plan_common::same_vars;
 use crate::{CandidateDesign, TransportEvidenceCandidate};
 
 /// Why the original z-transport attempt did not yield an available result.
@@ -711,35 +712,7 @@ fn valid_intervention_values(
     catalog: &EvidenceCatalog,
     regime: &antecedent_core::EvidenceRegime,
 ) -> bool {
-    if regime.kind == RegimeKind::Experimental
-        && regime.intervention_values.len() != regime.interventions.len()
-    {
-        return false;
-    }
-    let Some(environment) = catalog.environments.iter().find(|e| e.identity == regime.population)
-    else {
-        return false;
-    };
-    regime.intervention_values.iter().all(|assignment| {
-        let Some(coordinate) =
-            environment.variables.iter().find(|c| c.variable == assignment.variable)
-        else {
-            return false;
-        };
-        let Some(value) = assignment.value.as_f64() else { return false };
-        match coordinate.domain {
-            antecedent_core::VariableDomain::Unspecified
-            | antecedent_core::VariableDomain::Continuous => value.is_finite(),
-            // These are discrete domain membership checks: approximate equality
-            // would admit values that are not members of the declared support.
-            #[expect(clippy::float_cmp, reason = "binary support membership requires exact values")]
-            antecedent_core::VariableDomain::Binary => value == 0.0 || value == 1.0,
-            antecedent_core::VariableDomain::Count => value >= 0.0 && value.fract() == 0.0,
-            antecedent_core::VariableDomain::Categorical { cardinality } => {
-                value >= 0.0 && value < f64::from(cardinality) && value.fract() == 0.0
-            }
-        }
-    })
+    crate::plan_common::valid_intervention_values(catalog, regime)
 }
 
 /// Check candidate sufficiency on an isolated hypothetical catalog, reusing
@@ -1008,34 +981,8 @@ fn validate_actual_delta(
     delta: &EvidenceCatalogDelta,
     actual: &EvidenceCatalog,
 ) -> Result<(), ZTransportPlanningError> {
-    for expected in delta.proposed_regimes.iter() {
-        let Some(found) = actual.regimes.iter().find(|r| r.id == expected.id) else {
-            return Err(ZTransportPlanningError::Invalid(format!(
-                "arriving catalog lacks proposed regime {}",
-                expected.id.raw()
-            )));
-        };
-        if found.evidence_kind != EvidenceKind::Available
-            || found.kind != expected.kind
-            || found.population != expected.population
-            || !same_vars(&found.interventions, &expected.interventions)
-            || !same_assignments(&found.intervention_values, &expected.intervention_values)
-            || !same_vars(&found.measured, &expected.measured)
-            || found.conditioned_on != expected.conditioned_on
-            || found.distribution != expected.distribution
-        {
-            return Err(ZTransportPlanningError::Invalid(format!(
-                "arriving regime {} differs from proposal",
-                expected.id.raw()
-            )));
-        }
-        if !actual.bindings.iter().any(|b| b.regime == found.id) {
-            return Err(ZTransportPlanningError::Invalid(
-                "arriving regime has no provider binding".into(),
-            ));
-        }
-    }
-    Ok(())
+    crate::plan_common::validate_actual_delta(delta, actual)
+        .map_err(ZTransportPlanningError::Invalid)
 }
 
 /// Add isolated placeholder provider bindings to an already previewed catalog
@@ -1046,68 +993,17 @@ fn hypothetical_catalog(
     preview: &EvidenceCatalog,
     delta: &EvidenceCatalogDelta,
 ) -> Result<EvidenceCatalog, ZTransportPlanningError> {
-    let mut bindings = preview.bindings.to_vec();
-    for regime in delta.proposed_regimes.iter() {
-        bindings.push(antecedent_core::RegimeBinding {
-            dataset_identity: None,
-            regime: regime.id,
-            snapshot_identity: Arc::from(format!("hypothetical:{}", regime.id.raw())),
-            schema_names: Arc::from([]),
-            sampling: antecedent_core::SamplingDesign::Independent,
-            weights: None,
-            dependence: antecedent_core::DependenceGroup::IndependentStudies,
-        });
-    }
-    Ok(EvidenceCatalog::try_new(
-        Arc::clone(&preview.environments),
-        Arc::clone(&preview.regimes),
-        bindings,
-        preview.target_sampling,
-    )?)
+    Ok(delta.with_placeholder_bindings(preview)?)
 }
 
 fn validate_base_preserved(
     base: &EvidenceCatalog,
     actual: &EvidenceCatalog,
 ) -> Result<(), ZTransportPlanningError> {
-    if base.environments != actual.environments || base.target_sampling != actual.target_sampling {
-        return Err(ZTransportPlanningError::Invalid(
-            "arrival catalog does not preserve the proposal base catalog".into(),
-        ));
-    }
-    for regime in base.regimes.iter() {
-        if !actual.regimes.contains(regime) {
-            return Err(ZTransportPlanningError::Invalid(format!(
-                "base regime {} changed or disappeared",
-                regime.id.raw()
-            )));
-        }
-    }
-    for binding in base.bindings.iter() {
-        if !actual.bindings.contains(binding) {
-            return Err(ZTransportPlanningError::Invalid(
-                "base provider binding changed or disappeared".into(),
-            ));
-        }
-    }
-    Ok(())
+    crate::plan_common::validate_base_preserved(base, actual)
+        .map_err(ZTransportPlanningError::Invalid)
 }
 
-fn same_assignments(
-    a: &[antecedent_core::InterventionAssignment],
-    b: &[antecedent_core::InterventionAssignment],
-) -> bool {
-    a.len() == b.len()
-        && a.iter().all(|x| {
-            b.iter().any(|y| {
-                x.variable == y.variable
-                    && antecedent_core::same_intervention_level(&x.value, &y.value)
-            })
-        })
-}
-fn same_vars(a: &[antecedent_core::VariableId], b: &[antecedent_core::VariableId]) -> bool {
-    a.iter().collect::<BTreeSet<_>>() == b.iter().collect::<BTreeSet<_>>()
-}
 fn ids(values: &[antecedent_core::VariableId]) -> Vec<u32> {
     values.iter().map(|v| v.raw()).collect()
 }

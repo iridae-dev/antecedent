@@ -810,6 +810,46 @@ impl GamFit {
         }
         Ok(s)
     }
+
+    /// Derivative of every basis function of one smooth at `x`: the vector
+    /// `d` with `smooth_derivative(j, x) = Σ_b d_b β_b`.
+    ///
+    /// A plug-in derivative is this linear functional of the fitted
+    /// coefficients, so a coefficient sandwich gives its variance. The same
+    /// clamping as [`Self::smooth_derivative`] applies: outside the open knot
+    /// interior every entry is zero.
+    ///
+    /// # Errors
+    ///
+    /// `smooth_index` out of range, or a knot vector too short for a cubic basis.
+    pub fn smooth_basis_derivative(
+        &self,
+        smooth_index: usize,
+        x: f64,
+    ) -> Result<Vec<f64>, StatsError> {
+        let smooth = self
+            .smooths
+            .get(smooth_index)
+            .ok_or(StatsError::Shape { message: "smooth index out of range" })?;
+        let knots = smooth.knots.as_ref();
+        if knots.len() < CUBIC_ORDER + CUBIC_DEGREE {
+            return Err(StatsError::Shape { message: "smooth knot vector is too short" });
+        }
+        let mut out = vec![0.0; smooth.n_basis];
+        let left = knots[CUBIC_DEGREE];
+        let right = knots[knots.len() - CUBIC_ORDER];
+        if x < left || x >= right {
+            return Ok(out);
+        }
+        let (span, ders) = cubic_bspline_deriv_nonzeros(x, knots);
+        let first = span.saturating_sub(CUBIC_DEGREE);
+        for (i, &d) in ders.iter().enumerate() {
+            if let Some(slot) = out.get_mut(first + i) {
+                *slot = d;
+            }
+        }
+        Ok(out)
+    }
 }
 
 fn validate_raw_layout(
@@ -1539,6 +1579,37 @@ mod tests {
                 / (2.0 * h);
             assert!((analytic - fd).abs() < 1e-5, "x={x0}: analytic={analytic} fd={fd}");
         }
+    }
+
+    #[test]
+    fn smooth_basis_derivative_is_the_linear_map_behind_smooth_derivative() {
+        let n = 120usize;
+        let x1 = linspace(n, 0.0, 1.0);
+        let y: Vec<f64> = x1.iter().map(|&v| (3.0 * v).cos()).collect();
+        let (x, nrows, ncols) = colmajor_from_cols(&[x1]);
+        let mut ws = GamWorkspace::default();
+        let fit = fit_gam(
+            &x,
+            nrows,
+            ncols,
+            &y,
+            &[SmoothSpec::new(0, 9, 0.1)],
+            &GamOptions::default(),
+            &FaerBackend,
+            &mut ws,
+        )
+        .unwrap();
+        let right = fit.smooths[0].knots[fit.smooths[0].knots.len() - CUBIC_ORDER];
+        for x0 in [0.05, 0.3, 0.5, 0.77, right, right + 1.0, -1.0] {
+            let basis = fit.smooth_basis_derivative(0, x0).unwrap();
+            assert_eq!(basis.len(), 9);
+            let dot: f64 = basis.iter().zip(&fit.coefficients).map(|(b, c)| b * c).sum();
+            let direct = fit.smooth_derivative(0, x0).unwrap();
+            assert!((dot - direct).abs() < 1e-12, "x={x0}: {dot} vs {direct}");
+            // Partition of unity: the basis derivatives sum to zero.
+            assert!(basis.iter().sum::<f64>().abs() < 1e-9, "x={x0}");
+        }
+        assert!(fit.smooth_basis_derivative(1, 0.5).is_err());
     }
 
     #[test]

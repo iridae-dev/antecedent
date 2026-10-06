@@ -100,6 +100,9 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "panel_times",
             "glm_options",
             "overlap",
+            "propensity_penalty",
+            "nuisance_fallback",
+            "cluster_dml",
         ],
     ),
     (
@@ -150,6 +153,20 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
 
 /// Valid `glm_options` sub-dict keys (see [`build_glm_options`]).
 const GLM_OPTION_KEYS: &[&str] = &["max_iter", "tol", "ridge_on_separation"];
+
+/// Valid `propensity_penalty` sub-dict keys (see [`build_propensity_nuisance`]).
+const PROPENSITY_PENALTY_KEYS: &[&str] = &["kind", "lambdas", "inner_folds"];
+
+/// Valid `cluster_dml` sub-dict keys (see [`build_cluster_dml`]).
+const CLUSTER_DML_KEYS: &[&str] =
+    &["cluster_ids", "second_cluster_ids", "min_clusters", "min_components_per_fold", "unit"];
+
+/// Estimators with a flexible-learner cross-fit and no dependence option: a cluster or
+/// dependence key on them is a typed refusal, not an unknown key.
+const FLEXIBLE_LEARNER_IDS: &[&str] = &["dml", "dr.learner", "causal.forest"];
+
+/// Dependence declarations those estimators refuse (see [`FLEXIBLE_LEARNER_IDS`]).
+const DEPENDENCE_KEYS: &[&str] = &["cluster_ids", "cluster_dml", "multiway_ids"];
 
 fn valid_keys_for(estimator_id: &str) -> Option<&'static [&'static str]> {
     ESTIMATOR_KEYS.iter().find(|(id, _)| *id == estimator_id).map(|(_, keys)| *keys)
@@ -235,6 +252,16 @@ pub(crate) fn parse_estimator_config(
         let key: String = key_obj
             .extract()
             .map_err(|_| PyValueError::new_err("estimator_config keys must be str"))?;
+        if FLEXIBLE_LEARNER_IDS.contains(&resolved_id) && DEPENDENCE_KEYS.contains(&key.as_str()) {
+            let message =
+                antecedent_estimate::flexible_learner_dependence_refusal(resolved_id, &key)
+                    .to_string();
+            let (code, tail) = antecedent_core::reason_code::split_prefix(&message).unwrap_or((
+                antecedent_core::reason_code!("route_not_supported"),
+                message.as_str(),
+            ));
+            return Err(crate::with_reason_code(PyValueError::new_err(tail.to_string()), code));
+        }
         if !valid_keys.contains(&key.as_str()) {
             let owners = estimators_accepting(&key);
             if owners.is_empty() {
@@ -588,6 +615,201 @@ fn build_glm_options(dict: &Bound<'_, PyDict>) -> PyResult<Option<GlmOptions>> {
     Ok(Some(opts))
 }
 
+/// Kind and tuning of one declared penalty sub-dict (`propensity_penalty`, or a
+/// `nuisance_fallback` given as a dict): `{"kind": "ridge_logistic" | "lasso", "lambdas":
+/// [float], "inner_folds": int}`. Absent `lambdas` / `inner_folds` take the kind's defaults.
+fn penalty_declaration(
+    sub: &Bound<'_, PyDict>,
+    field: &str,
+) -> PyResult<(String, antecedent_estimate::RidgeTuning)> {
+    use antecedent_estimate::RidgeTuning;
+    for (key_obj, _val) in sub.iter() {
+        let key: String = key_obj
+            .extract()
+            .map_err(|_| invalid(format!("estimator_config['{field}'] keys must be str")))?;
+        if !PROPENSITY_PENALTY_KEYS.contains(&key.as_str()) {
+            return Err(invalid(format!(
+                "unknown estimator_config['{field}'] key {key:?}; valid keys are: {}",
+                PROPENSITY_PENALTY_KEYS.join(", "),
+            )));
+        }
+    }
+    let kind = get_string(sub, "kind")?.unwrap_or_else(|| "ridge_logistic".to_string());
+    let defaults = match kind.as_str() {
+        "ridge_logistic" => RidgeTuning::default(),
+        "lasso" => RidgeTuning::default_lasso(),
+        other => {
+            return Err(invalid(format!(
+                "estimator_config['{field}']['kind'] {other:?} is not recognized; use \
+                 ridge_logistic|lasso"
+            )));
+        }
+    };
+    let lambdas = match sub.get_item("lambdas")? {
+        Some(raw) => raw.extract::<Vec<f64>>().map_err(|_| {
+            invalid(format!("estimator_config['{field}']['lambdas'] must be a list of floats"))
+        })?,
+        None => defaults.lambdas().to_vec(),
+    };
+    let inner_folds =
+        get_u32(sub, "inner_folds")?.map_or(defaults.inner_folds(), |folds| folds as usize);
+    let tuning = RidgeTuning::new(&lambdas, inner_folds).map_err(|error| {
+        let message = error.to_string();
+        let tail = antecedent_core::reason_code::split_prefix(&message)
+            .map_or(message.as_str(), |(_, tail)| tail);
+        invalid(tail.to_string())
+    })?;
+    Ok((kind, tuning))
+}
+
+/// Build the declared binary-propensity nuisance of `aipw` from `propensity_penalty`
+/// (`{"kind": "ridge_logistic" | "lasso", "lambdas": [float], "inner_folds": int}`) and
+/// `nuisance_fallback` (`"none"` | `"ml"` | `"ridge_logistic"` | `"lasso"`, or a penalty dict as
+/// for `propensity_penalty`, declaring the destination and its tuning). Absent keys keep the
+/// unpenalized, no-fallback default.
+///
+/// An `ml` fallback is accepted here and refused with its registered reason code when the GLM
+/// fit fails (a flexible destination has no cross-fitted license); a penalized fallback beside a
+/// penalized primary is refused by the estimator as an incoherent declaration.
+fn build_propensity_nuisance(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent_estimate::PropensityNuisance>> {
+    use antecedent_estimate::{NuisanceFallback, PropensityNuisance, RidgeTuning};
+    let from_kind = |kind: &str, tuning: RidgeTuning| match kind {
+        "ridge_logistic" => NuisanceFallback::RidgeLogistic(tuning),
+        _ => NuisanceFallback::Lasso(tuning),
+    };
+    let fallback = match dict.get_item("nuisance_fallback")? {
+        None => NuisanceFallback::None,
+        Some(value) if value.is_none() => NuisanceFallback::None,
+        Some(value) => {
+            if let Ok(name) = value.extract::<String>() {
+                match name.as_str() {
+                    "none" => NuisanceFallback::None,
+                    "ml" => NuisanceFallback::Ml,
+                    "ridge_logistic" => from_kind("ridge_logistic", RidgeTuning::default()),
+                    "lasso" => from_kind("lasso", RidgeTuning::default_lasso()),
+                    other => {
+                        return Err(invalid(format!(
+                            "estimator_config['nuisance_fallback'] {other:?} is not recognized; \
+                             use none|ml|ridge_logistic|lasso or a penalty dict"
+                        )));
+                    }
+                }
+            } else if let Ok(sub) = value.cast::<PyDict>() {
+                let (kind, tuning) = penalty_declaration(sub, "nuisance_fallback")?;
+                from_kind(&kind, tuning)
+            } else {
+                return Err(invalid(format!(
+                    "estimator_config['nuisance_fallback'] must be a str or a dict, got {}",
+                    type_name(&value)
+                )));
+            }
+        }
+    };
+    let Some(value) = dict.get_item("propensity_penalty")? else {
+        return Ok((fallback != NuisanceFallback::None)
+            .then(|| PropensityNuisance::default().with_fallback(fallback)));
+    };
+    let sub = value.cast::<PyDict>().map_err(|_| {
+        invalid(format!(
+            "estimator_config['propensity_penalty'] must be a dict, got {}",
+            type_name(&value)
+        ))
+    })?;
+    let (kind, tuning) = penalty_declaration(sub, "propensity_penalty")?;
+    let nuisance = match kind.as_str() {
+        "ridge_logistic" => PropensityNuisance::ridge_logistic(tuning),
+        _ => PropensityNuisance::lasso_with(tuning),
+    };
+    Ok(Some(nuisance.with_fallback(fallback)))
+}
+
+/// Declared cluster-DML independence unit of an `aipw` estimator and its row labels.
+type ClusterDmlConfig = (antecedent_estimate::ClusterDml, Vec<u32>, Option<Vec<u32>>);
+
+/// Build the declared cluster-DML independence unit of `aipw` and its row labels from
+/// `cluster_dml` (`{"cluster_ids": [int], "min_clusters": int, "unit": "cluster" | "dyad",
+/// "second_cluster_ids": [int], "min_components_per_fold": int}`).
+///
+/// A `dyad` unit takes the second endpoint labels (`second_cluster_ids`, required) and a
+/// minimum components per fold; a `cluster` unit takes neither.
+fn build_cluster_dml(dict: &Bound<'_, PyDict>) -> PyResult<Option<ClusterDmlConfig>> {
+    use antecedent_estimate::{ClusterDml, DEFAULT_MIN_CLUSTERS, DEFAULT_MIN_COMPONENTS_PER_FOLD};
+    let Some(value) = dict.get_item("cluster_dml")? else {
+        return Ok(None);
+    };
+    let sub = value.cast::<PyDict>().map_err(|_| {
+        invalid(format!(
+            "estimator_config['cluster_dml'] must be a dict, got {}",
+            type_name(&value)
+        ))
+    })?;
+    for (key_obj, _val) in sub.iter() {
+        let key: String = key_obj
+            .extract()
+            .map_err(|_| invalid("estimator_config['cluster_dml'] keys must be str".to_string()))?;
+        if !CLUSTER_DML_KEYS.contains(&key.as_str()) {
+            return Err(invalid(format!(
+                "unknown estimator_config['cluster_dml'] key {key:?}; valid keys are: {}",
+                CLUSTER_DML_KEYS.join(", "),
+            )));
+        }
+    }
+    let ids = get_u32_list(sub, "cluster_ids")?.ok_or_else(|| {
+        invalid("estimator_config['cluster_dml'] requires cluster_ids".to_string())
+    })?;
+    let second = get_u32_list(sub, "second_cluster_ids")?;
+    let min_clusters = get_u32(sub, "min_clusters")?.map_or(DEFAULT_MIN_CLUSTERS, |m| m as usize);
+    let min_components = get_u32(sub, "min_components_per_fold")?;
+    let refused = |error: antecedent_estimate::EstimationError| {
+        let message = error.to_string();
+        let tail = antecedent_core::reason_code::split_prefix(&message)
+            .map_or(message.as_str(), |(_, tail)| tail);
+        invalid(tail.to_string())
+    };
+    let spec = match get_string(sub, "unit")?.as_deref().unwrap_or("cluster") {
+        "cluster" => {
+            if second.is_some() || min_components.is_some() {
+                return Err(invalid(
+                    "estimator_config['cluster_dml'] second_cluster_ids and \
+                     min_components_per_fold belong to unit='dyad'"
+                        .to_string(),
+                ));
+            }
+            ClusterDml::new(min_clusters).map_err(refused)?
+        }
+        "dyad" => {
+            match &second {
+                None => {
+                    return Err(invalid(
+                        "estimator_config['cluster_dml'] unit='dyad' requires second_cluster_ids"
+                            .to_string(),
+                    ));
+                }
+                Some(second) if second.len() != ids.len() => {
+                    return Err(invalid(format!(
+                        "estimator_config['cluster_dml'] second_cluster_ids has {} labels but \
+                         cluster_ids has {}",
+                        second.len(),
+                        ids.len()
+                    )));
+                }
+                Some(_) => {}
+            }
+            let per_fold = min_components.map_or(DEFAULT_MIN_COMPONENTS_PER_FOLD, |m| m as usize);
+            ClusterDml::dyadic(min_clusters, per_fold).map_err(refused)?
+        }
+        other => {
+            return Err(invalid(format!(
+                "estimator_config['cluster_dml']['unit'] {other:?} is not recognized; \
+                 use cluster|dyad"
+            )));
+        }
+    };
+    Ok(Some((spec, ids, second)))
+}
+
 /// Build the caller-configured [`EstimatorSpec`] for one of the ten estimators
 /// [`ESTIMATOR_KEYS`] covers (excluding `rd.sharp`, handled separately in
 /// [`parse_estimator_config`]). By the time this runs, every key in `dict` has already been
@@ -777,6 +999,14 @@ fn build_configured_spec(
             est.into()
         }
         "aipw" => {
+            let cluster_dml = build_cluster_dml(dict)?;
+            if cluster_dml.is_some() && cluster_ids.is_some() {
+                return Err(invalid(
+                    "estimator_config['cluster_dml'] carries its own cluster_ids; do not also \
+                     pass cluster_ids"
+                        .to_string(),
+                ));
+            }
             let mut est = AipwAte::new().with_bootstrap_replicates(bootstrap);
             if let Some(k) = se_kind {
                 est = est.with_se_kind(k);
@@ -795,6 +1025,15 @@ fn build_configured_spec(
             }
             if let Some(policy) = overlap {
                 est = est.with_overlap(policy);
+            }
+            if let Some(nuisance) = build_propensity_nuisance(dict)? {
+                est = est.with_propensity_nuisance(nuisance);
+            }
+            if let Some((spec, ids, second)) = cluster_dml {
+                est = est.with_cluster_ids(ids).with_cluster_dml(spec);
+                if let Some(second) = second {
+                    est = est.with_second_cluster_ids(second);
+                }
             }
             est.into()
         }

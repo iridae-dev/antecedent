@@ -12,4 +12,4 @@ bandwidth sensitivity, and prior sensitivity.
 
 ## Expected summary
 
-Top-level keys: `cutoff, fixed_bandwidth, fixture, model, true_jump` (5 fields).
+Top-level keys: `cutoff, fixed_bandwidth, fixture, model, oracle, true_jump` (6 fields).

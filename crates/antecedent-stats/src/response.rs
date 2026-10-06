@@ -65,7 +65,29 @@ pub struct LocalQuadraticWorkspace {
     weights: Vec<(f64, [f64; 3], f64)>,
 }
 
-/// Silverman's normal-reference bandwidth, with a range-based lower bound.
+/// Silverman's (1986, eq. 4.14) multivariate normal-reference factor
+/// `(4 / ((d + 2) n))^(1/(d+4))`.
+///
+/// The rule-of-thumb bandwidth for coordinate `j` of a `d`-dimensional sample of
+/// `n` rows is `h_j = σ_j · factor`; for covariates standardized to unit SD the
+/// factor is the bandwidth. This is the one shared rule: the univariate
+/// [`silverman_bandwidth`] is its `d = 1` case.
+///
+/// # Errors
+///
+/// `n == 0` or `dim == 0`.
+pub fn silverman_normal_reference_factor(n: usize, dim: usize) -> Result<f64, StatsError> {
+    if n == 0 || dim == 0 {
+        return Err(StatsError::Shape {
+            message: "normal-reference bandwidth requires n >= 1 and dim >= 1",
+        });
+    }
+    let d = dim as f64;
+    Ok((4.0 / ((d + 2.0) * n as f64)).powf(1.0 / (d + 4.0)))
+}
+
+/// Silverman's normal-reference bandwidth `σ · (4 / (3n))^(1/5)` (the `d = 1` case of
+/// [`silverman_normal_reference_factor`]), with a range-based lower bound.
 ///
 /// # Errors
 ///
@@ -83,7 +105,8 @@ pub fn silverman_bandwidth(x: &[f64]) -> Result<f64, StatsError> {
     if variance <= 0.0 || range <= 0.0 {
         return Err(StatsError::Shape { message: "bandwidth requires non-degenerate x" });
     }
-    Ok((1.06 * variance.sqrt() * n.powf(-0.2)).max(range * 1e-6))
+    let factor = silverman_normal_reference_factor(x.len(), 1)?;
+    Ok((variance.sqrt() * factor).max(range * 1e-6))
 }
 
 /// Gaussian probability density with mean and strictly positive standard deviation.
@@ -709,6 +732,34 @@ fn inverse_3x3(a: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn univariate_silverman_is_the_multivariate_rule_at_one_dimension() {
+        // Silverman (1986, eq. 4.14): h_j = σ_j · (4 / ((d + 2) n))^(1/(d+4)). At d = 1 the
+        // constant is (4/3)^(1/5) = 1.05922…, not the rounded 1.06.
+        let x: Vec<f64> = (0..200).map(|i| (f64::from(i) * 0.618_034).fract() * 3.0).collect();
+        let n = x.len() as f64;
+        let mean = x.iter().sum::<f64>() / n;
+        let sd = (x.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
+        let expected = sd * (4.0 / (3.0 * n)).powf(0.2);
+        let got = silverman_bandwidth(&x).unwrap();
+        assert!((got - expected).abs() <= 1e-12 * expected, "got={got} expected={expected}");
+    }
+
+    #[test]
+    fn multivariate_silverman_factor_matches_the_closed_form() {
+        for (n, dim) in [(10_usize, 1_usize), (1000, 1), (1000, 2), (500, 3), (37, 7)] {
+            let d = dim as f64;
+            let expected = (4.0 / ((d + 2.0) * n as f64)).powf(1.0 / (d + 4.0));
+            let got = silverman_normal_reference_factor(n, dim).unwrap();
+            assert!((got - expected).abs() <= 1e-15, "n={n} d={dim}: {got} vs {expected}");
+        }
+        // d = 2 collapses to n^(-1/6).
+        let got = silverman_normal_reference_factor(1000, 2).unwrap();
+        assert!((got - 1000.0_f64.powf(-1.0 / 6.0)).abs() < 1e-15);
+        assert!(silverman_normal_reference_factor(0, 2).is_err());
+        assert!(silverman_normal_reference_factor(10, 0).is_err());
+    }
 
     fn direct_mixture(means: &[f64], weights: &[f64], sd: f64, at: f64) -> f64 {
         let total: f64 = weights.iter().sum();

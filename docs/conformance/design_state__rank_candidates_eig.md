@@ -6,4 +6,4 @@ Ranks measurement vs sampling candidates under `ReduceGraphEntropy` with batched
 
 ## Expected summary
 
-Top-level keys: `acceptable_best_kinds, min_mc_samples, notes, objective` (4 fields).
+Top-level keys: `acceptable_best_kinds, min_mc_samples, notes, objective, oracle` (5 fields).

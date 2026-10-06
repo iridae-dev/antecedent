@@ -284,7 +284,8 @@ pub enum ZTransportSensitivityError {
     ProviderMismatch,
     /// Outcome, treatment, or shared parent has unsupported finite numeric support.
     UnsupportedDomain,
-    /// Source law cannot supply every outcome kernel stratum.
+    /// Source law cannot supply every outcome kernel stratum, or its shared
+    /// parent marginal does not have unit mass.
     IncompleteKernel,
     /// Contamination fraction or response threshold is invalid.
     InvalidSensitivity(DiscreteKernelSensitivityError),
@@ -303,7 +304,9 @@ impl fmt::Display for ZTransportSensitivityError {
             Self::UnsupportedDomain => {
                 "z sensitivity requires finite numeric outcome and binary treatment domains"
             }
-            Self::IncompleteKernel => "source law has an empty outcome-kernel stratum",
+            Self::IncompleteKernel => {
+                "source law has an empty outcome-kernel stratum or a parent marginal without unit mass"
+            }
             Self::Cancelled => "z sensitivity cancelled",
             Self::InvalidSensitivity(error) => return write!(f, "{error}"),
         })
@@ -311,14 +314,19 @@ impl fmt::Display for ZTransportSensitivityError {
 }
 impl std::error::Error for ZTransportSensitivityError {}
 
+/// Largest admitted `|sum - 1|` of the shared parent marginal (the
+/// evaluator's kernel-row tolerance).
+const Z_SENSITIVITY_UNIT_MASS_TOLERANCE: f64 = 1e-10;
+
 /// Evaluate the checked z formula under a single coherent outcome-kernel contamination.
 ///
 /// The compatible formula is `sum_w P_source(Y | w, X, do(Z)) P_source(w | do(Z))`.
 /// The same conditional kernel is used to form both treatment arms. The returned
 /// range is an assumption range over replacement outcome distributions.
-// Keep the checked binding and factor validation together so the returned
-// sensitivity result is built only after the complete proof/provider contract passes.
-#[allow(clippy::too_many_lines)]
+///
+/// # Errors
+///
+/// Returns the typed refusal of the proof, formula, provider, domain or kernel check.
 pub fn z_transport_mechanism_sensitivity(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
@@ -327,6 +335,107 @@ pub fn z_transport_mechanism_sensitivity(
     decision_threshold: Option<f64>,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<ZTransportMechanismSensitivityResult, ZTransportSensitivityError> {
+    let kernels = z_surrogate_kernels(diagram, functional, data, ctx)?;
+    // The stratum weights are the law's raw parent mass, which a caller's loose
+    // `LawTolerance` can leave far from one; the baseline and range would then
+    // be scaled by it. Unit mass is enforced, not repaired.
+    let total = kernels.parent_marginal.iter().sum::<f64>();
+    if !(total.is_finite() && (total - 1.0).abs() <= Z_SENSITIVITY_UNIT_MASS_TOLERANCE) {
+        return Err(ZTransportSensitivityError::IncompleteKernel);
+    }
+    let response = DiscreteKernelSensitivity {
+        source_kernel: kernels.kernels,
+        outcome_values: kernels.outcome_values,
+        stratum_contrast_weights: kernels.weights,
+        max_fraction,
+        decision_threshold,
+    }
+    .evaluate()
+    .map_err(ZTransportSensitivityError::InvalidSensitivity)?;
+    Ok(ZTransportMechanismSensitivityResult {
+        query_binding: kernels.query_binding,
+        provider_snapshot: kernels.provider_snapshot,
+        source_regime: kernels.source_regime,
+        response,
+    })
+}
+
+/// The checked surrogate formula's source factors: the outcome kernel per
+/// `(w, x)` stratum (w-major, control arm first), its signed contrast weights,
+/// the shared parent marginal and the outcome values, with the binding.
+#[derive(Clone, Debug)]
+pub(crate) struct ZSurrogateKernels {
+    /// `P(Y | w, x, do(z))`, one row per `(w, x)` stratum, w-major.
+    pub(crate) kernels: Vec<Vec<f64>>,
+    /// `-P(w | do(z))` for the control arm and `+P(w | do(z))` for the active arm.
+    pub(crate) weights: Vec<f64>,
+    /// `P(w | do(z))` per parent level.
+    pub(crate) parent_marginal: Vec<f64>,
+    /// Numeric outcome value per outcome category.
+    pub(crate) outcome_values: Vec<f64>,
+    /// Stable identity of the checked derivation's inputs.
+    pub(crate) query_binding: String,
+    /// Provider snapshot used by the baseline formula.
+    pub(crate) provider_snapshot: String,
+    /// Source law regime used by the formula.
+    pub(crate) source_regime: RegimeId,
+}
+
+/// Why a metered read of the surrogate factors stopped.
+#[derive(Debug)]
+pub(crate) enum ScanStop<E> {
+    /// The proof, formula, provider, domain or kernel check refused.
+    Kernel(ZTransportSensitivityError),
+    /// A caller's hook refused (a declared bound or a budget charge).
+    Hook(E),
+}
+
+impl<E> From<ZTransportSensitivityError> for ScanStop<E> {
+    fn from(error: ZTransportSensitivityError) -> Self {
+        Self::Kernel(error)
+    }
+}
+
+/// [`z_surrogate_kernels_metered`] with no hooks: the 2.1 one-factor route.
+pub(crate) fn z_surrogate_kernels(
+    diagram: &SelectionDiagram,
+    functional: &BoundZTransportFunctional,
+    data: &ExactTransportData,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ZSurrogateKernels, ZTransportSensitivityError> {
+    z_surrogate_kernels_metered::<std::convert::Infallible>(
+        diagram,
+        functional,
+        data,
+        ctx,
+        &mut |_, _| Ok(()),
+        &mut |_| Ok(()),
+    )
+    .map_err(|stop| match stop {
+        ScanStop::Kernel(error) => error,
+        ScanStop::Hook(never) => match never {},
+    })
+}
+
+/// Check the proof, formula shape and provider binding of the registered
+/// surrogate z formula and read its source factors from the exact law.
+///
+/// `shape(parent_levels, outcome_categories)` runs once the law's axes are
+/// read and before any pass over its cells, so a caller can refuse a declared
+/// bound before the scan; `level(w)` runs before the passes of each parent
+/// level (three passes over every cell), so a caller can charge the scan.
+/// Either hook's error stops the read as [`ScanStop::Hook`].
+// Keep the checked binding and factor validation together so a sensitivity
+// result is built only after the complete proof/provider contract passes.
+#[allow(clippy::too_many_lines)]
+pub(crate) fn z_surrogate_kernels_metered<E>(
+    diagram: &SelectionDiagram,
+    functional: &BoundZTransportFunctional,
+    data: &ExactTransportData,
+    ctx: &antecedent_core::ExecutionContext,
+    shape: &mut dyn FnMut(usize, usize) -> Result<(), E>,
+    level: &mut dyn FnMut(usize) -> Result<(), E>,
+) -> Result<ZSurrogateKernels, ScanStop<E>> {
     let cancelled = || {
         if ctx.cancellation.is_cancelled() {
             Err(ZTransportSensitivityError::Cancelled)
@@ -343,24 +452,24 @@ pub fn z_transport_mechanism_sensitivity(
         .check_inputs(diagram, query)
         .map_err(|_| ZTransportSensitivityError::InvalidProof)?;
     let Some(confounder) = derivation.confounder() else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
 
     let arena = functional.arena();
     // The registered surrogate factorization cites exactly one source regime.
     let [regime] = functional.cited_regimes() else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
     let regime = *regime;
     let ExprNode::SumOut { expr, .. } = arena.node(functional.root()) else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
     let ExprNode::Product(factors) = arena.node(*expr) else {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     };
     let leaves = arena.list(*factors);
     if leaves.len() != 2 {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     }
     let mut outcome_leaf = None;
     let mut parent_leaf = None;
@@ -374,7 +483,7 @@ pub fn z_transport_mechanism_sensitivity(
             ..
         } = arena.node(*id)
         else {
-            return Err(ZTransportSensitivityError::IncompatibleFormula);
+            return Err(ZTransportSensitivityError::IncompatibleFormula.into());
         };
         let mut formula_interventions = arena.intervention_set(*intervention);
         let mut query_interventions =
@@ -385,7 +494,7 @@ pub fn z_transport_mechanism_sensitivity(
             || arena.population(*population) != query.source.as_ref()
             || formula_interventions != query_interventions
         {
-            return Err(ZTransportSensitivityError::IncompatibleFormula);
+            return Err(ZTransportSensitivityError::IncompatibleFormula.into());
         }
         let vars = arena.var_set(*variables);
         let cond = arena.var_set(*conditioned_on);
@@ -397,7 +506,7 @@ pub fn z_transport_mechanism_sensitivity(
         } else if vars == [confounder] && cond.is_empty() {
             parent_leaf = Some(*id);
         } else {
-            return Err(ZTransportSensitivityError::IncompatibleFormula);
+            return Err(ZTransportSensitivityError::IncompatibleFormula.into());
         }
     }
     if outcome_leaf.is_none()
@@ -405,7 +514,7 @@ pub fn z_transport_mechanism_sensitivity(
         || query.outcomes.len() != 1
         || query.treatments.len() != 1
     {
-        return Err(ZTransportSensitivityError::IncompatibleFormula);
+        return Err(ZTransportSensitivityError::IncompatibleFormula.into());
     }
 
     let law = data
@@ -426,7 +535,7 @@ pub fn z_transport_mechanism_sensitivity(
         binding.regime == law.regime()
             && binding.snapshot_identity.as_ref() == law.snapshot_identity()
     }) {
-        return Err(ZTransportSensitivityError::ProviderMismatch);
+        return Err(ZTransportSensitivityError::ProviderMismatch.into());
     }
     let y = query.outcomes[0];
     let x = query.treatments[0];
@@ -451,14 +560,17 @@ pub fn z_transport_mechanism_sensitivity(
         || y_values.is_empty()
         || law.snapshot_identity().trim().is_empty()
     {
-        return Err(ZTransportSensitivityError::UnsupportedDomain);
+        return Err(ZTransportSensitivityError::UnsupportedDomain.into());
     }
+    shape(w_levels, y_values.len()).map_err(ScanStop::Hook)?;
     let dims: Vec<usize> = law.axes().iter().map(|a| a.values.len()).collect();
     let strides: Vec<usize> = (0..dims.len()).map(|i| dims[i + 1..].iter().product()).collect();
     let mut kernels = Vec::with_capacity(w_levels * 2);
     let mut weights = Vec::with_capacity(w_levels * 2);
+    let mut parent_marginal = Vec::with_capacity(w_levels);
     for wl in 0..w_levels {
         cancelled()?;
+        level(wl).map_err(ScanStop::Hook)?;
         let mut parent_mass = 0.0;
         for row in 0..law.probabilities().len() {
             if (row / strides[wi]) % dims[wi] == wl {
@@ -476,26 +588,21 @@ pub fn z_transport_mechanism_sensitivity(
                 }
             }
             if mass <= 0.0 {
-                return Err(ZTransportSensitivityError::IncompleteKernel);
+                return Err(ZTransportSensitivityError::IncompleteKernel.into());
             }
             kernels.push(joint.into_iter().map(|p| p / mass).collect());
             weights.push(parent_mass * if xl == 0 { -1.0 } else { 1.0 });
         }
+        parent_marginal.push(parent_mass);
     }
-    let response = DiscreteKernelSensitivity {
-        source_kernel: kernels,
+    Ok(ZSurrogateKernels {
+        kernels,
+        weights,
+        parent_marginal,
         outcome_values: y_values,
-        stratum_contrast_weights: weights,
-        max_fraction,
-        decision_threshold,
-    }
-    .evaluate()
-    .map_err(ZTransportSensitivityError::InvalidSensitivity)?;
-    Ok(ZTransportMechanismSensitivityResult {
         query_binding: format!("{}:{}:{}", query.source, query.target, functional.root().raw()),
         provider_snapshot: law.snapshot_identity().to_owned(),
         source_regime: regime,
-        response,
     })
 }
 
@@ -1411,6 +1518,83 @@ fn expression_uses_source_outcome_factor(
     false
 }
 
+/// The fraction-independent part of a [`DiscreteKernelSensitivity`]
+/// evaluation: the baseline and the two extremal slopes with their vertex
+/// witnesses, read once from the kernel so that the response can be evaluated
+/// at any fraction (a bisection step of the joint route) without re-reading
+/// or copying the kernel. [`DiscreteKernelSensitivity::evaluate`] is exactly
+/// [`Self::at`] on these slopes at the declared fraction.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct DiscreteKernelSlopes {
+    baseline: f64,
+    low_slope: f64,
+    high_slope: f64,
+    low_witness: Vec<usize>,
+    high_witness: Vec<usize>,
+}
+
+fn check_fraction(max_fraction: f64) -> Result<(), DiscreteKernelSensitivityError> {
+    if !max_fraction.is_finite() || !(0.0..=1.0).contains(&max_fraction) {
+        return Err(DiscreteKernelSensitivityError::InvalidFraction);
+    }
+    Ok(())
+}
+
+impl DiscreteKernelSlopes {
+    /// Response under the unmodified source kernel.
+    pub(crate) const fn baseline(&self) -> f64 {
+        self.baseline
+    }
+
+    /// Exact `(minimum, maximum)` at `max_fraction` (assumed in `[0, 1]`),
+    /// the endpoints of [`Self::at`] without its witnesses or allocation.
+    pub(crate) fn extrema(&self, max_fraction: f64) -> (f64, f64) {
+        let end_low = self.baseline + max_fraction * self.low_slope;
+        let end_high = self.baseline + max_fraction * self.high_slope;
+        (self.baseline.min(end_low), self.baseline.max(end_high))
+    }
+
+    /// The exact range at `max_fraction` with its witnesses and, given a
+    /// threshold, the analytic tipping fraction.
+    pub(crate) fn at(
+        &self,
+        max_fraction: f64,
+        decision_threshold: Option<f64>,
+    ) -> Result<DiscreteKernelSensitivityResult, DiscreteKernelSensitivityError> {
+        check_fraction(max_fraction)?;
+        if decision_threshold.is_some_and(|x| !x.is_finite()) {
+            return Err(DiscreteKernelSensitivityError::InvalidContrast);
+        }
+        let baseline = self.baseline;
+        let (minimum, maximum) = self.extrema(max_fraction);
+        let tipping_fraction = decision_threshold.and_then(|threshold| {
+            if !(minimum..=maximum).contains(&threshold) {
+                return None;
+            }
+            if exact_threshold_matches_baseline(threshold, baseline) {
+                return Some(0.0);
+            }
+            let slope = if threshold < baseline { self.low_slope } else { self.high_slope };
+            let fraction = (threshold - baseline) / slope;
+            (fraction >= 0.0 && fraction <= max_fraction).then_some(fraction)
+        });
+
+        Ok(DiscreteKernelSensitivityResult {
+            baseline,
+            minimum,
+            maximum,
+            tipping_fraction,
+            interval_interpretation: "assumption range under declared discrete outcome-kernel contamination; not a sampling interval",
+            receipt: DiscreteKernelOptimizationReceipt {
+                minimizing_outcome_by_stratum: self.low_witness.clone(),
+                maximizing_outcome_by_stratum: self.high_witness.clone(),
+                fraction_domain: [0.0, max_fraction],
+                method: "linear objective over product of outcome simplexes; exact simplex-vertex extrema",
+            },
+        })
+    }
+}
+
 impl DiscreteKernelSensitivity {
     /// Evaluate exact extrema over all replacement distributions in each stratum.
     ///
@@ -1420,6 +1604,12 @@ impl DiscreteKernelSensitivity {
     pub fn evaluate(
         &self,
     ) -> Result<DiscreteKernelSensitivityResult, DiscreteKernelSensitivityError> {
+        self.check_dimensions()?;
+        check_fraction(self.max_fraction)?;
+        self.slopes()?.at(self.max_fraction, self.decision_threshold)
+    }
+
+    fn check_dimensions(&self) -> Result<(), DiscreteKernelSensitivityError> {
         let strata = self.source_kernel.len();
         let categories = self.outcome_values.len();
         if strata == 0
@@ -1429,9 +1619,15 @@ impl DiscreteKernelSensitivity {
         {
             return Err(DiscreteKernelSensitivityError::InvalidDimensions);
         }
-        if !self.max_fraction.is_finite() || !(0.0..=1.0).contains(&self.max_fraction) {
-            return Err(DiscreteKernelSensitivityError::InvalidFraction);
-        }
+        Ok(())
+    }
+
+    /// Validate the kernel and contrast and read the baseline, the extremal
+    /// slopes and their vertex witnesses once; `max_fraction` is checked by
+    /// [`DiscreteKernelSlopes::at`].
+    pub(crate) fn slopes(&self) -> Result<DiscreteKernelSlopes, DiscreteKernelSensitivityError> {
+        self.check_dimensions()?;
+        let strata = self.source_kernel.len();
         if self.outcome_values.iter().any(|x| !x.is_finite())
             || self.stratum_contrast_weights.iter().any(|x| !x.is_finite())
             || self.decision_threshold.is_some_and(|x| !x.is_finite())
@@ -1490,35 +1686,7 @@ impl DiscreteKernelSensitivity {
                 high_witness.push(low_i);
             }
         }
-        let end_low = baseline + self.max_fraction * low_slope;
-        let end_high = baseline + self.max_fraction * high_slope;
-        let minimum = baseline.min(end_low);
-        let maximum = baseline.max(end_high);
-        let tipping_fraction = self.decision_threshold.and_then(|threshold| {
-            if !(minimum..=maximum).contains(&threshold) {
-                return None;
-            }
-            if exact_threshold_matches_baseline(threshold, baseline) {
-                return Some(0.0);
-            }
-            let slope = if threshold < baseline { low_slope } else { high_slope };
-            let fraction = (threshold - baseline) / slope;
-            (fraction >= 0.0 && fraction <= self.max_fraction).then_some(fraction)
-        });
-
-        Ok(DiscreteKernelSensitivityResult {
-            baseline,
-            minimum,
-            maximum,
-            tipping_fraction,
-            interval_interpretation: "assumption range under declared discrete outcome-kernel contamination; not a sampling interval",
-            receipt: DiscreteKernelOptimizationReceipt {
-                minimizing_outcome_by_stratum: low_witness,
-                maximizing_outcome_by_stratum: high_witness,
-                fraction_domain: [0.0, self.max_fraction],
-                method: "linear objective over product of outcome simplexes; exact simplex-vertex extrema",
-            },
-        })
+        Ok(DiscreteKernelSlopes { baseline, low_slope, high_slope, low_witness, high_witness })
     }
 }
 

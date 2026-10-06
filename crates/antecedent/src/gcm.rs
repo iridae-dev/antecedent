@@ -332,21 +332,8 @@ impl NestedCounterfactualOperation {
         ctx: &ExecutionContext,
     ) -> Result<f64, CausalError> {
         let compiled = CompiledCausalModel::compile(self.graph.clone()).map_err(map_model)?;
-        let store = match self.outcome_mechanism {
-            NestedOutcomeMechanism::LinearGaussian => {
-                MechanismRegistry::standard()
-                    .assign_and_fit(
-                        &compiled,
-                        data,
-                        SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
-                    )
-                    .map_err(map_model)?
-                    .0
-            }
-            NestedOutcomeMechanism::NonSeparableBasis => {
-                fit_non_separable_nested_outcome(&compiled, data, self.query.outcome)?
-            }
-        };
+        let store =
+            fit_nested_mechanisms(&compiled, data, self.outcome_mechanism, self.query.outcome)?;
         let engine = CounterfactualEngine::new(compiled.with_mechanisms(store));
         let exo = engine
             .abduct(data, AbductionMissingPolicy::Error, ctx)
@@ -381,6 +368,53 @@ impl NestedCounterfactualOperation {
     }
 }
 
+/// Fit every mechanism of the nested route's model under `mechanism`.
+///
+/// Shared by the natural-direct-effect operation and the cross-world edge
+/// contrast, so both read the same fitted structural model. The natural direct
+/// effect route calls this unpolled form, so its behavior is unchanged.
+pub(crate) fn fit_nested_mechanisms(
+    compiled: &CompiledCausalModel,
+    data: &TabularData,
+    mechanism: NestedOutcomeMechanism,
+    outcome: VariableId,
+) -> Result<CompiledMechanismStore, CausalError> {
+    fit_nested_mechanisms_polled(compiled, data, mechanism, outcome, "", &|| false)
+}
+
+/// [`fit_nested_mechanisms`] that asks `cancelled` before every node, every
+/// candidate family and every cross-validation fold fit of the model crate's
+/// fitting loops, and stops with [`CausalError::Cancelled`] (`stage`, no partial
+/// store) when it answers `true`. The fitted mechanisms are identical to the
+/// unpolled form's: polling only reads the token.
+pub(crate) fn fit_nested_mechanisms_polled(
+    compiled: &CompiledCausalModel,
+    data: &TabularData,
+    mechanism: NestedOutcomeMechanism,
+    outcome: VariableId,
+    stage: &'static str,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<CompiledMechanismStore, CausalError> {
+    let map = |error: ModelError| match error {
+        ModelError::Cancelled => CausalError::Cancelled { stage },
+        other => map_model(other),
+    };
+    match mechanism {
+        NestedOutcomeMechanism::LinearGaussian => Ok(MechanismRegistry::standard()
+            .assign_and_fit_polled(
+                compiled,
+                data,
+                SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+                cancelled,
+            )
+            .map_err(map)?
+            .0),
+        NestedOutcomeMechanism::NonSeparableBasis => {
+            fit_non_separable_nested_outcome_polled(compiled, data, outcome, stage, cancelled)
+        }
+    }
+}
+
 /// Fit the nested route's mechanisms with a non-separable outcome basis.
 ///
 /// Every parent-free and single-parent node keeps the linear-Gaussian family
@@ -390,19 +424,36 @@ impl NestedCounterfactualOperation {
 /// expansion and cross-parent products make the outcome a non-additive function
 /// of treatment and mediator. The disturbance stays additive, so abduction
 /// inverts it and the counterfactual replay round-trips.
+#[cfg(test)]
 fn fit_non_separable_nested_outcome(
     compiled: &CompiledCausalModel,
     data: &TabularData,
     outcome: VariableId,
 ) -> Result<CompiledMechanismStore, CausalError> {
+    fit_non_separable_nested_outcome_polled(compiled, data, outcome, "", &|| false)
+}
+
+/// [`fit_non_separable_nested_outcome`] that polls `cancelled` (see
+/// [`fit_nested_mechanisms_polled`]).
+fn fit_non_separable_nested_outcome_polled(
+    compiled: &CompiledCausalModel,
+    data: &TabularData,
+    outcome: VariableId,
+    stage: &'static str,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<CompiledMechanismStore, CausalError> {
     let registry = MechanismRegistry::standard();
     let (_, mut assignments) = registry
-        .assign_and_fit(
+        .assign_and_fit_polled(
             compiled,
             data,
             SelectionPolicy::RequireFamily(MechanismFamily::LinearGaussian),
+            cancelled,
         )
-        .map_err(map_model)?;
+        .map_err(|e| match e {
+            ModelError::Cancelled => CausalError::Cancelled { stage },
+            other => map_model(other),
+        })?;
     let mut retargeted = false;
     for assignment in &mut assignments {
         if assignment.variable == outcome {
@@ -417,7 +468,12 @@ fn fit_non_separable_nested_outcome(
         });
     }
     let weights = vec![1.0_f64; data.row_count()];
-    registry.refit_weighted(compiled, data, &assignments, &weights).map_err(map_mechanism_fit)
+    registry.refit_weighted_polled(compiled, data, &assignments, &weights, cancelled).map_err(|e| {
+        match e {
+            ModelError::Cancelled => CausalError::Cancelled { stage },
+            other => map_mechanism_fit(other),
+        }
+    })
 }
 
 /// Map a mechanism-fit failure, turning non-convergence into a reason-coded
@@ -506,8 +562,25 @@ pub struct IteResult {
     /// Shared exogenous state.
     pub exogenous: ExogenousPosterior,
     /// Per-unit posterior intervals, when the inference mode produced per-unit
-    /// draws (Bayesian). `None` for Frequentist results, which carry no
-    /// per-unit construction.
+    /// draws (Bayesian: `unit_posterior_quantile`, a credible interval for the
+    /// observed unit's contrast under the fitted mechanism, mechanism-refit
+    /// uncertainty only, not a predictive interval for a new unit).
+    ///
+    /// `None` for Frequentist results, deliberately. The unit effect
+    /// `Y_i(a) - Y_i(a0)` is not identified from data; it is computed under the
+    /// fitted SCM. Its value depends jointly on every path mechanism's
+    /// parameters and on disturbances abducted with those same parameters (or,
+    /// downstream of a discrete mechanism, on one seeded noise draw under a
+    /// rank-preserving coupling, which no sampling interval describes), and
+    /// each mechanism family is selected on the same data, so a delta-method
+    /// interval conditional on the selected family would ignore selection. The
+    /// refit construction that carries this uncertainty is the Bayesian
+    /// Dirichlet mechanism-refit posterior, already published and calibrated
+    /// under `InferenceMode::Bayesian`; a frequentist copy of it would target
+    /// the same object. A pointwise interval for the conditional average effect
+    /// `tau(x)` (not a unit ITE) is `DrLearner::fit_pointwise_profiles`
+    /// (uncalibrated). The diagnostic `gcm.counterfactual.uncertainty_unavailable`
+    /// carries this reason on the result.
     pub unit_effect_intervals: Option<UnitEffectIntervals>,
     /// Per-unit extrapolation flags, aligned with [`Self::unit_effects`]: `true`
     /// when the unit's prediction into the arm it did not receive leaves that

@@ -246,6 +246,19 @@ pub enum CausalError {
         /// Failure detail.
         message: String,
     },
+    /// A refusal that also carries structured diagnostics
+    /// ([`antecedent_estimate::RefusalFields`]). Renders exactly as the wrapped error, and
+    /// every classification of it ([`Self::reason_code`], [`Self::blocker_id`], the Python
+    /// exception class) is that of [`Self::peeled`]; the fields are read with
+    /// [`Self::refusal_fields`]. Build one with [`Self::diagnosed`].
+    #[error("{error}")]
+    Diagnosed {
+        /// The refusal being described.
+        #[source]
+        error: Box<CausalError>,
+        /// Structured diagnostics of the failing step; absent entries stay absent.
+        fields: Box<antecedent_estimate::RefusalFields>,
+    },
 }
 
 /// Stage id reported on a [`CausalError::Cancelled`] raised while refuting /
@@ -421,6 +434,32 @@ macro_rules! compile_reason {
 pub const REASON_PREFIX: &str = antecedent_core::reason_code::PREFIX;
 
 impl CausalError {
+    /// This refusal with structured diagnostics attached. The message and every
+    /// classification are unchanged; match the refusal itself through [`Self::peeled`].
+    #[must_use]
+    pub fn diagnosed(self, fields: antecedent_estimate::RefusalFields) -> Self {
+        Self::Diagnosed { error: Box::new(self.into_peeled()), fields: Box::new(fields) }
+    }
+
+    /// The refusal under any [`Self::Diagnosed`] wrapper (itself when it is not one).
+    #[must_use]
+    pub fn peeled(&self) -> &Self {
+        let mut error = self;
+        while let Self::Diagnosed { error: inner, .. } = error {
+            error = inner.as_ref();
+        }
+        error
+    }
+
+    /// Owned [`Self::peeled`].
+    #[must_use]
+    pub fn into_peeled(self) -> Self {
+        match self {
+            Self::Diagnosed { error, .. } => (*error).into_peeled(),
+            other => other,
+        }
+    }
+
     /// Refuse a question whose identification produced no estimand.
     ///
     /// `detail` names the route; the status and whether the search was
@@ -449,15 +488,48 @@ impl CausalError {
     /// The reason code a refusal carries, when its message is reason-coded.
     #[must_use]
     pub fn reason_code(&self) -> Option<&str> {
-        let message = match self {
+        let message = match self.peeled() {
             Self::NotIdentified { .. } => return Some("effect_not_identified"),
             Self::Compile { message } => message.as_str(),
             Self::Unsupported { message } | Self::Support { message, .. } => message,
-            Self::Estimate(EstimationError::Refused { code, .. })
+            Self::Estimate(
+                EstimationError::Refused { code, .. }
+                | EstimationError::RefusedWithFields { code, .. },
+            )
             | Self::Serialization(IoError::Refused { code, .. }) => return Some(code),
+            // The multi-source limited-experiment route's frozen (code, detail) pairs.
+            Self::Identify(error) => {
+                return antecedent_identify::mz_transport_refusal(error).map(|(code, _)| code);
+            }
+            Self::Serialization(error @ IoError::MzTransport(_)) => return error.reason_code(),
             _ => return None,
         };
         antecedent_core::reason_code::split_prefix(message).map(|(code, _)| code)
+    }
+
+    /// Structured diagnostics (failing treatment or cell, stage, arm ESS, rank, implicated
+    /// columns, remedy) of a refusal built with them. Additive: `None` for every other
+    /// error, and absent entries inside stay absent rather than being derived.
+    #[must_use]
+    pub fn refusal_fields(
+        &self,
+    ) -> Option<std::borrow::Cow<'_, antecedent_estimate::RefusalFields>> {
+        match self {
+            Self::Diagnosed { fields, .. } => Some(std::borrow::Cow::Borrowed(fields)),
+            Self::Estimate(error) => error.refusal_fields(),
+            _ => None,
+        }
+    }
+
+    /// What the caller can change to get past this refusal, when the refusal
+    /// names one (an estimator refusal built with a remedy). Additive and
+    /// optional: `None` for every other error, and never part of the message.
+    #[must_use]
+    pub const fn remedy(&self) -> Option<&'static str> {
+        match self {
+            Self::Estimate(error) => error.remedy(),
+            _ => None,
+        }
     }
 
     /// Build a structured review-required error.
@@ -490,7 +562,7 @@ impl CausalError {
     #[must_use]
     pub fn blocker_id(&self) -> Option<antecedent_core::BlockedOperation> {
         use antecedent_core::BlockedOperation;
-        match self {
+        match self.peeled() {
             Self::Support { id: crate::support::SupportRefusal::NotApplicable, message } => {
                 Some(BlockedOperation::not_applicable(*message))
             }
@@ -543,6 +615,19 @@ mod tests {
     // `except CausalCancelledError` (or `blocker_id().scientific`) would otherwise
     // never see it, and a `CausalValidateError`/`CausalDiscoveryError` would wrongly
     // read as a refutation/discovery finding.
+
+    /// The facade reads an estimator refusal's remedy through unchanged, and
+    /// every other error names none.
+    #[test]
+    fn remedy_reads_through_from_the_estimator_refusal() {
+        use antecedent_estimate::EstimationError;
+        let remedied = CausalError::from(EstimationError::unsupported_with_remedy("no", "do this"));
+        assert_eq!(remedied.remedy(), Some("do this"));
+        assert_eq!(remedied.reason_code(), None);
+        assert_eq!(remedied.to_string(), "no");
+        assert_eq!(CausalError::from(EstimationError::unsupported("no")).remedy(), None);
+        assert_eq!(CausalError::Unsupported { message: "no" }.remedy(), None);
+    }
 
     #[test]
     fn validate_cancelled_is_top_level_cancelled_not_validate() {

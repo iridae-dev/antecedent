@@ -24,6 +24,30 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# CI runs these independent sections in parallel. With no argument the local
+# release-candidate gate still runs every check in this file.
+section=all
+if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
+  section="$2"
+elif [[ $# -ne 0 ]]; then
+  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-0..7|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches]" >&2
+  exit 2
+fi
+case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-[0-7]|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches) ;; *)
+  echo "unknown release-gate section: $section" >&2; exit 2 ;;
+esac
+section_start() {
+  printf -v "section_since_${1//-/_}" '%s' "$SECONDS"
+  echo "== $1 started $(date -u +%FT%TZ) =="
+}
+section_end() {
+  local since="section_since_${1//-/_}"
+  echo "== $1 finished in $((SECONDS - ${!since}))s =="
+}
+
+if [[ "$section" == all || "$section" == inventory ]]; then
+section_start inventory
+
 # Runs unconditionally: the inventory honesty pass below reads `status` with a
 # regex default, so a row missing the key would sail through it. SKIP_PRIOR_GATES
 # must not skip the schema contract that pass depends on.
@@ -44,21 +68,88 @@ bash scripts/gate_metadata_consistency.sh
 
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
+fi
 
+if [[ "$section" == all || "$section" == promotion ]]; then
+section_start promotion
+# 2.2 cells stay closed until their frozen promotion record carries executed
+# positive, negative and artifact evidence (parity/promotion_2_2.toml).
+echo "== 2.2 promotion records =="
+bash scripts/gate_promotion.sh
+section_end promotion
+fi
+
+if [[ "$section" == promotion-* ]]; then
+section_start "$section"
+bash scripts/gate_promotion.sh --evidence-group "${section#promotion-}"
+section_end "$section"
+fi
+
+if [[ "$section" == all || "$section" == support || "$section" == graphless ]]; then
+section_start graphless
+echo "== graphless support evidence =="
+bash scripts/gate_support_matrix.sh --graphless-only
+section_end graphless
+fi
+
+if [[ "$section" == all || "$section" == support || "$section" == matrix ]]; then
+section_start matrix
 echo "== public support matrix =="
-bash scripts/gate_support_matrix.sh
+bash scripts/gate_support_matrix.sh --matrix-only
+section_end matrix
+fi
+
+if [[ "$section" == matrix-* ]]; then
+section_start "$section"
+echo "== public support matrix cited tests ${section#matrix-}/8 =="
+bash scripts/gate_support_matrix.sh "--matrix-shard-${section#matrix-}"
+section_end "$section"
+fi
+
+if [[ "$section" == all || "$section" == support || "$section" == transport-contracts ]]; then
+section_start transport_contracts
+echo "== transport support contracts =="
+bash scripts/gate_support_matrix.sh --transport-only
+section_end transport_contracts
+fi
+
+if [[ "$section" == all || "$section" == support || "$section" == checked ]]; then
+section_start checked
 
 # Every licensed cell executes each licensed estimator from a retained checked
 # operation with no builder alive: the checked_execution citations on
 # parity/support_licensed.toml run here, grouped by test target.
 echo "== checked execution evidence =="
 bash scripts/gate_checked_execution.sh
+section_end checked
+fi
 
+if [[ "$section" == checked-* ]]; then
+section_start "$section"
+echo "== checked execution evidence ${section#checked-}/4 =="
+bash scripts/gate_checked_execution.sh --shard "${section#checked-}/4"
+section_end "$section"
+fi
+
+if [[ "$section" == all || "$section" == inventory ]]; then
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
 
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
+
+# 2.2 release closure: declared bounds agree across records, docs, Rust constants and Python
+# docstrings; the release notes describe each cell with exactly its record's claim word.
+echo "== 2.2 limits agreement (records, docs, Rust constants, Python) =="
+python3 scripts/check_limits_agreement.py
+
+echo "== 2.2 release notes claim vocabulary =="
+python3 scripts/check_release_claims.py
+
+# The calibration inventories are generated; a stale checked-in copy fails here (B8 gap closed).
+echo "== calibration backlog and readiness inventories are current =="
+python3 scripts/generate_calibration_backlog.py --check
+python3 scripts/calibration_readiness.py --check
 
 echo "== lint allows: no file-wide allow of lossy casts or exact float compares in library code =="
 bash scripts/gate_lint_allows.sh
@@ -71,7 +162,10 @@ bash scripts/gate_coverage_citations.sh
 
 echo "== calibration attestation (every coverage record matches the code) =="
 bash scripts/gate_calibration_attestation.sh
+fi
 
+if [[ "$section" == all || "$section" == features || "$section" == feature-core ]]; then
+section_start feature_core
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   echo "== prior feature gates =="
   bash scripts/gate_estimate_ci.sh
@@ -87,9 +181,49 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   # checks their filters still select tests. The calibration script stays on
   # the measurement surface; this job does not invoke it.
   bash scripts/gate_causal_artifacts.sh
-  bash scripts/gate_composition.sh
+fi
+section_end feature_core
+fi
+
+if [[ "$section" == all || "$section" == features || "$section" == feature-composition ]]; then
+section_start feature_composition
+if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
+  if [[ "$section" == feature-composition ]]; then
+    # Inventory already runs the common schema and reachability checks in CI.
+    bash scripts/gate_composition.sh --evidence-only
+  else
+    bash scripts/gate_composition.sh
+  fi
+fi
+section_end feature_composition
+fi
+
+if [[ "$section" == all || "$section" == features || "$section" == feature-transport ]]; then
+section_start feature_transport
+if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   bash scripts/gate_transport.sh
 fi
+section_end feature_transport
+fi
+
+if [[ "$section" == all || "$section" == features || "$section" == feature-exits ]]; then
+section_start feature_exits
+if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
+  # 2.2 A exit gate: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
+  # check. PENDING_CALIBRATION (story 3 / X1 coverage records unmeasured) exits 0 here; the
+  # release-candidate cut can add --require-calibrated.
+  echo "== 2.2 A exit gate =="
+  bash scripts/gate_a_exit.sh
+  # 2.2 B exit gate scaffold: per-package table (PENDING_IMPLEMENTATION until a package registers
+  # its stories in scripts/b_exit_report.py) plus the interval check over every 2.2 record. The
+  # cut runs it with --release.
+  echo "== 2.2 B exit gate =="
+  bash scripts/gate_b_exit.sh
+fi
+section_end feature_exits
+fi
+
+if [[ "$section" == all || "$section" == inventory ]]; then
 
 python3 - <<'PY'
 from pathlib import Path
@@ -276,6 +410,10 @@ if ! git diff --exit-code -- docs/release-notes/ \
   exit 1
 fi
 
+fi
+
+if [[ "$section" == all || "$section" == benches ]]; then
+section_start benches
 # One cargo invocation, so a bench added to a manifest cannot ship unexecuted.
 # Pull requests skip it unless they touch a bench file or a [[bench]] entry;
 # main and a local release run always smoke. The extension module and the
@@ -309,6 +447,10 @@ if [[ "$run_criterion_smoke" -eq 1 ]]; then
   cargo bench --workspace --exclude antecedent-py --exclude antecedent-learn-burn \
     --bench '*' -- --test
 fi
+section_end benches
+fi
+
+if [[ "$section" == all || "$section" == inventory ]]; then
 
 if command -v cargo-deny >/dev/null 2>&1; then
   echo "== cargo deny check =="
@@ -322,3 +464,5 @@ fi
 
 echo "PR inventory / composition gate PASSED (not an RC)."
 echo "Cut with: CI_RUN_ID=<run> bash scripts/gate_release_candidate.sh"
+section_end inventory
+fi

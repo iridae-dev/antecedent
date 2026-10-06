@@ -4,7 +4,7 @@
 use antecedent_core::{
     EvidenceCatalog, ExecutionContext, IdentityDomain, NodeRef, RegimeId, VariableId,
 };
-use antecedent_expr::ExactEvaluationLimits;
+use antecedent_expr::{Assignment, ExactEvaluationLimits};
 use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
 use antecedent_identify::{ClassicalTransportDerivation, ClassicalTransportQuery, SidLimits};
 use antecedent_io::{IoError, transport_proof::TransportProofWire};
@@ -20,6 +20,30 @@ pub(super) fn err(error: impl std::fmt::Display) -> IoError {
 /// registered refusal code as [`IoError::Refused`] rather than flattening it.
 pub(super) fn estimate_err(error: antecedent_estimate::EstimationError) -> IoError {
     IoError::from(error)
+}
+
+/// Refuse an exact-evaluation failure with its registered transport code.
+pub(super) fn eval_err(error: &antecedent_expr::EvalError) -> IoError {
+    estimate_err(antecedent_estimate::refuse_eval(error))
+}
+
+/// One compiled plan per request, in request order, through `prepare`.
+pub(super) fn compile_plans<P>(
+    requests: &[Assignment],
+    prepare: impl FnMut(&Assignment) -> Result<P, IoError>,
+) -> Result<Vec<P>, IoError> {
+    requests.iter().map(prepare).collect()
+}
+
+/// Evaluate every retained plan after refusing a cancelled context at `stage`.
+pub(super) fn evaluate_plans<P, D>(
+    stage: &str,
+    plans: &[P],
+    ctx: &ExecutionContext,
+    evaluate: impl FnMut(&P) -> Result<D, IoError>,
+) -> Result<Vec<D>, IoError> {
+    antecedent_estimate::refuse_cancelled(ctx, stage).map_err(estimate_err)?;
+    plans.iter().map(evaluate).collect()
 }
 
 /// Hex digest of a wire value under `domain`.

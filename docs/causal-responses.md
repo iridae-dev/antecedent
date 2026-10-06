@@ -546,9 +546,28 @@ sampling coverage of every published derivative interval is gated in
   regression spline on the nuisance basis: a roughness penalty shrinks the
   published gradient at first order (with quantile knots, even a linear
   component), so `nuisance_lambda` regularizes nuisances only. They are not
-  doubly robust, and the Frequentist result publishes no interval. A Jacobian
-  is row-major outcomes × treatments. A directional query is the unnormalized
-  inner product `∇m · d`. Differential missingness across outcomes is refused.
+  doubly robust. A Jacobian is row-major outcomes × treatments. A directional
+  query is the unnormalized inner product `∇m · d`. Differential missingness
+  across outcomes is refused.
+
+  The Frequentist result is point-only: `uncertainty` is empty and the warning
+  `response.derivative_interval_withheld` says why. Each gradient coordinate
+  is a linear functional of the target fit's coefficients, so a
+  coefficient-sandwich confidence band exists. Its analytic variance uses an
+  HC2 correction based on each complete row's leverage in the penalized spline
+  fit; the Bayesian band below uses a separate average-leverage correction.
+  Its 90% coverage is measured over the gate's three sample-size points as
+  `response_jacobian_dag_frequentist_nominal_90_coverage` and
+  `directional_derivative_dag_frequentist_nominal_90_coverage` in
+  `v19_derivative_calibration.rs`. The public route remains point-only while
+  those records and the interval route are reviewed for promotion; one
+  directional coordinate narrowly missed an exploratory 8,000-repetition
+  threshold, although the prescribed gate passed. For an interval today, run the query with Bayesian
+  inference. A Rust `Jacobian` on a transformed
+  `DerivativeScale` (for example an elasticity Jacobian) has no interval
+  construction at all, wired or published. The scalar `Elasticity` query is a
+  different route (a Kennedy-DR point derivative) and does publish a calibrated
+  Fieller interval.
 
 Bayesian derivatives keep the Frequentist estimator identities and replace
 the analytic interval with a Rubin Dirichlet(1,…,1) row-weight posterior in

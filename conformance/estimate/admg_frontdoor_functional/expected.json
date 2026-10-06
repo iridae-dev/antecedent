@@ -32,5 +32,9 @@
     "expected_ate": 0.282,
     "absolute_tolerance": 1e-12,
     "tolerance_class": "StableFloat"
+  },
+  "oracle": {
+    "kind": "closed_form",
+    "method": "front-door formula evaluated by hand on the fully enumerated binary table (README); no random data"
   }
 }

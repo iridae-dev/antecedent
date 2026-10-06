@@ -13,7 +13,7 @@
 )]
 
 use antecedent_stats::{
-    MAX_CLUSTER_DIMENSIONS, SandwichKind, bartlett_weight, cluster_meat_scalar,
+    MAX_CLUSTER_DIMENSIONS, SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar,
     coefficient_covariance, combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples,
     multiway_subset_masks, newey_west_meat_scalar, panel_hac_meat_scalar,
     score_coefficient_covariance,
@@ -377,6 +377,16 @@ pub(crate) fn add_nuisance_correction(
     Ok(())
 }
 
+/// The `cluster-robust variance requires at least 2 clusters` refusal, carrying the count.
+/// Rendered as the plain backend message it replaces.
+pub(crate) fn few_clusters(clusters: usize) -> EstimationError {
+    EstimationError::Stats(StatsError::FewClusters {
+        clusters: u64::try_from(clusters).unwrap_or(u64::MAX),
+        minimum: 2,
+        rendered: "backend error: cluster-robust variance requires at least 2 clusters",
+    })
+}
+
 /// Cluster-robust SE for a scalar influence/score sequence (Arellano DF).
 ///
 /// `Var = (G/(G−1)) · (1/n²) · Σ_g s_g²` with `s_g = Σ_{i∈g}(ψ_i − ψ̄)`.
@@ -395,9 +405,7 @@ pub(crate) fn cluster_influence_se(psi: &[f64], groups: &[u32]) -> Result<f64, E
     let (sum_s2, g_count) = cluster_meat_scalar(psi, groups, mean)
         .map_err(|_| EstimationError::data_msg("cluster influence SE failed to form meat"))?;
     if g_count < 2 {
-        return Err(EstimationError::stats_msg(
-            "cluster-robust variance requires at least 2 clusters",
-        ));
+        return Err(few_clusters(g_count));
     }
     let scale = (g_count as f64 / (g_count as f64 - 1.0)) / (n as f64).powi(2);
     Ok((scale * sum_s2).max(0.0).sqrt())
@@ -468,9 +476,7 @@ pub(crate) fn multiway_influence_se(
         let (m_s, g_s) = cluster_meat_scalar(psi, &combined, mean)
             .map_err(|_| EstimationError::data_msg("multiway influence SE failed to form meat"))?;
         if g_s < 2 {
-            return Err(EstimationError::stats_msg(
-                "cluster-robust variance requires at least 2 clusters",
-            ));
+            return Err(few_clusters(g_s));
         }
         let c_s = g_s as f64 / (g_s as f64 - 1.0);
         // Accumulate signed `c_S M_S`; divide by `n²` after IE.
@@ -561,9 +567,7 @@ pub(crate) fn panel_cluster_hac_influence_se(
     let (meat, g) = panel_hac_meat_scalar(&u, groups, time, lag)
         .map_err(|e| EstimationError::stats_msg(e.to_string()))?;
     if g < 2 {
-        return Err(EstimationError::stats_msg(
-            "cluster-robust variance requires at least 2 clusters",
-        ));
+        return Err(few_clusters(g));
     }
     let c_g = g as f64 / (g as f64 - 1.0);
     Ok((c_g * meat).max(0.0).sqrt() / n as f64)
@@ -1014,5 +1018,33 @@ mod tests {
         assert!((se - expected).abs() < 1e-12);
         let naive = newey_west_influence_se(&psi, 1);
         assert!((se - naive).abs() > 1e-12, "gathered times 0,1,3 must not use index-lag Bartlett");
+    }
+    /// The scalar-influence cluster refusals keep their backend text and report the failing
+    /// count and the minimum.
+    #[test]
+    fn few_cluster_refusals_report_counts_and_keep_the_text() {
+        const TEXT: &str = "backend error: cluster-robust variance requires at least 2 clusters";
+        let psi = [1.0, -0.5, 0.25, -0.25];
+        let one = [0u32, 0, 0, 0];
+        let err = cluster_influence_se(&psi, &one).unwrap_err();
+        assert_eq!(err.to_string(), TEXT);
+        assert!(matches!(err, EstimationError::Stats(_)));
+        let fields = err.refusal_fields().unwrap();
+        assert_eq!(fields.stage.as_deref(), Some("cluster_variance"));
+        assert_eq!(fields.reason.as_deref(), Some("too_few_clusters"));
+        assert_eq!((fields.cluster_count, fields.cluster_minimum), (Some(1), Some(2)));
+        assert!(fields.remedy.is_some() && fields.arm_ess.is_empty());
+
+        // Multiway: the failing CGM subset's own count (dimension A has a single cluster).
+        let dims = vec![vec![3u32, 3, 3, 3], vec![0, 1, 0, 1]];
+        let err = multiway_influence_se(&psi, &dims).unwrap_err();
+        assert_eq!(err.to_string(), TEXT);
+        assert_eq!(err.refusal_fields().unwrap().cluster_count, Some(1));
+
+        // Panel cluster-HAC with one unit.
+        let time = [0i64, 1, 2, 3];
+        let err = panel_cluster_hac_influence_se(&psi, &one, &time, 1).unwrap_err();
+        assert_eq!(err.to_string(), TEXT);
+        assert_eq!(err.refusal_fields().unwrap().cluster_count, Some(1));
     }
 }

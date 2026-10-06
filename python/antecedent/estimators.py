@@ -63,6 +63,9 @@ SeKind = Literal[
     "panel_cluster_hac",
 ]
 FitKind = Literal["ols", "ridge", "lasso", "huber"]
+PropensityPenaltyKind = Literal["ridge_logistic", "lasso"]
+NuisanceFallbackName = Literal["none", "ml", "ridge_logistic", "lasso"]
+IndependenceUnitName = Literal["cluster", "dyad"]
 GlmFamilyName = Literal[
     "binomial_logit",
     "binomial_probit",
@@ -216,6 +219,172 @@ class GlmOptions:
             out["tol"] = self.tol
         if not isinstance(self.ridge_on_separation, _Unset):
             out["ridge_on_separation"] = self.ridge_on_separation
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class PropensityPenalty:
+    """Explicit penalized binary propensity for :class:`Aipw` (``propensity_penalty=``).
+
+    ``kind="ridge_logistic"`` fits a ridge-penalized logistic propensity on each cross-fit
+    fold's *training rows only*; ``kind="lasso"`` fits an L1-penalized one and also selects
+    its support (the covariates with a nonzero coefficient) on those training rows. The
+    penalty is the member of ``lambdas`` (a fixed grid; default ``(0.01, 0.1, 1, 10, 100,
+    1000)`` for ridge and ``(0.5, 1, 2, 5, 10, 20, 50, 100)`` for lasso) with the smallest
+    ``inner_folds``-fold cross-validated log loss on those training rows (default 5 folds,
+    seeded by the analysis seed and replayable); the evaluation rows never inform the
+    penalty or the support. Penalties are on a sum-scale log likelihood with each
+    non-intercept covariate standardized by the training rows. This is a declared nuisance
+    choice, distinct from ``GlmOptions.ridge_on_separation`` (a rescue that estimation paths
+    refuse to keep).
+
+    The route publishes the cross-fitted point estimate, the score table (row identity,
+    overlap report and retargeting preserved, retarget covariance as for the unpenalized
+    route), the cross-fitted influence-function SE of the out-of-fold scores, and, with
+    ``bootstrap > 0``, a bootstrap SE whose every replicate repeats the fold plan, the
+    penalty (and lasso support) selection and all nuisance fits on the resample. A lasso
+    records the selected support of each fold on the estimate (``penalized_support``). Both
+    intervals rest on a stated remainder condition (``docs/guides/penalized-aipw.md``);
+    their coverage is what the calibration suite measures. Outcome models stay arm-wise OLS.
+    A lasso outside the cross-fitted untrimmed ``AllObserved`` mean ATE is refused with
+    ``selection_inference_not_licensed``.
+    """
+
+    kind: PropensityPenaltyKind = "ridge_logistic"
+    lambdas: Sequence[float] | None = None
+    inner_folds: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in ("ridge_logistic", "lasso"):
+            raise CausalValueError(
+                f"PropensityPenalty.kind must be 'ridge_logistic' or 'lasso', got {self.kind!r}"
+            )
+        if self.lambdas is not None:
+            values = list(self.lambdas)
+            if not values:
+                raise CausalValueError("PropensityPenalty.lambdas must not be empty")
+            for value in values:
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not float(value) > 0.0
+                    or float(value) == float("inf")
+                ):
+                    raise CausalValueError(
+                        f"PropensityPenalty.lambdas must be finite and positive, got {value!r}"
+                    )
+        if self.inner_folds is not None and (
+            isinstance(self.inner_folds, bool)
+            or not isinstance(self.inner_folds, int)
+            or not 2 <= self.inner_folds <= 20
+        ):
+            raise CausalValueError(
+                f"PropensityPenalty.inner_folds must be an int in [2, 20], got {self.inner_folds!r}"
+            )
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"kind": self.kind}
+        if self.lambdas is not None:
+            out["lambdas"] = [float(value) for value in self.lambdas]
+        if self.inner_folds is not None:
+            out["inner_folds"] = int(self.inner_folds)
+        return out
+
+
+@dataclass(frozen=True, slots=True)
+class ClusterDml:
+    """Declared independence unit of a cross-fitted :class:`Aipw` (``cluster_dml=``).
+
+    ``cluster_ids`` is the cluster label of every *complete-case* row (aligned to the rows
+    the estimator uses, as for ``se="cluster"``). Whole clusters share a cross-fit fold, so
+    the nuisances scoring a cluster are fit on other clusters only; this is not an IID
+    cross-fit followed by a cluster standard error. ``min_clusters`` (default 20, at least
+    10) is the smallest cluster count accepted: fewer clusters refuse
+    ``too_few_clusters`` rather than forming a sandwich over a handful of cluster sums.
+
+    The route publishes the cross-fitted **point estimate, the score table and the
+    cluster-sandwich standard error** of those scores (``se_analytic``; ``se_kind`` is
+    ``cluster`` for one-way and ``multiway`` for dyadic units). ``Aipw(bootstrap=0,
+    cluster_dml=...)`` is required: a row bootstrap would split clusters and a different
+    ``se`` kind is ambiguous, so either refuses ``cluster_interval_not_licensed``. The iid
+    joint covariance and influence values stay withheld. It is licensed for the untrimmed
+    ``AllObserved`` mean ATE and is not combined with ``propensity_penalty``.
+
+    ``unit="dyad"`` declares two-way (dyadic) dependence: ``cluster_ids`` are the first
+    endpoint of every row and ``second_cluster_ids`` the second, in separate label sets
+    (an entity that is a first endpoint of some rows and a second endpoint of others refuses
+    ``dyadic_dependence_not_licensed``). Folds own whole connected components of the endpoint
+    graph, so no endpoint crosses folds; ``min_components_per_fold`` (default 4, at least 2)
+    is the fewest components each of the five folds must own. One giant component (more than
+    a fold's share of the rows) also refuses ``dyadic_dependence_not_licensed``. The
+    two-way variance is a Rust receipt only; no interval is published.
+    """
+
+    cluster_ids: Sequence[int]
+    min_clusters: int | None = None
+    unit: IndependenceUnitName = "cluster"
+    second_cluster_ids: Sequence[int] | None = None
+    min_components_per_fold: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.unit not in ("cluster", "dyad"):
+            raise CausalValueError(
+                f"ClusterDml.unit must be 'cluster' or 'dyad', got {self.unit!r}"
+            )
+        if len(self.cluster_ids) == 0:
+            raise CausalValueError("ClusterDml.cluster_ids must not be empty")
+        for label in self.cluster_ids:
+            if isinstance(label, bool) or not isinstance(label, int) or label < 0:
+                raise CausalValueError(
+                    f"ClusterDml.cluster_ids must be non-negative ints, got {label!r}"
+                )
+        if self.min_clusters is not None and (
+            isinstance(self.min_clusters, bool)
+            or not isinstance(self.min_clusters, int)
+            or self.min_clusters < 10
+        ):
+            raise CausalValueError(
+                f"ClusterDml.min_clusters must be an int of at least 10, got {self.min_clusters!r}"
+            )
+        if self.unit == "cluster":
+            if self.second_cluster_ids is not None or self.min_components_per_fold is not None:
+                raise CausalValueError(
+                    "ClusterDml.second_cluster_ids and min_components_per_fold belong to "
+                    "unit='dyad'"
+                )
+            return
+        if self.second_cluster_ids is None:
+            raise CausalValueError("ClusterDml(unit='dyad') requires second_cluster_ids")
+        if len(self.second_cluster_ids) != len(self.cluster_ids):
+            raise CausalValueError(
+                "ClusterDml.second_cluster_ids must have one label per cluster_ids row, got "
+                f"{len(self.second_cluster_ids)} and {len(self.cluster_ids)}"
+            )
+        for label in self.second_cluster_ids:
+            if isinstance(label, bool) or not isinstance(label, int) or label < 0:
+                raise CausalValueError(
+                    f"ClusterDml.second_cluster_ids must be non-negative ints, got {label!r}"
+                )
+        if self.min_components_per_fold is not None and (
+            isinstance(self.min_components_per_fold, bool)
+            or not isinstance(self.min_components_per_fold, int)
+            or self.min_components_per_fold < 2
+        ):
+            raise CausalValueError(
+                "ClusterDml.min_components_per_fold must be an int of at least 2, got "
+                f"{self.min_components_per_fold!r}"
+            )
+
+    def _wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"cluster_ids": [int(label) for label in self.cluster_ids]}
+        if self.min_clusters is not None:
+            out["min_clusters"] = int(self.min_clusters)
+        if self.unit != "cluster":
+            out["unit"] = self.unit
+        if self.second_cluster_ids is not None:
+            out["second_cluster_ids"] = [int(label) for label in self.second_cluster_ids]
+        if self.min_components_per_fold is not None:
+            out["min_components_per_fold"] = int(self.min_components_per_fold)
         return out
 
 
@@ -398,6 +567,12 @@ class PropensityMatching:
     probability scale compresses near 0 and 1, exactly where match quality matters
     most, so a caliper given on it behaves quite differently. Pass
     ``caliper_scale="raw"`` to match on the clipped propensity directly.
+
+    Only the homoskedastic Abadie–Imbens standard error is published.
+    ``se="cluster"``, ``"multiway"``, ``"newey_west"`` and ``"panel_cluster_hac"``
+    are accepted here but refused at fit (``estimator_inference_mismatch``): no
+    clustered influence function exists for fixed-match nearest-neighbour matching.
+    Use :class:`Aipw` for clustered or serially dependent data.
     """
 
     bootstrap: int | None = None
@@ -477,7 +652,12 @@ class PropensityStratification:
 
 @dataclass(frozen=True, slots=True)
 class DistanceMatching:
-    """``distance.matching`` — Mahalanobis/caliper covariate-distance matching."""
+    """``distance.matching`` — Mahalanobis/caliper covariate-distance matching.
+
+    Only the homoskedastic Abadie–Imbens standard error is published; clustered,
+    multiway and HAC ``se`` kinds are refused at fit (``estimator_inference_mismatch``),
+    as for :class:`PropensityMatching`.
+    """
 
     bootstrap: int | None = None
     se: SeKind | None = None
@@ -529,6 +709,20 @@ class Aipw:
     nonparametric nuisances, and for ATT/ATC is not robust to a misspecified
     propensity or outcome model. The default inference is the bootstrap, which
     refits the nuisance models on every resample.
+
+    ``propensity_penalty`` declares a ridge- or lasso-logistic propensity chosen on each
+    fold's training rows (:class:`PropensityPenalty`); the cross-fitted influence-function
+    SE is published, and ``bootstrap > 0`` publishes a bootstrap SE that repeats penalty
+    selection and nuisance fitting on every resample.
+    ``nuisance_fallback`` declares the destination a failed GLM propensity fit falls back to:
+    ``"ridge_logistic"`` / ``"lasso"`` (default tuning) or a :class:`PropensityPenalty`
+    (its kind and tuning) re-run the whole cross-fitted route with that penalized propensity
+    and record the failed fit (``penalized_fallback``) beside the result; the claim is the
+    destination's and nothing is silently substituted. ``"ml"`` (a flexible learner) is
+    closed (``nuisance_fallback_not_licensed``): a failed fit is refused with the failure
+    recorded. A fallback is not combined with ``propensity_penalty``.
+    ``cluster_dml`` declares whole-cluster cross-fitting (:class:`ClusterDml`); it requires
+    ``bootstrap=0`` and publishes the point estimate and score table with no interval.
     """
 
     bootstrap: int | None = None
@@ -539,6 +733,9 @@ class Aipw:
     panel_times: Sequence[int] | None = None
     glm_options: GlmOptions | None = None
     overlap: Overlap | None = None
+    propensity_penalty: PropensityPenalty | None = None
+    nuisance_fallback: NuisanceFallbackName | PropensityPenalty | None = None
+    cluster_dml: ClusterDml | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
@@ -548,6 +745,44 @@ class Aipw:
             cluster_ids=self.cluster_ids,
             multiway_ids=self.multiway_ids,
         )
+        if self.cluster_dml is not None:
+            if not isinstance(self.cluster_dml, ClusterDml):
+                raise CausalValueError(
+                    f"cluster_dml must be a ClusterDml, got {self.cluster_dml!r}"
+                )
+            if self.bootstrap != 0 or self.se not in (None, "homoskedastic"):
+                raise CausalValueError(
+                    "Aipw(cluster_dml=...) reports its own cluster-sandwich SE: pass bootstrap=0 "
+                    "and leave se unset (reason=cluster_interval_not_licensed)"
+                )
+            if self.cluster_ids is not None:
+                raise CausalValueError(
+                    "Aipw(cluster_dml=...) carries its own cluster_ids; do not also pass "
+                    "cluster_ids"
+                )
+            if self.propensity_penalty is not None:
+                raise CausalValueError(
+                    "Aipw(cluster_dml=...) is not combined with propensity_penalty "
+                    "(reason=route_not_supported)"
+                )
+        if self.propensity_penalty is not None:
+            if not isinstance(self.propensity_penalty, PropensityPenalty):
+                raise CausalValueError(
+                    "propensity_penalty must be a PropensityPenalty, "
+                    f"got {self.propensity_penalty!r}"
+                )
+            if self.nuisance_fallback not in (None, "none"):
+                raise CausalValueError(
+                    "Aipw(nuisance_fallback=...) replaces a failed GLM propensity fit and is not "
+                    "combined with propensity_penalty (reason=invalid_argument)"
+                )
+        if isinstance(self.nuisance_fallback, PropensityPenalty):
+            pass
+        elif self.nuisance_fallback not in (None, "none", "ml", "ridge_logistic", "lasso"):
+            raise CausalValueError(
+                "nuisance_fallback must be 'none', 'ml', 'ridge_logistic', 'lasso' or a "
+                f"PropensityPenalty, got {self.nuisance_fallback!r}"
+            )
 
     @property
     def estimator_id(self) -> str:
@@ -564,6 +799,14 @@ class Aipw:
         )
         out.update(_wire_glm_options(self.glm_options))
         out.update(_wire_overlap(self.overlap))
+        if self.propensity_penalty is not None:
+            out["propensity_penalty"] = self.propensity_penalty._wire()
+        if isinstance(self.nuisance_fallback, PropensityPenalty):
+            out["nuisance_fallback"] = self.nuisance_fallback._wire()
+        elif self.nuisance_fallback is not None:
+            out["nuisance_fallback"] = self.nuisance_fallback
+        if self.cluster_dml is not None:
+            out["cluster_dml"] = self.cluster_dml._wire()
         return _omit_empty(out)
 
 
@@ -744,7 +987,13 @@ class Iv2Sls:
 
 @dataclass(frozen=True, slots=True)
 class DML:
-    """``dml`` — cross-fitted DML / AIPW."""
+    """``dml`` — cross-fitted DML / AIPW.
+
+    These flexible-learner estimators take no cluster or dependence option: an
+    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
+    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
+    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
+    """
 
     learner: LearnerSpec | str | None = None
     outcome: LearnerSpec | str | None = None
@@ -786,6 +1035,11 @@ class DRLearner:
     The doubly robust property is that of the score: the effect estimate is
     consistent when either the propensity or the outcome nuisance is. It is a
     property of the point estimate, not of any reported standard error.
+
+    These flexible-learner estimators take no cluster or dependence option: an
+    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
+    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
+    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
     """
 
     learner: LearnerSpec | str | None = None
@@ -821,7 +1075,13 @@ class DRLearner:
 
 @dataclass(frozen=True, slots=True)
 class CausalForest:
-    """``causal.forest`` — honest causal-forest CATE."""
+    """``causal.forest`` — honest causal-forest CATE.
+
+    These flexible-learner estimators take no cluster or dependence option: an
+    ``estimator_config`` carrying ``cluster_ids``, ``cluster_dml`` or ``multiway_ids`` for
+    them refuses ``route_not_supported`` (``cluster_dml.flexible_learner_closed``) instead of
+    being ignored; use ``Aipw(bootstrap=0, cluster_dml=ClusterDml(...))`` for clustered data.
+    """
 
     n_trees: int | None = None
     min_leaf: int | None = None
@@ -856,6 +1116,7 @@ class CausalForest:
 __all__ = [
     "Aipw",
     "CausalForest",
+    "ClusterDml",
     "DML",
     "DRLearner",
     "DistanceMatching",
@@ -869,6 +1130,7 @@ __all__ = [
     "LinearAdjustment",
     "Overlap",
     "PropensityMatching",
+    "PropensityPenalty",
     "PropensityStratification",
     "PropensityWeighting",
     "SeKind",

@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      rust_test_opt_level:
+        description: "Rust test optimization level for a CI timing comparison"
+        type: choice
+        options: ["1", "2"]
+        default: "2"
 
 permissions:
   contents: read
@@ -21,7 +28,7 @@ env:
 
 jobs:
   rust:
-    name: Rust ${{ matrix.os }}
+    name: Rust ${{ matrix.display }}
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -31,20 +38,56 @@ jobs:
     # binaries fit on the Ubuntu runner; the last run died in ld with
     # "No space left on device" after Clippy had already filled the disk.
     env:
-      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: ${{ inputs.rust_test_opt_level || '2' }}
       CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
+      RUST_CI_REST_FEATURES: antecedent-identify/test-util,antecedent-io/calibration-internal
+      RUST_CI_FACADE_FEATURES: ml-gbdt,ml-forest,ml-neural,antecedent-data/arrow
     strategy:
       fail-fast: false
+      # The facade owns most integration test targets. Both Ubuntu suites are
+      # required; their package selections cover the workspace without overlap.
+      # Main runs both macOS suites too, preserving its float-sensitive checks.
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            suite: rest
+            display: ubuntu-latest
+          - os: ubuntu-latest
+            suite: facade
+            display: ubuntu-latest facade
+          - os: macos-latest
+            suite: rest
+            display: macos-latest
+          - os: macos-latest
+            suite: facade
+            display: macos-latest facade
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Free Ubuntu disk
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          set -euo pipefail
+          needed_kib=$((75 * 1024 * 1024))
+          available_kib() { df -Pk / | awk 'NR == 2 {print $4}'; }
+          echo "Ubuntu disk before build:"
           df -h /
+          for path in /usr/share/dotnet /opt/hostedtoolcache/CodeQL /usr/local/lib/android /opt/ghc /usr/local/share/boost; do
+            if (( $(available_kib) >= needed_kib )); then
+              break
+            fi
+            if [[ -e "$path" ]]; then
+              echo "Freeing $path to reach 75 GiB available"
+              sudo rm -rf "$path"
+              df -h /
+            fi
+          done
+          if (( $(available_kib) < needed_kib )); then
+            echo "Need 75 GiB of available disk for Rust test binaries" >&2
+            exit 1
+          fi
 
       - name: Install Rust 1.85
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
@@ -54,6 +97,12 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
 
       - name: DCO check
         if: github.event_name == 'pull_request'
@@ -84,28 +133,53 @@ jobs:
       - name: Lint allows carry reasons
         run: bash scripts/gate_lint_allows.sh
 
-      # Clippy agrees across the two runners. The macOS suite is what
-      # disagrees with glibc on float bits and stack size, so it stays on
-      # main and is not what a pull request waits for.
-      - name: Clippy
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Split Rust suites preserve workspace features
+        if: matrix.os == 'ubuntu-latest' && matrix.suite == 'rest'
+        run: python3 scripts/check_rust_ci_feature_parity.py "$RUST_CI_REST_FEATURES" "$RUST_CI_FACADE_FEATURES"
 
+      # The macOS suite is sensitive to float bits and stack size, so it runs
+      # on main. PRs keep its format/DCO check but do not wait for its tests.
       - name: Install cargo-nextest
-        if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        if: matrix.os != 'macos-latest' || github.event_name != 'pull_request'
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: nextest
 
       # Doctests stay on `cargo test`; nextest does not run them.
       - name: Test
-        if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        if: matrix.suite != 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         run: |
-          cargo nextest run --workspace
-          cargo test --workspace --doc
+          trap 'df -h /' EXIT
+          # The facade's dev-dependencies enabled these features in the former
+          # full-workspace command. Keep that exact feature graph in this shard.
+          cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --no-run --timings
+          cargo nextest run --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
+          cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --doc
+
+      - name: Test facade
+        if: matrix.suite == 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
+        run: |
+          trap 'df -h /' EXIT
+          # Python's default features activate these three leaf features and
+          # data/arrow in the former full-workspace command.
+          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES" --no-run --timings
+          cargo nextest run -p antecedent --features "$RUST_CI_FACADE_FEATURES"
+          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES" --doc
+
+      - name: Upload Cargo timings
+        if: always() && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-timings-${{ matrix.os }}-${{ matrix.suite }}
+          path: target/cargo-timings/*.html
+          if-no-files-found: warn
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
 
       - name: Test optional learner and Gaussian-process features
-        if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        if: matrix.os == 'macos-latest' && matrix.suite == 'rest' && github.event_name != 'pull_request'
         run: |
           cargo nextest run -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
@@ -116,19 +190,7 @@ jobs:
       # the steps above built and fails when a filter they relied on selects nothing.
       - name: Named tests still exist
         if: matrix.os == 'ubuntu-latest'
-        run: bash scripts/gate_named_tests.sh
-
-      - name: crates.io publish dry-run
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set -euo pipefail
-          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
-            bash scripts/publish_crates.sh --dry-run
-          else
-            echo "No crate manifest changes; skipping publish dry-run"
-          fi
+        run: bash scripts/gate_named_tests.sh --shard '${{ matrix.suite }}'
 
   # `cargo test --workspace` unifies features through the `python` member
   # (default = ml-full), so the Rust job never compiles the graph a crates.io
@@ -140,6 +202,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      CARGO_PROFILE_TEST_OPT_LEVEL: ${{ inputs.rust_test_opt_level || '2' }}
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -151,6 +218,15 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
+      - name: Clippy workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Default features (what `cargo add antecedent` builds)
         run: |
@@ -178,6 +254,23 @@ jobs:
           cargo clippy -p antecedent-model --features gaussian-process --all-targets -- -D warnings
           cargo clippy -p antecedent-learn --features ml-neural --all-targets -- -D warnings
           cargo clippy -p antecedent-data --no-default-features --all-targets -- -D warnings
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: nextest
+
+      - name: Test optional learner and Gaussian-process features
+        run: |
+          set -euo pipefail
+          cargo nextest run -p antecedent-learn --features ml-full,ml-neural
+          cargo test -p antecedent-learn --features ml-full,ml-neural --doc
+          cargo nextest run -p antecedent-model --features gaussian-process
+          cargo test -p antecedent-model --features gaussian-process --doc
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
 
   # Relative performance regression, on pull requests labelled `perf`. Base and
   # head are benchmarked back to back on the same runner, so the absolute
@@ -239,11 +332,36 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: cargo deny check
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           command: check
+
+      - name: Install Rust 1.85 for crate packaging
+        if: github.event_name == 'pull_request'
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo for crate packaging
+        if: github.event_name == 'pull_request'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: crates.io publish dry-run
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_REF"
+          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
+            bash scripts/publish_crates.sh --dry-run
+          else
+            echo "No crate manifest changes; skipping publish dry-run"
+          fi
 
   # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
   # schema check, the provenance schema check, and the feature gates
@@ -254,11 +372,20 @@ jobs:
   # record does not match the code (gate_calibration_attestation.sh): the
   # statistical measurement is made on a development machine before upload
   # (scripts/measure_calibration.sh) and never runs here.
-  gates:
-    name: Domain gates
+  gate-sections:
+    name: Domain ${{ matrix.section }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
+      # Debug-profile libtest threads otherwise overflow on cited CPDAG pins.
+      RUST_MIN_STACK: "67108864"
+    strategy:
+      fail-fast: false
+      matrix:
+        section: [inventory, promotion-python, promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, checked-0, checked-1, checked-2, checked-3, feature-core, feature-composition, feature-transport, feature-exits, benches]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -280,21 +407,58 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
+      - name: Install cargo-nextest for cited evidence tests
+        if: (startsWith(matrix.section, 'promotion-') && matrix.section != 'promotion-python') || startsWith(matrix.section, 'checked-')
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: nextest
+
       - name: Install uv
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
-      - name: Sync Python for composition smoke
+      - name: Sync Python dependencies
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
-        run: uv sync --group dev
+        run: uv sync --group dev --no-install-project
 
       - name: Build native extension
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'checked-') && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
-        run: uv run maturin develop
+        # A cold compiler-cache backend made this dev-profile build take 8-9m;
+        # use Cargo's incremental build here, then cache test compilations.
+        env:
+          RUSTC_WRAPPER: ""
+          CARGO_INCREMENTAL: "1"
+        run: uv run --no-sync maturin develop
 
-      - name: Release gate
+      - name: Release gate section
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: bash scripts/gate_release.sh
+          UV_NO_SYNC: "1"
+        run: bash scripts/gate_release.sh --section "${{ matrix.section }}"
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
+
+  # Retain the required Domain gates check: every section must pass.
+  gates:
+    name: Domain gates
+    needs: gate-sections
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every domain section
+        env:
+          RESULT: ${{ needs.gate-sections.result }}
+        run: test "$RESULT" = success
 
   # Python lint / type check. `uv sync` creates python/.venv, which is what
   # scripts/gate_python_lint.sh requires, so CI runs the very script the release
@@ -304,6 +468,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -315,23 +482,38 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
       - name: Install uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Sync dev environment
         working-directory: python
-        run: uv sync --group dev
+        run: uv sync --group dev --no-install-project
 
       - name: Build native extension
         working-directory: python
-        run: uv run maturin develop
+        env:
+          RUSTC_WRAPPER: ""
+          CARGO_INCREMENTAL: "1"
+        run: uv run --no-sync maturin develop
 
       - name: ruff, ruff format, mypy
+        env:
+          UV_NO_SYNC: "1"
         run: bash scripts/gate_python_lint.sh
 
       - name: pytest with coverage floor
         working-directory: python
-        run: uv run pytest -q --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+        run: uv run --no-sync pytest -q --cov=antecedent --cov-report=term-missing --cov-fail-under=85
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
 
   # : CPython 3.11–3.14; Linux x86_64/aarch64 manylinux;
   # macOS arm64; Windows x86_64. Default faer path (no system BLAS).
@@ -345,6 +527,8 @@ jobs:
       PYTHONIOENCODING: utf-8
     permissions:
       contents: read
+      attestations: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -458,4 +642,11 @@ jobs:
           name: wheel-${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.target }}
           path: python/dist/*.whl
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+
+      # Main CI, where the wheel is built, records its provenance for release.
+      - name: Attest wheel build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: python/dist/*.whl

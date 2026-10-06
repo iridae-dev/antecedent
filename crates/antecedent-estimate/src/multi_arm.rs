@@ -54,6 +54,9 @@ pub fn estimate_multi_arm(
     if estimates.iter().any(|arm| arm.observed_support == 0) {
         return Err("multi-arm positivity failure: every declared arm needs observed support");
     }
+    if estimates.iter().any(|arm| !arm.value.is_finite() || !arm.variance_bound.is_finite()) {
+        return Err("multi-arm estimate or variance overflowed finite precision");
+    }
     Ok(estimates)
 }
 
@@ -70,5 +73,11 @@ mod tests {
         assert_eq!(fit.iter().map(|arm| arm.value).collect::<Vec<_>>(), [0.0, 2.0, 5.0]);
         assert_eq!(fit.iter().map(|arm| arm.observed_support).collect::<Vec<_>>(), [2, 2, 2]);
         assert!(estimate_multi_arm(&y, &[0, 1, 1, 0, 1, 1], &probabilities).is_err());
+    }
+
+    #[test]
+    fn extreme_positive_assignment_probability_cannot_publish_infinite_results() {
+        let probabilities = vec![vec![1e-320, 1.0], vec![0.5, 0.5]];
+        assert!(estimate_multi_arm(&[1.0, 1.0], &[0, 1], &probabilities).is_err());
     }
 }

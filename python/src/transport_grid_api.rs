@@ -63,7 +63,7 @@ impl PreparedTransportGridStage {
         let points:Vec<_>=result.points().iter().zip(&self.inner.query().at).map(|(point,at)|{
             let coordinates:BTreeMap<_,_>=at.entries().iter().map(|(v,x)|(self.names[v.as_usize()].as_str(),x.as_f64())).collect();
             match point {
-                TransportGridPoint::Unavailable(failure)=>serde_json::json!({"at":coordinates,"status":failure.kind,"detail":failure.detail,"factor_diagnostic":antecedent_io::transport_grid_wire::TransportGridFailureWire::from_failure(failure)}),
+                TransportGridPoint::Unavailable(failure)=>serde_json::json!({"at":coordinates,"status":failure.kind,"support_status":point.support_status().as_str(),"detail":failure.detail,"factor_diagnostic":antecedent_io::transport_grid_wire::TransportGridFailureWire::from_failure(failure)}),
                 _=>{
                     let distribution=point.distribution().expect("executable point");
                     let query=self.inner.query().functional.derivation().query();
@@ -72,7 +72,7 @@ impl PreparedTransportGridStage {
                         let est=r.estimate();serde_json::json!({"available":est.uncertainty.is_some()&&est.uncertainty_reason.is_none(),"reason":est.uncertainty_reason.as_deref(),"scope":"pointwise","calibration_status":"not_bound_to_this_execution","replicate_ids":est.replicate_ids.as_deref(),"atom_intervals":est.atom_intervals.as_deref(),"mean_intervals":est.mean_intervals.as_ref().map(|rows|rows.iter().map(|(v,l,u)|(self.names[v.as_usize()].as_str(),l,u)).collect::<Vec<_>>()),"replicates_failed":est.uncertainty.as_ref().map(|row|row.replicates_failed)})
                     },_=>serde_json::json!({"available":false,"reason":"exact_supplied_law_no_sampling_uncertainty"})};
                     let support:Vec<_>=distribution.support.iter().map(|s|serde_json::json!({"expression":s.expression.raw(),"status":s.status,"denominator":s.denominator,"assignment":s.assignment.iter().map(|(v,x)|(self.names[v.as_usize()].as_str(),x.as_f64())).collect::<BTreeMap<_,_>>()})).collect();
-                    serde_json::json!({"at":coordinates,"status":"available","outcomes":query.outcomes.iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(),"atoms":distribution.atoms.iter().map(|r|r.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),"probabilities":distribution.probabilities.as_ref(),"means":means,"uncertainty":uncertainty,"factor_support":support})
+                    serde_json::json!({"at":coordinates,"status":"available","support_status":point.support_status().as_str(),"outcomes":query.outcomes.iter().map(|v|self.names[v.as_usize()].as_str()).collect::<Vec<_>>(),"atoms":distribution.atoms.iter().map(|r|r.iter().map(Value::as_f64).collect::<Vec<_>>()).collect::<Vec<_>>(),"probabilities":distribution.probabilities.as_ref(),"means":means,"uncertainty":uncertainty,"factor_support":support})
                 }
             }
         }).collect();

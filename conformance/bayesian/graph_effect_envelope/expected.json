@@ -9,5 +9,9 @@
     3.0
   ],
   "expected_mixture_mean": 1.5714285714285714,
-  "tolerance_class": "StableFloat"
+  "tolerance_class": "StableFloat",
+  "oracle": {
+    "kind": "closed_form",
+    "method": "hand-derived identified-atom mixture of the stated per-graph weights and effect means; unidentified mass is the stated weight of the unidentified atoms"
+  }
 }

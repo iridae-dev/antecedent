@@ -138,7 +138,15 @@ fn example_sequential_bayes_runs() {
 
 #[test]
 fn example_staged_static_kinds_runs() {
-    staged_static_kinds::run().unwrap();
+    // Debug builds of the shared prepared dispatcher carry frames close to the default
+    // test-thread stack, so the example runs on its own thread.
+    std::thread::Builder::new()
+        .name("example-staged-static-kinds".into())
+        .stack_size(16 * 1024 * 1024)
+        .spawn(|| staged_static_kinds::run().unwrap())
+        .expect("spawn example thread")
+        .join()
+        .expect("example panicked");
 }
 
 #[test]

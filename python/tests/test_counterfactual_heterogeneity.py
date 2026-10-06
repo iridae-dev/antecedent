@@ -86,7 +86,12 @@ def test_frequentist_unit_effects_carry_no_interval():
     assert result.unit_effect_intervals is None
     assert result.unit_effect_intervals_level is None
     assert result.unit_effect_intervals_method is None
-    assert diagnostic(result, "gcm.counterfactual.uncertainty_unavailable") is not None
+    unavailable = diagnostic(result, "gcm.counterfactual.uncertainty_unavailable")
+    assert unavailable is not None
+    # The None is a recorded decision: the diagnostic says why and where the
+    # per-unit interval does live.
+    for needle in ("not identified", "selected", "unit_posterior_quantile"):
+        assert needle in unavailable, needle
 
 
 def test_units_outside_the_opposite_arms_covariate_support_are_flagged():

@@ -8,6 +8,8 @@ mod attribution;
 mod average;
 mod continuous_dose;
 mod counterfactual;
+mod counterfactual_event;
+mod cross_world;
 mod did;
 mod distribution;
 mod error;
@@ -21,6 +23,7 @@ mod policy_value;
 mod population;
 mod randomized;
 mod response;
+mod smoothed_dose;
 mod survival;
 mod synthetic_control;
 mod target;
@@ -29,6 +32,7 @@ mod transport;
 mod transport_catalog;
 mod transport_contract;
 mod transport_delta;
+mod transport_distribution;
 
 pub use crate::intervention::TemporalPolicy;
 
@@ -40,6 +44,11 @@ pub use attribution::{
 pub use average::AverageEffectQuery;
 pub use continuous_dose::{ContinuousDoseResponseQuery, FixedGroupDosePolicy};
 pub use counterfactual::CounterfactualQuery;
+pub use counterfactual_event::{CounterfactualEvent, CounterfactualEventQuery};
+pub use cross_world::{
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
+    WorldSpec,
+};
 pub use did::{DidSamplingDesign, PanelDidQuery};
 pub use distribution::{InterventionalDistributionQuery, PathSpecificEffectQuery};
 pub use error::QueryError;
@@ -66,6 +75,7 @@ pub use response::{
     ObservationAssumption, ObservationSpec, ResponseFunctional, ResponseQuery,
     TEMPORAL_OBSERVATION_UNLICENSED, TemporalResponseLicense, TemporalResponseSpec,
 };
+pub use smoothed_dose::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
 pub use synthetic_control::{SyntheticControlQuery, SyntheticPanelMethod};
 pub use target::{PredicateExpr, TargetPopulation};
@@ -73,9 +83,9 @@ pub use temporal::TemporalEffectQuery;
 pub use transport::TransportQuery;
 pub use transport_catalog::{
     DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
-    EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LicensedWeights,
-    RegimeBinding, RegimeKind, SamplingDesign, TargetSampling, UnmetDependency, VariableCoordinate,
-    VariableDomain,
+    EvidenceProjection, EvidenceRegime, FactorNeed, InterventionAssignment, LawOrigin,
+    LicensedWeights, RegimeBinding, RegimeKind, SamplingDesign, SamplingSelection, TargetSampling,
+    UnmetDependency, VariableCoordinate, VariableDomain,
 };
 pub use transport_contract::{
     ComputationLimits, ExperimentFamily, GraphAssumptionSet, OutcomeGuarantee, TheoremFamily,
@@ -84,6 +94,7 @@ pub use transport_contract::{
     TransportQueryScope, TransportSupportCoordinate, TransportUncertaintySupport,
 };
 pub use transport_delta::EvidenceCatalogDelta;
+pub use transport_distribution::{CatalogDistribution, SharedData};
 
 /// Top-level causal query enum.
 #[derive(Clone, Debug, PartialEq)]

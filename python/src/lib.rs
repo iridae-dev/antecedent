@@ -27,9 +27,15 @@ include!(concat!(env!("OUT_DIR"), "/python_test_link.rs"));
 mod artifact_api;
 mod ate_api;
 mod attribution_api;
+mod batch_retarget_api;
 pub(crate) mod bayesian;
 mod bounds_api;
 mod callbacks;
+mod candidate_screen_api;
+mod counterfactual_id_api;
+mod cross_world_api;
+mod derived_treatment_api;
+mod descriptive_api;
 mod design_api;
 mod discovery_api;
 mod estimator_config;
@@ -42,26 +48,39 @@ mod graphs;
 mod identification_details;
 mod interference_saturation_api;
 mod interrupt;
+mod inverse_outcome_api;
+mod learned_continuous_api;
 mod learned_trial_api;
+mod matched_case_control_api;
 mod observation_api;
 mod observational_interference_api;
 mod policy_api;
+mod preflight_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
 mod provider_api;
 mod quasi_api;
+mod recovery_api;
 mod regimes_api;
 mod response_api;
+mod smoothed_dose_api;
 mod stability;
 mod state_api;
+mod study_planning_api;
 mod survival_api;
 mod temporal_api;
 mod temporal_license;
+mod temporal_transport_api;
+mod transport_admg_conditional_api;
 mod transport_common;
 mod transport_exact_api;
 mod transport_grid_api;
 mod transport_interference_api;
+mod transport_joint_sensitivity_api;
+mod transport_mixed_api;
+mod transport_mz_api;
+mod transport_scenario_api;
 mod transport_statistical_api;
 mod transport_z_api;
 
@@ -365,6 +384,19 @@ pub(crate) fn with_reason_code(err: PyErr, code: &str) -> PyErr {
     })
 }
 
+/// Attach a refusal's structured `remedy` (what the caller can change to proceed).
+///
+/// Additive: set only when the refusal names one, so every other exception reads the
+/// `remedy = None` class default `antecedent.errors` installs on `CausalError`.
+fn with_remedy(err: PyErr, remedy: Option<&str>) -> PyErr {
+    if let Some(remedy) = remedy {
+        Python::attach(|py| {
+            let _ = err.value(py).setattr("remedy", remedy);
+        });
+    }
+    err
+}
+
 /// [`with_reason_code`] unless the exception already carries a finer code.
 fn with_default_reason_code(err: PyErr, code: &str) -> PyErr {
     Python::attach(|py| {
@@ -598,7 +630,7 @@ fn reason_code_of(error: &RustCausalError) -> Option<String> {
     let named = reason_code_in_message(&message)
         .filter(|code| reason_code::is_registered(code))
         .map(str::to_string);
-    let default = match error {
+    let default = match error.peeled() {
         RustCausalError::Graph(e) => Some(if matches!(e, GraphError::UnknownVariableName { .. }) {
             reason_code!("unknown_variable")
         } else {
@@ -638,7 +670,10 @@ fn reason_code_in_message(message: &str) -> Option<&str> {
 impl IntoCausalPyErr for RustCausalError {
     fn into_antecedent_py_err(self) -> PyErr {
         let code = reason_code_of(&self);
-        let err = uncoded_py_err(self);
+        let remedy = self.remedy();
+        let fields = self.refusal_fields().map(std::borrow::Cow::into_owned);
+        let err = with_remedy(uncoded_py_err(self), remedy);
+        let err = preflight_api::with_refusal_fields(err, fields.as_ref());
         match code {
             Some(code) => with_default_reason_code(err, &code),
             None => err,
@@ -650,11 +685,14 @@ impl IntoCausalPyErr for RustCausalError {
 /// [`reason_code_of`]).
 fn uncoded_py_err(error: RustCausalError) -> PyErr {
     match error {
+        // A refusal with structured fields is the refusal it wraps.
+        RustCausalError::Diagnosed { error, .. } => uncoded_py_err(*error),
         RustCausalError::Identify(e) => CausalIdentifyError::new_err(e.to_string()),
         // A reason-coded estimator refusal is the one refusal class, as a Rust
         // `Unsupported` refusal is.
         RustCausalError::Estimate(
             e @ (antecedent_estimate::EstimationError::Refused { .. }
+            | antecedent_estimate::EstimationError::RefusedWithFields { .. }
             | antecedent_estimate::EstimationError::TargetPopulation),
         ) => unsupported_py_err(e.to_string()),
         RustCausalError::Estimate(e) => CausalEstimateError::new_err(e.to_string()),
@@ -1359,7 +1397,25 @@ pub(crate) struct EstimateSection {
     crossfit_seed: Option<u64>,
     #[pyo3(get)]
     learner_provenance: Vec<(String, String, String)>,
+    /// A declared GLM-to-penalized fallback that ran: `(stage, fold, reason, message,
+    /// destination)` of the failed GLM propensity fit and the canonical key of the fallback
+    /// route that produced the result. `None` when no fallback ran.
+    #[pyo3(get)]
+    penalized_fallback: Option<(String, usize, String, String, String)>,
+    /// Covariates a lasso propensity kept on each cross-fit fold: `(fold, names)`. Empty for
+    /// ridge and for the unpenalized propensity.
+    #[pyo3(get)]
+    penalized_support: Vec<(usize, Vec<String>)>,
+    /// The refit bootstrap of a penalized propensity: `(uncertainty_kind, se, requested, ok,
+    /// failed, cancelled, penalties, influence_se)`, `penalties` holding `(replicate,
+    /// per-fold selected penalties)` of each successful replicate. `None` without one.
+    #[pyo3(get)]
+    penalized_bootstrap: Option<PenalizedBootstrapRecord>,
 }
+
+/// `(uncertainty_kind, se, requested, ok, failed, cancelled, penalties, influence_se)`.
+type PenalizedBootstrapRecord =
+    (String, Option<f64>, u32, u32, u32, bool, Vec<(u32, Vec<f64>)>, f64);
 
 /// Bounded interval for one interventional probability, or the reason none
 /// could be formed.
@@ -1666,6 +1722,39 @@ pub(crate) fn shared_study_sections(
             .iter()
             .map(|p| (p.spec.clone(), p.implementation.clone(), p.version.clone()))
             .collect(),
+        penalized_fallback: estimate.penalized.as_ref().and_then(|report| {
+            report.fallback.as_ref().map(|f| {
+                (
+                    f.failed_fit.stage.to_string(),
+                    f.failed_fit.fold,
+                    f.failed_fit.reason.to_string(),
+                    f.failed_fit.message.clone(),
+                    f.destination.clone(),
+                )
+            })
+        }),
+        penalized_support: estimate.penalized.as_ref().map_or_else(Vec::new, |report| {
+            report.selected_support.iter().map(|s| (s.fold, s.names.clone())).collect()
+        }),
+        penalized_bootstrap: estimate
+            .penalized
+            .as_ref()
+            .and_then(|report| report.variance.as_ref())
+            .map(|v| {
+                (
+                    v.uncertainty_kind.to_string(),
+                    v.refit_bootstrap_se,
+                    v.replicates_requested,
+                    v.replicates_ok,
+                    v.replicates_failed,
+                    v.cancelled,
+                    v.replicate_penalties
+                        .iter()
+                        .map(|r| (r.replicate, r.lambdas.clone()))
+                        .collect(),
+                    v.influence_se,
+                )
+            }),
     };
     let (
         posterior_effect_mean,
@@ -2594,7 +2683,25 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     transport_grid_api::register(m)?;
     transport_statistical_api::register(m)?;
     transport_z_api::register(m)?;
+    transport_joint_sensitivity_api::register(m)?;
+    transport_mixed_api::register(m)?;
+    study_planning_api::register(m)?;
+    recovery_api::register(m)?;
+    inverse_outcome_api::register(m)?;
+    transport_admg_conditional_api::register(m)?;
+    transport_mz_api::register(m)?;
+    transport_scenario_api::register(m)?;
+    temporal_transport_api::register(m)?;
+    cross_world_api::register(m)?;
+    counterfactual_id_api::register(m)?;
     learned_trial_api::register(m)?;
+    learned_continuous_api::register(m)?;
+    smoothed_dose_api::register(m)?;
+    derived_treatment_api::register(m)?;
+    matched_case_control_api::register(m)?;
+    descriptive_api::register(m)?;
+    candidate_screen_api::register(m)?;
+    preflight_api::register(m)?;
     observation_api::register(m)?;
     bounds_api::register(m)?;
     artifact_api::register(m)?;
@@ -2609,6 +2716,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 fn register_native_errors(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Every exception reads `remedy`: `None` unless the refusal names one (see
+    // [`with_remedy`]), so a caller never needs `getattr(err, "remedy", None)`.
+    m.py().get_type::<CausalError>().setattr("remedy", m.py().None())?;
+    m.py().get_type::<CausalError>().setattr("refusal_fields", m.py().None())?;
     m.add("CausalError", m.py().get_type::<CausalError>())?;
     m.add("CausalIdentifyError", m.py().get_type::<CausalIdentifyError>())?;
     m.add("CausalEstimateError", m.py().get_type::<CausalEstimateError>())?;

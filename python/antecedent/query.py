@@ -15,7 +15,16 @@ from math import isfinite
 from typing import Literal
 
 from ._native import temporal_response_spec as _native_temporal_response_spec
-from .errors import CausalValueError
+from .errors import CausalUnsupportedError, CausalValueError
+
+# What a multi-modifier ``ConditionalEffect`` refusal names instead.
+_CONDITIONAL_MULTI_MODIFIER_REMEDY = (
+    "the frequentist interaction regression fits one modifier; for several "
+    "modifiers hand the identified adjustment set to an external CATE learner "
+    "with antecedent.handoff.econml(result, modifiers=[...]), fit one "
+    "ConditionalEffect per modifier, or use the Rust Bayesian conditional "
+    "estimator (EstimatorId::BayesianConditional), which takes a modifier set"
+)
 
 
 def _require_name(field_name: str, value: str) -> None:
@@ -321,7 +330,12 @@ class PathSpecificEffect:
 
 @dataclass(frozen=True, slots=True)
 class ConditionalEffect:
-    """Conditional / context average effect with a single effect modifier."""
+    """Conditional / context average effect with a single effect modifier.
+
+    The frequentist interaction regression (and its calibrated interval) fits
+    one modifier, so a sequence of modifiers is refused with a ``remedy``
+    naming the routes that take a modifier set.
+    """
 
     treatment: str
     outcome: str
@@ -332,6 +346,13 @@ class ConditionalEffect:
     target_population: object | None = None
     outcome_functional: object | None = None
     kind: Literal["conditional"] = field(default="conditional", init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.modifier, str) and isinstance(self.modifier, Sequence):
+            raise CausalUnsupportedError(
+                "ConditionalEffect takes one modifier column",
+                remedy=_CONDITIONAL_MULTI_MODIFIER_REMEDY,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -654,7 +675,15 @@ class SemiElasticity:
 
 @dataclass(frozen=True, slots=True)
 class DirectionalDerivative:
-    """Plug-in response derivative along a supplied direction (not renormalized)."""
+    """Plug-in response derivative along a supplied direction (not renormalized).
+
+    The additive-GAM plug-in gradient (at most two treatments) dotted with
+    ``direction``. Frequentist results are point-only: ``uncertainty`` is empty
+    and the warning ``response.derivative_interval_withheld`` explains that its
+    coefficient-sandwich band is wired for calibration but stays closed until
+    its coverage is measured. Bayesian inference publishes a pointwise credible
+    band.
+    """
 
     treatments: Sequence[str]
     outcomes: Sequence[str]
@@ -683,7 +712,16 @@ class DirectionalDerivative:
 
 @dataclass(frozen=True, slots=True)
 class ResponseJacobian:
-    """Low-dimensional Jacobian of outcomes with respect to treatments."""
+    """Low-dimensional Jacobian of outcomes with respect to treatments.
+
+    Row-major outcomes x treatments from the additive-GAM plug-in gradient (at
+    most two treatments). Frequentist results are point-only: ``uncertainty``
+    is empty and the warning ``response.derivative_interval_withheld`` explains
+    that its coefficient-sandwich band is wired for calibration but stays closed
+    until its coverage is measured. Bayesian inference publishes a pointwise
+    credible band. The scalar :class:`Elasticity` query is a different
+    estimator and publishes a Frequentist Fieller interval.
+    """
 
     treatments: Sequence[str]
     outcomes: Sequence[str]

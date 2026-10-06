@@ -15,6 +15,7 @@ cd "$ROOT"
 
 python3 - "$@" <<'PY'
 import json
+import os
 import subprocess
 import sys
 
@@ -64,11 +65,17 @@ LISTINGS = {
     "workspace": ["--workspace"],
     "gaussian-process": ["-p", "antecedent-model", "--features", "gaussian-process"],
 }
+REST_FEATURES = os.getenv(
+    "RUST_CI_REST_FEATURES", "antecedent-identify/test-util,antecedent-io/calibration-internal"
+)
+FACADE_FEATURES = os.getenv(
+    "RUST_CI_FACADE_FEATURES", "ml-gbdt,ml-forest,ml-neural,antecedent-data/arrow"
+)
 
 
-def problems(listings: dict[str, dict]) -> list[str]:
+def problems(listings: dict[str, dict], named=NAMED) -> list[str]:
     found = []
-    for listing, package, target, needle in NAMED:
+    for listing, package, target, needle in named:
         suites = listings[listing]["rust-suites"]
         if target == "*":
             ids = [i for i, s in suites.items() if s["package-name"] == package]
@@ -143,11 +150,25 @@ if sys.argv[1:] == ["--self-test"]:
     print("named-test self-test: ok")
     sys.exit(0)
 
-found = problems({key: nextest(args) for key, args in LISTINGS.items()})
+if sys.argv[1:3] == ["--shard", "facade"] and len(sys.argv) == 3:
+    named = [entry for entry in NAMED if entry[1] == "antecedent"]
+    listings = {"workspace": ["-p", "antecedent", "--features", FACADE_FEATURES]}
+elif sys.argv[1:3] == ["--shard", "rest"] and len(sys.argv) == 3:
+    named = [entry for entry in NAMED if entry[1] != "antecedent"]
+    listings = {"workspace": ["--workspace", "--exclude", "antecedent", "--features",
+                              REST_FEATURES],
+                "gaussian-process": LISTINGS["gaussian-process"]}
+elif not sys.argv[1:]:
+    named = NAMED
+    listings = LISTINGS
+else:
+    sys.exit("usage: gate_named_tests.sh [--self-test|--shard facade|rest]")
+
+found = problems({key: nextest(args) for key, args in listings.items()}, named)
 if found:
     print("a filter the feature gates relied on no longer selects a test:", file=sys.stderr)
     for problem in found:
         print(f"  {problem}", file=sys.stderr)
     sys.exit(1)
-print(f"named tests: ok ({len(NAMED)} filters)")
+print(f"named tests: ok ({len(named)} filters)")
 PY

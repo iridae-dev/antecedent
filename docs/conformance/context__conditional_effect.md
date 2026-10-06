@@ -6,4 +6,4 @@
 
 ## Expected summary
 
-Top-level keys: `ate_target, ate_tol, tolerance_class` (3 fields).
+Top-level keys: `ate_target, ate_tol, oracle, tolerance_class` (4 fields).

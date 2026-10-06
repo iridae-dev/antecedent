@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from math import isfinite, isnan
-from typing import Any, ClassVar, Literal, Self
+from typing import Any, ClassVar, Literal, Self, get_args
 
 from pydantic import Field, PrivateAttr, model_validator
 
@@ -21,7 +21,12 @@ from ._report import ResultModel
 from ._slots import ReasoningSlots, mass_limitation
 from ._views import IdentificationView
 
-SupportStatus = Literal["supported", "weak_overlap", "extrapolative", "outside_empirical_support"]
+#: Empirical support labels, weakest last. ``missing_evidence`` (2.2) marks a coordinate
+#: whose required evidence (a supplied law, provider or declared domain) is absent; it is
+#: not a verdict about supplied evidence, which stays ``outside_empirical_support``.
+SupportStatus = Literal[
+    "supported", "weak_overlap", "extrapolative", "outside_empirical_support", "missing_evidence"
+]
 UncertaintyKind = Literal["none", "pointwise", "simultaneous", "identified_set", "posterior"]
 #: What an interval's level means: repeated-sampling ``"confidence"`` or posterior
 #: ``"credible"``. A credible interval's ``standard_error`` is a posterior standard
@@ -211,7 +216,9 @@ class SupportDiagnostic(ResultModel):
 class SupportReport(ResultModel):
     """Estimand-aware empirical support, separate from identification status.
 
-    ``status`` on a static curve is the worst label over requested points. On a
+    ``status`` on a static curve is the worst label over requested points
+    (``supported`` < ``weak_overlap`` < ``extrapolative`` <
+    ``outside_empirical_support`` < ``missing_evidence``). On a
     temporal dose × horizon surface it summarizes ``point_status``: fully
     supported, partially extrapolative, or outside empirical support. Cell
     labels share the mean-surface layout (dose-major).
@@ -225,12 +232,7 @@ class SupportReport(ResultModel):
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        allowed = {
-            "supported",
-            "weak_overlap",
-            "extrapolative",
-            "outside_empirical_support",
-        }
+        allowed = set(get_args(SupportStatus))
         if self.status not in allowed:
             raise CausalValueError(f"unknown support status {self.status!r}")
         if self.point_status is not None:

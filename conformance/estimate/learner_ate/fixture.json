@@ -9,5 +9,9 @@
     0.9,
     0.99
   ],
-  "absolute_bias_limit": 0.03
+  "absolute_bias_limit": 0.03,
+  "oracle": {
+    "kind": "closed_form",
+    "method": "stated DGP Y = 2T + Z + 0.5 epsilon: the population ATE is the coefficient 2"
+  }
 }

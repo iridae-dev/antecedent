@@ -52,6 +52,11 @@ pub enum ModelError {
         /// Context.
         message: String,
     },
+    /// A cooperative cancellation poll reported cancellation, so the fit stopped
+    /// before producing any mechanism. Only the `*_polled` fitting entry points
+    /// return it; the unpolled ones never poll.
+    #[error("mechanism fit cancelled")]
+    Cancelled,
     /// Graph error passthrough.
     #[error(transparent)]
     Graph(#[from] GraphError),

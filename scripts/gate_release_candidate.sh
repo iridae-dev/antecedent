@@ -10,8 +10,10 @@
 #      the calibration attestation every PR runs: each coverage record's facets
 #      unchanged since its own calibration_sha, or attested_by_replay under a
 #      valid replay waiver)
-#   3. runs Python lint/types and the full Python test suite
-#   4. builds one local wheel into a fresh directory, installs it into a fresh
+#   3. requires the 2.2 A and B exit gates to have no pending calibration or
+#      implementation work, complete bounds documentation and final release claims
+#   4. runs Python lint/types and the full Python test suite
+#   5. builds one local wheel into a fresh directory, installs it into a fresh
 #      venv, and runs the full Python test suite against the installed wheel
 #
 #   CI_RUN_ID=<actions run id for HEAD> bash scripts/gate_release_candidate.sh
@@ -160,6 +162,16 @@ check_ci_run "$RUN_JSON" "$(git rev-parse HEAD)"
 
 echo "== release candidate: PR inventory + composition + calibration attestation =="
 bash scripts/gate_release.sh
+
+echo "== release candidate: calibrated 2.2 A exit =="
+bash scripts/gate_a_exit.sh --require-calibrated
+
+echo "== release candidate: complete and calibrated 2.2 B exit =="
+bash scripts/gate_b_exit.sh --release
+
+echo "== release candidate: strict bounds and final claims =="
+python3 scripts/check_limits_agreement.py --strict
+python3 scripts/check_release_claims.py --final
 
 echo "== release candidate: Python lint / types =="
 bash scripts/gate_python_lint.sh

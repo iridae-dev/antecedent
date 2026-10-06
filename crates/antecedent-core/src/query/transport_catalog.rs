@@ -181,6 +181,45 @@ pub enum DistributionAvailability {
     },
 }
 
+/// Sampling selection under which a regime's law was collected.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum SamplingSelection {
+    /// A law of the named population itself (the historical meaning of every regime).
+    Population,
+    /// A law of the selected subpopulation `P(· | S = 1)`, where inclusion depends on
+    /// these variables. It never stands in for the population law.
+    SelectedOn {
+        /// Variables the inclusion mechanism depends on.
+        variables: Arc<[VariableId]>,
+    },
+}
+
+/// Whether a regime's law was measured or is the output of a model.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub enum LawOrigin {
+    /// Measured (exact supplied or empirical) law of the regime.
+    Measured,
+    /// A posterior or other fitted-model artifact. It is not an experimental or
+    /// observational law and never satisfies an identification factor.
+    ModelArtifact {
+        /// Identity of the artifact that produced it.
+        artifact: Arc<str>,
+    },
+    /// A law derived by graph-licensed observation recovery (2.2B X10) from an
+    /// observed pattern law: a derived law with provenance, never an observed
+    /// table. It never supplies a population law (by `origin == Measured` in
+    /// [`EvidenceRegime::supplies_population_law`]), so it satisfies no
+    /// identification factor of the catalog routes (tested in
+    /// `a_recovered_law_never_supplies_a_factor_and_keeps_its_own_identity`);
+    /// the X9 mixed-source search excludes it as `recovered_law`. Only the
+    /// recovery handoff, after checking population, variables, factorization and
+    /// support, feeds it onward. On the catalog wire it is its own additive field.
+    Recovered {
+        /// Digest of the checked recovery derivation that produced it.
+        derivation: Arc<str>,
+    },
+}
+
 /// One available intervention assignment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterventionAssignment {
@@ -234,6 +273,13 @@ pub struct EvidenceRegime {
     pub population: Arc<str>,
     /// Joint versus separate-marginal availability.
     pub distribution: DistributionAvailability,
+    /// Study that produced this regime. `None` means the population is the only
+    /// study identity supplied; several regimes may share one study.
+    pub study: Option<Arc<str>>,
+    /// Sampling selection under which the law was collected.
+    pub selection: SamplingSelection,
+    /// Measured law versus model artifact.
+    pub origin: LawOrigin,
 }
 
 impl EvidenceRegime {
@@ -304,7 +350,19 @@ impl EvidenceRegime {
             conditioned_on: Arc::from([]),
             population,
             distribution,
+            study: None,
+            selection: SamplingSelection::Population,
+            origin: LawOrigin::Measured,
         })
+    }
+
+    /// Whether this regime supplies a measured law of its whole population: results
+    /// exist, it is not a model artifact, and it is not a selected-sample law.
+    #[must_use]
+    pub fn supplies_population_law(&self) -> bool {
+        self.evidence_kind.can_satisfy_factor()
+            && self.origin == LawOrigin::Measured
+            && self.selection == SamplingSelection::Population
     }
 
     /// Whether this regime is an available experimental assignment of `variables`.
@@ -313,14 +371,14 @@ impl EvidenceRegime {
     /// jointly satisfy `do(A,B)`.
     #[must_use]
     pub fn available_experiment_on(&self, population: &str, variables: &[VariableId]) -> bool {
-        self.evidence_kind.can_satisfy_factor()
+        self.supplies_population_law()
             && self.kind == RegimeKind::Experimental
             && self.population.as_ref() == population
             && same_variable_set(&self.interventions, variables)
     }
 
-    /// Whether this regime can supply the factor `need`: results exist, same
-    /// population, exactly the needed intervention set, every needed variable
+    /// Whether this regime can supply the factor `need`: a measured population law
+    /// (not a model artifact or selected-sample law), same population, exactly the needed intervention set, every needed variable
     /// measured (or intervened), a joint law when more than one variable is
     /// needed, only conditioning the factor itself conditions on, and an
     /// unrestricted intervention domain (a restricted assignment cannot supply
@@ -335,7 +393,7 @@ impl EvidenceRegime {
             DistributionAvailability::Joint => None,
             DistributionAvailability::SeparateMarginals { variables } => Some(variables),
         };
-        self.evidence_kind.can_satisfy_factor()
+        self.supplies_population_law()
             && self.population.as_ref() == need.population
             && self
                 .conditioned_on
@@ -352,6 +410,42 @@ impl EvidenceRegime {
             && self.intervention_values.is_empty()
     }
 
+    /// Reject an empty study or artifact identity and a malformed selection set.
+    ///
+    /// # Errors
+    ///
+    /// [`QueryError::InvalidTransport`].
+    pub fn validate_descriptor(&self) -> Result<(), QueryError> {
+        if self.study.as_ref().is_some_and(|study| study.trim().is_empty()) {
+            return Err(QueryError::InvalidTransport(
+                "regime study identity must be non-empty".into(),
+            ));
+        }
+        if let LawOrigin::ModelArtifact { artifact } = &self.origin {
+            if artifact.trim().is_empty() {
+                return Err(QueryError::InvalidTransport(
+                    "model artifact identity must be non-empty".into(),
+                ));
+            }
+        }
+        if let LawOrigin::Recovered { derivation } = &self.origin {
+            if derivation.trim().is_empty() {
+                return Err(QueryError::InvalidTransport(
+                    "recovered law derivation identity must be non-empty".into(),
+                ));
+            }
+        }
+        if let SamplingSelection::SelectedOn { variables } = &self.selection {
+            if variables.is_empty() {
+                return Err(QueryError::InvalidTransport(
+                    "a selected-sample law must name its selection variables".into(),
+                ));
+            }
+            unique_variables(Arc::clone(variables), "selection variables")?;
+        }
+        Ok(())
+    }
+
     /// Admissible projection: marginalize or condition within a measured regime.
     ///
     /// Removing a hard intervention and treating the law as observational is
@@ -360,43 +454,81 @@ impl EvidenceRegime {
     /// # Errors
     ///
     /// [`QueryError::InvalidTransport`] when the projection is not licensed.
+    #[allow(clippy::needless_pass_by_value)] // Stable public signature; the projection is read, not stored.
     pub fn project(&self, projection: EvidenceProjection) -> Result<Self, QueryError> {
-        match projection {
-            EvidenceProjection::Deintervene { .. } => Err(QueryError::InvalidTransport(
-                "removing a hard intervention and treating its law as observational is not licensed"
-                    .into(),
-            )),
-            EvidenceProjection::Marginalize { drop } => {
-                if drop.iter().any(|v| !self.measured.contains(v) || self.conditioned_on.contains(v)) {
-                    return Err(QueryError::InvalidTransport("cannot marginalize an unmeasured variable".into()));
-                }
-                let measured = self
-                    .measured
-                    .iter()
-                    .copied()
-                    .filter(|variable| !drop.contains(variable))
-                    .collect::<Vec<_>>();
-                let mut out = self.clone();
-                out.measured = measured.into();
-                if let DistributionAvailability::SeparateMarginals { variables } = &mut out.distribution {
-                    *variables = variables.iter().copied().filter(|v| !drop.contains(v)).collect::<Vec<_>>().into();
-                }
-                Ok(out)
+        let law =
+            project_law(&self.measured, &self.conditioned_on, &self.distribution, &projection)?;
+        let mut out = self.clone();
+        out.measured = law.measured;
+        out.conditioned_on = law.conditioned_on;
+        out.distribution = law.distribution;
+        Ok(out)
+    }
+}
+
+/// Measured set, conditioning set and availability after a licensed projection.
+pub(crate) struct ProjectedLaw {
+    pub(crate) measured: Arc<[VariableId]>,
+    pub(crate) conditioned_on: Arc<[VariableId]>,
+    pub(crate) distribution: DistributionAvailability,
+}
+
+/// The one owner of licensed projection semantics, shared by regimes and catalog
+/// distribution descriptors.
+pub(crate) fn project_law(
+    measured: &Arc<[VariableId]>,
+    conditioned_on: &Arc<[VariableId]>,
+    distribution: &DistributionAvailability,
+    projection: &EvidenceProjection,
+) -> Result<ProjectedLaw, QueryError> {
+    match projection {
+        EvidenceProjection::Deintervene { .. } => Err(QueryError::InvalidTransport(
+            "removing a hard intervention and treating its law as observational is not licensed"
+                .into(),
+        )),
+        EvidenceProjection::Marginalize { drop } => {
+            if drop.iter().any(|v| !measured.contains(v) || conditioned_on.contains(v)) {
+                return Err(QueryError::InvalidTransport(
+                    "cannot marginalize an unmeasured variable".into(),
+                ));
             }
-            EvidenceProjection::Condition { on } => {
-                if !on.is_empty() && matches!(self.distribution, DistributionAvailability::SeparateMarginals { .. }) {
-                    return Err(QueryError::InvalidTransport("conditioning requires a joint law".into()));
-                }
-                if on.iter().any(|variable| !self.measured.contains(variable)) {
-                    return Err(QueryError::InvalidTransport(
-                        "conditioning projection requires measured variables".into(),
-                    ));
-                }
-                let mut out = self.clone();
-                out.conditioned_on = self.conditioned_on.iter().chain(on.iter()).copied()
-                    .collect::<BTreeSet<_>>().into_iter().collect::<Vec<_>>().into();
-                Ok(out)
+            let kept = |v: &&VariableId| !drop.contains(v);
+            let mut distribution = distribution.clone();
+            if let DistributionAvailability::SeparateMarginals { variables } = &mut distribution {
+                *variables = variables.iter().filter(kept).copied().collect::<Vec<_>>().into();
             }
+            Ok(ProjectedLaw {
+                measured: measured.iter().filter(kept).copied().collect::<Vec<_>>().into(),
+                conditioned_on: Arc::clone(conditioned_on),
+                distribution,
+            })
+        }
+        EvidenceProjection::Condition { on } => {
+            if !on.is_empty()
+                && matches!(distribution, DistributionAvailability::SeparateMarginals { .. })
+            {
+                return Err(QueryError::InvalidTransport(
+                    "conditioning requires a joint law".into(),
+                ));
+            }
+            if on.iter().any(|variable| !measured.contains(variable)) {
+                return Err(QueryError::InvalidTransport(
+                    "conditioning projection requires measured variables".into(),
+                ));
+            }
+            let conditioned = conditioned_on
+                .iter()
+                .chain(on.iter())
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>()
+                .into();
+            Ok(ProjectedLaw {
+                measured: Arc::clone(measured),
+                conditioned_on: conditioned,
+                distribution: distribution.clone(),
+            })
         }
     }
 }
@@ -578,6 +710,9 @@ impl EvidenceCatalog {
             Arc::make_mut(&mut regime.intervention_values).sort_by_key(|a| a.variable);
             Arc::make_mut(&mut regime.measured).sort_unstable();
             Arc::make_mut(&mut regime.conditioned_on).sort_unstable();
+            if let SamplingSelection::SelectedOn { variables } = &mut regime.selection {
+                Arc::make_mut(variables).sort_unstable();
+            }
             if let DistributionAvailability::SeparateMarginals { variables } =
                 &mut regime.distribution
             {
@@ -669,6 +804,7 @@ impl EvidenceCatalog {
                 regime.distribution.clone(),
             )?;
             unique_variables(Arc::clone(&regime.conditioned_on), "conditioning coordinates")?;
+            regime.validate_descriptor()?;
             if regime.conditioned_on.iter().any(|v| !regime.measured.contains(v)) {
                 return Err(QueryError::InvalidTransport(
                     "conditioning requires measured coordinates".into(),
@@ -787,7 +923,7 @@ impl EvidenceCatalog {
     pub fn source_experiment_variables(&self, population: &str) -> Arc<[VariableId]> {
         let mut variables = BTreeSet::new();
         for regime in self.regimes.iter() {
-            if regime.evidence_kind.can_satisfy_factor()
+            if regime.supplies_population_law()
                 && regime.kind == RegimeKind::Experimental
                 && regime.population.as_ref() == population
             {
@@ -862,6 +998,9 @@ impl EvidenceCatalog {
                 conditioned_on: Arc::from([]),
                 population: Arc::clone(&population),
                 distribution: DistributionAvailability::Joint,
+                study: None,
+                selection: SamplingSelection::Population,
+                origin: LawOrigin::Measured,
             })
             .collect::<Vec<_>>();
         Self {

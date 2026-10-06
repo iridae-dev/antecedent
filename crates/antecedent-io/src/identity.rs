@@ -1943,6 +1943,13 @@ pub enum PriorSpecIdentityWire {
     },
     /// Known residual variance bits.
     KnownResidualVariance(u64),
+    /// Correlation of a dense coefficient prior scale `V0` (row-major).
+    CoefficientCorrelation {
+        /// Dimension `p`.
+        dim: u64,
+        /// Row-major `p × p` correlation entries.
+        matrix: PayloadDigestWire,
+    },
 }
 
 /// Transferred-prior mapping.
@@ -2428,6 +2435,15 @@ pub fn prior_set_identity(prior: &antecedent_prob::PriorSet) -> PriorSetIdentity
                 },
                 PriorSpec::KnownResidualVariance(variance) => {
                     PriorSpecIdentityWire::KnownResidualVariance(variance.to_bits())
+                }
+                PriorSpec::CoefficientCorrelation(correlation) => {
+                    PriorSpecIdentityWire::CoefficientCorrelation {
+                        dim: correlation.dim() as u64,
+                        matrix: PayloadDigestWire::f64s(
+                            "prior.coefficient_correlation",
+                            correlation.matrix(),
+                        ),
+                    }
                 }
             })
             .collect(),

@@ -3,9 +3,13 @@
 //! [`BatchStudy::prepare`] and [`BatchStudy::prepare_cells`] freeze a
 //! [`SharedBatchDesign`]: one fold seed/count every query cross-fits with and, when
 //! every query shares a certified adjustment set, one compiled `[1 | Z…]` covariate
-//! design. Propensity and outcome residualization are still fit per query, each
-//! drawing its own `crossfit_fold_plan` from that shared seed. See
-//! [`SharedBatchDesign`].
+//! design. Each query draws its own `crossfit_fold_plan` from that shared seed.
+//! Cross-fitted AIPW nuisances are shared through one
+//! [`antecedent_estimate::CrossfitNuisanceCache`] per estimate: a propensity or
+//! outcome fit is reused only when every input it reads is bit-identical (rows,
+//! treatment coding, adjustment design, fold plan, learner options and, for the
+//! outcome, the outcome column), so a shared result equals the per-query fit bit
+//! for bit. See [`SharedBatchDesign`].
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -63,16 +67,23 @@ impl std::str::FromStr for CellFamilyContrast {
     }
 }
 use antecedent_data::{TableView, TabularData, ValidityBitmap};
-use antecedent_estimate::{DEFAULT_AIPW_FOLDS, PreparedPropensityProblem};
+use antecedent_estimate::{
+    CrossfitNuisanceCache, DEFAULT_AIPW_FOLDS, NuisanceScopeUse, PreparedPropensityProblem,
+};
 use antecedent_graph::{Dag, TieredBackground};
 
 use crate::error::CausalError;
 use crate::result::StudyResult;
 
+use super::batch_retarget::{
+    BatchRetargetError, BatchRetargetReport, BatchRetargetRequest, BatchScores, ScoreSource,
+    retarget_family,
+};
 use super::builder::{RefuteSuite, StudyBuilder};
 use super::execute::Study;
 use super::latency::LatencyMode;
 use super::prepared::PreparedStudy;
+use crate::estimator_spec::EstimatorSpec;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 
 /// How a batch family picked its surfaced candidate.
@@ -169,8 +180,12 @@ pub struct SharedCovariateDesign {
 ///   above); queries that share the same stratification (same treatment / same joint
 ///   cells) end up with the identical plan as a consequence, not because one is copied
 ///   into the other.
-/// - **Propensity:** still fit per query (and per treatment / cell coding).
-/// - **Outcome residualization:** still fit per outcome / threshold / cell.
+/// - **Propensity and outcome residualization** are not part of this object. A
+///   batch estimate shares binary AIPW cross-fits through a
+///   [`CrossfitNuisanceCache`] instead, keyed on every input the fit reads (rows,
+///   treatment coding, adjustment design, fold plan, GLM options and, for the
+///   outcome, the outcome column), so only identical fits are reused. Joint-cell
+///   (`cell.aipw`) nuisances stay per query.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SharedBatchDesign {
     /// Opaque per-row identity fingerprint (not the fold plan any query actually
@@ -379,6 +394,9 @@ pub struct BatchStudy {
     latency_mode: Option<LatencyMode>,
     identifier: Option<IdentifierId>,
     estimator: Option<EstimatorId>,
+    /// A fully configured estimator (the typed configuration single-query `analyze`
+    /// accepts). Supersedes [`Self::estimator`]'s bare id when set.
+    estimator_spec: Option<EstimatorSpec>,
     screen: Option<CandidateScreen>,
     family_contrast: Option<CellFamilyContrast>,
 }
@@ -395,6 +413,7 @@ impl BatchStudy {
             latency_mode: None,
             identifier: None,
             estimator: None,
+            estimator_spec: None,
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
         }
@@ -414,6 +433,7 @@ impl BatchStudy {
             latency_mode: None,
             identifier: None,
             estimator: None,
+            estimator_spec: None,
             screen: None,
             family_contrast: Some(CellFamilyContrast::CellMinusControl),
         }
@@ -458,11 +478,46 @@ impl BatchStudy {
 
     /// Optional estimator applied to every query.
     ///
-    /// Parse a wire name with `"propensity.weighting".parse::<EstimatorId>()?`.
+    /// Parse a wire name with `"propensity.weighting".parse::<EstimatorId>()?`. Replaces a
+    /// configuration declared earlier with [`Self::estimator_spec`].
     #[must_use]
-    pub const fn estimator(mut self, id: EstimatorId) -> Self {
+    pub fn estimator(mut self, id: EstimatorId) -> Self {
         self.estimator = Some(id);
+        self.estimator_spec = None;
         self
+    }
+
+    /// A fully configured estimator applied to every query, the typed configuration
+    /// single-query [`StudyBuilder::estimator`] takes (for example an
+    /// [`antecedent_estimate::AipwAte`] with a ridge propensity).
+    ///
+    /// One configuration governs the whole batch, so every nuisance fit a batch shares was
+    /// declared by it: a different penalty, learner option, outcome, treatment coding,
+    /// adjustment set, fold plan or overlap rule changes the fit's inputs and is never served
+    /// from another fit (a penalized propensity is never shared at all). As for a single
+    /// query, combining a configured estimator with [`Self::bootstrap_replicates`] is refused
+    /// when the study is built. [`Self::estimator_fingerprint`] names the configuration.
+    #[must_use]
+    pub fn estimator_spec(mut self, spec: impl Into<EstimatorSpec>) -> Self {
+        let spec = spec.into();
+        self.estimator = Some(spec.id());
+        self.estimator_spec = Some(spec);
+        self
+    }
+
+    /// Canonical fingerprint of the estimator configuration every query of this batch runs
+    /// under: the structured estimator-spec identity (the same one a study's contract
+    /// carries, including a non-default propensity nuisance), or the bare estimator id, or
+    /// `"default"` when none was chosen. Equal fingerprints mean one configuration.
+    #[must_use]
+    pub fn estimator_fingerprint(&self) -> String {
+        match (&self.estimator_spec, self.estimator) {
+            (Some(spec), _) => {
+                format!("{:?}", super::contract_identity::estimator_spec_identity(spec))
+            }
+            (None, Some(id)) => id.as_str().to_string(),
+            (None, None) => "default".to_string(),
+        }
     }
 
     /// Contrast used for family p-values on [`Self::prepare_cells`].
@@ -478,7 +533,11 @@ impl BatchStudy {
     /// Estimate each query against the shared table.
     ///
     /// Shared fold assignment and covariate design when the batch uses AIPW /
-    /// score tables. Queries run in parallel under `ctx.parallelism.max_threads`.
+    /// score tables, and shared cross-fitted AIPW nuisances wherever two queries
+    /// would fit the identical propensity or outcome model (same rows, treatment
+    /// coding, adjustment set, fold plan and learner options). Each result is
+    /// bit-identical to the query's own per-query fit. Queries run in parallel
+    /// under `ctx.parallelism.max_threads`.
     /// After the batch, joint IF covariance across claims that share rows
     /// supplies max-t and BH/BY diagnostics. An overlap validator failure
     /// does not abort a claim.
@@ -499,17 +558,26 @@ impl BatchStudy {
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
+        let nuisances = CrossfitNuisanceCache::new();
         let mut out = Vec::with_capacity(queries.len());
+        let mut uses = Vec::with_capacity(queries.len());
         for chunk in queries.chunks(threads) {
             std::thread::scope(|scope| {
                 let handles: Vec<_> = chunk
                     .iter()
-                    .map(|q| scope.spawn(|| self.run_one_on(&data, q, ctx, shared.as_ref())))
+                    .map(|q| {
+                        scope.spawn(|| {
+                            nuisances.scope(|| self.run_one_on(&data, q, ctx, shared.as_ref()))
+                        })
+                    })
                     .collect();
                 for handle in handles {
                     match handle.join() {
-                        Ok(Ok(result)) => out.push(result),
-                        Ok(Err(err)) => return Err(err),
+                        Ok((Ok(result), used)) => {
+                            out.push(result);
+                            uses.push(used);
+                        }
+                        Ok((Err(err), _)) => return Err(err),
                         Err(_) => {
                             return Err(CausalError::Compile {
                                 message: "batch worker panicked".into(),
@@ -521,7 +589,13 @@ impl BatchStudy {
             })?;
         }
         attach_batch_joint_inference(&mut out, &data, queries, self.screen.as_ref());
-        attach_shared_design_diagnostics(&mut out, shared.as_ref());
+        attach_shared_design_diagnostics(
+            &mut out,
+            shared.as_ref(),
+            &nuisances,
+            &uses,
+            &self.estimator_fingerprint(),
+        );
         Ok(out)
     }
 
@@ -546,11 +620,12 @@ impl BatchStudy {
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_ate(&data, queries, ctx.rng.master_seed())?;
+        let nuisances = CrossfitNuisanceCache::new();
         let mut plans = Vec::with_capacity(queries.len());
         for query in queries {
             let mut study = self.study_for_data(&data, query)?;
             study.shared_batch_design.clone_from(&shared);
-            plans.push(study.prepare(ctx)?);
+            plans.push(nuisances.scope(|| study.prepare(ctx)).0?);
         }
         Ok(PreparedBatch {
             plans,
@@ -558,6 +633,7 @@ impl BatchStudy {
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: None,
+            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
         })
     }
 
@@ -576,8 +652,10 @@ impl BatchStudy {
     ///
     /// # Errors
     ///
-    /// Empty query list, Unknown-tier joint (no single ADMG), a non-Set
-    /// intervention bundle, or any per-query prepare failure.
+    /// Empty query list; a query outside the covered family (not a static
+    /// `InterventionResponse` setting two or more variables), refused with
+    /// `route_not_supported` naming `analyze` as the per-query route; Unknown-tier
+    /// joint (no single ADMG); or any per-query prepare failure.
     pub fn prepare_cells(
         &self,
         queries: &[ResponseQuery],
@@ -587,6 +665,14 @@ impl BatchStudy {
             return Err(CausalError::Compile {
                 message: "batch prepare_cells requires at least one query".into(),
             });
+        }
+        if !queries.iter().all(is_discrete_joint_cell) {
+            return Err(crate::unsupported_reason!(
+                "route_not_supported",
+                "batch prepare_cells covers static discrete joint InterventionResponse cells \
+                 (two or more Set interventions) only; estimate any other query one at a time \
+                 with analyze (Study::run)"
+            ));
         }
         let data = subset_estimate_rows(&self.data, self.screen.as_ref())?;
         let shared = self.compile_shared_cells(&data, queries, ctx.rng.master_seed())?;
@@ -604,6 +690,7 @@ impl BatchStudy {
             screen: self.screen.clone(),
             shared_design: shared,
             family_contrast: self.family_contrast,
+            estimator_fingerprint: Arc::from(self.estimator_fingerprint()),
         })
     }
 
@@ -625,7 +712,10 @@ impl BatchStudy {
         if let Some(id) = self.identifier {
             builder = builder.identifier(id);
         }
-        builder = builder.estimator(self.estimator.unwrap_or(EstimatorId::CellAipw));
+        builder = match &self.estimator_spec {
+            Some(spec) => builder.estimator(spec.clone()),
+            None => builder.estimator(self.estimator.unwrap_or(EstimatorId::CellAipw)),
+        };
         builder.build()
     }
 
@@ -695,7 +785,9 @@ impl BatchStudy {
         if let Some(id) = self.identifier {
             builder = builder.identifier(id);
         }
-        if let Some(est) = self.estimator {
+        if let Some(spec) = &self.estimator_spec {
+            builder = builder.estimator(spec.clone());
+        } else if let Some(est) = self.estimator {
             builder = builder.estimator(est);
         }
         builder.build()
@@ -749,6 +841,20 @@ impl BatchStudy {
     }
 }
 
+/// Whether `query` is a cell a [`BatchStudy::prepare_cells`] family covers: a static
+/// `InterventionResponse` that sets two or more variables.
+fn is_discrete_joint_cell(query: &ResponseQuery) -> bool {
+    query.temporal.is_none()
+        && matches!(
+            &query.functional,
+            antecedent_core::ResponseFunctional::InterventionResponse { interventions, .. }
+                if interventions.len() >= 2
+                    && interventions
+                        .iter()
+                        .all(|iv| matches!(iv, antecedent_core::Intervention::Set { .. }))
+        )
+}
+
 /// Frozen batch of prepared average-effect (and joint-cell) plans.
 #[derive(Clone, Debug)]
 pub struct PreparedBatch {
@@ -757,6 +863,8 @@ pub struct PreparedBatch {
     screen: Option<CandidateScreen>,
     shared_design: Option<Arc<SharedBatchDesign>>,
     family_contrast: Option<CellFamilyContrast>,
+    /// [`BatchStudy::estimator_fingerprint`] of the batch this was prepared from.
+    estimator_fingerprint: Arc<str>,
 }
 
 impl PreparedBatch {
@@ -792,19 +900,26 @@ impl PreparedBatch {
         let shared =
             self.shared_design.as_ref().map(|s| s.rebind(&data).map(Arc::new)).transpose()?;
         let mut out = Vec::with_capacity(self.plans.len());
+        let mut uses = Vec::with_capacity(self.plans.len());
+        let nuisances = CrossfitNuisanceCache::new();
         let threads = ctx.parallelism.max_threads.get().max(1) as usize;
         for chunk in self.plans.chunks(threads) {
             std::thread::scope(|scope| {
                 let handles: Vec<_> = chunk
                     .iter()
                     .map(|plan| {
-                        scope.spawn(|| plan.estimate_with_shared(&data, shared.clone(), ctx))
+                        scope.spawn(|| {
+                            nuisances
+                                .scope(|| plan.estimate_with_shared(&data, shared.clone(), ctx))
+                        })
                     })
                     .collect();
                 for handle in handles {
-                    out.push(handle.join().map_err(|_| CausalError::Compile {
+                    let (result, used) = handle.join().map_err(|_| CausalError::Compile {
                         message: "prepared batch worker panicked".into(),
-                    })??);
+                    })?;
+                    out.push(result?);
+                    uses.push(used);
                 }
                 Ok::<(), CausalError>(())
             })?;
@@ -816,8 +931,86 @@ impl PreparedBatch {
             self.screen.as_ref(),
             self.family_contrast,
         );
-        attach_shared_design_diagnostics(&mut out, shared.as_ref());
+        attach_shared_design_diagnostics(
+            &mut out,
+            shared.as_ref(),
+            &nuisances,
+            &uses,
+            &self.estimator_fingerprint,
+        );
         Ok(out)
+    }
+
+    /// Canonical fingerprint of the estimator configuration this batch was prepared under
+    /// (see [`BatchStudy::estimator_fingerprint`]).
+    #[must_use]
+    pub fn estimator_fingerprint(&self) -> &str {
+        &self.estimator_fingerprint
+    }
+
+    /// The score tables frozen at prepare, one slot per plan (empty where a plan prepared
+    /// none). A retarget of these reweights the prepare-time rows.
+    #[must_use]
+    pub fn prepared_scores(&self) -> BatchScores {
+        BatchScores::new(
+            ScoreSource::Prepared,
+            self.plans.iter().map(|plan| plan.score_table().cloned()).collect(),
+        )
+    }
+
+    /// [`Self::estimate`], plus the score tables that estimate produced.
+    ///
+    /// A retarget after an estimate must reweight the rows of that estimate, not the
+    /// prepare-time rows, so the tables travel with the results: retain the returned
+    /// [`BatchScores`] and pass it to [`Self::retarget`]. A plan whose estimate carries no
+    /// score table (a trimmed or non-iid AIPW, or a non-AIPW estimator) leaves its slot empty
+    /// and a retarget of it refuses with `scores_unavailable_after_estimate`; it never falls
+    /// back to the prepare-time rows.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::estimate`].
+    pub fn estimate_scored(
+        &self,
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<StudyResult>, BatchScores), CausalError> {
+        let results = self.estimate(data, ctx)?;
+        let scores = BatchScores::new(
+            ScoreSource::Estimated,
+            results.iter().map(|r| r.estimate.score_table.clone()).collect(),
+        );
+        Ok((results, scores))
+    }
+
+    /// Retarget a declared family of claims over `scores`.
+    ///
+    /// Every claim names a plan (query index) and row-aligned target weights; the report
+    /// carries each point, the joint score covariance of the retargeted claims, the named
+    /// linear contrasts, the failed members, and a closed simultaneous interval. See
+    /// [`BatchRetargetRequest`] for the declaration and [`BatchRetargetReport`] for the
+    /// formulas.
+    ///
+    /// # Errors
+    ///
+    /// A malformed family (empty, duplicate or unknown names, scores that do not match the
+    /// plans), scores that do not share one row snapshot, or a cancelled `ctx`
+    /// (`cancelled_no_claim`, never a verdict). A member that cannot be retargeted is
+    /// reported as failed inside the report, never dropped.
+    pub fn retarget(
+        &self,
+        scores: &BatchScores,
+        request: &BatchRetargetRequest,
+        ctx: &ExecutionContext,
+    ) -> Result<BatchRetargetReport, BatchRetargetError> {
+        retarget_family(
+            &self.plans,
+            &self.queries,
+            scores,
+            request,
+            &self.estimator_fingerprint,
+            ctx,
+        )
     }
 }
 
@@ -852,37 +1045,46 @@ fn cell_adjustment_set(
     })
 }
 
+/// Record the shared design and, per result, whether its cross-fitted propensity /
+/// outcome fit was shared with another query of the batch (`uses[i]` is result `i`'s
+/// nuisance scope).
 fn attach_shared_design_diagnostics(
     results: &mut [StudyResult],
     shared: Option<&Arc<SharedBatchDesign>>,
+    nuisances: &CrossfitNuisanceCache,
+    uses: &[NuisanceScopeUse],
+    estimator_fingerprint: &str,
 ) {
     let Some(shared) = shared else {
         return;
     };
     let shares_covariates = shared.covariate.is_some();
-    for result in results.iter_mut() {
-        if result.diagnostics.iter().any(|d| d.code.as_ref() == "batch.shared_design") {
-            continue;
-        }
+    let flag = |b: bool| Arc::<str>::from(if b { "true" } else { "false" });
+    for (i, result) in results.iter_mut().enumerate() {
+        let (shares_propensity, shares_outcome) =
+            uses.get(i).map_or((false, false), |used| nuisances.shared_with_another_scope(used));
         let mut d = antecedent_core::Diagnostic::new(
             "batch.shared_design",
             antecedent_core::DiagnosticKind::Scientific,
             antecedent_core::DiagnosticSeverity::Info,
             format!(
-                "shared fold seed/count (n_folds={}); covariates={}; each query draws its own matching fold plan, and propensity/outcome residualization remain per-query fits",
+                "shared fold seed/count (n_folds={}); covariates={}; each query draws its own matching fold plan; cross-fitted propensity {} and outcome regressions {} with another query (reused only when rows, treatment coding, adjustment design, fold plan and learner options are identical)",
                 shared.n_folds,
-                if shares_covariates { "shared" } else { "per-query" }
+                if shares_covariates { "shared" } else { "per-query" },
+                if shares_propensity { "shared" } else { "not shared" },
+                if shares_outcome { "shared" } else { "not shared" },
             ),
         );
         d.fields = Arc::from([
             (Arc::from("n_folds"), Arc::from(shared.n_folds.to_string())),
-            (
-                Arc::from("shares_covariates"),
-                Arc::from(if shares_covariates { "true" } else { "false" }),
-            ),
-            (Arc::from("shares_propensity"), Arc::from("false")),
-            (Arc::from("shares_outcome_residualization"), Arc::from("false")),
+            (Arc::from("shares_covariates"), flag(shares_covariates)),
+            (Arc::from("shares_propensity"), flag(shares_propensity)),
+            (Arc::from("shares_outcome_residualization"), flag(shares_outcome)),
+            (Arc::from("estimator_config"), Arc::from(estimator_fingerprint)),
         ]);
+        // A prepared plan can carry the diagnostic from its prepare; this estimate's
+        // sharing replaces it.
+        result.diagnostics.retain(|d| d.code.as_ref() != "batch.shared_design");
         result.diagnostics.push(d);
     }
 }
