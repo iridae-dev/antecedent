@@ -598,6 +598,16 @@ impl DistributionArtifact {
         if !threshold.is_finite() {
             return Err(IoError::Convert("non-finite outcome threshold".into()));
         }
+        if matches!(
+            self.metadata.identity.semantic,
+            DistributionMeaningWire::PosteriorPredictive
+                | DistributionMeaningWire::EmpiricalOutcome
+        ) {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                message: "distribution_meaning.observational_not_interventional: an observational outcome law lacks a checked interventional equivalence".into(),
+            });
+        }
         if self.metadata.identity.semantic != DistributionMeaningWire::InterventionalPredictive {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("distribution_meaning_mismatch"),

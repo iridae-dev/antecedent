@@ -346,4 +346,88 @@ mod point_status_tests {
         assert_eq!(floored.point_status.as_deref(), Some(&[SupportStatus::WeakOverlap][..]));
         assert_eq!(floored.status, SupportStatus::WeakOverlap);
     }
+
+    fn local_ess_values(report: &SupportReport) -> (Vec<f64>, DiagnosticScope) {
+        let diagnostic = report
+            .diagnostics
+            .iter()
+            .find(|d| &*d.id == "response.local_ess")
+            .expect("local ESS diagnostic");
+        (diagnostic.values.to_vec(), diagnostic.scope)
+    }
+
+    #[test]
+    fn three_doses_exclude_only_the_middle_and_keep_local_ess_aligned() {
+        let observed = [0.0, 1.0, 2.0, 3.0];
+        let doses = [0.5, 1.5, 2.5];
+        let report = support_report(&doses, &observed, &[40.0, 0.0, 35.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            report.point_status.as_deref(),
+            Some(
+                &[SupportStatus::Supported, SupportStatus::WeakOverlap, SupportStatus::Supported][..]
+            )
+        );
+        assert_eq!(report.status, SupportStatus::WeakOverlap);
+        let (ess, scope) = local_ess_values(&report);
+        assert_eq!(scope, DiagnosticScope::PerCoordinate);
+        assert_eq!(ess.len(), 3);
+        for (got, want) in ess.iter().zip([40.0, 0.0, 35.0]) {
+            assert!((got - want).abs() < 1e-12, "{got} vs {want}");
+        }
+
+        // Relabeling: reversing the dose order reverses labels and ESS together.
+        let reversed = [2.5, 1.5, 0.5];
+        let flipped =
+            support_report(&reversed, &observed, &[35.0, 0.0, 40.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            flipped.point_status.as_deref(),
+            Some(
+                &[SupportStatus::Supported, SupportStatus::WeakOverlap, SupportStatus::Supported][..]
+            )
+        );
+        let (flipped_ess, _) = local_ess_values(&flipped);
+        for (got, want) in flipped_ess.iter().zip([35.0, 0.0, 40.0]) {
+            assert!((got - want).abs() < 1e-12, "{got} vs {want}");
+        }
+
+        // Moving the weak dose to the front moves its label with it.
+        let front =
+            support_report(&[1.5, 0.5, 2.5], &observed, &[0.0, 40.0, 35.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            front.point_status.as_deref(),
+            Some(
+                &[SupportStatus::WeakOverlap, SupportStatus::Supported, SupportStatus::Supported][..]
+            )
+        );
+    }
+
+    #[test]
+    fn zero_overlap_is_a_support_label_and_never_missing_evidence() {
+        let observed = [0.0, 1.0, 2.0, 3.0];
+        // Zero local ESS and an out-of-range dose are both supplied-evidence
+        // failures; neither may be relabeled as a missing evidence factor.
+        let report =
+            support_report(&[0.5, 1.5, 9.0], &observed, &[40.0, 0.0, 35.0], vec![0.1; 3], 10.0, 0);
+        let labels = report.point_status.as_deref().expect("point status");
+        assert!(labels.iter().all(|s| *s != SupportStatus::MissingEvidence));
+        assert_eq!(labels[1], SupportStatus::WeakOverlap);
+        assert_eq!(labels[2], SupportStatus::OutsideEmpiricalSupport);
+        assert_ne!(report.status, SupportStatus::MissingEvidence);
+
+        // Missing evidence is a distinct label, spelling and severity: the weakest summary.
+        let missing = SupportStatus::MissingEvidence;
+        assert_eq!(missing.as_str(), "missing_evidence");
+        assert_eq!(missing.severity(), 4);
+        for other in [
+            SupportStatus::Supported,
+            SupportStatus::WeakOverlap,
+            SupportStatus::Extrapolative,
+            SupportStatus::OutsideEmpiricalSupport,
+        ] {
+            assert_ne!(missing, other);
+            assert!(missing.severity() > other.severity());
+        }
+        assert_eq!(SupportStatus::OutsideEmpiricalSupport.severity(), 3);
+        assert_eq!(SupportStatus::WeakOverlap.severity(), 1);
+    }
 }
