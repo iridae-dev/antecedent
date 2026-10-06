@@ -3995,3 +3995,17 @@ stage = "uncertainty"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "2.3 A6 X10 sampled recovery awaits whole-method effect truth, coverage and replay."
+
+[[routes]]
+route = "antecedent.distribution.meaning_check"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.1 F16 distribution meaning remains a frozen semantic contract."
+
+[[routes]]
+route = "antecedent_io.DistributionArtifact.consume_joint"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.2 F1 aligned joint draws remain closed pending an independent consumer artifact."

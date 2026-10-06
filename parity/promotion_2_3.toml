@@ -412,3 +412,77 @@ fixtures = [
   { id = "x10.sampled_recovery_replay.artifact", role = "artifact", intent = "A fresh consumer reruns the exact formula and refuses a changed pattern, snapshot or interval receipt." },
   { id = "x10.sampled_recovery_grid.calibration", role = "calibration", intent = "Measure the composed sampled effect interval across the sample-size grid and weak-pattern boundary." },
 ]
+
+# A0.1/A0.2 representation cells precede any new public distribution consumer.
+
+[[record]]
+id = "2.3A.F16.distribution_meanings"
+workstream = "F16"
+milestone = "A"
+work_package = "A0.1"
+status = "frozen"
+consumer_question = "Can a consumer refuse a distribution whose draws represent the wrong random quantity before evaluating it?"
+theorem = "Semantic contract: a posterior over a causal mean, an estimator sampling law and a predictive outcome law are distinct objects; only a declared interventional outcome law can directly answer an interventional outcome threshold. No identification or calibration theorem is claimed."
+reference = "TODO.md A0.1; prerequisite 2.3A.F15.joint_distribution_semantics"
+guarantee = "semantic_validation_only"
+graph_class = "A previously identified claim, whose graph and proof are checked outside this representation cell."
+population_semantics = "Distribution meaning is bound to the F15 population, regime, time, conditioning and functional coordinates."
+evidence_family = "A typed distribution object with declared random-quantity meaning and causal-contract identity."
+provider = "Native or external supplier whose exact object capability has been checked separately."
+estimand = "Whether a supplied distribution can answer one declared operation without changing its random-quantity meaning."
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent"]
+prerequisite_records = ["2.3A.F15.joint_distribution_semantics"]
+identity_inputs = ["quantity coordinate", "distribution meaning", "requested operation", "causal contract"]
+wire_changes = ["Versioned additive distribution-meaning tag; existing 2.2 posterior artifacts retain their prior semantics."]
+compatibility = "No 2.2 bootstrap or posterior payload is reinterpreted by this tag."
+search = false
+bounds = { cancellation = true, max_coordinates = 1024 }
+refusals = [
+  { code = "cell_not_licensed", detail = "distribution_meaning.route_frozen", when = "A new 2.3 distribution operation is requested before semantic and artifact evidence passes." },
+  { code = "route_not_supported", detail = "distribution_meaning.incompatible_operation", when = "A posterior over a mean or an observational law is offered for an interventional outcome probability." },
+]
+routes = [
+  { name = "antecedent.distribution.meaning_check", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f16.meaning_operation.positive", role = "positive", intent = "The interventional predictive law answers its own named outcome threshold." },
+  { id = "f16.effect_posterior.negative", role = "negative", intent = "A posterior over the mean effect and an observational conditional law refuse an interventional outcome threshold." },
+  { id = "f16.meaning_reseal.artifact", role = "artifact", intent = "A fresh consumer refuses a resealed change from bootstrap or functional posterior to predictive outcomes." },
+]
+
+[[record]]
+id = "2.3A.F1.aligned_joint_draws"
+workstream = "F1"
+milestone = "A"
+work_package = "A0.2"
+status = "frozen"
+consumer_question = "Can a fresh consumer recover the same joint covariance and nonlinear functional from exported, aligned multivariate draws?"
+theorem = "Finite weighted-sum contract: each draw index denotes one joint realization over all named coordinates; independently sampled marginals do not determine covariance or nonlinear functionals. This cell makes no posterior coverage claim."
+reference = "TODO.md A0.2; prerequisites 2.3A.F15.joint_distribution_semantics and 2.3A.F16.distribution_meanings"
+guarantee = "joint_draw_value_pending_artifact_evidence"
+graph_class = "An already identified finite-coordinate claim; this representation cannot establish a graph theorem."
+population_semantics = "Every coordinate retains its own population, regime, horizon, conditioning and units; compatible joint draws share one declared source and snapshot."
+evidence_family = "Bounded finite draw-major array with joint alignment, optional normalized weights and coordinate support mask."
+provider = "Native or checked external supplier of a single aligned joint draw set; marginal-only providers are refused for joint operations."
+estimand = "Finite-draw covariance and nonlinear expectation of named supported coordinates."
+inference_claim = "point_only"
+owners = ["antecedent-core", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F15.joint_distribution_semantics", "2.3A.F16.distribution_meanings"]
+identity_inputs = ["ordered quantity identities", "draw alignment", "meaning", "source/provider/RNG", "snapshot", "weights", "mask"]
+wire_changes = ["New versioned joint-distribution artifact; no implicit migration of 2.2 posterior or bootstrap wires."]
+compatibility = "The existing PosteriorArtifact remains a distinct wire kind and requires an explicit checked conversion."
+search = false
+bounds = { cancellation = true, max_draws = 100000, max_coordinates = 1024, max_payload_bytes = 16777216 }
+refusals = [
+  { code = "cell_not_licensed", detail = "aligned_joint_draws.route_frozen", when = "The public joint draw consumer is requested before independent artifact evidence passes." },
+  { code = "route_not_supported", detail = "aligned_joint_draws.marginals_not_joint", when = "A covariance or nonlinear functional is requested from independent marginal artifacts." },
+]
+routes = [
+  { name = "antecedent_io.DistributionArtifact.consume_joint", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f1.enumerated_joint.positive", role = "positive", intent = "Compare means, covariance and nonlinear expectation against an independently enumerated finite joint law." },
+  { id = "f1.marginal_pairing.negative", role = "negative", intent = "Reject independent marginals, incompatible coordinates and unsupported masked coordinates before calculation." },
+  { id = "f1.fresh_process_replay.artifact", role = "artifact", intent = "A fresh reader reproduces weighted joint values and refuses a resealed semantic, order or snapshot mutation." },
+]

@@ -39,6 +39,18 @@ def build() -> str:
             expected = "means=(0.5,1); population covariance=0.5; E[XY]=1"
             tolerance = "absolute 1e-12"
             provenance = "provenance/f15_joint_distribution.toml (semantic contract; no estimator paper)"
+        elif rid == "2.3A.F16.distribution_meanings":
+            oracle = "semantic_contract"
+            inputs = "interventional predictive outcomes, causal-functional posterior and observational predictive outcomes for the same threshold"
+            expected = "accept interventional predictive; refuse causal-functional and observational predictive"
+            tolerance = "exact enum outcome"
+            provenance = "provenance/f16_distribution_meanings.toml (semantic contract; no estimator paper)"
+        elif rid == "2.3A.F1.aligned_joint_draws":
+            oracle = "enumerated_finite_law"
+            inputs = "two aligned, equally weighted draws (0,0) and (1,2), then reverse second coordinate to test dependence"
+            expected = "means=(0.5,1); population covariance=0.5; E[XY]=1; reversed covariance=-0.5 and E[XY]=0"
+            tolerance = "absolute 1e-12"
+            provenance = "provenance/f1_aligned_joint_draws.toml (finite arithmetic; no estimator paper)"
         else:
             oracle = "pending_independent_oracle"
             inputs = "pending exact fixture inputs"
@@ -78,8 +90,10 @@ def main() -> int:
             print("2.3 evidence ledger is out of date")
             return 1
         records = tomllib.loads(REGISTRY.read_text())["record"]
+        allocated = tomllib.loads(expected)["cell"]
         for record in records:
-            if record["status"] == "in_progress" and record["id"] != "2.3A.F15.joint_distribution_semantics":
+            entry = next(cell for cell in allocated if cell["id"] == record["id"])
+            if record["status"] == "in_progress" and entry["oracle_kind"].startswith("pending"):
                 print(f'{record["id"]}: independent oracle values are pending')
                 return 1
         print(f"2.3 evidence ledger: {len(tomllib.loads(expected)['cell'])} routes allocated")

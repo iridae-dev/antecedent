@@ -17,7 +17,7 @@ package = "A0.1"
 purpose = "distribution meaning and provider requirements"
 depends_on = ["F15"]
 record = "2.3A.F16.distribution_meanings"
-record_state = "planned"
+record_state = "frozen"
 
 [[feature]]
 id = "F1"
@@ -25,7 +25,7 @@ package = "A0.2"
 purpose = "portable aligned joint draws"
 depends_on = ["F15", "F16"]
 record = "2.3A.F1.aligned_joint_draws"
-record_state = "planned"
+record_state = "frozen"
 
 [[feature]]
 id = "F19"
