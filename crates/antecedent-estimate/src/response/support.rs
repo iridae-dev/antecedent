@@ -263,8 +263,9 @@ pub(super) fn multivariate_support(
             ),
             scope: DiagnosticScope::Global,
         }],
-        // The single requested joint coordinate carries the whole summary.
-        point_status: Some(Arc::from([status])),
+        // One joint query point answers a vector-valued derivative; labels are
+        // per response coordinate, so only the summary status applies here.
+        point_status: None,
         warnings: {
             let mut warnings = vec![Diagnostic::new(
                 "response.plugin_jacobian_model_dependent",

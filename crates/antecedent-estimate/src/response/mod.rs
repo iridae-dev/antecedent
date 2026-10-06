@@ -587,10 +587,16 @@ impl ContinuousResponseEstimator {
             self.options.minimum_local_ess,
             0,
         );
+        // A shifted-policy query is assessed over its shifted range, not at the
+        // response grid, so it has no one-label-per-grid-coordinate evidence.
+        let per_grid = support_grid.is_none();
+        if !per_grid {
+            support.point_status = None;
+        }
         if treatments.len() > 1 {
             support.status = SupportStatus::Extrapolative;
             support.point_status =
-                Some(vec![SupportStatus::Extrapolative; support_points.len()].into());
+                per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
             support.query_region = SupportRegion {
                 minima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).0).collect(),
                 maxima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).1).collect(),
@@ -603,7 +609,7 @@ impl ContinuousResponseEstimator {
         if stochastic {
             support.status = SupportStatus::Extrapolative;
             support.point_status =
-                Some(vec![SupportStatus::Extrapolative; support_points.len()].into());
+                per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
             support.warnings.push(Diagnostic::new(
                 "response.stochastic_policy_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
                 "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",

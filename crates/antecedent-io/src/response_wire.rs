@@ -1027,7 +1027,7 @@ fn support_status_to_wire(status: SupportStatus) -> SupportStatusWire {
     }
 }
 
-fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
+pub(crate) fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
     match status {
         SupportStatusWire::Supported => SupportStatus::Supported,
         SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,

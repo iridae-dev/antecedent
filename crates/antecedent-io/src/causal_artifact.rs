@@ -1489,11 +1489,6 @@ fn validate_support(
             "temporal response support requires per-cell point_status evidence".into(),
         ));
     }
-    if !temporal && support.point_status.is_some() {
-        return Err(IoError::Convert(
-            "static response support must not carry temporal point_status evidence".into(),
-        ));
-    }
     if let Some(cells) = &support.point_status {
         match value_len {
             Some(len) if cells.len() == len => {}
@@ -1510,7 +1505,13 @@ fn validate_support(
         }
         let supported =
             cells.iter().filter(|status| **status == crate::SupportStatusWire::Supported).count();
-        let expected = if supported == cells.len() {
+        let expected = if !temporal {
+            // A static grid summarizes as its worst label.
+            let rank = |status: &crate::SupportStatusWire| {
+                crate::response_wire::support_status_from_wire(*status).severity()
+            };
+            *cells.iter().max_by_key(|status| rank(status)).unwrap_or(&support.status)
+        } else if supported == cells.len() {
             crate::SupportStatusWire::Supported
         } else if supported > 0 {
             crate::SupportStatusWire::Extrapolative
@@ -1524,7 +1525,7 @@ fn validate_support(
         };
         if support.status != expected {
             return Err(IoError::Convert(
-                "temporal response support status must summarize its point_status evidence".into(),
+                "response support status must summarize its point_status evidence".into(),
             ));
         }
     }
