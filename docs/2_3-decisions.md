@@ -106,3 +106,21 @@ any structure excludes the action, and when every action is excluded the verdict
 is `NoAdmissibleAction`. Per action the result keeps the criterion value in
 each structure, its range, the probability-weighted value, the mass where it
 leads and the structures that excluded it.
+
+## Artifacts and replay
+
+`DecisionContractArtifact` stores the contract and its canonical identity in the
+checksummed container. Loading requires the identity the consumer retained
+independently; an edit resealed with its own identity, truncation and oversized
+input all refuse, while reordering unordered actions keeps the identity.
+
+`DecisionResultArtifact` binds a result to its contract identity and to a BLAKE3
+digest of the source draws (coordinates, rows and weights), and keeps the
+provider, snapshot, RNG and causal-contract identities of the source. It loads
+only under the consumer's retained contract identity and source digest.
+`replay(contract, source)` recomputes the decision and requires the stored
+result to match exactly, so an edited number or verdict does not replay even if
+it was resealed under the same identities. A fresh process rebuilds the contract
+and source identity from constants and replays the decision without the producer.
+
+A result over structures (`StructuralDecisionResult`) has no artifact yet.

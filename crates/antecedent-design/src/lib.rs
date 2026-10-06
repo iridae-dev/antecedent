@@ -22,6 +22,7 @@
 
 pub mod candidate;
 pub mod decision;
+pub mod decision_artifact;
 pub mod decision_contract;
 pub mod decision_eval;
 pub mod decision_structural;
