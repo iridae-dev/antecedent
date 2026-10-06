@@ -62,6 +62,7 @@ fn fresh_process_consumer_recomputes_enumerated_joint_truth() {
             calibration: DistributionCalibration::Exact,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
+            legacy_bindings: None,
         },
         vec![0.0, 0.0, 1.0, 2.0],
     )

@@ -58,5 +58,14 @@ refuses summary-only artifacts, mixed parameter/effect meanings, failed fits,
 unidentified mass and unevaluated structural mass. It reorders by named
 bindings into draw-major rows, retaining cross-coordinate covariance and the
 complete legacy posterior metadata (including backend and treatment contrast)
-as a receipt. The converted artifact is marked `unverified` and `unmeasured`;
-the conversion cannot inherit a 2.2 provider or interval license.
+and the exact source-to-target bindings as a receipt. The reader reconstructs
+the source column order from those bindings and checks the old summaries
+against the stored draws on every load. It also refuses changes to weights,
+support, alignment, distribution meaning or trust on converted artifacts.
+For an unweighted parameter or causal-functional posterior, an equal-tailed
+interval can be recomputed from loaded draws with the 2.2 type-7 quantile
+rule. That interval describes posterior draw mass, not coverage.
+The converted artifact is marked `unverified` and `unmeasured`; the conversion
+cannot inherit a 2.2 provider or interval license. The 2.2 wire does not carry
+population, regime or snapshot identities, so the caller must establish those
+in the independently retained causal contract before conversion.

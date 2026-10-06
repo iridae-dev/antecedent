@@ -80,7 +80,7 @@ fn is_zero_mass(mass: &f64) -> bool {
     *mass == 0.0
 }
 
-fn validate_posterior_meta(
+pub(crate) fn validate_posterior_meta(
     meta: &CausalPosteriorWire,
     draws: Option<&[f64]>,
 ) -> Result<(), IoError> {

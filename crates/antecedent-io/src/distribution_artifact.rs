@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
-use crate::posterior::{CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact};
+use crate::posterior::{
+    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact, validate_posterior_meta,
+};
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use crate::reader::ArtifactReader;
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
@@ -192,6 +194,9 @@ pub struct DistributionMetadata {
     /// The source's backend, diagnostics and treatment contrast are retained.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legacy_posterior: Option<CausalPosteriorWire>,
+    /// Exact source-to-target binding used in a checked 2.2 conversion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy_bindings: Option<Vec<LegacyPosteriorBinding>>,
 }
 
 /// A validated finite draw set plus its bound metadata.
@@ -202,7 +207,8 @@ pub struct DistributionArtifact {
 }
 
 /// Explicit source-to-target quantity binding for a 2.2 posterior conversion.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LegacyPosteriorBinding {
     /// Exact quantity declared by the 2.2 posterior wire.
     pub source: PosteriorQuantityWire,
@@ -319,6 +325,7 @@ pub fn convert_legacy_posterior(
             calibration: DistributionCalibration::Unmeasured,
             trust: DistributionTrust::Unverified,
             legacy_posterior: Some(old),
+            legacy_bindings: Some(bindings.to_vec()),
         },
         drawmajor,
     )
@@ -452,6 +459,44 @@ impl DistributionArtifact {
             return Err(IoError::Convert("distribution mean overflow".into()));
         }
         Ok(value)
+    }
+
+    /// Equal-tailed posterior draw interval using the 2.2 type-7 quantile rule.
+    /// This describes posterior draw mass; it makes no coverage claim.
+    ///
+    /// # Errors
+    /// Non-posterior meanings, weighted draws, invalid mass and masked
+    /// coordinates are refused.
+    pub fn posterior_equal_tailed_interval(
+        &self,
+        coordinate: usize,
+        mass: f64,
+    ) -> Result<(f64, f64), IoError> {
+        self.require_coordinate(coordinate)?;
+        if !matches!(
+            self.metadata.identity.semantic,
+            DistributionMeaningWire::ParameterPosterior
+                | DistributionMeaningWire::CausalFunctionalPosterior
+        ) {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("distribution_meaning_mismatch"),
+                message: "distribution_meaning.posterior_interval: posterior draws required".into(),
+            });
+        }
+        if self.metadata.weights.is_some() || !mass.is_finite() || !(0.0..1.0).contains(&mass) {
+            return Err(IoError::Convert(
+                "posterior interval requires unweighted draws and mass in (0,1)".into(),
+            ));
+        }
+        let width = self.metadata.shape[1];
+        let mut sorted: Vec<f64> =
+            self.draws.chunks_exact(width).map(|row| row[coordinate]).collect();
+        sorted.sort_by(f64::total_cmp);
+        let tail = (1.0 - mass) / 2.0;
+        Ok((
+            antecedent_kernels::quantile_type7_sorted(&sorted, tail),
+            antecedent_kernels::quantile_type7_sorted(&sorted, 1.0 - tail),
+        ))
     }
 
     /// Finite weighted population covariance of aligned joint coordinates.
@@ -610,18 +655,42 @@ fn validate_metadata(meta: &DistributionMetadata) -> Result<(), IoError> {
     if meta.supported.as_ref().is_some_and(|mask| mask.len() != meta.shape[1]) {
         return Err(IoError::Convert("distribution support mask length mismatch".into()));
     }
+    if meta.legacy_posterior.is_some() != meta.legacy_bindings.is_some() {
+        return Err(IoError::Convert(
+            "legacy posterior receipt needs its quantity bindings".into(),
+        ));
+    }
     if let Some(legacy) = &meta.legacy_posterior {
         if !matches!(
             meta.identity.semantic,
             DistributionMeaningWire::ParameterPosterior
                 | DistributionMeaningWire::CausalFunctionalPosterior
-        ) || legacy.n_draws as usize != meta.shape[0]
+        ) || meta.identity.alignment != DrawAlignment::Joint
+            || meta.weights.is_some()
+            || meta.supported.is_some()
+            || meta.trust != DistributionTrust::Unverified
+            || meta.calibration != DistributionCalibration::Unmeasured
+            || legacy.n_draws as usize != meta.shape[0]
             || legacy.quantities.len() != meta.shape[1]
             || !legacy.converged
             || legacy.unidentified_mass > 0.0
             || legacy.subsampled_out_mass > 0.0
+            || legacy.draws_encoding != "f64_le_colmajor"
         {
             return Err(IoError::Convert("incompatible legacy posterior receipt".into()));
+        }
+        let valid_kinds = match meta.identity.semantic {
+            DistributionMeaningWire::ParameterPosterior => legacy.quantities.iter().all(|q| {
+                matches!(q, PosteriorQuantityWire::ResidualVariance)
+                    || matches!(q, PosteriorQuantityWire::Coefficient { name: Some(name), .. } if !name.trim().is_empty())
+            }),
+            DistributionMeaningWire::CausalFunctionalPosterior => legacy.quantities.iter().all(
+                |q| matches!(q, PosteriorQuantityWire::Effect { name } if !name.trim().is_empty()),
+            ),
+            _ => false,
+        };
+        if !valid_kinds {
+            return Err(IoError::Convert("incompatible legacy posterior quantity kinds".into()));
         }
     }
     Ok(())
@@ -632,6 +701,38 @@ fn validate(meta: &DistributionMetadata, draws: &[f64]) -> Result<(), IoError> {
     if draws.len() != meta.shape[0] * meta.shape[1] || draws.iter().any(|value| !value.is_finite())
     {
         return Err(IoError::Convert("invalid distribution draw values or length".into()));
+    }
+    if let (Some(legacy), Some(bindings)) = (&meta.legacy_posterior, &meta.legacy_bindings) {
+        let n_draws = meta.shape[0];
+        let width = meta.shape[1];
+        if bindings.len() != width {
+            return Err(IoError::Convert("legacy posterior binding count mismatch".into()));
+        }
+        let mut colmajor = vec![0.0; draws.len()];
+        let mut seen = vec![false; width];
+        for (target, quantity) in meta.identity.quantities.iter().enumerate() {
+            let matches: Vec<_> =
+                bindings.iter().filter(|binding| binding.target == *quantity).collect();
+            if matches.len() != 1 {
+                return Err(IoError::Convert(
+                    "legacy posterior target binding missing or ambiguous".into(),
+                ));
+            }
+            let source = &matches[0].source;
+            let columns: Vec<_> =
+                legacy.quantities.iter().enumerate().filter(|(_, q)| *q == source).collect();
+            if columns.len() != 1 || seen[columns[0].0] {
+                return Err(IoError::Convert(
+                    "legacy posterior source binding missing or ambiguous".into(),
+                ));
+            }
+            let source_column = columns[0].0;
+            seen[source_column] = true;
+            for draw in 0..n_draws {
+                colmajor[source_column * n_draws + draw] = draws[draw * width + target];
+            }
+        }
+        validate_posterior_meta(legacy, Some(&colmajor))?;
     }
     Ok(())
 }
@@ -682,6 +783,7 @@ mod tests {
                 calibration: DistributionCalibration::Exact,
                 trust: DistributionTrust::Unverified,
                 legacy_posterior: None,
+                legacy_bindings: None,
             },
             vec![0.0, 0.0, 1.0, 2.0],
         )
@@ -695,6 +797,7 @@ mod tests {
         let loaded = DistributionArtifact::from_bytes(&bytes, &original.metadata.identity).unwrap();
         assert_eq!(loaded.metadata(), original.metadata());
         assert_eq!(loaded.draws(), original.draws());
+        assert_eq!(loaded.metadata().axes, ["draw", "quantity"]);
         assert!((loaded.mean(0).unwrap() - 0.5).abs() < 1e-12);
         assert!((loaded.mean(1).unwrap() - 1.0).abs() < 1e-12);
         assert!((loaded.covariance(0, 1).unwrap() - 0.5).abs() < 1e-12);
@@ -789,6 +892,22 @@ mod tests {
         let mut newer = original.metadata.clone();
         newer.version = 2;
         assert!(DistributionArtifact::new(newer, original.draws.clone()).is_err());
+
+        let mut encoded =
+            EncodedArtifact::read_from(original.to_bytes("version-fixture").unwrap().as_slice())
+                .unwrap();
+        let mut newer = original.metadata.clone();
+        newer.version = 2;
+        let meta_bytes = to_cbor(&newer).unwrap();
+        encoded.manifest.sections[0] =
+            section_descriptor(META_SECTION, "application/cbor", &meta_bytes);
+        encoded.sections[0] = SectionBytes::new(META_SECTION, meta_bytes);
+        let mut resealed_version = Vec::new();
+        encoded.write_to(&mut resealed_version).unwrap();
+        assert!(matches!(
+            DistributionArtifact::from_bytes(&resealed_version, &original.metadata.identity),
+            Err(IoError::UnsupportedVersion { version: 2 })
+        ));
     }
 
     #[test]
@@ -803,11 +922,18 @@ mod tests {
         assert!((loaded.mean(0).unwrap() - 0.25).abs() < 1e-12);
         assert!(loaded.mean(1).is_err());
         assert!(loaded.covariance(0, 1).is_err());
+        assert!(loaded.posterior_equal_tailed_interval(0, 0.95).is_err());
 
         let reversed =
             DistributionArtifact::new(original.metadata.clone(), vec![0.0, 2.0, 1.0, 0.0]).unwrap();
-        assert!((reversed.covariance(0, 1).unwrap() + 0.5).abs() < 1e-12);
-        assert!(reversed.joint_expectation(0, 1, |x, y| x * y).unwrap().abs() < 1e-12);
+        let reloaded = DistributionArtifact::from_bytes(
+            &reversed.to_bytes("reordered").unwrap(),
+            &original.metadata.identity,
+        )
+        .unwrap();
+        assert_eq!(reloaded.draws(), reversed.draws());
+        assert!((reloaded.covariance(0, 1).unwrap() + 0.5).abs() < 1e-12);
+        assert!(reloaded.joint_expectation(0, 1, |x, y| x * y).unwrap().abs() < 1e-12);
     }
 
     #[test]
@@ -894,7 +1020,30 @@ mod tests {
         let converted_bytes = converted.to_bytes("converted").unwrap();
         let reloaded = DistributionArtifact::from_bytes(&converted_bytes, &identity).unwrap();
         assert_eq!(reloaded.metadata().legacy_posterior.as_ref(), Some(&old));
+        assert_eq!(reloaded.metadata().legacy_bindings.as_deref(), Some(bindings.as_slice()));
         assert_eq!(reloaded.draws(), converted.draws());
+        let (lower, upper) = reloaded.posterior_equal_tailed_interval(0, 0.95).unwrap();
+        assert!((lower - old.q025[1]).abs() < 1e-12);
+        assert!((upper - old.q975[1]).abs() < 1e-12);
+
+        let mut changed_draws = converted.draws().to_vec();
+        changed_draws[0] = 10.0;
+        assert!(DistributionArtifact::new(converted.metadata().clone(), changed_draws).is_err());
+        let mut resealed = EncodedArtifact::read_from(converted_bytes.as_slice()).unwrap();
+        let mut changed_bytes = resealed.sections[1].data.to_vec();
+        changed_bytes[..8].copy_from_slice(&10.0_f64.to_le_bytes());
+        resealed.manifest.sections[1] =
+            section_descriptor(DRAW_SECTION, "application/octet-stream", &changed_bytes);
+        resealed.sections[1] = SectionBytes::new(DRAW_SECTION, changed_bytes);
+        let mut resealed_draws = Vec::new();
+        resealed.write_to(&mut resealed_draws).unwrap();
+        assert!(DistributionArtifact::from_bytes(&resealed_draws, &identity).is_err());
+        let mut changed_binding = converted.metadata().clone();
+        changed_binding.legacy_bindings.as_mut().unwrap()[1].source = source_quantities[0].clone();
+        assert!(DistributionArtifact::new(changed_binding, converted.draws().to_vec()).is_err());
+        let mut upgraded = converted.metadata().clone();
+        upgraded.trust = DistributionTrust::NativeLicensed;
+        assert!(DistributionArtifact::new(upgraded, converted.draws().to_vec()).is_err());
 
         assert!(convert_legacy_posterior(&encoded, identity.clone(), &bindings[..1]).is_err());
         let mut wrong_meaning = identity.clone();
