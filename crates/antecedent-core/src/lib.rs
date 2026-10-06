@@ -110,7 +110,8 @@ pub use external_binding::{
     OBSERVATIONAL_REGIME, bind_external_result,
 };
 pub use external_refusal::{
-    ExternalRefusal, capability_from_name, capability_name, probe_from_name, probe_name,
+    ExternalRefusal, StructuredRefusal, capability_from_name, capability_name, probe_from_name,
+    probe_name,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{

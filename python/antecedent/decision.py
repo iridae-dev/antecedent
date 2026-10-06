@@ -36,13 +36,16 @@ from typing import Any, Literal
 from ._native import decision_contract_normalize as _normalize
 from ._native import decision_source_digest as _source_digest
 from ._native import evaluate_decision as _evaluate
+from ._native import evaluate_decision_means as _evaluate_means
 from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
 from .errors import CausalUnsupportedError, CausalValueError
+from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
+RESULT_LINK_ID = "decision_result"
 ActionKind = Literal["intervention", "policy", "regime", "study", "external"]
 StructuralPolicy = Literal[
     "require_invariant_best_action", "maximin", "bayes_over_structures", "report_only"
@@ -316,8 +319,28 @@ class Contract:
         """Canonical digest: unchanged by reordering actions, changed by any semantic edit."""
         return str(self._normalized()["identity"])
 
-    def evaluate(self, source: JointDistributionArtifact) -> Decision:
-        """Evaluate on aligned joint draws, or refuse with a registered reason code."""
+    def evaluate(self, source: JointDistributionArtifact | BoundExternalClaim) -> Decision:
+        """Evaluate on aligned joint draws or on a bound external response grid.
+
+        A :class:`~antecedent.external.BoundExternalClaim` supplies one mean per
+        coordinate, so it answers only the expectation of an affine utility: a
+        nonlinear utility, a hard constraint or any other criterion refuses with
+        ``decision_contract_unsatisfied`` (``decision.mean_source_insufficient``).
+        Regret and EVPI are unavailable for such a decision.
+        """
+        if isinstance(source, BoundExternalClaim):
+            identity = source.identity
+            result, refusal = _evaluate_means(
+                json.dumps(self._wire()),
+                json.dumps([q._wire() for q in source.quantities]),
+                [float(v) for v in source.values],
+                str(identity["provider_id"]),
+                str(identity["snapshot_id"]),
+                str(identity["causal_contract_id"]),
+            )
+            _raise(refusal)
+            assert result is not None
+            return Decision(self, source, json.loads(result))
         result, refusal = _evaluate(json.dumps(self._wire()), source._native)
         _raise(refusal)
         assert result is not None
@@ -366,7 +389,10 @@ class Decision:
     """A decision result with the evidence behind it; exportable and replayable."""
 
     def __init__(
-        self, contract: Contract, source: JointDistributionArtifact, body: Mapping[str, Any]
+        self,
+        contract: Contract,
+        source: JointDistributionArtifact | BoundExternalClaim,
+        body: Mapping[str, Any],
     ) -> None:
         self._contract = contract
         self._source = source
@@ -435,6 +461,40 @@ class Decision:
     def assumptions(self) -> tuple[str, ...]:
         return tuple(self._body["assumptions"])
 
+    @property
+    def lineage(self) -> tuple[LineageLink, ...]:
+        """Derivation chain behind the decision, parents before children.
+
+        For a joint-draw source Rust derives it (contract, provider, distribution,
+        decision contract, ``decision_result``). For an external claim it is the
+        claim's own lineage plus the decision contract and ``decision_result``.
+        """
+        if isinstance(self._source, BoundExternalClaim):
+            decision_id = f"decision:{self.contract_identity}"
+            return (
+                *self._source.lineage,
+                LineageLink(decision_id, "decision_contract", ()),
+                LineageLink(RESULT_LINK_ID, "claim", ("claim", decision_id)),
+            )
+        return tuple(
+            LineageLink(item["id"], item["stage"], tuple(item["parents"]))
+            for item in self._body["lineage"]
+        )
+
+    def stages_behind(self, link: str = RESULT_LINK_ID) -> frozenset[str]:
+        """Stages standing behind ``link`` (default: the reported decision)."""
+        by_id = {item.id: item for item in self.lineage}
+        if link not in by_id:
+            raise CausalValueError(f"unknown lineage link {link!r}")
+        seen: set[str] = set()
+        stack = [link]
+        while stack:
+            current = stack.pop()
+            if current not in seen:
+                seen.add(current)
+                stack.extend(by_id[current].parents)
+        return frozenset(by_id[item].stage for item in seen)
+
     def explain(self) -> str:
         """Why this action, or why none: the choice, its evidence and its limits."""
         verdict = self.verdict
@@ -460,10 +520,28 @@ class Decision:
             text += "; excluded by a hard constraint: " + ", ".join(repr(a.id) for a in excluded)
         if self.evpi is not None:
             text += f"; perfect information would be worth {self.evpi:.4g}"
+        if isinstance(self._source, BoundExternalClaim):
+            text += (
+                "; values came from an external mean grid supplied by "
+                f"{self._source.provenance_label}, not estimated natively, and carry no "
+                "sampling error"
+            )
         return text + "."
 
     def export(self, *, artifact_id: str = "decision-result") -> bytes:
-        """The result bound to its contract identity and source digest, replayable."""
+        """The result bound to its contract identity and source digest, replayable.
+
+        Only a joint-draw source can be exported and replayed; a decision computed
+        from an external mean grid refuses with ``route_not_supported``.
+        """
+        if isinstance(self._source, BoundExternalClaim):
+            raise DecisionRefusal(
+                {
+                    "code": "route_not_supported",
+                    "detail": "decision.mean_source_not_replayable",
+                    "offending": None,
+                }
+            )
         return bytes(
             _export_result(json.dumps(self._contract._wire()), self._source._native, artifact_id)
         )

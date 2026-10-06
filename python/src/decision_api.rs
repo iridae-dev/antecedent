@@ -6,13 +6,18 @@
 
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
-    contract_from_json, contract_to_json, result_to_json, source_digest,
+    contract_from_json, contract_to_json, mean_result_to_json, result_to_json, source_digest,
 };
-use antecedent_design::decision_eval::{DecisionEvalError, evaluate_contract};
+use antecedent_design::decision_eval::{
+    DecisionEvalError, MeanSource, evaluate_contract, evaluate_contract_on_means,
+};
 use antecedent_io::error::IoError;
+use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
+
+use antecedent_core::ScientificQuantity;
 
 use crate::CausalSerializationError;
 use crate::distribution_api::PyJointDistributionArtifact;
@@ -76,6 +81,48 @@ fn evaluate_decision(
     match evaluate_contract(&contract, source.inner()) {
         Ok(result) => {
             Ok((Some(result_to_json(&result, source.inner()).map_err(serialization)?), None))
+        }
+        Err(error) => Ok((None, Some(eval_refusal(&error)))),
+    }
+}
+
+/// Evaluate a contract on a mean-only source (one mean per coordinate, such as an
+/// external response grid); returns the result JSON or a refusal. The result's
+/// `lineage` is empty: the caller supplies the derivation of the means.
+#[pyfunction]
+fn evaluate_decision_means(
+    contract_json: &str,
+    coordinates_json: &str,
+    means: Vec<f64>,
+    provider_id: &str,
+    snapshot_id: &str,
+    causal_contract_id: &str,
+) -> PyResult<(Option<String>, Option<String>)> {
+    check_size(contract_json)?;
+    check_size(coordinates_json)?;
+    let contract = match contract_from_json(contract_json) {
+        Ok(contract) => contract,
+        Err(error) => return Ok((None, Some(io_refusal(&error)))),
+    };
+    let wires: Vec<ScientificQuantityWire> = serde_json::from_str(coordinates_json)
+        .map_err(|e| PyValueError::new_err(format!("invalid coordinates: {e}")))?;
+    let coordinates = wires
+        .into_iter()
+        .map(|wire| {
+            ScientificQuantity::try_from(wire).map_err(|e| PyValueError::new_err(String::from(e)))
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let source = MeanSource {
+        coordinates,
+        means,
+        provider_id: provider_id.to_owned(),
+        snapshot_id: snapshot_id.to_owned(),
+        causal_contract_id: causal_contract_id.to_owned(),
+        rng_id: "none:mean_grid".to_owned(),
+    };
+    match evaluate_contract_on_means(&contract, &source) {
+        Ok(result) => {
+            Ok((Some(mean_result_to_json(&result, &source).map_err(serialization)?), None))
         }
         Err(error) => Ok((None, Some(eval_refusal(&error)))),
     }
@@ -156,6 +203,7 @@ fn decision_source_digest(source: &PyJointDistributionArtifact) -> String {
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(decision_contract_normalize, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate_decision, m)?)?;
+    m.add_function(wrap_pyfunction!(evaluate_decision_means, m)?)?;
     m.add_function(wrap_pyfunction!(export_decision_contract, m)?)?;
     m.add_function(wrap_pyfunction!(load_decision_contract, m)?)?;
     m.add_function(wrap_pyfunction!(export_decision_result, m)?)?;

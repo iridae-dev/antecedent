@@ -138,3 +138,55 @@ evaluation, artifacts and refusals are Rust's, and each refusal raises
 `DecisionRefusal`, a `CausalUnsupportedError` with the registered `reason_code`,
 `detail` and `offending` action input. `python/tests/test_decision.py` asserts
 the same enumerated fixture as the Rust integration tests.
+
+## Refusals
+
+Decision refusals share one shape, `antecedent_core::StructuredRefusal` (an alias
+of `ExternalRefusal`): registered `code`, `stage`, namespaced `detail`,
+`offending` action input (`action[input]`), `expected` and `supplied` semantics,
+`capability` and `remedy`. `DecisionContractError`, `DecisionEvalError`,
+`StructuralError` and `DesignError` each have a `to_refusal()` in
+`decision_refusal.rs`; the existing reason codes and `reason_code()` are
+unchanged.
+
+| Family | Namespace | Stage |
+| --- | --- | --- |
+| Contract declaration and source requirement | `decision_contract` | `declare` |
+| Evaluation (quantity, joint law, meaning, structure, utility) | `decision_evaluation` | `evaluate` |
+| Structural evaluation | `decision_structural` | `structural` |
+| Design evaluation | `design_refusal` | `design` |
+
+Every detail is a plain string literal of the form `namespace.snake_case`, never
+built with `format!`, so the promotion gate can match it against the declared
+refusals. A missing source lists the needed representations, comma-joined, in
+`expected`. Typed design signal, update and cost-unit failures do not exist yet,
+so `design_signal_invalid` and `design_cost_units_mismatch` are not claimed.
+
+## Provenance chain and mean-only sources
+
+`DecisionResultArtifact::provenance_chain()` names what stands behind a decision,
+parents before children: `contract:<causal_contract_id>` (causal contract),
+`provider:<provider_id>#<snapshot_id>` (external provider),
+`distribution:<source_digest>` (distribution artifact), `decision:<contract
+identity>` (decision contract) and the reported `decision_result` claim, derived
+from the distribution and the decision. A different source digest is a different
+distribution link. `result_to_json` carries the same links as a `lineage` array,
+derived at serialization from the stored identities and re-derived on load, so
+replay still compares like with like. In Python, `Decision.lineage` and
+`Decision.stages_behind(link="decision_result")` expose it.
+
+`evaluate_contract_on_means(contract, MeanSource)` evaluates a contract on one
+mean per coordinate, such as an external response grid. A mean answers only the
+expectation of an affine utility: the criterion must be expected utility or
+expected loss, every utility must be affine, and hard constraints refuse
+(`decision_contract_unsatisfied`, `decision.mean_source_insufficient`). Inputs
+whose functional is `outcome` are not found in a mean grid, and a mean source
+that does declare an `outcome` coordinate refuses with a meaning mismatch. The
+result claims no sampling error, no regret and no EVPI, and calls two actions
+indistinguishable only on exactly equal values. In Python,
+`Contract.evaluate(claim)` accepts a `BoundExternalClaim`; its `Decision` lineage
+is the claim's own lineage plus the decision contract and `decision_result`.
+Such a decision is not exportable or replayable (`route_not_supported`,
+`decision.mean_source_not_replayable`). `python/tests/test_lifecycle.py` runs
+identify, bind, inspect, export, decide and a fresh-process reload; ranking a
+study is not covered because EVSI and design ranking do not exist yet.

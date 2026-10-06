@@ -302,3 +302,42 @@ def test_contract_and_result_round_trip_and_replay_in_a_fresh_process():
         )
     assert done.returncode == 0, done.stderr
     assert json.loads(json.dumps(result.selected)) == ["safe"]
+
+
+def test_decision_names_the_stages_and_identities_behind_it():
+    result = _contract().evaluate(_source())
+    links = result.lineage
+    assert [link.id for link in links] == [
+        "contract:checked-contract",
+        "provider:exact-law#enumeration-1",
+        f"distribution:{result.source_digest}",
+        f"decision:{result.contract_identity}",
+        "decision_result",
+    ]
+    assert [link.stage for link in links] == [
+        "causal_contract",
+        "external_provider",
+        "distribution_artifact",
+        "decision_contract",
+        "claim",
+    ]
+    assert links[-1].parents == (links[2].id, links[3].id)
+    assert result.stages_behind() == {
+        "causal_contract",
+        "external_provider",
+        "distribution_artifact",
+        "decision_contract",
+        "claim",
+    }
+    # The decision contract does not derive from the data.
+    assert result.stages_behind(links[3].id) == {"decision_contract"}
+    with pytest.raises(CausalValueError, match="unknown lineage link"):
+        result.stages_behind("nope")
+
+    other = _contract().evaluate(_source(q=[0.0, 6.0, 2.0, 4.0]))
+    assert other.lineage[2].id != links[2].id
+    assert other.lineage[3].id == links[3].id
+
+    # A replayed result re-derives the same lineage from the same inputs.
+    replayed = decision.replay(result.export(), contract=_contract(), source=_source())
+    assert replayed.lineage == links

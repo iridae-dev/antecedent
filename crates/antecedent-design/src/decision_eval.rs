@@ -16,7 +16,10 @@ use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DrawAlignment,
 };
 
-use crate::decision_contract::{DecisionContract, DecisionContractError, DecisionCriterion};
+use crate::decision_contract::{
+    DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,
+    SourceRepresentation,
+};
 
 /// Why an evaluation refused.
 #[derive(Clone, Debug, PartialEq)]
@@ -54,6 +57,12 @@ pub enum DecisionEvalError {
         /// Action whose utility failed.
         action: String,
     },
+    /// A mean-only source cannot answer this contract (a nonlinear utility, a
+    /// hard constraint or a criterion that needs more than means).
+    MeanSourceInsufficient {
+        /// Representations that would have sufficed.
+        needed: Vec<SourceRepresentation>,
+    },
 }
 
 impl DecisionEvalError {
@@ -61,7 +70,9 @@ impl DecisionEvalError {
     #[must_use]
     pub const fn reason_code(&self) -> &'static str {
         match self {
-            Self::Contract(_) | Self::NonFiniteUtility { .. } => {
+            Self::Contract(_)
+            | Self::NonFiniteUtility { .. }
+            | Self::MeanSourceInsufficient { .. } => {
                 antecedent_core::reason_code!("decision_contract_unsatisfied")
             }
             Self::JointLawRequired => antecedent_core::reason_code!("joint_law_required"),
@@ -109,6 +120,7 @@ impl DecisionEvalError {
             Self::NonFiniteUtility { action } => {
                 ("decision.non_finite_utility", Some(action.clone()))
             }
+            Self::MeanSourceInsufficient { .. } => ("decision.mean_source_insufficient", None),
         };
         EvalRefusal { code: self.reason_code(), detail, offending }
     }
@@ -514,6 +526,152 @@ pub fn evaluate_contract(
                     "indistinguishable means within {INDISTINGUISHABLE_Z} paired standard errors of the leader"
                 )
             },
+        ],
+    })
+}
+
+/// A source that supplies only one mean per coordinate, such as an external
+/// response grid. A mean carries no distribution and no pairing, so it can answer
+/// only an expectation of an affine utility.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MeanSource {
+    /// Coordinates, one per mean, in the same order as `means`.
+    pub coordinates: Vec<ScientificQuantity>,
+    /// Mean of each coordinate.
+    pub means: Vec<f64>,
+    /// Provider object that supplied the means.
+    pub provider_id: String,
+    /// Data snapshot or exact-request identity the means were computed from.
+    pub snapshot_id: String,
+    /// Causal-contract identity the means were bound to.
+    pub causal_contract_id: String,
+    /// RNG identity; there is no sampling in a mean grid, so this names that.
+    pub rng_id: String,
+}
+
+fn mean_insufficient(needed: Vec<SourceRepresentation>) -> DecisionEvalError {
+    DecisionEvalError::MeanSourceInsufficient { needed }
+}
+
+/// Evaluate `contract` on a [`MeanSource`].
+///
+/// Exact only for affine utilities, whose expectation is the utility of the
+/// means. No sampling error is claimed (`standard_error` is `None`), regret and
+/// the value of perfect information are unavailable, and the verdict is
+/// indistinguishable only on exactly equal values.
+///
+/// # Errors
+/// Refuses an invalid contract, a criterion other than expected utility or
+/// expected loss, any hard constraint, a nonlinear utility, an unknown
+/// coordinate, an input whose functional is `outcome` (a mean grid is not an
+/// outcome law), and a non-finite utility.
+#[allow(clippy::too_many_lines)]
+pub fn evaluate_contract_on_means(
+    contract: &DecisionContract,
+    source: &MeanSource,
+) -> Result<DecisionResult, DecisionEvalError> {
+    let identity = contract.identity().map_err(DecisionEvalError::Contract)?;
+    if source.coordinates.len() != source.means.len() || source.means.iter().any(|m| !m.is_finite())
+    {
+        return Err(DecisionEvalError::Contract(DecisionContractError::InvalidDeclaration(
+            "a mean source has one finite mean per coordinate",
+        )));
+    }
+    if !matches!(
+        contract.criterion,
+        DecisionCriterion::PosteriorExpectedUtility | DecisionCriterion::PosteriorExpectedLoss
+    ) {
+        return Err(mean_insufficient(vec![SourceRepresentation::JointDraws]));
+    }
+    if !contract.constraints.is_empty() {
+        // A mean cannot answer a probability constraint.
+        return Err(mean_insufficient(vec![
+            SourceRepresentation::JointDraws,
+            SourceRepresentation::MarginalDraws,
+        ]));
+    }
+    let mut outcomes = Vec::with_capacity(contract.actions.len());
+    for action in &contract.actions {
+        DecisionFunctional::ExpectedUtility
+            .requirement(&action.utility)
+            .check(&[SourceRepresentation::Mean])
+            .map_err(|error| match error {
+                DecisionContractError::MissingSource { needed } => mean_insufficient(needed),
+                other => DecisionEvalError::Contract(other),
+            })?;
+        if !action.utility.is_affine() {
+            return Err(mean_insufficient(vec![SourceRepresentation::JointDraws]));
+        }
+        let mut inputs = Vec::with_capacity(action.inputs.len());
+        for (position, wanted) in action.inputs.iter().enumerate() {
+            let column = source
+                .coordinates
+                .iter()
+                .position(|candidate| candidate.require_same_coordinate(wanted).is_ok())
+                .ok_or_else(|| DecisionEvalError::QuantityNotFound {
+                    action: action.id.clone(),
+                    input: position,
+                })?;
+            if wanted.functional_id == "outcome" {
+                return Err(DecisionEvalError::MeaningMismatch {
+                    action: action.id.clone(),
+                    input: position,
+                });
+            }
+            inputs.push(source.means[column]);
+        }
+        let expected_utility =
+            action.utility.evaluate(&inputs).map_err(DecisionEvalError::Contract)?;
+        if !expected_utility.is_finite() {
+            return Err(DecisionEvalError::NonFiniteUtility { action: action.id.clone() });
+        }
+        outcomes.push(ActionOutcome {
+            id: action.id.clone(),
+            admissible: true,
+            exclusions: Vec::new(),
+            expected_utility,
+            value: expected_utility,
+            standard_error: None,
+            expected_regret: None,
+            max_regret: None,
+        });
+    }
+    let loss = contract.criterion == DecisionCriterion::PosteriorExpectedLoss;
+    let key = |outcome: &ActionOutcome| if loss { -outcome.value } else { outcome.value };
+    let best = (0..outcomes.len())
+        .max_by(|a, b| key(&outcomes[*a]).total_cmp(&key(&outcomes[*b])).then(b.cmp(a)))
+        .unwrap_or(0);
+    let mut tied = vec![outcomes[best].id.clone()];
+    for (other, outcome) in outcomes.iter().enumerate() {
+        if other != best && outcome.value.to_bits() == outcomes[best].value.to_bits() {
+            tied.push(outcome.id.clone());
+        }
+    }
+    let verdict = if tied.len() == 1 {
+        Verdict::UniquelyOptimal(tied.remove(0))
+    } else {
+        Verdict::Indistinguishable(tied)
+    };
+    Ok(DecisionResult {
+        contract_identity: identity,
+        criterion: contract.criterion,
+        actions: outcomes,
+        verdict,
+        evpi: None,
+        n_draws: 0,
+        effective_draws: 0.0,
+        source: SourceReceipt {
+            provider_id: source.provider_id.clone(),
+            snapshot_id: source.snapshot_id.clone(),
+            rng_id: source.rng_id.clone(),
+            causal_contract_id: source.causal_contract_id.clone(),
+        },
+        assumptions: vec![
+            "the source supplies means only; regret, value of perfect information and hard \
+             constraints are unavailable"
+                .into(),
+            "the result is exact only because every utility is affine in its inputs".into(),
+            "no sampling error is claimed; indistinguishable means exactly equal values".into(),
         ],
     })
 }

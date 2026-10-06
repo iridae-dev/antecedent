@@ -242,3 +242,134 @@ fn fresh_process_consumer_replays_the_decision_without_the_producer() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+fn source_with_p(p: [f64; 4]) -> DistributionArtifact {
+    let q = [4.0, 0.0, 2.0, 6.0];
+    let mut draws = Vec::new();
+    for i in 0..4 {
+        draws.extend([p[i], q[i], 3.0]);
+    }
+    DistributionArtifact::new(
+        DistributionMetadata {
+            version: 1,
+            identity: source_identity(),
+            axes: ["draw".into(), "quantity".into()],
+            shape: [4, 3],
+            weights: None,
+            supported: None,
+            calibration: DistributionCalibration::Exact,
+            trust: DistributionTrust::Unverified,
+            legacy_posterior: None,
+            legacy_bindings: None,
+        },
+        draws,
+    )
+    .unwrap()
+}
+
+#[test]
+fn result_names_the_exact_stages_and_identities_behind_it() {
+    use antecedent_core::{CompositionStage as S, ProvenanceChainError};
+    let c = contract();
+    let s = source();
+    let artifact = DecisionResultArtifact::new(evaluate_contract(&c, &s).unwrap(), &s);
+    let chain = artifact.provenance_chain().unwrap();
+    let digest = source_digest(&s);
+    let identity = c.identity().unwrap();
+    let links: Vec<(String, S, Vec<String>)> =
+        chain.links().iter().map(|l| (l.id.clone(), l.stage, l.parents.clone())).collect();
+    assert_eq!(
+        links,
+        vec![
+            ("contract:checked-contract".to_owned(), S::CausalContract, vec![]),
+            (
+                "provider:exact-law#enumeration-1".to_owned(),
+                S::ExternalProvider,
+                vec!["contract:checked-contract".to_owned()]
+            ),
+            (
+                format!("distribution:{digest}"),
+                S::DistributionArtifact,
+                vec!["provider:exact-law#enumeration-1".to_owned()]
+            ),
+            (format!("decision:{identity}"), S::DecisionContract, vec![]),
+            (
+                "decision_result".to_owned(),
+                S::Claim,
+                vec![format!("distribution:{digest}"), format!("decision:{identity}")]
+            ),
+        ]
+    );
+    assert_eq!(
+        chain.require_stages(
+            DecisionResultArtifact::CLAIM_LINK_ID,
+            &[S::DecisionContract, S::DistributionArtifact, S::ExternalProvider, S::CausalContract]
+        ),
+        Ok(())
+    );
+    // No evidence factor stands behind this result.
+    assert_eq!(
+        chain.require_stages(DecisionResultArtifact::CLAIM_LINK_ID, &[S::Evidence]),
+        Err(ProvenanceChainError::MissingStage(S::Evidence))
+    );
+    // The decision contract does not derive from the data.
+    assert_eq!(
+        chain.require_stages(&format!("decision:{identity}"), &[S::DistributionArtifact]),
+        Err(ProvenanceChainError::MissingStage(S::DistributionArtifact))
+    );
+}
+
+#[test]
+fn a_different_source_digest_is_a_different_distribution_link() {
+    let c = contract();
+    let first = source();
+    let second = source_with_p([2.0, 3.0, 2.0, 0.0]);
+    assert_ne!(source_digest(&first), source_digest(&second));
+    let ids = |s: &DistributionArtifact| -> Vec<String> {
+        DecisionResultArtifact::new(evaluate_contract(&c, s).unwrap(), s)
+            .provenance_chain()
+            .unwrap()
+            .links()
+            .iter()
+            .map(|l| l.id.clone())
+            .collect()
+    };
+    let (a, b) = (ids(&first), ids(&second));
+    assert_ne!(a[2], b[2]);
+    assert_eq!(a[2], format!("distribution:{}", source_digest(&first)));
+    // Contract, provider and decision links do not depend on the draws.
+    assert_eq!((&a[0], &a[1], &a[3]), (&b[0], &b[1], &b[3]));
+}
+
+#[test]
+fn result_json_carries_the_lineage_and_replay_still_compares_like_with_like() {
+    let c = contract();
+    let s = source();
+    let result = evaluate_contract(&c, &s).unwrap();
+    let json: serde_json::Value = serde_json::from_str(
+        &antecedent_design::decision_artifact::result_to_json(&result, &s).unwrap(),
+    )
+    .unwrap();
+    let lineage = json["lineage"].as_array().unwrap();
+    let stages: Vec<&str> = lineage.iter().map(|l| l["stage"].as_str().unwrap()).collect();
+    assert_eq!(
+        stages,
+        [
+            "causal_contract",
+            "external_provider",
+            "distribution_artifact",
+            "decision_contract",
+            "claim"
+        ]
+    );
+    assert_eq!(lineage[4]["id"], "decision_result");
+    assert_eq!(lineage[4]["parents"].as_array().unwrap().len(), 2);
+    // A stored artifact loads and replays; the lineage is re-derived, not trusted.
+    let artifact = DecisionResultArtifact::new(result, &s);
+    let bytes = artifact.to_bytes("r").unwrap();
+    let loaded =
+        DecisionResultArtifact::from_bytes(&bytes, &c.identity().unwrap(), &source_digest(&s))
+            .unwrap();
+    loaded.replay(&c, &s).unwrap();
+    assert_eq!(loaded.provenance_chain().unwrap(), artifact.provenance_chain().unwrap());
+}

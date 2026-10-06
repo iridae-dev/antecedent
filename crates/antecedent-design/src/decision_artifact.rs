@@ -7,7 +7,9 @@
 //! the decision is recomputed and must reproduce the stored result exactly, so
 //! a stored number never needs the producing process to be explained.
 
-use antecedent_core::ScientificQuantity;
+use antecedent_core::{
+    CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
+};
 use antecedent_io::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
 };
@@ -24,7 +26,8 @@ use crate::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use crate::decision_eval::{
-    ActionOutcome, ConstraintExclusion, DecisionResult, SourceReceipt, Verdict, evaluate_contract,
+    ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource, SourceReceipt, Verdict,
+    evaluate_contract,
 };
 
 /// Maximum artifact bytes accepted before any decode allocation.
@@ -436,6 +439,48 @@ enum VerdictWire {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct LinkWire {
+    id: String,
+    stage: String,
+    parents: Vec<String>,
+}
+
+/// Derivation links behind a result computed from a distribution artifact,
+/// parents before children. Derived only from the result's source receipt, its
+/// contract identity and the source digest, so a stored and a recomputed result
+/// over the same inputs yield identical links.
+fn lineage_links(result: &DecisionResult, digest: &str) -> Vec<CompositionLink> {
+    let contract = format!("contract:{}", result.source.causal_contract_id);
+    let provider = format!("provider:{}#{}", result.source.provider_id, result.source.snapshot_id);
+    let distribution = format!("distribution:{digest}");
+    let decision = format!("decision:{}", result.contract_identity);
+    let link = |id: &str, stage: CompositionStage, parents: &[&str]| CompositionLink {
+        id: id.to_owned(),
+        stage,
+        parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+    };
+    vec![
+        link(&contract, CompositionStage::CausalContract, &[]),
+        link(&provider, CompositionStage::ExternalProvider, &[contract.as_str()]),
+        link(&distribution, CompositionStage::DistributionArtifact, &[provider.as_str()]),
+        link(&decision, CompositionStage::DecisionContract, &[]),
+        link(
+            DecisionResultArtifact::CLAIM_LINK_ID,
+            CompositionStage::Claim,
+            &[distribution.as_str(), decision.as_str()],
+        ),
+    ]
+}
+
+fn lineage_wire(result: &DecisionResult, digest: &str) -> Vec<LinkWire> {
+    lineage_links(result, digest)
+        .into_iter()
+        .map(|l| LinkWire { id: l.id, stage: l.stage.as_str().to_owned(), parents: l.parents })
+        .collect()
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ResultBody {
     version: u16,
     contract_identity: String,
@@ -451,6 +496,9 @@ struct ResultBody {
     rng_id: String,
     causal_contract_id: String,
     assumptions: Vec<String>,
+    /// Derived at serialization and ignored on load, which re-derives it.
+    #[serde(default)]
+    lineage: Vec<LinkWire>,
 }
 
 fn result_to_body(result: &DecisionResult, digest: &str) -> ResultBody {
@@ -494,6 +542,7 @@ fn result_to_body(result: &DecisionResult, digest: &str) -> ResultBody {
         rng_id: result.source.rng_id.clone(),
         causal_contract_id: result.source.causal_contract_id.clone(),
         assumptions: result.assumptions.clone(),
+        lineage: lineage_wire(result, digest),
     }
 }
 
@@ -562,6 +611,19 @@ impl DecisionResultArtifact {
     #[must_use]
     pub fn result(&self) -> &DecisionResult {
         &self.result
+    }
+
+    /// Identity of the reported decision within [`Self::provenance_chain`].
+    pub const CLAIM_LINK_ID: &'static str = "decision_result";
+
+    /// Derivation chain behind the decision: the causal contract, the provider
+    /// execution and the distribution artifact it supplied, the decision
+    /// contract, and the reported result derived from the last two.
+    ///
+    /// # Errors
+    /// A blank identity in the source receipt or contract refuses.
+    pub fn provenance_chain(&self) -> Result<ProvenanceChain, ProvenanceChainError> {
+        ProvenanceChain::new(lineage_links(&self.result, &self.source_digest))
     }
 
     /// Digest of the source draws the result was computed from.
@@ -671,4 +733,33 @@ pub fn result_to_json(
 ) -> Result<String, IoError> {
     serde_json::to_string(&result_to_body(result, &source_digest(source)))
         .map_err(|e| IoError::Convert(e.to_string()))
+}
+
+/// BLAKE3 of a mean source's coordinates and means.
+#[must_use]
+pub fn mean_source_digest(source: &MeanSource) -> String {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(b"antecedent.decision_mean_source.v1");
+    for quantity in &source.coordinates {
+        hasher.update(format!("{quantity:?}").as_bytes());
+    }
+    for value in &source.means {
+        hasher.update(&value.to_le_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
+}
+
+/// The JSON form of a result computed from a mean source, bound to the mean
+/// source's digest. Its `lineage` is empty: the distribution-artifact lineage
+/// does not describe a mean grid, so the caller supplies the true derivation.
+///
+/// # Errors
+/// Serialization failure.
+pub fn mean_result_to_json(
+    result: &DecisionResult,
+    source: &MeanSource,
+) -> Result<String, IoError> {
+    let mut body = result_to_body(result, &mean_source_digest(source));
+    body.lineage = Vec::new();
+    serde_json::to_string(&body).map_err(|e| IoError::Convert(e.to_string()))
 }

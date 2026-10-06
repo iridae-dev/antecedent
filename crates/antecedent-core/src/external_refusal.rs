@@ -12,6 +12,10 @@ use crate::{
     VerificationProbeKind,
 };
 
+/// The shared structured refusal shape for external, decision, inverse and
+/// design refusals.
+pub type StructuredRefusal = ExternalRefusal;
+
 /// A coded, structured refusal.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExternalRefusal {

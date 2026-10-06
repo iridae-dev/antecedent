@@ -5459,7 +5459,6 @@ def estimate_with_rank_drop_json(
     seed: int = 1,
     threads: int | None = None,
 ) -> str: ...
-
 def decision_contract_normalize(contract_json: str) -> tuple[str | None, str | None]: ...
 def evaluate_decision(
     contract_json: str, source: JointDistributionArtifact
@@ -5473,3 +5472,11 @@ def replay_decision_result(
     data: bytes, contract_json: str, source: JointDistributionArtifact
 ) -> tuple[str | None, str | None]: ...
 def decision_source_digest(source: JointDistributionArtifact) -> str: ...
+def evaluate_decision_means(
+    contract_json: str,
+    coordinates_json: str,
+    means: list[float],
+    provider_id: str,
+    snapshot_id: str,
+    causal_contract_id: str,
+) -> tuple[str | None, str | None]: ...
