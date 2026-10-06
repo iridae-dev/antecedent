@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
+use crate::posterior::{CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact};
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use crate::reader::ArtifactReader;
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
@@ -187,6 +188,10 @@ pub struct DistributionMetadata {
     pub calibration: DistributionCalibration,
     /// Provider trust status; loading never upgrades it.
     pub trust: DistributionTrust,
+    /// Complete source metadata when converted from a 2.2 posterior artifact.
+    /// The source's backend, diagnostics and treatment contrast are retained.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy_posterior: Option<CausalPosteriorWire>,
 }
 
 /// A validated finite draw set plus its bound metadata.
@@ -194,6 +199,129 @@ pub struct DistributionMetadata {
 pub struct DistributionArtifact {
     metadata: DistributionMetadata,
     draws: Vec<f64>,
+}
+
+/// Explicit source-to-target quantity binding for a 2.2 posterior conversion.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LegacyPosteriorBinding {
+    /// Exact quantity declared by the 2.2 posterior wire.
+    pub source: PosteriorQuantityWire,
+    /// Fully named 2.3 scientific coordinate.
+    pub target: ScientificQuantityWire,
+}
+
+/// Convert 2.2 column-major posterior draws into a distinct 2.3 joint artifact.
+///
+/// Every source quantity must have one explicit target binding. Coefficients
+/// without stable names, mixed parameter/effect schemas and summary-only
+/// posteriors are refused. The 2.2 reader checks summaries against draws first.
+/// The caller supplies the expected identity from a separate causal contract:
+/// 2.2 posterior metadata lacks population, regime and snapshot coordinates.
+/// Conversion preserves draw alignment but grants no provider trust or
+/// inferential calibration to the new artifact.
+///
+/// # Errors
+/// Invalid source draws, positional or partial bindings, a changed source ID,
+/// and incompatible posterior meanings are refused.
+pub fn convert_legacy_posterior(
+    legacy: &EncodedArtifact,
+    expected: DistributionIdentity,
+    bindings: &[LegacyPosteriorBinding],
+) -> Result<DistributionArtifact, IoError> {
+    expected.validate()?;
+    if expected.alignment != DrawAlignment::Joint
+        || expected.source_id != legacy.manifest.artifact_id
+    {
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
+            message: "aligned_joint_draws.legacy_source: conversion requires the named source artifact and joint alignment".into(),
+        });
+    }
+    let source_bytes = legacy.sections.iter().try_fold(0usize, |total, section| {
+        total.checked_add(section.data.len()).ok_or(IoError::TooLarge)
+    })?;
+    if source_bytes > MAX_DISTRIBUTION_ARTIFACT_BYTES {
+        return Err(IoError::TooLarge);
+    }
+    let (old, colmajor) = decode_posterior_artifact(legacy)?;
+    if old.draws_encoding != "f64_le_colmajor"
+        || old.quantities.len() != bindings.len()
+        || old.quantities.len() != expected.quantities.len()
+        || old.n_draws as usize > MAX_DISTRIBUTION_DRAWS
+    {
+        return Err(IoError::Convert(
+            "legacy posterior needs complete, explicitly bound draws".into(),
+        ));
+    }
+    if !old.converged || old.unidentified_mass > 0.0 || old.subsampled_out_mass > 0.0 {
+        return Err(IoError::Convert(
+            "legacy posterior with failed fit or unresolved structural mass cannot be converted"
+                .into(),
+        ));
+    }
+    let allowed = match expected.semantic {
+        DistributionMeaningWire::ParameterPosterior => old.quantities.iter().all(|quantity| {
+            matches!(quantity, PosteriorQuantityWire::ResidualVariance)
+                || matches!(quantity, PosteriorQuantityWire::Coefficient { name: Some(name), .. } if !name.trim().is_empty())
+        }),
+        DistributionMeaningWire::CausalFunctionalPosterior => old.quantities.iter().all(
+            |quantity| matches!(quantity, PosteriorQuantityWire::Effect { name } if !name.trim().is_empty()),
+        ),
+        _ => false,
+    };
+    if !allowed {
+        return Err(IoError::Refused {
+            code: antecedent_core::reason_code!("distribution_meaning_mismatch"),
+            message: "distribution_meaning.legacy_posterior: source quantity kinds do not support the requested posterior meaning".into(),
+        });
+    }
+    let mut source_columns = Vec::with_capacity(expected.quantities.len());
+    for target in &expected.quantities {
+        let candidates: Vec<_> =
+            bindings.iter().filter(|binding| &binding.target == target).collect();
+        if candidates.len() != 1 {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                message: "aligned_joint_draws.legacy_binding: every target quantity needs exactly one named source".into(),
+            });
+        }
+        let source = &candidates[0].source;
+        let columns: Vec<_> =
+            old.quantities.iter().enumerate().filter(|(_, quantity)| *quantity == source).collect();
+        if columns.len() != 1 || source_columns.contains(&columns[0].0) {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
+                message: "aligned_joint_draws.legacy_binding: source quantity is missing, ambiguous or reused".into(),
+            });
+        }
+        source_columns.push(columns[0].0);
+    }
+    let n_draws = old.n_draws as usize;
+    let width = expected.quantities.len();
+    let cells = n_draws.checked_mul(width).ok_or(IoError::TooLarge)?;
+    if cells.checked_mul(8).ok_or(IoError::TooLarge)? > MAX_DISTRIBUTION_ARTIFACT_BYTES {
+        return Err(IoError::TooLarge);
+    }
+    let mut drawmajor = vec![0.0; cells];
+    for draw in 0..n_draws {
+        for (target, source) in source_columns.iter().enumerate() {
+            drawmajor[draw * width + target] = colmajor[source * n_draws + draw];
+        }
+    }
+    DistributionArtifact::new(
+        DistributionMetadata {
+            version: 1,
+            identity: expected,
+            axes: ["draw".into(), "quantity".into()],
+            shape: [n_draws, width],
+            weights: None,
+            supported: None,
+            calibration: DistributionCalibration::Unmeasured,
+            trust: DistributionTrust::Unverified,
+            legacy_posterior: Some(old),
+        },
+        drawmajor,
+    )
 }
 
 impl DistributionArtifact {
@@ -482,6 +610,20 @@ fn validate_metadata(meta: &DistributionMetadata) -> Result<(), IoError> {
     if meta.supported.as_ref().is_some_and(|mask| mask.len() != meta.shape[1]) {
         return Err(IoError::Convert("distribution support mask length mismatch".into()));
     }
+    if let Some(legacy) = &meta.legacy_posterior {
+        if !matches!(
+            meta.identity.semantic,
+            DistributionMeaningWire::ParameterPosterior
+                | DistributionMeaningWire::CausalFunctionalPosterior
+        ) || legacy.n_draws as usize != meta.shape[0]
+            || legacy.quantities.len() != meta.shape[1]
+            || !legacy.converged
+            || legacy.unidentified_mass > 0.0
+            || legacy.subsampled_out_mass > 0.0
+        {
+            return Err(IoError::Convert("incompatible legacy posterior receipt".into()));
+        }
+    }
     Ok(())
 }
 
@@ -539,6 +681,7 @@ mod tests {
                 supported: None,
                 calibration: DistributionCalibration::Exact,
                 trust: DistributionTrust::Unverified,
+                legacy_posterior: None,
             },
             vec![0.0, 0.0, 1.0, 2.0],
         )
@@ -665,5 +808,129 @@ mod tests {
             DistributionArtifact::new(original.metadata.clone(), vec![0.0, 2.0, 1.0, 0.0]).unwrap();
         assert!((reversed.covariance(0, 1).unwrap() + 0.5).abs() < 1e-12);
         assert!(reversed.joint_expectation(0, 1, |x, y| x * y).unwrap().abs() < 1e-12);
+    }
+
+    #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one complete legacy wire fixture checks named conversion, covariance, replay and adjacent refusals"
+    )]
+    fn legacy_posterior_conversion_uses_named_bindings_and_keeps_joint_covariance() {
+        use crate::posterior::{CausalPosteriorWire, encode_posterior_artifact};
+
+        let source_quantities = vec![
+            PosteriorQuantityWire::Coefficient { index: 0, name: Some("beta_x".into()) },
+            PosteriorQuantityWire::Coefficient { index: 1, name: Some("beta_y".into()) },
+        ];
+        let old = CausalPosteriorWire {
+            quantities: source_quantities.clone(),
+            n_draws: 3,
+            mean: vec![1.0, 2.0],
+            sd: vec![1.0, 2.0],
+            q025: vec![0.05, 0.1],
+            q975: vec![1.95, 3.9],
+            identification: "NonparametricallyIdentified".into(),
+            unidentified_mass: 0.0,
+            subsampled_out_mass: 0.0,
+            backend_id: "conjugate".into(),
+            converged: true,
+            hessian_condition: 1.0,
+            draws_encoding: "f64_le_colmajor".into(),
+            treatment_contrast: None,
+        };
+        let encoded = encode_posterior_artifact(
+            &old,
+            &[0.0, 1.0, 2.0, 0.0, 2.0, 4.0],
+            "source-posterior",
+            "2.2.0",
+        )
+        .unwrap();
+        let coefficient = |name: &str| ScientificQuantity {
+            variable_id: format!("schema:{name}"),
+            variable_name: name.into(),
+            role: QuantityRole::Covariate,
+            units: "dimensionless".into(),
+            population_id: "target".into(),
+            regime_id: "do(a=1)".into(),
+            horizon: 0,
+            functional_id: "coefficient".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        };
+        let beta_y = coefficient("beta_y");
+        let beta_x = coefficient("beta_x");
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::ParameterPosterior,
+            &[beta_y.clone(), beta_x.clone()],
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: "source-posterior".into(),
+                provider_id: "legacy-conversion".into(),
+                rng_id: "source-posterior-draws".into(),
+                snapshot_id: "checked-snapshot".into(),
+                causal_contract_id: "checked-contract".into(),
+            },
+        )
+        .unwrap();
+        let bindings = vec![
+            LegacyPosteriorBinding {
+                source: source_quantities[0].clone(),
+                target: ScientificQuantityWire::from(&beta_x),
+            },
+            LegacyPosteriorBinding {
+                source: source_quantities[1].clone(),
+                target: ScientificQuantityWire::from(&beta_y),
+            },
+        ];
+        let converted = convert_legacy_posterior(&encoded, identity.clone(), &bindings).unwrap();
+        assert_eq!(converted.draws(), &[0.0, 0.0, 2.0, 1.0, 4.0, 2.0]);
+        assert!((converted.covariance(0, 1).unwrap() - 4.0 / 3.0).abs() < 1e-12);
+        assert!(
+            (converted.joint_expectation(0, 1, |x, y| x * y).unwrap() - 10.0 / 3.0).abs() < 1e-12
+        );
+        assert_eq!(converted.metadata().trust, DistributionTrust::Unverified);
+        assert_eq!(converted.metadata().calibration, DistributionCalibration::Unmeasured);
+        assert_eq!(converted.metadata().legacy_posterior.as_ref(), Some(&old));
+        let converted_bytes = converted.to_bytes("converted").unwrap();
+        let reloaded = DistributionArtifact::from_bytes(&converted_bytes, &identity).unwrap();
+        assert_eq!(reloaded.metadata().legacy_posterior.as_ref(), Some(&old));
+        assert_eq!(reloaded.draws(), converted.draws());
+
+        assert!(convert_legacy_posterior(&encoded, identity.clone(), &bindings[..1]).is_err());
+        let mut wrong_meaning = identity.clone();
+        wrong_meaning.semantic = DistributionMeaningWire::Bootstrap;
+        assert_eq!(
+            convert_legacy_posterior(&encoded, wrong_meaning, &bindings).unwrap_err().reason_code(),
+            Some("distribution_meaning_mismatch")
+        );
+        let mut wrong_source = identity.clone();
+        wrong_source.source_id = "other-posterior".into();
+        assert_eq!(
+            convert_legacy_posterior(&encoded, wrong_source, &bindings).unwrap_err().reason_code(),
+            Some("quantity_semantics_mismatch")
+        );
+        let mut unnamed = old.clone();
+        unnamed.quantities[0] = PosteriorQuantityWire::Coefficient { index: 0, name: None };
+        let unnamed_source = encode_posterior_artifact(
+            &unnamed,
+            &[0.0, 1.0, 2.0, 0.0, 2.0, 4.0],
+            "source-posterior",
+            "2.2.0",
+        )
+        .unwrap();
+        assert_eq!(
+            convert_legacy_posterior(&unnamed_source, identity, &bindings)
+                .unwrap_err()
+                .reason_code(),
+            Some("distribution_meaning_mismatch")
+        );
+        let mut oversized = encoded;
+        oversized.sections[1].data =
+            std::sync::Arc::from(vec![0u8; MAX_DISTRIBUTION_ARTIFACT_BYTES + 1]);
+        assert_eq!(
+            convert_legacy_posterior(&oversized, reloaded.metadata.identity.clone(), &bindings)
+                .unwrap_err(),
+            IoError::TooLarge
+        );
     }
 }

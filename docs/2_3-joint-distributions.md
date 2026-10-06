@@ -47,3 +47,16 @@ external provider's attestation cannot establish the equality by itself.
 are separate trust labels. Loading preserves the label; it never upgrades one
 label to another. The artifact does not by itself certify a provider, an
 identified causal estimand or an inferential guarantee.
+
+## 2.2 posterior conversion
+
+The 2.2 `CausalPosterior` remains a separate artifact kind. The checked Rust
+converter accepts its column-major draws only when the source artifact ID
+matches the independently retained expected identity and every coefficient
+has a stable name with an explicit one-to-one target quantity binding. It
+refuses summary-only artifacts, mixed parameter/effect meanings, failed fits,
+unidentified mass and unevaluated structural mass. It reorders by named
+bindings into draw-major rows, retaining cross-coordinate covariance and the
+complete legacy posterior metadata (including backend and treatment contrast)
+as a receipt. The converted artifact is marked `unverified` and `unmeasured`;
+the conversion cannot inherit a 2.2 provider or interval license.

@@ -443,6 +443,7 @@ refusals = [
   { code = "cell_not_licensed", detail = "distribution_meaning.route_frozen", when = "A new 2.3 distribution operation is requested before semantic and artifact evidence passes." },
   { code = "distribution_meaning_mismatch", detail = "distribution_meaning.incompatible_operation", when = "A posterior over a mean is offered for an interventional outcome probability." },
   { code = "quantity_semantics_mismatch", detail = "distribution_meaning.observational_not_interventional", when = "An observational outcome law lacks a separately checked interventional equivalence proof." },
+  { code = "distribution_meaning_mismatch", detail = "distribution_meaning.legacy_posterior", when = "A 2.2 posterior's quantity kinds are offered as a different kind of distribution." },
 ]
 routes = [
   { name = "antecedent.distribution.meaning_check", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
@@ -482,6 +483,8 @@ refusals = [
   { code = "joint_law_required", detail = "aligned_joint_draws.marginals_not_joint", when = "A covariance or nonlinear functional is requested from independent marginal artifacts." },
   { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.identity_expected", when = "A loaded artifact's population, intervention, unit, time, coordinate order or snapshot differs from the consumer's contract." },
   { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.outcome_coordinate", when = "A threshold probability is requested on an observational or non-outcome coordinate." },
+  { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.legacy_source", when = "A 2.2 posterior artifact does not match the declared source identity or joint alignment." },
+  { code = "quantity_semantics_mismatch", detail = "aligned_joint_draws.legacy_binding", when = "A 2.2 posterior coefficient has no named or one-to-one target quantity binding." },
 ]
 routes = [
   { name = "antecedent_io.DistributionArtifact.consume_joint", stage = "consume", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
