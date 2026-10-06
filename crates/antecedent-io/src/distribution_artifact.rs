@@ -347,6 +347,36 @@ impl DistributionArtifact {
         &self.metadata
     }
 
+    /// Meaning of the finite draw set.
+    #[must_use]
+    pub fn semantic(&self) -> DistributionMeaningWire {
+        self.metadata.identity.semantic
+    }
+
+    /// Physical axis order of the numerical buffer.
+    #[must_use]
+    pub fn axes(&self) -> [&str; 2] {
+        [&self.metadata.axes[0], &self.metadata.axes[1]]
+    }
+
+    /// Physical shape: draws by quantities.
+    #[must_use]
+    pub fn shape(&self) -> [usize; 2] {
+        self.metadata.shape
+    }
+
+    /// Number of aligned or marginal draw rows.
+    #[must_use]
+    pub fn n_draws(&self) -> usize {
+        self.metadata.shape[0]
+    }
+
+    /// Scientific coordinates in exact column order.
+    #[must_use]
+    pub fn quantities(&self) -> &[ScientificQuantityWire] {
+        &self.metadata.identity.quantities
+    }
+
     /// Read-only draw-major numerical buffer.
     #[must_use]
     pub fn draws(&self) -> &[f64] {
@@ -796,6 +826,11 @@ mod tests {
         let bytes = original.to_bytes("joint-fixture").unwrap();
         let loaded = DistributionArtifact::from_bytes(&bytes, &original.metadata.identity).unwrap();
         assert_eq!(loaded.metadata(), original.metadata());
+        assert_eq!(loaded.semantic(), DistributionMeaningWire::InterventionalPredictive);
+        assert_eq!(loaded.axes(), ["draw", "quantity"]);
+        assert_eq!(loaded.shape(), [2, 2]);
+        assert_eq!(loaded.n_draws(), 2);
+        assert_eq!(loaded.quantities(), original.quantities());
         assert_eq!(loaded.draws(), original.draws());
         assert_eq!(loaded.metadata().axes, ["draw", "quantity"]);
         assert!((loaded.mean(0).unwrap() - 0.5).abs() < 1e-12);
