@@ -25,6 +25,7 @@ pub use distribution_replay::distribution_factor_laws_to_wire;
 pub mod error;
 pub mod exact_law_wire;
 pub mod expr_wire;
+pub mod external_claim_artifact;
 pub mod external_estimate;
 pub mod graph_dot;
 pub mod graph_gml;

@@ -58,3 +58,16 @@ regime, and only if every other coordinate field agrees.
 and `is_native_estimation()` is always false. Provider-declared uncertainty
 stays a provider declaration. Export of the bound claim and the Python
 lifecycle are separate gates.
+
+## Exporting a bound response grid
+
+`antecedent_io::external_claim_artifact::ExternalClaimArtifact` serializes a
+`BoundExternalClaim` response grid through the checksummed container. The
+metadata names the causal contract, graph, identification status, ordered
+coordinates, provider/object/version/snapshot/request, trust level,
+provider-declared uncertainty method, evidence, assumptions and checked
+equivalences, and records `native_estimation = false`. Loading requires an
+identity the consumer retained independently; a resealed change to any field
+(including trust, uncertainty or coordinate order) refuses with
+`external_binding_mismatch`. The artifact grants no interval, calibration or
+native licence.
