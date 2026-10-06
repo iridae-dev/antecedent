@@ -13,4 +13,4 @@ implementation_deviations = [
   "Distribution meanings are descriptive tags; numerical methods and calibration require separate promotion cells.",
 ]
 upstream_implementations_observed = []
-test_sources = ["crates/antecedent-core/src/quantity.rs"]
+test_sources = ["crates/antecedent-core/src/quantity.rs", "crates/antecedent-io/src/quantity_wire.rs"]
