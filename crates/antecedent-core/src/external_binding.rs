@@ -403,6 +403,11 @@ pub fn bind_external_result(
             if meaning.is_some_and(|m| law.meaning != m) {
                 return Err(E::MeaningNotAccepted);
             }
+            // A response grid carries the meaning of the law behind it; an
+            // observational predictive grid cannot answer an interventional request.
+            if !contract.accepted_meanings.contains(&law.meaning) {
+                return Err(E::MeaningNotAccepted);
+            }
         }
         (ExternalResult::Posterior(p), ExternalScientificObject::Posterior(post)) => {
             if post.kind != p.kind {
@@ -589,6 +594,18 @@ mod tests {
             Ok(())
         );
         assert_eq!(claim.provenance_chain(" "), Err(ProvenanceChainError::InvalidLink));
+    }
+
+    #[test]
+    fn response_grid_inherits_its_law_meaning_check() {
+        let mut r = response();
+        if let ExternalScientificObject::Law(law) = &mut r.header.object {
+            law.meaning = DistributionMeaning::PosteriorPredictive;
+        }
+        assert_eq!(
+            bind_external_result(&contract(), &ExternalResult::Response(r)),
+            Err(ExternalBindingError::MeaningNotAccepted)
+        );
     }
 
     #[test]

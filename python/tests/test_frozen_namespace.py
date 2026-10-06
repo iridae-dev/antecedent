@@ -123,6 +123,7 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
     "counterfactual",
     "derived",
     "estimators",
+    "external",
     "handoff",
     "ids",
     "inference",

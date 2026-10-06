@@ -26,9 +26,9 @@ not at the root. The eighteen root-exported stage modules are:
 ``antecedent.priors``, ``antecedent.quasi``, ``antecedent.regimes``,
 ``antecedent.state``, ``antecedent.survival``, and ``antecedent.validation``.
 
-Nineteen narrower modules are reachable but deliberately outside ``__all__``:
+Twenty narrower modules are reachable but deliberately outside ``__all__``:
 ``accepted_graph``, ``artifacts``, ``counterfactual``, ``derived``, ``estimators``,
-``handoff``, ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
+``external``, ``handoff``, ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
 ``matched``, ``model``, ``observation``, ``population``, ``prediction``, ``query``,
 ``results``, and ``transport``.
 
@@ -88,6 +88,7 @@ from . import (
 from . import counterfactual as counterfactual
 from . import derived as derived
 from . import estimators as estimators
+from . import external as external
 from . import handoff as handoff
 from . import ids as ids
 from . import inference as inference

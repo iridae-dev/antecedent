@@ -4130,6 +4130,18 @@ def gamma_from_mean_and_ess(
     ess: float,
 ) -> tuple[float, float]: ...
 
+class ExternalClaimArtifact:
+    metadata_json: str
+    provenance_label: str
+    @staticmethod
+    def load(data: bytes, expected_identity_json: str) -> ExternalClaimArtifact: ...
+    def values_copy(self) -> NDArray[np.float64]: ...
+    def export(self, artifact_id: str) -> bytes: ...
+
+def bind_external_response(
+    contract_json: str, response_json: str, causal_contract_id: str
+) -> tuple[ExternalClaimArtifact | None, str | None]: ...
+
 class JointDistributionArtifact:
     semantic: str
     axes: list[str]

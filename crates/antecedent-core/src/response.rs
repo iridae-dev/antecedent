@@ -52,6 +52,20 @@ impl SupportStatus {
         }
     }
 
+    /// Parse the `snake_case` wire spelling of [`Self::as_str`].
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::Supported,
+            Self::WeakOverlap,
+            Self::Extrapolative,
+            Self::OutsideEmpiricalSupport,
+            Self::MissingEvidence,
+        ]
+        .into_iter()
+        .find(|status| status.as_str() == name)
+    }
+
     /// Order for a worst-over-points summary: larger is weaker support.
     #[must_use]
     pub const fn severity(self) -> u8 {

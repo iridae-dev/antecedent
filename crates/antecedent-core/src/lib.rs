@@ -109,7 +109,9 @@ pub use external_binding::{
     ExternalResult, ExternalResultHeader, ExternalUncertaintyMeaning, OBSERVATIONAL_REGIME,
     bind_external_result,
 };
-pub use external_refusal::{ExternalRefusal, capability_name};
+pub use external_refusal::{
+    ExternalRefusal, capability_from_name, capability_name, probe_from_name, probe_name,
+};
 pub use identification::IdentificationStatus;
 pub use identity::{
     ContractIdentities, IDENTITY_FORMAT, IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef,

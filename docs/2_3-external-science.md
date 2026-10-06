@@ -97,3 +97,21 @@ a namespaced detail (`external_binding.coordinate.units`,
 coordinate or probe, expected versus supplied semantics, the missing
 capability and a remedy when one is known. Binding refusals read expected and
 supplied values from the contract and result that were presented.
+
+## Python surface
+
+`antecedent.external` follows the `handoff` flow rather than mirroring the Rust
+types: `external.response(identification, outcome_units=...)` derives the
+required coordinates from the identified query (`quantities=` overrides),
+`spec.bind(Response(...))` returns a `BoundExternalClaim` with `.inspect()`,
+`.export()` and `.lineage`, and a refusal raises `ExternalRefusal`, a
+`CausalUnsupportedError` carrying the registered `reason_code`, `remedy`, stage,
+offending coordinate and expected/supplied semantics. Trust is the shared
+`ProviderTrust` vocabulary (`externally_attested`, `verified_extension`) and is
+never `native_licensed`. Python builds declarations; Rust owns every identity,
+check and refusal. `crates/antecedent-io/tests/external_binding_wire.rs` and
+`python/tests/test_external_binding.py` assert the same closed-form fixture.
+
+Limitation: a checked equivalence licenses a coordinate that differs from the
+request only in its regime. An observational conditional law over a dose grid
+(whose coordinates differ by conditioning) cannot yet be bound.

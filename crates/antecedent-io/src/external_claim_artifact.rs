@@ -35,7 +35,9 @@ const LABELS: [&str; 5] =
 pub enum ExternalClaimTrust {
     /// Supplier assertion only.
     ExternallyAttested,
-    /// The exact provider contract passed object-level verification.
+    /// The exact provider contract passed object-level verification. Written as
+    /// `verified_extension`, the shared Rust/Python provider-trust vocabulary.
+    #[serde(rename = "verified_extension")]
     ExactRequestVerified,
 }
 

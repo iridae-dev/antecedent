@@ -65,7 +65,49 @@ pub const fn capability_name(capability: ExternalCapability) -> &'static str {
     }
 }
 
-const fn probe_name(kind: VerificationProbeKind) -> &'static str {
+/// Parse the name written by [`capability_name`].
+#[must_use]
+pub fn capability_from_name(name: &str) -> Option<ExternalCapability> {
+    use ExternalCapability as C;
+    [
+        C::Sample,
+        C::Cdf,
+        C::Quantile,
+        C::LogProbability,
+        C::Mean,
+        C::Covariance,
+        C::Conditional,
+        C::Intervention,
+        C::PosteriorPredictive,
+        C::Update,
+        C::Factor,
+        C::EvaluateUtility,
+    ]
+    .into_iter()
+    .find(|capability| capability_name(*capability) == name)
+}
+
+/// Parse the name written by [`probe_name`].
+#[must_use]
+pub fn probe_from_name(name: &str) -> Option<VerificationProbeKind> {
+    use VerificationProbeKind as P;
+    [
+        P::Shape,
+        P::Normalization,
+        P::Moments,
+        P::KnownTruth,
+        P::SeededBehavior,
+        P::Support,
+        P::UpdateCoherence,
+        P::Monotonicity,
+    ]
+    .into_iter()
+    .find(|kind| probe_name(*kind) == name)
+}
+
+/// Stable `snake_case` name of a verification property.
+#[must_use]
+pub const fn probe_name(kind: VerificationProbeKind) -> &'static str {
     match kind {
         VerificationProbeKind::Shape => "shape",
         VerificationProbeKind::Normalization => "normalization",
@@ -256,8 +298,11 @@ impl ExternalBindingError {
                         .collect::<Vec<_>>()
                         .join(","),
                 ),
-                supplied: match result {
-                    ExternalResult::Distribution(d) => Some(format!("{:?}", d.meaning)),
+                supplied: match (result, &header.object) {
+                    (ExternalResult::Distribution(d), _) => Some(format!("{:?}", d.meaning)),
+                    (_, crate::ExternalScientificObject::Law(law)) => {
+                        Some(format!("{:?}", law.meaning))
+                    }
                     _ => None,
                 },
                 ..at(
@@ -349,6 +394,23 @@ mod tests {
     fn refused(contract: &CheckedCausalContract, response: ExternalResponse) -> ExternalRefusal {
         let result = ExternalResult::Response(response);
         bind_external_result(contract, &result).unwrap_err().to_refusal(contract, &result)
+    }
+
+    #[test]
+    fn wire_names_round_trip() {
+        use ExternalCapability as C;
+        for capability in [C::Sample, C::Cdf, C::Quantile, C::Update, C::EvaluateUtility] {
+            assert_eq!(capability_from_name(capability_name(capability)), Some(capability));
+        }
+        assert_eq!(capability_from_name("nope"), None);
+        for status in [IdentificationStatus::GraphDependent, IdentificationStatus::NotIdentified] {
+            assert_eq!(IdentificationStatus::from_name(status.as_str()), Some(status));
+        }
+        assert_eq!(
+            crate::SupportStatus::from_name("missing_evidence").map(crate::SupportStatus::as_str),
+            Some("missing_evidence")
+        );
+        assert_eq!(crate::SupportStatus::from_name("bad"), None);
     }
 
     #[test]
