@@ -99,13 +99,8 @@ jobs:
       - name: Lint allows carry reasons
         run: bash scripts/gate_lint_allows.sh
 
-      # Clippy agrees across the two runners. The macOS suite is what
-      # disagrees with glibc on float bits and stack size, so it stays on
-      # main and is not what a pull request waits for.
-      - name: Clippy
-        if: matrix.os == 'ubuntu-latest'
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
+      # The macOS suite is sensitive to float bits and stack size, so it runs
+      # on main. PRs keep its format/DCO check but do not wait for its tests.
       - name: Install cargo-nextest
         if: matrix.os != 'macos-latest' || github.event_name == 'push'
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
@@ -133,7 +128,7 @@ jobs:
         run: sccache --show-stats
 
       - name: Test optional learner and Gaussian-process features
-        if: matrix.os != 'macos-latest' || github.event_name == 'push'
+        if: matrix.os == 'macos-latest' && github.event_name == 'push'
         run: |
           cargo nextest run -p antecedent-learn --features ml-full,ml-neural
           cargo test -p antecedent-learn --features ml-full,ml-neural --doc
@@ -146,18 +141,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: bash scripts/gate_named_tests.sh
 
-      - name: crates.io publish dry-run
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set -euo pipefail
-          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
-            bash scripts/publish_crates.sh --dry-run
-          else
-            echo "No crate manifest changes; skipping publish dry-run"
-          fi
-
   # `cargo test --workspace` unifies features through the `python` member
   # (default = ml-full), so the Rust job never compiles the graph a crates.io
   # user gets from `cargo add antecedent` (default features), nor any optional
@@ -168,6 +151,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      CARGO_PROFILE_TEST_OPT_LEVEL: ${{ inputs.rust_test_opt_level || '2' }}
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+      SCCACHE_GHA_ENABLED: "true"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -179,6 +167,15 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Cache Rust compilation
+        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
+
+      - name: Enable compiler cache
+        run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
+
+      - name: Clippy workspace
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Default features (what `cargo add antecedent` builds)
         run: |
@@ -206,6 +203,23 @@ jobs:
           cargo clippy -p antecedent-model --features gaussian-process --all-targets -- -D warnings
           cargo clippy -p antecedent-learn --features ml-neural --all-targets -- -D warnings
           cargo clippy -p antecedent-data --no-default-features --all-targets -- -D warnings
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: nextest
+
+      - name: Test optional learner and Gaussian-process features
+        run: |
+          set -euo pipefail
+          cargo nextest run -p antecedent-learn --features ml-full,ml-neural
+          cargo test -p antecedent-learn --features ml-full,ml-neural --doc
+          cargo nextest run -p antecedent-model --features gaussian-process
+          cargo test -p antecedent-model --features gaussian-process --doc
+
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
 
   # Relative performance regression, on pull requests labelled `perf`. Base and
   # head are benchmarked back to back on the same runner, so the absolute
@@ -267,11 +281,36 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: cargo deny check
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
           command: check
+
+      - name: Install Rust 1.85 for crate packaging
+        if: github.event_name == 'pull_request'
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.85
+        with:
+          toolchain: "1.85"
+
+      - name: Cache cargo for crate packaging
+        if: github.event_name == 'pull_request'
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: crates.io publish dry-run
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_REF"
+          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -qE '^crates/.+/Cargo\.toml$|^Cargo\.toml$|^scripts/publish_crates\.sh$'; then
+            bash scripts/publish_crates.sh --dry-run
+          else
+            echo "No crate manifest changes; skipping publish dry-run"
+          fi
 
   # Domain-correctness gates. `gate_release.sh` is the umbrella for the parity
   # schema check, the provenance schema check, and the feature gates
@@ -323,23 +362,23 @@ jobs:
       - name: Enable compiler cache
         run: echo 'RUSTC_WRAPPER=sccache' >> "$GITHUB_ENV"
 
-      - name: Install cargo-nextest for cited promotion tests
-        if: startsWith(matrix.section, 'promotion-') && matrix.section != 'promotion-python'
+      - name: Install cargo-nextest for cited evidence tests
+        if: (startsWith(matrix.section, 'promotion-') && matrix.section != 'promotion-python') || matrix.section == 'checked'
         uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: nextest
 
       - name: Install uv
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && matrix.section != 'checked' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
 
       - name: Sync Python dependencies
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && matrix.section != 'checked' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         run: uv sync --group dev --no-install-project
 
       - name: Build native extension
-        if: matrix.section != 'benches' && matrix.section != 'graphless' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
+        if: matrix.section != 'benches' && matrix.section != 'graphless' && matrix.section != 'checked' && !startsWith(matrix.section, 'promotion-facade-') && matrix.section != 'promotion-estimate' && matrix.section != 'promotion-identify' && matrix.section != 'promotion-other'
         working-directory: python
         # A cold compiler-cache backend made this dev-profile build take 8-9m;
         # use Cargo's incremental build here, then cache test compilations.

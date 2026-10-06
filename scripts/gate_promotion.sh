@@ -47,12 +47,13 @@ EVIDENCE="$(mktemp)"
 SELECTED="$(mktemp)"
 EMITTED="$EVIDENCE"
 trap 'rm -f "$EMITTED" "$SELECTED"' EXIT
-if [[ "$group" == all || "$group" == python ]]; then
+if [[ "$group" == all ]]; then
   python3 scripts/check_promotion_records.py --emit-evidence "$EVIDENCE"
 else
-  # The required Python group performs full Cargo/Pytest collection checks.
-  # Rust groups independently validate the registry and execute their exact
-  # cited assertions without paying for the native Python extension.
+  # Every CI shard validates the complete registry statically. Its evidence
+  # runner then checks exact Rust identity and ignored status, or executes
+  # Python nodes through pytest collection, for the rows assigned to it.
+  # This avoids compiling every Rust target in the Python-only shard.
   PROMOTION_STATIC_ONLY=1 python3 scripts/check_promotion_records.py --emit-evidence "$EVIDENCE"
 fi
 if [[ "$group" != all ]]; then

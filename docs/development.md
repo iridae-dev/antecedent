@@ -18,11 +18,12 @@ GitHub Actions CI (`ci.yml`) runs the following checks on every PR:
   workspace-wide jobs never build because the `python` member enables `ml-full`
   and `ml-neural`.
 - **`deny`** — `cargo deny check` (licenses, advisories, sources).
-- **`gates`** — first the calibration attestation
-  (`scripts/gate_calibration_attestation.sh`, seconds), then
-  `scripts/gate_release.sh`, which runs the parity-manifest schema check,
-  provenance and metadata checks, support-matrix and evidence checks, feature
-  gates, artifact tests, and Criterion benchmark smokes.
+- **`gates`** — requires every parallel `gate-sections` job to pass. Each starts
+  with the calibration attestation (`scripts/gate_calibration_attestation.sh`).
+  The sections divide inventory, promotion evidence, graphless and support
+  matrix checks, checked execution, feature gates, and benchmark smokes.
+  Running `scripts/gate_release.sh` without `--section` still executes all of
+  them for a local release-candidate check.
 - **`python-lint`** — `scripts/gate_python_lint.sh` (Ruff, mypy), then pytest with an
   85% coverage floor after building the native extension.
 - **`python-wheels`** — builds and tests the supported wheel matrix.
@@ -502,9 +503,10 @@ name that version, and release-status text matches the cut. Coverage records mus
 HEAD. Tag only the approved, clean commit after these checks pass.
 Do not remove the release gate's clean-diff check to accommodate pending edits.
 
-Tagged releases drive wheel + docs publishing (GitHub Release assets and public
-PyPI). The tag `vX.Y.Z` is the source of truth for the release build; CI runs
-`scripts/set_version.sh` before maturin.
+Tagged releases drive docs and artifact publishing (GitHub Release assets and
+public PyPI). The tag `vX.Y.Z` must point to a commit with a successful exact-SHA
+`main` CI run. The tag workflow checks the committed version and all 16 wheels
+from that run before any publishing job starts; it does not rebuild the wheels.
 
 ```bash
 # Optional: bump and commit on main first (X.Y.Z is the version being cut)
