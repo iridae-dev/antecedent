@@ -42,6 +42,8 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_INCREMENTAL: "0"
       SCCACHE_GHA_ENABLED: "true"
+      RUST_CI_REST_FEATURES: antecedent-identify/test-util,antecedent-io/calibration-internal
+      RUST_CI_FACADE_FEATURES: ml-gbdt,ml-forest,ml-neural,antecedent-data/arrow
     strategy:
       fail-fast: false
       # The facade owns most integration test targets. Both Ubuntu suites are
@@ -131,6 +133,10 @@ jobs:
       - name: Lint allows carry reasons
         run: bash scripts/gate_lint_allows.sh
 
+      - name: Split Rust suites preserve workspace features
+        if: matrix.os == 'ubuntu-latest' && matrix.suite == 'rest'
+        run: python3 scripts/check_rust_ci_feature_parity.py "$RUST_CI_REST_FEATURES" "$RUST_CI_FACADE_FEATURES"
+
       # The macOS suite is sensitive to float bits and stack size, so it runs
       # on main. PRs keep its format/DCO check but do not wait for its tests.
       - name: Install cargo-nextest
@@ -144,17 +150,21 @@ jobs:
         if: matrix.suite != 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         run: |
           trap 'df -h /' EXIT
-          cargo test --workspace --exclude antecedent --no-run --timings
-          cargo nextest run --workspace --exclude antecedent
-          cargo test --workspace --exclude antecedent --doc
+          # The facade's dev-dependencies enabled these features in the former
+          # full-workspace command. Keep that exact feature graph in this shard.
+          cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --no-run --timings
+          cargo nextest run --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
+          cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --doc
 
       - name: Test facade
         if: matrix.suite == 'facade' && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')
         run: |
           trap 'df -h /' EXIT
-          cargo test -p antecedent --features ml-full,ml-neural,antecedent-data/arrow --no-run --timings
-          cargo nextest run -p antecedent --features ml-full,ml-neural,antecedent-data/arrow
-          cargo test -p antecedent --features ml-full,ml-neural,antecedent-data/arrow --doc
+          # Python's default features activate these three leaf features and
+          # data/arrow in the former full-workspace command.
+          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES" --no-run --timings
+          cargo nextest run -p antecedent --features "$RUST_CI_FACADE_FEATURES"
+          cargo test -p antecedent --features "$RUST_CI_FACADE_FEATURES" --doc
 
       - name: Upload Cargo timings
         if: always() && (matrix.os != 'macos-latest' || github.event_name != 'pull_request')

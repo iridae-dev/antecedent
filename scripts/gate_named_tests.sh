@@ -15,6 +15,7 @@ cd "$ROOT"
 
 python3 - "$@" <<'PY'
 import json
+import os
 import subprocess
 import sys
 
@@ -64,6 +65,12 @@ LISTINGS = {
     "workspace": ["--workspace"],
     "gaussian-process": ["-p", "antecedent-model", "--features", "gaussian-process"],
 }
+REST_FEATURES = os.getenv(
+    "RUST_CI_REST_FEATURES", "antecedent-identify/test-util,antecedent-io/calibration-internal"
+)
+FACADE_FEATURES = os.getenv(
+    "RUST_CI_FACADE_FEATURES", "ml-gbdt,ml-forest,ml-neural,antecedent-data/arrow"
+)
 
 
 def problems(listings: dict[str, dict], named=NAMED) -> list[str]:
@@ -145,11 +152,11 @@ if sys.argv[1:] == ["--self-test"]:
 
 if sys.argv[1:3] == ["--shard", "facade"] and len(sys.argv) == 3:
     named = [entry for entry in NAMED if entry[1] == "antecedent"]
-    listings = {"workspace": ["-p", "antecedent", "--features",
-                              "ml-full,ml-neural,antecedent-data/arrow"]}
+    listings = {"workspace": ["-p", "antecedent", "--features", FACADE_FEATURES]}
 elif sys.argv[1:3] == ["--shard", "rest"] and len(sys.argv) == 3:
     named = [entry for entry in NAMED if entry[1] != "antecedent"]
-    listings = {"workspace": ["--workspace", "--exclude", "antecedent"],
+    listings = {"workspace": ["--workspace", "--exclude", "antecedent", "--features",
+                              REST_FEATURES],
                 "gaussian-process": LISTINGS["gaussian-process"]}
 elif not sys.argv[1:]:
     named = NAMED
