@@ -4009,3 +4009,10 @@ stage = "consume"
 status = "closed"
 reason_code = "cell_not_licensed"
 notes = "2.3 A0.2 F1 aligned joint draws remain closed pending an independent consumer artifact."
+
+[[routes]]
+route = "antecedent.inference.mapped_posterior_transfer"
+stage = "prepare"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "2.3 A0.2 F19 mapped transfer remains closed pending dense-covariance pooled truth, named mapping and independent replay."

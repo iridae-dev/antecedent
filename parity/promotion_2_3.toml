@@ -494,3 +494,42 @@ fixtures = [
   { id = "f1.marginal_pairing.negative", role = "negative", intent = "Reject independent marginals, incompatible coordinates and unsupported masked coordinates before calculation." },
   { id = "f1.fresh_process_replay.artifact", role = "artifact", intent = "A fresh reader reproduces weighted joint values and refuses a resealed semantic, order or snapshot mutation." },
 ]
+
+[[record]]
+id = "2.3A.F19.mapped_posterior_transfer"
+workstream = "F19"
+milestone = "A"
+work_package = "A0.2"
+status = "frozen"
+consumer_question = "Can a posterior over named coefficients become a prior for a changed design without losing covariance, identities or residual-variance meaning?"
+theorem = "For a Gaussian linear model with known shared residual variance, sequential conjugate updating under an explicit coefficient map equals pooled updating when the complete mean and covariance are transported. Draw-based transfer requires aligned parameter-posterior draws; marginal summaries cannot establish off-diagonal covariance. No interval license transfers to a changed method or coordinate."
+reference = "TODO.md A0.2 F19; 2.2 dense covariance hydration and docs/priors.md"
+guarantee = "mapped_posterior_transfer_pending_pooled_oracle"
+graph_class = "A fixed identified Gaussian linear design with stable named coefficient identities; causal identification belongs to the source and target claims."
+population_semantics = "Source and target design columns require explicit named mappings, one known residual-variance meaning and separately checked snapshot and regime identities."
+evidence_family = "A checked 2.2 posterior source with mean vector and full dense covariance, or a 2.3 aligned parameter-posterior draw artifact."
+provider = "Native conjugate posterior hydration; an external posterior remains unverified until its exact request and quantity map are checked."
+estimand = "Target coefficient posterior after sequential update, compared with a pooled known-variance posterior on the same observations."
+inference_claim = "point_only"
+owners = ["antecedent-prob", "antecedent-io", "antecedent", "python/antecedent"]
+prerequisite_records = ["2.3A.F1.aligned_joint_draws", "2.3A.F15.joint_distribution_semantics"]
+prerequisite_reason = "The 2.2 dense-covariance hydration is an implementation base documented in docs/priors.md, but it has no separate 2.2 promotion record; F19 must obtain its own pooled and mapped-design evidence."
+identity_inputs = ["named coefficient source-to-target map", "full source mean and covariance or aligned draws", "known residual variance and likelihood", "source and target snapshots", "population and regime", "distribution meaning"]
+wire_changes = ["Retain the 2.2 CausalPosterior wire; use the 2.3 joint-distribution artifact for aligned draws and an explicit versioned source-to-target mapping receipt. No positional migration or summary-only covariance reconstruction."]
+compatibility = "A 2.2 posterior may be converted only by checked named binding; incompatible source or changed residual-variance semantics refuse rather than falling back to diagonal hydration."
+search = false
+bounds = { cancellation = true, max_draws = 100000, max_coordinates = 1024, max_payload_bytes = 16777216 }
+refusals = [
+  { code = "cell_not_licensed", detail = "mapped_posterior_transfer.route_frozen", when = "The mapped transfer route is requested before pooled known-truth and independent artifact evidence passes." },
+  { code = "quantity_semantics_mismatch", detail = "mapped_posterior_transfer.coefficient_map", when = "A coefficient lacks a unique named source-to-target mapping or the mapped quantity coordinates differ." },
+  { code = "distribution_meaning_mismatch", detail = "mapped_posterior_transfer.parameter_posterior", when = "An outcome, bootstrap or estimator-sampling distribution is offered as a coefficient posterior." },
+  { code = "prior_transfer_not_hydrated", detail = "mapped_posterior_transfer.residual_variance", when = "A source and target have incompatible or unverified residual-variance and likelihood semantics." },
+]
+routes = [
+  { name = "antecedent.inference.mapped_posterior_transfer", stage = "prepare", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+]
+fixtures = [
+  { id = "f19.heterogeneous_design_pool.positive", role = "positive", intent = "Two named coefficients with source row (1,1) and target row (1,-1) retain dense covariance and match exact pooled Gaussian posterior mean and covariance, including reversed target column order." },
+  { id = "f19.positional_or_variance.negative", role = "negative", intent = "Reject unnamed or reused coefficient bindings, outcome or bootstrap draws, diagonal-only source summaries and a changed residual-variance meaning." },
+  { id = "f19.mapped_replay.artifact", role = "artifact", intent = "A fresh consumer checks source receipt, named mapping, full covariance or aligned draw order, residual variance and snapshot before updating." },
+]

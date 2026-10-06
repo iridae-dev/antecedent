@@ -33,7 +33,7 @@ package = "A0.2"
 purpose = "mapped posterior transfer"
 depends_on = ["F1", "F15"]
 record = "2.3A.F19.mapped_posterior_transfer"
-record_state = "planned"
+record_state = "frozen"
 
 [[feature]]
 id = "F2"
