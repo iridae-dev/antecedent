@@ -468,6 +468,19 @@ routes = [
         blocks = re.split(r"(?m)^(?=\[\[record\]\])", promo.read_text())
         kept = [b for b in blocks if 'milestone = "B"' not in b]
         promo.write_text("".join(kept) + b_record)
+        # Preserve the evidence for live licensed routes in the copied A/E
+        # records. Only the synthetic B record's coverage varies by case.
+        baseline_coverage = {
+            coverage_id
+            for record in tomllib.loads(promo.read_text())["record"]
+            if any(route.get("stage") == "uncertainty" and route.get("status") == "licensed"
+                   for route in record.get("routes") or [])
+            and record.get("id") != "2.2B.X3.synthetic"
+            for coverage_id in record.get("coverage_records") or []
+        }
+        (base / "parity/coverage_records.toml").write_text(
+            "".join(f'[[record]]\nid = "{coverage_id}"\n' for coverage_id in sorted(baseline_coverage))
+        )
         gate = base / "scripts/gate_calibration.sh"
         # The live 2.2B calibration groups go with the live B records (the synthetic ones replace them).
         live_gate = re.sub(
@@ -492,7 +505,7 @@ routes = [
                 shutil.copytree(base, case, dirs_exist_ok=True)
                 if coverage is not None:
                     (case / "parity/coverage_records.toml").write_text(
-                        "".join(f'[[record]]\nid = "{c}"\n' for c in coverage)
+                        "".join(f'[[record]]\nid = "{c}"\n' for c in sorted(baseline_coverage | set(coverage)))
                     )
                 if edit is not None:
                     edit(case)

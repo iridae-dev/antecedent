@@ -385,7 +385,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        section: [inventory, promotion-python, promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, matrix-0, matrix-1, matrix-2, matrix-3, transport-contracts, checked-0, checked-1, checked-2, checked-3, feature-core, feature-composition, feature-transport, feature-exits, benches]
+        section: [inventory, promotion-python, promotion-facade-0, promotion-facade-1, promotion-estimate, promotion-identify, promotion-other, graphless, matrix-0, matrix-1, matrix-2, matrix-3, matrix-4, matrix-5, matrix-6, matrix-7, transport-contracts, checked-0, checked-1, checked-2, checked-3, feature-core, feature-composition, feature-transport, feature-exits, benches]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

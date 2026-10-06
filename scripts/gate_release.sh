@@ -30,10 +30,10 @@ section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-0|matrix-1|matrix-2|matrix-3|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches]" >&2
+  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-0..7|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches]" >&2
   exit 2
 fi
-case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-0|matrix-1|matrix-2|matrix-3|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches) ;; *)
+case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|matrix-[0-7]|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches) ;; *)
   echo "unknown release-gate section: $section" >&2; exit 2 ;;
 esac
 section_start() {
@@ -101,7 +101,7 @@ fi
 
 if [[ "$section" == matrix-* ]]; then
 section_start "$section"
-echo "== public support matrix cited tests ${section#matrix-}/4 =="
+echo "== public support matrix cited tests ${section#matrix-}/8 =="
 bash scripts/gate_support_matrix.sh "--matrix-shard-${section#matrix-}"
 section_end "$section"
 fi

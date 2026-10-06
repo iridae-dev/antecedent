@@ -372,7 +372,19 @@ def self_test() -> int:
             if src.is_file():
                 (baseline / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, baseline / rel)
-        (baseline / "parity/coverage_records.toml").write_text("")
+        # The committed A matrix can contain licensed routes beyond X1. Keep
+        # their coverage present while varying X1's closed route below.
+        baseline_coverage = {
+            coverage_id
+            for record in promotion["record"]
+            if record.get("milestone") == "A"
+            and any(route.get("stage") == "uncertainty" and route.get("status") == "licensed"
+                    for route in record.get("routes") or [])
+            for coverage_id in record.get("coverage_records") or []
+        }
+        (baseline / "parity/coverage_records.toml").write_text(
+            "".join(f'[[record]]\nid = "{coverage_id}"\n' for coverage_id in sorted(baseline_coverage))
+        )
         os.environ["A_INTERVALS_SKIP_ATTEST"] = "1"
 
         def run(edit=None, coverage: list[str] | None = None) -> dict:
@@ -382,7 +394,7 @@ def self_test() -> int:
                 shutil.copytree(baseline, case, dirs_exist_ok=True)
                 if coverage is not None:
                     (case / "parity/coverage_records.toml").write_text(
-                        "".join(f'[[record]]\nid = "{c}"\n' for c in coverage)
+                        "".join(f'[[record]]\nid = "{c}"\n' for c in sorted(baseline_coverage | set(coverage)))
                     )
                 if edit is not None:
                     edit(case)
