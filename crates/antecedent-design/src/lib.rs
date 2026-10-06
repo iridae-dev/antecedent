@@ -22,6 +22,7 @@
 
 pub mod candidate;
 pub mod decision;
+pub mod decision_contract;
 pub mod error;
 pub mod objective;
 mod plan_common;
@@ -44,6 +45,11 @@ pub use candidate::{
 pub use decision::{
     AffineUtility, DecisionConstraint, DecisionEvaluation, DecisionProblem, DecisionProblemId,
     Utility, evaluate_decision,
+};
+pub use decision_contract::{
+    ActionKind, DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion,
+    DecisionFunctional, HardConstraint, SourceMode, SourceRepresentation, SourceRequirement,
+    StructuralPolicy, Tail, UtilityExpr,
 };
 pub use error::DesignError;
 pub use objective::DesignObjective;

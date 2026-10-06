@@ -437,6 +437,23 @@ fn check_coordinates(
     Ok(equivalence_ids)
 }
 
+fn check_contract(contract: &CheckedCausalContract) -> Result<(), ExternalBindingError> {
+    if !matches!(
+        contract.identification,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+    ) {
+        return Err(ExternalBindingError::ContractNotIdentified(contract.identification));
+    }
+    if blank(&contract.graph_id)
+        || contract.estimand.is_empty()
+        || contract.estimand.iter().any(|q| q.validate().is_err())
+    {
+        return Err(ExternalBindingError::InvalidContract);
+    }
+    Ok(())
+}
+
 /// Check an external result against an identified contract and bind it.
 ///
 /// # Errors
@@ -449,19 +466,7 @@ pub fn bind_external_result(
     result: &ExternalResult,
 ) -> Result<BoundExternalClaim, ExternalBindingError> {
     use ExternalBindingError as E;
-    if !matches!(
-        contract.identification,
-        IdentificationStatus::NonparametricallyIdentified
-            | IdentificationStatus::IdentifiedUnderParametricRestrictions
-    ) {
-        return Err(E::ContractNotIdentified(contract.identification));
-    }
-    if blank(&contract.graph_id)
-        || contract.estimand.is_empty()
-        || contract.estimand.iter().any(|q| q.validate().is_err())
-    {
-        return Err(E::InvalidContract);
-    }
+    check_contract(contract)?;
     let (header, values, meaning, uncertainty) = match result {
         ExternalResult::Response(r) => (&r.header, Some(&r.values), None, r.uncertainty.clone()),
         ExternalResult::Distribution(d) => {
