@@ -14,26 +14,41 @@
   "identification": "nonparametrically_identified",
   "lineage": [
     {
+      "digest": "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf",
       "id": "contract:checked-contract",
+      "parent_digests": [],
       "parents": [],
       "stage": "causal_contract"
     },
     {
+      "digest": "fefe49837d0cd34618e84e8837070ba73610e6ade7b075606c84ba5f0fb64601",
       "id": "evidence:factor:z",
+      "parent_digests": [
+        "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf"
+      ],
       "parents": [
         "contract:checked-contract"
       ],
       "stage": "evidence"
     },
     {
+      "digest": "01e0bacd3a25263c2f5bd056924f89399dbad9ebb4e9189cdf9d77a32044c707",
       "id": "provider:external:lab/curve@v3#snap-9",
+      "parent_digests": [
+        "fefe49837d0cd34618e84e8837070ba73610e6ade7b075606c84ba5f0fb64601"
+      ],
       "parents": [
         "evidence:factor:z"
       ],
       "stage": "external_provider"
     },
     {
+      "digest": "bd4fc5f11a1b6d55fcd8876f5e591cc1abbfd6e83cf6c354d0e24caae74ac940",
       "id": "claim",
+      "parent_digests": [
+        "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf",
+        "01e0bacd3a25263c2f5bd056924f89399dbad9ebb4e9189cdf9d77a32044c707"
+      ],
       "parents": [
         "contract:checked-contract",
         "provider:external:lab/curve@v3#snap-9"

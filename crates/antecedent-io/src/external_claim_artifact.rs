@@ -8,7 +8,7 @@
 
 use antecedent_core::{
     BoundExternalClaim, BoundTrustLevel, CompositionLink, CompositionStage,
-    ExternalUncertaintyMeaning, ProvenanceChain, ScientificQuantity,
+    ExternalUncertaintyMeaning, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
 };
 use serde::{Deserialize, Serialize};
 
@@ -127,13 +127,79 @@ pub struct LineageLinkWire {
     pub stage: String,
     /// Identities of earlier links this one was derived from.
     pub parents: Vec<String>,
+    /// Merkle digest of this link (BLAKE3 over its id, stage and parent digests).
+    pub digest: String,
+    /// The digests of `parents`, in the same order, as this link believes them.
+    pub parent_digests: Vec<String>,
+}
+
+fn chain_error(error: &ProvenanceChainError) -> IoError {
+    let refusal = error.to_refusal();
+    IoError::Refused {
+        code: refusal.code,
+        message: format!(
+            "{}: lineage is not a valid digest-linked derivation chain",
+            refusal.detail
+        ),
+    }
+}
+
+/// Build the wire lineage, with every Merkle digest, from `(id, stage, parents)`
+/// triples listed in dependency order. A consumer writes its expected identity
+/// from constants through this and gets the same digests the producer records.
+///
+/// # Errors
+/// An unknown stage or an invalid chain refuses.
+pub fn lineage_wire(links: &[(&str, &str, &[&str])]) -> Result<Vec<LineageLinkWire>, IoError> {
+    let composed = links
+        .iter()
+        .map(|(id, stage, parents)| {
+            Ok(CompositionLink {
+                id: (*id).to_owned(),
+                stage: CompositionStage::from_name(stage)
+                    .ok_or_else(|| IoError::Convert(format!("unknown lineage stage `{stage}`")))?,
+                parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+                declared_parent_digests: None,
+            })
+        })
+        .collect::<Result<Vec<_>, IoError>>()?;
+    wire_from_chain(&ProvenanceChain::new(composed).map_err(|e| chain_error(&e))?)
+}
+
+/// Wire form of every link in a validated chain.
+///
+/// # Errors
+/// Never in practice; digests exist for every link of a validated chain.
+pub fn wire_from_chain(chain: &ProvenanceChain) -> Result<Vec<LineageLinkWire>, IoError> {
+    chain
+        .links()
+        .iter()
+        .map(|link| {
+            let digest_of =
+                |id: &str| chain.digest_of(id).map(str::to_owned).map_err(|e| chain_error(&e));
+            Ok(LineageLinkWire {
+                id: link.id.clone(),
+                stage: link.stage.as_str().to_owned(),
+                parents: link.parents.clone(),
+                digest: digest_of(&link.id)?,
+                parent_digests: link
+                    .parents
+                    .iter()
+                    .map(|parent| digest_of(parent))
+                    .collect::<Result<Vec<_>, IoError>>()?,
+            })
+        })
+        .collect()
 }
 
 impl ExternalClaimIdentity {
-    /// The derivation chain, rebuilt and validated from the wire.
+    /// The derivation chain, rebuilt and validated from the wire. Every link's
+    /// declared parent digests and its own recorded digest are recomputed and
+    /// compared, so a changed id, stage or parent anywhere upstream refuses.
     ///
     /// # Errors
-    /// An unknown stage, unresolved parent or duplicate link refuses.
+    /// An unknown stage, unresolved parent, duplicate link or digest mismatch
+    /// refuses.
     pub fn provenance_chain(&self) -> Result<ProvenanceChain, IoError> {
         let links = self
             .lineage
@@ -145,10 +211,15 @@ impl ExternalClaimIdentity {
                         IoError::Convert(format!("unknown lineage stage `{}`", link.stage))
                     })?,
                     parents: link.parents.clone(),
+                    declared_parent_digests: Some(link.parent_digests.clone()),
                 })
             })
             .collect::<Result<Vec<_>, IoError>>()?;
-        ProvenanceChain::new(links).map_err(|error| IoError::Convert(format!("{error:?}")))
+        let chain = ProvenanceChain::new(links).map_err(|e| chain_error(&e))?;
+        for link in &self.lineage {
+            chain.verify_digest(&link.id, &link.digest).map_err(|e| chain_error(&e))?;
+        }
+        Ok(chain)
     }
 
     /// Identity of a bound claim under a named causal contract.
@@ -190,17 +261,9 @@ impl ExternalClaimIdentity {
             evidence_ids: claim.evidence_ids().to_vec(),
             assumption_ids: claim.assumption_ids().to_vec(),
             equivalence_ids: claim.equivalence_ids().to_vec(),
-            lineage: claim
-                .provenance_chain(causal_contract_id)
-                .map_err(|error| IoError::Convert(format!("{error:?}")))?
-                .links()
-                .iter()
-                .map(|link| LineageLinkWire {
-                    id: link.id.clone(),
-                    stage: link.stage.as_str().to_owned(),
-                    parents: link.parents.clone(),
-                })
-                .collect(),
+            lineage: wire_from_chain(
+                &claim.provenance_chain(causal_contract_id).map_err(|error| chain_error(&error))?,
+            )?,
             provider_meaning: claim
                 .provider_meaning()
                 .map(|meaning| {

@@ -373,3 +373,43 @@ fn result_json_carries_the_lineage_and_replay_still_compares_like_with_like() {
     loaded.replay(&c, &s).unwrap();
     assert_eq!(loaded.provenance_chain().unwrap(), artifact.provenance_chain().unwrap());
 }
+
+#[test]
+fn result_lineage_carries_merkle_digests_that_change_with_the_source() {
+    use antecedent_core::ProvenanceChainError;
+    let c = contract();
+    let first = source();
+    let second = source_with_p([2.0, 3.0, 2.0, 0.0]);
+    let lineage_json = |s: &DistributionArtifact| -> Vec<serde_json::Value> {
+        let result = evaluate_contract(&c, s).unwrap();
+        let json: serde_json::Value = serde_json::from_str(
+            &antecedent_design::decision_artifact::result_to_json(&result, s).unwrap(),
+        )
+        .unwrap();
+        json["lineage"].as_array().unwrap().clone()
+    };
+    let (a, b) = (lineage_json(&first), lineage_json(&second));
+    let digest = |l: &serde_json::Value| l["digest"].as_str().unwrap().to_owned();
+    assert!(a.iter().all(|l| digest(l).len() == 64));
+    // The claim records the digests of its distribution and decision parents.
+    assert_eq!(a[4]["parent_digests"], serde_json::json!([digest(&a[2]), digest(&a[3])]));
+    assert_eq!(a[0]["parent_digests"], serde_json::json!([]));
+    // Upstream links agree; the distribution and everything derived from it differ.
+    for shared in [0, 1, 3] {
+        assert_eq!(digest(&a[shared]), digest(&b[shared]));
+    }
+    assert_ne!(digest(&a[2]), digest(&b[2]));
+    assert_ne!(digest(&a[4]), digest(&b[4]));
+
+    // The chain's own digests are the ones written to the wire; a reader holding
+    // a different retained digest for the result refuses.
+    let chain = DecisionResultArtifact::new(evaluate_contract(&c, &first).unwrap(), &first)
+        .provenance_chain()
+        .unwrap();
+    let claim = DecisionResultArtifact::CLAIM_LINK_ID;
+    assert_eq!(chain.digest_of(claim).unwrap(), digest(&a[4]));
+    assert!(matches!(
+        chain.verify_digest(claim, &digest(&b[4])),
+        Err(ProvenanceChainError::DigestMismatch { .. })
+    ));
+}

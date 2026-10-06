@@ -79,6 +79,11 @@ def test_bound_claim_is_inspectable_exportable_and_never_native():
     inspection = claim.inspect()
     assert inspection.native is False
     assert [link.id for link in inspection.lineage][-1] == "claim"
+    # Every link carries a Merkle digest, and each link records its parents' digests.
+    by_id = {link.id: link for link in inspection.lineage}
+    assert all(len(link.digest) == 64 for link in inspection.lineage)
+    for link in inspection.lineage:
+        assert link.parent_digests == tuple(by_id[parent].digest for parent in link.parents)
     assert "trust: externally_attested" in str(inspection)
 
 

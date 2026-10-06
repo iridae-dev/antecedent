@@ -84,6 +84,10 @@ pub struct CompositionLink {
     pub stage: CompositionStage,
     /// Identities of the links it was derived from; each must appear earlier.
     pub parents: Vec<String>,
+    /// The digests this link believes its parents have, in parent order. A
+    /// wire-supplied chain states them so a changed predecessor refuses; chains
+    /// built in process leave this `None`.
+    pub declared_parent_digests: Option<Vec<String>>,
 }
 
 /// Why a chain is invalid or a query cannot be answered.
@@ -104,26 +108,101 @@ pub enum ProvenanceChainError {
     UnknownLink(String),
     /// A required stage is absent from the queried lineage.
     MissingStage(CompositionStage),
+    /// A carried or expected digest differs from the recomputed one.
+    DigestMismatch {
+        /// Link whose digest or declared predecessor digests differ.
+        link: String,
+        /// The digest(s) the chain computes; several are joined with `,`.
+        expected: String,
+        /// The digest(s) that were declared or supplied; several are joined with `,`.
+        supplied: String,
+    },
 }
 
-/// A validated, acyclic derivation chain.
+fn refusal(code: &'static str, detail: &str, link: &str) -> crate::ExternalRefusal {
+    crate::ExternalRefusal {
+        code,
+        stage: "provenance",
+        detail: detail.to_owned(),
+        offending: Some(link.to_owned()),
+        expected: None,
+        supplied: None,
+        capability: None,
+        remedy: None,
+    }
+}
+
+impl ProvenanceChainError {
+    /// Structured refusal with a `composition_provenance` detail.
+    #[must_use]
+    pub fn to_refusal(&self) -> crate::ExternalRefusal {
+        let mismatch = crate::reason_code!("external_binding_mismatch");
+        let invalid = crate::reason_code!("invalid_argument");
+        match self {
+            Self::InvalidLink => crate::ExternalRefusal {
+                offending: None,
+                ..refusal(invalid, "composition_provenance.invalid_link", "")
+            },
+            Self::DuplicateLink(id) => {
+                refusal(invalid, "composition_provenance.duplicate_link", id)
+            }
+            Self::UnresolvedParent { child, parent } => crate::ExternalRefusal {
+                expected: Some(parent.clone()),
+                ..refusal(mismatch, "composition_provenance.unresolved_parent", child)
+            },
+            Self::UnknownLink(id) => refusal(mismatch, "composition_provenance.unknown_link", id),
+            Self::MissingStage(stage) => crate::ExternalRefusal {
+                offending: Some(stage.as_str().to_owned()),
+                ..refusal(mismatch, "composition_provenance.missing_stage", "")
+            },
+            Self::DigestMismatch { link, expected, supplied } => crate::ExternalRefusal {
+                expected: Some(expected.clone()),
+                supplied: Some(supplied.clone()),
+                remedy: Some("rebuild the lineage from the retained digests of every predecessor"),
+                ..refusal(mismatch, "composition_provenance.digest_mismatch", link)
+            },
+        }
+    }
+}
+
+/// Digest of one link: BLAKE3 over the little-endian `u64` length and bytes
+/// of the id, the little-endian `u64` length and bytes of the stage wire
+/// name, then the lowercase hex digest bytes of each parent in declared order.
+fn link_digest(id: &str, stage: CompositionStage, parent_digests: &[&str]) -> String {
+    let mut hasher = blake3::Hasher::new();
+    let name = stage.as_str();
+    hasher.update(&(id.len() as u64).to_le_bytes());
+    hasher.update(id.as_bytes());
+    hasher.update(&(name.len() as u64).to_le_bytes());
+    hasher.update(name.as_bytes());
+    for parent in parent_digests {
+        hasher.update(parent.as_bytes());
+    }
+    hasher.finalize().to_hex().to_string()
+}
+
+/// A validated, acyclic derivation chain with a Merkle digest per link.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProvenanceChain {
     links: Vec<CompositionLink>,
     index: HashMap<String, usize>,
+    digests: Vec<String>,
 }
 
 impl ProvenanceChain {
-    /// Validate links in dependency order.
+    /// Validate links in dependency order and compute each link's digest.
     ///
     /// # Errors
     /// Blank or duplicate identities, oversize chains, and parents that are
-    /// unknown or not earlier in the list refuse.
+    /// unknown or not earlier in the list refuse. A link whose declared
+    /// parent digests differ from the recomputed ones refuses with
+    /// `DigestMismatch`.
     pub fn new(links: Vec<CompositionLink>) -> Result<Self, ProvenanceChainError> {
         if links.len() > MAX_CHAIN_LINKS {
             return Err(ProvenanceChainError::InvalidLink);
         }
         let mut index = HashMap::with_capacity(links.len());
+        let mut digests: Vec<String> = Vec::with_capacity(links.len());
         for (position, link) in links.iter().enumerate() {
             if link.id.trim().is_empty() || link.parents.iter().any(|p| p.trim().is_empty()) {
                 return Err(ProvenanceChainError::InvalidLink);
@@ -137,14 +216,57 @@ impl ProvenanceChain {
             if index.insert(link.id.clone(), position).is_some() {
                 return Err(ProvenanceChainError::DuplicateLink(link.id.clone()));
             }
+            let parent_digests: Vec<&str> =
+                link.parents.iter().map(|p| digests[index[p]].as_str()).collect();
+            if let Some(declared) = &link.declared_parent_digests {
+                let same = declared.len() == parent_digests.len()
+                    && declared.iter().zip(&parent_digests).all(|(d, p)| d == p);
+                if !same {
+                    return Err(ProvenanceChainError::DigestMismatch {
+                        link: link.id.clone(),
+                        expected: parent_digests.join(","),
+                        supplied: declared.join(","),
+                    });
+                }
+            }
+            let digest = link_digest(&link.id, link.stage, &parent_digests);
+            digests.push(digest);
         }
-        Ok(Self { links, index })
+        Ok(Self { links, index, digests })
     }
 
     /// Links in dependency order.
     #[must_use]
     pub fn links(&self) -> &[CompositionLink] {
         &self.links
+    }
+
+    /// The Merkle digest of a link, lowercase hex.
+    ///
+    /// # Errors
+    /// An identity outside the chain refuses.
+    pub fn digest_of(&self, id: &str) -> Result<&str, ProvenanceChainError> {
+        self.index
+            .get(id)
+            .map(|position| self.digests[*position].as_str())
+            .ok_or_else(|| ProvenanceChainError::UnknownLink(id.to_owned()))
+    }
+
+    /// Require that a link has exactly the digest a reader retained.
+    ///
+    /// # Errors
+    /// An unknown identity or a different digest refuses.
+    pub fn verify_digest(&self, id: &str, expected: &str) -> Result<(), ProvenanceChainError> {
+        let actual = self.digest_of(id)?;
+        if actual == expected {
+            Ok(())
+        } else {
+            Err(ProvenanceChainError::DigestMismatch {
+                link: id.to_owned(),
+                expected: actual.to_owned(),
+                supplied: expected.to_owned(),
+            })
+        }
     }
 
     /// The link and all its ancestors, parents before children.
@@ -203,7 +325,21 @@ mod tests {
             id: id.into(),
             stage,
             parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+            declared_parent_digests: None,
         }
+    }
+
+    #[test]
+    fn digests_are_stable_distinct_and_verifiable() {
+        let chain = chain();
+        let claim = chain.digest_of("claim").unwrap().to_owned();
+        assert_eq!(claim.len(), 64);
+        assert_eq!(chain.verify_digest("claim", &claim), Ok(()));
+        assert!(matches!(
+            chain.verify_digest("claim", "00"),
+            Err(ProvenanceChainError::DigestMismatch { .. })
+        ));
+        assert_ne!(chain.digest_of("data").unwrap(), chain.digest_of("contract").unwrap());
     }
 
     fn chain() -> ProvenanceChain {

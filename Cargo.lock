@@ -111,6 +111,7 @@ dependencies = [
 name = "antecedent-core"
 version = "2.2.0"
 dependencies = [
+ "blake3",
  "thiserror 2.0.20",
 ]
 

@@ -7,17 +7,21 @@ use antecedent_core::{
     QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
 };
 use antecedent_io::external_claim_artifact::{
-    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, LineageLinkWire,
+    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire,
 };
-
-fn link(id: &str, stage: &str, parents: &[&str]) -> LineageLinkWire {
-    LineageLinkWire {
-        id: id.into(),
-        stage: stage.into(),
-        parents: parents.iter().map(|p| (*p).to_owned()).collect(),
-    }
-}
 use antecedent_io::quantity_wire::ScientificQuantityWire;
+
+/// Constants-built lineage; the Merkle digests are computed by the shared core
+/// algorithm from the ids, stages and parents written here.
+fn expected_lineage() -> Vec<antecedent_io::external_claim_artifact::LineageLinkWire> {
+    lineage_wire(&[
+        ("contract:checked-contract", "causal_contract", &[]),
+        ("evidence:factor:z", "evidence", &["contract:checked-contract"]),
+        ("provider:external:lab/curve@v3#snap-9", "external_provider", &["evidence:factor:z"]),
+        ("claim", "claim", &["contract:checked-contract", "provider:external:lab/curve@v3#snap-9"]),
+    ])
+    .unwrap()
+}
 
 fn quantity(dose: u32) -> ScientificQuantity {
     ScientificQuantity {
@@ -63,20 +67,7 @@ fn expected_identity() -> ExternalClaimIdentity {
         evidence_ids: vec!["factor:z".into()],
         assumption_ids: vec!["ignorability".into()],
         equivalence_ids: vec![],
-        lineage: vec![
-            link("contract:checked-contract", "causal_contract", &[]),
-            link("evidence:factor:z", "evidence", &["contract:checked-contract"]),
-            link(
-                "provider:external:lab/curve@v3#snap-9",
-                "external_provider",
-                &["evidence:factor:z"],
-            ),
-            link(
-                "claim",
-                "claim",
-                &["contract:checked-contract", "provider:external:lab/curve@v3#snap-9"],
-            ),
-        ],
+        lineage: expected_lineage(),
         provider_meaning: "interventional_predictive".into(),
         capabilities: vec!["mean".into()],
         provider_fingerprint: String::new(),
@@ -129,6 +120,41 @@ fn bound_artifact() -> ExternalClaimArtifact {
     };
     let claim = bind_external_result(&contract, &ExternalResult::Response(response)).unwrap();
     ExternalClaimArtifact::from_bound_claim(&claim, "checked-contract").unwrap()
+}
+
+#[test]
+fn lineage_records_a_merkle_digest_per_link_and_refuses_tampered_digests() {
+    let artifact = bound_artifact();
+    let identity = &artifact.metadata().identity;
+    let lineage = &identity.lineage;
+    assert_eq!(lineage.len(), 4);
+    assert!(
+        lineage.iter().all(|l| l.digest.len() == 64 && l.parent_digests.len() == l.parents.len())
+    );
+    assert!(lineage[0].parent_digests.is_empty());
+    assert_eq!(lineage[1].parent_digests, [lineage[0].digest.clone()]);
+    assert_eq!(lineage[3].parent_digests, [lineage[0].digest.clone(), lineage[2].digest.clone()]);
+    let chain = identity.provenance_chain().unwrap();
+    assert_eq!(chain.digest_of("claim").unwrap(), lineage[3].digest);
+
+    let refused = |edit: &dyn Fn(&mut ExternalClaimIdentity)| {
+        let mut meta = artifact.metadata().clone();
+        edit(&mut meta.identity);
+        let error = meta.identity.provenance_chain().unwrap_err();
+        assert_eq!(error.reason_code(), Some("external_binding_mismatch"), "{error}");
+        assert!(ExternalClaimArtifact::new(meta, artifact.values().to_vec()).is_err());
+    };
+    // A changed own digest, a changed declared predecessor digest, and a dropped one.
+    refused(&|i| i.lineage[1].digest = "0".repeat(64));
+    refused(&|i| i.lineage[2].parent_digests[0] = "0".repeat(64));
+    refused(&|i| {
+        i.lineage[3].parent_digests.pop();
+    });
+    // Relabelling a display id while keeping every carried digest refuses.
+    refused(&|i| {
+        i.lineage[1].id = "evidence:renamed".into();
+        i.lineage[2].parents[0] = "evidence:renamed".into();
+    });
 }
 
 #[test]

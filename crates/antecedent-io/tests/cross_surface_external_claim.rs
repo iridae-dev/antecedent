@@ -17,7 +17,7 @@ use antecedent_core::{
     ProviderObjectIdentity, QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
 };
 use antecedent_io::external_claim_artifact::{
-    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, LineageLinkWire,
+    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 
@@ -36,14 +36,6 @@ fn read_fixture(name: &str) -> Vec<u8> {
             path.display()
         )
     })
-}
-
-fn link(id: &str, stage: &str, parents: &[&str]) -> LineageLinkWire {
-    LineageLinkWire {
-        id: id.into(),
-        stage: stage.into(),
-        parents: parents.iter().map(|p| (*p).to_owned()).collect(),
-    }
 }
 
 /// Outcome `y` in mmHg; the Python surface derives `variable_id == variable_name == "y"`.
@@ -91,20 +83,18 @@ fn expected_identity() -> ExternalClaimIdentity {
         evidence_ids: vec!["factor:z".into()],
         assumption_ids: vec!["ignorability".into()],
         equivalence_ids: vec![],
-        lineage: vec![
-            link("contract:checked-contract", "causal_contract", &[]),
-            link("evidence:factor:z", "evidence", &["contract:checked-contract"]),
-            link(
-                "provider:external:lab/curve@v3#snap-9",
-                "external_provider",
-                &["evidence:factor:z"],
-            ),
-            link(
+        // Digests come from the shared core algorithm over the constants below.
+        lineage: lineage_wire(&[
+            ("contract:checked-contract", "causal_contract", &[]),
+            ("evidence:factor:z", "evidence", &["contract:checked-contract"]),
+            ("provider:external:lab/curve@v3#snap-9", "external_provider", &["evidence:factor:z"]),
+            (
                 "claim",
                 "claim",
                 &["contract:checked-contract", "provider:external:lab/curve@v3#snap-9"],
             ),
-        ],
+        ])
+        .unwrap(),
         provider_meaning: "interventional_predictive".into(),
         capabilities: vec!["mean".into()],
         provider_fingerprint: String::new(),

@@ -195,6 +195,11 @@ class LineageLink:
     id: str
     stage: str
     parents: tuple[str, ...]
+    #: Merkle digest (BLAKE3 of id, stage and parent digests), lowercase hex. Empty
+    #: only for links this surface appends itself and cannot hash.
+    digest: str = ""
+    #: Digests of ``parents`` in the same order, as this link believes them.
+    parent_digests: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,7 +376,13 @@ class BoundExternalClaim:
     def lineage(self) -> tuple[LineageLink, ...]:
         """Derivation chain, parents before children."""
         return tuple(
-            LineageLink(item["id"], item["stage"], tuple(item["parents"]))
+            LineageLink(
+                item["id"],
+                item["stage"],
+                tuple(item["parents"]),
+                item["digest"],
+                tuple(item["parent_digests"]),
+            )
             for item in self._meta["identity"]["lineage"]
         )
 

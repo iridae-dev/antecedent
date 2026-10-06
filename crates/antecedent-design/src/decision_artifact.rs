@@ -437,12 +437,16 @@ enum VerdictWire {
     NoAdmissibleAction,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct LinkWire {
     id: String,
     stage: String,
     parents: Vec<String>,
+    /// Merkle digest of this link.
+    digest: String,
+    /// Digests of `parents`, in order.
+    parent_digests: Vec<String>,
 }
 
 /// Derivation links behind a result computed from a distribution artifact,
@@ -458,6 +462,7 @@ fn lineage_links(result: &DecisionResult, digest: &str) -> Vec<CompositionLink> 
         id: id.to_owned(),
         stage,
         parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+        declared_parent_digests: None,
     };
     vec![
         link(&contract, CompositionStage::CausalContract, &[]),
@@ -472,11 +477,65 @@ fn lineage_links(result: &DecisionResult, digest: &str) -> Vec<CompositionLink> 
     ]
 }
 
+/// Wire lineage with each link's Merkle digest and its parents' digests. Empty
+/// only when the chain itself is invalid (a blank identity), which
+/// [`DecisionResultArtifact::provenance_chain`] reports.
 fn lineage_wire(result: &DecisionResult, digest: &str) -> Vec<LinkWire> {
-    lineage_links(result, digest)
-        .into_iter()
-        .map(|l| LinkWire { id: l.id, stage: l.stage.as_str().to_owned(), parents: l.parents })
+    let Ok(chain) = ProvenanceChain::new(lineage_links(result, digest)) else {
+        return Vec::new();
+    };
+    let digest_of = |id: &str| chain.digest_of(id).unwrap_or_default().to_owned();
+    chain
+        .links()
+        .iter()
+        .map(|l| LinkWire {
+            id: l.id.clone(),
+            stage: l.stage.as_str().to_owned(),
+            parents: l.parents.clone(),
+            digest: digest_of(&l.id),
+            parent_digests: l.parents.iter().map(|p| digest_of(p)).collect(),
+        })
         .collect()
+}
+
+/// Check a stored lineage: its declared predecessor digests and own digests
+/// must hold under recomputation, and it must equal the lineage re-derived from
+/// the result's contract, provider and source. An empty stored lineage (a mean
+/// grid result) has nothing to check.
+fn verify_stored_lineage(stored: &[LinkWire], derived: &[LinkWire]) -> Result<(), IoError> {
+    if stored.is_empty() {
+        return Ok(());
+    }
+    let chain_refusal = |error: &ProvenanceChainError| {
+        let refusal = error.to_refusal();
+        IoError::Refused {
+            code: refusal.code,
+            message: format!("decision_artifact.lineage: {}", refusal.detail),
+        }
+    };
+    let links = stored
+        .iter()
+        .map(|l| {
+            Ok(CompositionLink {
+                id: l.id.clone(),
+                stage: CompositionStage::from_name(&l.stage)
+                    .ok_or_else(|| refused("lineage_stage", "unknown lineage stage"))?,
+                parents: l.parents.clone(),
+                declared_parent_digests: Some(l.parent_digests.clone()),
+            })
+        })
+        .collect::<Result<Vec<_>, IoError>>()?;
+    let chain = ProvenanceChain::new(links).map_err(|e| chain_refusal(&e))?;
+    for link in stored {
+        chain.verify_digest(&link.id, &link.digest).map_err(|e| chain_refusal(&e))?;
+    }
+    if stored != derived {
+        return Err(refused(
+            "lineage_expected",
+            "stored lineage differs from the contract, provider and source it claims",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -651,7 +710,7 @@ impl DecisionResultArtifact {
         expected_contract_identity: &str,
         expected_source_digest: &str,
     ) -> Result<Self, IoError> {
-        let body: ResultBody = decode(bytes, RESULT_KIND)?;
+        let mut body: ResultBody = decode(bytes, RESULT_KIND)?;
         if body.contract_identity != expected_contract_identity {
             return Err(refused(
                 "contract_expected",
@@ -662,7 +721,10 @@ impl DecisionResultArtifact {
             return Err(refused("source_expected", "result was computed from different draws"));
         }
         let digest = body.source_digest.clone();
-        Ok(Self { result: body_to_result(body)?, source_digest: digest })
+        let stored_lineage = std::mem::take(&mut body.lineage);
+        let result = body_to_result(body)?;
+        verify_stored_lineage(&stored_lineage, &lineage_wire(&result, &digest))?;
+        Ok(Self { result, source_digest: digest })
     }
 
     /// Recompute the decision from `contract` and `source` and require the

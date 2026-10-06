@@ -355,6 +355,7 @@ impl BoundExternalClaim {
             id: contract.clone(),
             stage: CompositionStage::CausalContract,
             parents: vec![],
+            declared_parent_digests: None,
         }];
         let mut claim_parents = vec![contract.clone()];
         let mut provider_parents = Vec::new();
@@ -365,6 +366,7 @@ impl BoundExternalClaim {
                 id: link,
                 stage: CompositionStage::Evidence,
                 parents: vec![contract.clone()],
+                declared_parent_digests: None,
             });
         }
         for id in &self.equivalence_ids {
@@ -374,6 +376,7 @@ impl BoundExternalClaim {
                 id: link,
                 stage: CompositionStage::Transformation,
                 parents: vec![contract.clone()],
+                declared_parent_digests: None,
             });
         }
         let provider = format!("provider:{}", self.provenance_label());
@@ -382,11 +385,13 @@ impl BoundExternalClaim {
             id: provider,
             stage: CompositionStage::ExternalProvider,
             parents: provider_parents,
+            declared_parent_digests: None,
         });
         links.push(CompositionLink {
             id: Self::CLAIM_LINK_ID.into(),
             stage: CompositionStage::Claim,
             parents: claim_parents,
+            declared_parent_digests: None,
         });
         ProvenanceChain::new(links)
     }
