@@ -2645,11 +2645,12 @@ def _wrap_prepared_response(
             status=cast(SupportStatus, raw.support_status),
             query_region=_response_support_bounds(raw),
             diagnostics=[
-                SupportDiagnostic(id=identifier, values=values, detail=detail)
-                for identifier, values, detail in zip(
+                SupportDiagnostic(id=identifier, values=values, detail=detail, scope=scope)
+                for identifier, values, detail, scope in zip(
                     raw.diagnostic_ids,
                     raw.diagnostic_values,
                     raw.diagnostic_details,
+                    raw.diagnostic_scopes,
                     strict=True,
                 )
             ],

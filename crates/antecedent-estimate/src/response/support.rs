@@ -9,8 +9,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, SupportDiagnostic, SupportRegion,
-    SupportReport, SupportStatus,
+    Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_stats::{
     LocalQuadraticWorkspace, QuantileRule, gaussian_local_quadratic_influence_prechecked,
@@ -73,6 +73,7 @@ pub(super) fn push_outcome_tail_diagnostic(support: &mut SupportReport, outcome:
         detail: Arc::from(
             "max |Y - median| / (1.4826 MAD) of the retained outcome, then the warning bound",
         ),
+        scope: DiagnosticScope::Global,
     });
     if ratio > OUTCOME_TAIL_RATIO_BOUND {
         support.warnings.push(Diagnostic::new(
@@ -120,6 +121,7 @@ pub(super) fn push_pseudo_outcome_winsor_shift(
         detail: Arc::from(
             "absolute shift of the fitted level after 1%/99% pseudo-outcome winsorization; one value per grid point",
         ),
+        scope: DiagnosticScope::PerCoordinate,
     });
     let fitted_range = mean.iter().copied().fold(f64::NEG_INFINITY, f64::max)
         - mean.iter().copied().fold(f64::INFINITY, f64::min);
@@ -208,11 +210,13 @@ pub(super) fn support_report(
                 id: Arc::from("response.local_ess"),
                 values: Arc::from(ess.to_vec()),
                 detail: Arc::from("Kish effective sample size of Gaussian local weights"),
+                scope: DiagnosticScope::PerCoordinate,
             },
             SupportDiagnostic {
                 id: Arc::from("response.local_density"),
                 values: Arc::from(density),
                 detail: Arc::from("Gaussian-kernel marginal treatment-density estimate"),
+                scope: DiagnosticScope::PerCoordinate,
             },
             SupportDiagnostic {
                 id: Arc::from("response.conditional_density_floor_rows"),
@@ -220,6 +224,7 @@ pub(super) fn support_report(
                 detail: Arc::from(
                     "rows whose fitted conditional treatment density hit the positivity floor",
                 ),
+                scope: DiagnosticScope::Global,
             },
         ],
         warnings,
@@ -256,6 +261,7 @@ pub(super) fn multivariate_support(
             detail: Arc::from(
                 "per-treatment minima followed by maxima; joint support is not established",
             ),
+            scope: DiagnosticScope::Global,
         }],
         // The single requested joint coordinate carries the whole summary.
         point_status: Some(Arc::from([status])),
@@ -304,6 +310,19 @@ mod point_status_tests {
         );
         let worst = report.point_status.as_ref().unwrap().iter().max_by_key(|s| s.severity());
         assert_eq!(worst.copied(), Some(report.status));
+        // Only per-coordinate diagnostics align with the grid; a row count of
+        // floored densities is global and must not read as local support.
+        for diagnostic in &report.diagnostics {
+            match diagnostic.scope {
+                DiagnosticScope::PerCoordinate => {
+                    assert_eq!(diagnostic.values.len(), 3, "{}", diagnostic.id);
+                }
+                DiagnosticScope::Global => {
+                    assert_eq!(&*diagnostic.id, "response.conditional_density_floor_rows");
+                }
+                DiagnosticScope::Inapplicable => panic!("{}", diagnostic.id),
+            }
+        }
         let floored = support_report(&[1.0], &observed, &[50.0], vec![0.1], 10.0, 3);
         assert_eq!(floored.point_status.as_deref(), Some(&[SupportStatus::WeakOverlap][..]));
         assert_eq!(floored.status, SupportStatus::WeakOverlap);

@@ -9,11 +9,11 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
-    HorizonIdentification, IdentificationStatus, IntervalInterpretation, ObservationAssumption,
-    ObservationSpec, ResponseEnvelope, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, TemporalNodeKey, VariableId,
+    CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, DiagnosticScope,
+    GridSpec, HorizonIdentification, IdentificationStatus, IntervalInterpretation,
+    ObservationAssumption, ObservationSpec, ResponseEnvelope, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TemporalNodeKey, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -559,6 +559,11 @@ pub struct SupportDiagnosticWire {
     pub id: String,
     pub values: Vec<f64>,
     pub detail: String,
+    /// `per_coordinate`, `global` or `inapplicable`. Artifacts written before
+    /// the scope existed omit it and load as `global`, which never lets a
+    /// value be read as local support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
 }
 
 /// Complete empirical support report on the wire.
@@ -1046,6 +1051,7 @@ fn support_to_wire(s: &SupportReport) -> SupportReportWire {
                 id: d.id.to_string(),
                 values: d.values.to_vec(),
                 detail: d.detail.to_string(),
+                scope: Some(d.scope.as_str().to_owned()),
             })
             .collect(),
         warnings: s.warnings.iter().map(diagnostic_to_wire).collect(),
@@ -1065,12 +1071,21 @@ fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
         diagnostics: s
             .diagnostics
             .iter()
-            .map(|d| SupportDiagnostic {
-                id: Arc::from(d.id.as_str()),
-                values: d.values.clone().into(),
-                detail: Arc::from(d.detail.as_str()),
+            .map(|d| {
+                let scope = match d.scope.as_deref() {
+                    None => DiagnosticScope::Global,
+                    Some(name) => DiagnosticScope::from_name(name).ok_or_else(|| {
+                        IoError::Convert(format!("unknown diagnostic scope `{name}`"))
+                    })?,
+                };
+                Ok(SupportDiagnostic {
+                    id: Arc::from(d.id.as_str()),
+                    values: d.values.clone().into(),
+                    detail: Arc::from(d.detail.as_str()),
+                    scope,
+                })
             })
-            .collect(),
+            .collect::<Result<Vec<_>, IoError>>()?,
         warnings: s.warnings.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
         point_status: s.point_status.as_ref().map(|cells| {
             cells.iter().copied().map(support_status_from_wire).collect::<Vec<_>>().into()
@@ -1212,6 +1227,7 @@ mod tests {
                     id: Arc::from("local_ess"),
                     values: Arc::from([80.0, 60.0, 20.0]),
                     detail: Arc::from("effective sample size by grid point"),
+                    scope: DiagnosticScope::PerCoordinate,
                 }],
                 warnings: vec![Diagnostic::new(
                     "support.weak_overlap",
@@ -1258,6 +1274,36 @@ mod tests {
             assert_eq!(support_status_from_wire(decoded), status);
         }
     }
+    #[test]
+    fn diagnostic_scope_round_trips_and_older_artifacts_load_as_global() {
+        let report = |scope: Option<&str>| SupportReportWire {
+            status: SupportStatusWire::Supported,
+            query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
+            diagnostics: vec![SupportDiagnosticWire {
+                id: "d".into(),
+                values: vec![1.0],
+                detail: "x".into(),
+                scope: scope.map(str::to_owned),
+            }],
+            warnings: vec![],
+            point_status: None,
+        };
+        for scope in
+            [DiagnosticScope::PerCoordinate, DiagnosticScope::Global, DiagnosticScope::Inapplicable]
+        {
+            let loaded = support_from_wire(&report(Some(scope.as_str()))).unwrap();
+            assert_eq!(loaded.diagnostics[0].scope, scope);
+            assert_eq!(
+                support_to_wire(&loaded).diagnostics[0].scope.as_deref(),
+                Some(scope.as_str())
+            );
+        }
+        // No scope was recorded: the safe reading never implies local support.
+        let old = support_from_wire(&report(None)).unwrap();
+        assert_eq!(old.diagnostics[0].scope, DiagnosticScope::Global);
+        assert!(support_from_wire(&report(Some("local"))).is_err());
+    }
+
     #[test]
     fn credible_and_confidence_intervals_stay_distinct_on_the_wire() {
         for interpretation in [IntervalInterpretation::Confidence, IntervalInterpretation::Credible]

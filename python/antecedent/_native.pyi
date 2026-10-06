@@ -254,6 +254,7 @@ class ResponseAnalysisResult:
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]
+    diagnostic_scopes: list[str]
     warnings: list[str]
     identification: str
     adjustment_set: list[str]
@@ -575,6 +576,7 @@ class ObservationResponseResult:
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]
+    diagnostic_scopes: list[str]
     warnings: list[str]
     identification: str
     adjustment_set: list[str]

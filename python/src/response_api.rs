@@ -5,8 +5,8 @@ use std::sync::Arc;
 use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cell};
 use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
-    IdentificationStatus, IntervalInterpretation, Intervention, InterventionSequence,
+    AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, DiagnosticScope,
+    GridSpec, IdentificationStatus, IntervalInterpretation, Intervention, InterventionSequence,
     MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseQuery,
     ResponseUncertainty, ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus,
     TemporalPolicy, TemporalResponseSpec, Value, VariableId,
@@ -70,6 +70,8 @@ pub(crate) struct ResponseAnalysisResult {
     diagnostic_values: Vec<Vec<f64>>,
     #[pyo3(get)]
     diagnostic_details: Vec<String>,
+    #[pyo3(get)]
+    diagnostic_scopes: Vec<String>,
     #[pyo3(get)]
     warnings: Vec<String>,
     #[pyo3(get)]
@@ -275,6 +277,7 @@ fn analyze_response_pag(
         let mut diagnostic_ids = Vec::new();
         let mut diagnostic_values = Vec::new();
         let mut diagnostic_details = Vec::new();
+        let mut diagnostic_scopes = Vec::new();
         let mut warnings = Vec::new();
         for (case_index, case) in envelope.cases.iter().enumerate() {
             if !matches!(
@@ -312,6 +315,16 @@ fn analyze_response_pag(
                 diagnostic_values.push(diagnostic.values.to_vec());
                 diagnostic_details
                     .push(format!("MAG completion {case_index}: {}", diagnostic.detail));
+                // Completion values are per completion, never per requested coordinate.
+                diagnostic_scopes.push(
+                    if diagnostic.scope == DiagnosticScope::Inapplicable {
+                        DiagnosticScope::Inapplicable
+                    } else {
+                        DiagnosticScope::Global
+                    }
+                    .as_str()
+                    .to_owned(),
+                );
             }
             warnings.extend(response.support.warnings.iter().map(|warning| {
                 format!("completion.{case_index}.{}: {}", warning.code, warning.message)
@@ -377,6 +390,7 @@ fn analyze_response_pag(
             diagnostic_ids,
             diagnostic_values,
             diagnostic_details,
+            diagnostic_scopes,
             warnings,
             identification: format!("{:?}", envelope.status),
             adjustment_set: Vec::new(),
@@ -780,6 +794,12 @@ pub(crate) fn response_result(
             .diagnostics
             .iter()
             .map(|diagnostic| diagnostic.detail.to_string())
+            .collect(),
+        diagnostic_scopes: response
+            .support
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.scope.as_str().to_owned())
             .collect(),
         warnings: response
             .support

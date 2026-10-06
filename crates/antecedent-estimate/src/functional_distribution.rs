@@ -40,10 +40,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use antecedent_core::{
-    AssumptionSet, CausalRng, CausalSchema, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    ExecutionContext, IdentificationStatus, Intervention, InterventionalDistributionQuery,
-    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
-    Value, VariableId,
+    AssumptionSet, CausalRng, CausalSchema, Diagnostic, DiagnosticKind, DiagnosticScope,
+    DiagnosticSeverity, ExecutionContext, IdentificationStatus, Intervention,
+    InterventionalDistributionQuery, StreamDomain, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus, TargetPopulation, Value, VariableId,
 };
 use antecedent_data::{DataError, DiscreteColumn, TableView, TabularData};
 use antecedent_expr::provider::EmpiricalProviderSnapshot;
@@ -1292,6 +1292,7 @@ pub fn support_from_functional_eval(err: Option<&EvalError>) -> Result<SupportRe
                 id: Arc::from("functional.required_cell"),
                 values: Arc::from([]),
                 detail: Arc::from(e.to_string()),
+                scope: DiagnosticScope::Inapplicable,
             }],
             warnings: vec![Diagnostic::new(
                 "functional.required_cell",

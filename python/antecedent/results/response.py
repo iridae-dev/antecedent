@@ -203,11 +203,17 @@ class SupportDiagnostic(ResultModel):
     id: str
     values: Sequence[float]
     detail: str
+    # ``per_coordinate``: values[i] describes requested coordinate i. ``global``:
+    # the values describe the whole fit or query and must not be read as local
+    # support. ``inapplicable``: no meaningful value for this route's grid.
+    scope: str = "global"
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
         if not self.id.strip():
             raise CausalValueError("diagnostic name must be a non-empty string")
+        if self.scope not in {"per_coordinate", "global", "inapplicable"}:
+            raise CausalValueError(f"unknown diagnostic scope {self.scope!r}")
         if not all(isfinite(value) for value in self.values):
             raise CausalValueError("diagnostic values must be finite")
         return self

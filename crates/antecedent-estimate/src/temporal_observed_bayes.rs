@@ -32,11 +32,11 @@ use crate::{
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    ExecutionContext, HorizonIdentification, IdentificationStatus, ObservationSpec,
-    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, VariableId,
+    AssumptionStatus, CausalResponse, CausalRng, Diagnostic, DiagnosticKind, DiagnosticScope,
+    DiagnosticSeverity, ExecutionContext, HorizonIdentification, IdentificationStatus,
+    ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
+    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus, VariableId,
 };
 use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
@@ -899,6 +899,7 @@ pub fn estimate_observed_temporal_response(
                 detail: "retained draws, maximum R-hat, minimum bulk ESS and tail ESS \
                          for observed-data Gaussian mechanism posterior"
                     .into(),
+                scope: DiagnosticScope::Global,
             }],
             warnings: vec![Diagnostic::new(
                 "response.observation_gaussian_model",

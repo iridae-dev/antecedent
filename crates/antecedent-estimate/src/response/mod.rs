@@ -26,11 +26,11 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, CausalRng, CredibleDraws, DerivativeScale,
-    DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticSeverity, IdentificationStatus,
-    Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
-    VariableId,
+    DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
+    IdentificationStatus, Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec,
+    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, StreamDomain, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus, TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -1255,11 +1255,13 @@ impl ContinuousResponseEstimator {
                     sample.keep.iter().map(|&index| index as f64).collect::<Vec<_>>(),
                 ),
                 detail: Arc::from("original dataframe row index of each retained complete row"),
+                scope: DiagnosticScope::Global,
             });
             support.diagnostics.push(SupportDiagnostic {
                 id: Arc::from("response.row_pseudo_outcome"),
                 values: Arc::from(pseudo),
                 detail: Arc::from("cross-fitted Kennedy pseudo-outcome per retained row"),
+                scope: DiagnosticScope::Global,
             });
             support.diagnostics.push(SupportDiagnostic {
                 id: Arc::from("response.row_influence"),
@@ -1268,6 +1270,7 @@ impl ContinuousResponseEstimator {
                     "row-major by grid point, grid_len={}, n={n}: value[g*N + i]",
                     grid.len()
                 )),
+                scope: DiagnosticScope::Global,
             });
         }
         let uncertainty = if let Some(replicates) = self.options.simultaneous_replicates {
@@ -1388,6 +1391,7 @@ impl ContinuousResponseEstimator {
                     detail: Arc::from(
                         "observed minima followed by maxima; policy support is not certified",
                     ),
+                    scope: DiagnosticScope::Global,
                 }],
                 warnings: intervention_plugin_warnings(target_fallback.as_deref()),
                 point_status: None,
@@ -1601,6 +1605,7 @@ impl ContinuousResponseEstimator {
                 detail: Arc::from(
                     "Kish effective sample size of the Riesz representer, then complete rows",
                 ),
+                scope: DiagnosticScope::Global,
             }],
             warnings: if weak {
                 vec![Diagnostic::new(

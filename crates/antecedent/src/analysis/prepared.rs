@@ -784,6 +784,7 @@ impl CheckedAdmgResponseCurveOperation {
                     "general-ID functional.effect response interval is a normal interval from the \
                      front-door plug-in bootstrap SE [requested replicates, successful replicates]",
                 ),
+                scope: antecedent_core::DiagnosticScope::Global,
             });
             if scalar_intervention {
                 let (lower, upper) = freq_bounds[0];

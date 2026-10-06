@@ -74,15 +74,52 @@ pub struct SupportRegion {
     pub maxima: Arc<[f64]>,
 }
 
+/// How a diagnostic's values relate to the requested coordinate grid.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DiagnosticScope {
+    /// `values[i]` describes requested coordinate `i`.
+    PerCoordinate,
+    /// The values describe the whole fit or query, not one coordinate; no
+    /// coordinate may read them as local support.
+    Global,
+    /// Defined for this route's grid in no meaningful way; `values` is empty.
+    Inapplicable,
+}
+
+impl DiagnosticScope {
+    /// Stable `snake_case` spelling used on the Python and artifact wires.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PerCoordinate => "per_coordinate",
+            Self::Global => "global",
+            Self::Inapplicable => "inapplicable",
+        }
+    }
+
+    /// Parse the wire spelling.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "per_coordinate" => Some(Self::PerCoordinate),
+            "global" => Some(Self::Global),
+            "inapplicable" => Some(Self::Inapplicable),
+            _ => None,
+        }
+    }
+}
+
 /// One machine-readable empirical support diagnostic.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SupportDiagnostic {
     /// Stable diagnostic id.
     pub id: Arc<str>,
-    /// Per-grid values, if applicable.
+    /// Values; one per requested coordinate when `scope` is `PerCoordinate`.
     pub values: Arc<[f64]>,
     /// Human-readable interpretation.
     pub detail: Arc<str>,
+    /// Whether the values are per coordinate, global or inapplicable.
+    pub scope: DiagnosticScope,
 }
 
 /// Scientific support report retained on every response result.

@@ -3081,6 +3081,7 @@ pub(super) fn estimate_general_id_response(
                                  interval from the front-door plug-in bootstrap SE \
                                  [requested replicates, successful replicates]",
                             ),
+                            scope: antecedent_core::DiagnosticScope::Global,
                         });
                     }
                 }
