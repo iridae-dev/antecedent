@@ -30,10 +30,10 @@ section=all
 if [[ "${1:-}" == "--section" && $# -eq 2 ]]; then
   section="$2"
 elif [[ $# -ne 0 ]]; then
-  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches]" >&2
+  echo "usage: $0 [--section inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches]" >&2
   exit 2
 fi
-case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|transport-contracts|checked|features|feature-core|feature-composition|feature-exits|benches) ;; *)
+case "$section" in all|inventory|promotion|promotion-python|promotion-facade-0|promotion-facade-1|promotion-estimate|promotion-identify|promotion-other|support|graphless|matrix|transport-contracts|checked|checked-0|checked-1|checked-2|checked-3|features|feature-core|feature-composition|feature-transport|feature-exits|benches) ;; *)
   echo "unknown release-gate section: $section" >&2; exit 2 ;;
 esac
 section_start() {
@@ -117,6 +117,13 @@ bash scripts/gate_checked_execution.sh
 section_end checked
 fi
 
+if [[ "$section" == checked-* ]]; then
+section_start "$section"
+echo "== checked execution evidence ${section#checked-}/4 =="
+bash scripts/gate_checked_execution.sh --shard "${section#checked-}/4"
+section_end "$section"
+fi
+
 if [[ "$section" == all || "$section" == inventory ]]; then
 echo "== docs vs support matrix =="
 bash scripts/gate_docs_support_matrix.sh
@@ -174,10 +181,22 @@ fi
 if [[ "$section" == all || "$section" == features || "$section" == feature-composition ]]; then
 section_start feature_composition
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  bash scripts/gate_composition.sh
-  bash scripts/gate_transport.sh
+  if [[ "$section" == feature-composition ]]; then
+    # Inventory already runs the common schema and reachability checks in CI.
+    bash scripts/gate_composition.sh --evidence-only
+  else
+    bash scripts/gate_composition.sh
+  fi
 fi
 section_end feature_composition
+fi
+
+if [[ "$section" == all || "$section" == features || "$section" == feature-transport ]]; then
+section_start feature_transport
+if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
+  bash scripts/gate_transport.sh
+fi
+section_end feature_transport
 fi
 
 if [[ "$section" == all || "$section" == features || "$section" == feature-exits ]]; then

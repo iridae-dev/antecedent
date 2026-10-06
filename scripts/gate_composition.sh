@@ -140,6 +140,10 @@ if [[ "${1:-}" == "--self-test" ]]; then
   self_test
   exit $?
 fi
+if [[ $# -gt 1 || ( $# -eq 1 && "${1:-}" != "--evidence-only" ) ]]; then
+  echo "usage: $0 [--self-test|--evidence-only]" >&2
+  exit 2
+fi
 
 if [[ "${SKIP_PYTHON_SMOKE:-0}" == "1" ]]; then
   echo "FAIL: SKIP_PYTHON_SMOKE=1 is not composition evidence"
@@ -152,11 +156,13 @@ fi
 
 REVISION="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
-echo "== existing evidence gates over composition records =="
-bash scripts/gate_parity_schema.sh
-bash scripts/gate_provenance_schema.sh
-bash scripts/gate_metadata_consistency.sh
-bash scripts/gate_evidence_reachability.sh
+if [[ "${1:-}" != "--evidence-only" ]]; then
+  echo "== existing evidence gates over composition records =="
+  bash scripts/gate_parity_schema.sh
+  bash scripts/gate_provenance_schema.sh
+  bash scripts/gate_metadata_consistency.sh
+  bash scripts/gate_evidence_reachability.sh
+fi
 
 echo "== composition consuming tests =="
 run_rows "$ROOT" parity/compiler.toml
