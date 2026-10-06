@@ -1,0 +1,101 @@
+{
+  "assumption_ids": [
+    "ignorability"
+  ],
+  "capabilities": [
+    "mean"
+  ],
+  "causal_contract_id": "checked-contract",
+  "equivalence_ids": [],
+  "evidence_ids": [
+    "factor:z"
+  ],
+  "graph_id": "graph-1",
+  "identification": "nonparametrically_identified",
+  "lineage": [
+    {
+      "id": "contract:checked-contract",
+      "parents": [],
+      "stage": "causal_contract"
+    },
+    {
+      "id": "evidence:factor:z",
+      "parents": [
+        "contract:checked-contract"
+      ],
+      "stage": "evidence"
+    },
+    {
+      "id": "provider:external:lab/curve@v3#snap-9",
+      "parents": [
+        "evidence:factor:z"
+      ],
+      "stage": "external_provider"
+    },
+    {
+      "id": "claim",
+      "parents": [
+        "contract:checked-contract",
+        "provider:external:lab/curve@v3#snap-9"
+      ],
+      "stage": "claim"
+    }
+  ],
+  "object_id": "curve",
+  "point_status": [
+    "supported",
+    "supported",
+    "outside_empirical_support"
+  ],
+  "provider_fingerprint": "06e689c45fc51c9df811df837eb7a1d53fb6ab05564f0644584708f6716a63c7",
+  "provider_id": "lab",
+  "provider_meaning": "interventional_predictive",
+  "quantities": [
+    {
+      "conditioning": [],
+      "functional_id": "mean",
+      "horizon": 0,
+      "population_id": "target",
+      "regime_id": "do(a=0)",
+      "role": "outcome",
+      "transform_id": "identity",
+      "units": "mmHg",
+      "variable_id": "y",
+      "variable_name": "y",
+      "version": 1
+    },
+    {
+      "conditioning": [],
+      "functional_id": "mean",
+      "horizon": 0,
+      "population_id": "target",
+      "regime_id": "do(a=1)",
+      "role": "outcome",
+      "transform_id": "identity",
+      "units": "mmHg",
+      "variable_id": "y",
+      "variable_name": "y",
+      "version": 1
+    },
+    {
+      "conditioning": [],
+      "functional_id": "mean",
+      "horizon": 0,
+      "population_id": "target",
+      "regime_id": "do(a=2)",
+      "role": "outcome",
+      "transform_id": "identity",
+      "units": "mmHg",
+      "variable_id": "y",
+      "variable_name": "y",
+      "version": 1
+    }
+  ],
+  "request_id": "req-1",
+  "snapshot_id": "snap-9",
+  "trust": "externally_attested",
+  "uncertainty_method": null,
+  "values_blake3": "5b26e0565116882002ee53127e087383701350735d04b09a0ffe7972476feaac",
+  "verification": null,
+  "version_id": "v3"
+}
