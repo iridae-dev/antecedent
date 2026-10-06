@@ -95,6 +95,46 @@ pub enum ExternalContractError {
     DuplicateDeclaration,
     /// The exact requested operation is absent.
     MissingCapability(ExternalCapability),
+    /// The request names a different object, version, snapshot or fingerprint.
+    RequestMismatch,
+}
+
+/// One exact operation requested from one provider object.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExternalCapabilityRequest {
+    /// Independently retained object and request identity.
+    pub expected_identity: ProviderObjectIdentity,
+    /// Operation the consumer actually needs.
+    pub operation: ExternalCapability,
+}
+
+/// A direct operation checked before a callback is invoked.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NegotiatedExternalOperation {
+    identity: ProviderObjectIdentity,
+    operation: ExternalCapability,
+}
+
+impl NegotiatedExternalOperation {
+    /// Exact provider object for which this operation was checked.
+    #[must_use]
+    pub fn identity(&self) -> &ProviderObjectIdentity {
+        &self.identity
+    }
+
+    /// Operation which was actually declared.
+    #[must_use]
+    pub const fn operation(&self) -> ExternalCapability {
+        self.operation
+    }
+
+    /// Invoke an external callback only after direct capability negotiation.
+    ///
+    /// This carries no truth, error or trust certification for the returned
+    /// value; object-level verification and result binding remain separate.
+    pub fn invoke<T>(&self, callback: impl FnOnce() -> T) -> T {
+        callback()
+    }
 }
 
 /// A declared law, including its randomness meaning and available operations.
@@ -277,6 +317,18 @@ fn validate_common(
 }
 
 impl ExternalScientificObject {
+    /// Exact provider object identity carried by this declaration.
+    #[must_use]
+    pub fn identity(&self) -> &ProviderObjectIdentity {
+        match self {
+            Self::Law(value) => &value.identity,
+            Self::Posterior(value) => &value.identity,
+            Self::Signal(value) => &value.identity,
+            Self::Evidence(value) => &value.identity,
+            Self::Utility(value) => &value.identity,
+        }
+    }
+
     /// Check common identities and responsibility-specific declarations.
     ///
     /// # Errors
@@ -376,6 +428,29 @@ impl ExternalScientificObject {
         }
         Ok(())
     }
+
+    /// Negotiate one direct operation at an independently supplied request ID.
+    ///
+    /// `Sample` never substitutes for `Cdf`, `Quantile`, or another operation.
+    /// A future sampling approximation requires a separate licensed method
+    /// and numerical-error/replicate receipt; this direct path grants none.
+    ///
+    /// # Errors
+    /// Invalid declarations, an identity mismatch or a missing operation.
+    pub fn negotiate(
+        &self,
+        request: &ExternalCapabilityRequest,
+    ) -> Result<NegotiatedExternalOperation, ExternalContractError> {
+        self.validate()?;
+        if self.identity() != &request.expected_identity {
+            return Err(ExternalContractError::RequestMismatch);
+        }
+        self.require_capability(request.operation)?;
+        Ok(NegotiatedExternalOperation {
+            identity: request.expected_identity.clone(),
+            operation: request.operation,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -425,6 +500,32 @@ mod tests {
             value.meaning = DistributionMeaning::ParameterPosterior;
         }
         assert_eq!(changed.validate(), Err(ExternalContractError::InvalidDeclaration));
+
+        let request = ExternalCapabilityRequest {
+            expected_identity: identity(),
+            operation: ExternalCapability::Cdf,
+        };
+        let called = std::cell::Cell::new(false);
+        assert_eq!(
+            law.negotiate(&request),
+            Err(ExternalContractError::MissingCapability(ExternalCapability::Cdf))
+        );
+        assert!(!called.get());
+        let mut wrong = request;
+        wrong.operation = ExternalCapability::Mean;
+        wrong.expected_identity.snapshot_id = "other-snapshot".into();
+        assert_eq!(law.negotiate(&wrong), Err(ExternalContractError::RequestMismatch));
+        wrong.expected_identity = identity();
+        let negotiated = law.negotiate(&wrong).unwrap();
+        assert_eq!(negotiated.operation(), ExternalCapability::Mean);
+        assert_eq!(
+            negotiated.invoke(|| {
+                called.set(true);
+                0.25
+            }),
+            0.25
+        );
+        assert!(called.get());
     }
 
     #[test]

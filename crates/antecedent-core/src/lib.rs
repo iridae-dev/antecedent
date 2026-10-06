@@ -90,10 +90,10 @@ pub use execution::{
     StreamDomain, default_user_threads,
 };
 pub use external::{
-    EvidenceProviderContract, ExternalCapability, ExternalContractError, ExternalEvidenceKind,
-    ExternalPosteriorKind, ExternalScientificObject, LawProviderContract,
-    PosteriorProviderContract, ProviderObjectIdentity, SignalProviderContract, UtilityMonotonicity,
-    UtilityProviderContract,
+    EvidenceProviderContract, ExternalCapability, ExternalCapabilityRequest, ExternalContractError,
+    ExternalEvidenceKind, ExternalPosteriorKind, ExternalScientificObject, LawProviderContract,
+    NegotiatedExternalOperation, PosteriorProviderContract, ProviderObjectIdentity,
+    SignalProviderContract, UtilityMonotonicity, UtilityProviderContract,
 };
 pub use identification::IdentificationStatus;
 pub use identity::{

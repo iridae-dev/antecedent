@@ -18,6 +18,13 @@ object kind. `require_capability` checks the exact operation; `Sample` and
 `Mean` never imply `Cdf` or `Quantile`. A finite exact signal may declare a
 predictive factor instead of sampling, but still needs an update.
 
+`ExternalCapabilityRequest` carries an independently retained object and
+request identity plus one required operation. `negotiate` checks both before
+issuing a `NegotiatedExternalOperation` token; its callback entry point is
+available only after that check. This direct route refuses a missing CDF even
+when sampling exists. Sampling approximations remain closed until a separate
+method and numerical-error/replicate receipt are licensed.
+
 These are declarations only. Object-level numerical verification,
 identification-to-result binding, trust receipts, and an executable provider
 lifecycle have separate 2.3 gates. A declaration or provider label alone
