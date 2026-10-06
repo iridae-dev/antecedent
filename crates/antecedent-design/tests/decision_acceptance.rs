@@ -16,7 +16,7 @@ use antecedent_design::decision_contract::{
 };
 use antecedent_design::decision_eval::{
     DecisionEvalError, DecisionResult, MeanSource, Verdict, evaluate_contract,
-    evaluate_contract_on_means,
+    evaluate_contract_on_means, evaluate_functional,
 };
 use antecedent_design::decision_structural::{
     AtomEvidence, AtomStatus, StructuralAtom, StructuralError, StructuralVerdict,
@@ -392,11 +392,32 @@ fn f5_positive_expectation_and_variance_identity_on_the_finite_law() {
     let second_moment = result.actions[1].expected_utility;
     assert!(near(mean, 1.5));
     assert!(near(second_moment, 3.0));
-    // There is no variance evaluator; Var(Y) = E[Y^2] - E[Y]^2 = 3 - 9/4 = 3/4
-    // is recovered from two expected-utility actions through the identity.
-    assert!(near(second_moment - mean * mean, 0.75));
+    // The identity route: Var(Y) = E[Y^2] - E[Y]^2 = 3 - 9/4 = 3/4.
+    let identity_variance = second_moment - mean * mean;
+    assert!(near(identity_variance, 0.75));
     // An exact law carries no sampling error.
     assert!(near(result.actions[0].standard_error.unwrap(), 0.0));
+
+    // The direct evaluators agree with the hand enumeration and the identity.
+    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let expectation =
+        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &f5_source()).unwrap();
+    assert!(near(expectation.value, 1.5));
+    assert!(near(expectation.standard_error.unwrap(), 0.0));
+    assert_eq!(expectation.source_mode.representation, SourceRepresentation::JointDraws);
+    let utility =
+        evaluate_functional(&contract, "Y", DecisionFunctional::ExpectedUtility, &f5_source())
+            .unwrap();
+    assert!(near(utility.value, 1.5));
+    let variance =
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &f5_source()).unwrap();
+    assert!(near(variance.value, 0.75));
+    assert!(near(variance.value, identity_variance));
+    // E[Y^2] = 3 through the direct route as well.
+    let squared =
+        evaluate_functional(&contract, "Y2", DecisionFunctional::Expectation, &f5_source())
+            .unwrap();
+    assert!(near(squared.value, 3.0));
 }
 
 #[test]
@@ -407,6 +428,27 @@ fn f5_positive_threshold_probability_on_the_finite_law() {
     // Mass at 0 only: P(Y >= -1) = 1; nothing reaches 3: P(Y >= 3) = 0.
     assert!(near(f5_value(DecisionCriterion::ThresholdProbability { threshold: -1.0 }), 1.0));
     assert!(near(f5_value(DecisionCriterion::ThresholdProbability { threshold: 3.0 }), 0.0));
+
+    // The direct functional: P(Y >= 1) = P(Y >= 1.5) = P(Y > 1) = 3/4 and
+    // P(Y <= 1) = 1/4 (the law has no mass strictly between 0 and 2).
+    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let probability = |threshold: f64, tail: Tail| {
+        evaluate_functional(
+            &contract,
+            "Y",
+            DecisionFunctional::Probability { threshold, tail },
+            &f5_source(),
+        )
+        .unwrap()
+        .value
+    };
+    assert!(near(probability(1.0, Tail::Upper), 0.75));
+    assert!(near(probability(1.5, Tail::Upper), 0.75));
+    assert!(near(probability(1.0, Tail::Lower), 0.25));
+    // The atom at the threshold is included on both sides.
+    assert!(near(probability(2.0, Tail::Upper), 0.75));
+    assert!(near(probability(0.0, Tail::Lower), 0.25));
+    assert!(near(probability(2.0, Tail::Lower), 1.0));
 }
 
 #[test]
@@ -417,6 +459,20 @@ fn f5_positive_quantile_is_the_left_inverse_of_the_cdf() {
     assert!(near(f5_value(DecisionCriterion::Quantile { p: 0.25 }), 0.0));
     assert!(near(f5_value(DecisionCriterion::Quantile { p: 0.26 }), 2.0));
     assert!(near(f5_value(DecisionCriterion::Quantile { p: 0.999 }), 2.0));
+
+    // The direct functional returns the same left inverse; at the atom boundary
+    // F(0) = 1/4 reaches u = 1/4 exactly, so the quantile is exactly 0.
+    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let quantile = |p: f64| {
+        evaluate_functional(&contract, "Y", DecisionFunctional::Quantile { p }, &f5_source())
+            .unwrap()
+            .value
+    };
+    assert!(near(quantile(0.5), 2.0));
+    assert_eq!(quantile(0.25).to_bits(), 0.0_f64.to_bits());
+    assert!(near(quantile(0.26), 2.0));
+    assert!(near(quantile(0.999), 2.0));
+    assert!(near(quantile(0.01), 0.0));
 }
 
 #[test]
@@ -425,9 +481,29 @@ fn f5_positive_functionals_without_an_evaluator_state_only_their_source_requirem
     let y = UtilityExpr::Input(0);
     let y_squared = UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(0));
 
-    // `DecisionFunctional` carries no evaluator: `Variance` and `TailExpectation`
-    // are not computed anywhere, so no tail rule has a number to assert here.
-    // What exists today is what each source must supply.
+    // The selected tail rule is the fractional-boundary tail mean: the lowest
+    // (or highest) mass `p`, with the boundary atom split, divided by `p`.
+    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let tail_mean = |p: f64, tail: Tail| {
+        evaluate_functional(
+            &contract,
+            "Y",
+            DecisionFunctional::TailExpectation { p, tail },
+            &f5_source(),
+        )
+        .unwrap()
+        .value
+    };
+    // Mass 1/4 at 0 and 3/4 at 2.
+    assert!(near(tail_mean(0.25, Tail::Lower), 0.0));
+    assert!(near(tail_mean(0.25, Tail::Upper), 2.0));
+    // Lower 1/2 = all of the atom at 0 plus 1/4 of the atom at 2: (0 + 0.5) / 0.5.
+    assert!(near(tail_mean(0.5, Tail::Lower), 1.0));
+    assert!(near(tail_mean(0.5, Tail::Upper), 2.0));
+    // Lower 3/4 = (0.25 * 0 + 0.5 * 2) / 0.75 = 4/3.
+    assert!(near(tail_mean(0.75, Tail::Lower), 4.0 / 3.0));
+
+    // What each source must supply.
     let variance = DecisionFunctional::Variance;
     assert_eq!(
         variance.requirement(&y).any_of,
@@ -464,6 +540,79 @@ fn f5_positive_functionals_without_an_evaluator_state_only_their_source_requirem
         probability.requirement(&y).check(&[S::Mean]),
         Err(DecisionContractError::MissingSource { .. })
     ));
+}
+
+#[test]
+fn f5_evaluate_functional_refuses_unknown_action_bad_parameters_and_marginals() {
+    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let source = f5_source();
+    let error = evaluate_functional(&contract, "ghost", DecisionFunctional::Expectation, &source)
+        .unwrap_err();
+    assert_eq!(
+        error,
+        DecisionEvalError::Contract(DecisionContractError::UnknownAction("ghost".into()))
+    );
+    for functional in [
+        DecisionFunctional::Quantile { p: 0.0 },
+        DecisionFunctional::Quantile { p: 1.0 },
+        DecisionFunctional::Quantile { p: f64::NAN },
+        DecisionFunctional::TailExpectation { p: 1.5, tail: Tail::Lower },
+        DecisionFunctional::Probability { threshold: f64::INFINITY, tail: Tail::Upper },
+    ] {
+        assert_eq!(
+            evaluate_functional(&contract, "Y", functional, &source).unwrap_err(),
+            DecisionEvalError::Contract(DecisionContractError::InvalidParameter("functional"))
+        );
+    }
+    // Independent marginals cannot answer a functional of a joint utility.
+    let c = f5_columns("outcome");
+    let rows: [&[f64]; 2] = [&[0.0, 1.0], &[2.0, 1.0]];
+    let marginals = law(&c, DrawAlignment::IndependentMarginals, None, &rows);
+    let error =
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &marginals).unwrap_err();
+    assert!(matches!(error, DecisionEvalError::JointLawRequired { .. }));
+}
+
+#[test]
+fn f5_exact_law_has_zero_standard_error_and_a_sample_does_not() {
+    let contract = f5_contract(DecisionCriterion::PosteriorExpectedUtility);
+    let exact =
+        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &f5_source()).unwrap();
+    assert!(near(exact.standard_error.unwrap(), 0.0));
+    let exact_variance =
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &f5_source()).unwrap();
+    assert!(near(exact_variance.standard_error.unwrap(), 0.0));
+
+    // The same rows as a draw sample (calibration unmeasured), repeated so the
+    // empirical law is the finite law: mass 1/4 at 0 and 3/4 at 2.
+    let columns = f5_columns("outcome");
+    let rows: [&[f64]; 4] = [&[0.0, 1.0], &[2.0, 1.0], &[2.0, 1.0], &[2.0, 1.0]];
+    let sampled = DistributionArtifact::new(
+        DistributionMetadata {
+            version: 1,
+            identity: identity(&columns, DrawAlignment::Joint),
+            axes: ["draw".into(), "quantity".into()],
+            shape: [rows.len(), columns.len()],
+            weights: None,
+            supported: None,
+            calibration: DistributionCalibration::Unmeasured,
+            trust: DistributionTrust::Unverified,
+            legacy_posterior: None,
+            legacy_bindings: None,
+        },
+        rows.concat(),
+    )
+    .unwrap();
+    let mean =
+        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &sampled).unwrap();
+    assert!(near(mean.value, 1.5));
+    // Population variance 3/4 over 4 effective draws: se = sqrt(3/16).
+    assert!(near(mean.standard_error.unwrap(), (0.75_f64 / 4.0).sqrt()));
+    assert!(mean.standard_error.unwrap() > 0.0);
+    let variance =
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &sampled).unwrap();
+    assert!(near(variance.value, 0.75));
+    assert_eq!(variance.standard_error, None);
 }
 
 fn mean_contract(criterion: DecisionCriterion) -> DecisionContract {

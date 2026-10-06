@@ -4091,16 +4091,14 @@ notes = "2.3 B0 prerequisite F4 durable decision contract: point-only expected-u
 [[routes]]
 route = "antecedent.decision.typed_functional"
 stage = "evaluate"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 B0 prerequisite F5 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 B0 F5 typed decision functionals (expectation, variance, probability, quantile by left inverse, fractional-boundary tail mean) on aligned finite laws; a mean-only source answers only an affine expectation; point-only, no interval."
 
 [[routes]]
 route = "antecedent.decision.structural_policy"
 stage = "evaluate"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "2.3 B0 prerequisite F6 contract frozen; no public route license or inference claim until evidence executes."
+status = "licensed"
+notes = "2.3 B0 F6 declared structural policies (invariant best action, maximin, Bayes over genuine probabilities, report only) over supplied structures with unidentified and unevaluated mass retained and a replayable result artifact; point-only, no interval."
 
 [[routes]]
 route = "antecedent.design.evidence_obligations"

@@ -17,8 +17,8 @@ use antecedent_io::distribution_artifact::{
 };
 
 use crate::decision_contract::{
-    DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,
-    SourceRepresentation,
+    DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional, SourceMode,
+    SourceRepresentation, Tail,
 };
 
 /// Why an evaluation refused.
@@ -507,6 +507,156 @@ pub fn evaluate_contract(
             },
         ],
     })
+}
+
+/// A functional of one action's utility, with how it was obtained.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FunctionalValue {
+    /// The functional's value, in the units of the utility (a probability for
+    /// [`DecisionFunctional::Probability`], the squared utility unit for
+    /// [`DecisionFunctional::Variance`]).
+    pub value: f64,
+    /// Monte Carlo standard error: `Some(0.0)` for an exact finite law, the
+    /// standard error of the weighted mean for a sampled expectation, and `None`
+    /// where no closed form is claimed.
+    pub standard_error: Option<f64>,
+    /// The source representation the functional was answered from.
+    pub source_mode: SourceMode,
+}
+
+/// Mass tolerance used when comparing cumulative weights with a level `p`.
+const MASS_TOLERANCE: f64 = 1e-12;
+
+/// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF.
+fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> f64 {
+    let mut order: Vec<usize> = (0..values.len()).collect();
+    order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
+    let mut cumulative = 0.0;
+    for &index in &order {
+        cumulative += weights[index];
+        if cumulative + MASS_TOLERANCE >= p {
+            return values[index];
+        }
+    }
+    values[*order.last().unwrap_or(&0)]
+}
+
+/// Mean of the lowest or highest probability mass `p`, splitting the boundary
+/// atom fractionally.
+fn fractional_tail_mean(values: &[f64], weights: &[f64], p: f64, tail: Tail) -> f64 {
+    let mut order: Vec<usize> = (0..values.len()).collect();
+    order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
+    if tail == Tail::Upper {
+        order.reverse();
+    }
+    let mut accumulated = 0.0;
+    let mut total = 0.0;
+    for &index in &order {
+        let remaining = p - accumulated;
+        if remaining <= 0.0 {
+            break;
+        }
+        let taken = weights[index].min(remaining);
+        total += taken * values[index];
+        accumulated += taken;
+    }
+    total / p
+}
+
+/// Compute `functional` of the named action's utility on an aligned joint
+/// distribution artifact.
+///
+/// The utility is evaluated per aligned draw exactly as in [`evaluate_contract`]
+/// (joint alignment, coordinates located by [`ScientificQuantity`] coordinate
+/// identity, distribution meaning checked, weights normalized to sum one). The
+/// functional is then taken of the resulting finite weighted law:
+///
+/// - `Expectation` and `ExpectedUtility`: the weighted mean `sum w_i x_i`.
+/// - `Variance`: the weighted population variance `sum w_i (x_i - mean)^2` of
+///   the finite law, not an unbiased sample variance.
+/// - `Probability { threshold, tail }`: `Lower` is `P(x <= threshold)` and
+///   `Upper` is `P(x >= threshold)`; both include the atom at the threshold.
+/// - `Quantile { p }`: the left inverse `F^-1(p) = inf { x : F(x) >= p }` of the
+///   weighted empirical CDF, the smallest value whose cumulative weight reaches
+///   `p`. Cumulative weights are compared to `p` with an absolute tolerance of
+///   `1e-12` so a level that falls exactly on an atom boundary selects that atom.
+/// - `TailExpectation { p, tail }`: the fractional-boundary tail mean. Draws are
+///   sorted ascending for `Lower` and descending for `Upper`; weights accumulate
+///   until mass `p` is reached, taking only the needed fraction of the boundary
+///   atom, and the weighted sum is divided by `p`. This is the explicitly
+///   selected tail rule.
+///
+/// `standard_error` is `Some(0.0)` for an exact finite law, the weighted-mean
+/// standard error for a sampled expectation, and `None` otherwise.
+///
+/// # Errors
+/// Refuses an invalid contract, an unknown action
+/// (`Contract(UnknownAction)`), a level `p` outside `(0, 1)` or a non-finite
+/// threshold (`Contract(InvalidParameter("functional"))`), non-joint draws, a
+/// missing or masked coordinate, a source meaning that cannot answer an
+/// outcome-law input, and a non-finite utility.
+pub fn evaluate_functional(
+    contract: &DecisionContract,
+    action_id: &str,
+    functional: DecisionFunctional,
+    source: &DistributionArtifact,
+) -> Result<FunctionalValue, DecisionEvalError> {
+    contract.validate().map_err(DecisionEvalError::Contract)?;
+    let index = contract.actions.iter().position(|a| a.id == action_id).ok_or_else(|| {
+        DecisionEvalError::Contract(DecisionContractError::UnknownAction(action_id.to_owned()))
+    })?;
+    let level_ok = |p: f64| p.is_finite() && p > 0.0 && p < 1.0;
+    let valid = match functional {
+        DecisionFunctional::Expectation
+        | DecisionFunctional::ExpectedUtility
+        | DecisionFunctional::Variance => true,
+        DecisionFunctional::Probability { threshold, .. } => threshold.is_finite(),
+        DecisionFunctional::Quantile { p } | DecisionFunctional::TailExpectation { p, .. } => {
+            level_ok(p)
+        }
+    };
+    if !valid {
+        return Err(DecisionEvalError::Contract(DecisionContractError::InvalidParameter(
+            "functional",
+        )));
+    }
+    let table = build_table(contract, source)?;
+    let utility = &table.utilities[index];
+    let weights = &table.weights;
+    let exact = source.metadata().calibration == DistributionCalibration::Exact;
+    let source_mode = functional
+        .requirement(&contract.actions[index].utility)
+        .check(&[SourceRepresentation::JointDraws])
+        .map_err(DecisionEvalError::Contract)?;
+    let mean = weighted_mean(utility, weights);
+    let (value, sampled_error) = match functional {
+        DecisionFunctional::Expectation | DecisionFunctional::ExpectedUtility => {
+            (mean, Some(mean_se(utility, weights, exact)))
+        }
+        DecisionFunctional::Variance => {
+            let variance: f64 =
+                utility.iter().zip(weights).map(|(v, w)| w * (v - mean) * (v - mean)).sum();
+            (variance, None)
+        }
+        DecisionFunctional::Probability { threshold, tail } => {
+            let mass: f64 = utility
+                .iter()
+                .zip(weights)
+                .filter(|(v, _)| match tail {
+                    Tail::Lower => **v <= threshold,
+                    Tail::Upper => **v >= threshold,
+                })
+                .map(|(_, w)| w)
+                .sum();
+            (mass, None)
+        }
+        DecisionFunctional::Quantile { p } => (left_inverse(utility, weights, p), None),
+        DecisionFunctional::TailExpectation { p, tail } => {
+            (fractional_tail_mean(utility, weights, p, tail), None)
+        }
+    };
+    let standard_error = if exact { Some(0.0) } else { sampled_error };
+    Ok(FunctionalValue { value, standard_error, source_mode })
 }
 
 /// A source that supplies only one mean per coordinate, such as an external

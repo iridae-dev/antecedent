@@ -190,3 +190,7 @@ Such a decision is not exportable or replayable (`route_not_supported`,
 `decision.mean_source_not_replayable`). `python/tests/test_lifecycle.py` runs
 identify, bind, inspect, export, decide and a fresh-process reload; ranking a
 study is not covered because EVSI and design ranking do not exist yet.
+
+## Structural result artifact
+
+`StructuralResultArtifact` (`antecedent_design::decision_structural_artifact`) stores a `StructuralDecisionResult` in the checksummed container (`decision_structural_result_v1`, bounded at 8 MiB). It retains the contract identity, each atom's id, probability and status (evaluated, unidentified, or unevaluated with its reason), the BLAKE3 digest of each evaluated atom's draws, the declared structural policy, the per-action per-structure values, ranges and masses, the unidentified, unevaluated and evaluated masses, and the verdict. `from_bytes` loads only under the consumer's own contract identity and atom id/digest list, and `replay` recomputes `evaluate_structural` and requires a byte-identical body, so a resealed verdict or number is refused.

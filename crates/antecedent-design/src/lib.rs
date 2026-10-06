@@ -27,6 +27,7 @@ pub mod decision_contract;
 pub mod decision_eval;
 pub mod decision_refusal;
 pub mod decision_structural;
+pub mod decision_structural_artifact;
 pub mod error;
 pub mod objective;
 mod plan_common;
@@ -55,6 +56,7 @@ pub use decision_contract::{
     DecisionFunctional, HardConstraint, SourceMode, SourceRepresentation, SourceRequirement,
     StructuralPolicy, Tail, UtilityExpr,
 };
+pub use decision_structural_artifact::StructuralResultArtifact;
 pub use error::DesignError;
 pub use objective::DesignObjective;
 pub use preposterior::{

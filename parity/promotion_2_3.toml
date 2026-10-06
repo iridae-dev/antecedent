@@ -990,11 +990,11 @@ id = "2.3B.F5.decision_functionals"
 workstream = "F5"
 milestone = "B"
 work_package = "B0 prerequisite"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can typed expectation, probability and quantile functionals be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: E[Y]=3/2, Var(Y)=3/4, P(Y>1)=3/4, q_0.5=2 and tail expectation follows explicitly selected tail rule. Mean-only input cannot answer quantile or threshold probability; independent marginals cannot answer nonlinear joint utility. This record alone grants no causal or interval license."
 reference = "TODO.md B0 prerequisite; prerequisite feature records F4, F16"
-guarantee = "decision_functionals_pending_executing_evidence"
+guarantee = "typed_functionals_on_aligned_finite_laws_with_stated_conventions_point_only"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Finite outcome law puts mass 1/4 at 0 and 3/4 at 2; quantile uses left inverse F^-1(u)=inf{x:F(x)>=u}."
@@ -1010,16 +1010,26 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "decision_functionals.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "decision_contract_unsatisfied", detail = "decision_functionals.wrong_contract", when = "Mean-only input cannot answer quantile or threshold probability; independent marginals cannot answer nonlinear joint utility." },
+  { code = "joint_law_required", detail = "decision_evaluation.joint_law_required", when = "A utility over several quantities is requested from independent marginals instead of aligned joint draws." },
+  { code = "quantity_semantics_mismatch", detail = "decision_evaluation.quantity_not_found", when = "An action input has no source coordinate with its exact scientific quantity." },
+  { code = "quantity_semantics_mismatch", detail = "decision_evaluation.unsupported_coordinate", when = "A source coordinate an action reads is masked as unsupported." },
+  { code = "distribution_meaning_mismatch", detail = "decision_evaluation.distribution_meaning", when = "A source whose meaning is not an interventional outcome law is read as one." },
+  { code = "route_not_supported", detail = "decision_evaluation.structure_inputs_required", when = "A worst-case criterion over structures is requested from a single draw source." },
+  { code = "decision_contract_unsatisfied", detail = "decision_evaluation.non_finite_utility", when = "A utility expression produced a non-finite value on a draw." },
+  { code = "decision_contract_unsatisfied", detail = "decision_evaluation.mean_source_insufficient", when = "A mean-only source is asked for a quantile, threshold probability, nonlinear utility, constraint or other non-expectation criterion." },
+  { code = "route_not_supported", detail = "decision_evaluation.mean_source_not_replayable", when = "A decision over an external mean grid is exported or replayed as if it had draws." },
 ]
 routes = [
-  { name = "antecedent.decision.typed_functional", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.decision.typed_functional", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f5.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: E[Y]=3/2, Var(Y)=3/4, P(Y>1)=3/4, q_0.5=2 and tail expectation follows explicitly selected tail rule." },
-  { id = "f5.wrong_contract.negative", role = "negative", intent = "Mean-only input cannot answer quantile or threshold probability; independent marginals cannot answer nonlinear joint utility." },
-  { id = "f5.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains functional kind, threshold/quantile convention, input law and units." },
+  { id = "f5.known_truth.positive", role = "positive", intent = "On the finite law with mass 1/4 at 0 and 3/4 at 2: E[Y]=3/2 and Var(Y)=3/4 (population variance of the finite law), agreeing with the E[Y^2]-E[Y]^2 identity.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f5_positive_expectation_and_variance_identity_on_the_finite_law" },
+  { id = "f5.threshold.positive", role = "positive", intent = "P(Y>=1)=3/4 and P(Y<=1)=1/4 on the finite law.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f5_positive_threshold_probability_on_the_finite_law" },
+  { id = "f5.quantile.positive", role = "positive", intent = "The 0.5 quantile is 2 and the 0.25 quantile is 0 by the left inverse F^-1(u)=inf{x:F(x)>=u}.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f5_positive_quantile_is_the_left_inverse_of_the_cdf" },
+  { id = "f5.tail.positive", role = "positive", intent = "Tail expectation follows the fractional-boundary tail-mean rule: lower 0.25 is 0, upper 0.25 is 2, lower 0.5 is 1, lower 0.75 is 4/3.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f5_positive_functionals_without_an_evaluator_state_only_their_source_requirements" },
+  { id = "f5.wrong_contract.negative", role = "negative", intent = "A mean-only source cannot answer a quantile or a threshold probability, while it still answers an expectation.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f5_negative_mean_only_source_cannot_answer_quantile_or_threshold_probability" },
+  { id = "f5.marginals.negative", role = "negative", intent = "Independent marginals cannot answer a nonlinear joint utility, naming the offending action and the supplied alignment.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f5_negative_independent_marginals_cannot_answer_a_nonlinear_joint_utility" },
+  { id = "f5.fresh_replay.artifact", role = "artifact", intent = "A fresh process retains the functional kind, threshold and quantile convention, the input law and the units, and recomputes 3/2, 3/4 and 2.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f5_artifact_fresh_process_consumer_retains_functional_convention_law_and_units" },
 ]
 
 [[record]]
@@ -1027,11 +1037,11 @@ id = "2.3B.F6.structural_decision_policy"
 workstream = "F6"
 milestone = "B"
 work_package = "B0 prerequisite"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can structural decision policy and robustness be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Maximin selects B (minimum 0 versus -1); report-only shows graph dependence and no probability-weighted winner. Bayes-over-structures refuses without genuine atom probabilities; unevaluated mass is never normalized away. This record alone grants no causal or interval license."
 reference = "TODO.md B0 prerequisite; prerequisite feature records F4, F5"
-guarantee = "structural_decision_policy_pending_executing_evidence"
+guarantee = "declared_structural_policies_over_supplied_structures_point_only"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Two structural atoms prefer opposite actions: utilities A=(2,-1), B=(0,1), with no atom probabilities."
@@ -1047,16 +1057,19 @@ compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cel
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "structural_decision_policy.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "decision_contract_unsatisfied", detail = "structural_decision_policy.wrong_contract", when = "Bayes-over-structures refuses without genuine atom probabilities; unevaluated mass is never normalized away." },
+  { code = "invalid_argument", detail = "decision_structural.invalid_atoms", when = "No structures are supplied, or their identities are blank or repeated." },
+  { code = "decision_contract_unsatisfied", detail = "decision_structural.invalid_probabilities", when = "Structure probabilities are given for some atoms only, are not finite and non-negative, or sum to more than one." },
+  { code = "decision_contract_unsatisfied", detail = "decision_structural.probabilities_required", when = "Bayes over structures is requested without genuine structure probabilities; completion counts are not probabilities." },
 ]
 routes = [
-  { name = "antecedent.decision.structural_policy", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.decision.structural_policy", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f6.known_truth.positive", role = "positive", intent = "Compare against independent enumerated_finite_law: Maximin selects B (minimum 0 versus -1); report-only shows graph dependence and no probability-weighted winner." },
-  { id = "f6.wrong_contract.negative", role = "negative", intent = "Bayes-over-structures refuses without genuine atom probabilities; unevaluated mass is never normalized away." },
-  { id = "f6.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains atom IDs, unidentified mass and declared robustness policy." },
+  { id = "f6.known_truth.positive", role = "positive", intent = "Atoms with utilities A=(2,-1), B=(0,1): maximin selects B (worst case 0 versus -1), under both the maximin policy and the maximin-over-structures criterion.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f6_positive_maximin_chooses_b_with_worst_cases_zero_against_minus_one" },
+  { id = "f6.report_only.positive", role = "positive", intent = "Report-only shows graph dependence and no probability-weighted winner.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f6_positive_report_only_shows_graph_dependence_and_no_weighted_winner" },
+  { id = "f6.wrong_contract.negative", role = "negative", intent = "Bayes over structures refuses without genuine atom probabilities.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f6_negative_bayes_over_structures_refuses_without_atom_probabilities" },
+  { id = "f6.unevaluated_mass.negative", role = "negative", intent = "Unevaluated mass is reported beside the evaluated mass and never normalized away.", evidence_test = "crates/antecedent-design/tests/decision_acceptance.rs", evidence_assertion = "f6_negative_unevaluated_mass_is_reported_and_never_normalized_away" },
+  { id = "f6.fresh_replay.artifact", role = "artifact", intent = "A fresh process rebuilds the contract and atoms from constants, loads the structural result under its own retained identity and atom digests, replays it, and reads the atom ids, ranges and declared policy.", evidence_test = "crates/antecedent-design/tests/decision_structural_artifact.rs", evidence_assertion = "f6_fresh_process_consumer_rebuilds_atoms_from_constants_and_replays" },
 ]
 
 [[record]]

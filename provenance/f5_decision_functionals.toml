@@ -1,0 +1,19 @@
+feature_id = "f5_decision_functionals"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Finite weighted arithmetic on a supplied law; no estimator and no sampling theorem.
+papers = []
+implementation_deviations = [
+  "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
+  "An exact finite law has no sampling error. A sampled source reports a Monte Carlo standard error only for a mean, and claims no interval for the other functionals.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/src/decision_contract.rs",
+  "crates/antecedent-design/tests/decision_acceptance.rs",
+  "crates/antecedent-design/tests/decision_mean_source.rs",
+]

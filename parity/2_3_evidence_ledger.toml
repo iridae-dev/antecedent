@@ -474,7 +474,7 @@ exact_request_verification = "not_applicable_no_external_provider_in_this_cell; 
 id = "2.3B.F5.decision_functionals"
 route = "antecedent.decision.typed_functional"
 work_package = "B0 prerequisite"
-algorithm_provenance = ["pending:provenance/decision_functionals.toml"]
+algorithm_provenance = ["provenance/f5_decision_functionals.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f5.known_truth.positive"
@@ -485,14 +485,14 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f5.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "native evaluation of supplied laws; a bound external mean grid answers only an affine expectation and is never replayed as draws"
+exact_request_verification = "not_applicable_no_provider_verification_in_this_route"
 
 [[cell]]
 id = "2.3B.F6.structural_decision_policy"
 route = "antecedent.decision.structural_policy"
 work_package = "B0 prerequisite"
-algorithm_provenance = ["pending:provenance/structural_decision_policy.toml"]
+algorithm_provenance = ["provenance/f6_structural_decision_policy.toml"]
 parity_registry = "parity/promotion_2_3.toml"
 support_registry = "parity/transport_stages.toml"
 positive_fixture = "f6.known_truth.positive"
@@ -503,8 +503,8 @@ tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for
 calibration = "exact_or_point_only_no_interval"
 executing_gate = "scripts/gate_promotion.sh"
 artifact_consumer_fixture = "f6.fresh_replay.artifact"
-provider_trust = "native_route_pending_evidence; external values require separately scoped exact-request verification"
-exact_request_verification = "pending exact request fingerprint and applicable provider operation checks before any external value is consumed"
+provider_trust = "native evaluation of supplied laws; a bound external mean grid answers only an affine expectation and is never replayed as draws"
+exact_request_verification = "not_applicable_no_provider_verification_in_this_route"
 
 [[cell]]
 id = "2.3B.F9.evidence_obligations"
