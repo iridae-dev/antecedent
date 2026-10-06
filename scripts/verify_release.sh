@@ -68,9 +68,10 @@ PY
 }
 
 verify_wheels() {
-  local dir="$1" version="$2" run_id="${3:-}" sha w seg
+  local dir="$1" version="$2" run_id="${3:-}" sha w seg n=0
   shopt -s nullglob
   for w in "$dir"/*.whl; do
+    n=$((n + 1))
     # PEP 427 file names normalise the version ("2.0.0-rc.1" -> "2.0.0rc1"), so
     # compare with the separators removed.
     seg="$(basename "$w" | cut -d- -f2)"

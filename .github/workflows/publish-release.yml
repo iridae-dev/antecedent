@@ -101,6 +101,25 @@ jobs:
           REUSE_RUN_ID: ${{ inputs.reuse_run_id }}
         run: bash scripts/verify_release.sh tag "$VERSION" "$REUSE_RUN_ID"
 
+      # Validate the artifacts before any publishing job or approval starts.
+      # A green main run alone does not prove its retained artifacts are still
+      # present, complete, and tagged with this version.
+      - name: Download exact-main-CI wheels
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: wheel-*
+          path: wheels
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.verify.outputs.ci_run_id }}
+
+      - name: Verify complete wheel matrix and provenance
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          CI_RUN_ID: ${{ steps.verify.outputs.ci_run_id }}
+        run: bash scripts/verify_release.sh wheels wheels "$VERSION" "$CI_RUN_ID"
+
   docs:
     name: Build docs bundle
     needs: prepare
