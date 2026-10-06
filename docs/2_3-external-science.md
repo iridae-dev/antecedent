@@ -84,3 +84,16 @@ a stage the consumer needs. A bound external response claim builds its chain
 execution, the claim), and `ExternalClaimIdentity` carries it so an independent
 consumer answers where the numbers came from; a changed or truncated lineage
 refuses. Other composition kinds attach to the same chain as they land.
+
+## Refusals
+
+`ExternalContractError`, `ExternalVerificationError` and `ExternalBindingError`
+convert to an `ExternalRefusal` with a registered runtime reason code
+(`external_capability_missing`, `external_verification_failed`,
+`external_binding_mismatch`, `quantity_semantics_mismatch`,
+`distribution_meaning_mismatch`, `effect_not_identified`, `invalid_argument`),
+a namespaced detail (`external_binding.coordinate.units`,
+`external_verification.missing_probe`, ...), the stage, the offending
+coordinate or probe, expected versus supplied semantics, the missing
+capability and a remedy when one is known. Binding refusals read expected and
+supplied values from the contract and result that were presented.
