@@ -22,6 +22,7 @@ use std::sync::Arc;
 
 mod conditional;
 mod conditional_witness;
+pub mod cpdag_completion;
 mod meta;
 mod mixed_source;
 mod mz_transport;

@@ -26,6 +26,7 @@ antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
 antecedent-data = { version = "2.2.0", path = "../antecedent-data" }
 antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
 antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
+blake3 = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 

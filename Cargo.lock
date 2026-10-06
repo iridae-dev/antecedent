@@ -221,6 +221,7 @@ dependencies = [
  "antecedent-data",
  "antecedent-expr",
  "antecedent-graph",
+ "blake3",
  "criterion",
  "serde",
  "serde_json",
