@@ -21,6 +21,8 @@
 )]
 
 pub mod candidate;
+pub mod composition_boundary;
+pub mod composition_bundle;
 pub mod decision;
 pub mod decision_adapters;
 pub mod decision_artifact;
@@ -41,6 +43,7 @@ pub mod obligation_adapters;
 mod plan_common;
 pub mod preposterior;
 pub mod prior_signal;
+pub mod proposal_receipt;
 pub mod ranker;
 pub mod ranking;
 pub mod repair;

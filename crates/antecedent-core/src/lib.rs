@@ -52,11 +52,13 @@ pub mod intervention;
 pub mod node;
 pub mod obligation;
 pub mod plan;
+pub mod program_binding;
 pub mod provenance;
 pub mod quantity;
 pub mod query;
 pub mod reason_code;
 pub mod reasoning;
+pub mod recalc;
 pub mod transport_result;
 pub use transport_result::TransportGridFailure;
 pub mod response;
@@ -138,6 +140,10 @@ pub use obligation::{ObligationKind, ObligationRecord, ObligationScope};
 pub use plan::{
     BufferMaterialization, DataClassification, ExecutionPerformanceRecord, KernelSelection,
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
+};
+pub use program_binding::{
+    ExternalProgramClaim, ProgramBinding, ProgramBoundClaim, ProgramCheck,
+    bind_external_result_to_program, check_external_against_program, dose_label,
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use quantity::{
