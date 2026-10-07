@@ -196,12 +196,7 @@ pub struct GaussianPrior {
 impl GaussianPrior {
     /// Independent prior with one mean and one variance for every coefficient.
     #[must_use]
-    pub fn isotropic(
-        dim: usize,
-        mean: f64,
-        variance: f64,
-        provenance: PriorProvenance,
-    ) -> Self {
+    pub fn isotropic(dim: usize, mean: f64, variance: f64, provenance: PriorProvenance) -> Self {
         let mut covariance = vec![0.0; dim * dim];
         for i in 0..dim {
             covariance[i * dim + i] = variance;
@@ -746,11 +741,10 @@ fn prior_block(prior: &GaussianPrior, dim: usize) -> Result<PriorBlock, Refused>
             symmetric &= gap <= 1e-12 * scale.max(1.0);
         }
     }
-    if !symmetric
-        || prior.mean.iter().chain(&prior.covariance).any(|value| !value.is_finite())
-    {
-        return Err(invalid(DETAIL_INVALID_PRIOR, "prior covariance must be finite and symmetric")
-            .into());
+    if !symmetric || prior.mean.iter().chain(&prior.covariance).any(|value| !value.is_finite()) {
+        return Err(
+            invalid(DETAIL_INVALID_PRIOR, "prior covariance must be finite and symmetric").into()
+        );
     }
     let factor = cholesky(&prior.covariance, dim).map_err(|(index, ratio)| {
         let mut refusal =
@@ -770,12 +764,7 @@ struct Posterior {
     min_pivot_ratio: f64,
 }
 
-fn singular(
-    names: &[String],
-    index: usize,
-    ratio: f64,
-    what: &str,
-) -> JointTransportRefusal {
+fn singular(names: &[String], index: usize, ratio: f64, what: &str) -> JointTransportRefusal {
     let mut refusal = JointTransportRefusal::new(
         antecedent_core::reason_code!("design_rank_deficient"),
         DETAIL_SINGULAR_FIT,
@@ -978,10 +967,7 @@ fn validate_declaration(
     Ok(record)
 }
 
-fn validate_sources(
-    model: &JointTransportModel,
-    sources: &[SourceData],
-) -> Result<(), Refused> {
+fn validate_sources(model: &JointTransportModel, sources: &[SourceData]) -> Result<(), Refused> {
     if sources.is_empty() {
         return Err(JointTransportRefusal::new(
             antecedent_core::reason_code!("transport_missing_evidence"),
@@ -1009,7 +995,10 @@ fn validate_sources(
         {
             return Err(invalid(
                 DETAIL_INVALID_INPUT,
-                format!("source `{}` is malformed (shape, finiteness, noise or identity)", source.id),
+                format!(
+                    "source `{}` is malformed (shape, finiteness, noise or identity)",
+                    source.id
+                ),
             )
             .into());
         }
@@ -1033,10 +1022,8 @@ fn validate_target<'a>(
     if target.rows == 0 {
         return Err(missing().into());
     }
-    let finite = target
-        .covariates
-        .iter()
-        .all(|c| c.len() == target.rows && c.iter().all(|v| v.is_finite()));
+    let finite =
+        target.covariates.iter().all(|c| c.len() == target.rows && c.iter().all(|v| v.is_finite()));
     if target.covariates.len() != model.features.len()
         || !finite
         || target.identity.snapshot_digest.trim().is_empty()
@@ -1047,10 +1034,7 @@ fn validate_target<'a>(
 }
 
 /// Unit ownership: sources are disjoint from each other and from the target.
-fn check_unit_ownership(
-    sources: &[SourceData],
-    target: &TargetData,
-) -> Result<(), Refused> {
+fn check_unit_ownership(sources: &[SourceData], target: &TargetData) -> Result<(), Refused> {
     let mut owners: Vec<&[String]> =
         sources.iter().map(|source| source.identity.datum_ids.as_slice()).collect();
     owners.push(&target.identity.datum_ids);
@@ -1285,8 +1269,7 @@ fn draw_joint(
             *value = stream.next();
         }
         let shift = back_solve(&posterior.precision_factor, dim, &z);
-        let parameters: Vec<f64> =
-            posterior.mean.iter().zip(&shift).map(|(m, s)| m + s).collect();
+        let parameters: Vec<f64> = posterior.mean.iter().zip(&shift).map(|(m, s)| m + s).collect();
         values.extend_from_slice(&parameters);
         for c in &effects.vectors {
             values.push(c.iter().zip(&parameters).map(|(a, b)| a * b).sum());
@@ -1340,7 +1323,10 @@ fn fit_inner(
     if layout.dim() > JOINT_TRANSPORT_MAX_PARAMETERS {
         return Err(invalid(
             DETAIL_TOO_MANY_PARAMETERS,
-            format!("the model has {} parameters; the bound is {JOINT_TRANSPORT_MAX_PARAMETERS}", layout.dim()),
+            format!(
+                "the model has {} parameters; the bound is {JOINT_TRANSPORT_MAX_PARAMETERS}",
+                layout.dim()
+            ),
         )
         .into());
     }

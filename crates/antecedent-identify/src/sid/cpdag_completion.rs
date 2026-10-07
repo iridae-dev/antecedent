@@ -39,8 +39,8 @@ use antecedent_core::{
 use antecedent_graph::{Admg, Cpdag, DenseNodeId, SelectionDiagram};
 
 use super::scenarios::{
-    SCENARIO_MAX_COUNT, ScenarioCoordinate, ScenarioDecision, ScenarioDecisionLimits, ScenarioOutcome,
-    ScenarioQuestion, ScenarioSetDecision, ScenarioSetRefusal, TransportScenario,
+    SCENARIO_MAX_COUNT, ScenarioCoordinate, ScenarioDecision, ScenarioDecisionLimits,
+    ScenarioOutcome, ScenarioQuestion, ScenarioSetDecision, ScenarioSetRefusal, TransportScenario,
     TransportScenarioSet,
 };
 use super::{
@@ -240,10 +240,7 @@ impl Skeleton {
         if cpdag.node_count() > CPDAG_MAX_NODES {
             return Err(unsupported(
                 CPDAG_BOUNDS_EXCEEDED_DETAIL,
-                format!(
-                    "{} nodes exceed the bound of {CPDAG_MAX_NODES}",
-                    cpdag.node_count()
-                ),
+                format!("{} nodes exceed the bound of {CPDAG_MAX_NODES}", cpdag.node_count()),
             ));
         }
         if !input.selection_targets.is_empty() || !input.latent_pairs.is_empty() {
@@ -436,10 +433,7 @@ fn all_masks(skeleton: &Skeleton) -> Vec<u32> {
 }
 
 /// A started budget, or the receipt of a stop before entry.
-fn start(
-    limits: SearchLimits,
-    ctx: &ExecutionContext,
-) -> Result<SharedSearch<'_>, SearchReceipt> {
+fn start(limits: SearchLimits, ctx: &ExecutionContext) -> Result<SharedSearch<'_>, SearchReceipt> {
     SearchBudget::new(limits, ctx).map(SharedSearch::new)
 }
 
@@ -469,7 +463,13 @@ fn finish(
         });
     }
     check_maximally_oriented(skeleton, masks)?;
-    Ok(CpdagEnumeration { cpdag_identity, variables, completions, not_enumerated: 0, receipt: None })
+    Ok(CpdagEnumeration {
+        cpdag_identity,
+        variables,
+        completions,
+        not_enumerated: 0,
+        receipt: None,
+    })
 }
 
 /// A CPDAG has at least one completion and every undirected edge is oriented
@@ -547,7 +547,9 @@ fn completion_scenario(
     };
     for (parent, child) in completion.edges.iter() {
         let (Some(parent), Some(child)) = (dense(parent), dense(child)) else {
-            return Err(IdentificationError::invalid_input("completion edge names an unknown node"));
+            return Err(IdentificationError::invalid_input(
+                "completion edge names an unknown node",
+            ));
         };
         graph.insert_directed(parent, child)?;
     }
@@ -589,7 +591,8 @@ fn bind_evidence(
                 .collect())
         }
         CpdagEvidence::PerCompletion(bindings) => {
-            let known = enumeration.completions.iter().map(|c| &c.identity).collect::<BTreeSet<_>>();
+            let known =
+                enumeration.completions.iter().map(|c| &c.identity).collect::<BTreeSet<_>>();
             let mut named = BTreeSet::new();
             for binding in bindings {
                 if binding.certified_for != binding.completion {
@@ -751,11 +754,8 @@ pub fn decide_cpdag_completions(
     ctx: &ExecutionContext,
 ) -> Result<CpdagCompletionDecision, CpdagScenarioError> {
     let skeleton = Skeleton::from_input(input)?;
-    let request = Request {
-        coordinates,
-        question: ScenarioQuestion::Classical(query.clone()),
-        evidence,
-    };
+    let request =
+        Request { coordinates, question: ScenarioQuestion::Classical(query.clone()), evidence };
     match start(budget, ctx) {
         Err(receipt) => {
             // A budget that stopped before entry decides nothing; the whole

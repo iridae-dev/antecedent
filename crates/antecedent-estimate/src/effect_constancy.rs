@@ -293,10 +293,7 @@ fn quadratic_form(lower: &[f64], n: usize, x: &[f64]) -> f64 {
     y.iter().map(|v| v * v).sum()
 }
 
-fn validate_inputs(
-    partitions: &[PartitionEstimate],
-    alpha: f64,
-) -> Result<(), EstimationError> {
+fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), EstimationError> {
     let invalid = reason_code!("invalid_argument");
     if !(alpha > 0.0 && alpha < 1.0) {
         return Err(refuse(invalid, "effect_constancy.invalid_alpha", "alpha must lie in (0, 1)"));
@@ -386,7 +383,9 @@ fn validate_covariance(
         }
         let variance = partitions[i].standard_error * partitions[i].standard_error;
         if (covariance[i * k + i] - variance).abs() > COVARIANCE_TOLERANCE * variance {
-            return Err(bad("a covariance diagonal entry does not equal the squared standard error"));
+            return Err(bad(
+                "a covariance diagonal entry does not equal the squared standard error",
+            ));
         }
     }
     if cholesky(covariance, k).is_none() {
@@ -413,10 +412,9 @@ fn wald_statistic(effects: &[f64], covariance: &[f64]) -> Result<f64, Estimation
     let mut v = vec![0.0; m * m];
     for i in 0..m {
         for j in 0..m {
-            v[i * m + j] = covariance[(i + 1) * k + (j + 1)]
-                - covariance[(i + 1) * k]
-                - covariance[j + 1]
-                + covariance[0];
+            v[i * m + j] =
+                covariance[(i + 1) * k + (j + 1)] - covariance[(i + 1) * k] - covariance[j + 1]
+                    + covariance[0];
         }
     }
     let lower = cholesky(&v, m).ok_or_else(|| {

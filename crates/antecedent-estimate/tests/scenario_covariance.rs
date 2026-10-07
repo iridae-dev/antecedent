@@ -63,7 +63,12 @@ fn plug_in(counts: &[u32], score: fn(Row) -> f64) -> f64 {
     ROWS.iter().zip(counts).map(|(r, &c)| f64::from(c) * score(*r)).sum::<f64>() / N as f64
 }
 
-fn linear(id: &str, snapshot: &str, unit_ids: Vec<Arc<str>>, score: fn(Row) -> f64) -> ScenarioRowEstimator {
+fn linear(
+    id: &str,
+    snapshot: &str,
+    unit_ids: Vec<Arc<str>>,
+    score: fn(Row) -> f64,
+) -> ScenarioRowEstimator {
     ScenarioRowEstimator::new(id, snapshot, unit_ids, move |c| Ok(plug_in(c, score)))
 }
 
@@ -99,11 +104,7 @@ fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(1)
 }
 
-fn assert_refusal(
-    result: Result<ScenarioCovariance, EstimationError>,
-    code: &str,
-    detail: &str,
-) {
+fn assert_refusal(result: Result<ScenarioCovariance, EstimationError>, code: &str, detail: &str) {
     match result {
         Err(EstimationError::Refused { code: c, message }) => {
             assert_eq!(c, code, "{message}");
@@ -233,7 +234,11 @@ fn x2_shared_rows_covariance_exact_matches_closed_form() {
     for (i, si) in scores.iter().enumerate() {
         for (j, sj) in scores.iter().enumerate() {
             let want = closed_form(*si, *sj);
-            assert!((out.entry(i, j) - want).abs() < 1e-12, "({i},{j}): {} vs {want}", out.entry(i, j));
+            assert!(
+                (out.entry(i, j) - want).abs() < 1e-12,
+                "({i},{j}): {} vs {want}",
+                out.entry(i, j)
+            );
         }
     }
     assert!((out.entry(0, 0) - 17.0 / 216.0).abs() < 1e-12);
@@ -277,7 +282,11 @@ fn x2_shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters(
     let independent = independent_resample_covariance(score_a, score_b, 2000);
     let scale = closed_form(score_a, score_a);
     assert!(independent.abs() < 0.15 * scale, "independent off-diagonal {independent}");
-    assert!(out.entry(0, 1) - independent > 0.03, "shared {} vs independent {independent}", out.entry(0, 1));
+    assert!(
+        out.entry(0, 1) - independent > 0.03,
+        "shared {} vs independent {independent}",
+        out.entry(0, 1)
+    );
 }
 
 #[test]
@@ -347,10 +356,8 @@ fn x2_independent_rows_mismatched_snapshot_refuses() {
 fn x2_independent_rows_mismatched_or_reordered_units_refuse() {
     let mut reordered = units("u");
     reordered.swap(0, 1);
-    let family = vec![
-        linear("a", SNAPSHOT, units("u"), score_a),
-        linear("b", SNAPSHOT, reordered, score_b),
-    ];
+    let family =
+        vec![linear("a", SNAPSHOT, units("u"), score_a), linear("b", SNAPSHOT, reordered, score_b)];
     both_methods_refuse(&family, UNKNOWN.0, UNKNOWN.1);
     let family = vec![
         linear("a", SNAPSHOT, units("u"), score_a),
@@ -374,10 +381,8 @@ fn x2_independent_rows_declared_independent_or_unknown_dependence_refuses() {
 fn x2_independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
     let mut dup = units("u");
     dup[3] = dup[2].clone();
-    let family = vec![
-        linear("a", SNAPSHOT, dup.clone(), score_a),
-        linear("b", SNAPSHOT, dup, score_b),
-    ];
+    let family =
+        vec![linear("a", SNAPSHOT, dup.clone(), score_a), linear("b", SNAPSHOT, dup, score_b)];
     both_methods_refuse(&family, UNKNOWN.0, UNKNOWN.1);
 }
 
@@ -391,7 +396,11 @@ fn x2_independent_rows_bounds_and_arguments_refuse() {
 
     // Too many / too few replicates.
     let family = vec![linear_by_name("a"), linear_by_name("b")];
-    let over = SharedRowBootstrapOptions { replicates: MAX_REPLICATES + 1, seed: 1, max_failure_fraction: 0.0 };
+    let over = SharedRowBootstrapOptions {
+        replicates: MAX_REPLICATES + 1,
+        seed: 1,
+        max_failure_fraction: 0.0,
+    };
     assert_refusal(
         shared_row_bootstrap_covariance(&family, &over, &ctx()),
         "cell_not_licensed",
@@ -496,7 +505,10 @@ fn x2_covariance_permutation_reorders_rows_and_columns_identically() {
     let b1 = shared_row_bootstrap_covariance(&first_order, &boot_options(9), &ctx()).unwrap();
     let b2 = shared_row_bootstrap_covariance(&second_order, &boot_options(9), &ctx()).unwrap();
     assert_permuted(&b1, &b2, &names);
-    assert_eq!(b1.replicate_ids, b2.replicate_ids, "row selection does not depend on scenario order");
+    assert_eq!(
+        b1.replicate_ids, b2.replicate_ids,
+        "row selection does not depend on scenario order"
+    );
     assert_ne!(b1.replicate_digest, b2.replicate_digest);
 }
 
@@ -522,7 +534,8 @@ fn x2_covariance_replay_is_bit_identical_and_identity_sensitive() {
         linear("a", SNAPSHOT, units("v"), score_a),
         linear("b", SNAPSHOT, units("v"), score_b),
     ];
-    let changed_rows = shared_row_bootstrap_covariance(&renamed, &boot_options(42), &ctx()).unwrap();
+    let changed_rows =
+        shared_row_bootstrap_covariance(&renamed, &boot_options(42), &ctx()).unwrap();
     assert_ne!(changed_rows.row_identity_digest, first.row_identity_digest);
     assert_ne!(changed_rows.replicate_digest, first.replicate_digest);
 

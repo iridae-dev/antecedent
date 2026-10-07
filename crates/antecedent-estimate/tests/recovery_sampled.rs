@@ -172,7 +172,10 @@ fn derive(model: &MModel) -> Box<RecoveryDerivation> {
 }
 
 fn loose(replicates: usize, seed: u64) -> SampledRecoveryConfig {
-    SampledRecoveryConfig { normalization_tolerance: 0.25, ..SampledRecoveryConfig::new(replicates, seed) }
+    SampledRecoveryConfig {
+        normalization_tolerance: 0.25,
+        ..SampledRecoveryConfig::new(replicates, seed)
+    }
 }
 
 #[test]
@@ -222,7 +225,11 @@ fn x10_sampled_recovery_truth_exact_proportions_recover_the_enumerated_law_and_e
                     * bern(P_X0[usize::from(o)], x0)
                     * bern(P_X1[usize::from(2 * x0 + o)], x1);
                 let index = usize::from((x0 * 2 + x1) * 2 + o);
-                assert!((law[index] - truth).abs() < 1e-9, "cell {index}: {} vs {truth}", law[index]);
+                assert!(
+                    (law[index] - truth).abs() < 1e-9,
+                    "cell {index}: {} vs {truth}",
+                    law[index]
+                );
                 assert!(law[index] > 0.0);
             }
         }
@@ -275,7 +282,8 @@ fn x10_sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps
     for i in 0..8 {
         assert!(first.cell_covariance(i, i).unwrap() >= 0.0);
         for j in 0..8 {
-            let (a, b) = (first.cell_covariance(i, j).unwrap(), first.cell_covariance(j, i).unwrap());
+            let (a, b) =
+                (first.cell_covariance(i, j).unwrap(), first.cell_covariance(j, i).unwrap());
             assert!((a - b).abs() < 1e-15);
             if i != j {
                 off_diagonal = off_diagonal.max(a.abs());
@@ -290,7 +298,10 @@ fn x10_sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps
     assert!(first.diagnostics.min_complete_case_count > 0);
     // Another seed draws other rows.
     let other = estimate_sampled_recovery(&derivation, &data, &loose(200, 100), &ctx()).unwrap();
-    assert_ne!(other.receipt.replicates[0].selection_digest, first.receipt.replicates[0].selection_digest);
+    assert_ne!(
+        other.receipt.replicates[0].selection_digest,
+        first.receipt.replicates[0].selection_digest
+    );
 }
 
 #[test]
@@ -303,8 +314,8 @@ fn x10_unrecoverable_pattern_zero_complete_case_cell_refuses_with_the_pattern() 
     let before = rows.len();
     rows.retain(|r| r.pattern != missing);
     assert!(rows.len() < before);
-    let error = estimate_sampled_recovery(&derivation, &input(rows), &loose(30, 1), &ctx())
-        .unwrap_err();
+    let error =
+        estimate_sampled_recovery(&derivation, &input(rows), &loose(30, 1), &ctx()).unwrap_err();
     assert_eq!(error.detail, SampledRecoveryDetail::UnrecoverablePattern);
     assert_eq!(error.detail.detail(), "sampled_recovery.unrecoverable_pattern");
     assert_eq!(error.reason_code(), "route_not_supported");
@@ -320,8 +331,8 @@ fn x10_unrecoverable_pattern_zero_denominator_refuses_with_every_offending_patte
     // cells at X0 = 1.
     let mut rows = seeded_rows(4000, 17);
     rows.retain(|r| !(r.pattern.responses & 1 == 1 && r.pattern.proxies & 1 == 1));
-    let error = estimate_sampled_recovery(&derivation, &input(rows), &loose(30, 1), &ctx())
-        .unwrap_err();
+    let error =
+        estimate_sampled_recovery(&derivation, &input(rows), &loose(30, 1), &ctx()).unwrap_err();
     assert_eq!(error.detail, SampledRecoveryDetail::UnrecoverablePattern);
     assert_eq!(error.reason_code(), "route_not_supported");
     assert_eq!(
@@ -416,7 +427,8 @@ fn x10_unrecoverable_pattern_bounds_and_malformed_inputs_refuse() {
     let mut duplicated = rows.clone();
     duplicated[1].id = duplicated[0].id;
     assert_eq!(run(&input(duplicated), &loose(20, 1)).detail, SampledRecoveryDetail::InvalidInput);
-    let other_snapshot = SampledObservationInput { snapshot_id: "snap-other".to_string(), rows: rows.clone() };
+    let other_snapshot =
+        SampledObservationInput { snapshot_id: "snap-other".to_string(), rows: rows.clone() };
     assert_eq!(run(&other_snapshot, &loose(20, 1)).detail, SampledRecoveryDetail::InvalidInput);
     // A missing proxy that carries a value is outside the proxy model.
     let mut impossible = rows;
@@ -440,14 +452,14 @@ fn x10_sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapsho
     assert_eq!(replayed.receipt, base.receipt);
     assert_eq!(replayed.effect.to_bits(), base.effect.to_bits());
     // A changed seed changes the selections and the digest, not the input digest.
-    let reseeded =
-        estimate_sampled_recovery(&derivation, &data, &loose(30, 5), &ctx()).unwrap();
+    let reseeded = estimate_sampled_recovery(&derivation, &data, &loose(30, 5), &ctx()).unwrap();
     assert_eq!(reseeded.receipt.input_digest, base.receipt.input_digest);
     assert_ne!(reseeded.receipt.receipt_digest, base.receipt.receipt_digest);
     // A changed pattern changes the input digest and the receipt, and a replay of
     // the old receipt on the new rows refuses.
     let mut edited = rows.clone();
-    edited[0].pattern = ObservationPattern { responses: 0, proxies: 0, fully: edited[0].pattern.fully ^ 1 };
+    edited[0].pattern =
+        ObservationPattern { responses: 0, proxies: 0, fully: edited[0].pattern.fully ^ 1 };
     let edited = input(edited);
     let changed = estimate_sampled_recovery(&derivation, &edited, &config, &ctx()).unwrap();
     assert_ne!(changed.receipt.input_digest, base.receipt.input_digest);
@@ -458,15 +470,13 @@ fn x10_sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapsho
     // A changed snapshot (the catalog binds another one) changes the digests; the
     // old snapshot offered to the new derivation is refused.
     let mut catalog = model.catalog();
-    let binding = RegimeBinding {
-        snapshot_identity: Arc::from("snap-other"),
-        ..catalog.bindings[0].clone()
-    };
+    let binding =
+        RegimeBinding { snapshot_identity: Arc::from("snap-other"), ..catalog.bindings[0].clone() };
     catalog.bindings = Arc::from([binding]);
     let other_derivation = derive_with(&model, &catalog);
-    let moved = SampledObservationInput { snapshot_id: "snap-other".to_string(), rows: rows.clone() };
-    let relocated =
-        estimate_sampled_recovery(&other_derivation, &moved, &config, &ctx()).unwrap();
+    let moved =
+        SampledObservationInput { snapshot_id: "snap-other".to_string(), rows: rows.clone() };
+    let relocated = estimate_sampled_recovery(&other_derivation, &moved, &config, &ctx()).unwrap();
     assert_ne!(relocated.receipt.input_digest, base.receipt.input_digest);
     assert_ne!(relocated.receipt.receipt_digest, base.receipt.receipt_digest);
     assert_ne!(relocated.receipt.derivation_identity, base.receipt.derivation_identity);

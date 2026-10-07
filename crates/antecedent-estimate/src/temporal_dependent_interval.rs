@@ -130,7 +130,9 @@ impl TemporalUnitPanel {
     ) -> Result<Self, EstimationError> {
         let snapshot_id = snapshot_id.into();
         let Some(units) = units else {
-            return Err(unknown_units("no unit map was supplied; row-level independence is not assumed"));
+            return Err(unknown_units(
+                "no unit map was supplied; row-level independence is not assumed",
+            ));
         };
         if snapshot_id.is_empty() {
             return Err(unknown_units("the panel has no snapshot id"));
@@ -152,7 +154,10 @@ impl TemporalUnitPanel {
                 return Err(unknown_units(format!("unit id {} appears twice", unit.unit_id)));
             }
             if unit.histories.is_empty() {
-                return Err(unknown_units(format!("unit {} has no complete history", unit.unit_id)));
+                return Err(unknown_units(format!(
+                    "unit {} has no complete history",
+                    unit.unit_id
+                )));
             }
             digest = fold(digest, unit.unit_id);
             let mut previous: Option<u64> = None;
@@ -551,8 +556,7 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
         .estimate(&all)
         .map_err(|error| unsupported_history(format!("the original panel: {error}")))?;
     let replicates = run_replicates(panel, estimator, config, ctx)?;
-    let mut points =
-        replicates.iter().filter_map(|record| record.point).collect::<Vec<_>>();
+    let mut points = replicates.iter().filter_map(|record| record.point).collect::<Vec<_>>();
     let failed = replicates.len() - points.len();
     #[allow(clippy::cast_precision_loss, reason = "replicate counts are at most 2000")]
     let fraction = failed as f64 / replicates.len() as f64;

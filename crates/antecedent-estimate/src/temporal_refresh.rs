@@ -138,7 +138,11 @@ impl TemporalWindowIdentity {
 
     fn validate(&self) -> Result<(), EstimationError> {
         let invalid = |message: &str| {
-            refuse(reason_code!("invalid_argument"), "temporal_refresh.invalid_replacement", message)
+            refuse(
+                reason_code!("invalid_argument"),
+                "temporal_refresh.invalid_replacement",
+                message,
+            )
         };
         if self.period.end <= self.period.start {
             return Err(invalid("the replacement period is empty or reversed"));
@@ -226,7 +230,10 @@ pub enum RefreshDecision {
 /// alignment, intervention history, premises, snapshot/period), each independently
 /// sufficient to invalidate.
 #[must_use]
-pub fn decide_refresh(old: &TemporalWindowIdentity, new: &TemporalWindowIdentity) -> RefreshDecision {
+pub fn decide_refresh(
+    old: &TemporalWindowIdentity,
+    new: &TemporalWindowIdentity,
+) -> RefreshDecision {
     let invalidated = RefreshDecision::Invalidated;
     if old.horizon != new.horizon || new.horizon != TEMPORAL_REFRESH_HORIZON {
         return invalidated(RefreshInvalidation::HorizonChanged);

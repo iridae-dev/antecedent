@@ -468,7 +468,11 @@ pub struct TemporalCounterfactualResult {
 }
 
 fn poll(ctx: &ExecutionContext) -> Result<(), TemporalCounterfactualError> {
-    if ctx.cancellation.is_cancelled() { Err(TemporalCounterfactualError::Cancelled) } else { Ok(()) }
+    if ctx.cancellation.is_cancelled() {
+        Err(TemporalCounterfactualError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 fn sorted_edges(graph: &TemporalGraph) -> Vec<(usize, usize)> {
@@ -480,7 +484,10 @@ fn sorted_edges(graph: &TemporalGraph) -> Vec<(usize, usize)> {
 
 fn validate_graph(graph: &TemporalGraph) -> Result<(), TemporalCounterfactualError> {
     if graph.horizon > MAX_HORIZON {
-        return Err(invalid("temporal_counterfactual.horizon_exceeded", Some(graph.horizon.to_string())));
+        return Err(invalid(
+            "temporal_counterfactual.horizon_exceeded",
+            Some(graph.horizon.to_string()),
+        ));
     }
     if graph.horizon != MAX_HORIZON {
         return Err(invalid("temporal_counterfactual.invalid_graph", Some("horizon".to_owned())));
@@ -496,7 +503,11 @@ fn validate_graph(graph: &TemporalGraph) -> Result<(), TemporalCounterfactualErr
         if bad {
             return Err(invalid(
                 "temporal_counterfactual.invalid_graph",
-                Some(format!("{} -> {}", TemporalNode::ALL[*parent].name(), TemporalNode::ALL[*child].name())),
+                Some(format!(
+                    "{} -> {}",
+                    TemporalNode::ALL[*parent].name(),
+                    TemporalNode::ALL[*child].name()
+                )),
             ));
         }
     }
@@ -509,7 +520,8 @@ fn compile_fit<'a>(
     graph: &TemporalGraph,
     fit: &'a TemporalMechanismFit,
 ) -> Result<[&'a NodeMechanism; 3], TemporalCounterfactualError> {
-    let mismatch = |what: &str| invalid("temporal_counterfactual.fit_mismatch", Some(what.to_owned()));
+    let mismatch =
+        |what: &str| invalid("temporal_counterfactual.fit_mismatch", Some(what.to_owned()));
     let find = |node: TemporalNode| -> Result<&'a NodeMechanism, TemporalCounterfactualError> {
         let mut hits = fit.mechanisms.iter().filter(|m| m.node == node);
         match (hits.next(), hits.next()) {
@@ -527,7 +539,8 @@ fn compile_fit<'a>(
     ];
     let edges = sorted_edges(graph);
     for mech in mechs {
-        let mut parents: Vec<usize> = mech.parent_coefficients.iter().map(|(p, _)| p.index()).collect();
+        let mut parents: Vec<usize> =
+            mech.parent_coefficients.iter().map(|(p, _)| p.index()).collect();
         parents.sort_unstable();
         let graph_parents: Vec<usize> =
             edges.iter().filter(|(_, c)| *c == mech.node.index()).map(|(p, _)| *p).collect();
@@ -559,7 +572,11 @@ fn unit_set<'a>(
     Ok(set)
 }
 
-fn unpaired(world: &str, unit: &UnitId, history: Option<&HistoryId>) -> TemporalCounterfactualError {
+fn unpaired(
+    world: &str,
+    unit: &UnitId,
+    history: Option<&HistoryId>,
+) -> TemporalCounterfactualError {
     unsupported(
         "temporal_counterfactual.unpaired_histories",
         Some(unit.as_str().to_owned()),
@@ -618,7 +635,10 @@ fn check_inputs(
         return Err(unsupported("temporal_counterfactual.shared_history_missing", None, None));
     }
     if factual.len() > MAX_UNITS {
-        return Err(invalid("temporal_counterfactual.too_many_units", Some(factual.len().to_string())));
+        return Err(invalid(
+            "temporal_counterfactual.too_many_units",
+            Some(factual.len().to_string()),
+        ));
     }
     let names_ok = !spec.plus.name.trim().is_empty()
         && !spec.minus.name.trim().is_empty()
@@ -628,7 +648,10 @@ fn check_inputs(
     }
     for world in [&spec.plus, &spec.minus] {
         if !world.actions.iter().all(|a| a.is_finite()) {
-            return Err(invalid("temporal_counterfactual.non_finite_history", Some(world.name.clone())));
+            return Err(invalid(
+                "temporal_counterfactual.non_finite_history",
+                Some(world.name.clone()),
+            ));
         }
     }
     check_pairing(spec, factual)?;
@@ -726,7 +749,8 @@ fn abduce_unit(
     let mut noise = [0.0; 3];
     for (slot, mech) in mechs.iter().enumerate() {
         let residual = unit.values[mech.node.index()] - node_value(mech, &unit.values);
-        let refuted = !residual.is_finite() || mech.noise_halfwidth.is_some_and(|h| residual.abs() > h);
+        let refuted =
+            !residual.is_finite() || mech.noise_halfwidth.is_some_and(|h| residual.abs() > h);
         if refuted {
             return Err(unsupported(
                 "temporal_counterfactual.refuting_history",

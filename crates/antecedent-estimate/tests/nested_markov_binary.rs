@@ -10,8 +10,8 @@
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nested_markov_binary::{
-    AdmgDeclaration, BinaryCells, ConstraintStatus, FitMethod, FitOptions, InferenceStanding,
-    IdentificationStanding, LikelihoodFitStanding, NestedMarkovInput, Regime, RegimeCounts,
+    AdmgDeclaration, BinaryCells, ConstraintStatus, FitMethod, FitOptions, IdentificationStanding,
+    InferenceStanding, LikelihoodFitStanding, NestedMarkovInput, Regime, RegimeCounts,
     binary_cells, check_likelihood, constraint_residuals, evaluate_nested_markov_pilot,
     fit_nested_markov, refuse_public_interval_route,
 };
@@ -155,10 +155,7 @@ fn x4_nested_likelihood_truth_exact_counts_recover_scm() {
     // The three standings are separate fields.
     assert_eq!(report.status.identification, IdentificationStanding::NonparametricallyIdentified);
     assert_eq!(report.status.likelihood_fit, LikelihoodFitStanding::ConvergedConstraintsSatisfied);
-    assert_eq!(
-        report.status.inference,
-        InferenceStanding::IntervalWithheldCalibrationUnmeasured
-    );
+    assert_eq!(report.status.inference, InferenceStanding::IntervalWithheldCalibrationUnmeasured);
 
     // The interval route stays closed.
     let (code, message) = coded(&refuse_public_interval_route());
@@ -191,7 +188,8 @@ fn x4_nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fail
     // The fitted model and the plug-in are different quantities here.
     assert!(report.comparison.difference.abs() > 1e-9);
     // A strict caller refuses instead of fitting.
-    let strict = FitOptions { refuse_constraint_residual_above: Some(1e-6), ..FitOptions::default() };
+    let strict =
+        FitOptions { refuse_constraint_residual_above: Some(1e-6), ..FitOptions::default() };
     let counts = BinaryCells::new(&scaled(&law, 1.0e6)).expect("counts");
     let refusal = fit_nested_markov(&counts, &strict, &ctx).expect_err("strict refusal");
     let (code, message) = coded(&refusal.error);
@@ -308,8 +306,8 @@ fn x4_nested_fit_diagnostics_bounds_cancellation_and_positivity() {
 
     let cancelled = ExecutionContext::for_tests(7);
     cancelled.cancellation.cancel();
-    let refusal = fit_nested_markov(&counts, &FitOptions::default(), &cancelled)
-        .expect_err("cancelled");
+    let refusal =
+        fit_nested_markov(&counts, &FitOptions::default(), &cancelled).expect_err("cancelled");
     assert_eq!(coded(&refusal.error).0, "transport_budget_cancel");
 
     let mut cells = scaled(&scm_law(0.4, 0.0), 1.0e6);

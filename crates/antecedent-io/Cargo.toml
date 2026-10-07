@@ -26,6 +26,7 @@ calibration-internal = ["antecedent-estimate/calibration-internal"]
 
 [dependencies]
 antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
+antecedent-counterfactual = { version = "2.2.0", path = "../antecedent-counterfactual" }
 antecedent-discovery = { version = "2.2.0", path = "../antecedent-discovery" }
 antecedent-estimate = { version = "2.2.0", path = "../antecedent-estimate" }
 antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }

@@ -41,10 +41,9 @@ fn refusal(error: EstimationError) -> (&'static str, String) {
     (code, message)
 }
 
-fn run_independent(parts: &[PartitionEstimate]) -> Result<
-    antecedent_estimate::effect_constancy::EffectConstancyResult,
-    EstimationError,
-> {
+fn run_independent(
+    parts: &[PartitionEstimate],
+) -> Result<antecedent_estimate::effect_constancy::EffectConstancyResult, EstimationError> {
     test_effect_constancy(parts, &PartitionDependence::Independent, &ContrastFamily::AllPairs, 0.05)
 }
 
@@ -195,7 +194,8 @@ fn f18_incompatible_partition_estimand_units_and_regime_refuse() {
 fn f18_incompatible_partition_unsupported_coordinate_and_duplicate_label_refuse() {
     let mut unsupported = part("b", 1.0, 0.5);
     unsupported.support = PartitionSupport::Unsupported;
-    let (code, message) = refusal(run_independent(&[part("a", 1.0, 0.5), unsupported]).unwrap_err());
+    let (code, message) =
+        refusal(run_independent(&[part("a", 1.0, 0.5), unsupported]).unwrap_err());
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("effect_constancy.unsupported_partition"));
     let (code, message) =
@@ -232,11 +232,11 @@ fn f18_incompatible_partition_too_few_and_non_finite_refuse() {
 fn f18_incompatible_partition_invalid_covariance_refuses() {
     let parts = [part("a", 1.0, 0.5), part("b", 2.0, 0.5)];
     let cases: [Vec<f64>; 5] = [
-        vec![0.25, 0.0, 0.0],                // wrong size
-        vec![0.25, 0.1, 0.2, 0.25],          // not symmetric
-        vec![0.25, 0.5, 0.5, 0.25],          // not positive definite (correlation 2)
-        vec![0.25, 0.25, 0.25, 0.25],        // singular
-        vec![1.0, 0.0, 0.0, 0.25],           // diagonal does not match the standard error
+        vec![0.25, 0.0, 0.0],         // wrong size
+        vec![0.25, 0.1, 0.2, 0.25],   // not symmetric
+        vec![0.25, 0.5, 0.5, 0.25],   // not positive definite (correlation 2)
+        vec![0.25, 0.25, 0.25, 0.25], // singular
+        vec![1.0, 0.0, 0.0, 0.25],    // diagonal does not match the standard error
     ];
     for covariance in cases {
         let error = test_effect_constancy(
@@ -264,8 +264,8 @@ fn f18_incompatible_partition_invalid_covariance_refuses() {
 fn f18_incompatible_partition_unknown_reference_and_alpha_refuse() {
     let parts = [part("a", 1.0, 0.5), part("b", 2.0, 0.5)];
     let family = ContrastFamily::AgainstReference("zzz".into());
-    let error =
-        test_effect_constancy(&parts, &PartitionDependence::Independent, &family, 0.05).unwrap_err();
+    let error = test_effect_constancy(&parts, &PartitionDependence::Independent, &family, 0.05)
+        .unwrap_err();
     assert!(refusal(error).1.contains("effect_constancy.unknown_reference"));
     let error = test_effect_constancy(
         &parts,
@@ -288,11 +288,7 @@ fn f18_partition_permutation_gives_bit_identical_statistic() {
 
     // Dependent: permute estimates and the covariance consistently.
     let cov = |order: &[usize]| {
-        let full = [
-            [0.16, 0.05, -0.02],
-            [0.05, 0.36, 0.03],
-            [-0.02, 0.03, 0.25],
-        ];
+        let full = [[0.16, 0.05, -0.02], [0.05, 0.36, 0.03], [-0.02, 0.03, 0.25]];
         let mut flat = Vec::new();
         for &i in order {
             for &j in order {

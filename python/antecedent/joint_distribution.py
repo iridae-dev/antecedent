@@ -127,11 +127,11 @@ class JointDistributionArtifact:
         self._identity = identity
 
     @classmethod
-    def load(cls, data: bytes, *, expected_identity: DistributionIdentity) -> JointDistributionArtifact:
+    def load(
+        cls, data: bytes, *, expected_identity: DistributionIdentity
+    ) -> JointDistributionArtifact:
         """Load only under the consumer's independently retained identity."""
-        native = _NativeJointDistributionArtifact.load(
-            data, json.dumps(expected_identity._wire())
-        )
+        native = _NativeJointDistributionArtifact.load(data, json.dumps(expected_identity._wire()))
         obj = cls.__new__(cls)
         obj._native = native
         obj._identity = expected_identity
@@ -180,9 +180,7 @@ class JointDistributionArtifact:
     def trust(self) -> str:
         return json.loads(self._native.metadata_json)["trust"]
 
-    def __array__(
-        self, dtype: Any = None, copy: bool | None = None
-    ) -> NDArray[Any]:
+    def __array__(self, dtype: Any = None, copy: bool | None = None) -> NDArray[Any]:
         """Return a NumPy-owned copy; explicit ``copy=False`` cannot avoid it."""
         if copy is False:
             raise ValueError("JointDistributionArtifact requires one bounded copy into NumPy")

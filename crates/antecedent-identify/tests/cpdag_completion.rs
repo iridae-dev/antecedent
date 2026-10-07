@@ -168,7 +168,8 @@ fn x2_cpdag_enumerated_truth_sets() {
         assert!(enumeration.is_exportable() && enumeration.not_enumerated == 0, "{}", case.name);
         assert_eq!(enumeration.total(), case.total);
         // Identities are 64 hex characters, distinct, and in ascending order.
-        let ids = enumeration.completions.iter().map(|c| c.identity.to_string()).collect::<Vec<_>>();
+        let ids =
+            enumeration.completions.iter().map(|c| c.identity.to_string()).collect::<Vec<_>>();
         assert!(ids.iter().all(|id| id.len() == 64 && id.bytes().all(|b| b.is_ascii_hexdigit())));
         assert!(ids.windows(2).all(|w| w[0] < w[1]), "{}: identity order", case.name);
         // Each completion's edge list is sorted and keeps the CPDAG's directed edges.
@@ -240,7 +241,12 @@ fn id_of(enumeration: &CpdagEnumeration, edges: &[(u32, u32)]) -> Arc<str> {
     Arc::clone(&found.identity)
 }
 
-fn binding(id: &Arc<str>, certified: &Arc<str>, name: &str, measured: &[u32]) -> CompletionEvidenceBinding {
+fn binding(
+    id: &Arc<str>,
+    certified: &Arc<str>,
+    name: &str,
+    measured: &[u32],
+) -> CompletionEvidenceBinding {
     CompletionEvidenceBinding {
         completion: Arc::clone(id),
         certified_for: Arc::clone(certified),
@@ -299,12 +305,9 @@ fn x2_cpdag_missing_evidence_refusals() {
         directed: vec![(0, 1)],
         total: 1,
     };
-    let refused = enumerate_cpdag_completions(
-        &CpdagCompletionInput::new(cpdag(&compelled)),
-        BIG,
-        &ctx,
-    )
-    .unwrap_err();
+    let refused =
+        enumerate_cpdag_completions(&CpdagCompletionInput::new(cpdag(&compelled)), BIG, &ctx)
+            .unwrap_err();
     assert_eq!((refused.code, refused.detail), ("invalid_argument", CPDAG_NOT_A_CPDAG_DETAIL));
     let mut conflicted = Cpdag::with_variables(2);
     conflicted.insert_undirected(d(0), d(1)).unwrap();
@@ -318,11 +321,8 @@ fn x2_cpdag_missing_evidence_refusals() {
     let forward = [(0, 1), (1, 2)];
     let fork = [(1, 0), (1, 2)];
     let backward = [(1, 0), (2, 1)];
-    let (a, b, c) = (
-        id_of(&chain_set, &forward),
-        id_of(&chain_set, &fork),
-        id_of(&chain_set, &backward),
-    );
+    let (a, b, c) =
+        (id_of(&chain_set, &forward), id_of(&chain_set, &fork), id_of(&chain_set, &backward));
     // A completion whose catalog lacks the factor stays missing_evidence.
     let decision = decide(&CpdagEvidence::PerCompletion(vec![
         binding(&a, &a, "ev-a", &[0, 1, 2]),
@@ -370,9 +370,8 @@ fn assert_evidence_mismatch_refusals(a: &Arc<str>, b: &Arc<str>) {
     let wrong = decide(&CpdagEvidence::PerCompletion(vec![binding(b, a, "ev", &[0, 1, 2])]));
     assert_eq!(refusal(wrong.unwrap_err()), ("invalid_argument", CPDAG_EVIDENCE_MISMATCH_DETAIL));
     let unknown: Arc<str> = Arc::from("not-a-completion");
-    let wrong = decide(&CpdagEvidence::PerCompletion(vec![binding(
-        &unknown, &unknown, "ev", &[0, 1, 2],
-    )]));
+    let wrong =
+        decide(&CpdagEvidence::PerCompletion(vec![binding(&unknown, &unknown, "ev", &[0, 1, 2])]));
     assert_eq!(refusal(wrong.unwrap_err()).1, CPDAG_EVIDENCE_MISMATCH_DETAIL);
     let twice = decide(&CpdagEvidence::PerCompletion(vec![
         binding(a, a, "ev-1", &[0, 1, 2]),
@@ -393,7 +392,9 @@ fn x2_cpdag_permutation_identities() {
         for variable in &order {
             graph.add_node(NodeRef::Static(v(*variable))).unwrap();
         }
-        let dense = |variable: u32| d(u32::try_from(order.iter().position(|o| *o == variable).unwrap()).unwrap());
+        let dense = |variable: u32| {
+            d(u32::try_from(order.iter().position(|o| *o == variable).unwrap()).unwrap())
+        };
         for (a, b) in case.undirected.iter().rev() {
             graph.insert_undirected(dense(*b), dense(*a)).unwrap();
         }

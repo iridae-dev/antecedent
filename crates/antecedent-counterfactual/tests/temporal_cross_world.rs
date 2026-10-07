@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use antecedent_core::ExecutionContext;
 use antecedent_counterfactual::temporal_cross_world::{
     FactualUnitHistory, HistoryId, NamedActionHistory, NodeMechanism, SnapshotId,
-    TemporalCounterfactualError, TemporalCounterfactualSpec, TemporalGraph,
-    TemporalMechanismFit, TemporalNode, UnitId, evaluate_temporal_counterfactual,
+    TemporalCounterfactualError, TemporalCounterfactualSpec, TemporalGraph, TemporalMechanismFit,
+    TemporalNode, UnitId, evaluate_temporal_counterfactual,
 };
 use antecedent_counterfactual::transported_gate::{
     PopulationRole, RegimeFactorKey, TransportedCounterfactualGate,
@@ -421,10 +421,7 @@ fn x8_transported_gate_absent_regime_factor_is_factor_missing() {
     assert!(refusal.refusal.validate().is_ok());
 
     // A missing gate takes precedence, with the missing factor still retained.
-    let gated = TransportedCounterfactualPrerequisites {
-        transport_license: false,
-        ..all_gates()
-    };
+    let gated = TransportedCounterfactualPrerequisites { transport_license: false, ..all_gates() };
     let refusal = refuse_transported_counterfactual(&gated, &required, &supplied);
     assert_eq!(refusal.refusal.detail, "transported_counterfactual.route_frozen");
     assert_eq!(refusal.missing_factors, vec![required[1].clone()]);

@@ -31,10 +31,8 @@ use antecedent_estimate::temporal_initial_state::{
 /// `P(l = 1 | s0, a1)` in tenths, indexed `[s0][a1]`.
 const P_L1: [[u64; 2]; 2] = [[3, 7], [2, 8]];
 /// Outcome mean in tenths, indexed `[s0][a1][l][a2]`.
-const M10: [[[[i64; 2]; 2]; 2]; 2] = [
-    [[[3, 4], [4, 6]], [[3, 5], [5, 7]]],
-    [[[4, 3], [7, 6]], [[6, 3], [5, 7]]],
-];
+const M10: [[[[i64; 2]; 2]; 2]; 2] =
+    [[[[3, 4], [4, 6]], [[3, 5], [5, 7]]], [[[4, 3], [7, 6]], [[6, 3], [5, 7]]]];
 const SEQUENCE: [u32; 2] = [0, 0];
 
 fn refused(error: EstimationError) -> (&'static str, String) {
@@ -213,9 +211,8 @@ fn x5_source_state_only_refuses_support_gaps_bounds_and_malformed_laws() {
     let many = (0..=INITIAL_STATE_MAX_STATES as u32)
         .map(|s| (s, 1.0 / (INITIAL_STATE_MAX_STATES + 1) as f64))
         .collect();
-    let (code, message) = refused(
-        InitialStateLaw::new(InitialStatePopulation::Target, "many", many).unwrap_err(),
-    );
+    let (code, message) =
+        refused(InitialStateLaw::new(InitialStatePopulation::Target, "many", many).unwrap_err());
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("initial_state.too_many_states"), "{message}");
     let at_cap = (0..INITIAL_STATE_MAX_STATES as u32)

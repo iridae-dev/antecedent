@@ -17,6 +17,7 @@ pub mod contrast_wire;
 pub mod convert;
 pub mod counterfactual_id_artifact;
 pub mod coverage_records_data;
+pub mod cpdag_completion_artifact;
 pub mod cross_world_artifact;
 pub mod discovery_wire;
 pub mod distribution_artifact;
@@ -34,6 +35,7 @@ pub mod graph_json;
 pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod identity;
+pub mod joint_bayesian_transport_artifact;
 pub mod mechanism_wire;
 pub mod migrate;
 pub mod mixed_source_artifact;
@@ -44,6 +46,7 @@ pub mod mixed_source_artifact;
 pub mod mmap_file;
 pub mod model_bundle;
 pub mod mz_transport_artifact;
+pub mod nested_markov_artifact;
 pub mod plan_wire;
 pub mod posterior;
 pub mod posterior_convert;
@@ -55,6 +58,11 @@ pub mod query_wire;
 pub mod reader;
 pub mod recovery_artifact;
 pub mod response_wire;
+pub mod sampled_recovery_artifact;
+pub mod scenario_covariance_artifact;
+pub mod temporal_initial_state_artifact;
+pub mod temporal_interval_artifact;
+pub mod temporal_refresh_artifact;
 pub mod temporal_transport_artifact;
 pub mod trace;
 pub mod transport_catalog_wire;
@@ -374,9 +382,13 @@ mod tests {
 /// Transport grid artifact records and encoding.
 pub mod transport_grid_wire;
 
+/// F18 effect-constancy artifact (`effect_constancy_v1`) and its recomputing consumer.
+pub mod effect_constancy_artifact;
 /// Learned continuous-outcome trial transport artifact verification (2.2A X4).
 pub mod learned_continuous_artifact;
 /// Learner-backed trial transport artifact verification.
 pub mod learned_trial_wire;
 /// Smoothed dose-response transport grid artifact verification (2.2B X4).
 pub mod smoothed_dose_artifact;
+/// X8 fixed-population temporal counterfactual artifact (`temporal_counterfactual_v1`).
+pub mod temporal_counterfactual_artifact;

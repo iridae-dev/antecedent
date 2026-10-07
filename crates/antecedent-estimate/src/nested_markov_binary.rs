@@ -354,9 +354,8 @@ impl NestedParameters {
             for x2 in 0..2 {
                 for x3 in 0..2 {
                     for x4 in 0..2 {
-                        cells[cell_index(x1, x2, x3, x4)] = bern(self.a, x1)
-                            * bern(self.c[x2], x3)
-                            * self.q24(x2, x4, x1, x3);
+                        cells[cell_index(x1, x2, x3, x4)] =
+                            bern(self.a, x1) * bern(self.c[x2], x3) * self.q24(x2, x4, x1, x3);
                     }
                 }
             }

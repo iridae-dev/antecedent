@@ -623,7 +623,8 @@ pub fn shared_row_bootstrap_covariance(
             ),
         ));
     }
-    let mut out = finish(scenarios, &identity, &tally, CovarianceMethod::SharedRowBootstrap, &digest)?;
+    let mut out =
+        finish(scenarios, &identity, &tally, CovarianceMethod::SharedRowBootstrap, &digest)?;
     out.replicate_ids = kept_ids;
     out.failed_replicate_ids = failed_ids;
     out.replicates_total = widen(options.replicates);
@@ -767,7 +768,8 @@ pub fn exact_enumeration_covariance(
             ),
         ));
     }
-    let mut out = finish(scenarios, &identity, &tally, CovarianceMethod::ExactEnumeration, &digest)?;
+    let mut out =
+        finish(scenarios, &identity, &tally, CovarianceMethod::ExactEnumeration, &digest)?;
     out.replicates_total = u64::try_from(total).unwrap_or(u64::MAX);
     Ok(out)
 }

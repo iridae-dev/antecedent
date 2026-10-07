@@ -121,9 +121,9 @@ def test_independent_marginals_refuse_python_joint_operations() -> None:
 
 
 def test_fresh_python_process_consumes_with_independent_identity(tmp_path) -> None:
-    data = JointDistributionArtifact(
-        identity(), np.array([[0.0, 0.0], [1.0, 2.0]])
-    ).export("joint-python")
+    data = JointDistributionArtifact(identity(), np.array([[0.0, 0.0], [1.0, 2.0]])).export(
+        "joint-python"
+    )
     path = tmp_path / "joint.bin"
     path.write_bytes(data)
     script = """

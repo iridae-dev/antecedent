@@ -31,10 +31,8 @@ use antecedent_estimate::temporal_initial_state::{
 /// `P(l = 1 | s0, a1)` in tenths, indexed `[s0][a1]`.
 const P_L1: [[u64; 2]; 2] = [[3, 7], [2, 8]];
 /// Outcome mean in tenths, indexed `[s0][a1][l][a2]`.
-const M10: [[[[i64; 2]; 2]; 2]; 2] = [
-    [[[3, 4], [4, 6]], [[3, 5], [5, 7]]],
-    [[[4, 3], [7, 6]], [[6, 3], [5, 7]]],
-];
+const M10: [[[[i64; 2]; 2]; 2]; 2] =
+    [[[[3, 4], [4, 6]], [[3, 5], [5, 7]]], [[[4, 3], [7, 6]], [[6, 3], [5, 7]]]];
 const SEQUENCE: [u32; 2] = [0, 0];
 /// The target initial-state law: state 1 is the mode.
 const TARGET: [(u32, f64); 2] = [(0, 0.3), (1, 0.7)];
@@ -143,8 +141,8 @@ fn x5_dynamic_scm_interval_point_equals_enumerated_truth() {
 #[test]
 fn x5_dynamic_scm_interval_unit_resample_is_wider_than_iid_rows_and_covers_truth() {
     let truth = target_truth();
-    let by_unit = dependent_unit_interval(&panel(30, false), &target_query(), &config(7), &ctx())
-        .unwrap();
+    let by_unit =
+        dependent_unit_interval(&panel(30, false), &target_query(), &config(7), &ctx()).unwrap();
     let by_row =
         dependent_unit_interval(&panel(30, true), &target_query(), &config(7), &ctx()).unwrap();
     assert_eq!(by_unit.units, 30);
@@ -173,7 +171,8 @@ fn x5_dynamic_scm_interval_replicate_ids_and_digests_reproduce() {
     assert_eq!(first.replicates, again.replicates);
     assert_eq!(first.replicate_digest(), again.replicate_digest());
     assert_eq!(first, again);
-    let ids = first.replicates.iter().map(|r| r.replicate_id).collect::<std::collections::BTreeSet<_>>();
+    let ids =
+        first.replicates.iter().map(|r| r.replicate_id).collect::<std::collections::BTreeSet<_>>();
     assert_eq!(ids.len(), 200, "replicate ids are distinct");
     let other_seed = dependent_unit_interval(&p, &target_query(), &config(12), &ctx()).unwrap();
     assert_ne!(first.replicate_digest(), other_seed.replicate_digest());
@@ -272,8 +271,7 @@ fn x5_dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation
 fn fragile_panel() -> TemporalUnitPanel {
     let units = (0..30_u64)
         .map(|u| {
-            let mut histories =
-                vec![history(0, (0, 0, 0, 0, 1.0)), history(1, (0, 0, 1, 1, 1.0))];
+            let mut histories = vec![history(0, (0, 0, 0, 0, 1.0)), history(1, (0, 0, 1, 1, 1.0))];
             if u == 0 {
                 histories.push(history(2, (0, 0, 1, 0, 1.0)));
             }
@@ -286,9 +284,8 @@ fn fragile_panel() -> TemporalUnitPanel {
 #[test]
 fn x5_dynamic_scm_interval_failed_replicates_are_counted_dropped_and_bounded() {
     let query = FixedStateQuery { sequence: SEQUENCE, s0: 0 };
-    let strict = refused(
-        dependent_unit_interval(&fragile_panel(), &query, &config(3), &ctx()).unwrap_err(),
-    );
+    let strict =
+        refused(dependent_unit_interval(&fragile_panel(), &query, &config(3), &ctx()).unwrap_err());
     assert_eq!(strict.0, "route_not_supported");
     assert!(strict.1.contains("temporal_interval.unsupported_history"), "{}", strict.1);
 

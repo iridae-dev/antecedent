@@ -166,7 +166,10 @@ fn permuted_chain() -> Cpdag {
 }
 
 fn shared() -> CpdagEvidence {
-    CpdagEvidence::Shared { evidence_identity: Arc::from("target-law"), catalog: catalog(&[0, 1, 2]) }
+    CpdagEvidence::Shared {
+        evidence_identity: Arc::from("target-law"),
+        catalog: catalog(&[0, 1, 2]),
+    }
 }
 
 fn prepare(
@@ -234,7 +237,9 @@ fn x2_cpdag_enumerated_truth_effects_and_envelope() {
         assert!(close(got, expected), "{:?}: {got} vs {expected}", entry.edges);
     }
     // The constants behind the truth: 0.8 for the first two completions, 0.38 for the third.
-    assert!(close(truth(&FORWARD), 0.8) && close(truth(&FORK), 0.8) && close(truth(&BACKWARD), 0.38));
+    assert!(
+        close(truth(&FORWARD), 0.8) && close(truth(&FORK), 0.8) && close(truth(&BACKWARD), 0.38)
+    );
     // The completions disagree, and the envelope spans all of them.
     let inner = report.report.as_ref().unwrap();
     let envelope = inner.envelope.as_ref().unwrap();
@@ -255,8 +260,7 @@ fn x2_cpdag_enumerated_truth_effects_and_envelope() {
 fn x2_cpdag_missing_evidence_status() {
     // The backward completion is bound to a catalog that lacks the outcome.
     let ids = report(chain(), &shared());
-    let (a, b, c) =
-        (id_of(&ids, &FORWARD), id_of(&ids, &FORK), id_of(&ids, &BACKWARD));
+    let (a, b, c) = (id_of(&ids, &FORWARD), id_of(&ids, &FORK), id_of(&ids, &BACKWARD));
     let bind = |id: &Arc<str>, name: &str, measured: &[u32]| CompletionEvidenceBinding {
         completion: Arc::clone(id),
         certified_for: Arc::clone(id),
@@ -291,10 +295,7 @@ fn x2_cpdag_missing_evidence_status() {
     let report = self::report(chain(), &only_one);
     assert_eq!((report.identified, report.unidentified), (1, 2));
     assert_eq!(report.status_count("missing_evidence"), 2);
-    assert_eq!(
-        report.completions.iter().filter(|e| e.evidence_identity.is_none()).count(),
-        2
-    );
+    assert_eq!(report.completions.iter().filter(|e| e.evidence_identity.is_none()).count(), 2);
     assert!(report.report.unwrap().envelope.is_some());
 }
 

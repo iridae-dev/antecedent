@@ -233,6 +233,7 @@ name = "antecedent-io"
 version = "2.2.0"
 dependencies = [
  "antecedent-core",
+ "antecedent-counterfactual",
  "antecedent-discovery",
  "antecedent-estimate",
  "antecedent-expr",

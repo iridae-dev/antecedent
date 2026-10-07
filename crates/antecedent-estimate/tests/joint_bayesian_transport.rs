@@ -131,7 +131,12 @@ fn model_with(
         sharing,
         dependence: SourceDependence::IndependentSamples,
         priors: JointPriors {
-            invariant: GaussianPrior::isotropic(q, theta_mean, theta_var, PriorProvenance::Declared),
+            invariant: GaussianPrior::isotropic(
+                q,
+                theta_mean,
+                theta_var,
+                PriorProvenance::Declared,
+            ),
             varying: GaussianPrior::isotropic(r, 0.0, 4.0, PriorProvenance::Declared),
         },
         max_unsupported_mass: 0.0,
@@ -349,10 +354,8 @@ fn check_draws_against_oracle(f: &JointTransportFit, o: &Oracle, raws: &[&Raw]) 
     assert_sample_moments(&f.draws, &f.parameter_names, &o.mean, &o.cov);
     let vectors = effect_vectors(o, raws);
     let means: Vec<f64> = vectors.iter().map(|c| dot(c, &o.mean)).collect();
-    let cov: Vec<Vec<f64>> = vectors
-        .iter()
-        .map(|a| vectors.iter().map(|b| quad(&o.cov, a, b)).collect())
-        .collect();
+    let cov: Vec<Vec<f64>> =
+        vectors.iter().map(|a| vectors.iter().map(|b| quad(&o.cov, a, b)).collect()).collect();
     assert_sample_moments(&f.draws, &f.effect_names, &means, &cov);
 }
 
@@ -729,15 +732,9 @@ fn x4_prior_data_overlap_bounds_and_source_dependence_refuse() {
     let mut m = model();
     m.features = (0..p).collect();
     let ctx = ExecutionContext::for_tests(1);
-    let refusal = fit_joint_bayesian_transport(
-        &id,
-        &m,
-        &[wide_source],
-        Some(&wide_target),
-        &options(),
-        &ctx,
-    )
-    .unwrap_err();
+    let refusal =
+        fit_joint_bayesian_transport(&id, &m, &[wide_source], Some(&wide_target), &options(), &ctx)
+            .unwrap_err();
     assert_eq!(refusal.code, "invalid_argument");
     assert_eq!(refusal.detail, DETAIL_TOO_MANY_PARAMETERS);
 }
@@ -769,8 +766,8 @@ fn x4_posterior_conflicting_sources_are_reported_not_silently_pooled() {
     assert!(!g.diagnostics.disagreement.flagged);
     assert!(g.diagnostics.disagreement.max_abs_z < 3.0);
     // A single source has no disagreement to report.
-    let one = fit(&model(), &conflicting[..1], &JointTransportOptions { draws: 50, seed: 3 })
-        .unwrap();
+    let one =
+        fit(&model(), &conflicting[..1], &JointTransportOptions { draws: 50, seed: 3 }).unwrap();
     assert!(one.diagnostics.disagreement.pairs.is_empty());
 }
 
@@ -781,7 +778,8 @@ fn x4_posterior_prior_strength_never_changes_identification_status() {
     let small = JointTransportOptions { draws: 50, seed: 1 };
     let mut records = Vec::new();
     for var in [1e-8, 1.0, 1e8] {
-        let m = model_with(VaryingBlock::Intercept, SourceSharing::IndependentVaryingBlocks, 3.0, var);
+        let m =
+            model_with(VaryingBlock::Intercept, SourceSharing::IndependentVaryingBlocks, 3.0, var);
         records.push(fit(&m, &sources, &small).unwrap().identification);
     }
     assert!(records.windows(2).all(|w| w[0] == w[1]));
@@ -789,7 +787,8 @@ fn x4_posterior_prior_strength_never_changes_identification_status() {
     assert_eq!(records[0].formula, "standardize");
     assert_eq!(records[0].rule, "standardization");
     // An infinitely confident prior cannot rescue an uncertified derivation.
-    let tight = model_with(VaryingBlock::Intercept, SourceSharing::IndependentVaryingBlocks, 2.0, 1e-12);
+    let tight =
+        model_with(VaryingBlock::Intercept, SourceSharing::IndependentVaryingBlocks, 2.0, 1e-12);
     let not_certified = TransportIdentification::NotCertified(NotCertifiedCertificate {
         reason: Arc::from("selection_on_outcome"),
         witness: Arc::from([]),

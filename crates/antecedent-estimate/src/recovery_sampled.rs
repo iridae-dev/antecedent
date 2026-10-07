@@ -610,7 +610,11 @@ impl Layout {
     }
 
     fn cell(&self, pattern: ObservationPattern) -> usize {
-        self.roles.iter().zip(&self.strides).map(|(&role, &stride)| Self::level(pattern, role) * stride).sum()
+        self.roles
+            .iter()
+            .zip(&self.strides)
+            .map(|(&role, &stride)| Self::level(pattern, role) * stride)
+            .sum()
     }
 
     fn pattern(&self, cell: usize) -> ObservationPattern {
@@ -656,10 +660,7 @@ fn validate_config(config: &SampledRecoveryConfig) -> Result<(), SampledRecovery
     if config.replicates > SAMPLED_RECOVERY_MAX_REPLICATES {
         return Err(refusal(
             SampledRecoveryDetail::BoundsExceeded,
-            format!(
-                "{} replicates; at most {SAMPLED_RECOVERY_MAX_REPLICATES}",
-                config.replicates
-            ),
+            format!("{} replicates; at most {SAMPLED_RECOVERY_MAX_REPLICATES}", config.replicates),
         ));
     }
     if config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES {

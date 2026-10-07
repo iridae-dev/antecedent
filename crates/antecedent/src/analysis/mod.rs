@@ -24,10 +24,13 @@ mod checked_temporal_effect;
 mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
+pub mod closed_pilots;
 mod contract;
 mod contract_identity;
 mod cost;
+mod cpdag_scenarios;
 mod derived_treatment;
+pub mod effect_constancy;
 mod exact;
 mod execute;
 mod inverse_outcome;
@@ -42,6 +45,8 @@ mod rank_drop_estimate;
 mod recovery;
 mod smoothed_dose;
 mod statistical;
+pub mod temporal_counterfactual;
+mod temporal_extensions;
 mod temporal_transport;
 mod tier_diagnostics;
 mod transport_grid;
@@ -75,6 +80,10 @@ pub(crate) use checked_temporal_graph_posterior_response::{
 pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
     estimate_joint_cell_cost,
+};
+pub use cpdag_scenarios::{
+    PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
+    consume_scenario_covariance_artifact, export_scenario_covariance,
 };
 pub use derived_treatment::{
     ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
@@ -118,6 +127,11 @@ pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smooth
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,
+};
+pub use temporal_extensions::{
+    IntervalEstimand, TemporalInitialState, TemporalWindow,
+    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
+    temporal_dependent_interval,
 };
 pub use temporal_transport::{PreparedTemporalTransport, consume_temporal_transport_artifact};
 pub use tier_diagnostics::{

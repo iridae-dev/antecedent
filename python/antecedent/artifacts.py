@@ -102,7 +102,15 @@ def accept(data: bytes) -> dict[str, str]:
 
 
 __all__ = [
-    "CausalArtifact", "DistributionIdentity", "DistributionMeaning", "DrawAlignment",
-    "JointDistributionArtifact", "PayloadKind", "QuantityCondition", "ScientificQuantity",
-    "accept", "dumps", "loads",
+    "CausalArtifact",
+    "DistributionIdentity",
+    "DistributionMeaning",
+    "DrawAlignment",
+    "JointDistributionArtifact",
+    "PayloadKind",
+    "QuantityCondition",
+    "ScientificQuantity",
+    "accept",
+    "dumps",
+    "loads",
 ]

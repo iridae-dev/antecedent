@@ -126,23 +126,23 @@ pub fn refuse_transported_counterfactual(
         required_factors.iter().filter(|k| !supplied.contains_key(*k)).cloned().collect();
     missing_factors.sort();
     missing_factors.dedup();
-    let (code, detail, offending, remedy) = if missing_gates.is_empty() && !missing_factors.is_empty()
-    {
-        (
-            antecedent_core::reason_code!("transport_missing_evidence"),
-            "transported_counterfactual.factor_missing",
-            missing_factors.first().map(RegimeFactorKey::label),
-            "supply every source and target regime factor cited by the composed proof",
-        )
-    } else {
-        (
-            antecedent_core::reason_code!("cell_not_licensed"),
-            "transported_counterfactual.route_frozen",
-            missing_gates.first().map(|g| g.name().to_owned()),
-            "pass the transport and fixed-population counterfactual licenses and state the \
+    let (code, detail, offending, remedy) =
+        if missing_gates.is_empty() && !missing_factors.is_empty() {
+            (
+                antecedent_core::reason_code!("transport_missing_evidence"),
+                "transported_counterfactual.factor_missing",
+                missing_factors.first().map(RegimeFactorKey::label),
+                "supply every source and target regime factor cited by the composed proof",
+            )
+        } else {
+            (
+                antecedent_core::reason_code!("cell_not_licensed"),
+                "transported_counterfactual.route_frozen",
+                missing_gates.first().map(|g| g.name().to_owned()),
+                "pass the transport and fixed-population counterfactual licenses and state the \
              cross-population assumptions; the joint theorem is still required",
-        )
-    };
+            )
+        };
     TransportedCounterfactualRefusal {
         refusal: StructuredRefusal {
             code,

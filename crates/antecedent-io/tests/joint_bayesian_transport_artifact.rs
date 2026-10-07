@@ -171,8 +171,8 @@ fn x4_posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity(
     let original = artifact(&fit, DrawAlignment::Joint);
     let bytes = original.to_bytes("joint-bayesian-transport-fixture").unwrap();
     // A fresh consumer rebuilds the identity from its own contract, not from the artifact.
-    let loaded = DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint))
-        .unwrap();
+    let loaded =
+        DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint)).unwrap();
     assert_eq!(loaded.shape(), [DRAWS, 3]);
     assert_eq!(loaded.metadata().calibration, DistributionCalibration::Unmeasured);
     assert_eq!(loaded.metadata().identity.alignment, DrawAlignment::Joint);
@@ -180,7 +180,10 @@ fn x4_posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity(
     let e = fit.effect_names.len();
     for i in 0..e {
         let sd = fit.effect_covariance[i * e + i].sqrt();
-        assert!((loaded.mean(i).unwrap() - fit.effect_means[i]).abs() < 5.0 * sd / (DRAWS as f64).sqrt());
+        assert!(
+            (loaded.mean(i).unwrap() - fit.effect_means[i]).abs()
+                < 5.0 * sd / (DRAWS as f64).sqrt()
+        );
         for j in i..e {
             let analytic = fit.effect_covariance[i * e + j];
             let tol = 6.0
@@ -217,5 +220,7 @@ fn x4_posterior_hydration_refuses_changed_meaning_and_independent_marginals() {
     assert!(marginal.covariance(0, 2).is_err());
     assert!(marginal.joint_expectation(0, 2, |s, t| s * t).is_err());
     let bytes = marginal.to_bytes("marginals").unwrap();
-    assert!(DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint)).is_err());
+    assert!(
+        DistributionArtifact::from_bytes(&bytes, &identity(&fit, DrawAlignment::Joint)).is_err()
+    );
 }

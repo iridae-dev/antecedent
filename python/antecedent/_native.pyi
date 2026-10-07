@@ -4483,6 +4483,65 @@ def consume_transport_scenarios_artifact(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
+class CpdagScenarioRun:
+    @property
+    def payload_json(self) -> str: ...
+    def export(self) -> tuple[bytes | None, str | None]: ...
+
+class ScenarioCovarianceRun:
+    @property
+    def payload_json(self) -> str: ...
+    def export(self) -> tuple[bytes | None, str | None]: ...
+
+def cpdag_completion_scenarios_stage(
+    cpdag: Cpdag,
+    coordinates: list[tuple[str, str, int | None, str | None]],
+    outcomes: list[str],
+    treatments: list[str],
+    source: str,
+    target: str,
+    evidence_mode: str,
+    evidence: list[tuple[str | None, list[tuple[str, str]] | None, str, Any, str | None]],
+    laws: Any,
+    assignments: dict[str, float],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[CpdagScenarioRun | None, str | None]: ...
+def consume_cpdag_scenarios_artifact(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    max_laws: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def scenario_shared_covariance_stage(
+    spec_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[ScenarioCovarianceRun | None, str | None]: ...
+def consume_scenario_covariance_artifact(
+    artifact: bytes,
+    *,
+    max_rows: int = 10_000,
+    max_columns: int = 64,
+    max_replicates: int = 2000,
+    max_compositions: int = 4_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
 class PreparedTemporalTransportStage:
     def estimate(
         self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
@@ -4529,6 +4588,64 @@ def consume_temporal_transport_artifact(
     max_laws: int = 256,
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
+) -> str: ...
+
+class NativeTemporalInitialState:
+    """A prepared target-marginal initial-state result and its observation window."""
+
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+    def export_refresh(self) -> tuple[bytes | None, str | None]: ...
+    def refresh(
+        self,
+        snapshot_id: str,
+        units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+        window: tuple[
+            int,
+            list[tuple[str, int]],
+            list[str],
+            list[str],
+            int,
+            int,
+            str | None,
+            str | None,
+        ],
+        interval_existed: bool,
+    ) -> tuple[NativeTemporalInitialState | None, str | None]: ...
+
+def temporal_initial_state_prepare(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    fixed_state: int | None,
+    premises: tuple[str, list[str], str, str, str, str],
+    window: tuple[
+        int, list[tuple[str, int]], list[str], list[str], int, int, str | None, str | None
+    ]
+    | None,
+) -> tuple[NativeTemporalInitialState | None, str | None]: ...
+def consume_temporal_initial_state_artifact(
+    artifact: bytes, *, max_summary_rows: int = 1_000_000, max_units: int = 100_000
+) -> tuple[str | None, str | None]: ...
+def consume_temporal_refresh_artifact(
+    artifact: bytes, *, max_summary_rows: int = 1_000_000, max_units: int = 100_000
+) -> tuple[str | None, str | None]: ...
+def temporal_dependent_interval_closed(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    estimand: str,
+    fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    replicates: int,
+    seed: int,
+    level: float,
+    method: str,
+    min_units: int,
+    max_failed_fraction: float,
 ) -> str: ...
 def evaluate_cross_world_edge_contrast(
     names: list[str],
@@ -4825,6 +4942,29 @@ def candidate_screen_from_units(
     first: list[int] | None = None,
     second: list[int] | None = None,
 ) -> tuple[str, list[int], list[int], int, str, int, int, int, str]: ...
+def joint_bayesian_transport_closed(
+    graph_class: str,
+    dependence: str,
+    varying: str,
+    sharing: str,
+    features: int,
+    sources: int,
+    has_target: bool,
+    draws: int,
+) -> None: ...
+def binary_nested_markov_closed(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+) -> None: ...
+def sampled_observation_recovery_closed(
+    graph_recoverable: bool,
+    partially_observed: int,
+    fully_observed: int,
+    replicates: int,
+    rows: list[tuple[int, int, int, int]],
+) -> None: ...
 
 class ObservationRecoveryStage:
     @property
@@ -5481,3 +5621,22 @@ def evaluate_decision_means(
     causal_contract_id: str,
 ) -> tuple[str | None, str | None]: ...
 def composition_lineage(links_json: str) -> str: ...
+def evaluate_effect_constancy(
+    request_json: str, artifact_id: str
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_effect_constancy_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_temporal_counterfactual(
+    request_json: str, artifact_id: str, *, seed: int = 0
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_temporal_counterfactual_artifact(
+    artifact: bytes, expected_identity_json: str | None = None, *, seed: int = 0
+) -> tuple[str | None, str | None]: ...
+def transported_path_specific_refusal(
+    transport_license: bool,
+    fixed_population_license: bool,
+    cross_population_assumptions: bool,
+    required_factors: list[tuple[str, str]],
+    supplied_factors: list[tuple[str, str, str]],
+) -> str: ...

@@ -129,6 +129,11 @@ pub use analysis::{
     check_derived_treatment, estimate_derived_joint_cells,
 };
 pub use analysis::{
+    IntervalEstimand, TemporalInitialState, TemporalWindow,
+    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
+    temporal_dependent_interval,
+};
+pub use analysis::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
     JointProvenanceWire, JointReceiptWire, JointSamplingWire, JointSensitivityArtifactWire,
     JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
@@ -140,6 +145,10 @@ pub use analysis::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_
 pub use analysis::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use analysis::{
     ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
+};
+pub use analysis::{
+    PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
+    consume_scenario_covariance_artifact, export_scenario_covariance,
 };
 pub use analysis::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use analysis::{PreparedTemporalTransport, consume_temporal_transport_artifact};
