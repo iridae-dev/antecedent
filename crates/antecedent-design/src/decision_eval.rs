@@ -317,6 +317,7 @@ pub fn evaluate_contract(
                 .collect::<Result<_, _>>()?;
             let [_, width] = source.shape();
             let mut held = 0.0;
+            let mut positive_violation = false;
             let mut row = vec![0.0; columns.len()];
             for (draw, weight) in weights.iter().enumerate() {
                 for (slot, column) in columns.iter().enumerate() {
@@ -328,9 +329,17 @@ pub fn evaluate_contract(
                 }
                 if value <= constraint.bound {
                     held += weight;
+                } else if *weight > 0.0 {
+                    positive_violation = true;
                 }
             }
-            if held + 1e-12 < constraint.min_probability {
+            let fails = if constraint.min_probability == 1.0 {
+                positive_violation
+            } else {
+                held + MASS_TOLERANCE * held.max(constraint.min_probability)
+                    < constraint.min_probability
+            };
+            if fails {
                 exclusions[index].push(ConstraintExclusion {
                     constraint_id: constraint.id.clone(),
                     probability: held,

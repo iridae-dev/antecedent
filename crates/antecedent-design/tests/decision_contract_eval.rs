@@ -405,3 +405,28 @@ fn nonfinite_aggregates_refuse_instead_of_ranking_nan_or_infinity() {
         Err(DecisionEvalError::NonFiniteUtility { .. })
     ));
 }
+
+#[test]
+fn hard_constraints_respect_tiny_positive_probability_mass() {
+    let mut c = contract(DecisionCriterion::PosteriorExpectedUtility);
+    c.constraints.push(HardConstraint {
+        id: "cap".into(),
+        expr: UtilityExpr::Input(1),
+        bound: 5.0,
+        min_probability: 1.0,
+        units: "units".into(),
+        applies_to: vec!["risky".into()],
+    });
+    let rare = artifact(
+        P,
+        Q,
+        DrawAlignment::Joint,
+        DistributionMeaningWire::InterventionalPredictive,
+        Some(vec![1.0, 1.0, 1.0, 1e-15]),
+    );
+    assert!(!evaluate_contract(&c, &rare).unwrap().actions[0].admissible);
+    // Zero success probability cannot meet even a tiny positive requirement.
+    c.constraints[0].bound = -1.0;
+    c.constraints[0].min_probability = 1e-15;
+    assert!(!evaluate_contract(&c, &rare).unwrap().actions[0].admissible);
+}
