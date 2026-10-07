@@ -11,6 +11,7 @@ pub mod analysis_wire;
 pub mod arrow_section;
 pub mod calibration;
 pub mod causal_artifact;
+pub mod compact_export;
 pub mod container;
 pub mod contract_section;
 pub mod contrast_wire;
@@ -382,13 +383,27 @@ mod tests {
 /// Transport grid artifact records and encoding.
 pub mod transport_grid_wire;
 
+/// B4 categorical-treatment artifact (`categorical_treatment_v1`) and its recomputing consumer.
+pub mod categorical_treatment_artifact;
+/// B1 dose-grid functional artifact (`dose_grid_functional_row_v1`) and its recomputing consumer.
+pub mod dose_grid_functional_artifact;
 /// F18 effect-constancy artifact (`effect_constancy_v1`) and its recomputing consumer.
 pub mod effect_constancy_artifact;
+/// B4 latent-class regime-effects artifact (`latent_class_effects_v1`) and its refitting consumer.
+pub mod latent_class_artifact;
 /// Learned continuous-outcome trial transport artifact verification (2.2A X4).
 pub mod learned_continuous_artifact;
 /// Learner-backed trial transport artifact verification.
 pub mod learned_trial_wire;
+/// B4 nonlinear-mediation artifact (`nonlinear_mediation_v1`) and its re-estimating consumer.
+pub mod nonlinear_mediation_artifact;
+/// B2 ordered-response recovery artifact (`ordered_response_recovery_v1`) and its re-deciding consumer.
+pub mod recovery_chain_artifact;
+/// F17 sensitivity-surface artifact (`sensitivity_decision_v1`) and its recomputing consumer.
+pub mod sensitivity_artifact;
 /// Smoothed dose-response transport grid artifact verification (2.2B X4).
 pub mod smoothed_dose_artifact;
 /// X8 fixed-population temporal counterfactual artifact (`temporal_counterfactual_v1`).
 pub mod temporal_counterfactual_artifact;
+/// B4 joint vector-treatment artifact (`vector_treatment_v1`) and its recomputing consumer.
+pub mod vector_treatment_artifact;

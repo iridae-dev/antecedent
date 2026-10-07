@@ -10,6 +10,7 @@ mod batch_export;
 mod batch_retarget;
 mod builder;
 mod candidate_screen_units;
+pub mod categorical_treatment;
 mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
 mod checked_bayesian_temporal_class_effect;
@@ -25,24 +26,34 @@ mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
 pub mod closed_pilots;
+pub mod compact_export;
 mod contract;
 mod contract_identity;
 mod cost;
 mod cpdag_scenarios;
+mod decision_contract_facade;
 mod derived_treatment;
+pub mod design_ranking;
+pub mod dose_grid_functional;
 pub mod effect_constancy;
 mod exact;
 mod execute;
 mod inverse_outcome;
+pub mod inverse_query;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
+pub mod latent_class_effects;
 mod learned_continuous;
 mod learned_trial;
 mod mixed_source;
 mod mz_transport;
+pub mod nonlinear_mediation;
 mod preflight;
 mod rank_drop_estimate;
 mod recovery;
+pub mod recovery_chain;
+pub mod repair;
+pub mod sensitivity_decision;
 mod smoothed_dose;
 mod statistical;
 pub mod temporal_counterfactual;
@@ -51,6 +62,7 @@ mod temporal_transport;
 mod tier_diagnostics;
 mod transport_grid;
 mod transport_scenarios;
+pub mod vector_treatment;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
 pub use admg_conditional_transport::{
@@ -177,6 +189,18 @@ pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub use contract::CausalContract;
+pub use decision_contract_facade::{
+    ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
+    AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
+    BoundDecisionContract, ClaimProbability, ClaimProfile, DecisionClaimKind,
+    DecisionDeclaredExclusion, DecisionFacadeRefusal, DecisionSupportRule, DecisionUncertaintyKind,
+    ExternalCallbackReceipt, ExternalTrustLimit, IdentifiedActionRange, IdentifiedSetDecision,
+    IdentifiedUtility, IdentifiedVerdict, InputSupport, ReplayReceipt, RobustDecisionResult,
+    RobustResultArtifact, RobustVerdict, RobustnessError, SuppliedClaim, SupportShortfall,
+    UncertaintyRequirement, adapt_finite_scenarios, adapt_graph_dependent_claims,
+    adapt_point_claim, adapt_weighted_graph_atoms, assess_robustness, evaluate_adapted,
+    evaluate_identified_sets, evaluate_robust, utility_interval,
+};
 pub use execute::DagResponseOrigin;
 pub use execute::Study;
 pub use latency::{

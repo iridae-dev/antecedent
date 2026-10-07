@@ -471,7 +471,9 @@ fn solve(aug: &mut [f64], p: usize, diag_scale: f64) -> Option<Vec<f64>> {
                 best = r;
             }
         }
-        if aug[best * w + col].abs().partial_cmp(&(1e-10 * diag_scale)) != Some(std::cmp::Ordering::Greater) {
+        if aug[best * w + col].abs().partial_cmp(&(1e-10 * diag_scale))
+            != Some(std::cmp::Ordering::Greater)
+        {
             return None;
         }
         if best != col {

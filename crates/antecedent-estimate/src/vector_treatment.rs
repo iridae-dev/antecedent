@@ -979,7 +979,8 @@ pub(crate) fn fit_joint_from_summary(
     min_treatments: usize,
 ) -> Result<VectorTreatmentFit, EstimationError> {
     let invalid = reason_code!("invalid_argument");
-    let inconsistent = |message: &str| refuse(invalid, "vector_treatment.summary_inconsistent", message);
+    let inconsistent =
+        |message: &str| refuse(invalid, "vector_treatment.summary_inconsistent", message);
     if options.covariance != VectorCovariance::ModelBased {
         return Err(refuse(
             reason_code!("route_not_supported"),

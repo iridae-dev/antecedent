@@ -150,7 +150,7 @@ struct ConstraintWire {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ContractBody {
+pub(crate) struct ContractBody {
     version: u16,
     #[serde(default)]
     identity: String,
@@ -203,7 +203,7 @@ fn policy_from(name: &str) -> Result<StructuralPolicy, IoError> {
     })
 }
 
-fn contract_from_body(body: ContractBody) -> Result<DecisionContract, IoError> {
+pub(crate) fn contract_from_body(body: ContractBody) -> Result<DecisionContract, IoError> {
     if body.version != 1 {
         return Err(IoError::UnsupportedVersion { version: u32::from(body.version) });
     }
@@ -246,7 +246,7 @@ fn contract_from_body(body: ContractBody) -> Result<DecisionContract, IoError> {
     })
 }
 
-fn body_from_contract(contract: &DecisionContract) -> Result<ContractBody, IoError> {
+pub(crate) fn body_from_contract(contract: &DecisionContract) -> Result<ContractBody, IoError> {
     let identity = contract.identity().map_err(|e| IoError::Convert(format!("{e:?}")))?;
     Ok(ContractBody {
         version: 1,
@@ -281,7 +281,12 @@ fn body_from_contract(contract: &DecisionContract) -> Result<ContractBody, IoErr
     })
 }
 
-fn encode(kind: &str, artifact_id: &str, note: &str, body: &[u8]) -> Result<Vec<u8>, IoError> {
+pub(crate) fn encode(
+    kind: &str,
+    artifact_id: &str,
+    note: &str,
+    body: &[u8],
+) -> Result<Vec<u8>, IoError> {
     if artifact_id.trim().is_empty() {
         return Err(IoError::Convert("missing artifact id".into()));
     }
@@ -305,7 +310,10 @@ fn encode(kind: &str, artifact_id: &str, note: &str, body: &[u8]) -> Result<Vec<
     Ok(bytes)
 }
 
-fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8], kind: &str) -> Result<T, IoError> {
+pub(crate) fn decode<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    kind: &str,
+) -> Result<T, IoError> {
     if bytes.len() > MAX_DECISION_ARTIFACT_BYTES {
         return Err(IoError::TooLarge);
     }
@@ -324,7 +332,7 @@ fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8], kind: &str) -> Result<T,
     from_cbor(section.as_bytes())
 }
 
-fn refused(slot: &str, message: &str) -> IoError {
+pub(crate) fn refused(slot: &str, message: &str) -> IoError {
     IoError::Refused {
         code: antecedent_core::reason_code!("decision_contract_unsatisfied"),
         message: format!("decision_artifact.{slot}: {message}"),

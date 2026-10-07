@@ -88,6 +88,21 @@ pub use analysis::{
     InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
     SupportBasis, TargetDirection, classify_inverse_outcome,
 };
+/// The decision contract beside [`CausalContract`]: admissibility, support and
+/// uncertainty requirements, claim adapters, robustness verdicts and the durable
+/// artifacts with external-callback receipts.
+pub use analysis::{
+    ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
+    AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
+    BoundDecisionContract, ClaimProbability, ClaimProfile, DecisionClaimKind,
+    DecisionDeclaredExclusion, DecisionFacadeRefusal, DecisionSupportRule, DecisionUncertaintyKind,
+    ExternalCallbackReceipt, ExternalTrustLimit, IdentifiedActionRange, IdentifiedSetDecision,
+    IdentifiedUtility, IdentifiedVerdict, InputSupport, ReplayReceipt, RobustDecisionResult,
+    RobustResultArtifact, RobustVerdict, RobustnessError, SuppliedClaim, SupportShortfall,
+    UncertaintyRequirement, adapt_finite_scenarios, adapt_graph_dependent_claims,
+    adapt_point_claim, adapt_weighted_graph_atoms, assess_robustness, evaluate_adapted,
+    evaluate_identified_sets, evaluate_robust, utility_interval,
+};
 pub use analysis::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
     consume_admg_conditional_obstruction_artifact, consume_admg_conditional_transport_artifact,

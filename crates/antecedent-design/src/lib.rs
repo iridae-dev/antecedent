@@ -22,18 +22,33 @@
 
 pub mod candidate;
 pub mod decision;
+pub mod decision_adapters;
 pub mod decision_artifact;
 pub mod decision_contract;
 pub mod decision_eval;
 pub mod decision_refusal;
+pub mod decision_robust_artifact;
+pub mod decision_robustness;
 pub mod decision_structural;
 pub mod decision_structural_artifact;
+pub mod design_ranking_artifact;
 pub mod error;
+pub mod evsi;
+pub mod inverse_query;
+pub mod inverse_query_artifact;
 pub mod objective;
+pub mod obligation_adapters;
 mod plan_common;
 pub mod preposterior;
+pub mod prior_signal;
 pub mod ranker;
+pub mod ranking;
+pub mod repair;
+pub mod repair_artifact;
 pub mod result;
+pub mod sensitivity_decision;
+pub mod signal;
+pub mod study_candidate;
 pub mod study_plan_artifact;
 pub mod study_planner;
 pub mod transport_planner;
@@ -67,7 +82,20 @@ pub use ranker::{
     EffectWidthContext, EnvironmentGramSpec, InterventionDesignEffect, MeasureColumnSpec,
     ModelLoglikDraws,
 };
+pub use repair::{
+    BackdoorRepairFamily, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
+    RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
+    TransportRepairFamily, repair,
+};
+pub use repair_artifact::{
+    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION, RepairArtifactError, RepairConsumeLimits,
+    RepairFamilyRef, RepairReportArtifact,
+};
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+pub use study_candidate::{
+    DurableStudyCandidate, ExpectedEvidence, StudyCandidateError, StudyCostDeclaration, StudyKind,
+    UnitRules,
+};
 pub use study_plan_artifact::{
     STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION, StudyBaseFailureWire,
     StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire, StudyPlanConsumeLimits,
