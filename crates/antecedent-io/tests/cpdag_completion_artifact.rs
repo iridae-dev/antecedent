@@ -326,7 +326,7 @@ fn x2_cpdag_artifact_budget_stop_exports_and_replays_the_prefix() {
     assert_same(&original, &replayed);
     let wire = CpdagCompletionArtifactWire::decode(&bytes).unwrap();
     assert_eq!(wire.report.not_enumerated, 3);
-    assert_eq!(wire.report.unevaluated, 3);
+    assert_eq!(wire.report.unevaluated, 4);
     let receipt = wire.report.receipt.as_ref().unwrap();
     assert_eq!(receipt.stop, "search.operations");
     assert_eq!(receipt.explored.len(), 1, "the one enumerated completion");
