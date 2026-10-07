@@ -80,7 +80,7 @@ pub const MAX_RANKING_STATES: usize = 65_536;
 /// Largest number of table cells (states times actions or observation values).
 pub const MAX_RANKING_CELLS: usize = 4 * 1024 * 1024;
 
-const BODY_SECTION: &str = "design_ranking.body";
+const BODY_SECTION: &str = "design_ranking_body";
 /// Relative tolerance of a replayed number against the stored one.
 const REPLAY_TOLERANCE: f64 = 1e-8;
 /// Tolerance of probability-mass and coherence checks on retained tables.

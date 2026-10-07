@@ -114,7 +114,7 @@ def _call(function: Any, *args: Any, **kwargs: Any) -> Any:
         detail = parsed["detail"]
         if detail.endswith(".budget"):
             kind: type[RepairRefusal] = RepairBudgetRefusal
-        elif detail.startswith("repair_artifact."):
+        elif detail.split(".", 1)[0] == "repair_artifact":
             kind = RepairArtifactRefusal
         else:
             kind = RepairRefusal

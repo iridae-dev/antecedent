@@ -35,7 +35,7 @@ pub const COMPACT_EXPORT_VERSION: u16 = 1;
 /// Artifact kind tag in the container manifest.
 pub const COMPACT_EXPORT_ARTIFACT_KIND: &str = "compact_runtime_export_v1";
 /// Id of the single body section.
-pub const COMPACT_EXPORT_SECTION: &str = "compact_export.body";
+pub const COMPACT_EXPORT_SECTION: &str = "compact_export_body";
 /// Stored statement of what the point prediction means.
 pub const POINT_SCOPE: &str = "point prediction f(x) = b'phi(x) of the declared linear-in-coefficients basis, valid only inside the declared support and outside the refusal mask";
 /// Stored statement of what the reported uncertainty means.

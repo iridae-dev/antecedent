@@ -904,11 +904,11 @@ pub fn estimate_nonlinear_mediation(
         calibration: NONLINEAR_MEDIATION_CALIBRATION,
         interval_status: NONLINEAR_MEDIATION_INTERVAL_STATUS,
         assumptions: vec![
-            "nonlinear_mediation.sequential_ignorability",
-            "nonlinear_mediation.cross_world_independence",
-            "nonlinear_mediation.no_treatment_induced_mediator_outcome_confounding",
-            "nonlinear_mediation.linear_gaussian_mediator",
-            "nonlinear_mediation.polynomial_outcome_in_mediator",
+            "assumption:sequential_ignorability",
+            "assumption:cross_world_independence",
+            "assumption:no_treatment_induced_mediator_outcome_confounding",
+            "assumption:linear_gaussian_mediator",
+            "assumption:polynomial_outcome_in_mediator",
         ],
     })
 }

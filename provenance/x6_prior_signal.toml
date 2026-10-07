@@ -1,0 +1,39 @@
+feature_id = "x6_prior_signal"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A checked adapter from historical posterior sources held in a PriorCatalog to the
+# (prior draws, future-signal provider) pair that the EVSI evaluation consumes. The
+# adapter maps each source draw set to the target decision coordinate, weights sources
+# by weight times prior strength, shrinks each toward the pooled weighted mean by its
+# conflict shrinkage, and resamples by deterministic stratified quantiles into equally
+# weighted draws (largest-remainder allocation of the draws across sources). It refuses
+# incompatible artifacts, a changed population without a declared transport policy,
+# observation reuse between a source and the candidate or between two sources, and a
+# coefficient prior or structural unlock list standing alone as a signal.
+#
+# No primary paper is cited on purpose. The pooling rule is original engineering for
+# this planner (a quota-allocated, shrunk resampling of supplied posterior draws), not an
+# implementation of a published combination method, and a topically nearby paper (power
+# priors, meta-analytic predictive priors) would imply a theorem the code does not earn.
+# The decision-value side of the pipeline cites its own sources in f12_evsi.toml.
+papers = []
+
+implementation_deviations = [
+  "Not a Bayesian combination with a proven estimand. Sources are pooled by a fixed quota rule over their supplied posterior draws; 'prior strength' is named after the power-prior exponent but here only scales the pooling weight (weight times strength), it is not the power-prior likelihood a0 exponent and no power-prior theorem is inherited.",
+  "Conflict shrinkage moves each source's mapped draws linearly toward the pooled weighted mean; it is a declared tuning input, not an estimated between-source heterogeneity, and no heterogeneity or conflict statistic is produced.",
+  "Draws are supplied by the caller and never rehydrated from the catalog artifact; the catalog only decides compatibility (a Partial report whose single gap is the unnamed coefficient list is accepted, every other gap or rejection refuses). Source-to-target maps are identity or affine with a nonzero finite slope.",
+  "The result is a prior of at most 1,000,000 equally weighted draws, not the source posteriors themselves; the integration error of the later EVSI is reported there, and nothing here is a coverage or interval claim. Observation reuse is detected only by the declared observation identities: undeclared reuse cannot be seen, and a source with no observation identities is refused.",
+  "A transport policy is a declared identity that permits a source population different from the target; the adapter does not check the policy's scientific validity or identify any transport.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/prior_signal.rs",
+  "crates/antecedent-design/tests/design_ranking.rs",
+  "crates/antecedent-design/tests/evsi.rs",
+]

@@ -1,0 +1,36 @@
+feature_id = "f6_robustness_adapters"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Robustness verdicts over supplied structural atoms (structurally robust, support robust,
+# support dependent, graph dependent, unsupported extrapolation, insufficient claims, no
+# admissible action, worst-case, Bayes, report only), adapters from point, graph-dependent,
+# weighted-graph and finite-scenario claims, interval-per-action partial identification over
+# supplied identified sets, and a replayable result artifact that retains external-callback
+# receipts. The criteria it can apply are textbook decision rules (expected utility, Wald's
+# maximin, Savage's minimax regret, the maxmin expected utility of Gilboa and Schmeidler), but
+# the code implements them as finite comparisons of supplied numbers, and no theorem or
+# section of those sources was verified against it, so papers = [] is an explicit judgment.
+# The verdict taxonomy, support handling, adapters and artifact are original engineering.
+papers = []
+
+implementation_deviations = [
+  "Maximin, Bayes and minimax regret are computed as finite comparisons over the supplied atoms or intervals; none of the optimality, existence or representation results of the decision-theory literature is claimed or inherited. Minimax over an identified set reads utilities as losses and picks the smallest worst case; that is a stated convention.",
+  "An identified set is a caller-supplied interval per action and is reported as given, never estimated; it has no probability law, so Bayes over it refuses, and no coverage claim is made. Necessarily best uses strict dominance, so touching intervals are not necessarily best.",
+  "Bayes choice is withheld when any positive probability has unresolved payoffs, including an omitted remainder below total mass one; unidentified, unevaluated and unsupported mass is reported and never normalized away; completion counts are never probabilities.",
+  "A structure that fails a declared support rule for an action is set aside for that action only; the verdict states whether the choice survives with and without it (support robust or support dependent) and an unassessed support counts as missing evidence once a rule needs it. Support statuses are caller-supplied and unverified.",
+  "An external-callback value keeps a receipt (provider, snapshot, request fingerprint, attested value, trust limit) through export and replay and is never labelled native: the trust limit has no native variant. The receipt is retained, not verified by this route.",
+  "Replay recomputes the verdict from the contract, atoms and profile under the consumer's retained identity; bytes are invariant to action order. Artifact refusals use per-slot decision_artifact labels.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/decision_robustness.rs",
+  "crates/antecedent-design/tests/decision_adapters.rs",
+  "crates/antecedent-design/tests/decision_robust_artifact.rs",
+  "python/tests/test_decision_robust.py",
+]

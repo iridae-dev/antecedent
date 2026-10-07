@@ -97,7 +97,7 @@ def _refusal_type(refusal: Mapping[str, Any]) -> type[DesignRankingRefusal]:
         return CostUnitsRefusal
     if detail.endswith(".source_overlap"):
         return SourceOverlapRefusal
-    if detail.startswith("signal_provider."):
+    if detail.split(".", 1)[0] == "signal_provider":
         return SignalProviderRefusal
     return DesignRankingRefusal
 

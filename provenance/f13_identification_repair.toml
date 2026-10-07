@@ -1,0 +1,32 @@
+feature_id = "f13_identification_repair"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A bounded subset search over proposed studies that asks each family's existing
+# identification checker whether the hypothetical evidence identifies the query. The
+# search and the classification are original engineering metered by the shared
+# SearchBudget. The checkers it calls (back-door adjustment, catalog-aware classical
+# transport and its derivation verifier, d-separation) carry their own provenance
+# records (identify.backdoor, identify.transport_sid, graph.dsep); nothing here
+# re-derives or extends their theorems, so papers is explicitly empty.
+papers = []
+
+implementation_deviations = [
+  "Two distinct families ship: TransportRepairFamily (catalog-aware classical transport identifier plus derivation verification) and BackdoorRepairFamily (back-door identifier on the one joint observational law a study would deliver, with the returned adjustment set re-verified by d-separation). A subset is verified_sufficient only when its family's checker identifies the hypothetical evidence, the derivation re-verifies and no unresolved assumption obligation remains.",
+  "There is no z-transport repair family; the z-transport proof has an obligation adapter only. A sample increase has no transport checker and is not_certified.",
+  "The search is exhaustive only within the declared bounds (at most 16 candidates, subset size at most 4, 100000 operations) and is never a completeness claim: a stop leaves the remaining subsets unevaluated, a subset larger than the declared depth is not examined and the receipt says so, and exhaustion is reported as a resource outcome, never impossibility. Supersets of a sufficient subset are skipped for ranking only.",
+  "A level-restricted experiment is a restricted domain and does not supply an unrestricted symbolic response.",
+  "The repair_search_receipt_v1 artifact replays each stored verdict by re-running the family's checker on the stored hypothetical delta; it requires graphs over dense static variables 0..n, and its digests are content fingerprints, not cryptographic guarantees against a producer that fabricates a consistent contract.",
+  "No causal, interval or calibration claim is made.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/repair_facade.rs",
+  "crates/antecedent-design/tests/repair_artifact.rs",
+  "python/tests/test_repair.py",
+]

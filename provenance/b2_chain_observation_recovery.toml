@@ -1,0 +1,37 @@
+feature_id = "b2_chain_observation_recovery"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Recovery of a two-variable binary law under one response-to-response edge. The
+# m-graph, the response indicators and the idea of recovering a query from the
+# observed-data law by an order of factorization come from Mohan, Pearl and Tian
+# (title, venue and pages 1277-1285 verified against the NIPS 2013 listing). The
+# paper's theorem and section numbers and its exact recoverability criterion were NOT
+# re-read for this record, so none is cited; this row's derivation and its
+# nonrecoverability witness are checked in the evaluator by exact arithmetic,
+# independent of the paper's proofs. DOI omitted: not resolved.
+papers = [
+  { title = "Graphical Models for Inference with Missing Data (Mohan, Pearl and Tian, Advances in Neural Information Processing Systems 26, 2013)", sections = ["the m-graph (missingness graph) and recovery of a probabilistic query from the observed-data law by a sequential factorization (construction only; theorem and section numbers unverified)"] },
+]
+
+implementation_deviations = [
+  "Implements a deliberately narrow row, not the paper's general criterion: two binary variables, their response indicators and deterministic proxies, exactly one response edge R_h -> R_t and optionally X_h -> R_t. The head response is factored first and the tail response is conditioned on the head response being observed; no other missingness graph is decided.",
+  "The recovery formula (complete-case cell divided by P(R_h=1) q(x_h), q a ratio of observed pattern margins) is derived in the module documentation and checked against an independently enumerated SCM, not cited from a theorem of the paper.",
+  "A self-censoring edge X_i -> R_i is refused with a two-model witness (all mechanisms fair coins except X_i ~ Bern(1/2), P(R_i=1|X_i)=(2/5,3/5) against X_i ~ Bern(2/5), (1/3,3/4)) that agree on all nine observed cells and differ on P(X_i), verified by exact integer enumeration over 60^4. The witness shows nonrecoverability over all models Markov to the m-graph (the models are not faithful) and claims nothing about generic parameters.",
+  "Graphs outside the row, including adjacent graphs such as X_t -> R_h, are route_not_supported and never reported as nonrecoverable. Positivity of the head response and of every complete-case cell is required and refused as recovery_chain.positivity otherwise.",
+  "Exact observed laws only. A sampled provider composed on this row and its intervals are closed with calibration unmeasured; the coverage record cov.recovery.chain_mgraph.frequentist.l95.sampled_whole_method is allocated, not collected, until the 2.3 release cut. The point values are the claim.",
+  "The decision meters a SearchBudget with fixed limits (2000 operations, depth 8). No budget-exhaustion test exists for this row, so it is not declared a search.",
+  "The consumer checks the derivation and arithmetic, not that a supplied observed law describes real data, and the m-graph's untestable premises are declared, never verified.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-identify/tests/b2_recovery_chain.rs",
+  "crates/antecedent-estimate/tests/b2_recovery_chain_truth.rs",
+  "crates/antecedent-io/tests/recovery_chain_artifact.rs",
+  "python/tests/test_recovery_chain.py",
+]

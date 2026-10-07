@@ -1,0 +1,39 @@
+feature_id = "f14_design_ranking"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A durable, sealed ranking of candidate studies (design_ranking_v1) and the independent
+# consumer that recomputes what it can from the embedded values. The ranking binds the
+# decision contract identity, terminal action set, finite prior (or conjugate normal
+# belief) and decision table, every candidate's semantic id, exact signal request,
+# provider identity, update mode and trust label, the signal law behind each value, the
+# EVSI/EVPI/net numbers with integration method and error, the cost mapping, the
+# source-overlap diagnostic, source digests, RNG seed and rank/tie receipts, sealed by a
+# digest over the canonical body with candidates in semantic-id order. A structural
+# fallback keeps the 2.2 order (verified sufficiency, then cost units, then sample
+# budget, then semantic id) when no probabilistic model is licensed.
+#
+# No primary paper is cited on purpose. This is a serialization, identity and replay
+# design, not an algorithm introduced by a publication; the quantities it carries (EVSI,
+# EVPI, net value) cite their sources in f12_evsi.toml and the signal contract in
+# f11_external_signal.toml.
+papers = []
+
+implementation_deviations = [
+  "Replay is graded and only the first grade is called native: a native Gaussian-mean (under the normal belief) or binomial (under the finite prior) signal has its law rebuilt from the family parameters and its EVSI, EVPI and net value recomputed (NativeExactRecomputed); an external likelihood or posterior has only the arithmetic recomputed from the retained attested table, never the provider (AttestedLawArithmetic); external decision values are checked for coherence against the prior and combined (AttestedValuesCombined); a Monte Carlo value is bound and bounds-checked but not re-simulated (MonteCarloNotReplayed). External values are retained as attested and never marked native, and a trust or update-mode relabel that the law contradicts refuses even when resealed.",
+  "Replay does not protect against a producer that honestly states a different prior or decision table and reseals: the artifact is then the correct ranking of those stated inputs. A consumer binds the contract identity, signal identities, source digests and cost mapping it retained independently through ConsumeExpectation; without a retained expectation a resealed artifact is checked only for internal consistency.",
+  "The Gaussian closed-form replay reuses the same expected-maximum-of-affine-functions routine as the evaluator, so the native Gaussian replay is a consistency check on the stored numbers and the stated inputs, not an independent derivation; the independent check is the closed-form constant asserted in the tests.",
+  "Calibration is 'unmeasured': Monte Carlo error coverage and the rank guarantee are not measured, an exact-integration EVSI is a point value, and a truncated catalog (bounded by max_candidates) is recorded in the search receipt and changes the identity but is not a SearchBudget search.",
+  "Decode is bounded before any work (8 MiB, 1,024 candidates, 65,536 states, 4 Mi table cells); stored bounds above the consumer's own maxima refuse. Corruption and truncation are serialization failures, not refusals.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/design_ranking.rs",
+  "crates/antecedent-design/tests/design_ranking_artifact.rs",
+  "python/tests/test_design_ranking.py",
+]

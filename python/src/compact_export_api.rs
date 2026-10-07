@@ -20,7 +20,12 @@ use antecedent_io::quantity_wire::ScientificQuantityWire;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
-use crate::{detach_catch, value_err};
+use crate::{detach_catch, value_err, with_reason_code};
+
+/// A bounded-input error carrying the registered `invalid_argument` code.
+fn invalid_argument(message: String) -> PyErr {
+    with_reason_code(value_err(message), antecedent_core::reason_code!("invalid_argument"))
+}
 
 /// Largest declaration / query JSON accepted.
 const MAX_JSON_BYTES: usize = 16 * 1024 * 1024;
@@ -86,7 +91,7 @@ fn body_json(export: &CompactExport) -> PyResult<String> {
         "identity": export.identity(),
         "body": export.body(),
     }))
-    .map_err(|e| value_err(format!("compact_export.encode: {e}")))
+    .map_err(|e| invalid_argument(format!("compact_export.encode: {e}")))
 }
 
 fn limits_of(max_bytes: Option<usize>) -> ExportLimits {
@@ -106,7 +111,7 @@ fn build_compact_export(
 ) -> PyResult<BuildPayload> {
     check_size(spec_json)?;
     let parsed: SpecJson = serde_json::from_str(spec_json)
-        .map_err(|e| value_err(format!("compact_export.invalid_request: {e}")))?;
+        .map_err(|e| invalid_argument(format!("compact_export.invalid_request: {e}")))?;
     let spec = ExportSpec {
         response: parsed.response,
         inputs: parsed.inputs,
@@ -161,7 +166,7 @@ fn evaluate_compact_export(
 ) -> PyResult<ConsumePayload> {
     check_size(queries_json)?;
     let parsed: Vec<BTreeMap<String, QueryJson>> = serde_json::from_str(queries_json)
-        .map_err(|e| value_err(format!("compact_export.invalid_query: {e}")))?;
+        .map_err(|e| invalid_argument(format!("compact_export.invalid_query: {e}")))?;
     let queries: Vec<ExportQuery> = parsed
         .into_iter()
         .map(|values| ExportQuery {

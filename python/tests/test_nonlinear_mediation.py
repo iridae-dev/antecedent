@@ -254,7 +254,7 @@ def test_b4_mediation_records_premises_declared_versus_checked() -> None:
     assert result.overlap.control_count == 20
     assert result.overlap.mediator_support_violation <= 0.25
     assert result.model_specs["outcome_degree"] == 2
-    assert "nonlinear_mediation.cross_world_independence" in result.assumptions
+    assert "assumption:cross_world_independence" in result.assumptions
 
 
 def test_b4_mediation_artifact_round_trips_and_checks_the_retained_identity() -> None:

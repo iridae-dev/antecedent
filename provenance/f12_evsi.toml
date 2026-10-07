@@ -1,0 +1,36 @@
+feature_id = "f12_evsi"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Per-candidate expected value of sample information (EVSI) and expected value of perfect
+# information (EVPI) on a fixed terminal action set, with an optional cost-to-utility map
+# for the net value. Exact routes: finite enumeration of the observation law and the
+# prior draws, and the conjugate normal-prior / Gaussian-sample-mean closed form through
+# the normal-linear-loss integral; externally computed decision values are combined as
+# EVSI = sum_y P(y) max_a V_y(a) - max_a E[U(a)]. A Monte Carlo route over states and data
+# exists and is reported as a labelled estimate. Publication names were checked by title
+# and author; DOIs and chapter or section numbers are omitted because they were not
+# resolved here.
+papers = [
+  { title = "Applied Statistical Decision Theory (Raiffa and Schlaifer, Harvard Business School, Division of Research, 1961)", sections = ["Preposterior analysis: the expected value of sample information as the preposterior expectation of the terminal value minus the terminal value under the prior, and the expected value of perfect information as its upper bound", "The unit normal linear-loss integral used for a normal prior with a normal sample mean of known variance"] },
+  { title = "Statistical Decision Theory and Bayesian Analysis, 2nd edition (Berger, Springer, 1985)", sections = ["Bayesian expected-utility decision rule: the Bayes action under the current belief and under the posterior for each possible observation"] },
+]
+
+implementation_deviations = [
+  "Implements the exact-integration EVSI as a point value only. For the finite enumeration and the Gaussian closed form there is no sampling error and no interval; the Gaussian closed form is evaluated with the same expected-maximum-of-affine-functions routine the artifact consumer reuses, so the two are not independent checks of one another (an independent oracle is the stated closed-form constant, EVSI 0.04165773529384315 and EVPI 0.19779655740130607 for prior N(1/2, 1), noise variance 12, n = 4, actions 0 and theta, to 1e-7).",
+  "The Monte Carlo route is NOT a licensed guarantee. It reports a standard error, replicate count, effective sample size (equal to the replicate count, because replicates are independent), a convergence flag against a caller tolerance and a rank-uncertainty flag from an unpaired z comparison at 1.96, all as diagnostics. Their coverage, the rank guarantee and the convergence rule are unmeasured (calibration coordinate 'unmeasured'); no coverage record is allocated or collected, and an estimate outside 0 <= EVSI <= EVPI beyond its error refuses.",
+  "The terminal action set is the same before and after information; a changed action set is a different decision problem and refuses. EVSI is not assumed non-negative or bounded by construction for a Monte Carlo estimate; the bound is checked against the reported error.",
+  "Net value is EVSI minus the study cost in utility units and is produced only when a caller supplies a positive linear cost-to-utility map whose utility unit equals the decision's and whose cost unit equals every candidate's; a cost in another unit, or a missing map where net value is required, refuses. The map is declared, not estimated, and utility is not assumed monetary.",
+  "Externally computed decision values and external posteriors are attested inputs: they are checked for coherence against the prior (branch values average back to the prior expected utility for every action) but are not verified or replayed. Source overlap is detected only through declared observation identities.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/evsi.rs",
+  "crates/antecedent-design/tests/design_ranking_artifact.rs",
+  "python/tests/test_design_ranking.py",
+]
