@@ -243,6 +243,11 @@ run_ignored() {
   check "${pkg}: ${filter}" cargo test --release -p "$pkg" --lib "$filter" -- --ignored --nocapture
 }
 
+# A pass/fail reference experiment, not a coverage claim for arbitrary input estimators.
+check "effect_constancy_calibration: known_gaussian_null_power_and_holm" \
+  cargo test --release -p antecedent-estimate --test effect_constancy_calibration \
+  f18_known_gaussian_null_power_and_holm_grid -- --exact --nocapture
+
 echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
 # Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), plus symmetric
 # recheck and precision floor/ceiling. Bootstrap-IPW uses the full replicate

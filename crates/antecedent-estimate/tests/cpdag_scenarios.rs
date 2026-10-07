@@ -324,16 +324,16 @@ fn x2_cpdag_budget_stop_partial_report() {
     let partial = prepared.evaluate(&ctx).unwrap();
     assert!(!partial.is_exportable());
     assert_eq!(partial.completions.len(), 1);
-    assert_eq!(partial.not_enumerated, 2);
-    assert_eq!(partial.total(), 3);
+    assert_eq!(partial.not_enumerated, 3);
+    assert_eq!(partial.total(), 4);
     assert_eq!(partial.completions[0].status, "unevaluated");
-    assert_eq!((partial.identified, partial.unidentified, partial.unevaluated), (0, 0, 3));
+    assert_eq!((partial.identified, partial.unidentified, partial.unevaluated), (0, 0, 4));
     assert_eq!(partial.receipt.as_ref().unwrap().stop, SearchStop::Operations);
     assert!(partial.report.as_ref().unwrap().envelope.is_none());
 
-    // Enumeration finishes in six attempts; the sixth operation is spent, so the
+    // Enumeration takes six orientations and three stored completions; all nine operations are spent, so the
     // first decision cannot be entered and every completion is unevaluated.
-    let limits = SearchLimits { operations: 6, depth: 256 };
+    let limits = SearchLimits { operations: 9, depth: 256 };
     let stopped = prepare(chain(), &shared(), limits, &ctx).evaluate(&ctx).unwrap();
     assert!(!stopped.is_exportable());
     assert_eq!((stopped.completions.len(), stopped.not_enumerated), (3, 0));
@@ -350,7 +350,7 @@ fn x2_cpdag_budget_stop_partial_report() {
     let none = prepare(chain(), &shared(), SEARCH, &cancelled).evaluate(&ctx).unwrap();
     assert!(!none.is_exportable());
     assert!(none.completions.is_empty() && none.report.is_none());
-    assert_eq!((none.not_enumerated, none.unevaluated, none.identified), (3, 3, 0));
+    assert_eq!((none.not_enumerated, none.unevaluated, none.identified), (4, 4, 0));
     assert_eq!(none.receipt.as_ref().unwrap().stop, SearchStop::Cancelled);
 
     // The unconstrained run is complete and exportable.

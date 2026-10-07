@@ -150,7 +150,12 @@ impl TemporalWindowIdentity {
         if self.unit_ids.is_empty() {
             return Err(invalid("the replacement carries no unit ids"));
         }
-        if self.snapshot_id.is_empty() || self.proof_id.is_empty() || self.horizon == 0 {
+        if self.snapshot_id.trim().is_empty()
+            || self.proof_id.trim().is_empty()
+            || self.graph_id.trim().is_empty()
+            || self.horizon == 0
+            || self.unit_ids.iter().any(|id| id.trim().is_empty())
+        {
             return Err(invalid("the replacement lacks a snapshot id, proof id or horizon"));
         }
         Ok(())
@@ -370,6 +375,7 @@ pub fn refresh_held<T, F>(
 where
     F: FnOnce(&TemporalWindowIdentity) -> Result<T, EstimationError>,
 {
+    held.identity.validate()?;
     replacement.validate()?;
     if let RefreshDecision::Invalidated(reason) = decide_refresh(&held.identity, &replacement) {
         return Err(reason.into_error());
@@ -394,6 +400,8 @@ pub fn accept_refresh<T>(
     receipt: &RefreshReceipt,
     refreshed: HeldTemporalResult<T>,
 ) -> Result<HeldTemporalResult<T>, EstimationError> {
+    held.identity.validate()?;
+    refreshed.identity.validate()?;
     receipt.verify()?;
     let mismatch = |message: &str| {
         refuse(reason_code!("route_not_supported"), "temporal_refresh.receipt_mismatch", message)
@@ -410,6 +418,9 @@ pub fn accept_refresh<T>(
         || receipt.proof_id != refreshed.identity.proof_id
     {
         return Err(mismatch("the receipt's new identity is not the refreshed result's"));
+    }
+    if receipt.inference_claim != TEMPORAL_REFRESH_INFERENCE_CLAIM {
+        return Err(mismatch("the receipt changes the point-only inference claim"));
     }
     if receipt.interval_invalidated != held.interval_present {
         return Err(mismatch("the receipt's interval flag disagrees with the held result"));

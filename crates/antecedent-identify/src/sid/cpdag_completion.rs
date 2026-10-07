@@ -18,14 +18,13 @@
 //! refused (`cpdag_scenarios.evidence_identity_mismatch`).
 //!
 //! One [`SearchBudget`] bounds enumeration and decisions together. Every
-//! orientation attempt is one operation at depth equal to the number of
-//! undirected edges oriented so far (so the depth limit must reach the number of
-//! undirected edges), charged against the live bytes of the completions kept
-//! so far. On a stop (limit, memory or cancellation) the completions found stay
-//! listed, undecided ones are `unevaluated`, and the number of completions never
-//! enumerated is reported separately; the exact remainder is counted by an
-//! uncharged pass that is bounded by `2^15` orientation masks for six nodes. A
-//! stopped result carries a receipt and is not exportable.
+//! orientation attempt and retained completion is one charged operation; depth
+//! is the number of undirected edges oriented so far. Storage is charged before
+//! keeping each completion. On a stop (limit, memory or cancellation), found
+//! completions stay listed, undecided ones are `unevaluated`, and the number
+//! never enumerated is a conservative upper bound from the remaining orientation
+//! masks. No search continues after the stop to compute an exact remainder.
+//! A stopped enumeration is not a complete class certificate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -136,14 +135,15 @@ pub struct CpdagEnumeration {
     pub variables: Vec<VariableId>,
     /// Completions found, sorted by identity.
     pub completions: Vec<CompletionDag>,
-    /// Completions the stop left unenumerated; zero when the enumeration finished.
+    /// Upper bound on completions the stop left unenumerated; zero when finished.
+    /// A stopped search cannot know the exact remainder without more search.
     pub not_enumerated: usize,
     /// Present when a limit, memory bound or cancellation stopped the work.
     pub receipt: Option<SearchReceipt>,
 }
 
 impl CpdagEnumeration {
-    /// Completions known to exist: found plus not enumerated.
+    /// Upper bound on the class size; exact only when `not_enumerated == 0`.
     #[must_use]
     pub fn total(&self) -> usize {
         self.completions.len() + self.not_enumerated
@@ -204,7 +204,7 @@ pub struct CpdagCompletionDecision {
     pub cpdag_identity: Arc<str>,
     /// Completions in identity order, aligned with `decision.decisions`.
     pub completions: Vec<CompletionRecord>,
-    /// Completions a stop left unenumerated (their graphs are unknown).
+    /// Upper bound on completions left unenumerated (their graphs are unknown).
     pub not_enumerated: usize,
     /// The scenario decision over the completions found; `None` when none was found.
     pub decision: Option<ScenarioSetDecision>,
@@ -213,7 +213,7 @@ pub struct CpdagCompletionDecision {
 }
 
 impl CpdagCompletionDecision {
-    /// Completions known to exist: found plus not enumerated.
+    /// Upper bound on the class size; exact only when `not_enumerated == 0`.
     #[must_use]
     pub fn total(&self) -> usize {
         self.completions.len() + self.not_enumerated
@@ -285,7 +285,12 @@ impl Skeleton {
         }
         fixed.sort_unstable();
         undirected.sort_unstable();
-        Ok(Self { variables, fixed, undirected, adjacent })
+        let skeleton = Self { variables, fixed, undirected, adjacent };
+        let orienter = Orienter::new(&skeleton);
+        if skeleton.fixed.iter().any(|&(a, b)| orienter.reaches(b, a)) {
+            return Err(not_a_cpdag("the directed edges contain a cycle"));
+        }
+        Ok(skeleton)
     }
 
     /// Per-completion live bytes: its edge list and graph, a fixed estimate.
@@ -403,6 +408,7 @@ impl<'a> Orienter<'a> {
 
     fn walk(&mut self, k: usize, mask: u32, charge: &mut Charge<'_>) -> Result<(), SearchStop> {
         let Some(&(a, b)) = self.skeleton.undirected.get(k) else {
+            charge(k, self.bytes.saturating_add(self.skeleton.completion_bytes()))?;
             self.masks.push(mask);
             self.bytes = self.bytes.saturating_add(self.skeleton.completion_bytes());
             return Ok(());
@@ -427,17 +433,12 @@ fn run_walk(skeleton: &Skeleton, charge: &mut Charge<'_>) -> (Vec<u32>, Option<S
     (orienter.masks, stop)
 }
 
-/// Every completion mask, uncharged: the bounded exact count of a remainder.
-fn all_masks(skeleton: &Skeleton) -> Vec<u32> {
-    run_walk(skeleton, &mut |_, _| Ok(())).0
-}
-
 /// A started budget, or the receipt of a stop before entry.
 fn start(limits: SearchLimits, ctx: &ExecutionContext) -> Result<SharedSearch<'_>, SearchReceipt> {
     SearchBudget::new(limits, ctx).map(SharedSearch::new)
 }
 
-/// Turn the masks and stop of a walk into an enumeration, counting the
+/// Turn the masks and stop of a walk into an enumeration, bounding the
 /// remainder of a stopped one and checking that a finished one is a CPDAG.
 fn finish(
     skeleton: &Skeleton,
@@ -450,10 +451,14 @@ fn finish(
     let cpdag_identity = skeleton.cpdag_identity();
     let variables = skeleton.variables.clone();
     if let Some(mut receipt) = stop {
-        let total = all_masks(skeleton).len();
+        // No work may resume after an operation, memory or cancellation stop.
+        // Every completion is one orientation of the undirected edges; this
+        // conservative bound deliberately includes invalid/unvisited orientations.
+        let total = 1_usize << skeleton.undirected.len();
         let not_enumerated = total.saturating_sub(completions.len());
         receipt.explored = completions.iter().map(|c| c.identity.to_string()).collect();
-        receipt.unevaluated = vec![format!("cpdag_completions_not_enumerated:{not_enumerated}")];
+        receipt.unevaluated =
+            vec![format!("cpdag_completions_not_enumerated_upper_bound:{not_enumerated}")];
         return Ok(CpdagEnumeration {
             cpdag_identity,
             variables,
@@ -481,6 +486,20 @@ fn check_maximally_oriented(skeleton: &Skeleton, masks: &[u32]) -> Result<(), Sc
             "the graph has no consistent DAG completion (a cycle or an unsupported collider)",
         ));
     }
+    // Chickering (1995), Lemma 1 and Theorem 2: equivalent DAGs connect
+    // through covered-edge reversals. If a supplied fixed edge were reversible,
+    // the first reversal of any fixed edge would be covered in a completion we
+    // enumerated. Refuse that witness instead of silently shrinking the class.
+    for &mask in masks {
+        let mut parents = Orienter::new(skeleton).parents;
+        for (k, &(a, b)) in skeleton.undirected.iter().enumerate() {
+            let (from, to) = if mask & (1 << k) != 0 { (a, b) } else { (b, a) };
+            parents[to] |= 1 << from;
+        }
+        if skeleton.fixed.iter().any(|&(a, b)| parents[b] == (parents[a] | (1 << a))) {
+            return Err(not_a_cpdag("a directed edge is reversible within the equivalence class"));
+        }
+    }
     for k in 0..skeleton.undirected.len() {
         let forward = masks.iter().any(|m| m & (1 << k) != 0);
         let backward = masks.iter().any(|m| m & (1 << k) == 0);
@@ -504,7 +523,7 @@ fn check_maximally_oriented(skeleton: &Skeleton, masks: &[u32]) -> Result<(), Sc
 /// selection target or latent pair; `invalid_argument` /
 /// `cpdag_scenarios.not_a_cpdag` for an input that is not a valid CPDAG.
 /// A budget, memory or cancellation stop is not an error: it is returned in the
-/// enumeration's receipt with the unenumerated count.
+/// enumeration's receipt with a conservative upper bound on the unenumerated count.
 pub fn enumerate_cpdag_completions(
     input: &CpdagCompletionInput,
     limits: SearchLimits,

@@ -320,17 +320,20 @@ fn x2_cpdag_artifact_budget_stop_exports_and_replays_the_prefix() {
     let limits = SearchLimits { operations: 3, depth: 256 };
     let (bytes, original) = produce(&premises(shared(), limits, &ctx), &ctx);
     assert!(!original.is_exportable());
-    assert_eq!((original.completions.len(), original.not_enumerated), (1, 2));
+    assert_eq!((original.completions.len(), original.not_enumerated), (1, 3));
     assert_eq!(original.completions[0].status, "unevaluated");
     let replayed = consume(&bytes).unwrap();
     assert_same(&original, &replayed);
     let wire = CpdagCompletionArtifactWire::decode(&bytes).unwrap();
-    assert_eq!(wire.report.not_enumerated, 2);
+    assert_eq!(wire.report.not_enumerated, 3);
     assert_eq!(wire.report.unevaluated, 3);
     let receipt = wire.report.receipt.as_ref().unwrap();
     assert_eq!(receipt.stop, "search.operations");
     assert_eq!(receipt.explored.len(), 1, "the one enumerated completion");
-    assert_eq!(receipt.unevaluated, vec!["cpdag_completions_not_enumerated:2".to_string()]);
+    assert_eq!(
+        receipt.unevaluated,
+        vec!["cpdag_completions_not_enumerated_upper_bound:3".to_string()]
+    );
 
     // The recorded limit cannot be raised by the artifact: a stricter consumer refuses.
     let strict = CpdagConsumeLimits {
@@ -357,7 +360,7 @@ fn x2_cpdag_artifact_cancelled_report_never_exports() {
     let premises = premises(shared(), SEARCH, &cancelled);
     let prepared = premises.prepare(&cancelled).unwrap();
     let report = prepared.evaluate(&live).unwrap();
-    assert!(report.completions.is_empty() && report.not_enumerated == 3);
+    assert!(report.completions.is_empty() && report.not_enumerated == 4);
     assert!(!report.is_exportable());
     match CpdagCompletionArtifactWire::checked(&premises, &prepared, &report) {
         Err(IoError::Refused { code, message }) => {

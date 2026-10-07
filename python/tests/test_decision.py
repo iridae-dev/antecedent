@@ -191,11 +191,13 @@ def test_each_criterion_has_its_own_route_and_sampling_noise_is_not_hidden():
     assert _contract(decision.Criterion.expected_regret()).evaluate(source).actions[
         1
     ].value == pytest.approx(0.5)
-    # The same rows read as a sample, not an exact law, cannot separate the actions.
+    # Sampled rows give a point ranking, without a certified Monte Carlo error.
     sampled = _contract().evaluate(_source(calibration="unmeasured"))
-    assert sampled.verdict.kind == "indistinguishable"
-    assert sampled.selected == ("safe", "risky")
-    assert "cannot be separated from 'risky'" in sampled.explain()
+    assert sampled.verdict.kind == "uniquely_optimal"
+    assert sampled.selected == ("safe",)
+    assert "point ranking only" in sampled.explain()
+    assert all(action.standard_error is None for action in sampled.actions)
+    assert any("Monte Carlo error" in assumption for assumption in sampled.assumptions)
 
 
 def test_contract_identity_ignores_declaration_order_and_tracks_semantics():

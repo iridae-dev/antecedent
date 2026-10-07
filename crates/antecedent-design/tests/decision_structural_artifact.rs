@@ -160,12 +160,7 @@ fn f6_artifact_retains_atom_ids_unidentified_mass_and_declared_policy() {
     assert_eq!(loaded.result().atoms[2].probability, Some(0.2));
     assert_eq!(loaded.atom_digests()[2], ("graph-3".to_owned(), None));
     assert_eq!(loaded.result().policy, StructuralPolicy::BayesOverStructures);
-    match &loaded.result().verdict {
-        StructuralVerdict::BayesChoice { evaluated_mass, .. } => {
-            assert!(near(*evaluated_mass, 0.8));
-        }
-        other => panic!("unexpected verdict {other:?}"),
-    }
+    assert!(matches!(loaded.result().verdict, StructuralVerdict::InsufficientScience(_)));
     loaded.replay(&bayes, &weighted).unwrap();
 
     // An unevaluated reason string survives too.

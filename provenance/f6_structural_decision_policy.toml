@@ -9,6 +9,7 @@ copied_tests = false
 papers = []
 implementation_deviations = [
   "Combines per-structure decisions under a declared policy (invariant best action, worst case, Bayes over caller-supplied structure probabilities, report only). It computes no structure probabilities, never treats completion counts as probabilities and never renormalizes unidentified or unevaluated mass away.",
+  "Bayes choice is withheld if any positive probability has unresolved payoffs, including an omitted remainder below total mass one. Zero-probability atoms cannot exclude an action. Quantiles and maximum regrets cannot be aggregated by a probability-weighted mean of per-structure values and are refused for this policy.",
   "Minimax over an identified set reads the contract's utilities as losses and chooses the smallest worst-case expected loss; this is a stated convention, not a cited theorem.",
 ]
 upstream_implementations_observed = []

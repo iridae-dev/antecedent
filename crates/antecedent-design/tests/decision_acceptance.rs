@@ -606,9 +606,8 @@ fn f5_exact_law_has_zero_standard_error_and_a_sample_does_not() {
     let mean =
         evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &sampled).unwrap();
     assert!(near(mean.value, 1.5));
-    // Population variance 3/4 over 4 effective draws: se = sqrt(3/16).
-    assert!(near(mean.standard_error.unwrap(), (0.75_f64 / 4.0).sqrt()));
-    assert!(mean.standard_error.unwrap() > 0.0);
+    // Draw dependence and MC calibration are undeclared; no SE is licensed.
+    assert!(mean.standard_error.is_none());
     let variance =
         evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &sampled).unwrap();
     assert!(near(variance.value, 0.75));
@@ -914,13 +913,7 @@ fn f6_negative_unevaluated_mass_is_reported_and_never_normalized_away() {
     assert!(near(result.actions[1].weighted_value.unwrap(), 0.25));
     assert!(near(result.actions[0].mass_where_best.unwrap(), 0.5));
     assert!(near(result.actions[1].mass_where_best.unwrap(), 0.25));
-    match &result.verdict {
-        StructuralVerdict::BayesChoice { action, evaluated_mass } => {
-            assert_eq!(action, "A");
-            assert!(near(*evaluated_mass, 0.75));
-        }
-        other => panic!("expected BayesChoice, got {other:?}"),
-    }
+    assert!(matches!(result.verdict, StructuralVerdict::InsufficientScience(_)));
 
     // A worst case over structures needs every structure; it does not skip one.
     let maximin =

@@ -27,7 +27,8 @@ pub use antecedent_counterfactual::transported_gate::{
     TransportedCounterfactualPrerequisites, TransportedCounterfactualRefusal,
     refuse_transported_counterfactual,
 };
-pub use antecedent_io::temporal_counterfactual_artifact::{
+use antecedent_io::temporal_counterfactual_artifact as temporal_counterfactual_wire;
+pub use temporal_counterfactual_wire::{
     ActionHistoryWire, FactualUnitWire, FitWire, MechanismWire, ReceiptWire, RefusalWire,
     TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION, TemporalCounterfactualArtifact,
     TemporalCounterfactualArtifactError, TemporalCounterfactualIdentity,

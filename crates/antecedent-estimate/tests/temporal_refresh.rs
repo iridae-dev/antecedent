@@ -319,3 +319,19 @@ fn x5_period_reseal_refreshed_result_keeping_an_interval_is_refused() {
     let message = invalidation_detail(accept_refresh(&held, &receipt, refreshed));
     assert!(message.contains("temporal_refresh.stale_interval"), "{message}");
 }
+
+#[test]
+fn resealed_refresh_cannot_change_inference_or_validate_an_invalid_window() {
+    let held = held(false);
+    let (fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
+    receipt.inference_claim = "confidence_interval";
+    receipt.digest = receipt.compute_digest();
+    assert!(accept_refresh(&held, &receipt, fresh).is_err());
+
+    let (mut fresh, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
+    fresh.identity.period.end = fresh.identity.period.start;
+    receipt.new_identity_digest = fresh.identity.digest();
+    receipt.new_period = fresh.identity.period;
+    receipt.digest = receipt.compute_digest();
+    assert!(accept_refresh(&held, &receipt, fresh).is_err());
+}

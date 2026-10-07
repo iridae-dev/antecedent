@@ -273,9 +273,10 @@ class ActionOutcome:
 class Verdict:
     """What the evaluation can claim about the choice.
 
-    ``kind`` is ``uniquely_optimal``, ``indistinguishable`` (the leader cannot be
-    told apart from the others within the declared error) or
-    ``no_admissible_action``. ``actions`` are the leader, then those it ties.
+    ``kind`` is ``uniquely_optimal`` under the supplied finite law,
+    ``indistinguishable`` for equal criterion values, or ``no_admissible_action``.
+    Sampled-law rankings carry no statistical ranking guarantee.
+    ``actions`` are the leader, then those it ties.
     """
 
     kind: Literal["uniquely_optimal", "indistinguishable", "no_admissible_action"]
@@ -536,7 +537,7 @@ class Decision:
         text += ")"
         if verdict.kind == "indistinguishable":
             others = ", ".join(repr(a) for a in verdict.actions[1:])
-            text += f"; it cannot be separated from {others} within the sampling error"
+            text += f"; it ties {others} at the same criterion value"
         excluded = [a for a in self.actions if not a.admissible]
         if excluded:
             text += "; excluded by a hard constraint: " + ", ".join(repr(a.id) for a in excluded)
@@ -548,6 +549,8 @@ class Decision:
                 f"{self._source.provenance_label}, not estimated natively, and carry no "
                 "sampling error"
             )
+        if any("point ranking" in assumption for assumption in self.assumptions):
+            text += "; sampled-law point ranking only; Monte Carlo error is not certified"
         return text + "."
 
     def export(self, *, artifact_id: str = "decision-result") -> bytes:

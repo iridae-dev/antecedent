@@ -187,22 +187,23 @@ def test_x2_budget_stop_retains_explored_and_unevaluated():
     # Enumeration stops after one of three completions (three orientation attempts).
     partial = run(max_steps=3)
     assert not partial.complete and partial.exportable
-    assert len(partial.completions) == 1 and partial.counts.not_enumerated == 2
+    assert len(partial.completions) == 1 and partial.counts.not_enumerated == 3
     assert partial.completions[0].status == "unevaluated"
     assert (partial.counts.identified, partial.counts.unidentified) == (0, 0)
-    assert partial.counts.unevaluated == 3 and partial.counts.total == 3
+    assert partial.counts.unevaluated == 4 and partial.counts.total == 4
     assert partial.receipt.stop == "search.operations"
     assert partial.receipt.explored == (partial.completions[0].id,)
-    assert partial.receipt.unevaluated == ("cpdag_completions_not_enumerated:2",)
-    assert partial.receipt.not_enumerated == 2
+    assert partial.receipt.unevaluated == ("cpdag_completions_not_enumerated_upper_bound:3",)
+    assert not partial.counts.exact
+    assert partial.receipt.not_enumerated == 3
     assert partial.envelope is None
     # The recorded limit replays: the consumer reproduces the identical prefix.
     replayed = transport.consume_cpdag_scenarios_artifact(partial.export())
     assert replayed.completions == partial.completions
     assert replayed.counts == partial.counts and replayed.receipt == partial.receipt
 
-    # Enumeration finishes in six attempts; the sixth operation is spent, so no decision runs.
-    stopped = run(max_steps=6)
+    # Enumeration takes six orientations and three stored completions; all nine operations are spent, so no decision runs.
+    stopped = run(max_steps=9)
     assert len(stopped.completions) == 3 and stopped.counts.not_enumerated == 0
     assert all(c.status == "unevaluated" for c in stopped.completions)
     assert stopped.counts.unevaluated == 3 and stopped.counts.identified == 0
@@ -211,7 +212,7 @@ def test_x2_budget_stop_retains_explored_and_unevaluated():
     # The depth bound must reach the number of undirected edges.
     shallow = run(max_depth=0)
     assert shallow.receipt.stop == "search.depth"
-    assert shallow.completions == () and shallow.counts.not_enumerated == 3
+    assert shallow.completions == () and shallow.counts.not_enumerated == 4
 
     # The unconstrained run is complete.
     assert run().complete
@@ -221,8 +222,8 @@ def test_x2_cancelled_report_is_not_exportable():
     token = antecedent.state.CancellationToken()
     token.cancel()
     cancelled = run(cancel=token)
-    assert cancelled.completions == () and cancelled.counts.not_enumerated == 3
-    assert cancelled.counts.unevaluated == 3 and cancelled.envelope is None
+    assert cancelled.completions == () and cancelled.counts.not_enumerated == 4
+    assert cancelled.counts.unevaluated == 4 and cancelled.envelope is None
     assert cancelled.receipt.stop == "search.cancelled" and not cancelled.exportable
     with pytest.raises(transport.CpdagScenarioRefusal) as refused:
         cancelled.export()

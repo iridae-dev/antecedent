@@ -217,6 +217,12 @@ mechanism crates/antecedent/src/analysis/execute/attribution_path.rs
 mechanism crates/antecedent/src/analysis/execute/checked_attribution.rs
 mechanism crates/antecedent-io/src/mechanism_wire.rs
 mechanism crates/antecedent-io/src/model_bundle.rs
+# Temporal counterfactual facades exclusively execute/replay the mechanism model.
+mechanism crates/antecedent/src/analysis/temporal_counterfactual.rs
+# Public module declaration only; calls remain inside the mechanism facade.
+allow mechanism crates/antecedent/src/analysis/mod.rs temporal_counterfactual
+# Artifact replay invokes only the named temporal mechanism evaluator.
+allow mechanism crates/antecedent-io/src/temporal_counterfactual_artifact.rs FactualUnitHistory HistoryId MAX_UNITS MECHANISM_CLASS NamedActionHistory NodeMechanism RefusingWitness SharedAbductionReceipt SnapshotId TemporalCounterfactualError TemporalCounterfactualResult TemporalCounterfactualSpec TemporalGraph TemporalMechanismFit TemporalNode UnitId antecedent_counterfactual evaluate_temporal_counterfactual temporal_cross_world
 key mechanism query Counterfactual AnomalyAttribution ChangeAttribution MechanismChange UnitChange
 key mechanism estimator gcm.*
 # The dispatch arm of AnalysisRoute::ChangeAttribution, and the NestedCounterfactual
@@ -333,3 +339,6 @@ testmod crates/antecedent-prob/src/hmc.rs
 testmod crates/antecedent-discovery/src/ci_screened_posterior.rs
 testmod crates/antecedent-validate/src/tests.rs
 testmod crates/antecedent-core/src/query/tests.rs
+
+# F18 known-Gaussian reference experiment (caller-specific covariance stays unmeasured).
+suite.effect_constancy_calibration crates/antecedent-estimate/tests/effect_constancy_calibration.rs

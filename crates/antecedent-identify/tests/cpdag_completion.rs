@@ -468,9 +468,13 @@ fn x2_cpdag_budget_stop_enumeration() {
         let limits = SearchLimits { operations, depth: 64 };
         let partial = run(&case, limits, &ctx);
         let found = partial.completions.len();
-        // Explored plus unevaluated is the oracle's total, whatever the limit.
-        assert_eq!(found + partial.not_enumerated, total, "operations {operations}");
-        assert_eq!(partial.total(), total);
+        // Explored plus unseen is an upper bound, never a fabricated exact count.
+        assert_eq!(
+            found + partial.not_enumerated,
+            1 << case.undirected.len(),
+            "operations {operations}"
+        );
+        assert!(partial.total() >= total);
         assert!(found >= previous, "more budget never finds fewer completions");
         previous = found;
         if found < total {
@@ -484,40 +488,40 @@ fn x2_cpdag_budget_stop_enumeration() {
         }
     }
     assert!(previous < total, "47 of 48 operations cannot enumerate every completion");
-    // A limit that never binds finishes and is exportable; so does exactly 48.
+    // A limit that never binds finishes and is exportable; so does exactly 66 (48 orientations plus 18 completions).
     let whole = run(&case, BIG, &ctx);
     assert!(whole.is_exportable() && whole.completions.len() == total);
-    let exact = run(&case, SearchLimits { operations: 48, depth: 64 }, &ctx);
+    let exact = run(&case, SearchLimits { operations: 66, depth: 64 }, &ctx);
     assert!(exact.is_exportable() && exact.completions.len() == total);
     assert_eq!(exact.completions, whole.completions);
 
     // Depth: five undirected edges need depth five.
     let shallow = run(&case, SearchLimits { operations: 1_000_000, depth: 2 }, &ctx);
     assert_eq!(shallow.receipt.as_ref().unwrap().stop, SearchStop::Depth);
-    assert_eq!(shallow.total(), total);
+    assert_eq!(shallow.total(), 1 << case.undirected.len());
 
     // Memory: live completion bytes are charged against the hard limit.
     let mut small = ExecutionContext::for_tests(1);
-    small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(400) };
+    small.memory = MemoryBudget { soft_limit_bytes: None, hard_limit_bytes: Some(800) };
     let limited = run(&case, BIG, &small);
     assert_eq!(limited.receipt.as_ref().unwrap().stop, SearchStop::Memory);
     assert_eq!(limited.completions.len(), 1);
-    assert_eq!(limited.total(), total);
+    assert_eq!(limited.total(), 1 << case.undirected.len());
 
     // Cancellation before the search, and in the middle: non-exportable partials.
     let cancelled = ExecutionContext::for_tests(1);
     cancelled.cancellation.cancel();
     let before = run(&case, BIG, &cancelled);
     assert_eq!(before.receipt.as_ref().unwrap().stop, SearchStop::Cancelled);
-    assert_eq!((before.completions.len(), before.not_enumerated), (0, total));
+    assert_eq!((before.completions.len(), before.not_enumerated), (0, 1 << case.undirected.len()));
     assert!(!before.is_exportable());
     let mut mid = ExecutionContext::for_tests(1);
     mid.cancellation = CancellationToken::cancel_after_checks(8);
     let during = run(&case, BIG, &mid);
     assert_eq!(during.receipt.as_ref().unwrap().stop, SearchStop::Cancelled);
-    assert_eq!(during.total(), total);
+    assert_eq!(during.total(), 1 << case.undirected.len());
     assert!(!during.is_exportable());
-    assert!(!during.completions.is_empty() || during.not_enumerated == total);
+    assert!(!during.completions.is_empty() || during.not_enumerated == 1 << case.undirected.len());
 }
 
 fn found_in(enumeration: &CpdagEnumeration, truth: &BTreeSet<Edges>) -> bool {
@@ -549,10 +553,46 @@ fn x2_cpdag_budget_stop_decisions() {
     )
     .unwrap();
     assert!(!partial.is_exportable());
-    assert_eq!(partial.total(), 18);
+    assert_eq!(partial.total(), 32);
     assert!(partial.not_enumerated > 0);
     let decision = partial.decision.as_ref().unwrap();
     assert_eq!(decision.decisions.len(), partial.completions.len());
     assert!(decision.decisions.iter().all(|d| d.outcome.status() == "unevaluated"));
     assert_eq!(decision.receipt.as_ref().unwrap().stop, SearchStop::Operations);
+}
+
+#[test]
+fn reversible_directed_edges_and_fixed_cycles_are_not_cpdags() {
+    for edges in [vec![(0, 1)], vec![(0, 1), (1, 2)], vec![(0, 1), (1, 2), (0, 2)]] {
+        let mut graph = Cpdag::with_variables(3);
+        for (a, b) in edges {
+            graph.insert_directed(d(a), d(b)).unwrap();
+        }
+        let error = enumerate_cpdag_completions(
+            &CpdagCompletionInput::new(graph),
+            BIG,
+            &ExecutionContext::for_tests(1),
+        )
+        .unwrap_err();
+        assert_eq!(error.detail, CPDAG_NOT_A_CPDAG_DETAIL);
+    }
+}
+
+#[test]
+fn a_complete_graph_cancelled_before_entry_never_counts_its_class() {
+    let mut graph = Cpdag::with_variables(6);
+    for a in 0..6 {
+        for b in (a + 1)..6 {
+            graph.insert_undirected(d(a), d(b)).unwrap();
+        }
+    }
+    let ctx = ExecutionContext::for_tests(1);
+    ctx.cancellation.cancel();
+    let stopped =
+        enumerate_cpdag_completions(&CpdagCompletionInput::new(graph), BIG, &ctx).unwrap();
+    assert!(stopped.completions.is_empty());
+    // 6! = 720 actual DAGs, but discovering that count after cancellation
+    // would violate the budget. 2^15 is a constant-time safe bound.
+    assert_eq!(stopped.not_enumerated, 1 << 15);
+    assert!(stopped.receipt.unwrap().unevaluated[0].contains("upper_bound"));
 }

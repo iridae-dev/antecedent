@@ -10,9 +10,11 @@ copied_tests = false
 # the essential graph of a class are the cited characterizations; the search that
 # lists the members (orient each undirected edge, prune cycles and new unshielded
 # colliders, keep every directed CPDAG edge) is original engineering metered by the
-# shared SearchBudget. DOIs are omitted: they could not be verified here, and
-# theorem numbers are not recorded because they could not be checked either.
+# shared SearchBudget. The covered-edge results were checked in the author's
+# primary paper: https://maxchickering.com/publications/uai95.pdf (pp. 2–3).
+# DOIs and theorem numbers for the two older characterizations remain omitted.
 papers = [
+  { title = "A Transformational Characterization of Equivalent Bayesian Network Structures (Chickering, UAI 1995)", sections = ["Lemma 1: an edge reversal preserves DAG equivalence iff the edge is covered", "Theorem 2: equivalent DAGs are connected by covered-edge reversals; used to reject falsely fixed edges in a supplied CPDAG"] },
   { title = "Equivalence and Synthesis of Causal Models", sections = ["the criterion that two DAGs are Markov equivalent exactly when they have the same skeleton and the same v-structures"] },
   { title = "A characterization of Markov equivalence classes for acyclic digraphs", sections = ["the essential graph (completed pattern) of a Markov equivalence class and its directed and undirected edges"] },
 ]
@@ -21,7 +23,7 @@ implementation_deviations = [
   "Bounded to at most 6 fully observed static nodes and 64 completions; selection edges and latent (bidirected) pairs are refused, never projected away, and no PAG or MAG class is enumerated.",
   "Each completion is decided by the 2.2 classical catalog transport route as one scenario of the 2.2 finite scenario set and evaluated against supplied exact laws, so that route's scope is inherited unchanged. Evidence is bound per canonical completion identity (BLAKE3 over the sorted parent-child edges): evidence certified for one completion never satisfies another, and a completion with no evidence is missing_evidence.",
   "No graph probability, mixture identification, weighted report or interval across completions is produced; the structural envelope is an unweighted range over the identified completions with identified, unidentified, unevaluated and never-enumerated counts kept apart.",
-  "One SearchBudget charges every orientation attempt and every completion decision; a limit stop exports and replays its identical prefix, a cancellation never exports.",
+  "One SearchBudget charges every orientation attempt, stored completion and completion decision; after a stop the unseen count is bounded by the number of orientation assignments without restarting enumeration; a limit stop exports and replays its identical prefix, a cancellation never exports.",
 ]
 upstream_implementations_observed = []
 test_sources = [

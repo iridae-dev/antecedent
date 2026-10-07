@@ -409,13 +409,13 @@ pub struct CpdagReportWire {
     pub cpdag_identity: String,
     /// Every completion found, in identity order, whatever its status.
     pub completions: Vec<CompletionResultWire>,
-    /// Completions a stop never enumerated (graphs unknown).
+    /// Upper bound on completions a stop never enumerated (graphs unknown).
     pub not_enumerated: usize,
     /// Identified completions.
     pub identified: usize,
     /// Completions decided but not identified.
     pub unidentified: usize,
-    /// Completions left unevaluated, including those never enumerated.
+    /// Upper bound on unevaluated completions, including those never enumerated.
     pub unevaluated: usize,
     /// The supplied-scenario report of the completions found: statuses, proofs,
     /// points, per-status counts and the unweighted structural envelope.

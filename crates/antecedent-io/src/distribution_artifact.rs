@@ -513,7 +513,7 @@ impl DistributionArtifact {
                 message: "distribution_meaning.posterior_interval: posterior draws required".into(),
             });
         }
-        if self.metadata.weights.is_some() || !mass.is_finite() || !(0.0..1.0).contains(&mass) {
+        if self.metadata.weights.is_some() || !mass.is_finite() || mass <= 0.0 || mass >= 1.0 {
             return Err(IoError::Convert(
                 "posterior interval requires unweighted draws and mass in (0,1)".into(),
             ));
@@ -1067,6 +1067,9 @@ mod tests {
         assert_eq!(reloaded.metadata().legacy_posterior.as_ref(), Some(&old));
         assert_eq!(reloaded.metadata().legacy_bindings.as_deref(), Some(bindings.as_slice()));
         assert_eq!(reloaded.draws(), converted.draws());
+        for invalid_mass in [0.0, -0.1, 1.0, f64::NAN] {
+            assert!(reloaded.posterior_equal_tailed_interval(0, invalid_mass).is_err());
+        }
         let (lower, upper) = reloaded.posterior_equal_tailed_interval(0, 0.95).unwrap();
         assert!((lower - old.q025[1]).abs() < 1e-12);
         assert!((upper - old.q975[1]).abs() < 1e-12);

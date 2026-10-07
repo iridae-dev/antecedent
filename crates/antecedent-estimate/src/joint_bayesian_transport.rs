@@ -738,7 +738,7 @@ fn prior_block(prior: &GaussianPrior, dim: usize) -> Result<PriorBlock, Refused>
     for i in 0..dim {
         for j in 0..i {
             let gap = (prior.covariance[i * dim + j] - prior.covariance[j * dim + i]).abs();
-            symmetric &= gap <= 1e-12 * scale.max(1.0);
+            symmetric &= gap <= 1e-12 * scale;
         }
     }
     if !symmetric || prior.mean.iter().chain(&prior.covariance).any(|value| !value.is_finite()) {

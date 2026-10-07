@@ -49,7 +49,7 @@ pub struct CpdagScenarioReport {
     pub cpdag_identity: Arc<str>,
     /// Every completion found, in identity order, whatever its status.
     pub completions: Vec<CompletionReceiptEntry>,
-    /// Completions a stop left unenumerated (graphs unknown).
+    /// Upper bound on completions a stop left unenumerated (graphs unknown).
     pub not_enumerated: usize,
     /// The supplied-scenario report: statuses with counts, and the unweighted
     /// structural envelope over identified completions. `None` when no
@@ -60,14 +60,14 @@ pub struct CpdagScenarioReport {
     /// Completions decided but not identified (every status except
     /// `identified` and `unevaluated`).
     pub unidentified: usize,
-    /// Completions left unevaluated, including those never enumerated.
+    /// Upper bound on unevaluated completions, including those never enumerated.
     pub unevaluated: usize,
     /// The first stop's receipt; present means the result is not exportable.
     pub receipt: Option<SearchReceipt>,
 }
 
 impl CpdagScenarioReport {
-    /// Completions known to exist: found plus not enumerated.
+    /// Upper bound on the class size; exact only when `not_enumerated == 0`.
     #[must_use]
     pub fn total(&self) -> usize {
         self.completions.len() + self.not_enumerated

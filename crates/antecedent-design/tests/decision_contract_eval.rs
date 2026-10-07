@@ -275,22 +275,23 @@ fn weights_are_normalized_and_change_the_answer() {
 }
 
 #[test]
-fn a_sampled_source_cannot_separate_actions_its_noise_covers() {
-    // The same four rows read as a Monte Carlo sample, not an exact law: the
-    // paired difference 3 vs 2 has standard error 1, so two standard errors
-    // cover it and the choice is not claimed.
+fn sampled_laws_report_point_values_without_unlicensed_monte_carlo_errors() {
     let exact = joint(P, Q);
-    let mut meta = exact.metadata().clone();
-    meta.calibration = DistributionCalibration::Unmeasured;
-    let sampled = DistributionArtifact::new(meta, exact.draws().to_vec()).unwrap();
-    let result =
-        evaluate_contract(&contract(DecisionCriterion::PosteriorExpectedUtility), &sampled)
-            .unwrap();
-    assert_eq!(result.verdict, Verdict::Indistinguishable(vec!["safe".into(), "risky".into()]));
-    let se = result.actions[0].standard_error.unwrap();
-    // Risky utilities 4, 0, 4, 0 have variance 4, so the standard error is 1.
-    assert!(near(se, 1.0));
-    assert!(result.assumptions.iter().any(|a| a.contains("paired standard errors")));
+    for calibration in [
+        DistributionCalibration::Unmeasured,
+        DistributionCalibration::PointOnly,
+        DistributionCalibration::Measured,
+    ] {
+        let mut meta = exact.metadata().clone();
+        meta.calibration = calibration;
+        let sampled = DistributionArtifact::new(meta, exact.draws().to_vec()).unwrap();
+        let result =
+            evaluate_contract(&contract(DecisionCriterion::PosteriorExpectedUtility), &sampled)
+                .unwrap();
+        assert_eq!(result.verdict, Verdict::UniquelyOptimal("safe".into()));
+        assert!(result.actions.iter().all(|a| a.standard_error.is_none()));
+        assert!(result.assumptions.iter().any(|a| a.contains("point ranking")));
+    }
 }
 
 #[test]
@@ -326,4 +327,81 @@ fn a_missing_coordinate_is_a_semantics_mismatch() {
     let error = evaluate_contract(&other, &joint(P, Q)).unwrap_err();
     assert_eq!(error, DecisionEvalError::QuantityNotFound { action: "risky".into(), input: 0 });
     assert_eq!(error.reason_code(), "quantity_semantics_mismatch");
+}
+
+#[test]
+fn loss_regret_and_perfect_information_use_minimum_loss() {
+    // Losses: risky [4,0,4,0], safe [3,3,3,3]. Perfect information
+    // achieves mean loss 1.5; without it the minimum expected loss is 2.
+    let result =
+        evaluate_contract(&contract(DecisionCriterion::PosteriorExpectedLoss), &joint(P, Q))
+            .unwrap();
+    assert!(near(result.evpi.unwrap(), 0.5));
+    assert!(near(result.actions[0].expected_regret.unwrap(), 0.5));
+    assert!(near(result.actions[1].expected_regret.unwrap(), 1.5));
+    assert!(near(result.actions[0].max_regret.unwrap(), 1.0));
+    assert!(near(result.actions[1].max_regret.unwrap(), 3.0));
+}
+
+#[test]
+fn zero_mass_atoms_do_not_change_worst_regret_or_tiny_quantiles() {
+    use antecedent_design::decision_contract::DecisionFunctional;
+    use antecedent_design::decision_eval::evaluate_functional;
+    let source = artifact(
+        P,
+        Q,
+        DrawAlignment::Joint,
+        DistributionMeaningWire::InterventionalPredictive,
+        Some(vec![1.0, 0.0, 1.0, 0.0]),
+    );
+    let c = contract(DecisionCriterion::Regret);
+    let result = evaluate_contract(&c, &source).unwrap();
+    assert!(near(result.actions[0].value, 0.0));
+    assert!(near(result.actions[1].value, 1.0));
+    assert_eq!(result.verdict, Verdict::UniquelyOptimal("risky".into()));
+    let f = evaluate_functional(&c, "risky", DecisionFunctional::Quantile { p: 1e-15 }, &source)
+        .unwrap();
+    assert!(near(f.value, 4.0));
+    let q =
+        evaluate_contract(&contract(DecisionCriterion::Quantile { p: 1e-15 }), &source).unwrap();
+    assert!(near(q.actions[0].value, f.value));
+}
+
+#[test]
+fn quantile_functional_and_criterion_share_boundary_convention() {
+    use antecedent_design::decision_contract::DecisionFunctional;
+    use antecedent_design::decision_eval::evaluate_functional;
+    let source = artifact(
+        [0.0, 1.0, 2.0, 3.0],
+        [1.0; 4],
+        DrawAlignment::Joint,
+        DistributionMeaningWire::InterventionalPredictive,
+        Some(vec![0.1, 0.2, 0.3, 0.4]),
+    );
+    for p in [1e-15, 0.1, 0.3, 0.6, 0.9] {
+        let c = contract(DecisionCriterion::Quantile { p });
+        let direct =
+            evaluate_functional(&c, "risky", DecisionFunctional::Quantile { p }, &source).unwrap();
+        let ranked = evaluate_contract(&c, &source).unwrap();
+        assert!(near(direct.value, ranked.actions[0].value));
+    }
+}
+
+#[test]
+fn nonfinite_aggregates_refuse_instead_of_ranking_nan_or_infinity() {
+    use antecedent_design::decision_contract::DecisionFunctional;
+    use antecedent_design::decision_eval::evaluate_functional;
+    let mut c = contract(DecisionCriterion::PosteriorExpectedUtility);
+    c.actions[0].utility = UtilityExpr::Input(0);
+    let huge = joint([f64::MAX, -f64::MAX, f64::MAX, -f64::MAX], [1.0; 4]);
+    assert!(matches!(
+        evaluate_functional(&c, "risky", DecisionFunctional::Variance, &huge),
+        Err(DecisionEvalError::NonFiniteUtility { .. })
+    ));
+    c.actions[1].utility =
+        UtilityExpr::Add(Box::new(UtilityExpr::Input(0)), Box::new(UtilityExpr::Const(-f64::MAX)));
+    assert!(matches!(
+        evaluate_contract(&c, &huge),
+        Err(DecisionEvalError::NonFiniteUtility { .. })
+    ));
 }

@@ -6,7 +6,8 @@
     clippy::cast_precision_loss,
     clippy::cast_possible_wrap,
     clippy::cast_possible_truncation,
-    clippy::cast_sign_loss
+    clippy::cast_sign_loss,
+    reason = "enumerated binary SCM fixtures use bounded nonnegative counts and indices"
 )]
 
 use std::collections::BTreeSet;

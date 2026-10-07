@@ -806,3 +806,20 @@ fn x4_posterior_prior_strength_never_changes_identification_status() {
     .unwrap_err();
     assert_eq!(refusal.code, "transport_not_certified");
 }
+
+#[test]
+fn tiny_asymmetric_prior_is_not_a_covariance() {
+    let r = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
+    let sources = [to_source("s1", &r, "snap-s1", "s1")];
+    let mut m = model();
+    let dim = m.priors.invariant.mean.len();
+    assert!(dim >= 2);
+    m.priors.invariant.covariance = vec![0.0; dim * dim];
+    for i in 0..dim {
+        m.priors.invariant.covariance[i * dim + i] = 1e-14;
+    }
+    m.priors.invariant.covariance[1] = 0.5e-14;
+    m.priors.invariant.covariance[dim] = 0.1e-14;
+    let refusal = refusal_of(&m, &sources, Some(&target()));
+    assert_eq!(refusal.detail, DETAIL_INVALID_PRIOR);
+}

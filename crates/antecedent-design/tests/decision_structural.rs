@@ -186,10 +186,7 @@ fn bayes_weights_by_genuine_probabilities_and_keeps_unresolved_mass() {
     assert!(near(result.evaluated_mass.unwrap(), 0.8));
     assert!(near(result.actions[0].weighted_value.unwrap(), 2.8));
     assert!(near(result.actions[1].weighted_value.unwrap(), 2.7));
-    assert_eq!(
-        result.verdict,
-        StructuralVerdict::BayesChoice { action: "A".into(), evaluated_mass: 0.8 }
-    );
+    assert!(matches!(result.verdict, StructuralVerdict::InsufficientScience(_)));
 
     // Completion counts are not probabilities.
     let counts = [evaluated("s1", None, 5.0, 3.0), evaluated("s2", None, 1.0, 4.0)];
@@ -258,4 +255,54 @@ fn malformed_atoms_and_probabilities_refuse() {
     assert_eq!(evaluate_structural(&c, &some).unwrap_err(), StructuralError::InvalidProbabilities);
     let over = [evaluated("a", Some(0.7), 1.0, 2.0), evaluated("b", Some(0.7), 1.0, 2.0)];
     assert_eq!(evaluate_structural(&c, &over).unwrap_err(), StructuralError::InvalidProbabilities);
+}
+
+#[test]
+fn missing_probability_mass_cannot_choose_an_action() {
+    let c = contract(StructuralPolicy::BayesOverStructures);
+    let partial = [evaluated("known", Some(0.8), 5.0, 3.0)];
+    let result = evaluate_structural(&c, &partial).unwrap();
+    assert!(near(result.unevaluated_mass.unwrap(), 0.2));
+    assert!(matches!(result.verdict, StructuralVerdict::InsufficientScience(_)));
+    let tiny = [
+        evaluated("known", Some(1.0 - 1e-12), 5.0, 3.0),
+        atom("unknown", Some(1e-12), AtomEvidence::Unevaluated("budget".into())),
+    ];
+    assert!(matches!(
+        evaluate_structural(&c, &tiny).unwrap().verdict,
+        StructuralVerdict::InsufficientScience(_)
+    ));
+    // Unknown payoffs on the missing mass can reverse the observed preference.
+    let mut completed = partial.to_vec();
+    completed.push(evaluated("missing", Some(0.2), 0.0, 100.0));
+    assert!(
+        matches!(evaluate_structural(&c, &completed).unwrap().verdict, StructuralVerdict::BayesChoice { action, .. } if action == "B")
+    );
+}
+
+#[test]
+fn bayes_never_averages_component_quantiles_or_maximum_regrets() {
+    let atoms = [evaluated("s1", Some(0.5), 0.0, 3.0), evaluated("s2", Some(0.5), 10.0, 3.0)];
+    for criterion in [DecisionCriterion::Quantile { p: 0.5 }, DecisionCriterion::Regret] {
+        let mut c = contract(StructuralPolicy::BayesOverStructures);
+        c.criterion = criterion;
+        assert!(evaluate_structural(&c, &atoms).is_err());
+    }
+}
+
+#[test]
+fn zero_probability_structure_cannot_exclude_a_bayes_action() {
+    let mut c = contract(StructuralPolicy::BayesOverStructures);
+    c.constraints.push(HardConstraint {
+        id: "cap".into(),
+        applies_to: vec!["A".into()],
+        expr: UtilityExpr::Input(0),
+        bound: 10.0,
+        min_probability: 1.0,
+        units: "units".into(),
+    });
+    let atoms =
+        [evaluated("supported", Some(1.0), 5.0, 3.0), evaluated("null", Some(0.0), 100.0, 0.0)];
+    let r = evaluate_structural(&c, &atoms).unwrap();
+    assert!(matches!(r.verdict, StructuralVerdict::BayesChoice { action, .. } if action == "A"));
 }

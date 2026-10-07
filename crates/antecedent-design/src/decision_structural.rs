@@ -241,6 +241,15 @@ pub fn evaluate_structural(
     if aggregate == Aggregate::Bayes && !has_probabilities {
         return Err(StructuralError::ProbabilitiesRequired);
     }
+    if aggregate == Aggregate::Bayes
+        && matches!(inner.criterion, DecisionCriterion::Quantile { .. } | DecisionCriterion::Regret)
+    {
+        // Quantiles and suprema of a mixture are not weighted averages of the
+        // component functionals. No mixture-law evaluator is licensed here.
+        return Err(StructuralError::Contract(DecisionContractError::InvalidParameter(
+            "structural_criterion",
+        )));
+    }
     let sign = orientation(inner.criterion);
 
     let mut summaries = Vec::with_capacity(atoms.len());
@@ -268,7 +277,13 @@ pub fn evaluate_structural(
     };
     let evaluated_mass = mass(|s| matches!(s, AtomStatus::Evaluated(_)));
     let unidentified_mass = mass(|s| matches!(s, AtomStatus::Unidentified));
-    let unevaluated_mass = mass(|s| matches!(s, AtomStatus::Unevaluated(_)));
+    let unassigned_mass = if has_probabilities {
+        (1.0 - summaries.iter().filter_map(|s| s.probability).sum::<f64>()).max(0.0)
+    } else {
+        0.0
+    };
+    let unevaluated_mass =
+        mass(|s| matches!(s, AtomStatus::Unevaluated(_))).map(|m| m + unassigned_mass);
 
     let n_actions = contract.actions.len();
     let mut actions: Vec<ActionStructure> = contract
@@ -292,7 +307,8 @@ pub fn evaluate_structural(
         for (i, outcome) in result.actions.iter().enumerate() {
             if outcome.admissible {
                 actions[i].per_atom[k] = Some(outcome.value);
-            } else {
+            } else if aggregate != Aggregate::Bayes || summary.probability.is_some_and(|p| p > 0.0)
+            {
                 actions[i].excluded_in.push(summary.id.clone());
             }
         }
@@ -388,7 +404,11 @@ pub fn evaluate_structural(
             }
             Aggregate::Bayes => {
                 let evaluated = evaluated_mass.unwrap_or(0.0);
-                if evaluated <= 0.0 {
+                if unidentified_mass.unwrap_or(0.0) > 0.0 || unevaluated_mass.unwrap_or(0.0) > 0.0 {
+                    StructuralVerdict::InsufficientScience(
+                        "positive unresolved probability mass can change the Bayes action".into(),
+                    )
+                } else if evaluated <= 0.0 {
                     StructuralVerdict::InsufficientScience(
                         "no evaluated structure has positive probability".into(),
                     )

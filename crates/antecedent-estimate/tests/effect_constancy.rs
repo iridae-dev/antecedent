@@ -316,3 +316,33 @@ fn f18_partition_permutation_gives_bit_identical_statistic() {
         assert_eq!(base.partitions, other.partitions, "{order:?}");
     }
 }
+
+#[test]
+fn covariance_validation_is_invariant_to_measurement_units() {
+    for scale in [1.0, 1e-12, 1e12] {
+        let parts = [part("a", scale, scale), part("b", 2.0 * scale, scale)];
+        let s2 = scale * scale;
+        let covariance = PartitionDependence::Covariance(vec![s2, 0.5 * s2, 0.1 * s2, s2]);
+        assert!(
+            test_effect_constancy(&parts, &covariance, &ContrastFamily::AllPairs, 0.05).is_err()
+        );
+        let valid = PartitionDependence::Covariance(vec![s2, 0.5 * s2, 0.5 * s2, s2]);
+        let result =
+            test_effect_constancy(&parts, &valid, &ContrastFamily::AllPairs, 0.05).unwrap();
+        close(result.test.statistic, 1.0, "scale-invariant Wald");
+    }
+}
+
+#[test]
+fn overflow_underflow_and_blank_identities_refuse() {
+    for se in [1e-300, 1e300] {
+        assert!(run_independent(&[part("a", 0.0, se), part("b", 1.0, se)]).is_err());
+    }
+    assert!(run_independent(&[part("a", -1e308, 1.0), part("b", 1e308, 1.0)]).is_err());
+    assert!(run_independent(&[part(" ", 0.0, 1.0), part("b", 1.0, 1.0)]).is_err());
+    let mut parts = [part("a", 0.0, 1.0), part("b", 1.0, 1.0)];
+    for p in &mut parts {
+        p.estimand.population.clear();
+    }
+    assert!(run_independent(&parts).is_err());
+}

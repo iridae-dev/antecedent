@@ -320,7 +320,8 @@ fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), E
                 "an effect or standard error is not finite",
             ));
         }
-        if p.standard_error <= 0.0 {
+        let variance = p.standard_error * p.standard_error;
+        if p.standard_error <= 0.0 || !variance.is_finite() || variance <= 0.0 {
             return Err(refuse(
                 invalid,
                 "effect_constancy.invalid_standard_error",
@@ -334,6 +335,17 @@ fn validate_inputs(partitions: &[PartitionEstimate], alpha: f64) -> Result<(), E
 fn validate_comparability(partitions: &[PartitionEstimate]) -> Result<(), EstimationError> {
     let incompatible = reason_code!("route_not_supported");
     let first = &partitions[0].estimand;
+    if [&first.estimand, &first.units, &first.regime, &first.population]
+        .iter()
+        .any(|s| s.trim().is_empty())
+        || partitions.iter().any(|p| p.label.trim().is_empty() || p.coordinate.trim().is_empty())
+    {
+        return Err(refuse(
+            incompatible,
+            "effect_constancy.incompatible_partitions",
+            "partition and estimand identities must not be blank",
+        ));
+    }
     if partitions.iter().any(|p| &p.estimand != first) {
         return Err(refuse(
             incompatible,
@@ -377,7 +389,7 @@ fn validate_covariance(
     for i in 0..k {
         for j in 0..i {
             let (a, b) = (covariance[i * k + j], covariance[j * k + i]);
-            if (a - b).abs() > COVARIANCE_TOLERANCE * a.abs().max(b.abs()).max(1.0) {
+            if (a - b).abs() > COVARIANCE_TOLERANCE * a.abs().max(b.abs()) {
                 return Err(bad("the covariance is not symmetric"));
             }
         }
@@ -429,10 +441,11 @@ fn wald_statistic(effects: &[f64], covariance: &[f64]) -> Result<f64, Estimation
 
 /// Cochran's `Q` and the inverse-variance pooled effect.
 fn cochran_q(effects: &[f64], ses: &[f64]) -> (f64, f64) {
-    let weights: Vec<f64> = ses.iter().map(|s| 1.0 / (s * s)).collect();
+    let min_se = ses.iter().copied().fold(f64::INFINITY, f64::min);
+    let weights: Vec<f64> = ses.iter().map(|s| (min_se / s).powi(2)).collect();
     let total: f64 = weights.iter().sum();
-    let pooled = weights.iter().zip(effects).map(|(w, e)| w * e).sum::<f64>() / total;
-    let q = weights.iter().zip(effects).map(|(w, e)| w * (e - pooled) * (e - pooled)).sum();
+    let pooled = weights.iter().zip(effects).map(|(w, e)| (w / total) * e).sum::<f64>();
+    let q = ses.iter().zip(effects).map(|(se, e)| ((e - pooled) / se).powi(2)).sum();
     (q, pooled)
 }
 
@@ -480,6 +493,13 @@ fn contrast_reports(
         let difference = partitions[a].effect - partitions[b].effect;
         let se = variance.sqrt();
         let z = difference / se;
+        if !difference.is_finite() || !z.is_finite() {
+            return Err(refuse(
+                reason_code!("invalid_argument"),
+                "effect_constancy.non_finite_estimate",
+                "a contrast overflows at the supplied scale",
+            ));
+        }
         rows.push((a, b, difference, se, z, erfc(z.abs() / std::f64::consts::SQRT_2)));
     }
     let raw: Vec<f64> = rows.iter().map(|r| r.5).collect();
@@ -560,6 +580,13 @@ pub fn test_effect_constancy(
             (HeterogeneityStatistic::WaldChiSquare, w, permuted, None)
         }
     };
+    if !statistic.is_finite() || pooled_effect.is_some_and(|p| !p.is_finite()) {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "effect_constancy.non_finite_estimate",
+            "the statistic overflows at the supplied scale",
+        ));
+    }
     let df = k - 1;
     let p_value = chi_square_sf(statistic, df);
     let contrasts = contrast_reports(&reports, &covariance, family, alpha)?;

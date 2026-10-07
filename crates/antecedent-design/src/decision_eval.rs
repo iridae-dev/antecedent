@@ -118,8 +118,8 @@ pub struct ActionOutcome {
     pub expected_utility: f64,
     /// The criterion's value for this action, in the criterion's own units.
     pub value: f64,
-    /// Monte Carlo standard error of `value` when the criterion is a mean or a
-    /// proportion over the draws.
+    /// Zero for an exact finite-law mean/probability; otherwise unavailable.
+    /// Sampled artifacts do not declare independent draws or calibrated MC error.
     pub standard_error: Option<f64>,
     /// Expected regret against the best admissible action per draw; `None` when
     /// the action is excluded.
@@ -131,10 +131,10 @@ pub struct ActionOutcome {
 /// What the evaluation can claim about the choice.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Verdict {
-    /// One action has the best value and the others are distinguishably worse.
+    /// One action has the best value under the supplied finite law. For sampled
+    /// laws this is a point ranking, with no statistical optimality guarantee.
     UniquelyOptimal(String),
-    /// The best-scoring action cannot be told apart from these others within
-    /// the declared error; the first is the point-estimate leader.
+    /// These actions have equal finite-law values; no sampling comparison is claimed.
     Indistinguishable(Vec<String>),
     /// Every action violated a hard constraint.
     NoAdmissibleAction,
@@ -176,10 +176,6 @@ pub struct DecisionResult {
     /// Assumptions the result stands on.
     pub assumptions: Vec<String>,
 }
-
-/// Tolerance, in paired standard errors, inside which two actions are
-/// indistinguishable.
-pub const INDISTINGUISHABLE_Z: f64 = 2.0;
 
 struct Table {
     /// `utilities[a][i]` for action `a`, draw `i`.
@@ -268,54 +264,15 @@ fn build_table(
 }
 
 fn weighted_mean(values: &[f64], weights: &[f64]) -> f64 {
-    values.iter().zip(weights).map(|(v, w)| v * w).sum()
+    values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, w)| v * w).sum()
+}
+
+fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
+    values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, _)| *v).fold(0.0, f64::max)
 }
 
 fn effective_draws(weights: &[f64]) -> f64 {
     1.0 / weights.iter().map(|w| w * w).sum::<f64>()
-}
-
-/// Standard error of a weighted mean of `values`; zero for an exact finite law.
-fn mean_se(values: &[f64], weights: &[f64], exact: bool) -> f64 {
-    if exact {
-        return 0.0;
-    }
-    let mean = weighted_mean(values, weights);
-    let variance: f64 = values.iter().zip(weights).map(|(v, w)| w * (v - mean) * (v - mean)).sum();
-    (variance / effective_draws(weights)).sqrt()
-}
-
-fn weighted_quantile(values: &[f64], weights: &[f64], p: f64) -> f64 {
-    let mut order: Vec<usize> = (0..values.len()).collect();
-    order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
-    let mut cumulative = 0.0;
-    for &index in &order {
-        cumulative += weights[index];
-        if cumulative >= p {
-            return values[index];
-        }
-    }
-    values[*order.last().unwrap_or(&0)]
-}
-
-/// Per-draw score to maximize for the criterion, when it has one.
-fn per_draw_score(
-    criterion: DecisionCriterion,
-    utility: &[f64],
-    regret: &[f64],
-) -> Option<Vec<f64>> {
-    match criterion {
-        DecisionCriterion::PosteriorExpectedUtility => Some(utility.to_vec()),
-        DecisionCriterion::PosteriorExpectedLoss => Some(utility.iter().map(|u| -u).collect()),
-        DecisionCriterion::ThresholdProbability { threshold } => {
-            Some(utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect())
-        }
-        DecisionCriterion::ExpectedRegret => Some(regret.iter().map(|r| -r).collect()),
-        DecisionCriterion::Quantile { .. }
-        | DecisionCriterion::Regret
-        | DecisionCriterion::MinimaxOverIdentifiedSet
-        | DecisionCriterion::MaximinOverStructures => None,
-    }
 }
 
 /// Evaluate `contract` on `source`.
@@ -325,6 +282,7 @@ fn per_draw_score(
 /// coordinate, a source meaning that cannot answer an outcome-law input, and
 /// criteria that need structure inputs.
 #[allow(clippy::too_many_lines)]
+#[allow(clippy::float_cmp)] // Ties of the finite-law criterion values.
 pub fn evaluate_contract(
     contract: &DecisionContract,
     source: &DistributionArtifact,
@@ -365,6 +323,9 @@ pub fn evaluate_contract(
                     row[slot] = source.draws()[draw * width + column];
                 }
                 let value = constraint.expr.evaluate(&row).map_err(DecisionEvalError::Contract)?;
+                if !value.is_finite() {
+                    return Err(DecisionEvalError::NonFiniteUtility { action: action.id.clone() });
+                }
                 if value <= constraint.bound {
                     held += weight;
                 }
@@ -382,43 +343,50 @@ pub fn evaluate_contract(
         (0..contract.actions.len()).filter(|i| exclusions[*i].is_empty()).collect();
 
     // Regret is measured against the best admissible action in each draw.
+    let loss = contract.criterion == DecisionCriterion::PosteriorExpectedLoss;
+    let sign = if loss { -1.0 } else { 1.0 };
     let best_per_draw: Vec<f64> = (0..n)
         .map(|i| {
-            admissible.iter().map(|a| table.utilities[*a][i]).fold(f64::NEG_INFINITY, f64::max)
+            admissible
+                .iter()
+                .map(|a| sign * table.utilities[*a][i])
+                .fold(f64::NEG_INFINITY, f64::max)
         })
         .collect();
     let regret_of = |a: usize| -> Vec<f64> {
-        (0..n).map(|i| best_per_draw[i] - table.utilities[a][i]).collect()
+        (0..n).map(|i| best_per_draw[i] - sign * table.utilities[a][i]).collect()
     };
 
     let mut outcomes = Vec::with_capacity(contract.actions.len());
-    let mut scores: Vec<Option<Vec<f64>>> = Vec::with_capacity(contract.actions.len());
     for (index, action) in contract.actions.iter().enumerate() {
         let utility = &table.utilities[index];
         let is_admissible = exclusions[index].is_empty();
         let regret = if is_admissible { regret_of(index) } else { Vec::new() };
         let expected_utility = weighted_mean(utility, weights);
-        let per_draw =
-            if is_admissible { per_draw_score(contract.criterion, utility, &regret) } else { None };
         let (value, standard_error) = match contract.criterion {
             DecisionCriterion::PosteriorExpectedUtility
-            | DecisionCriterion::PosteriorExpectedLoss => {
-                (expected_utility, Some(mean_se(utility, weights, exact)))
-            }
+            | DecisionCriterion::PosteriorExpectedLoss => (expected_utility, exact.then_some(0.0)),
             DecisionCriterion::ThresholdProbability { threshold } => {
                 let indicator: Vec<f64> =
                     utility.iter().map(|u| f64::from(u32::from(*u >= threshold))).collect();
-                (weighted_mean(&indicator, weights), Some(mean_se(&indicator, weights, exact)))
+                (weighted_mean(&indicator, weights), exact.then_some(0.0))
             }
-            DecisionCriterion::Quantile { p } => (weighted_quantile(utility, weights, p), None),
+            DecisionCriterion::Quantile { p } => (left_inverse(utility, weights, p), None),
             DecisionCriterion::ExpectedRegret if is_admissible => {
-                (weighted_mean(&regret, weights), Some(mean_se(&regret, weights, exact)))
+                (weighted_mean(&regret, weights), exact.then_some(0.0))
             }
             DecisionCriterion::Regret if is_admissible => {
-                (regret.iter().copied().fold(0.0, f64::max), None)
+                (positive_mass_max(&regret, weights), None)
             }
             _ => (f64::NAN, None),
         };
+        if !expected_utility.is_finite()
+            || (is_admissible
+                && (!value.is_finite()
+                    || regret.iter().zip(weights).any(|(r, w)| *w > 0.0 && !r.is_finite())))
+        {
+            return Err(DecisionEvalError::NonFiniteUtility { action: action.id.clone() });
+        }
         outcomes.push(ActionOutcome {
             id: action.id.clone(),
             admissible: is_admissible,
@@ -427,9 +395,8 @@ pub fn evaluate_contract(
             value,
             standard_error,
             expected_regret: is_admissible.then(|| weighted_mean(&regret, weights)),
-            max_regret: is_admissible.then(|| regret.iter().copied().fold(0.0, f64::max)),
+            max_regret: is_admissible.then(|| positive_mass_max(&regret, weights)),
         });
-        scores.push(per_draw);
     }
 
     // Rank admissible actions by the criterion. `larger` ranks higher.
@@ -451,16 +418,9 @@ pub fn evaluate_contract(
         Some(best) => {
             let mut tied = vec![contract.actions[best].id.clone()];
             for other in admissible.iter().copied().filter(|a| *a != best) {
-                let indistinct = match (&scores[best], &scores[other]) {
-                    (Some(sb), Some(so)) => {
-                        let diff: Vec<f64> = sb.iter().zip(so).map(|(x, y)| x - y).collect();
-                        let se = mean_se(&diff, weights, exact);
-                        let mean = weighted_mean(&diff, weights);
-                        mean.abs() <= INDISTINGUISHABLE_Z * se + 1e-12
-                    }
-                    // No paired error is defined: only exactly equal values tie.
-                    _ => outcomes[best].value.to_bits() == outcomes[other].value.to_bits(),
-                };
+                // These are functionals of the supplied finite law. A sampled
+                // artifact carries no draw-dependence or calibrated ranking contract.
+                let indistinct = outcomes[best].value == outcomes[other].value;
                 if indistinct {
                     tied.push(contract.actions[other].id.clone());
                 }
@@ -476,10 +436,15 @@ pub fn evaluate_contract(
         let perfect = weighted_mean(&best_per_draw, weights);
         let best_mean = admissible
             .iter()
-            .map(|a| weighted_mean(&table.utilities[*a], weights))
+            .map(|a| sign * weighted_mean(&table.utilities[*a], weights))
             .fold(f64::NEG_INFINITY, f64::max);
         perfect - best_mean
     });
+    if evpi.is_some_and(|value| !value.is_finite()) {
+        return Err(DecisionEvalError::NonFiniteUtility {
+            action: contract.actions[admissible[0]].id.clone(),
+        });
+    }
     let identity_meta = &source.metadata().identity;
     Ok(DecisionResult {
         contract_identity: identity,
@@ -501,9 +466,7 @@ pub fn evaluate_contract(
             if exact {
                 "the source is an exact finite law, so values carry no sampling error".to_owned()
             } else {
-                format!(
-                    "indistinguishable means within {INDISTINGUISHABLE_Z} paired standard errors of the leader"
-                )
+                "point ranking of the supplied empirical law only; Monte Carlo error and ranking guarantees are not licensed".to_owned()
             },
         ],
     })
@@ -516,29 +479,32 @@ pub struct FunctionalValue {
     /// [`DecisionFunctional::Probability`], the squared utility unit for
     /// [`DecisionFunctional::Variance`]).
     pub value: f64,
-    /// Monte Carlo standard error: `Some(0.0)` for an exact finite law, the
-    /// standard error of the weighted mean for a sampled expectation, and `None`
-    /// where no closed form is claimed.
+    /// `Some(0.0)` for an exact finite law; `None` for sampled laws, whose
+    /// draw-dependence and Monte Carlo error are not certified by the artifact.
     pub standard_error: Option<f64>,
     /// The source representation the functional was answered from.
     pub source_mode: SourceMode,
 }
 
-/// Mass tolerance used when comparing cumulative weights with a level `p`.
-const MASS_TOLERANCE: f64 = 1e-12;
+/// Relative roundoff tolerance used when comparing cumulative weights with a level `p`.
+const MASS_TOLERANCE: f64 = 8.0 * f64::EPSILON;
 
 /// Left inverse `inf { x : F(x) >= p }` of the weighted empirical CDF.
+#[allow(clippy::float_cmp)] // Zero-weight atoms are outside the law support.
 fn left_inverse(values: &[f64], weights: &[f64], p: f64) -> f64 {
     let mut order: Vec<usize> = (0..values.len()).collect();
     order.sort_by(|&a, &b| values[a].total_cmp(&values[b]));
     let mut cumulative = 0.0;
     for &index in &order {
+        if weights[index] == 0.0 {
+            continue;
+        }
         cumulative += weights[index];
-        if cumulative + MASS_TOLERANCE >= p {
+        if cumulative >= p || (cumulative - p).abs() <= MASS_TOLERANCE * cumulative.max(p) {
             return values[index];
         }
     }
-    values[*order.last().unwrap_or(&0)]
+    values[*order.iter().rev().find(|&&i| weights[i] > 0.0).expect("positive total weight")]
 }
 
 /// Mean of the lowest or highest probability mass `p`, splitting the boundary
@@ -578,16 +544,16 @@ fn fractional_tail_mean(values: &[f64], weights: &[f64], p: f64, tail: Tail) -> 
 ///   `Upper` is `P(x >= threshold)`; both include the atom at the threshold.
 /// - `Quantile { p }`: the left inverse `F^-1(p) = inf { x : F(x) >= p }` of the
 ///   weighted empirical CDF, the smallest value whose cumulative weight reaches
-///   `p`. Cumulative weights are compared to `p` with an absolute tolerance of
-///   `1e-12` so a level that falls exactly on an atom boundary selects that atom.
+///   `p`. Cumulative weights are compared to `p` with a relative roundoff tolerance of
+///   eight machine epsilons so a level that falls exactly on an atom boundary selects that atom.
 /// - `TailExpectation { p, tail }`: the fractional-boundary tail mean. Draws are
 ///   sorted ascending for `Lower` and descending for `Upper`; weights accumulate
 ///   until mass `p` is reached, taking only the needed fraction of the boundary
 ///   atom, and the weighted sum is divided by `p`. This is the explicitly
 ///   selected tail rule.
 ///
-/// `standard_error` is `Some(0.0)` for an exact finite law, the weighted-mean
-/// standard error for a sampled expectation, and `None` otherwise.
+/// `standard_error` is `Some(0.0)` for an exact finite law; Monte Carlo
+/// error is withheld for sampled laws (`None`).
 ///
 /// # Errors
 /// Refuses an invalid contract, an unknown action
@@ -631,11 +597,15 @@ pub fn evaluate_functional(
     let mean = weighted_mean(utility, weights);
     let (value, sampled_error) = match functional {
         DecisionFunctional::Expectation | DecisionFunctional::ExpectedUtility => {
-            (mean, Some(mean_se(utility, weights, exact)))
+            (mean, exact.then_some(0.0))
         }
         DecisionFunctional::Variance => {
-            let variance: f64 =
-                utility.iter().zip(weights).map(|(v, w)| w * (v - mean) * (v - mean)).sum();
+            let variance: f64 = utility
+                .iter()
+                .zip(weights)
+                .filter(|(_, w)| **w > 0.0)
+                .map(|(v, w)| w * (v - mean) * (v - mean))
+                .sum();
             (variance, None)
         }
         DecisionFunctional::Probability { threshold, tail } => {
@@ -655,6 +625,9 @@ pub fn evaluate_functional(
             (fractional_tail_mean(utility, weights, p, tail), None)
         }
     };
+    if !value.is_finite() {
+        return Err(DecisionEvalError::NonFiniteUtility { action: action_id.to_owned() });
+    }
     let standard_error = if exact { Some(0.0) } else { sampled_error };
     Ok(FunctionalValue { value, standard_error, source_mode })
 }

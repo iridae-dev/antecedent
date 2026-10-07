@@ -231,3 +231,18 @@ observation-recovery formula?
   which never returns.
 - Refusals: `sampled_recovery.*` (`unrecoverable_pattern`, `bounds_exceeded`,
   `route_frozen`).
+
+The CPDAG search charges completion storage as well as orientation attempts. A
+stopped enumeration reports an upper bound on unseen completions, labeled
+`cpdag_completions_not_enumerated_upper_bound` in its receipt; Python's
+`counts.exact` is false. It never restarts search to discover an exact remainder
+after cancellation or budget exhaustion. Directed edges that are reversible
+within the equivalence class are rejected, as are undirected edges whose
+orientation is compelled.
+
+F18 also executes a known-Gaussian reference experiment (2,000 replicates per
+cell; n=20,80,320; 2,3,8 partitions; independent and positively/negatively
+correlated errors), checking null Type I error, power and both Holm families.
+This measures the test composition under known covariance. It does not certify
+an arbitrary supplied effect estimator or estimated covariance; those results
+retain their `unmeasured` calibration label.

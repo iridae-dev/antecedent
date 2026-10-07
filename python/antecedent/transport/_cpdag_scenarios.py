@@ -185,13 +185,22 @@ class StructuralEnvelope:
 
 @dataclass(frozen=True, slots=True)
 class CompletionCounts:
-    """Completion counts, kept apart and never renormalized over the identified ones."""
+    """Completion counts; unevaluated/total are upper bounds when enumeration stopped.
+
+    ``not_enumerated`` bounds unseen completions without doing further search.
+    ``exact`` distinguishes a complete enumeration from those bounds.
+    """
 
     identified: int
     unidentified: int
     unevaluated: int
     not_enumerated: int
     total: int
+
+    @property
+    def exact(self) -> bool:
+        """Whether enumeration established the exact counts."""
+        return self.not_enumerated == 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -457,7 +466,7 @@ def cpdag_completion_scenarios(
     decisions together: every orientation attempt is one operation at depth equal
     to the undirected edges oriented so far (so ``max_depth`` must reach the
     number of undirected edges). When it stops, completions found stay listed,
-    undecided ones are ``unevaluated``, never-enumerated ones are counted in
+    undecided ones are ``unevaluated``, never-enumerated ones are conservatively bounded in
     ``counts.not_enumerated`` and ``receipt`` says what was explored.
     """
     graph = _cpdag_of(cpdag)

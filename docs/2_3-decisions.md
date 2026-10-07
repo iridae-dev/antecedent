@@ -71,14 +71,15 @@ structure inputs that one draw source does not carry, so they refuse with
 `DecisionResult` reports per-action admissibility and exclusions, expected
 utility, criterion value, standard error, expected and maximum regret, EVPI over
 the admissible actions, effective draws, the source lineage and the
-assumptions. The verdict is `UniquelyOptimal`, `Indistinguishable` (the leader
-cannot be separated from the others within two paired standard errors) or
-`NoAdmissibleAction`. An exact finite law has no sampling error, so ties there
-are only exact ties; the same rows read as a Monte Carlo sample are
-indistinguishable when noise covers the gap.
-
-Not yet in the result: structural and support robustness, decision uncertainty
-beyond the standard error, graph-dependent choice and the artifacts.
+assumptions. `UniquelyOptimal` names the unique best value under the supplied
+finite law, `Indistinguishable` reports equal values, and `NoAdmissibleAction`
+reports that every action failed a constraint. For a sampled law these are
+point rankings only. Monte Carlo standard errors and statistical ranking
+guarantees are withheld: a distribution's calibration label does not certify
+independent draws, effective MCMC sample size, or decision calibration. An exact
+finite law has zero numerical sampling error. Loss decisions compute regret
+relative to the smallest loss and EVPI as the reduction in expected loss.
+Zero-weight atoms do not enter worst-case regret or quantiles.
 
 ## Structural uncertainty
 
@@ -194,3 +195,10 @@ study is not covered because EVSI and design ranking do not exist yet.
 ## Structural result artifact
 
 `StructuralResultArtifact` (`antecedent_design::decision_structural_artifact`) stores a `StructuralDecisionResult` in the checksummed container (`decision_structural_result_v1`, bounded at 8 MiB). It retains the contract identity, each atom's id, probability and status (evaluated, unidentified, or unevaluated with its reason), the BLAKE3 digest of each evaluated atom's draws, the declared structural policy, the per-action per-structure values, ranges and masses, the unidentified, unevaluated and evaluated masses, and the verdict. `from_bytes` loads only under the consumer's own contract identity and atom id/digest list, and `replay` recomputes `evaluate_structural` and requires a byte-identical body, so a resealed verdict or number is refused.
+
+Structural Bayes choices require all positive probability mass to be evaluated.
+Partial weighted values remain visible without renormalization, and an omitted
+remainder is counted as unevaluated mass. Unknown payoffs can reverse a partial
+ranking, so it produces `InsufficientScience`. A zero-probability atom cannot
+exclude a Bayes action. Bayesian averaging of component quantiles or maximum
+regrets is refused: neither is the corresponding functional of a mixture law.
