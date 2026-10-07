@@ -38,6 +38,7 @@ pub mod path_specific;
 pub mod prepared;
 pub mod rd;
 pub mod recovery;
+pub mod recovery_chain;
 pub mod response;
 pub(crate) mod response_id;
 pub mod result;
@@ -57,6 +58,12 @@ pub use recovery::{
     RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord, RecoveryReceiptRecord,
     RecoveryWitness, WitnessCheck, WitnessMechanism, decide_observation_recovery,
     verify_observation_recovery, verify_recovery_witness,
+};
+pub use recovery_chain::{
+    CHAIN_RECOVERY_LIMITS, CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision,
+    ChainRecoveryDetail, ChainRecoveryError, ChainRecoveryPlan, ChainRecoveryQuery,
+    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, decide_chain_recovery,
+    verify_chain_witness,
 };
 pub use sid::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,

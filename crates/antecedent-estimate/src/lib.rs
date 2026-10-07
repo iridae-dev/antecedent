@@ -25,6 +25,7 @@ pub mod bayesian_iv;
 pub mod bayesian_mediation;
 pub mod bayesian_rd;
 pub mod bayesian_robust_ate;
+pub mod categorical_treatment;
 pub mod causal_forest;
 pub mod cell_aipw;
 pub mod conditional;
@@ -52,11 +53,13 @@ pub mod interference_saturation;
 pub mod iv;
 pub mod joint_bayesian_transport;
 pub mod joint_if;
+pub mod latent_class_effects;
 mod learn_nuisance;
 pub mod local_polynomial_ratio;
 pub mod mixed_source;
 pub mod multi_arm;
 pub mod nested_markov_binary;
+pub mod nonlinear_mediation;
 pub mod observation;
 pub mod overlap;
 pub mod policy_value;
@@ -68,6 +71,7 @@ pub mod randomized_neyman;
 pub mod randomized_scores;
 pub mod rd;
 pub mod recovery;
+pub mod recovery_chain;
 pub mod recovery_sampled;
 pub mod response;
 pub mod retarget;
@@ -95,6 +99,7 @@ pub mod temporal_transport;
 pub mod transport;
 pub mod transport_scenarios;
 pub mod util;
+pub mod vector_treatment;
 
 #[cfg(test)]
 #[allow(clippy::doc_markdown)]
@@ -106,6 +111,7 @@ pub use adjustment::{
 };
 pub mod cluster_dml_aipw;
 pub mod descriptive_comparison;
+pub mod dose_grid_functional;
 pub mod estimator_menu;
 pub mod fit_plan;
 pub mod joint_cell_factorized;
@@ -277,6 +283,7 @@ pub use rd::{
     SharpRegressionDiscontinuity,
 };
 pub use recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
+pub use recovery_chain::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
 pub use recovery_sampled::{
     ObservationPattern, ObservationRow, SAMPLED_RECOVERY_CALIBRATION,
     SAMPLED_RECOVERY_INTERVAL_LEVEL, SAMPLED_RECOVERY_MAX_BINARY_VARIABLES,

@@ -39,6 +39,7 @@ pub mod claim;
 pub mod composition_provenance;
 pub mod diagnostic;
 pub mod error;
+pub mod evidence_obligation;
 pub mod execution;
 pub mod external;
 pub mod external_binding;
@@ -88,6 +89,11 @@ pub use composition_provenance::{
 };
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
+pub use evidence_obligation::{
+    EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
+    EvidenceOffer, MAX_OBLIGATION_COORDINATES, ObligationProvenance, ObligationRegime,
+    unresolved_assumption_obligations,
+};
 pub use execution::{
     ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
     CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
