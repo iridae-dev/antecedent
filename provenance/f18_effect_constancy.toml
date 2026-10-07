@@ -1,0 +1,33 @@
+feature_id = "f18_effect_constancy"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A global heterogeneity test of one effect across declared partitions (time periods or
+# regions): Cochran's Q for independent partition estimates, a Wald chi-square of the
+# contrasts against the first partition when a covariance of the estimates is supplied,
+# per-contrast two-sided normal p-values and Holm adjustment. Tails come from the
+# regularized upper incomplete gamma function and erfc. DOIs are omitted because they
+# were not resolved here.
+papers = [
+  { title = "The Combination of Estimates from Different Experiments (Biometrics 10(1), 1954)", sections = ["Cochran's Q: weighted sum of squared deviations of independent estimates from their inverse-variance weighted mean, referred to a chi-square distribution on k-1 degrees of freedom"] },
+  { title = "Tests of Statistical Hypotheses Concerning Several Parameters When the Number of Observations Is Large (Transactions of the American Mathematical Society 54(3), 1943)", sections = ["The Wald statistic: a quadratic form of linear contrasts in the inverse of their covariance, referred to a chi-square distribution"] },
+  { title = "A Simple Sequentially Rejective Multiple Test Procedure (Scandinavian Journal of Statistics 6(2), 1979)", sections = ["The step-down sequentially rejective multiple test procedure used for Holm-adjusted contrast p-values"] },
+]
+
+implementation_deviations = [
+  "Cochran's Q is used only for independent partitions; with a supplied covariance the statistic is the Wald chi-square of the k-1 contrasts against the first partition in label order, which for a diagonal covariance equals Q. No random-effects or I-squared quantity is reported.",
+  "The chi-square approximation is asymptotic and is applied to the supplied estimates and standard errors as if known; no small-sample correction is made, and the test's Type I error and power are unmeasured (calibration coordinate 'unmeasured'). No power claim is made, and non-rejection never proves constancy.",
+  "Per-contrast p-values are two-sided normal (erfc) for the declared family (all pairs or against a reference) and Holm-adjusted over that family at a fixed level alpha supplied by the caller; the Holm adjustment controls the family-wise error only under the usual normal-approximation assumptions and is not claimed to do so here beyond them.",
+  "Partitions are sorted by label before any arithmetic, so the result is invariant to input order; the covariance must be a declared, symmetric, positive-definite k x k matrix whose diagonal equals the squared standard errors, otherwise the test is refused rather than assuming independence.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/effect_constancy.rs",
+  "crates/antecedent-io/tests/effect_constancy_artifact.rs",
+  "python/tests/test_effect_constancy.py",
+]

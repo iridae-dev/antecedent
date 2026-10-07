@@ -1,0 +1,29 @@
+feature_id = "x5_dependent_temporal_interval"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A cluster (whole-unit) bootstrap: every complete history of a drawn unit moves together
+# and the whole two-step estimator is re-run on each replicate. No single paper is cited
+# because the record claims no consistency theorem for this bootstrap on this
+# functional and no precise section of a bootstrap reference was checked against the
+# code, so papers = [] is an explicit judgment, not an unfilled field. The generic
+# cluster-bootstrap draw is recorded under data.resample.
+papers = []
+
+implementation_deviations = [
+  "Not an implementation of a published estimator with an inherited guarantee: percentile or basic intervals over a seeded set of unit-resampled replicates (20 to 2000 replicates, units drawn with replacement from the observed units), each replicate re-running the whole history-conditioned estimator. No studentization, bias correction or second-level bootstrap.",
+  "No consistency or coverage theorem is derived or inherited for this functional. Calibration is unmeasured: the engine reports claim dependence_preserving_calibration_unmeasured and calibration unmeasured, and the public route stays closed (cell_not_licensed / temporal_interval.route_frozen) after validating its arguments. The coverage record is measured only at the release cut.",
+  "Failed replicates (an estimator unsupported on the resample) are counted and dropped up to a bounded fraction, then the interval refuses; fewer than the minimum number of repeated units (default 20, never below 2) refuses as too_few_clusters.",
+  "The internal replay artifact embeds the full unit panel and every replicate (whole-unit replicate id, unit-selection digest, re-estimated point), so a consumer re-runs the whole resampling and rejects a changed unit, time id, value or snapshot even when resealed. Digests are non-cryptographic fingerprints.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/temporal_dependent_interval.rs",
+  "crates/antecedent-io/tests/temporal_interval_artifact.rs",
+  "python/tests/test_temporal_extensions.py",
+]

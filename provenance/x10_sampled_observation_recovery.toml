@@ -1,0 +1,32 @@
+feature_id = "x10_sampled_observation_recovery"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# DOIs are omitted: they were not resolved and compared with the returned title for
+# this record. `sections` names the construction used; no theorem or section number
+# of either source was verified for this record.
+papers = [
+ { title = "Graphical Models for Inference with Missing Data", sections = ["m-graph and recoverability of a query from the observed-data law (construction only, via the 2.2 X10 exact recovery formula; section and theorem numbers unverified)"] },
+ { title = "Bootstrap Methods: Another Look at the Jackknife", sections = ["nonparametric bootstrap by resampling observations with replacement, percentile interval (construction only; no theorem of the paper is inherited)"] },
+]
+
+implementation_deviations = [
+ "The recovery formula is not re-derived here: it is the exact 2.2 binary m-graph recovery of record 2.2B.X10.binary_observation_recovery (evaluate_exact_recovery and evaluate_recovered_effect), restricted to its certified binary scope (at most 6 binary substantive variables). The sampled estimator only tabulates counted rows and resamples around it.",
+ "The interval is a percentile interval of a whole-ROW bootstrap that reruns recovery and effect evaluation per replicate. Efron's paper introduces the bootstrap; the composition with a ratio-of-margins recovery functional is not an estimator analyzed in either paper, so no consistency or coverage theorem is inherited. The percentile bootstrap is not exact in small samples and the functional is not smooth at zero cells.",
+ "An interval from per-margin variances alone is refused (sampled_recovery.component_variance_only): component-level coverage would not be coverage of the final effect.",
+ "The empirical recovered law is a finite-sample table whose masses need not sum to one; it is never renormalized, its mass defect is reported and bounded by an explicit tolerance (default 0.1), and effect probabilities are normalized by the evaluated total.",
+ "A zero complete-case cell, a zero denominator or too many failed replicates (default above 5 percent) refuse; failed replicates are retained in the receipt, never silently dropped.",
+ "The digests of the receipt and artifact are FNV-based fingerprints, not cryptographic.",
+ "Calibration is unmeasured: the interval carries calibration = unmeasured and the public route antecedent.transport.sampled_observation_recovery is closed (cell_not_licensed) until the 2.3 release-cut whole-method grid is measured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "enumerated binary missingness SCM (confounder O, treatment X0, outcome X1, response indicators R0 and R1) in crates/antecedent-estimate/tests/recovery_sampled.rs with its hand-computed backdoor truth",
+ "crates/antecedent-io/tests/sampled_recovery_artifact.rs (whole-method replay, resealed mutations, consumer limits)",
+ "python/tests/test_closed_pilots.py (closed route refusals)",
+]

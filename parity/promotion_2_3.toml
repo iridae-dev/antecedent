@@ -47,36 +47,63 @@ id = "2.3A.X2.cpdag_completion_scenarios"
 workstream = "X2"
 milestone = "A"
 work_package = "A1"
-status = "frozen"
+status = "promoted"
 consumer_question = "Does a target effect remain identified and invariant across every DAG completion of a supplied CPDAG when each completion receives evidence bound to its own assumptions?"
-theorem = "Planned finite enumeration of DAG completions, with each completion passed to an already licensed DAG identifier and evaluator. Enumeration does not identify a mixture, assign graph probabilities or transfer evidence by variable name alone. No completeness beyond the declared enumeration bound is inherited."
+theorem = "Finite enumeration of the DAG completions of a supplied CPDAG (every DAG with the CPDAG's skeleton and exactly its v-structures that keeps each directed CPDAG edge and is acyclic), each completion then decided by the already licensed 2.2 classical catalog transport route as one scenario of the 2.2 finite scenario set and evaluated against supplied exact laws. Two DAGs are Markov equivalent exactly when they share skeleton and v-structures (Verma and Pearl 1990), and a CPDAG is the essential graph of such a class (Andersson, Madigan and Perlman 1997); the enumeration relies on that characterization for a valid CPDAG and the invalid-input check refuses an input that is not one. Enumeration does not identify a mixture, assign graph probabilities or transfer evidence by variable name alone: a catalog bound to one completion identity never satisfies another. Completeness holds exactly within the declared bounds (at most 6 nodes and 64 completions) and is never inherited beyond them."
 reference = "TODO.md A1; prerequisite 2.2A.X2.finite_scenario_envelope"
-guarantee = "bounded_enumeration_pending_value_evidence"
-graph_class = "Supplied CPDAG of at most six fully observed nodes, with each consistent DAG completion retained separately; no latent projection or selection shift in this initial cell."
-population_semantics = "One target population and one snapshot; evidence must be rebound per completion and shared data identity retained across them."
-evidence_family = "A target observational joint or row snapshot with a completion-specific graph certificate; missing factors remain missing, not redistributed mass."
-provider = "The exact finite-law evaluator of each licensed DAG completion; sampled covariance is a separate closed cell."
-estimand = "Per-completion target intervention distribution and its structural envelope, with unidentified and unevaluated completion counts separate."
+guarantee = "bounded_completion_enumeration_per_completion_2_2_decision_structural_envelope_no_graph_probability"
+graph_class = "Supplied CPDAG of at most six fully observed static nodes whose completions number at most 64, each consistent DAG completion retained separately under a canonical BLAKE3 identity over its sorted parent-child edges; selection edges and latent (bidirected) pairs are refused, never projected away. A completion is decided by the 2.2 classical catalog route with that row's scope inherited unchanged."
+population_semantics = "One target population and one snapshot; evidence is bound per completion identity (or declared shared by the caller) and the evidence identity of every completion is retained in the receipt. Departure from the frozen wording: only exact supplied laws are evaluated, counted laws are refused at the Python bridge (cpdag_scenarios.exact_laws_only)."
+evidence_family = "A target observational joint or row snapshot, as a catalog shared by every completion or one catalog per completion identity with its own graph certificate; a completion with no bound evidence is missing_evidence and its mass is never redistributed."
+provider = "The exact finite-law evaluator of each licensed DAG completion (the 2.2 per-scenario compiled plan); sampled covariance is the separate 2.3A.X2.shared_scenario_covariance cell."
+estimand = "Per-completion target intervention distribution and the unweighted structural envelope over the identified completions, with identified, unidentified, unevaluated and never-enumerated completion counts kept apart and never renormalized."
 inference_claim = "structural_envelope"
-owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io", "antecedent"]
+inference_notes = "Point-only per completion and unweighted: no graph probability, no weighted report, no interval and no inferential statement across completions. The spread of the envelope is a structural range, not a confidence interval."
+owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2A.X2.finite_scenario_envelope"]
 identity_inputs = ["CPDAG identity", "canonical completion identity", "target population and intervention", "completion-specific evidence binding", "snapshot", "enumeration limits"]
-wire_changes = ["Planned additive completion receipt with every completion status and its evidence identity."]
-compatibility = "The 2.2 supplied-scenario route is unchanged; this new class-enumeration route is closed."
+wire_changes = ["Additive completion artifact v1 (feature cpdag_completion_scenarios_v1) retaining the CPDAG, every completion with its identity, edges, status and evidence identity, the per-completion evidence bindings, the report, a premises digest and a separate data digest. A report stopped by an operation, depth or memory limit exports and replays its identical prefix with the never-enumerated count; one stopped by cancellation is never exported (cancelled_not_exportable). A fresh consumer replays the receipt under its own limits and refuses a changed completion, snapshot, evidence binding, provider or report."]
+compatibility = "The 2.2 supplied-scenario route and its artifact are unchanged; the completion route reuses the 2.2 per-scenario decision and adds no 2.2 wire field."
 search = true
-bounds = { max_nodes = 6, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "completion operations", depth_limit = "six orientations", memory_limit = "live completion bytes" }
+search_impl = ["crates/antecedent-identify/src/sid/cpdag_completion.rs"]
+surface_rust = ["crates/antecedent-identify/src/sid/cpdag_completion.rs", "crates/antecedent-estimate/src/cpdag_scenarios.rs", "crates/antecedent-io/src/cpdag_completion_artifact.rs", "crates/antecedent/src/analysis/cpdag_scenarios.rs"]
+surface_pyo3 = ["python/src/cpdag_scenario_api.rs"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["CompletionCounts", "CompletionEvidence", "CompletionPoint", "CompletionReceipt", "CpdagCompletion", "CpdagScenarioRefusal", "CpdagScenarioResult", "MeanEnvelope", "StructuralEnvelope", "TransportScenarioRefusal", "consume_cpdag_scenarios_artifact", "cpdag_completion_scenarios"]
+surface_values = ["CpdagScenarioError", "CpdagCompletionInput", "CompletionDag", "CpdagEnumeration", "CompletionEvidenceBinding", "CpdagEvidence", "CompletionRecord", "CpdagCompletionDecision", "CompletionReceiptEntry", "CpdagScenarioReport", "PreparedCpdagScenarios", "CpdagArtifactError", "CpdagConsumeLimits", "CpdagWire", "CompletionEvidenceWire", "SharedEvidenceWire", "CpdagEvidenceWire", "CompletionResultWire", "CpdagReportWire", "CpdagScenarioPremises", "CpdagCompletionArtifactWire", "PreparedCpdagCompletionScenarios", "CpdagScenarioRun", "ScenarioCovarianceRun", "CompletionCounts", "CompletionEvidence", "CompletionPoint", "CompletionReceipt", "CpdagCompletion", "CpdagScenarioRefusal", "CpdagScenarioResult", "MeanEnvelope", "StructuralEnvelope", "TransportScenarioRefusal"]
+bounds = { max_nodes = 6, max_completions = 64, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations: one per orientation attempt and one per completion entered by the decision", depth_limit = "SearchLimits.depth: the number of undirected edges oriented so far, so it must reach the undirected edge count", memory_limit = "ExecutionContext.memory.hard_limit_bytes against the live bytes of the completions kept" }
 refusals = [
-  { code = "cell_not_licensed", detail = "cpdag_scenarios.route_frozen", when = "A CPDAG completion scenario request reaches the unimplemented 2.3 route." },
   { code = "route_not_supported", detail = "cpdag_scenarios.selection_or_latent", when = "A selection edge or latent confounding is supplied to the initial complete-DAG cell." },
+  { code = "route_not_supported", detail = "cpdag_scenarios.bounds_exceeded", when = "The CPDAG has more than six nodes or more than 64 completions." },
+  { code = "invalid_argument", detail = "cpdag_scenarios.not_a_cpdag", when = "The input is not a valid CPDAG over static variables." },
+  { code = "invalid_argument", detail = "cpdag_scenarios.evidence_identity_mismatch", when = "An evidence binding names a completion identity or edge list that is not a completion of this CPDAG, or its certificate names a different completion." },
+  { code = "invalid_argument", detail = "cpdag_scenarios.no_evidence_binding", when = "A completion has no evidence bound to it; this is reported as that completion's missing_evidence status obligation, not as a call-level refusal." },
+  { code = "route_not_supported", detail = "cpdag_scenarios.exact_laws_only", when = "Counted laws (samples) are supplied to the completion route at the Python bridge; only exact laws are evaluated." },
+  { code = "route_not_supported", detail = "cpdag_scenarios.unsupported_semantics", when = "A completion artifact carries an unknown version or a feature this consumer does not support." },
+  { code = "transport_budget_cancel", detail = "cpdag_scenarios.consumer_limit_exceeded", when = "A completion artifact exceeds the consumer's own replay limits." },
+  { code = "invalid_argument", detail = "cpdag_scenarios.premises_mismatch", when = "A resealed completion artifact changes its CPDAG, completion, evidence binding or coordinate premises." },
+  { code = "invalid_argument", detail = "cpdag_scenarios.data_identity_mismatch", when = "A resealed completion artifact changes its data identity (evidence catalogs, laws or provider)." },
+  { code = "invalid_argument", detail = "cpdag_scenarios.report_replay_mismatch", when = "The recorded report differs from the independent replay of the artifact's premises." },
+  { code = "invalid_argument", detail = "cpdag_scenarios.provider_mismatch", when = "The consumer's provider differs from the provider the artifact recorded." },
+  { code = "cancelled_no_claim", detail = "cpdag_scenarios.cancelled_not_exportable", when = "A report stopped by cancellation is exported; a cancelled report never exports." },
 ]
 routes = [
-  { name = "antecedent.transport.cpdag_completion_scenarios", stage = "identify", status = "closed", claim = "structural_envelope", reason_code = "cell_not_licensed" },
+  { name = "antecedent.scenarios.cpdag_completion_scenarios", stage = "prepare", status = "licensed", claim = "structural_envelope", covers = ["enumerate_cpdag_completions", "decide_cpdag_completions", "prepare_cpdag_scenarios", "PreparedCpdagScenarios.evaluate", "CpdagScenarioPremises.prepare", "CpdagCompletionArtifactWire.consume_with_limits", "PreparedCpdagCompletionScenarios.estimate", "consume_cpdag_scenarios_artifact", "cpdag_completion_scenarios_stage", "CpdagScenarioRun.export", "scenario_shared_covariance", "export_scenario_covariance", "consume_scenario_covariance_artifact", "scenario_shared_covariance_stage", "ScenarioCovarianceRun.export"] },
 ]
 fixtures = [
-  { id = "x2.cpdag_enumerated_truth.positive", role = "positive", intent = "Enumerate every small CPDAG completion independently and compare the per-graph effect and envelope." },
-  { id = "x2.cpdag_missing_evidence.negative", role = "negative", intent = "Leave a completion unidentified when its required factor is absent and reject latent or selection input." },
-  { id = "x2.cpdag_resealed_graph.artifact", role = "artifact", intent = "A fresh consumer replays the receipt and rejects a changed completion, snapshot or evidence binding." },
-  { id = "x2.cpdag_budget_stop.budget", role = "budget", intent = "Charge each orientation and retain explored versus unevaluated completions under cancellation or a binding limit." },
+  { id = "x2.cpdag_enumerated_truth.positive", role = "positive", intent = "Enumerate every small CPDAG completion (chain, collider, triangle, trees, a six-node case of 18 completions) by independent brute force over skeleton orientations and compare the completion sets, identities and counts.", evidence_test = "crates/antecedent-identify/tests/cpdag_completion.rs", evidence_assertion = "x2_cpdag_enumerated_truth_sets" },
+  { id = "x2.cpdag_effect_envelope.positive", role = "positive", intent = "On the chain a - b - c with an enumerated SCM, each completion's P(c=1 | do(b=1)) equals its own truth (0.8, 0.8 and 0.38) and the structural envelope spans [0.38, 0.8] with all three retained.", evidence_test = "crates/antecedent-estimate/tests/cpdag_scenarios.rs", evidence_assertion = "x2_cpdag_enumerated_truth_effects_and_envelope" },
+  { id = "x2.cpdag_python_envelope.positive", role = "positive", intent = "The Python surface reproduces the enumerated per-completion effects and the envelope over the native bridge.", evidence_test = "python/tests/test_cpdag_scenarios.py", evidence_assertion = "test_x2_enumerated_truth_effects_and_envelope" },
+  { id = "x2.cpdag_missing_evidence.negative", role = "negative", intent = "Reject more than six nodes, selection or latent input, a non-CPDAG and a mismatched evidence binding with their own details, and leave a completion without a bound factor missing_evidence rather than redistributing its mass.", evidence_test = "crates/antecedent-identify/tests/cpdag_completion.rs", evidence_assertion = "x2_cpdag_missing_evidence_refusals" },
+  { id = "x2.cpdag_missing_status.negative", role = "negative", intent = "A completion with no evidence is counted missing_evidence beside the identified ones and stays out of the envelope; nothing is renormalized.", evidence_test = "crates/antecedent-estimate/tests/cpdag_scenarios.rs", evidence_assertion = "x2_cpdag_missing_evidence_status" },
+  { id = "x2.cpdag_python_refusals.negative", role = "negative", intent = "The Python surface raises each refusal with the exact code and cpdag_scenarios detail.", evidence_test = "python/tests/test_cpdag_scenarios.py", evidence_assertion = "test_x2_refusals_carry_exact_code_and_detail" },
+  { id = "x2.cpdag_resealed_graph.artifact", role = "artifact", intent = "A fresh consumer refuses resealed changes to the completion, snapshot, evidence binding or report with typed details.", evidence_test = "crates/antecedent-io/tests/cpdag_completion_artifact.rs", evidence_assertion = "x2_cpdag_artifact_resealed_changes_are_refused" },
+  { id = "x2.cpdag_artifact_replay.artifact", role = "artifact", intent = "An exported completion artifact replays to a report equal to the original, field for field.", evidence_test = "crates/antecedent-io/tests/cpdag_completion_artifact.rs", evidence_assertion = "x2_cpdag_artifact_replay_equals_original" },
+  { id = "x2.cpdag_artifact_budget_prefix.artifact", role = "artifact", intent = "A report stopped by an operation limit exports and replays its identical prefix; a report stopped by cancellation never exports.", evidence_test = "crates/antecedent-io/tests/cpdag_completion_artifact.rs", evidence_assertion = "x2_cpdag_artifact_budget_stop_exports_and_replays_the_prefix" },
+  { id = "x2.cpdag_python_replay.artifact", role = "artifact", intent = "The Python export and a fresh consume reproduce the report.", evidence_test = "python/tests/test_cpdag_scenarios.py", evidence_assertion = "test_x2_export_and_fresh_consume_reproduce_the_report" },
+  { id = "x2.cpdag_budget_stop.budget", role = "budget", intent = "Charge each orientation: explored plus never-enumerated is the oracle total at every limit, and operation, depth, memory and cancellation each stop with the matching SearchStop.", evidence_test = "crates/antecedent-identify/tests/cpdag_completion.rs", evidence_assertion = "x2_cpdag_budget_stop_enumeration" },
+  { id = "x2.cpdag_budget_decisions.budget", role = "budget", intent = "The shared budget also stops the per-completion decisions: decided completions stay, the rest are unevaluated, with one receipt.", evidence_test = "crates/antecedent-identify/tests/cpdag_completion.rs", evidence_assertion = "x2_cpdag_budget_stop_decisions" },
+  { id = "x2.cpdag_permutation.invariance", role = "invariance", intent = "Node and edge insertion order moves neither a completion identity nor the CPDAG identity.", evidence_test = "crates/antecedent-identify/tests/cpdag_completion.rs", evidence_assertion = "x2_cpdag_permutation_identities" },
 ]
 
 [[record]]
@@ -84,35 +111,69 @@ id = "2.3A.X2.shared_scenario_covariance"
 workstream = "X2"
 milestone = "A"
 work_package = "A1"
-status = "frozen"
+status = "promoted"
 consumer_question = "How correlated are effect estimates from identified DAG completions that reuse the same observed units?"
-theorem = "Planned whole-row resampling or influence calculation must preserve one replicate ID across graph completions; independent per-graph resamples cannot estimate shared-data covariance. This record makes no interval claim."
+theorem = "Whole-row resampling that preserves one replicate identity across scenarios: every replicate resamples the rows once and feeds the same per-row multiplicities to every scenario's plug-in estimator, so the joint covariance matrix of the estimates is estimated, not assumed; independent per-scenario resamples cannot estimate shared-data covariance and always report a zero off-diagonal. Two methods share one output: a seeded whole-row nonparametric bootstrap (Efron 1979) with the R/(R-1) covariance correction, and exact enumeration of the multinomial resampling distribution for at most 24 rows, which has no Monte Carlo error. A replicate or count vector on which any estimator fails is dropped for every scenario jointly, its mass is reported and the surviving mass is renormalized. This record makes no interval claim. Departures from the frozen wording: the estimators are plug-in functionals (not influence-function calculations) and the family is not restricted to CPDAG completions, any scenarios declared over the same row snapshot qualify."
 reference = "TODO.md A1; prerequisite 2.3A.X2.cpdag_completion_scenarios"
-guarantee = "shared_data_covariance_pending_oracle"
-graph_class = "The identified subset of the bounded CPDAG-completion cell, all evaluated on the same complete-row target design."
-population_semantics = "One target population and one row snapshot; a replicate selects the same units for all completions."
-evidence_family = "A single iid complete-row target sample with stable row identities."
-provider = "One joint covariance estimator over the licensed completion-specific point estimators."
-estimand = "Joint sampling covariance matrix of the completion-specific effect estimates."
+guarantee = "shared_row_resampling_covariance_point_only_no_interval"
+graph_class = "No graph claim of its own: the scenario estimates are supplied plug-in functionals of one complete-row table (a linear score of per-row terms, or a stratified adjusted contrast), typically those of the identified completions of the bounded CPDAG cell. Identification of each scenario's estimand belongs to its own record."
+population_semantics = "One target population and one row snapshot with stable unit identities; a replicate selects the same units for every scenario. Scenarios on a different snapshot, a different or reordered unit list, duplicate unit identities, a declared independent sample or an undeclared dependence are refused, never reported as a zero off-diagonal."
+evidence_family = "A single iid complete-row sample (a row table of at most 10000 rows and 64 columns) with stable row identities."
+provider = "One joint covariance estimator over the scenario-specific plug-in estimators: families linear_score and adjusted_contrast, with methods shared_row_bootstrap (at most 2000 replicates) and exact_enumeration (at most 24 rows and 4000000 count vectors)."
+estimand = "Joint sampling covariance matrix of the scenario-specific effect estimates under multinomial row resampling, with the per-scenario means and the replicate accounting (used, failed and failed mass)."
 inference_claim = "point_only"
-owners = ["antecedent-estimate", "antecedent-io", "antecedent"]
+inference_notes = "A covariance matrix of plug-in estimates is a point-only claim: no standard error, interval or coverage is derived from it and its meaning is fixed by the interpretation string joint_sampling_covariance_of_scenario_estimates_point_only_not_an_interval. The bootstrap covariance is a Monte Carlo estimate of the resampling covariance and carries no calibration claim."
+owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2A.X2.finite_scenario_envelope", "2.3A.X2.cpdag_completion_scenarios"]
-identity_inputs = ["ordered completion identities", "common row snapshot", "unit IDs", "estimand coordinates", "replicate or influence method"]
-wire_changes = ["Planned additive joint covariance field with a common-data receipt."]
-compatibility = "The 2.2 structural envelope remains a structural range without a sampling covariance or interval."
+identity_inputs = ["ordered scenario identities", "common row snapshot", "unit IDs", "estimand coordinates", "replicate or influence method"]
+wire_changes = ["Additive covariance artifact v1 (feature scenario_shared_covariance_v1) carrying the row table, every scenario's declared functional, snapshot and dependence, the method and its options, the covariance result, a premises digest and a separate data digest. A fresh consumer recomputes the matrix from the declarations under its own limits and refuses a resealed change to the row snapshot, scenario order, functional or result."]
+compatibility = "The 2.2 structural envelope remains a structural range without a sampling covariance or interval; this cell adds a separate artifact and changes no 2.2 wire field."
 search = false
-bounds = { cancellation = true, max_completions = 64, max_replicates = 2000 }
+bounds = { cancellation = true, max_completions = 64, max_replicates = 2000, max_exact_rows = 24, max_exact_compositions = 4000000, max_table_rows = 10000, max_table_columns = 64 }
+surface_rust = ["crates/antecedent-estimate/src/scenario_covariance.rs", "crates/antecedent-io/src/scenario_covariance_artifact.rs"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["AdjustedContrast", "LinearScore", "RowTable", "ScenarioCovarianceRefusal", "ScenarioCovarianceResult", "ScenarioEstimator", "ScoreTerm", "consume_scenario_covariance_artifact", "scenario_shared_covariance"]
+surface_values = ["RowDependence", "CovarianceMethod", "ScenarioRowEstimator", "SharedRowBootstrapOptions", "ExactEnumerationOptions", "ScenarioCovariance", "ScenarioCovarianceArtifactError", "ScenarioCovarianceConsumeLimits", "RowTableWire", "ScoreTermWire", "FunctionalWire", "CovarianceScenarioWire", "CovarianceMethodWire", "CovarianceSpec", "CovarianceResultWire", "ScenarioCovarianceArtifactWire", "AdjustedContrast", "LinearScore", "RowTable", "ScenarioCovarianceRefusal", "ScenarioCovarianceResult", "ScenarioEstimator", "ScoreTerm"]
 refusals = [
-  { code = "cell_not_licensed", detail = "scenario_covariance.route_frozen", when = "Shared-data covariance is requested before its independent oracle and artifact gate pass." },
-  { code = "route_not_supported", detail = "scenario_covariance.unknown_dependence", when = "Graph estimates use unknown or incompatible row dependence or snapshots." },
+  { code = "route_not_supported", detail = "scenario_covariance.unknown_dependence", when = "Scenario estimates use a different snapshot, a different or reordered unit list, duplicate unit identities, a declared independent sample or an undeclared dependence." },
+  { code = "cancelled_no_claim", detail = "scenario_covariance.cancelled", when = "Cancellation is observed; no covariance is claimed." },
+  { code = "invalid_argument", detail = "scenario_covariance.no_scenarios", when = "No scenario estimator is supplied." },
+  { code = "cell_not_licensed", detail = "scenario_covariance.too_many_scenarios", when = "More than 64 scenarios are supplied." },
+  { code = "invalid_argument", detail = "scenario_covariance.duplicate_scenario_id", when = "Two scenarios share an identifier." },
+  { code = "invalid_argument", detail = "scenario_covariance.too_few_rows", when = "The shared sample has fewer than two rows." },
+  { code = "cell_not_licensed", detail = "scenario_covariance.too_many_replicates", when = "More than 2000 bootstrap replicates are requested." },
+  { code = "invalid_argument", detail = "scenario_covariance.too_few_replicates", when = "Fewer than two bootstrap replicates are requested." },
+  { code = "invalid_argument", detail = "scenario_covariance.invalid_failure_bound", when = "The tolerated failed fraction or mass is outside [0, 1]." },
+  { code = "cell_not_licensed", detail = "scenario_covariance.exact_enumeration_cap", when = "Exact enumeration is requested for more than 24 rows or more count vectors than the cap (at most 4000000)." },
+  { code = "transport_numerical_failure", detail = "scenario_covariance.too_many_failed_replicates", when = "Jointly dropped replicates exceed the tolerated failure bound, or fewer than two survive." },
+  { code = "transport_numerical_failure", detail = "scenario_covariance.not_positive_semidefinite", when = "The computed matrix is not finite and positive semidefinite." },
+  { code = "invalid_argument", detail = "scenario_covariance.invalid_row_table", when = "The row table has no column, repeats a column name or has a ragged or oversized shape." },
+  { code = "invalid_argument", detail = "scenario_covariance.invalid_functional", when = "A declared functional names an unknown column, has no term or is otherwise malformed." },
+  { code = "invalid_argument", detail = "scenario_covariance.invalid_dependence", when = "A scenario declares an unknown dependence label." },
+  { code = "invalid_argument", detail = "scenario_covariance.invalid_declaration", when = "The covariance declaration given to the Python bridge cannot be parsed." },
+  { code = "route_not_supported", detail = "scenario_covariance.unsupported_semantics", when = "A covariance artifact carries an unknown version or a feature this consumer does not support." },
+  { code = "cell_not_licensed", detail = "scenario_covariance.consumer_limit_exceeded", when = "A covariance artifact exceeds the consumer's own row, column, replicate or enumeration limits." },
+  { code = "invalid_argument", detail = "scenario_covariance.premises_mismatch", when = "A resealed covariance artifact changes its declared scenarios, row table or method options." },
+  { code = "invalid_argument", detail = "scenario_covariance.data_identity_mismatch", when = "A resealed covariance artifact changes its row snapshot identity." },
+  { code = "invalid_argument", detail = "scenario_covariance.replay_mismatch", when = "The recorded matrix differs from the independent recomputation from the artifact's declarations." },
 ]
 routes = [
-  { name = "antecedent.transport.scenario_shared_covariance", stage = "uncertainty", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.scenarios.scenario_shared_covariance", stage = "uncertainty", status = "licensed", claim = "point_only", covers = ["replicate_id", "shared_row_bootstrap_covariance", "exact_enumeration_covariance", "ScenarioCovarianceArtifactWire.consume_with_limits", "consume_scenario_covariance_artifact"] },
 ]
 fixtures = [
-  { id = "x2.shared_rows_covariance.positive", role = "positive", intent = "Compare the full matrix with an independently enumerated or closed-form shared-row oracle." },
-  { id = "x2.independent_rows.negative", role = "negative", intent = "Refuse incompatible units or unknown dependence instead of presenting off-diagonal zeros." },
-  { id = "x2.covariance_replay.artifact", role = "artifact", intent = "A fresh consumer reproduces the full matrix and rejects a changed row snapshot or graph order." },
+  { id = "x2.shared_rows_covariance.positive", role = "positive", intent = "On six complete rows, the exact-enumeration matrix of two linear-score estimates equals the closed-form multinomial covariance (17/216, 11/216, 17/216) with a nonzero off-diagonal.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "x2_shared_rows_covariance_exact_matches_closed_form" },
+  { id = "x2.shared_rows_bootstrap.positive", role = "positive", intent = "The seeded shared-row bootstrap matches the oracle, and independent per-scenario resamples would lose the off-diagonal.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "x2_shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters" },
+  { id = "x2.adjustment_pair.positive", role = "positive", intent = "A nonlinear adjusted-contrast pair with jointly dropped failing replicates matches walking all n^n row-index tuples.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "x2_shared_rows_covariance_adjustment_pair_with_joint_dropping_matches_tuple_enumeration" },
+  { id = "x2.covariance_python_exact.positive", role = "positive", intent = "The Python surface reproduces the closed-form matrix and reports it as point-only.", evidence_test = "python/tests/test_scenario_covariance.py", evidence_assertion = "test_x2_shared_rows_exact_covariance_matches_closed_form_and_is_point_only" },
+  { id = "x2.independent_rows.negative", role = "negative", intent = "A declared-independent sample or an undeclared dependence refuses unknown_dependence instead of presenting off-diagonal zeros.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "x2_independent_rows_declared_independent_or_unknown_dependence_refuses" },
+  { id = "x2.mismatched_snapshot.negative", role = "negative", intent = "Scenarios on a different row snapshot refuse unknown_dependence under both methods.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "x2_independent_rows_mismatched_snapshot_refuses" },
+  { id = "x2.bounds_arguments.negative", role = "negative", intent = "Scenario, replicate, row and enumeration bounds and invalid arguments refuse with their own codes and details.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "x2_independent_rows_bounds_and_arguments_refuse" },
+  { id = "x2.covariance_python_refusals.negative", role = "negative", intent = "The Python surface raises the unknown_dependence refusal for independent or incompatible rows.", evidence_test = "python/tests/test_scenario_covariance.py", evidence_assertion = "test_x2_independent_or_incompatible_rows_refuse_unknown_dependence" },
+  { id = "x2.covariance_replay.artifact", role = "artifact", intent = "A fresh consumer refuses resealed changes to the row snapshot, scenario order, functional or result with typed details.", evidence_test = "crates/antecedent-io/tests/scenario_covariance_artifact.rs", evidence_assertion = "x2_covariance_artifact_resealed_changes_are_refused" },
+  { id = "x2.covariance_artifact_bootstrap.artifact", role = "artifact", intent = "A bootstrap artifact replays bit for bit and a different seed changes the matrix.", evidence_test = "crates/antecedent-io/tests/scenario_covariance_artifact.rs", evidence_assertion = "x2_covariance_artifact_bootstrap_replays_bit_identically_and_is_seed_sensitive" },
+  { id = "x2.covariance_artifact_limits.artifact", role = "artifact", intent = "An unknown version, a foreign feature and a consumer limit each refuse with typed details.", evidence_test = "crates/antecedent-io/tests/scenario_covariance_artifact.rs", evidence_assertion = "x2_covariance_artifact_version_features_and_consumer_limits_refuse" },
+  { id = "x2.covariance_python_replay.artifact", role = "artifact", intent = "The Python export and a fresh consume reproduce the matrix.", evidence_test = "python/tests/test_scenario_covariance.py", evidence_assertion = "test_x2_export_and_fresh_consume_reproduce_the_matrix" },
+  { id = "x2.covariance_permutation.invariance", role = "invariance", intent = "Reordering the scenarios reorders the rows and columns of the matrix identically.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "x2_covariance_permutation_reorders_rows_and_columns_identically" },
 ]
 
 [[record]]
@@ -120,37 +181,67 @@ id = "2.3A.X4.joint_bayesian_transport"
 workstream = "X4"
 milestone = "A"
 work_package = "A2"
-status = "frozen"
+status = "carried_forward"
 consumer_question = "What target effect posterior follows from a declared joint source and target model and the supplied transport evidence?"
-theorem = "A new joint-model likelihood and posterior contract is required; the 2.2 point transport or static coefficient prior does not imply a calibrated transported posterior. Model, prior, likelihood and numerical approximation are separate premises."
-reference = "TODO.md A2; prerequisite 2.2A.X4.learned_continuous_trial_transport"
-guarantee = "posterior_route_pending_likelihood_and_calibration"
+theorem = "Exact conjugate Gaussian joint source-target linear model with declared known noise variance (antecedent_estimate::joint_bayesian_transport): per source s, Y | A, X ~ Normal(w'theta + v'gamma_s, sigma_s^2), an invariant block theta shared by every source and the target, a population-varying block gamma_s that never interacts with treatment, independent dense Gaussian priors. The joint posterior of (theta, gamma_1..gamma_B) is Gaussian with precision P0 + sum_s Z_s'Z_s / sigma_s^2 and mean Sigma (P0 m0 + sum_s Z_s'y_s / sigma_s^2); the engine reports these exact moments and draws aligned joint samples (one draw is one realization of every parameter and effect, so source-target coupling through theta is preserved; draws are iid, effective sample size equals the draw count). The target effect is the posterior of psi = c_t'theta, the average intervention effect over the target covariate sample. Departures from the frozen wording: the likelihood is Gaussian with KNOWN variance (the unknown-variance case is not modeled, so an interval would not account for estimating sigma^2), there is no MCMC or numerical approximation, and the oracle is a Gaussian closed form (an independently coded dense inversion in the test file), not the Beta-binomial example once allocated in the evidence ledger. Prior mass never changes structural identification: identification is the supplied 2.2 certificate (direct or standardization), read once. The conjugate posterior is textbook Bayesian linear regression (the Normal linear model with a Gaussian prior, as in Lindley and Smith 1972 and Gelman et al., Bayesian Data Analysis 3rd ed., chapter 14); no theorem number is claimed. Calibration (frequentist coverage of the credible interval) is UNMEASURED: no coverage is claimed and the public route stays closed."
+reference = "TODO.md A2; prerequisite 2.2A.X4.learned_continuous_trial_transport; provenance/x4_joint_bayesian_transport.toml"
+guarantee = "exact_conjugate_gaussian_joint_posterior_known_variance_calibration_unmeasured_route_closed"
 graph_class = "The fixed DAG and selection assumptions of a separately licensed 2.2 transport derivation; no ADMG or graph-class posterior in this cell."
-population_semantics = "Named source trial and target population, with separate study lineage and target snapshot; posterior draws preserve source-target parameter coupling."
-evidence_family = "Source trial observations and target covariate observations with explicit sampling designs and non-overlapping unit ownership."
-provider = "Planned native joint Bayesian source-target model with checked prior and likelihood; an external posterior is a distinct trust cell."
-estimand = "Target average intervention effect posterior and its stated credible interval."
+population_semantics = "Named source trials and target population, with separate study lineage and target snapshot; sources and the target must own disjoint units (independent samples only). Posterior draws preserve source-target parameter coupling through the shared invariant block."
+evidence_family = "Source trial observations (randomized binary treatment, certified covariates, continuous outcome, declared noise variance) and a target covariate sample, each with an identity that names its snapshot and datum ids; the artifact embeds the observations."
+provider = "antecedent_estimate::joint_bayesian_transport (native exact conjugate Gaussian model with checked priors and prior provenance), sealed by antecedent_io::joint_bayesian_transport_artifact and exposed through the closed facade antecedent::analysis::closed_pilots and python/src/closed_pilot_api.rs. The engine and artifact are internal and non-routed; an external posterior is a distinct trust cell."
+estimand = "Posterior of the target average intervention effect psi = c_t'theta over the target covariate sample (and the source-sample effect of each source on the same draws). The stated credible interval is withheld: no public route returns one."
 inference_claim = "calibrated"
+inference_notes = "Carried forward, every route closed. The credible interval claims frequentist calibration, which is measured only at the 2.3 release cut under the project decision that interval and posterior routes stay closed (cell_not_licensed) until measured. Failed gate: calibration unmeasured. The coverage record id below is allocated but not collected (no harness test or collected record yet), as for 2.2 X1 and X4. Every artifact and diagnostic carries calibration = unmeasured. The engine, artifact and closed Python route execute and their tests pass in Rust."
 coverage_records = ["cov.bayesian_transport.dag.posterior.l95.joint_source_target_iid"]
-owners = ["antecedent-bayesian", "antecedent-estimate", "antecedent-io", "antecedent"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2A.X4.learned_continuous_trial_transport"]
-identity_inputs = ["source and target populations", "transport derivation", "trial and target snapshots", "joint model", "prior", "likelihood", "RNG and draw count"]
-wire_changes = ["Planned versioned joint model posterior artifact carrying aligned source-target draws and diagnostics."]
+identity_inputs = ["source and target populations", "transport derivation (certified 2.2 identification)", "trial and target snapshots and datum ids", "joint model (graph class, varying block, sharing, dependence, bounds)", "priors with provenance", "known noise variances", "RNG id, seed and draw count"]
+wire_changes = ["Additive: joint_bayesian_transport_conjugate_v1 artifact (format version 1) carrying the model, priors with provenance, the checked identification, the draw request, source and target identities with their observations, the exact posterior moments, aligned joint draws, diagnostics and calibration = unmeasured; a consumer re-fits from the stored observations and accepts only a bit-identical result. No existing wire is reinterpreted."]
 compatibility = "The 2.2 learned continuous analytic interval is unchanged; neither it nor the closed percentile bootstrap licenses this posterior."
 search = false
 bounds = { cancellation = true, max_draws = 100000, max_model_parameters = 256 }
 refusals = [
-  { code = "cell_not_licensed", detail = "bayesian_transport.route_frozen", when = "The native joint posterior route lacks likelihood, value and calibration evidence." },
+  { code = "cell_not_licensed", detail = "bayesian_transport.route_frozen", when = "The public joint posterior route is requested; closed because calibration is unmeasured." },
   { code = "route_not_supported", detail = "bayesian_transport.unsupported_graph", when = "An ADMG or graph-posterior transport query is presented to the fixed-DAG model." },
+  { code = "invalid_argument", detail = "bayesian_transport.prior_data_overlap", when = "A datum or snapshot enters both the likelihood and the construction of a prior bank; the shared ids are named." },
+  { code = "transport_support_failure", detail = "bayesian_transport.weak_overlap", when = "Target covariate mass outside every source covariate box exceeds the declared tolerance." },
+  { code = "design_rank_deficient", detail = "bayesian_transport.singular_fit", when = "The data information matrix is singular; failure diagnostics are retained." },
+  { code = "invalid_argument", detail = "bayesian_transport.too_many_draws", when = "The draw count is zero or above 100000." },
+  { code = "invalid_argument", detail = "bayesian_transport.too_many_parameters", when = "The model declares more than 256 parameters." },
+  { code = "joint_law_required", detail = "bayesian_transport.missing_law", when = "No nonempty target covariate sample is supplied." },
+  { code = "transport_missing_evidence", detail = "bayesian_transport.missing_source", when = "No source trial is supplied." },
+  { code = "sampling_dependence_unknown", detail = "bayesian_transport.source_dependence", when = "The declared dependence is not independent samples, or sources and the target share units." },
+  { code = "transport_missing_evidence", detail = "bayesian_transport.identification_not_certified", when = "The supplied transport derivation lacks a required source regime (transport_missing_evidence) or is not a direct or standardization certificate (transport_not_certified is emitted with the same detail, which a record cannot list twice); a prior cannot supply identification." },
+  { code = "invalid_argument", detail = "bayesian_transport.feature_mismatch", when = "The model covariates differ from the certified standardizers." },
+  { code = "prior_dimension_mismatch", detail = "bayesian_transport.prior_dimension", when = "A prior's dimension differs from its block." },
+  { code = "invalid_argument", detail = "bayesian_transport.invalid_prior", when = "A prior mean or covariance is non-finite, asymmetric or not positive definite." },
+  { code = "invalid_argument", detail = "bayesian_transport.invalid_input", when = "A source, target or tolerance is malformed (shape, finiteness, noise variance, identity or duplicate id)." },
+  { code = "transport_budget_cancel", detail = "bayesian_transport.cancelled", when = "Cancellation stopped the posterior draws; no partial result is reported." },
 ]
 routes = [
-  { name = "antecedent.transport.joint_bayesian", stage = "evaluate", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.joint_bayesian", stage = "evaluate", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_closed_pilots.py", refusal_assertion = "test_x4_joint_bayesian_route_is_closed_with_cell_not_licensed" },
 ]
 fixtures = [
-  { id = "x4.joint_posterior_oracle.positive", role = "positive", intent = "Compare small-model posterior moments and transported effects with an independent exact or numerical reference." },
-  { id = "x4.prior_data_overlap.negative", role = "negative", intent = "Refuse reused observations or an unsupported graph and retain fit failure diagnostics." },
-  { id = "x4.posterior_hydration.artifact", role = "artifact", intent = "A fresh consumer retains joint source-target draws, model identity and target-effect summaries." },
-  { id = "x4.joint_credible_coverage.calibration", role = "calibration", intent = "Measure whole-method target-effect interval coverage and posterior decision behavior on the declared sample-size grid." },
+  { id = "x4.joint_posterior_oracle.positive", role = "positive", intent = "Single-source posterior moments, source and target effects and the target effect variance equal an independently coded dense Gaussian conjugate oracle.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_joint_posterior_oracle_single_source_matches_closed_form" },
+  { id = "x4.joint_posterior_two_sources.truth", role = "truth", intent = "Two sources with independent and with shared varying blocks match the oracle, including the source-target covariance of the aligned draws.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_joint_posterior_oracle_two_sources_independent_and_shared_blocks" },
+  { id = "x4.joint_posterior_varying_block.truth", role = "truth", intent = "A varying intercept-and-covariates block matches the oracle.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_joint_posterior_oracle_varying_covariate_block_matches_closed_form" },
+  { id = "x4.joint_posterior_prior_strength.truth", role = "truth", intent = "A stronger prior moves the posterior toward the prior mean by the analytic amount and never changes identification status.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_joint_posterior_oracle_prior_sensitivity_moves_toward_prior_by_analytic_amount" },
+  { id = "x4.joint_posterior_draws.invariance", role = "invariance", intent = "Draws are seeded-deterministic, bounded and sample the stated posterior.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_joint_posterior_oracle_draws_are_seeded_and_bounded" },
+  { id = "x4.prior_data_overlap.negative", role = "negative", intent = "A prior bank and likelihood that share observations refuse with prior_data_overlap naming the shared ids.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_prior_data_overlap_bank_and_likelihood_refuse" },
+  { id = "x4.unsupported_graph.negative", role = "negative", intent = "An unsupported graph or an uncertified derivation refuses before any fit.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_prior_data_overlap_unsupported_graph_and_uncertified_derivation_refuse" },
+  { id = "x4.singular_fit.negative", role = "negative", intent = "A singular design refuses and retains the failure diagnostics.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_prior_data_overlap_singular_design_retains_failure_diagnostics" },
+  { id = "x4.weak_overlap.negative", role = "negative", intent = "Weak target-source overlap and a missing target law refuse.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_prior_data_overlap_weak_overlap_and_missing_law_refuse" },
+  { id = "x4.bounds_dependence.negative", role = "negative", intent = "Bounds on draws and parameters and unknown or overlapping source dependence refuse.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_prior_data_overlap_bounds_and_source_dependence_refuse" },
+  { id = "x4.cancellation.negative", role = "negative", intent = "Cancellation refuses with a typed detail and no partial draws.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_joint_posterior_oracle_cancellation_refuses_with_typed_detail" },
+  { id = "x4.conflicting_sources.positive", role = "positive", intent = "Conflicting sources are reported by pairwise posterior disagreement and not silently pooled.", evidence_test = "crates/antecedent-estimate/tests/joint_bayesian_transport.rs", evidence_assertion = "x4_posterior_conflicting_sources_are_reported_not_silently_pooled" },
+  { id = "x4.posterior_hydration.artifact", role = "artifact", intent = "A fresh consumer re-fits from the embedded observations and accepts only a value-for-value replay of the exact moments, effects and every aligned joint draw.", evidence_test = "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs", evidence_assertion = "x4_joint_posterior_artifact_replays_value_for_value_against_the_exact_oracle" },
+  { id = "x4.posterior_resealed_mutation.artifact", role = "artifact", intent = "Resealed semantic mutations of the model, priors, observations, draw request or RNG identity refuse.", evidence_test = "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs", evidence_assertion = "x4_joint_posterior_artifact_refuses_resealed_semantic_mutations" },
+  { id = "x4.posterior_expected_identity.artifact", role = "artifact", intent = "A consumer holding an expected identity refuses a mismatch.", evidence_test = "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs", evidence_assertion = "x4_joint_posterior_artifact_enforces_an_expected_identity" },
+  { id = "x4.posterior_double_use.negative", role = "negative", intent = "Prior-bank and likelihood double use refuses in the consumer's re-fit exactly as at production.", evidence_test = "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs", evidence_assertion = "x4_joint_posterior_artifact_refuses_prior_bank_and_likelihood_double_use" },
+  { id = "x4.posterior_consumer_limits.negative", role = "negative", intent = "Stored sizes above the consumer's limits refuse before any work.", evidence_test = "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs", evidence_assertion = "x4_joint_posterior_artifact_refuses_stored_sizes_above_the_consumer_limits" },
+  { id = "x4.posterior_distribution_hydration.artifact", role = "artifact", intent = "Aligned joint draws round-trip through the F15 distribution artifact with the expected identity.", evidence_test = "crates/antecedent-io/tests/joint_bayesian_transport_artifact.rs", evidence_assertion = "x4_posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity" },
+  { id = "x4.joint_credible_coverage.calibration", role = "calibration", intent = "Wired, not measured: whole-method coverage of the target-effect credible interval on the declared sample-size grid. The coverage record id is allocated but not collected; measured at the 2.3 release cut, and until then every route stays closed (cell_not_licensed)." },
 ]
 
 [[record]]
@@ -158,37 +249,58 @@ id = "2.3A.X4.binary_nested_markov_pilot"
 workstream = "X4"
 milestone = "A"
 work_package = "A3"
-status = "frozen"
+status = "carried_forward"
 consumer_question = "Can one bounded binary ADMG transport functional be evaluated through a correctly normalized nested-Markov likelihood?"
-theorem = "The exact binary ADMG functional and likelihood factorization must be derived and independently checked before this research pilot can make a public numerical claim. An ordinary DAG factorization is not an ADMG likelihood."
-reference = "TODO.md A3; prerequisite 2.2B.X2.admg_conditional_transport"
-guarantee = "research_pilot_closed_pending_likelihood_oracle"
-graph_class = "One separately selected finite binary ADMG with an existing checked conditional transport functional; other ADMGs remain outside scope."
-population_semantics = "Named source and target populations with distinct regime evidence and non-overlapping sample lineage."
-evidence_family = "Binary observational and experimental cell counts for the exact regimes cited by the selected functional."
-provider = "Planned bounded binary nested-Markov likelihood; no generic Bayesian ADMG provider."
-estimand = "The selected target interventional contrast and, only if calibrated, its posterior interval."
+theorem = "Derived in-repo (crates/antecedent-estimate/src/nested_markov_binary.rs), not inherited. The selected graph is the Verma ADMG X1 -> X2 -> X3 -> X4 with X2 <-> X4 over four binary variables, districts {X1}, {X3}, {X2, X4}. Its nested-Markov likelihood is P(x1,x2,x3,x4) = Pa(x1) C(x3 | x2) Q(x2, x4 | x1, x3) through the district c-factor Mobius parameterization: 11 free parameters (a, c[x2], and the head/tail parameters q2[x1], q4[x3], g[x1][x3] of the {X2, X4} c-factor) against 15 for the saturated model, hence 4 equality constraints (X3 independent of X1 given X2, and the Verma constraint) that hold on every law of the model and are reported as residuals. Normalization of the 16 cells is checked numerically, never assumed. A law satisfying the constraints is its own maximum-likelihood fit; otherwise a and c are closed form and the c-factor block is maximized by profiling g inside block coordinate ascent over q2 and q4, bounded by max_iterations. The estimand is E[X4 | do(X2 = 1)] - E[X4 | do(X2 = 0)] from the observational regime alone, P(x4 | do(x2)) = sum_{x3} P(x3 | x2) sum_{x1, x2'} P(x1, x2') P(x4 | x1, x2', x3), evaluated from the model and as the empirical plug-in of the same formula (they agree exactly on a law satisfying the constraints). An ordinary DAG factorization P(x1) P(x2|x1) P(x3|x2) P(x4|x3) is not this likelihood. Departures from the frozen wording: (1) the existing 2.2B conditional ADMG functional of 2.2B.X2.admg_conditional_transport is NOT bound here, because that route needs conditioned variables and this graph has none; the pilot instead derives and cites its own unconditional front-door-like identifying formula above (so the prerequisite is a lineage reference, not a functional the pilot calls); (2) there is one regime (observational), no experimental or source/target regime counts; (3) the engine is a constrained maximum-likelihood fit with a model-versus-plug-in contrast, produces no posterior draws and no prior, so no posterior interval exists to calibrate; the calibrated claim is kept only for the allocated coverage record. The Mobius/head-tail parameterization follows Evans and Richardson 2019 (Bernoulli 25(2), arXiv:1511.06813) and the nested Markov property and Verma constraint follow Richardson, Evans, Robins and Shpitser 2023 (Annals of Statistics 51(1), arXiv:1701.06686); only the titles and abstract pages were read, no theorem or section numbers are verified, and every identity used is derived directly and checked against an enumerated latent-variable SCM. Calibration is UNMEASURED and the public route stays closed."
+reference = "TODO.md A3; prerequisite 2.2B.X2.admg_conditional_transport (lineage only); provenance/x4_binary_nested_markov.toml"
+guarantee = "derived_binary_verma_admg_nested_markov_mle_point_contrast_calibration_unmeasured_route_closed"
+graph_class = "Exactly the Verma ADMG X1 -> X2 -> X3 -> X4, X2 <-> X4 over four binary observed variables (at most 6 observed variables admitted by the scope check, only this graph fits); every other ADMG, regime or non-binary domain is outside the pilot and refuses."
+population_semantics = "One population and one observational regime; the 16-cell count table is one snapshot. No source/target or experimental regimes in this pilot."
+evidence_family = "The 2x2x2x2 observational cell-count table with every count finite and strictly positive; the artifact embeds the counts."
+provider = "antecedent_estimate::nested_markov_binary (bounded binary nested-Markov likelihood fit), sealed by antecedent_io::nested_markov_artifact and exposed through the closed facade antecedent::analysis::closed_pilots and python/src/closed_pilot_api.rs; internal and non-routed. No generic Bayesian ADMG provider."
+estimand = "The selected observational-regime contrast E[X4 | do(X2 = 1)] - E[X4 | do(X2 = 0)], as the model value and the empirical plug-in, with separate nonparametric-identification, likelihood-fit and inferential-standing statuses. No posterior interval is produced."
 inference_claim = "calibrated"
+inference_notes = "Carried forward, every route closed. The frozen claim is a calibrated posterior interval; the engine produces a maximum-likelihood fit and a point contrast only, and no interval of any kind, so the claim stays allocated but unexercised. Failed gate: calibration unmeasured (coverage record id allocated but not collected; measured only at the 2.3 release cut, project decision: interval and posterior routes stay closed with cell_not_licensed until measured). Every artifact carries calibration = unmeasured and inferential standing unmeasured. The engine, artifact and closed Python route execute and their tests pass in Rust."
 coverage_records = ["cov.bayesian_transport.binary_admg.posterior.l95.nested_markov_pilot"]
-owners = ["antecedent-identify", "antecedent-bayesian", "antecedent-io"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2B.X2.admg_conditional_transport"]
-identity_inputs = ["selected ADMG", "identified functional", "regime-specific count snapshots", "binary parameterization", "prior and likelihood", "fit receipt"]
-wire_changes = ["Planned pilot-specific posterior artifact with likelihood and fit diagnostics."]
-compatibility = "The licensed 2.2 exact conditional ADMG point route remains independent of this closed Bayesian provider."
+identity_inputs = ["selected ADMG (graph id binary_admg.verma.x1_x2_x3_x4.v1)", "identifying formula", "regime structure and observational count snapshot (every count bit for bit)", "binary parameterization (district_mobius_c_factor.v1)", "fit options (iteration bound, tolerance, constraint-residual threshold)", "fit receipt"]
+wire_changes = ["Additive: binary_nested_markov_pilot_v1 artifact (format version 1) carrying the declared ADMG, graph and parameterization ids, the regime counts, the fit options and the fit receipt (parameters, 16 fitted cells, log-likelihood, diagnostics with the four constraint residuals, model-versus-plug-in contrast, three separate status fields, calibration = unmeasured); a consumer re-runs the pilot and accepts only a bit-identical receipt. No existing wire is reinterpreted."]
+compatibility = "The licensed 2.2 exact conditional ADMG point route is unchanged and independent of this closed pilot; the pilot does not call its functional (that route needs conditioned variables)."
 search = false
-bounds = { cancellation = true, max_observed = 6, max_draws = 100000 }
+bounds = { cancellation = true, max_observed = 6, max_iterations = 1000000 }
 refusals = [
-  { code = "cell_not_licensed", detail = "nested_markov.route_frozen", when = "A numerical or posterior request reaches the pilot before its exact functional, likelihood and calibration gates pass." },
-  { code = "route_not_supported", detail = "nested_markov.outside_binary_pilot", when = "The graph, regime or variable domain is outside the one selected binary pilot." },
+  { code = "cell_not_licensed", detail = "nested_markov.route_frozen", when = "The public numerical or interval route is requested; closed because calibration is unmeasured." },
+  { code = "route_not_supported", detail = "nested_markov.outside_binary_pilot", when = "The graph, regime or variable domain is outside the one selected binary pilot (more than 6 observed variables, another ADMG, not exactly the observational regime, non-binary domain, or a table that is not 2x2x2x2). Never a nonidentification claim." },
+  { code = "invalid_argument", detail = "nested_markov.invalid_counts", when = "Counts are non-finite or negative, or the table has no mass." },
+  { code = "invalid_argument", detail = "nested_markov.iteration_bound", when = "max_iterations is outside 1..=1000000." },
+  { code = "invalid_argument", detail = "nested_markov.invalid_options", when = "The tolerance is not finite and positive, or the residual threshold is not finite and non-negative." },
+  { code = "invalid_argument", detail = "nested_markov.invalid_input", when = "The closed facade could not attribute an estimation failure to a more specific detail." },
+  { code = "transport_support_failure", detail = "nested_markov.positivity", when = "A regime cell count is not strictly positive or the law has no mass." },
+  { code = "transport_numerical_failure", detail = "nested_markov.constraint_violated", when = "The empirical law violates the four equality constraints beyond the requested residual threshold; diagnostics are retained." },
+  { code = "transport_numerical_failure", detail = "nested_markov.fit_not_converged", when = "The constrained fit did not converge within the iteration bound; diagnostics are retained." },
+  { code = "transport_numerical_failure", detail = "nested_markov.not_normalized", when = "The fitted likelihood is not a normalized positive law." },
+  { code = "transport_numerical_failure", detail = "nested_markov.fitted_boundary", when = "A fitted probability is within 1e-9 of 0 or 1." },
+  { code = "transport_budget_cancel", detail = "nested_markov.cancelled", when = "Cancellation stopped the fit; no estimate is reported." },
 ]
 routes = [
-  { name = "antecedent.transport.binary_nested_markov", stage = "evaluate", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.binary_nested_markov", stage = "evaluate", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_closed_pilots.py", refusal_assertion = "test_x4_nested_markov_route_is_closed_with_cell_not_licensed" },
 ]
 fixtures = [
-  { id = "x4.nested_likelihood_truth.positive", role = "positive", intent = "Compare normalized likelihood and target effect with an independently enumerated binary SCM." },
-  { id = "x4.nested_outside_class.negative", role = "negative", intent = "Refuse an adjacent ADMG, invalid regime or nonbinary cell without claiming nonidentification." },
-  { id = "x4.nested_fit_replay.artifact", role = "artifact", intent = "A fresh consumer checks the functional, likelihood and fit receipt against the bound evidence." },
-  { id = "x4.nested_interval_grid.calibration", role = "calibration", intent = "Measure coverage and posterior decision calibration for the exact pilot graph and sampling design." },
+  { id = "x4.nested_likelihood_truth.positive", role = "positive", intent = "From an exact (scaled) table of an enumerated latent-variable SCM on the Verma graph, the fitted cells equal the SCM's observed law, the likelihood is normalized and positive, and the fitted Mobius parameters equal the latent-summed SCM values.", evidence_test = "crates/antecedent-estimate/tests/nested_markov_binary.rs", evidence_assertion = "x4_nested_likelihood_truth_exact_counts_recover_scm" },
+  { id = "x4.nested_constraint_failure.truth", role = "truth", intent = "When the law violates the constraints (a direct X1 -> X4 effect), the model contrast and the plug-in are distinct and the violation is reported.", evidence_test = "crates/antecedent-estimate/tests/nested_markov_binary.rs", evidence_assertion = "x4_nested_likelihood_truth_model_and_plugin_are_distinct_when_constraint_fails" },
+  { id = "x4.nested_outside_class.negative", role = "negative", intent = "An adjacent ADMG (extra directed or bidirected edge, missing edge), an invalid regime or a non-binary cell refuses without claiming nonidentification.", evidence_test = "crates/antecedent-estimate/tests/nested_markov_binary.rs", evidence_assertion = "x4_nested_outside_class_graph_regime_and_domain_refuse" },
+  { id = "x4.nested_violating_law.negative", role = "negative", intent = "A constraint-violating law is reported in the diagnostics, never fitted silently.", evidence_test = "crates/antecedent-estimate/tests/nested_markov_binary.rs", evidence_assertion = "x4_nested_outside_class_violating_law_is_reported_in_diagnostics" },
+  { id = "x4.nested_boundary.negative", role = "negative", intent = "A boundary fit refuses with retained diagnostics.", evidence_test = "crates/antecedent-estimate/tests/nested_markov_binary.rs", evidence_assertion = "x4_nested_fit_diagnostics_boundary_refuses_with_retained_diagnostics" },
+  { id = "x4.nested_non_convergence.negative", role = "negative", intent = "Non-convergence is a typed refusal keeping the fit state.", evidence_test = "crates/antecedent-estimate/tests/nested_markov_binary.rs", evidence_assertion = "x4_nested_fit_diagnostics_non_convergence_is_typed_and_keeps_state" },
+  { id = "x4.nested_bounds_cancellation.negative", role = "negative", intent = "Iteration bounds, cancellation, a zero cell and negative counts refuse with their codes.", evidence_test = "crates/antecedent-estimate/tests/nested_markov_binary.rs", evidence_assertion = "x4_nested_fit_diagnostics_bounds_cancellation_and_positivity" },
+  { id = "x4.nested_fit_replay.artifact", role = "artifact", intent = "A fresh consumer re-runs the pilot from the embedded counts and accepts only a receipt that replays value for value against the SCM.", evidence_test = "crates/antecedent-io/tests/nested_markov_artifact.rs", evidence_assertion = "x4_nested_fit_replay_exact_counts_replay_value_for_value_against_the_scm" },
+  { id = "x4.nested_violating_fit_replay.artifact", role = "artifact", intent = "A constraint-violating fit replays with its residuals.", evidence_test = "crates/antecedent-io/tests/nested_markov_artifact.rs", evidence_assertion = "x4_nested_fit_replay_a_constraint_violating_fit_replays_with_its_residuals" },
+  { id = "x4.nested_resealed_mutation.artifact", role = "artifact", intent = "Resealed semantic mutations of the graph, regime, counts or receipt refuse.", evidence_test = "crates/antecedent-io/tests/nested_markov_artifact.rs", evidence_assertion = "x4_nested_fit_replay_refuses_resealed_semantic_mutations" },
+  { id = "x4.nested_expected_identity.artifact", role = "artifact", intent = "A consumer holding an expected identity refuses a mismatch.", evidence_test = "crates/antecedent-io/tests/nested_markov_artifact.rs", evidence_assertion = "x4_nested_fit_replay_enforces_an_expected_identity" },
+  { id = "x4.nested_consumer_limits.negative", role = "negative", intent = "Stored sizes above the consumer's limits refuse before any work.", evidence_test = "crates/antecedent-io/tests/nested_markov_artifact.rs", evidence_assertion = "x4_nested_fit_replay_refuses_stored_sizes_above_the_consumer_limits" },
+  { id = "x4.nested_producer_scope.negative", role = "negative", intent = "The artifact producer refuses outside the pilot without a nonidentification claim.", evidence_test = "crates/antecedent-io/tests/nested_markov_artifact.rs", evidence_assertion = "x4_nested_fit_replay_producer_refuses_outside_the_pilot_without_a_nonidentification_claim" },
+  { id = "x4.nested_interval_grid.calibration", role = "calibration", intent = "Wired, not measured: coverage and decision calibration for the exact pilot graph and sampling design. The engine produces no interval; the coverage record id is allocated but not collected, measured at the 2.3 release cut, and until then every route stays closed (cell_not_licensed)." },
 ]
 
 [[record]]
@@ -196,37 +308,42 @@ id = "2.3A.X5.dependent_temporal_interval"
 workstream = "X5"
 milestone = "A"
 work_package = "A4"
-status = "frozen"
+status = "carried_forward"
 consumer_question = "What sampling interval surrounds a target two-step sequence effect when observations share a repeated unit?"
-theorem = "The two-step identified functional is inherited from its 2.2 proof, not its point-only uncertainty. A whole-sequence estimator must retain unit dependence through fitting, resampling and interval construction; iid row resampling cannot certify it."
+theorem = "The two-step identified functional is inherited from its 2.2 proof, not its point-only uncertainty. A whole-sequence estimator must retain unit dependence through fitting, resampling and interval construction; iid row resampling cannot certify it. Implemented as an in-repo cluster (whole-unit) bootstrap of the entire history-conditioned estimator (percentile or basic interval over a seeded set of unit-resampled replicates, each re-running the whole estimator). No consistency theorem for this bootstrap on this functional is derived or inherited here: the interval is dependence-preserving and its coverage is unmeasured. Gate that did not pass: whole-method coverage on the declared sample-size grid and dependence boundary (the calibration fixture below has no executing evidence); that coordinate is measured only at the release cut, so the route is carried forward closed."
 reference = "TODO.md A4; prerequisite 2.2A.X5.two_step_temporal_transport"
-guarantee = "dependent_interval_pending_whole_method_calibration"
+guarantee = "dependence_preserving_resampling_implemented_calibration_unmeasured_route_closed"
 graph_class = "The fixed two-slice selection ADMG and horizon-two query of the licensed 2.2 temporal transport cell; no longer sequence."
 population_semantics = "Named source and target, two ordered action times and one final outcome; complete histories are grouped by repeated unit."
 evidence_family = "Finite complete repeated-unit trajectories with stable unit and time IDs, and the exact regime catalog required by the 2.2 derivation."
-provider = "Planned unit-owned outer resampling of the whole prepared temporal estimator; no row-IID fallback."
+provider = "antecedent_estimate::temporal_dependent_interval: unit-owned outer resampling of the whole estimator (observed-state, fixed-state or target-marginalized initial-state response) with deterministic replicate ids and unit-selection digests; no row-IID fallback. The public route validates its arguments for real and then refuses."
 estimand = "Target mean outcome under one two-step intervention sequence, with a pointwise 95% sampling interval."
 inference_claim = "calibrated"
+inference_notes = "Calibration is wired but unmeasured: the engine reports claim dependence_preserving_calibration_unmeasured and calibration unmeasured, and the public route refuses (cell_not_licensed / temporal_interval.route_frozen) after validating arguments. The coverage record below is measured only at the release cut, so no interval is licensed in this release."
 coverage_records = ["cov.temporal_transport.selection_admg.frequentist.l95.two_step_repeated_units"]
 owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2A.X5.two_step_temporal_transport"]
 identity_inputs = ["temporal graph and 2.2 proof", "sequence and horizon", "population and regime catalog", "unit/time/snapshot identity", "resampling design and seed"]
-wire_changes = ["Planned additive temporal interval artifact with whole-unit replicate IDs and refresh receipt."]
+wire_changes = ["Additive internal-only temporal_dependent_interval_v1 artifact (kind temporal_dependent_interval_internal) embedding the full unit panel, estimator, resampling design and every replicate with its whole-unit replicate id, unit-selection digest and re-estimated point; no public producer writes it while the route is closed. Digests are non-cryptographic FNV-style fingerprints."]
 compatibility = "The 2.2 point-only sequence result and its estimator_inference_mismatch refusal remain unchanged."
 search = false
 bounds = { cancellation = true, max_horizon = 2, max_replicates = 2000, max_units = 100000 }
 refusals = [
-  { code = "cell_not_licensed", detail = "temporal_interval.route_frozen", when = "A dependent-sampling interval is requested before its whole-method grid and artifact gate pass." },
+  { code = "cell_not_licensed", detail = "temporal_interval.route_frozen", when = "A dependent-sampling interval is requested at the public route; closed until the whole-method calibration is measured (after the arguments validate)." },
   { code = "route_not_supported", detail = "temporal_interval.unknown_units", when = "Unit ownership, time order or dependence is absent or incompatible." },
+  { code = "too_few_clusters", detail = "temporal_interval.too_few_units", when = "The panel has fewer repeated units than the interval's minimum (default 20, never below 2)." },
+  { code = "route_not_supported", detail = "temporal_interval.unsupported_history", when = "The estimator is not supported on the original panel (for example an initial state with no history support)." },
+  { code = "route_not_supported", detail = "temporal_interval.too_many_replicates", when = "More than 2000 replicates are requested." },
+  { code = "invalid_argument", detail = "temporal_interval.invalid_estimand", when = "The Python bridge is asked for an estimand other than observed, fixed (with a state) or marginalized (with a law)." },
 ]
 routes = [
-  { name = "antecedent.transport.temporal_dependent_interval", stage = "uncertainty", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.temporal_dependent_interval", stage = "uncertainty", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_temporal_extensions.py", refusal_assertion = "test_x5_dependent_interval_route_is_closed_after_real_validation" },
 ]
 fixtures = [
-  { id = "x5.dynamic_scm_interval.positive", role = "positive", intent = "Compare the whole estimator with independent dynamic-SCM truth under repeated-unit dependence." },
-  { id = "x5.unknown_unit_dependence.negative", role = "negative", intent = "Refuse an undeclared unit map or an IID-row substitute." },
-  { id = "x5.unit_replicate_replay.artifact", role = "artifact", intent = "A fresh consumer reproduces the interval and rejects changed unit, time or snapshot identity." },
-  { id = "x5.dependent_sequence_grid.calibration", role = "calibration", intent = "Measure whole-sequence pointwise interval coverage on the required sample-size grid and dependence boundary." },
+  { id = "x5.dynamic_scm_interval.positive", role = "positive", intent = "Wiring only: the whole estimator's point equals the independently enumerated two-step dynamic-SCM truth (fixed-state responses 0.33 and 0.46, target-marginalized 0.421) on a repeated-unit panel. (The same file separately checks that unit resampling is wider than iid-row resampling and that calibration is reported unmeasured.)", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "x5_dynamic_scm_interval_point_equals_enumerated_truth" },
+  { id = "x5.unknown_unit_dependence.negative", role = "negative", intent = "An absent unit map and incompatible unit or time identities refuse with temporal_interval.unknown_units; no IID-row substitute exists.", evidence_test = "crates/antecedent-estimate/tests/temporal_dependent_interval.rs", evidence_assertion = "x5_unknown_unit_dependence_refuses_an_absent_map_and_incompatible_units" },
+  { id = "x5.unit_replicate_replay.artifact", role = "artifact", intent = "A fresh consumer re-runs the whole resampling from the embedded panel and rejects a changed unit, time, value or snapshot even when the artifact is resealed (this artifact alone embeds the full panel).", evidence_test = "crates/antecedent-io/tests/temporal_interval_artifact.rs", evidence_assertion = "x5_dependent_interval_reseal_refuses_a_changed_unit_time_value_or_snapshot" },
+  { id = "x5.dependent_sequence_grid.calibration", role = "calibration", intent = "Not measured and no executing test: whole-sequence pointwise interval coverage on the required sample-size grid and dependence boundary is measured only at the release cut; until then the route stays closed." },
 ]
 
 [[record]]
@@ -234,35 +351,39 @@ id = "2.3A.X5.uncertain_initial_state"
 workstream = "X5"
 milestone = "A"
 work_package = "A4"
-status = "frozen"
+status = "promoted"
 consumer_question = "How does uncertainty in the pre-action state change the two-step target response?"
-theorem = "The 2.2 sequence functional conditions on a specified initial-state law. This extension must integrate over a separately identified or supplied initial-state distribution while keeping it coupled to histories; plugging in a single initial state is a different estimand."
+theorem = "The 2.2 sequence functional conditions on a specified initial-state law. This extension integrates over a supplied finite target initial-state distribution: sum over s0 of P_target(s0) times R(s0), where R(s0) = sum over l of P(l | s0, a1) E[y | s0, a1, l, a2] is the history-conditioned response read from the complete histories (exact finite sum, no new identification theorem). Plugging in a single initial state is a different estimand with its own result type and label (fixed_initial_state vs marginalized_initial_state); neither converts into the other. A source-labelled law or a point state refuses as target evidence. Departure from the frozen wording: the law is supplied with its own snapshot id and the histories supply R(s0) from the panel; the 2.2 source/target regime catalog is not re-derived here. Artifact limit: the artifact re-evaluates both sums from the embedded law and a tally summary of the panel (counts and outcome sums per initial state and step-2 covariate cell), not from the full panel, so a coherently resealed forgery of summary, law and stored values replays; only the dependent-interval artifact embeds the full panel. Digests are non-cryptographic fingerprints."
 reference = "TODO.md A4; prerequisite 2.2A.X5.two_step_temporal_transport"
-guarantee = "point_integration_pending_independent_dynamic_scm_truth"
+guarantee = "point_marginalization_over_supplied_target_initial_state_law_exact_finite_sum"
 graph_class = "The 2.2 fixed two-slice selection ADMG, with one finite observed pre-action state."
 population_semantics = "Target initial state precedes both actions and has its own snapshot; source and target initial-state laws cannot be interchanged."
 evidence_family = "A finite target initial-state joint, plus the 2.2 source/target regime catalog and complete histories."
-provider = "Exact finite-law integration over the declared target initial-state support."
+provider = "antecedent_estimate::temporal_initial_state: exact finite-law integration over the declared target initial-state support (at most 64 states, masses summing to one within 1e-9), reading R(s0) from the panel's complete histories."
 estimand = "Target two-step intervention mean marginalized over the uncertain initial state."
 inference_claim = "point_only"
-owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2A.X5.two_step_temporal_transport"]
 identity_inputs = ["initial-state variable and target law", "time order", "source/target regimes", "graph and proof", "snapshots"]
-wire_changes = ["Planned additive initial-state factor and its identity in the temporal artifact."]
+wire_changes = ["Additive temporal_initial_state_target_law_v1 artifact (kind temporal_initial_state_marginalization, version 1): premises (initial-state variable, time order, regimes, graph and proof ids), action sequence, the target law with its snapshot id, a panel tally summary, and the two labelled results. It is a different feature marker and kind from the 2.2 specified-initial-state artifact and neither decoder accepts the other's bytes. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
 compatibility = "The specified-initial-state 2.2 point remains unchanged and cannot be relabeled as marginalized."
 search = false
 bounds = { cancellation = true, max_initial_states = 64, max_horizon = 2 }
 refusals = [
-  { code = "cell_not_licensed", detail = "initial_state.route_frozen", when = "The target initial-state distribution route has not passed truth and artifact evidence." },
+  { code = "cell_not_licensed", detail = "initial_state.route_frozen", when = "Only through the exported route_frozen_refusal constructor kept from the closed pre-promotion route; the licensed route does not emit it." },
   { code = "transport_missing_evidence", detail = "initial_state.target_law_missing", when = "Only a source initial-state law or a point state is supplied for a target-marginal query." },
+  { code = "route_not_supported", detail = "initial_state.too_many_states", when = "The target law has more than 64 support points." },
+  { code = "transport_support_failure", detail = "initial_state.support_gap", when = "A state with positive target mass has no history support, or no history with the step-2 covariate takes the second action." },
+  { code = "invalid_argument", detail = "initial_state.invalid_premises", when = "The artifact premises do not name the initial-state variable first in the time order, two regimes and ids." },
+  { code = "invalid_argument", detail = "initial_state.invalid_law", when = "The Python bridge law population is neither target nor source, or not exactly one of a law or a point state is supplied." },
 ]
 routes = [
-  { name = "antecedent.transport.temporal_initial_state", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.temporal.initial_state", stage = "evaluate", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "x5.initial_state_sum.positive", role = "positive", intent = "Compare the integrated sequence effect with independently enumerated dynamic-SCM state truth." },
-  { id = "x5.source_state_only.negative", role = "negative", intent = "Refuse a source state law passed as target evidence or a missing state cell." },
-  { id = "x5.initial_state_mutation.artifact", role = "artifact", intent = "A fresh consumer re-evaluates the initial-state sum and rejects a changed population or snapshot." },
+  { id = "x5.initial_state_sum.positive", role = "positive", intent = "The integrated sequence effect equals the independently enumerated two-step dynamic-SCM truth: with target P(s0=1)=0.7 and responses 0.33 and 0.46 it is 0.3*0.33+0.7*0.46=0.421, not the mode-fixed 0.46 nor the panel's observed-state 0.395.", evidence_test = "crates/antecedent-estimate/tests/temporal_initial_state.rs", evidence_assertion = "x5_initial_state_sum_equals_the_hand_enumerated_target_sum" },
+  { id = "x5.source_state_only.negative", role = "negative", intent = "A source-labelled law and a point state refuse as target evidence with transport_missing_evidence / initial_state.target_law_missing.", evidence_test = "crates/antecedent-estimate/tests/temporal_initial_state.rs", evidence_assertion = "x5_source_state_only_refuses_a_source_law_and_a_point_state" },
+  { id = "x5.initial_state_mutation.artifact", role = "artifact", intent = "A fresh consumer re-evaluates the initial-state sum from the embedded law and panel summary and refuses a resealed changed law, snapshot or population. Limit: the summary is a tally, so a coherently resealed forgery of summary, law and values replays.", evidence_test = "crates/antecedent-io/tests/temporal_initial_state_artifact.rs", evidence_assertion = "x5_initial_state_artifact_refuses_a_resealed_changed_law_snapshot_or_population" },
 ]
 
 [[record]]
@@ -270,35 +391,44 @@ id = "2.3A.X5.new_period_refresh"
 workstream = "X5"
 milestone = "A"
 work_package = "A4"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can a prepared two-step result accept a new observation period without reusing stale time or selection premises?"
-theorem = "Semantic refresh contract: period extension changes the time horizon, history support and data snapshot; a derivation or posterior for the old window cannot be silently reused. No new identification theorem is claimed."
+theorem = "Semantic refresh contract: a prepared result is valid for one declared window (graph, horizon, lag alignment, intervention history, selection targets, regimes, proof, observation period, unit ids and snapshot). A replacement is reusable only when all premises are unchanged and both the period and the snapshot are new; the result is then re-evaluated on the new period (never copied) under a receipt binding old and new identities. Any other change is a typed invalidation (horizon_changed, lag_alignment_changed, intervention_history_changed, premises_changed, stale_snapshot), and a refreshed result never carries an interval of the old window. No new identification theorem is claimed. Departures from the frozen wording: the decision and receipt are an identity-comparison contract only; the core refresh tests use a deterministic stand-in evaluator (mean of the snapshot's unit outcomes) to isolate the contract, and the real marginalized re-evaluation is exercised through the artifact and the exact-law prepared adapter. Artifact limit: the artifact re-evaluates from a tally summary of each panel (not the full panel), so a coherently resealed forgery of summaries, law, receipt and values replays. Digests are non-cryptographic FNV-style fingerprints that detect unresealed change, not an adversary."
 reference = "TODO.md A4; prerequisite 2.2A.X5.two_step_temporal_transport"
-guarantee = "refresh_invalidation_contract_pending"
+guarantee = "semantic_refresh_identity_decision_and_receipt_point_only"
 graph_class = "The 2.2 fixed two-slice graph when the window advances without extending horizon; a third slice requires a separate cell."
 population_semantics = "Source, target, period boundaries, observation window and unit lineage are distinct identity inputs."
 evidence_family = "A replacement complete-history snapshot with explicit period and unit IDs."
-provider = "Checked prepared-temporal refresh and proof replay for the same scientific window contract."
+provider = "antecedent_estimate::temporal_refresh: window identity comparison (decide_refresh), receipt (RefreshReceipt) and acceptance (accept_refresh) with the prepared-temporal adapter re-evaluating on the replacement; antecedent_io::temporal_refresh_artifact replays the decision, receipt and both points."
 estimand = "The existing horizon-two response re-evaluated on a new declared period, or a typed invalidation."
 inference_claim = "point_only"
-owners = ["antecedent-core", "antecedent-io", "antecedent"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2A.X5.two_step_temporal_transport"]
 identity_inputs = ["time window", "observation period", "unit lineage", "selection targets", "regimes", "snapshot and proof"]
-wire_changes = ["Planned temporal artifact refresh receipt binding the new period and invalidation decision."]
+wire_changes = ["Additive temporal_new_period_refresh_v1 artifact (kind temporal_new_period_refresh, version 1): old and new window identities, a tally summary of each panel, the target initial-state law and action sequence, the refresh decision (reusable, or invalidated with its typed reason), the refresh receipt with its digest, the interval-invalidated flag and the old and re-evaluated points. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
 compatibility = "The 2.2 prepared point remains valid only for its original period and snapshot."
 search = false
 bounds = { cancellation = true, max_horizon = 2, max_history_states = 4096 }
 refusals = [
-  { code = "cell_not_licensed", detail = "temporal_refresh.route_frozen", when = "A new-period refresh is requested before semantic replay evidence passes." },
-  { code = "route_not_supported", detail = "temporal_refresh.horizon_changed", when = "The replacement adds a third slice or changes the old selection or regime premises." },
+  { code = "route_not_supported", detail = "temporal_refresh.horizon_changed", when = "The replacement appends a third slice or otherwise changes the horizon." },
+  { code = "route_not_supported", detail = "temporal_refresh.lag_alignment_changed", when = "The lag alignment of the coordinates changed." },
+  { code = "route_not_supported", detail = "temporal_refresh.intervention_history_changed", when = "The intervention history was altered." },
+  { code = "route_not_supported", detail = "temporal_refresh.premises_changed", when = "The selection targets, regimes, graph or proof changed." },
+  { code = "route_not_supported", detail = "temporal_refresh.stale_snapshot", when = "The replacement is not a new snapshot of a new observation period." },
+  { code = "route_not_supported", detail = "temporal_refresh.receipt_digest_mismatch", when = "A refresh receipt field was changed without resealing." },
+  { code = "route_not_supported", detail = "temporal_refresh.receipt_mismatch", when = "The receipt is not the one the held and refreshed identities imply (old or new identity, period, snapshot, proof or interval flag differs)." },
+  { code = "route_not_supported", detail = "temporal_refresh.stale_interval", when = "A refreshed result still carries an interval of the old window." },
+  { code = "invalid_argument", detail = "temporal_refresh.invalid_replacement", when = "The replacement window has an empty or reversed period, no unit ids, or no snapshot id, proof id or horizon." },
+  { code = "invalid_argument", detail = "temporal_refresh.window_missing", when = "A held result declared no observation window, so it has nothing to refresh." },
+  { code = "invalid_argument", detail = "temporal_refresh.no_refresh", when = "A refresh artifact is requested from a result that was not produced by a refresh." },
 ]
 routes = [
-  { name = "antecedent.transport.temporal_new_period_refresh", stage = "prepare", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.temporal.new_period_refresh", stage = "prepare", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "x5.period_replace.positive", role = "positive", intent = "Re-evaluate the horizon-two point on a new valid period and compare with a clean preparation." },
-  { id = "x5.third_period.negative", role = "negative", intent = "Invalidate a changed horizon, selection target or regime rather than reuse the old proof." },
-  { id = "x5.period_reseal.artifact", role = "artifact", intent = "A fresh consumer rejects a changed period or stale snapshot even when a payload is resealed." },
+  { id = "x5.period_replace.positive", role = "positive", intent = "A reusable replacement is re-evaluated on the new period, bit for bit equal to a clean evaluation there, differs from the held value, and its receipt binds both periods, snapshots and the proof while recording the invalidated interval (stand-in evaluator isolates the contract).", evidence_test = "crates/antecedent-estimate/tests/temporal_refresh.rs", evidence_assertion = "x5_period_replace_matches_clean_preparation_bit_for_bit" },
+  { id = "x5.third_period.negative", role = "negative", intent = "An appended third slice or changed horizon invalidates with temporal_refresh.horizon_changed rather than reusing the old proof; changed selection targets, regimes, graph or proof (premises_changed) are separately tested in the same file.", evidence_test = "crates/antecedent-estimate/tests/temporal_refresh.rs", evidence_assertion = "x5_third_period_appended_slice_or_changed_horizon_invalidates" },
+  { id = "x5.period_reseal.artifact", role = "artifact", intent = "A fresh consumer rejects a changed period, snapshot or unit set even when the payload is resealed. Limit: each panel is a tally summary, so a coherently resealed forgery of summaries, receipt and values replays.", evidence_test = "crates/antecedent-io/tests/temporal_refresh_artifact.rs", evidence_assertion = "x5_period_reseal_refuses_a_changed_period_snapshot_or_units" },
 ]
 
 [[record]]
@@ -306,35 +436,52 @@ id = "2.3A.X8.temporal_fixed_population_counterfactual"
 workstream = "X8"
 milestone = "A"
 work_package = "A5"
-status = "frozen"
+status = "promoted"
 consumer_question = "What would the same observed unit's final outcome have been under a different two-step action history?"
-theorem = "A fixed Markovian temporal SCM must abduce one exogenous history per unit and replay both action histories against that same history. The 2.2 static edge-intervention proof does not identify a temporal or transported counterfactual."
+theorem = "For a fixed, fully observed, Markovian two-slice DAG L0 -> A0 -> L1 -> A1 -> Y with additive-noise linear mechanisms V = intercept + sum_p coef_p * parent_p + U_V (supplied as a fitted mechanism identity), each unit's exogenous history (U_L0, U_L1, U_Y) is recovered exactly from its factual trajectory (abduction), both named action histories are replayed against that same history (action), and each world's final outcome is computed from it (prediction); abduction, action and prediction are one function. The estimand is the per-unit outcome under each history and the sample mean of their difference. Fresh noise per world would answer an interventional, not a counterfactual, question. The 2.2 static edge-intervention proof does not identify a temporal or transported counterfactual. Departures from the frozen wording: the mechanism class is linear additive noise with closed-form abduction (the Gaussian family is never used numerically; an optional per-node noise halfwidth declares a bounded noise support so an out-of-support factual history is a refusing witness), not a finite SCM; the node set, horizon 2 and two worlds are fixed. Abduction-action-prediction follows the structural-counterfactual procedure of Pearl (2000, Causality, chapter 7); no new theorem is derived beyond its exact application to an invertible additive-noise model. Digests are non-cryptographic 128-bit FNV-1a fingerprints and the artifact spec_id is a blake3 hash; neither is a security seal, and a coherently resealed artifact replays unless the consumer retains an independent expected identity."
 reference = "TODO.md A5; prerequisite 2.2A.X8.path_specific_edge_intervention"
-guarantee = "shared_history_counterfactual_pending_scm_truth"
+guarantee = "shared_exogenous_history_counterfactual_linear_additive_noise_point_only"
 graph_class = "Fully observed two-slice Markovian temporal DAG with one ordered action per slice and one final outcome; no latent confounding."
 population_semantics = "One fixed population and the same units in factual and counterfactual worlds; histories and observation times remain aligned."
 evidence_family = "Complete two-slice unit trajectories and fitted/supplied finite or linear-Gaussian mechanisms for the selected graph."
-provider = "Coupled abduction-action-prediction over one shared exogenous history per unit."
+provider = "antecedent_counterfactual::temporal_cross_world: coupled abduction-action-prediction over one shared exogenous history per unit with a shared-abduction receipt; antecedent_io::temporal_counterfactual_artifact replays both worlds."
 estimand = "Per-unit final-outcome counterfactual and its sample mean contrast for two named action histories."
 inference_claim = "point_only"
-owners = ["antecedent-model", "antecedent-estimate", "antecedent-io", "antecedent"]
+owners = ["antecedent-counterfactual", "antecedent-io", "antecedent", "python/antecedent"]
 prerequisite_records = ["2.2A.X8.path_specific_edge_intervention"]
 identity_inputs = ["temporal graph", "unit and history IDs", "factual observations", "two action histories", "mechanism fit", "snapshot"]
-wire_changes = ["Planned versioned temporal counterfactual artifact carrying both worlds' shared-abduction receipt."]
+wire_changes = ["Additive versioned temporal_counterfactual_v1 artifact (bounded sectioned container, at most 128 MiB) carrying the request, per-unit outcomes, means and the shared-abduction receipt (worlds, horizon, units, one draw digest per unit, shared_by_both_worlds). Unknown major versions refuse; 2.2 wires are never reinterpreted."]
 compatibility = "The 2.2 static edge-intervention artifact stays fixed-population and atemporal."
 search = false
 bounds = { cancellation = true, max_horizon = 2, max_units = 100000, max_worlds = 2 }
 refusals = [
-  { code = "cell_not_licensed", detail = "temporal_counterfactual.route_frozen", when = "A temporal counterfactual is requested before shared-history truth and artifact checks pass." },
-  { code = "route_not_supported", detail = "temporal_counterfactual.unpaired_histories", when = "Factual and counterfactual histories cannot be paired by the same unit and exogenous draw." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.horizon_exceeded", when = "The graph horizon is above 2." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.invalid_graph", when = "The graph horizon is not 2, an edge names an unknown node, or the graph is otherwise not the supported two-slice DAG." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.latent_confounding", when = "The graph declares latent confounding." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.fit_mismatch", when = "The mechanism fit does not match the graph (parents, coefficients) or carries a non-finite coefficient, intercept or noise halfwidth." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.unpaired_histories", when = "Factual and counterfactual histories cannot be paired by the same unit and exogenous draw (a missing, extra or duplicated unit in a world)." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.time_misaligned", when = "A unit's observation times differ from a world's action times." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.shared_history_missing", when = "No factual history is supplied, so there is no exogenous history to share." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.too_many_units", when = "More than 100000 units are supplied." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.history_name_invalid", when = "An action-history name is blank or the two names are equal." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.non_finite_history", when = "An action value or a factual value is not finite." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.refuting_history", when = "A factual history's residual lies outside a declared noise halfwidth (or is non-finite), so the model is refuted for that unit." },
+  { code = "route_not_supported", detail = "temporal_counterfactual.artifact_changed", when = "A consumer retained an expected identity and the artifact's snapshot, unit histories, action histories or mechanism fit differ." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.limits_exceeded", when = "The Python bridge artifact exceeds a consumer limit." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.invalid_request", when = "The Python bridge request JSON is not a well-formed declaration." },
+  { code = "invalid_argument", detail = "temporal_counterfactual.invalid_identity", when = "The Python bridge expected-identity JSON is not a well-formed identity." },
 ]
 routes = [
-  { name = "antecedent.cross_world.temporal_fixed_population", stage = "evaluate", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.cross_world.temporal_fixed_population", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["consume_temporal_counterfactual_artifact"] },
 ]
+surface_exports = ["python/antecedent/temporal_counterfactual.py"]
+owned_exports = ["AbductionReceipt", "ActionHistory", "NodeMechanism", "TemporalCounterfactualEffect", "TemporalCounterfactualIdentity", "TemporalMechanisms", "UnitCounterfactual", "UnitHistory", "consume_temporal_counterfactual_artifact", "temporal_fixed_population"]
+surface_values = ["AbductionReceipt", "ActionHistory", "NodeMechanism", "TemporalCounterfactualEffect", "TemporalCounterfactualIdentity", "TemporalMechanisms", "UnitCounterfactual", "UnitHistory"]
 fixtures = [
-  { id = "x8.temporal_shared_scm.positive", role = "positive", intent = "Compare two histories on the same units with an independently enumerated dynamic SCM." },
-  { id = "x8.unpaired_history.negative", role = "negative", intent = "Refuse histories that cannot share a unit or exogenous trajectory." },
-  { id = "x8.temporal_world_replay.artifact", role = "artifact", intent = "A fresh consumer recomputes both worlds and rejects a changed action time or unit history." },
+  { id = "x8.temporal_shared_scm.positive", role = "positive", intent = "On a closed-form linear two-slice SCM with four units, each unit's outcome under both histories equals the hand-simulated shared-noise truth and the per-unit contrast is the constant 4.9 (noise cancels), so the mean contrast is 4.9.", evidence_test = "crates/antecedent-counterfactual/tests/temporal_cross_world.rs", evidence_assertion = "x8_temporal_shared_scm_matches_hand_abduction_and_replay" },
+  { id = "x8.unpaired_history.negative", role = "negative", intent = "A unit missing from a world refuses with route_not_supported / temporal_counterfactual.unpaired_histories and retains the offending unit, history and world as a witness.", evidence_test = "crates/antecedent-counterfactual/tests/temporal_cross_world.rs", evidence_assertion = "x8_unpaired_history_missing_unit_in_a_world_refuses_with_witness" },
+  { id = "x8.temporal_world_replay.artifact", role = "artifact", intent = "A fresh consumer recomputes both worlds from the artifact, reproduces the hand-abduced outcomes and receipt bit for bit under the producer's retained identity.", evidence_test = "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs", evidence_assertion = "x8_artifact_matches_hand_abduction_and_replays_both_worlds" },
+  { id = "x8.resealed_action_history.artifact", role = "artifact", intent = "A resealed artifact with a changed action time or unit history replays on its own but is refused against the identity the consumer retained independently (temporal_counterfactual.artifact_changed).", evidence_test = "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs", evidence_assertion = "x8_artifact_resealed_action_time_is_refused" },
 ]
 
 [[record]]
@@ -342,11 +489,11 @@ id = "2.3A.X8.transported_path_specific_counterfactual"
 workstream = "X8"
 milestone = "A"
 work_package = "A5"
-status = "frozen"
+status = "carried_forward"
 consumer_question = "Can a static path-specific counterfactual answer be transported to a named target using a checked source-to-target derivation?"
-theorem = "Transporting a counterfactual requires both an identified target transport functional and a fixed-population cross-world theorem for the same quantity. Neither a transported mean nor a source counterfactual alone licenses their composition."
+theorem = "Transporting a counterfactual requires both an identified target transport functional and a fixed-population cross-world theorem for the same quantity. Neither a transported mean nor a source counterfactual alone licenses their composition. Gate that did not pass: the joint cross-world transport theorem is not derived, and the prerequisite gates (the ordinary transport license for the target functional, the fixed-population cross-world license for the same quantity, and stated cross-population assumptions) are not met. Only the closed gate is implemented: the route evaluates nothing whatever is supplied and returns route_frozen with the first missing gate named as the offending input, or factor_missing only when all three gates pass and a required source or target regime factor is absent; both the missing-gate and missing-factor lists are retained either way. No joint proof search, composed artifact or composed truth exists, so the positive, artifact and budget fixtures below have no executing evidence and the route stays closed."
 reference = "TODO.md A5; prerequisites 2.2A.X8.path_specific_edge_intervention and 2.2A.X2.finite_scenario_envelope"
-guarantee = "composition_closed_pending_joint_theorem"
+guarantee = "composition_closed_joint_theorem_not_derived_gate_reports_missing_prerequisites_only"
 graph_class = "A selected static fully observed Markovian DAG with a finite source/target selection diagram, inside the intersection of the two 2.2 prerequisite graph classes; no ADMG or temporal path-specific claim."
 population_semantics = "Named source and target populations with one fixed observation time and shared source-world exogenous draws; target selection differences require their own proof."
 evidence_family = "The exact source/target regime factors cited by a checked transport derivation plus the fixed-population counterfactual mechanism evidence."
@@ -361,17 +508,21 @@ compatibility = "Existing source counterfactual and transported interventional p
 search = true
 bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "joint proof operations", depth_limit = "two-slice proof depth", memory_limit = "live proof and factor bytes" }
 refusals = [
-  { code = "cell_not_licensed", detail = "transported_counterfactual.route_frozen", when = "The selected cross-world transport theorem and joint evidence map have not passed." },
-  { code = "transport_missing_evidence", detail = "transported_counterfactual.factor_missing", when = "A source or target regime factor required by the composed proof is absent." },
+  { code = "cell_not_licensed", detail = "transported_counterfactual.route_frozen", when = "The route is requested with any prerequisite gate missing, and also when all gates pass and every required factor is present, because the joint cross-world transport theorem has not passed." },
+  { code = "transport_missing_evidence", detail = "transported_counterfactual.factor_missing", when = "All prerequisite gates pass but a source or target regime factor required by the composed proof is absent from the supplied evidence." },
+  { code = "invalid_argument", detail = "transported_counterfactual.invalid_factor", when = "A regime factor does not name its population as source or target (Python and bridge validation)." },
 ]
 routes = [
-  { name = "antecedent.cross_world.transported_path_specific", stage = "identify", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.cross_world.transported_path_specific", stage = "identify", status = "closed", claim = "point_only", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_temporal_counterfactual.py", refusal_assertion = "test_x8_transported_route_is_closed_with_every_missing_gate" },
 ]
+surface_exports = ["python/antecedent/temporal_counterfactual.py"]
+owned_exports = ["TransportedPrerequisites", "transported_path_specific"]
+surface_values = ["TransportedPrerequisites"]
 fixtures = [
-  { id = "x8.transported_world_truth.positive", role = "positive", intent = "Compare the target path-specific counterfactual with an independently enumerated two-population static SCM." },
-  { id = "x8.missing_transport_factor.negative", role = "negative", intent = "Refuse a source-world counterfactual offered without the needed target factor." },
-  { id = "x8.composed_proof_replay.artifact", role = "artifact", intent = "A fresh consumer verifies both proofs and rejects a changed population or edge assignment." },
-  { id = "x8.composed_search_stop.budget", role = "budget", intent = "Charge the joint theorem search and retain partial work on cancellation or a bound." },
+  { id = "x8.transported_world_truth.positive", role = "positive", intent = "Not built and no executing test: comparing the target path-specific counterfactual with an independently enumerated two-population static SCM needs the joint cross-world transport theorem, which is not derived." },
+  { id = "x8.missing_transport_factor.negative", role = "negative", intent = "With every prerequisite gate passed, an absent target regime factor refuses with transport_missing_evidence / transported_counterfactual.factor_missing naming target:do_x and retaining the missing factor; a missing gate takes precedence as route_frozen with the factor still retained.", evidence_test = "crates/antecedent-counterfactual/tests/temporal_cross_world.rs", evidence_assertion = "x8_transported_gate_absent_regime_factor_is_factor_missing" },
+  { id = "x8.composed_proof_replay.artifact", role = "artifact", intent = "Not built and no executing test: a composed artifact binding both proofs and the population map does not exist while the joint theorem is not derived." },
+  { id = "x8.composed_search_stop.budget", role = "budget", intent = "Not built and no executing test: no joint theorem search exists, so there is nothing to charge to a SearchBudget." },
 ]
 
 [[record]]
@@ -379,37 +530,56 @@ id = "2.3A.X10.sampled_observation_recovery"
 workstream = "X10"
 milestone = "A"
 work_package = "A6"
-status = "frozen"
+status = "carried_forward"
 consumer_question = "What sampling uncertainty surrounds an effect computed from the exact binary observation-recovery formula?"
-theorem = "Only the exact recovery functional of the licensed 2.2 binary m-graph is inherited. A composed sampled estimator must resample observation patterns, rerun recovery and effect evaluation, and measure coverage of the final effect; component-level coverage is insufficient."
-reference = "TODO.md A6; prerequisite 2.2B.X10.binary_observation_recovery"
-guarantee = "sampled_recovery_interval_pending_whole_method_grid"
-graph_class = "The one licensed binary m-graph and exact recoverable effect query of the 2.2 X10 row; other missingness graphs need separate formulas."
-population_semantics = "One population, one observation-pattern sampling design and a snapshot shared by recovery and effect estimation."
-evidence_family = "Finite counted observation-pattern rows with explicit response indicators and positive recovered cells."
-provider = "Planned whole-row empirical recovery and outer resampling through the exact 2.2 formula."
-estimand = "Recovered target interventional effect and a pointwise 95% whole-method sampling interval."
+theorem = "Only the exact recovery functional of the licensed 2.2 binary m-graph (record 2.2B.X10.binary_observation_recovery, called through evaluate_exact_recovery and evaluate_recovered_effect, nothing re-derived) is inherited. The sampled estimator (antecedent_estimate::recovery_sampled) is one composed procedure: counted observation-pattern rows are tabulated into the empirical observed pattern law, the whole recovered law is evaluated through the exact formula, and the percentile interval comes from a whole-ROW bootstrap that resamples rows with replacement, so every margin of a replicate is computed from the same drawn rows and the covariance of margins from overlapping rows is preserved; each replicate reruns recovery and the downstream effect, and the interval is formed from the replicate effects, never from per-margin variances (an interval from per-margin variances alone is refused as component_variance_only). The empirical recovered law is never renormalized: its mass defect is reported and bounded by an explicit tolerance. A zero complete-case cell makes the formula's denominator zero and is refused with the offending patterns retained. Departures: the percentile interval is Efron's nonparametric bootstrap applied to the recovery functional of Mohan, Pearl and Tian (2013, m-graph recovery); no consistency or coverage theorem for the composed recovery-bootstrap is cited or proved (the percentile bootstrap is not exact in small samples, and the recovery functional is a ratio of margins that is not smooth at zero cells), and the digests are FNV-based fingerprints, not cryptographic. Calibration (whole-method coverage across the sample-size grid and the weak-pattern boundary) is UNMEASURED: the interval carries calibration = unmeasured and the public route stays closed."
+reference = "TODO.md A6; prerequisite 2.2B.X10.binary_observation_recovery; provenance/x10_sampled_observation_recovery.toml"
+guarantee = "whole_row_bootstrap_of_exact_binary_recovery_calibration_unmeasured_route_closed"
+graph_class = "The binary m-graph class and exact recoverable effect query of the licensed 2.2 X10 row, with at most 6 binary substantive variables; the recovery derivation is re-checked by the identification engine, and adjacent or non-recoverable m-graphs refuse. Other missingness graphs need separate formulas."
+population_semantics = "One population, one observation-pattern sampling design (iid rows with stable row ids) and a snapshot shared by recovery and effect estimation."
+evidence_family = "Finite counted observation-pattern rows (id and pattern, in order) with explicit response indicators and a catalog binding the observed snapshot; recovered cells must be positive and the rows are embedded in the artifact."
+provider = "antecedent_estimate::recovery_sampled (whole-row empirical recovery and outer resampling through the exact 2.2 formula), sealed by antecedent_io::sampled_recovery_artifact (format version 2) and exposed through the closed facade antecedent::analysis::closed_pilots and python/src/closed_pilot_api.rs; internal and non-routed."
+estimand = "Recovered target interventional effect (contrast do(1) - do(0)) and a pointwise 95% whole-method percentile sampling interval, retained with the bootstrap covariance of the recovered cells; the interval is withheld from every public route."
 inference_claim = "calibrated"
+inference_notes = "Carried forward, every route closed. Failed gate: calibration unmeasured (the coverage record id is allocated but not collected; measured only at the 2.3 release cut, project decision: interval and posterior routes stay closed with cell_not_licensed until measured, as for 2.2 X1 and X4). Every stored interval carries calibration = unmeasured. The estimator, artifact and closed Python route execute and their tests pass in Rust."
 coverage_records = ["cov.recovery.binary_mgraph.frequentist.l95.sampled_whole_method"]
-owners = ["antecedent-identify", "antecedent-estimate", "antecedent-io", "antecedent"]
+owners = ["antecedent-estimate", "antecedent-io", "antecedent", "python/antecedent/transport"]
 prerequisite_records = ["2.2B.X10.binary_observation_recovery"]
-identity_inputs = ["m-graph and exact X10 formula", "observation indicators", "row and snapshot IDs", "population/regime", "resampling design and seed"]
-wire_changes = ["Planned sampled-recovery artifact v2 with point, interval, pattern support and bootstrap receipt."]
-compatibility = "The 2.2 exact-law recovery point and its artifact stay unchanged; counted-law intervals remain closed."
+identity_inputs = ["m-graph and exact X10 derivation (roles, effect query, both expression arenas)", "observation indicators and patterns", "row ids and snapshot (catalog bindings)", "population/regime", "resampling design (replicates, level, tolerances) and seed"]
+wire_changes = ["Additive: sampled_observation_recovery_v2 artifact (format version 2) carrying the derivation identity, the observation rows, the pattern-count summary, the request configuration with its seed, the recovered law and point, the percentile interval (calibration = unmeasured), diagnostics, the bootstrap covariance of the recovered cells and the replicate receipt (every replicate's selection digest and effect, failed ones included); a consumer reruns the whole method and accepts only a bit-identical result. The v1 reader refuses it by version and this reader refuses v1 bytes."]
+compatibility = "The 2.2 exact-law recovery point and its version 1 artifact stay unchanged; counted-law intervals remain closed on every public route."
 search = false
-bounds = { cancellation = true, max_replicates = 2000, max_rows = 1000000, max_binary_variables = 6 }
+bounds = { cancellation = true, min_replicates = 20, max_replicates = 2000, max_rows = 1000000, max_binary_variables = 6 }
 refusals = [
-  { code = "cell_not_licensed", detail = "sampled_recovery.route_frozen", when = "The sampled provider or interval is requested before full-path truth, calibration and replay pass." },
-  { code = "route_not_supported", detail = "sampled_recovery.unrecoverable_pattern", when = "An observation pattern or zero cell violates the selected exact recovery formula." },
+  { code = "cell_not_licensed", detail = "sampled_recovery.route_frozen", when = "The public sampled provider or interval route is requested; closed because calibration is unmeasured." },
+  { code = "cell_not_licensed", detail = "sampled_recovery.component_variance_only", when = "An interval is requested from per-margin variances alone." },
+  { code = "route_not_supported", detail = "sampled_recovery.unrecoverable_pattern", when = "An observation pattern, zero complete-case cell, zero denominator, adjacent or non-recoverable m-graph violates the selected exact recovery formula; the offending patterns are retained." },
+  { code = "route_not_supported", detail = "sampled_recovery.too_many_failed_replicates", when = "More than the configured fraction of bootstrap replicates hit a zero cell or failed recovery." },
+  { code = "route_not_supported", detail = "sampled_recovery.bounds_exceeded", when = "Replicates, rows or binary variables are outside the declared bounds, or stored sizes exceed the consumer's limits." },
+  { code = "invalid_argument", detail = "sampled_recovery.invalid_input", when = "A malformed row set, snapshot, derivation or configuration." },
+  { code = "invalid_argument", detail = "sampled_recovery.receipt_mismatch", when = "A stored receipt does not match its recomputed digest or replay." },
+  { code = "transport_budget_cancel", detail = "sampled_recovery.cancelled", when = "Cancellation stopped the bootstrap; no partial interval is reported." },
 ]
 routes = [
-  { name = "antecedent.transport.sampled_observation_recovery", stage = "uncertainty", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed" },
+  { name = "antecedent.transport.sampled_observation_recovery", stage = "uncertainty", status = "closed", claim = "calibrated", reason_code = "cell_not_licensed", refusal_test = "python/tests/test_closed_pilots.py", refusal_assertion = "test_x10_sampled_recovery_route_is_closed_with_cell_not_licensed" },
 ]
 fixtures = [
-  { id = "x10.sampled_recovery_truth.positive", role = "positive", intent = "Compare recovered effect and interval center with an independent enumerated missingness SCM." },
-  { id = "x10.unrecoverable_pattern.negative", role = "negative", intent = "Refuse an adjacent m-graph, nonrecoverable pattern or zero denominator." },
-  { id = "x10.sampled_recovery_replay.artifact", role = "artifact", intent = "A fresh consumer reruns the exact formula and refuses a changed pattern, snapshot or interval receipt." },
-  { id = "x10.sampled_recovery_grid.calibration", role = "calibration", intent = "Measure the composed sampled effect interval across the sample-size grid and weak-pattern boundary." },
+  { id = "x10.sampled_recovery_truth.positive", role = "positive", intent = "Exact proportions of an enumerated missingness SCM recover the enumerated law cell by cell, the diagnostics (mass defect, pattern counts, support) hold, and the interval is ordered, 95 percent and marked unmeasured.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_sampled_recovery_truth_exact_proportions_recover_the_enumerated_law_and_effect" },
+  { id = "x10.sampled_recovery_seeded.invariance", role = "invariance", intent = "A seeded interval is centered, reproducible (receipt and selection digests) and keeps the margin covariance of overlapping rows.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps_covariance" },
+  { id = "x10.unrecoverable_pattern.negative", role = "negative", intent = "A zero complete-case cell refuses as unrecoverable_pattern with the offending pattern retained.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_unrecoverable_pattern_zero_complete_case_cell_refuses_with_the_pattern" },
+  { id = "x10.zero_denominator.negative", role = "negative", intent = "A zero denominator refuses with every offending pattern.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_unrecoverable_pattern_zero_denominator_refuses_with_every_offending_pattern" },
+  { id = "x10.adjacent_mgraph.negative", role = "negative", intent = "An adjacent or non-recoverable m-graph refuses.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_unrecoverable_pattern_adjacent_and_nonrecoverable_mgraphs_refuse" },
+  { id = "x10.failed_replicates.negative", role = "negative", intent = "Failed replicates above the allowed fraction refuse.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_unrecoverable_pattern_failed_replicates_above_the_fraction_refuse" },
+  { id = "x10.bounds_malformed.negative", role = "negative", intent = "Bounds and malformed inputs refuse with their own details.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_unrecoverable_pattern_bounds_and_malformed_inputs_refuse" },
+  { id = "x10.component_variance.negative", role = "negative", intent = "An interval from per-margin variances alone and the frozen route refuse.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_sampled_recovery_replay_component_variance_only_and_route_frozen_refuse" },
+  { id = "x10.replay_digests.artifact", role = "artifact", intent = "Replay digests recompute and change with the pattern, snapshot and seed.", evidence_test = "crates/antecedent-estimate/tests/recovery_sampled.rs", evidence_assertion = "x10_sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapshot_and_seed" },
+  { id = "x10.sampled_recovery_replay.artifact", role = "artifact", intent = "A fresh consumer reruns the whole method and refuses a changed pattern, snapshot, seed or interval receipt.", evidence_test = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", evidence_assertion = "x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_receipt" },
+  { id = "x10.sampled_recovery_oracle_replay.artifact", role = "artifact", intent = "Exact proportions replay against the enumerated oracle.", evidence_test = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", evidence_assertion = "x10_sampled_recovery_replay_exact_proportions_replay_against_the_enumerated_oracle" },
+  { id = "x10.sampled_recovery_seeded_replay.artifact", role = "artifact", intent = "A seeded interval replays and keeps the covariance.", evidence_test = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", evidence_assertion = "x10_sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance" },
+  { id = "x10.sampled_recovery_expected_identity.artifact", role = "artifact", intent = "A consumer holding an expected identity refuses a mismatch.", evidence_test = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", evidence_assertion = "x10_sampled_recovery_replay_enforces_an_expected_identity" },
+  { id = "x10.sampled_recovery_version_claim.negative", role = "negative", intent = "An unknown version and an artifact claiming an interval as calibrated refuse.", evidence_test = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", evidence_assertion = "x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim" },
+  { id = "x10.sampled_recovery_consumer_limits.negative", role = "negative", intent = "Stored sizes above the consumer's limits refuse before any work.", evidence_test = "crates/antecedent-io/tests/sampled_recovery_artifact.rs", evidence_assertion = "x10_sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits" },
+  { id = "x10.sampled_recovery_grid.calibration", role = "calibration", intent = "Wired, not measured: whole-method coverage of the composed sampled effect interval across the sample-size grid and the weak-pattern boundary. The coverage record id is allocated but not collected; measured at the 2.3 release cut, and until then every route stays closed (cell_not_licensed)." },
 ]
 
 # A0.1/A0.2 representation cells precede any new public distribution consumer.
@@ -915,11 +1085,11 @@ id = "2.3A.F18.temporal_effect_constancy"
 workstream = "F18"
 milestone = "A"
 work_package = "A4"
-status = "frozen"
+status = "promoted"
 consumer_question = "Can effect constancy across a declared time partition be consumed under a checked semantic contract?"
 theorem = "Frozen acceptance boundary: Difference is 0 and Wald heterogeneity statistic is 0; a 1 versus 2 case has statistic 2 under the same variance. Changed estimand, incompatible partition or unknown cross-period covariance refuses the global test. This record alone grants no causal or interval license."
 reference = "TODO.md A4; prerequisite feature records F15, F16"
-guarantee = "temporal_effect_constancy_pending_executing_evidence"
+guarantee = "global_effect_heterogeneity_test_under_frozen_null_point_only_non_rejection_never_proves_constancy"
 graph_class = "Only an independently identified fixed-graph or declared structural-scenario contract; this composition cell does not identify a graph."
 population_semantics = "Population, regime, horizon, conditioning, coordinate support and source/target snapshot identities remain separately bound."
 evidence_family = "Two disjoint periods estimate the same defined effect, 1 and 1, each with variance 1/4 and zero covariance."
@@ -931,20 +1101,36 @@ prerequisite_records = ["2.3A.F15.joint_distribution_semantics", "2.3A.F16.distr
 prerequisite_reason = "Requires the listed feature contracts and a separately licensed scientific producer; registration is not execution."
 identity_inputs = ["scientific quantity coordinates", "population, regime and horizon", "snapshot and causal contract", "provider and exact request", "feature-specific action, signal or evidence identities"]
 wire_changes = ["Allocate effect_constancy_v1 as additive v1 metadata in the bounded sectioned artifact container (CBOR metadata, separate numerical section when needed): partition and estimand IDs; per-partition effect/covariance/support; null; heterogeneity statistic; multiplicity; calibration coordinate. Unknown major versions refuse; 2.2 wires are never reinterpreted."]
-compatibility = "Existing 2.2 routes keep their exact scope; this frozen 2.3 cell is closed."
+compatibility = "Existing 2.2 routes keep their exact scope. Point-only: the test's Type I error and power are unmeasured (calibration coordinate 'unmeasured') and non-rejection never proves constancy. Refusal details use the emitted effect_constancy namespace; the frozen text named temporal_effect_constancy.* and the route_frozen detail, which the executed route no longer needs. A consumer refuses a changed identity only against an expected identity the consumer itself retained; a resealed artifact checked without one is only checked for internal consistency."
 search = false
 bounds = { cancellation = true, max_coordinates = 1024 }
 refusals = [
-  { code = "cell_not_licensed", detail = "temporal_effect_constancy.route_frozen", when = "The new feature route has no executed positive, negative and artifact evidence." },
-  { code = "route_not_supported", detail = "temporal_effect_constancy.wrong_contract", when = "Changed estimand, incompatible partition or unknown cross-period covariance refuses the global test." },
+  { code = "invalid_argument", detail = "effect_constancy.invalid_alpha", when = "The level alpha does not lie in (0, 1)." },
+  { code = "invalid_argument", detail = "effect_constancy.too_few_partitions", when = "Fewer than two partitions are declared." },
+  { code = "invalid_argument", detail = "effect_constancy.too_many_partitions", when = "More than 1024 partitions are declared." },
+  { code = "invalid_argument", detail = "effect_constancy.non_finite_estimate", when = "A partition effect estimate is not finite." },
+  { code = "invalid_argument", detail = "effect_constancy.invalid_standard_error", when = "A partition standard error is not finite and positive." },
+  { code = "invalid_argument", detail = "effect_constancy.invalid_covariance", when = "A supplied covariance of the partition estimates is not k x k, has a non-finite entry, is not symmetric, has a diagonal that differs from the squared standard errors, or is not positive definite (including for the contrasts)." },
+  { code = "invalid_argument", detail = "effect_constancy.unknown_reference", when = "An against-reference family names a reference label that is not a declared partition." },
+  { code = "invalid_argument", detail = "effect_constancy.estimand_missing", when = "A Python caller supplies a partition with no effect estimand of its own and no shared estimand; the global test never assumes the partitions estimate the same effect." },
+  { code = "invalid_argument", detail = "effect_constancy.invalid_request", when = "The artifact producer or the Python bridge receives a request that does not parse as a well-formed effect-constancy request." },
+  { code = "invalid_argument", detail = "effect_constancy.limits_exceeded", when = "A request or artifact exceeds the bounded size or partition count of the Python bridge or consumer." },
+  { code = "invalid_argument", detail = "effect_constancy.invalid_identity", when = "The expected identity a consumer retained does not parse as an effect-constancy identity." },
+  { code = "route_not_supported", detail = "effect_constancy.incompatible_partitions", when = "Partitions disagree on the effect, units, regime or population, or repeat a label; the global test of different quantities has no meaning." },
+  { code = "route_not_supported", detail = "effect_constancy.unsupported_partition", when = "A partition's coordinate support is Unsupported (Partial support is reported, not refused)." },
+  { code = "route_not_supported", detail = "effect_constancy.wrong_contract", when = "A consumer holds an expected identity and a stored or recomputed identity field (partition identity, estimand, covariance, null, multiplicity family or evidence) differs." },
 ]
 routes = [
-  { name = "antecedent.temporal.effect_constancy", stage = "uncertainty", status = "closed", claim = "point_only", reason_code = "cell_not_licensed" },
+  { name = "antecedent.temporal.effect_constancy", stage = "uncertainty", status = "licensed", claim = "point_only" },
 ]
 fixtures = [
-  { id = "f18.known_truth.positive", role = "positive", intent = "Compare against independent closed_form: Difference is 0 and Wald heterogeneity statistic is 0; a 1 versus 2 case has statistic 2 under the same variance." },
-  { id = "f18.wrong_contract.negative", role = "negative", intent = "Changed estimand, incompatible partition or unknown cross-period covariance refuses the global test." },
-  { id = "f18.fresh_replay.artifact", role = "artifact", intent = "Fresh reader retains partition identities, covariance, multiplicity and calibration coordinate." },
+  { id = "f18.known_truth.positive", role = "positive", intent = "Against the closed form, two independent partitions estimating 1 and 2 with variance 1/4 each give Cochran Q = 2 (df 1).", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "f18_constancy_oracle_one_versus_two_has_statistic_two" },
+  { id = "f18.zero_difference.positive", role = "positive", intent = "Two independent partitions with equal effects give difference 0 and heterogeneity statistic 0.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "f18_constancy_oracle_equal_effects_have_zero_statistic" },
+  { id = "f18.dependent_covariance.positive", role = "positive", intent = "A supplied covariance of 1/8 between estimates 1 and 2 (variance 1/4 each) gives the Wald statistic 4 against Q = 2 under independence, with p = erfc(sqrt 2).", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "f18_constancy_oracle_dependent_covariance_differs_by_analytic_amount" },
+  { id = "f18.wrong_contract.negative", role = "negative", intent = "A changed estimand, unit or regime across partitions refuses the global test with effect_constancy.incompatible_partitions.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "f18_incompatible_partition_estimand_units_and_regime_refuse" },
+  { id = "f18.invalid_covariance.negative", role = "negative", intent = "A malformed cross-partition covariance refuses with effect_constancy.invalid_covariance rather than falling back to independence.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "f18_incompatible_partition_invalid_covariance_refuses" },
+  { id = "f18.resealed_identity.negative", role = "negative", intent = "A consistently resealed artifact with a changed partition identity is refused against the identity the consumer retained.", evidence_test = "crates/antecedent-io/tests/effect_constancy_artifact.rs", evidence_assertion = "f18_artifact_resealed_partition_identity_is_refused" },
+  { id = "f18.fresh_replay.artifact", role = "artifact", intent = "A fresh reader recomputes and replays the stored test bit-identically, keeping canonical partition order, per-contrast Holm values, covariance, multiplicity family and the unmeasured calibration coordinate.", evidence_test = "crates/antecedent-io/tests/effect_constancy_artifact.rs", evidence_assertion = "f18_artifact_three_partitions_keep_holm_values_and_canonical_order" },
 ]
 
 [[record]]
