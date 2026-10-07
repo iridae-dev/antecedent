@@ -864,3 +864,22 @@ pub fn mean_result_to_json(
     body.lineage = Vec::new();
     serde_json::to_string(&body).map_err(|e| IoError::Convert(e.to_string()))
 }
+
+/// The checksummed container of a result computed from a mean source: the same
+/// `decision_result_v1` layout as [`DecisionResultArtifact::to_bytes`], bound to
+/// the mean source's digest with an empty lineage. It loads through
+/// [`DecisionResultArtifact::from_bytes`] under the mean source's digest, so a
+/// point-only external decision can be carried in a composition bundle; it never
+/// stands for aligned joint draws.
+///
+/// # Errors
+/// A blank artifact id, an oversized payload or an encoding failure.
+pub fn mean_result_to_bytes(
+    result: &DecisionResult,
+    source: &MeanSource,
+    artifact_id: &str,
+) -> Result<Vec<u8>, IoError> {
+    let mut body = result_to_body(result, &mean_source_digest(source));
+    body.lineage = Vec::new();
+    encode(RESULT_KIND, artifact_id, "decision_result", &to_cbor(&body)?)
+}

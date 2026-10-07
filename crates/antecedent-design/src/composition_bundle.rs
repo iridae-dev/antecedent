@@ -315,11 +315,15 @@ pub enum NodeKind {
     Sensitivity,
     /// A study ranking.
     StudyRanking,
+    /// An inverse functional query with its forward evidence and result table.
+    InverseQuery,
+    /// An identification-repair search report.
+    RepairReport,
 }
 
 impl NodeKind {
     /// Every kind.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 15] = [
         Self::CausalContract,
         Self::ExecutionOrFit,
         Self::ExternalClaim,
@@ -333,6 +337,8 @@ impl NodeKind {
         Self::DecisionResult,
         Self::Sensitivity,
         Self::StudyRanking,
+        Self::InverseQuery,
+        Self::RepairReport,
     ];
 
     /// Stable `snake_case` wire name.
@@ -352,6 +358,8 @@ impl NodeKind {
             Self::DecisionResult => "decision_result",
             Self::Sensitivity => "sensitivity",
             Self::StudyRanking => "study_ranking",
+            Self::InverseQuery => "inverse_query",
+            Self::RepairReport => "repair_report",
         }
     }
 
@@ -370,10 +378,11 @@ impl NodeKind {
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
             Self::EvidenceRelationship
             | Self::QuantityCoordinates
-            | Self::SupportTrustCalibration => CompositionStage::Evidence,
+            | Self::SupportTrustCalibration
+            | Self::RepairReport => CompositionStage::Evidence,
             Self::Transformation => CompositionStage::Transformation,
             Self::DecisionContract => CompositionStage::DecisionContract,
-            Self::DecisionResult => CompositionStage::Claim,
+            Self::DecisionResult | Self::InverseQuery => CompositionStage::Claim,
             Self::Sensitivity => CompositionStage::SensitivityInput,
             Self::StudyRanking => CompositionStage::StudyRankingProvider,
         }
@@ -386,7 +395,8 @@ impl NodeKind {
             Self::QuantityCoordinates
             | Self::DecisionResult
             | Self::Sensitivity
-            | Self::StudyRanking => BundleStage::TamperedQuantity,
+            | Self::StudyRanking
+            | Self::InverseQuery => BundleStage::TamperedQuantity,
             _ => BundleStage::SwappedEvidence,
         }
     }

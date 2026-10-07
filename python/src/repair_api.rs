@@ -32,7 +32,7 @@ use std::sync::Arc;
 
 /// Magic prefix of a portable repair report: the design crate's container
 /// bytes, framed with the variable names the repair was declared under.
-const REPAIR_PREFIX: &[u8] = b"ANTECEDENT-REPAIR\x01";
+pub(crate) const REPAIR_PREFIX: &[u8] = b"ANTECEDENT-REPAIR\x01";
 
 fn repair_error(error: &RepairError) -> PyErr {
     let mut text = format!("{}: {}", error.detail, error.message);
@@ -263,7 +263,10 @@ fn candidate_from_decl(names: &[String], decl: CandidateDecl) -> PyResult<Durabl
     })
 }
 
-fn parse_candidates(names: &[String], json: &str) -> PyResult<Vec<DurableStudyCandidate>> {
+pub(crate) fn parse_candidates(
+    names: &[String],
+    json: &str,
+) -> PyResult<Vec<DurableStudyCandidate>> {
     let decls: Vec<CandidateDecl> = serde_json::from_str(json)
         .map_err(|e| crate::value_err(format!("invalid candidate declaration: {e}")))?;
     decls.into_iter().map(|decl| candidate_from_decl(names, decl)).collect()
@@ -275,9 +278,22 @@ fn declared_labels(candidates: &[DurableStudyCandidate]) -> Vec<(String, String)
 
 /// A failed contract with its unresolved evidence obligations.
 #[pyclass(skip_from_py_object)]
-struct RepairContractStage {
+pub(crate) struct RepairContractStage {
     contract: Contract,
     names: Vec<String>,
+}
+
+impl RepairContractStage {
+    /// The frozen failed contract, for re-identification on arrived evidence in
+    /// `composition_api`.
+    pub(crate) fn family_ref(&self) -> RepairFamilyRef<'_> {
+        self.contract.reference()
+    }
+
+    /// The variable names the contract was declared under.
+    pub(crate) fn variable_names(&self) -> &[String] {
+        &self.names
+    }
 }
 
 #[pymethods]

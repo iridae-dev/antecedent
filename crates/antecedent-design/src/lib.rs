@@ -23,6 +23,7 @@
 pub mod candidate;
 pub mod composition_boundary;
 pub mod composition_bundle;
+pub mod composition_verifiers;
 pub mod decision;
 pub mod decision_adapters;
 pub mod decision_artifact;

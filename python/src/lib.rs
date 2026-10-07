@@ -35,6 +35,8 @@ mod candidate_screen_api;
 mod categorical_treatment_api;
 mod closed_pilot_api;
 mod compact_export_api;
+mod composition_api;
+mod composition_bundle_api;
 mod counterfactual_id_api;
 mod cpdag_scenario_api;
 mod cross_world_api;
@@ -72,8 +74,10 @@ mod preflight_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
+mod program_claims_api;
 mod provider_api;
 mod quasi_api;
+mod recalc_api;
 mod recovery_api;
 mod recovery_chain_api;
 mod regimes_api;
@@ -2734,6 +2738,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     distribution_api::register(m)?;
     external_api::register(m)?;
     effect_constancy_api::register(m)?;
+    recalc_api::register(m)?;
     dose_grid_api::register(m)?;
     recovery_chain_api::register(m)?;
     vector_treatment_api::register(m)?;
@@ -2743,6 +2748,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     latent_class_api::register(m)?;
     temporal_counterfactual_api::register(m)?;
     provider_api::register(m)?;
+    composition_api::register(m)?;
+    composition_bundle_api::register(m)?;
+    program_claims_api::register(m)?;
     m.add("__version__", antecedent_core::VERSION)?;
     // Surfaced so the Python package can refuse to stay silent when an
     // unoptimized extension sneaks in: a stale editable install rebuilt through

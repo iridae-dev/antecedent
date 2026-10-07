@@ -288,6 +288,28 @@ def _expr_from_wire(wire: Any) -> Expr:
 
 
 @dataclass(frozen=True, slots=True)
+class MeanSource:
+    """One mean per coordinate, with the provenance the decision records.
+
+    It answers only the expectation of an affine utility: any other criterion refuses
+    with ``decision_contract_unsatisfied``, because a mean is never an outcome law.
+    Build it from a native response with
+    :meth:`antecedent.program_claims.NativeClaim.as_decision_source`.
+    """
+
+    coordinates: tuple[ScientificQuantity, ...]
+    means: tuple[float, ...]
+    provider_id: str
+    snapshot_id: str
+    causal_contract_id: str
+    rng_id: str = "none:mean_grid"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "coordinates", tuple(self.coordinates))
+        object.__setattr__(self, "means", tuple(float(m) for m in self.means))
+
+
+@dataclass(frozen=True, slots=True)
 class Contract:
     """A durable decision problem."""
 
@@ -326,8 +348,13 @@ class Contract:
         """Canonical digest: unchanged by reordering actions, changed by any semantic edit."""
         return str(self._normalized()["identity"])
 
-    def evaluate(self, source: JointDistributionArtifact | BoundExternalClaim) -> Decision:
-        """Evaluate on aligned joint draws or on a bound external response grid.
+    def evaluate(
+        self, source: JointDistributionArtifact | BoundExternalClaim | MeanSource
+    ) -> Decision:
+        """Evaluate on aligned joint draws, a bound external response grid or a mean source.
+
+        A :class:`MeanSource` (for example from a native response claim) answers the
+        same affine expectation and refuses everything else, exactly as below.
 
         A :class:`~antecedent.external.BoundExternalClaim` supplies one mean per
         coordinate, so it answers only the expectation of an affine utility: a
@@ -344,6 +371,18 @@ class Contract:
                 str(identity["provider_id"]),
                 str(identity["snapshot_id"]),
                 str(identity["causal_contract_id"]),
+            )
+            _raise(refusal)
+            assert result is not None
+            return Decision(self, source, json.loads(result))
+        if isinstance(source, MeanSource):
+            result, refusal = _evaluate_means(
+                json.dumps(self._wire()),
+                json.dumps([q._wire() for q in source.coordinates]),
+                list(source.means),
+                source.provider_id,
+                source.snapshot_id,
+                source.causal_contract_id,
             )
             _raise(refusal)
             assert result is not None
@@ -398,7 +437,7 @@ class Decision:
     def __init__(
         self,
         contract: Contract,
-        source: JointDistributionArtifact | BoundExternalClaim,
+        source: JointDistributionArtifact | BoundExternalClaim | MeanSource,
         body: Mapping[str, Any],
     ) -> None:
         self._contract = contract
@@ -557,9 +596,9 @@ class Decision:
         """The result bound to its contract identity and source digest, replayable.
 
         Only a joint-draw source can be exported and replayed; a decision computed
-        from an external mean grid refuses with ``route_not_supported``.
+        from an external or native mean grid refuses with ``route_not_supported``.
         """
-        if isinstance(self._source, BoundExternalClaim):
+        if isinstance(self._source, (BoundExternalClaim, MeanSource)):
             raise DecisionRefusal(
                 {
                     "code": "route_not_supported",
@@ -607,6 +646,7 @@ __all__ = [
     "Decision",
     "DecisionRefusal",
     "Expr",
+    "MeanSource",
     "Verdict",
     "const",
     "maximum",

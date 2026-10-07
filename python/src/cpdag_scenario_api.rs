@@ -181,11 +181,19 @@ fn cpdag_report_json(report: &CpdagScenarioReport, names: &[String]) -> serde_js
 
 /// A decided, compiled and evaluated set of CPDAG completions.
 #[pyclass(skip_from_py_object)]
-struct CpdagScenarioRun {
+pub(crate) struct CpdagScenarioRun {
     inner: antecedent::PreparedCpdagCompletionScenarios,
     report: CpdagScenarioReport,
     names: Vec<String>,
     payload: String,
+}
+
+impl CpdagScenarioRun {
+    /// The report with the variable names it is read with, for the decision
+    /// adapters in `composition_api`.
+    pub(crate) fn report_and_names(&self) -> (&CpdagScenarioReport, &[String]) {
+        (&self.report, self.names.as_slice())
+    }
 }
 
 #[pymethods]

@@ -57,6 +57,7 @@ pub mod provider_envelope;
 pub mod quantity_wire;
 pub mod query_wire;
 pub mod reader;
+pub mod recalc_receipt_artifact;
 pub mod recovery_artifact;
 pub mod response_wire;
 pub mod sampled_recovery_artifact;

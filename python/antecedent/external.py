@@ -25,16 +25,20 @@ import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ._native import ExternalClaimArtifact as _NativeClaim
 from ._native import bind_external_response as _bind_external_response
+from ._native import bind_external_to_program as _bind_external_to_program
 from .errors import CausalUnsupportedError, CausalValueError
 from .extensibility import ProviderTrust
 from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
+
+if TYPE_CHECKING:
+    from .program_claims import ProgramBinding
 
 _ID_STATUS = {
     "NonparametricallyIdentified": "nonparametrically_identified",
@@ -52,6 +56,9 @@ _SUPPORT_SEVERITY = (
     "missing_evidence",
 )
 OBSERVATIONAL = "observational"
+#: Dose units a spec carries when the caller names none; units are never inferred, so a
+#: program that names real dose units refuses this one (``program_binding.dose_grid_changed``).
+UNSPECIFIED_UNITS = "unspecified"
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +229,24 @@ class ClaimInspection:
 
 
 @dataclass(frozen=True, slots=True)
+class ProgramRequest:
+    """The identified request an external result answers.
+
+    Read from the identified query, never from the spec's ``quantities``: a
+    caller's coordinate override can describe a different question, and this is
+    what it is checked against (see :func:`antecedent.program_claims.bind_to_program`).
+    """
+
+    treatment: str
+    outcome: str
+    population: str
+    doses: tuple[float, ...]
+    dose_units: str
+    outcome_units: str
+    transform: str = "identity"
+
+
+@dataclass(frozen=True, slots=True)
 class ExternalSpec:
     """What an identified contract requires of an external result.
 
@@ -240,6 +265,52 @@ class ExternalSpec:
     statement: str = ""
     treatment: str | None = None
     doses: tuple[float, ...] = ()
+    #: The identified dose-grid request, when the query is one; ``None`` otherwise.
+    request: ProgramRequest | None = None
+
+    def _content_id(self, *, with_coordinates: bool = False) -> str:
+        """Digest of the contract's premises: graph, identification, meanings, evidence.
+
+        The coordinates are left out by default so a ``quantities`` override shares
+        the contract identity of the request it claims to answer and is refused on
+        its coordinates, not mistaken for another contract.
+        """
+        wire = self._contract_wire()
+        if not with_coordinates:
+            del wire["estimand"]
+        digest = hashlib.sha256(json.dumps(wire, sort_keys=True).encode()).hexdigest()
+        return f"contract:{digest}"
+
+    def _require_request(self) -> ProgramRequest:
+        """The identified dose-grid request, or the typed refusal for a spec with none."""
+        if self.request is None:
+            raise ExternalRefusal(
+                {
+                    "code": "invalid_argument",
+                    "stage": "bind",
+                    "detail": "program_binding.no_identified_request",
+                    "offending": "request",
+                    "expected": "a response-curve query with a dose grid",
+                    "supplied": None,
+                    "remedy": "derive the spec from an identified ResponseCurve",
+                }
+            )
+        return self.request
+
+    def _program_claim(self) -> dict[str, Any]:
+        """What this spec declares about the program it answers, for the Rust check."""
+        request = self._require_request()
+        return {
+            "contract_id": self._content_id(),
+            "graph_id": self.graph_id,
+            "declared_identity": self.contract_id,
+            "treatment_id": request.treatment,
+            "outcome_id": request.outcome,
+            "population_id": request.population,
+            "doses": list(request.doses),
+            "dose_units": request.dose_units,
+            "quantities": [q._wire() for q in self.quantities],
+        }
 
     def _contract_wire(self) -> dict[str, Any]:
         return {
@@ -288,8 +359,17 @@ class ExternalSpec:
             justification,
         )
 
-    def bind(self, response: Response) -> BoundExternalClaim:
-        """Check ``response`` against this contract and bind it, or refuse."""
+    def bind(
+        self, response: Response, *, program: ProgramBinding | None = None
+    ) -> BoundExternalClaim:
+        """Check ``response`` against this contract and bind it, or refuse.
+
+        With ``program=`` (an :class:`~antecedent.program_claims.ProgramBinding`) the
+        spec is first checked against the identified program: a substituted
+        treatment or outcome, another target population, a changed dose grid or
+        units, an incompatible ``quantities`` override, or a declared identity that
+        is not the program's refuses with ``program_binding.*`` before anything binds.
+        """
         if not isinstance(response, Response):
             raise TypeError("ExternalSpec.bind expects an antecedent.external.Response")
         quantities = response.quantities if response.quantities is not None else self.quantities
@@ -305,9 +385,18 @@ class ExternalSpec:
             "uncertainty_method": response.uncertainty_method,
             "point_support": None if response.support is None else list(response.support),
         }
-        native, refusal = _bind_external_response(
-            json.dumps(self._contract_wire()), json.dumps(wire), self.contract_id
-        )
+        if program is None:
+            native, refusal = _bind_external_response(
+                json.dumps(self._contract_wire()), json.dumps(wire), self.contract_id
+            )
+        else:
+            native, refusal = _bind_external_to_program(
+                json.dumps(program._wire()),
+                json.dumps(self._program_claim()),
+                json.dumps(self._contract_wire()),
+                json.dumps(wire),
+                self.contract_id,
+            )
         if refusal is not None or native is None:
             raise _refusal_error(json.loads(refusal or "{}"))
         return BoundExternalClaim(native, self.statement)
@@ -538,6 +627,7 @@ def response(
     require_evidence: Sequence[str] = (),
     require_assumptions: Sequence[str] = (),
     equivalences: Sequence[Equivalence] = (),
+    dose_units: str | None = None,
 ) -> ExternalSpec:
     """Derive what an identification requires of an external response grid.
 
@@ -546,6 +636,14 @@ def response(
     required because the query cannot know it, and no unit is inferred. Pass
     ``quantities=`` to override the derivation for any other grid. An
     unidentified query refuses at ``bind`` with ``effect_not_identified``.
+
+    Without an explicit ``contract_id=`` the spec's contract identity is durable
+    and derived from the full contract and request: for a dose-grid query the
+    :attr:`~antecedent.program_claims.ProgramBinding.identity` of the identified
+    program (graph, contract premises, treatment, outcome, population, dose grid and
+    units), otherwise a digest of the whole contract including its coordinates. It is
+    never a hash of the graph alone. ``dose_units`` names the units of the treatment
+    grid for that identity (``"unspecified"`` when omitted, and never inferred).
     """
     status = _status_name(str(identification.status))
     if quantities is None:
@@ -570,8 +668,8 @@ def response(
     treatment = query.treatment if dose_grid else None
     doses = tuple(float(dose) for dose in query.grid) if dose_grid else ()
     identity = graph_id or _graph_identity(identification)
-    return ExternalSpec(
-        contract_id=contract_id or "contract:" + identity.removeprefix("graph:"),
+    spec = ExternalSpec(
+        contract_id=contract_id or "",
         graph_id=identity,
         identification=status,
         quantities=coordinates,
@@ -582,7 +680,69 @@ def response(
         statement=identification.statement,
         treatment=treatment,
         doses=doses,
+        request=_program_request(
+            query,
+            outcome_units=outcome_units,
+            population=population,
+            transform=transform,
+            dose_units=dose_units,
+        ),
     )
+    if contract_id:
+        return spec
+    faithful = quantities is None or (
+        spec.request is not None
+        and coordinates
+        == _query_quantities(
+            query,
+            outcome_units=spec.request.outcome_units,
+            population=population,
+            transform=transform,
+        )
+    )
+    return replace(spec, contract_id=_derived_contract_id(spec, faithful=faithful))
+
+
+def _program_request(
+    query: Any,
+    *,
+    outcome_units: str | None,
+    population: str,
+    transform: str,
+    dose_units: str | None,
+) -> ProgramRequest | None:
+    """The identified dose-grid request, or ``None`` for a query that is not one."""
+    if (
+        getattr(query, "kind", None) != "response_curve"
+        or getattr(query, "horizons", None) is not None
+        or outcome_units is None
+        or not outcome_units.strip()
+    ):
+        return None
+    return ProgramRequest(
+        treatment=query.treatment,
+        outcome=query.outcome,
+        population=population,
+        doses=tuple(float(dose) for dose in query.grid),
+        dose_units=(dose_units or "").strip() or UNSPECIFIED_UNITS,
+        outcome_units=outcome_units,
+        transform=transform,
+    )
+
+
+def _derived_contract_id(spec: ExternalSpec, *, faithful: bool) -> str:
+    """Durable contract identity from the full contract and request, never the graph alone.
+
+    A spec that faithfully carries the identified dose-grid request takes the identity
+    of its program. One whose coordinates differ from that request's, or whose query
+    is not a dose grid, takes a digest of the whole contract including its coordinates,
+    so it can never share the identity of a request it does not exactly answer.
+    """
+    if spec.request is None or not faithful:
+        return spec._content_id(with_coordinates=True)
+    from .program_claims import ProgramBinding
+
+    return ProgramBinding.from_spec(spec).identity
 
 
 __all__ = [
@@ -592,6 +752,7 @@ __all__ = [
     "ExternalRefusal",
     "ExternalSpec",
     "LineageLink",
+    "ProgramRequest",
     "ProviderObject",
     "QuantityCondition",
     "Response",

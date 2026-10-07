@@ -27,6 +27,7 @@ mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
 pub mod closed_pilots;
 pub mod compact_export;
+pub mod composition;
 mod contract;
 mod contract_identity;
 mod cost;

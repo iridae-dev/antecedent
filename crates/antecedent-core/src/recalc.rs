@@ -62,6 +62,33 @@ impl StageIdentity {
         &self.0
     }
 
+    /// An identity from raw digest bytes, for a consumer that retained one.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// Parse the 64-character lowercase hex encoding written by [`Self::to_hex`].
+    #[must_use]
+    pub fn from_hex(text: &str) -> Option<Self> {
+        fn nibble(byte: u8) -> Option<u8> {
+            match byte {
+                b'0'..=b'9' => Some(byte - b'0'),
+                b'a'..=b'f' => Some(byte - b'a' + 10),
+                _ => None,
+            }
+        }
+        let raw = text.as_bytes();
+        if raw.len() != 64 {
+            return None;
+        }
+        let mut out = [0_u8; 32];
+        for (slot, pair) in out.iter_mut().zip(raw.chunks_exact(2)) {
+            *slot = (nibble(pair[0])? << 4) | nibble(pair[1])?;
+        }
+        Some(Self(out))
+    }
+
     /// Whether this is [`Self::ABSENT`].
     #[must_use]
     pub fn is_absent(&self) -> bool {

@@ -4142,6 +4142,35 @@ def bind_external_response(
     contract_json: str, response_json: str, causal_contract_id: str
 ) -> tuple[ExternalClaimArtifact | None, str | None]: ...
 
+class NativeResponseClaim:
+    coordinates_json: str
+    means: list[float]
+    point_status: list[str]
+    support_status: str
+    trust: str
+    calibration: str
+    program_identity: str
+    provenance_id: str
+    has_joint_law: bool
+    def decision_source(self, contract_json: str) -> tuple[str | None, str | None]: ...
+
+def program_binding_identity(binding_json: str) -> tuple[str | None, str | None]: ...
+def check_external_program(binding_json: str, claim_json: str) -> tuple[str | None, str | None]: ...
+def bind_external_to_program(
+    binding_json: str,
+    claim_json: str,
+    contract_json: str,
+    response_json: str,
+    causal_contract_id: str,
+) -> tuple[ExternalClaimArtifact | None, str | None]: ...
+def native_response_claim(
+    projection_json: str,
+    binding_json: str,
+    snapshot_id: str,
+    rng_id: str,
+    calibration: str,
+) -> tuple[NativeResponseClaim | None, str | None]: ...
+
 class JointDistributionArtifact:
     semantic: str
     axes: list[str]
@@ -5675,6 +5704,93 @@ def evaluate_decision_means(
     causal_contract_id: str,
 ) -> tuple[str | None, str | None]: ...
 def composition_lineage(links_json: str) -> str: ...
+
+class TrustEvidence:
+    @staticmethod
+    def none() -> TrustEvidence: ...
+    @staticmethod
+    def attested(attestor: str) -> TrustEvidence: ...
+    @property
+    def kind(self) -> str: ...
+
+class DecisionInput:
+    @property
+    def id(self) -> str: ...
+    def summary_json(self) -> str: ...
+
+def composition_input_from_distribution(
+    input_id: str,
+    artifact: JointDistributionArtifact,
+    evidence: TrustEvidence,
+    requirement: str,
+) -> tuple[DecisionInput | None, str | None]: ...
+def composition_input_from_means(
+    input_id: str,
+    coordinates_json: str,
+    means: list[float],
+    statuses: list[str],
+    provider_id: str,
+    snapshot_id: str,
+    causal_contract_id: str,
+    evidence: TrustEvidence,
+    requirement: str,
+) -> tuple[DecisionInput | None, str | None]: ...
+def composition_input_from_scalar(
+    input_id: str,
+    coordinate_json: str,
+    value: float,
+    status: str,
+    provider_id: str,
+    snapshot_id: str,
+    causal_contract_id: str,
+    evidence: TrustEvidence,
+    requirement: str,
+) -> tuple[DecisionInput | None, str | None]: ...
+def composition_evaluate(
+    contract_json: str,
+    inputs: list[DecisionInput],
+    unsupported: str,
+    weakest_support: str,
+) -> tuple[str | None, str | None]: ...
+def composition_functional(
+    contract_json: str,
+    action_id: str,
+    functional_json: str,
+    input: DecisionInput,
+    weakest_support: str,
+) -> tuple[str | None, str | None]: ...
+def composition_check(
+    inputs: list[DecisionInput], relations_json: str, operation: str | None = None
+) -> tuple[str | None, str | None]: ...
+def composition_check_paired_draws(
+    inputs: list[DecisionInput], relations_json: str
+) -> tuple[str | None, str | None]: ...
+def composition_check_atoms(atoms_json: str, combination: str) -> tuple[str | None, str | None]: ...
+def decide_scenario_claims(
+    declaration_json: str,
+    kind: str,
+    result: PreparedTransportScenariosStage | CpdagScenarioRun,
+    binding_json: str,
+    policy: str,
+    weights_json: str | None = None,
+    expected_causal: str | None = None,
+) -> tuple[str | None, str | None]: ...
+
+class ProposalBundle:
+    @staticmethod
+    def from_json(json: str) -> ProposalBundle: ...
+    def to_json(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def verify(self, repair: bytes, ranking: bytes) -> str | None: ...
+    def on_arrival(
+        self, contract: RepairContractStage, candidate_json: str, arrival_json: str
+    ) -> tuple[str | None, str | None]: ...
+
+def proposal_bundle_build(
+    repair: bytes, ranking: bytes
+) -> tuple[ProposalBundle | None, str | None]: ...
+def proposal_ranked_candidates(ranking: bytes) -> list[str]: ...
 def admissible_contract_normalize(declaration_json: str) -> tuple[str | None, str | None]: ...
 def export_admissible_contract(declaration_json: str, artifact_id: str) -> bytes: ...
 def load_admissible_contract(data: bytes, expected_identity: str) -> str: ...
@@ -5712,6 +5828,55 @@ def evaluate_effect_constancy(
 def consume_effect_constancy_artifact(
     artifact: bytes, expected_identity_json: str | None = None
 ) -> tuple[str | None, str | None]: ...
+def plan_recalculation(previous_json: str, requested_json: str, capabilities_json: str) -> str: ...
+def recalc_stage_identity(label: str, parts: list[bytes]) -> str: ...
+def consume_recalc_receipt(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
+
+class RecalcSessionHandle:
+    def __init__(self, retarget: str = "licensed") -> None: ...
+    @staticmethod
+    def resume(
+        previous_json: str, resume_json: str, retarget: str = "licensed"
+    ) -> RecalcSessionHandle: ...
+    def set_retarget_support(self, retarget: str) -> None: ...
+    def set_request_support(self, request: str, licensed_route: str | None = None) -> None: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def score_contrast(self) -> list[float] | None: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+
 def evaluate_design_ranking(
     request_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...
@@ -5882,3 +6047,36 @@ class InverseQueryArtifact:
 def inverse_query_baseline(
     points_json: str, target: float, comparison: str, tolerance: float
 ) -> tuple[str | None, str | None]: ...
+
+class CompositionBundle:
+    identity: str
+    nodes_json: str
+    edges_json: str
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+class CompositionBundleBuilder:
+    def __init__(self) -> None: ...
+    def add_artifact(
+        self, kind: str, data: bytes, node_id: str | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def add_reference(
+        self,
+        node_id: str,
+        kind: str,
+        identity: str,
+        requires_json: str,
+        facts_json: str | None = None,
+        inspected_json: str | None = None,
+    ) -> str | None: ...
+    def connect(self, upstream: str, dependent: str) -> str | None: ...
+    def relate(self, left: str, right: str, relationship: str) -> tuple[str | None, str | None]: ...
+    def build(self) -> tuple[CompositionBundle | None, str | None]: ...
+
+def consume_composition_bundle(
+    data: bytes, expected_identity: str, supplied_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def composition_describe_artifact(kind: str, data: bytes) -> tuple[str | None, str | None]: ...
+def composition_mean_decision(
+    contract_json: str, claim_data: bytes, artifact_id: str
+) -> tuple[bytes | None, str | None]: ...
+def composition_detect_kind(data: bytes) -> str | None: ...

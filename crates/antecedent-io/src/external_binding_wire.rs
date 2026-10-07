@@ -10,11 +10,12 @@
 #![allow(clippy::result_large_err)]
 
 use antecedent_core::{
-    CheckedCausalContract, CheckedEquivalence, EquivalenceScope, ExternalBindingError,
-    ExternalContractError, ExternalResponse, ExternalResult, ExternalResultHeader,
-    ExternalScientificObject, ExternalTrustState, ExternalUncertaintyMeaning, IdentificationStatus,
-    LawProviderContract, ProviderObjectIdentity, ScientificQuantity, SupportStatus,
-    VerificationProbe, bind_external_result, capability_from_name, probe_from_name,
+    BoundExternalClaim, CheckedCausalContract, CheckedEquivalence, EquivalenceScope,
+    ExternalBindingError, ExternalContractError, ExternalProgramClaim, ExternalResponse,
+    ExternalResult, ExternalResultHeader, ExternalScientificObject, ExternalTrustState,
+    ExternalUncertaintyMeaning, IdentificationStatus, LawProviderContract, ProgramBinding,
+    ProviderObjectIdentity, ScientificQuantity, SupportStatus, VerificationProbe,
+    bind_external_result, bind_external_result_to_program, capability_from_name, probe_from_name,
     verify_external_object,
 };
 use serde::{Deserialize, Serialize};
@@ -227,16 +228,11 @@ fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWi
     })
 }
 
-/// Bind a response under a contract and return its exportable claim.
-///
-/// # Errors
-/// Any malformed declaration, failed verification or binding mismatch returns
-/// a structured refusal.
-pub fn bind_response(
+/// Build the checked contract and the typed external result from their wires.
+fn prepare(
     contract: &ContractWire,
     response: &ResponseWire,
-    causal_contract_id: &str,
-) -> Result<ExternalClaimArtifact, RefusalWire> {
+) -> Result<(CheckedCausalContract, ExternalResult), RefusalWire> {
     let contract_core = core_contract(contract)?;
     let coordinates = quantities(&response.quantities)?;
     let capabilities = response
@@ -320,11 +316,54 @@ pub fn bind_response(
             }),
         point_support,
     });
+    Ok((contract_core, result))
+}
+
+fn artifact_of(
+    claim: &BoundExternalClaim,
+    causal_contract_id: &str,
+) -> Result<ExternalClaimArtifact, RefusalWire> {
+    ExternalClaimArtifact::from_bound_claim(claim, causal_contract_id).map_err(|error| {
+        malformed("external_response_binding.malformed_artifact", &error.to_string())
+    })
+}
+
+/// Bind a response under a contract and return its exportable claim.
+///
+/// # Errors
+/// Any malformed declaration, failed verification or binding mismatch returns
+/// a structured refusal.
+pub fn bind_response(
+    contract: &ContractWire,
+    response: &ResponseWire,
+    causal_contract_id: &str,
+) -> Result<ExternalClaimArtifact, RefusalWire> {
+    let (contract_core, result) = prepare(contract, response)?;
     let claim =
         bind_external_result(&contract_core, &result).map_err(|e: ExternalBindingError| {
             RefusalWire::from(e.to_refusal(&contract_core, &result))
         })?;
-    ExternalClaimArtifact::from_bound_claim(&claim, causal_contract_id).map_err(|error| {
-        malformed("external_response_binding.malformed_artifact", &error.to_string())
-    })
+    artifact_of(&claim, causal_contract_id)
+}
+
+/// Bind a response under a contract and to the identified program it answers.
+///
+/// Runs the program checks of [`bind_external_result_to_program`] (treatment and
+/// outcome, population, dose grid, any `quantities` override and the durable
+/// identity) before the ordinary binding. The claim stays external.
+///
+/// # Errors
+/// Any malformed declaration, program mismatch, failed verification or binding
+/// mismatch returns a structured refusal.
+pub fn bind_response_to_program(
+    contract: &ContractWire,
+    response: &ResponseWire,
+    causal_contract_id: &str,
+    binding: &ProgramBinding,
+    declared: &ExternalProgramClaim,
+) -> Result<ExternalClaimArtifact, RefusalWire> {
+    let (contract_core, result) = prepare(contract, response)?;
+    let bound = bind_external_result_to_program(binding, declared, &contract_core, &result)
+        .map_err(RefusalWire::from)?;
+    artifact_of(bound.claim(), causal_contract_id)
 }

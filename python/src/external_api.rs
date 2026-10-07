@@ -24,7 +24,8 @@ fn artifact_error(error: impl std::fmt::Display) -> PyErr {
 
 #[pyclass(name = "ExternalClaimArtifact", skip_from_py_object)]
 pub(crate) struct PyExternalClaimArtifact {
-    artifact: ExternalClaimArtifact,
+    // Shared with `program_claims_api`, which binds the same artifact under a program.
+    pub(crate) artifact: ExternalClaimArtifact,
 }
 
 #[pymethods]
