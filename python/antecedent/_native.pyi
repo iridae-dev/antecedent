@@ -4824,6 +4824,60 @@ def replay_study_plan(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
+
+class RepairContractStage:
+    @property
+    def family(self) -> str: ...
+    @property
+    def contract_id(self) -> str: ...
+    def obligations(self) -> list[dict[str, Any]]: ...
+    def repair(
+        self,
+        candidates_json: str,
+        objective: str,
+        *,
+        max_operations: int,
+        max_depth: int,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> RepairStage: ...
+
+class RepairStage:
+    @property
+    def outcome(self) -> str: ...
+    def report(self) -> dict[str, Any]: ...
+    def export(self) -> bytes: ...
+
+def repair_transport_contract(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    catalog: Any,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> RepairContractStage: ...
+def repair_backdoor_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    assumptions: list[tuple[str, str, str | None]],
+) -> RepairContractStage: ...
+def consume_repair_artifact(
+    artifact: bytes,
+    *,
+    max_operations: int,
+    max_depth: int,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> RepairStage: ...
 def classify_inverse_outcome_stage(
     query_kind: str,
     threshold: float,
@@ -5621,10 +5675,132 @@ def evaluate_decision_means(
     causal_contract_id: str,
 ) -> tuple[str | None, str | None]: ...
 def composition_lineage(links_json: str) -> str: ...
+def admissible_contract_normalize(declaration_json: str) -> tuple[str | None, str | None]: ...
+def export_admissible_contract(declaration_json: str, artifact_id: str) -> bytes: ...
+def load_admissible_contract(data: bytes, expected_identity: str) -> str: ...
+def evaluate_robust_decision(
+    declaration_json: str,
+    kind: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+    receipts_json: str,
+) -> tuple[str | None, str | None]: ...
+def export_robust_decision(
+    declaration_json: str,
+    kind: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+    receipts_json: str,
+    artifact_id: str,
+) -> tuple[bytes | None, str | None]: ...
+def replay_robust_decision(
+    data: bytes,
+    declaration_json: str,
+    kind: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+) -> tuple[str | None, str | None]: ...
+def evaluate_identified_set_decision(
+    declaration_json: str, utilities_json: str
+) -> tuple[str | None, str | None]: ...
+def identified_utility_interval(
+    declaration_json: str, action_id: str, intervals: list[tuple[float, float]]
+) -> tuple[tuple[float, float] | None, str | None]: ...
 def evaluate_effect_constancy(
     request_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_effect_constancy_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_design_ranking(
+    request_json: str, artifact_id: str
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_design_ranking(
+    artifact: bytes, expectation_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def rank_structural_designs(candidates_json: str) -> tuple[str | None, str | None]: ...
+def evaluate_dose_grid_functional(
+    request_json: str, dose: list[float], outcome: list[float]
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_dose_grid_artifact(
+    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024
+) -> tuple[str | None, str | None]: ...
+def dose_support_labels(
+    dose: list[float], points: list[float], bandwidth: float, minimum_local_ess: float
+) -> tuple[str | None, str | None]: ...
+def recover_recovery_chain(
+    nodes: list[str],
+    directed: list[tuple[str, str]],
+    bidirected: list[tuple[str, str]],
+    first: tuple[str, str, str],
+    second: tuple[str, str, str],
+    law_json: str | None = None,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_recovery_chain_artifact(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None]: ...
+def evaluate_vector_treatment(
+    outcome: list[float],
+    adjustment_columns: list[list[float]],
+    treatment_columns: list[list[float]],
+    declaration_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_vector_treatment_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_categorical_treatment(
+    outcome: list[float],
+    adjustment_columns: list[list[float]],
+    levels: list[str],
+    declaration_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_categorical_treatment_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def build_compact_export(
+    spec_json: str, artifact_id: str
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_compact_export(
+    artifact: bytes, expected_identity: str, max_bytes: int | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_compact_export(
+    artifact: bytes,
+    expected_identity: str,
+    queries_json: str,
+    max_bytes: int | None = None,
+) -> tuple[str | None, str | None]: ...
+def evaluate_nonlinear_mediation(
+    treatment: NDArray[np.float64],
+    mediator: NDArray[np.float64],
+    outcome: NDArray[np.float64],
+    covariates: list[NDArray[np.float64]],
+    covariate_names: list[str],
+    premises_json: str,
+    config_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_nonlinear_mediation_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_latent_class_effects(
+    outcome: NDArray[np.float64],
+    treatment: NDArray[np.float64],
+    covariates: list[NDArray[np.float64]],
+    covariate_names: list[str],
+    config_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_latent_class_artifact(
     artifact: bytes, expected_identity_json: str | None = None
 ) -> tuple[str | None, str | None]: ...
 def evaluate_temporal_counterfactual(
@@ -5640,3 +5816,69 @@ def transported_path_specific_refusal(
     required_factors: list[tuple[str, str]],
     supplied_factors: list[tuple[str, str, str]],
 ) -> str: ...
+
+class SensitivityArtifact:
+    summary_json: str
+    def export(self, artifact_id: str) -> bytes: ...
+    @staticmethod
+    def consume(
+        data: bytes, expected_identity_json: str | None = None
+    ) -> tuple[SensitivityArtifact | None, str | None]: ...
+    def outcome_json(
+        self, range: tuple[float, float] | None = None
+    ) -> tuple[str | None, str | None]: ...
+
+def sensitivity_artifact_from_surface(
+    surface_json: str,
+) -> tuple[SensitivityArtifact | None, str | None]: ...
+def sensitivity_artifact_from_z_joint(
+    stage: PreparedZTransportStage,
+    factors: list[tuple[str, float]],
+    effect_json: str,
+    grid_points: int,
+    actions_json: str,
+    causal_contract_id: str,
+    *,
+    decision_threshold: float | None = None,
+    total_budget: float | None = None,
+    tolerance: float = 1e-9,
+    frontier_points: int = 17,
+    max_operations: int = 100_000,
+    max_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[SensitivityArtifact | None, str | None]: ...
+def sensitivity_contract(
+    artifact: SensitivityArtifact, policy: str
+) -> tuple[str | None, str | None]: ...
+def sensitivity_decide(
+    contract_json: str, artifact: SensitivityArtifact, spec_json: str
+) -> tuple[str | None, str | None]: ...
+
+class InverseQueryArtifact:
+    result_json: str
+    identity_json: str
+    query_json: str
+    contract_json: str
+    @staticmethod
+    def build(
+        contract_json: str,
+        query_json: str,
+        point: JointDistributionArtifact | str | None = None,
+        interval_region: tuple[
+            JointDistributionArtifact | str, JointDistributionArtifact | str, bool
+        ]
+        | None = None,
+        identified_set: tuple[list[tuple[str, float | None, str, object]], bool] | None = None,
+        scenarios: list[tuple[str, float | None, str, object]] | None = None,
+    ) -> tuple[InverseQueryArtifact | None, str | None]: ...
+    @staticmethod
+    def consume(
+        data: bytes, expected_identity_json: str | None = None
+    ) -> tuple[InverseQueryArtifact | None, str | None]: ...
+    def export(self, artifact_id: str) -> bytes: ...
+
+def inverse_query_baseline(
+    points_json: str, target: float, comparison: str, tolerance: float
+) -> tuple[str | None, str | None]: ...
