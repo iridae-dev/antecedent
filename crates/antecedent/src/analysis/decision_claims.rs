@@ -350,7 +350,7 @@ fn scenario_digest(result: &ScenarioResult) -> String {
         }
         None => bytes.push(0),
     }
-    hex(&antecedent_io::payload_digest("decision_claims.scenario", &bytes))
+    hex(&antecedent_io::payload_digest("decision_claims_scenario", &bytes))
 }
 
 impl ClaimSource {
@@ -371,7 +371,7 @@ impl ClaimSource {
             put_str(&mut bytes, &scenario.status);
             put_str(&mut bytes, &scenario.digest);
         }
-        let identity = hex(&antecedent_io::payload_digest("decision_claims.source", &bytes));
+        let identity = hex(&antecedent_io::payload_digest("decision_claims_source", &bytes));
         Self {
             kind,
             cpdag_identity,
@@ -622,7 +622,7 @@ fn digests_of(input: &Input<'_>) -> Result<Vec<ScenarioDigest>, ClaimError> {
         digests.push(ScenarioDigest {
             id: NOT_ENUMERATED_ATOM.to_owned(),
             status: "unevaluated".to_owned(),
-            digest: hex(&antecedent_io::payload_digest("decision_claims.not_enumerated", &bytes)),
+            digest: hex(&antecedent_io::payload_digest("decision_claims_not_enumerated", &bytes)),
         });
     }
     Ok(digests)

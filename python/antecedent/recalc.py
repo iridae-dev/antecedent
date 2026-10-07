@@ -461,7 +461,7 @@ class RecalcUnavailable(RecalcRefusal):
     @property
     def missing(self) -> str:
         """What the fresh process lacks."""
-        return self.detail.removeprefix("recalc.unavailable_")
+        return self.detail.rpartition("_")[2]
 
 
 class RecalcNoLiveState(RecalcRefusal):
@@ -477,11 +477,15 @@ def _raise(refusal: str | None) -> None:
         return
     wire = json.loads(refusal)
     detail = str(wire["detail"])
-    if detail.startswith("recalc.unavailable_"):
+    if detail in {
+        "recalc.unavailable_fit",
+        "recalc.unavailable_data",
+        "recalc.unavailable_provider",
+    }:
         raise RecalcUnavailable(wire)
     if detail == "recalc.no_live_state":
         raise RecalcNoLiveState(wire)
-    if detail.startswith("recalc_receipt."):
+    if detail.partition(".")[0] == "recalc_receipt":
         raise RecalcReceiptRefusal(wire)
     raise RecalcRefusal(wire)
 

@@ -570,6 +570,18 @@ impl fmt::Display for RecalcRunError {
 
 impl std::error::Error for RecalcRunError {}
 
+impl RecalcRunError {
+    /// The registered reason code of a malformed request (`invalid_argument`); other
+    /// failures carry their own codes through the plan, the study or the receipt.
+    #[must_use]
+    pub fn request_reason_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Request(_) => Some(antecedent_core::reason_code!("invalid_argument")),
+            _ => None,
+        }
+    }
+}
+
 impl From<CausalError> for RecalcRunError {
     fn from(error: CausalError) -> Self {
         Self::Execution(error)

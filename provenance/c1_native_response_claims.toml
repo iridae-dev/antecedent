@@ -1,0 +1,31 @@
+feature_id = "c1_native_response_claims"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Turns a native mean-curve response into a typed claim a decision or inverse flow can consume:
+# one scientific quantity per grid point (variable, units, population, regime, horizon, functional,
+# conditioning, transform) derived from the response's own estimand and grid and checked against the
+# program binding, a support label per coordinate, native provider trust, a calibration status and
+# the program identity. This is a composition contract (a typed adapter between two existing
+# results), not a statistical method. papers = [] is an explicit judgment: it is original
+# engineering, no paper introduces it, and it computes no estimate. The response's own estimator
+# carries its citations in its own records.
+papers = []
+
+implementation_deviations = [
+  "A native response carries no population or outcome functional of its own: the population, regime kind, horizon, functional and transform of its coordinates are taken from the program binding the caller supplies, and only the outcome, treatment, grid and (when declared) units are read from the response. The claim therefore certifies that the response matches the program on those, not that its estimator targeted that population.",
+  "A mean response never becomes an outcome law. A mean source answers only the expectation of an affine utility; a requirement for a probability, quantile, nonlinear utility or EVSI source refuses with a source-not-supplied detail. An aligned joint law is supplied only when the response retained credible draws of every coordinate, and it is a posterior over the causal mean curve, not an interventional outcome law, so outcome-threshold inputs on it still refuse.",
+  "Coordinates whose support is outside empirical support or missing evidence are withheld from the decision source (left out of a mean source, masked in a joint law) and reported with their label; they are never silently used. A source with no supported coordinate refuses.",
+  "Only a point-identified static mean curve is accepted. An envelope, graph-dependent or unidentified response, a grid that is not the estimand's grid, a missing or unlabeled point support, a variable unknown to the schema and a unit that contradicts the program's outcome units each refuse. A calibration status comes only from the measured record (unmeasured or point_only); the caller cannot assert a calibrated status here.",
+  "The Python NativeClaim is mean-only because the Python response view keeps no draws; a joint-law source is available through the Rust claim only. Python delegates identity, coordinate derivation, support handling and refusals to the Rust core.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/native_claims.rs",
+  "python/tests/test_program_claims.py",
+]

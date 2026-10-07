@@ -1,0 +1,31 @@
+feature_id = "x6_proposal_receipt"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A per-proposal receipt that links the identification-repair artifact (the evidence a failed
+# contract owes, with the hypothetical delta and the derivation a repair family verified on it) to
+# the design-ranking artifact (the candidate study's signal request, EVSI, net value and rank), the
+# permutation-invariant bundle over every ranked candidate, the cross-artifact verifier and the
+# re-identification on arrived evidence. This is a composition contract over identities, digests and
+# the existing repair-family checker, not a statistical method. papers = [] is an explicit
+# judgment: it is original engineering, no paper introduces it, and the repair derivations and the
+# EVSI values it binds carry their citations in the identification-repair and EVSI records.
+papers = []
+
+implementation_deviations = [
+  "A receipt binds the artifacts by identity and digest and never by copy. Verification recomputes each receipt from the two retained, sealed artifacts and refuses a candidate present in only one, a changed delta, a swapped signal, a changed cost, lineage, value or decision identity, an identity that does not follow from content, and a bundle that does not cover exactly the ranked candidates. It checks seals; by default each artifact is first consumed (independently replayed). A consumer holding no retained expected identity checks only internal consistency.",
+  "The delta and the derivation a receipt retains are hypothetical and are never available evidence: a receipt is always hypothetical, a delivery that is itself not available evidence is refused, and on arrival the repair family's own identification is re-run on the arrived evidence alone. The receipt's recorded derivation is never reused as a verdict. The result is verified, still insufficient or invalidated (a population or regime other than the premises the derivation was verified under).",
+  "The bundle identity covers both artifact digests, the decision contract and every receipt in the canonical order of candidate semantic id, so it does not depend on the order proposals were supplied in. An empty bundle, a repeated candidate and receipts read from different artifacts refuse.",
+  "The record claims nothing about whether a proposed study will in fact deliver the hypothetical evidence, nor about the EVSI or net value it binds: those values are retained as computed by their own routes and are point-only. No interval, coverage or probability claim is made.",
+  "Re-identification supports the backdoor and transport repair families only; an arrival that differs in sample or shape from the proposal, or lacks the joint law the family needs, is refused or reported insufficient with a typed reason. Cancellation observed while re-identifying is reported, never read as a verdict.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/proposal_receipt.rs",
+  "python/tests/test_proposals.py",
+]

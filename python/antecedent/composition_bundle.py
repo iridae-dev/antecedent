@@ -132,6 +132,22 @@ STAGES: tuple[str, ...] = (
 # --------------------------------------------------------------------------- refusals
 
 
+_INVALID = "composition_bundle.invalid_container"
+_STAGE_DETAILS: dict[str, str] = {
+    "tampered_quantity": "composition_bundle.tampered_quantity",
+    "swapped_evidence": "composition_bundle.swapped_evidence",
+    "graph_or_snapshot_mismatch": "composition_bundle.graph_or_snapshot_mismatch",
+    "unsupported_law": "composition_bundle.unsupported_law",
+    "provider_request_changed": "composition_bundle.provider_request_changed",
+    "callback_unavailable": "composition_bundle.callback_unavailable",
+    "incompatible_version": "composition_bundle.incompatible_version",
+    "oversized": "composition_bundle.oversized",
+    "unknown_node_kind": "composition_bundle.unknown_node_kind",
+    "edge_digest_mismatch": "composition_bundle.edge_digest_mismatch",
+    "expected_identity_mismatch": "composition_bundle.expected_identity_mismatch",
+}
+
+
 class CompositionBundleRefusal(CausalUnsupportedError):
     """A refused bundle, node or composition carrying the structured Rust fields.
 
@@ -651,7 +667,7 @@ class ConsumedBundle:
                     {
                         "code": status.code,
                         "stage": "bind",
-                        "detail": status.detail or f"composition_bundle.{status.stage}",
+                        "detail": status.detail or _STAGE_DETAILS.get(status.stage, _INVALID),
                         "offending": node.id,
                         "supplied": status.reason,
                     }
@@ -742,3 +758,45 @@ def mean_decision(
 def detect_kind(data: object) -> str | None:
     """The node kind a container's artifact fills, or ``None`` when it is not one."""
     return _native.composition_detect_kind(_bytes(data))
+
+
+__all__ = [
+    "EMBEDDABLE_KINDS",
+    "NODE_KINDS",
+    "RELATIONSHIPS",
+    "STAGES",
+    "ArtifactDescription",
+    "Bundle",
+    "BundleBuilder",
+    "CallbackUnavailableRefusal",
+    "ClaimLabel",
+    "CompositionBundleRefusal",
+    "ConsumedBundle",
+    "ConsumedNode",
+    "DataRequirement",
+    "Edge",
+    "EdgeDigestMismatchRefusal",
+    "ExpectedIdentityMismatchRefusal",
+    "Failed",
+    "GraphOrSnapshotMismatchRefusal",
+    "IncompatibleVersionRefusal",
+    "NodeKind",
+    "NodeStatus",
+    "NodeSummary",
+    "OversizedRefusal",
+    "ProviderRequestChangedRefusal",
+    "ProviderRequirement",
+    "ReferenceUnresolved",
+    "Relationship",
+    "Requirement",
+    "SuppliedSources",
+    "SwappedEvidenceRefusal",
+    "TamperedQuantityRefusal",
+    "UnknownNodeKindRefusal",
+    "UnsupportedLawRefusal",
+    "Verified",
+    "consume_bundle",
+    "describe_artifact",
+    "detect_kind",
+    "mean_decision",
+]

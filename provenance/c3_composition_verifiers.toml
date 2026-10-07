@@ -1,0 +1,31 @@
+feature_id = "c3_composition_verifiers"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# One node verifier per portable artifact kind for the composition bundle: each decodes its artifact
+# through that artifact's own consumer (container reader, digest and lineage recomputation, replay
+# of a stored table), recomputes the identity from the decoded content and publishes the binding
+# facts the bundle cross-checks across edges, read from the decoded fields. papers = [] is an
+# explicit judgment: this is dispatch, fact extraction and cross-edge consistency checking
+# (original engineering) over the artifact consumers of other records, each of which carries its
+# own citations; no paper introduces it.
+papers = []
+
+implementation_deviations = [
+  "Claim policy: point-only. A verifier establishes that an artifact decodes, recomputes its own identity and agrees with its neighbours on the declared binding facts; it grants no causal, interval or coverage license and re-derives no estimate beyond what the artifact's own consumer replays.",
+  "External mean decisions are point-only attested: an external claim publishes law 'mean_only' and trust 'externally_attested', upgraded to 'verified_extension' only when the artifact retains its exact-request verification receipt. A mean decision is evaluated only from the claim's finite response grid and refuses what a mean cannot answer.",
+  "Joint-draw decisions retain the aligned-law requirement: only a joint distribution with aligned draws publishes the joint law, a decision whose functional needs it publishes requires_law, and the dependent node fails at unsupported_law over a mean-only or marginal-draw upstream.",
+  "A verifier decodes through the artifact's own consumer but cannot retain an identity independently of the bundle: inside a bundle the retained identity is the node's declared identity, which the Merkle chain covers and the consumer's retained bundle identity anchors. A verifier refuses a node whose recomputed identity differs, and a decision result is checked against the contract and the sources upstream of it, so replacing either with a resealed, self-consistent artifact fails the dependent node.",
+  "Embedded kinds with no verifier (a causal contract, an attestation, quantity coordinates, a transformation) fail as unknown_node_kind and must travel as reference nodes; they are never verified by default. Recalculation receipts are not covered by this registry.",
+  "A reference node is verified by the bundle only as 'matched a supplied source' and is never replayed by a verifier.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/composition_verifiers.rs",
+  "crates/antecedent-design/tests/composition_bundle.rs",
+]

@@ -1,0 +1,32 @@
+feature_id = "c2_recalc_receipt_artifact"
+implementation_crate = "antecedent-io"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A durable, portable container for the receipt of one selective recalculation: the previous and
+# requested per-stage own-input digests, the capability and boundary declarations, the per-stage
+# status, effective identity and counted work, the canonical plan identity, the canonical receipt
+# identity and the work totals. A consumer recomputes the plan with the core planner from the stored
+# declarations and requires the stored table, counts, totals and both identities to match.
+# papers = [] is an explicit judgment: this is serialization, identity binding and recomputation
+# (original engineering) over the planner of provenance/c2_selective_recalculation.toml, and no
+# paper introduces it.
+papers = []
+
+implementation_deviations = [
+  "Claim policy: the artifact is a record of a decision, not a computation. It carries no estimate, no interval and no coverage or calibration claim; a consumer decides and checks counts and identities only.",
+  "A consumer trusts none of the stored table. It recomputes the plan from the stored previous and requested digests and capabilities and refuses any stored status, determining dependency, identity, per-stage count, total or identity that differs, even when the container is resealed with recomputed section checksums.",
+  "A loaded receipt never claims reuse in a fresh process: ANY derived stage stored as reused under a fresh-process boundary is refused before the plan is compared, even in a configuration where the planner would allow portable scores to be reused, because a loaded result recreates no prepared study, score table or fit. The artifact therefore cannot be used to certify cache reuse across processes; it records what was decided and counted in the producing run.",
+  "A consumer that holds no independently retained receipt identity checks only internal consistency: a consistently resealed receipt of another run passes against its own recomputed identity. Supplying the retained identity refuses it.",
+  "Identities are BLAKE3 (the core stage-identity construction). Counts are the producer's counts; the consumer checks that they are consistent with the status (a reused or refused stage did no work, a recomputed computation did its work) and that the totals equal their sum, but cannot re-observe the work.",
+  "Decode is bounded (container bytes, stage declarations and entries, route-label bytes) and refused before decoding when oversized; an unsupported major version or feature marker is refused before the payload is interpreted.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
+  "python/tests/test_recalc.py",
+]
