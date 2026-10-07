@@ -197,6 +197,11 @@ passed = 2
 calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
 
 [[gate]]
+group = "effect_constancy_calibration__known_gaussian_null_power_and_holm"
+passed = 1
+calibration_sha = "4bd246a8722c824b3299c204983968cad32fb1c1"
+
+[[gate]]
 group = "gate_response_calibration.sh"
 passed = 37
 calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
