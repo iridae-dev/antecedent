@@ -11,6 +11,7 @@
 
 pub mod auto;
 pub mod bayesian_basis;
+pub mod bayesian_basis_regression;
 pub mod categorical;
 pub mod crossfit;
 pub use categorical::FiniteJoint;
@@ -38,6 +39,11 @@ pub mod transform;
 pub use auto::resolve_auto;
 pub use bayesian_basis::{
     BasisTargetPopulation, BayesianBasisEffect, BayesianBasisGComputation, BayesianBasisSpec,
+};
+pub use bayesian_basis_regression::{
+    BASIS_MAX_DEGREE, BASIS_PIVOT_TOLERANCE, BasisDesign, BasisRegressionPosterior,
+    InformationRank, KnownVarianceBasisRegression, KnownVarianceBasisSpec, PolynomialBasis,
+    information_rank,
 };
 pub use crossfit::cross_fit_selected;
 pub use crossfit::{

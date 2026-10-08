@@ -30,6 +30,27 @@ use crate::propensity::clip_of;
 use crate::scores::{LinearContrast, ScoreColumn, ScoreSummary, ScoreTable};
 use crate::util::stats_err;
 
+thread_local! {
+    /// Cell models (multinomial propensity or per-cell outcome regression) fitted on this
+    /// thread since it started; read only through [`count_cell_model_fits`].
+    static CELL_MODEL_FITS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn note_cell_model_fit() {
+    CELL_MODEL_FITS.with(|fits| fits.set(fits.get().saturating_add(1)));
+}
+
+/// Run `work` and return its result with the number of cell models it fitted on the calling
+/// thread: one multinomial propensity per fold plus one outcome regression per fold, cell and
+/// threshold. This is the cell route's fit instrument; it counts fits that completed, so it
+/// is evidence that a refit really happened (or did not).
+pub fn count_cell_model_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
+    let before = CELL_MODEL_FITS.with(std::cell::Cell::get);
+    let out = work();
+    let after = CELL_MODEL_FITS.with(std::cell::Cell::get);
+    (out, after.saturating_sub(before))
+}
+
 /// Maximum jointly intervened binary coordinates (8 cells at k=3).
 pub const MAX_JOINT_BINARY: usize = 3;
 
@@ -379,6 +400,7 @@ fn crossfit_cell_scores(
             n_cells,
             est.backend,
         )?;
+        note_cell_model_fit();
         // The clip is the only floor. With none, a cell propensity of exactly 0 (infinite
         // weight) is refused rather than silently floored at a hidden constant.
         let floor = clip.unwrap_or(0.0);
@@ -430,6 +452,7 @@ fn crossfit_cell_scores(
                         &mut out_ws.outcome,
                     )
                     .map_err(stats_err)?;
+                note_cell_model_fit();
                 let mut pred = Vec::new();
                 predict_colmajor(
                     &design_valid,

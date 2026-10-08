@@ -26,6 +26,7 @@ pub mod cpdag_completion;
 mod meta;
 mod mixed_source;
 mod mz_transport;
+pub mod scenario_invariance;
 pub mod scenarios;
 mod study_planning;
 pub mod temporal_sequence;

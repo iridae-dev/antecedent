@@ -93,6 +93,36 @@ fn wrong_contract(text: &str) -> IoError {
     refused(WRONG_CONTRACT, text)
 }
 
+/// Structured refusal of an inverse-functional artifact failure: the registered code,
+/// the `functional_inverse_query.*` detail written in front of the message, and the
+/// remainder of the message as the offending item. Any other I/O failure is
+/// `functional_inverse_query.invalid_artifact` under `invalid_argument`.
+#[must_use]
+pub fn artifact_refusal(error: &IoError) -> antecedent_core::ExternalRefusal {
+    let (code, detail, offending) = match error {
+        IoError::Refused { code, message } => {
+            let (detail, text) =
+                message.split_once(": ").unwrap_or((WRONG_CONTRACT, message.as_str()));
+            (*code, detail.to_owned(), text.to_owned())
+        }
+        other => (
+            antecedent_core::reason_code!("invalid_argument"),
+            "functional_inverse_query.invalid_artifact".to_owned(),
+            other.to_string(),
+        ),
+    };
+    antecedent_core::ExternalRefusal {
+        code,
+        stage: "inverse_query",
+        detail,
+        offending: Some(offending),
+        expected: None,
+        supplied: None,
+        capability: None,
+        remedy: None,
+    }
+}
+
 fn wide(count: usize) -> u64 {
     u64::try_from(count).unwrap_or(u64::MAX)
 }

@@ -62,6 +62,11 @@ pub mod recalc;
 pub mod transport_result;
 pub use transport_result::TransportGridFailure;
 pub mod response;
+pub mod response_coordinates;
+pub use response_coordinates::{
+    ResponseCoordinateLabels, ResponseCoordinateSkeleton, label_coordinates,
+    response_coordinate_skeleton, response_coordinates,
+};
 pub mod schema;
 pub mod search;
 pub use search::{

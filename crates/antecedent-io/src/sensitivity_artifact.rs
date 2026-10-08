@@ -63,6 +63,9 @@ pub const SENSITIVITY_ARTIFACT_VERSION: u16 = 1;
 pub const SENSITIVITY_ARTIFACT_FEATURE: &str = "sensitivity_decision_v1";
 /// The only claim a surface range carries.
 pub const SENSITIVITY_INFERENCE_CLAIM: &str = "assumption_range";
+/// Identity of the reported assumption range within
+/// [`SensitivityArtifact::provenance_chain`].
+pub const SENSITIVITY_CLAIM_LINK_ID: &str = "sensitivity_claim";
 /// Most bytes an artifact may occupy, enforced on export and on consumption.
 pub const MAX_SENSITIVITY_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 /// Most grid points of the assumption coordinate.
@@ -1328,6 +1331,42 @@ impl SensitivityArtifact {
     #[must_use]
     pub fn outcome(&self) -> Option<&SensitivityOutcome> {
         self.outcome.as_ref()
+    }
+
+    /// Queryable lineage of the sensitivity input: the checked causal contract and the
+    /// data or provider snapshot behind the numbers, then the input itself (named by the
+    /// artifact identity digest, so changing any premise or number changes its digest),
+    /// then the `sensitivity_claim` that reports the assumption range. It is derived
+    /// from the retained identity and provenance and is not stored in the artifact bytes.
+    ///
+    /// # Errors
+    /// A blank causal-contract or snapshot identity refuses (`InvalidLink`).
+    pub fn provenance_chain(&self) -> Result<antecedent_core::ProvenanceChain, IoError> {
+        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+        let provenance = &self.parts.provenance;
+        let contract = format!("causal_contract:{}", provenance.causal_contract_id);
+        let snapshot = format!("snapshot:{}", provenance.provider_snapshot);
+        let input = format!("sensitivity_input:{}", self.identity.digest);
+        let link = |id: &str, stage: CompositionStage, parents: &[&str]| CompositionLink {
+            id: id.to_owned(),
+            stage,
+            parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+            declared_parent_digests: None,
+        };
+        ProvenanceChain::new(vec![
+            link(&contract, CompositionStage::CausalContract, &[]),
+            link(&snapshot, CompositionStage::Data, &[]),
+            link(
+                &input,
+                CompositionStage::SensitivityInput,
+                &[contract.as_str(), snapshot.as_str()],
+            ),
+            link(SENSITIVITY_CLAIM_LINK_ID, CompositionStage::Claim, &[input.as_str()]),
+        ])
+        .map_err(|error| {
+            let refusal = error.to_refusal();
+            IoError::Convert(format!("sensitivity_artifact.lineage: {}", refusal.detail))
+        })
     }
 
     /// The assumption coordinate.

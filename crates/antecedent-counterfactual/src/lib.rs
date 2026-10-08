@@ -11,6 +11,7 @@ pub mod error;
 pub mod temporal_cross_world;
 pub mod trajectory;
 pub mod transported_gate;
+pub mod transported_path_specific;
 
 pub use engine::{
     AbductionMissingPolicy, CompiledCounterfactualPlan, CounterfactualEngine, CounterfactualResult,

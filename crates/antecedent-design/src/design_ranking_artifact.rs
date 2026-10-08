@@ -71,6 +71,9 @@ pub const DESIGN_RANKING_ARTIFACT_VERSION: u32 = 1;
 pub const DESIGN_RANKING_ARTIFACT_KIND: &str = "design_ranking_v1";
 /// Calibration label: Monte Carlo error coverage and rank guarantees are not measured.
 pub const DESIGN_RANKING_CALIBRATION: &str = "unmeasured";
+/// Identity of the reported ranking within
+/// [`DesignRankingArtifactWire::provenance_chain`].
+pub const DESIGN_RANKING_CLAIM_LINK_ID: &str = "design_ranking_result";
 /// Maximum artifact bytes accepted before any decode allocation.
 pub const MAX_DESIGN_RANKING_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 /// Largest candidate catalog an artifact may retain (the frozen coordinate bound).
@@ -1022,6 +1025,67 @@ impl DesignRankingArtifactWire {
         body.ties.sort();
         body.search.unevaluated_ids.sort();
         body
+    }
+
+    /// Queryable lineage of the ranking: the decision contract, each source
+    /// distribution digest, each external signal provider object, each candidate's
+    /// study-ranking signal (named by its signal identity, so a changed provider,
+    /// update mode, trust, request or law changes its digest), and the
+    /// `design_ranking_result` claim derived from all of them. Parents are listed in
+    /// a fixed order (contract, sorted distinct source digests, signals in semantic-id
+    /// order), so the chain does not depend on candidate order. It is derived from the
+    /// retained identities and is not stored in the artifact bytes.
+    ///
+    /// # Errors
+    /// A blank contract, source digest, semantic id or signal identity refuses.
+    pub fn provenance_chain(
+        &self,
+    ) -> std::result::Result<antecedent_core::ProvenanceChain, antecedent_core::ProvenanceChainError>
+    {
+        use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain};
+        let link = |id: String, stage: CompositionStage, parents: Vec<String>| CompositionLink {
+            id,
+            stage,
+            parents,
+            declared_parent_digests: None,
+        };
+        let decision = format!("decision:{}", self.decision.contract_identity);
+        let mut links = vec![link(decision.clone(), CompositionStage::DecisionContract, vec![])];
+        let mut result_parents = vec![decision.clone()];
+        let sources: BTreeSet<&String> = self.source_digests.iter().collect();
+        for digest in sources {
+            let id = format!("distribution:{digest}");
+            links.push(link(id.clone(), CompositionStage::DistributionArtifact, vec![]));
+            result_parents.push(id);
+        }
+        let mut candidates: Vec<&CandidateWire> = self.candidates.iter().collect();
+        candidates.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
+        let mut seen_providers = BTreeSet::new();
+        for candidate in candidates {
+            let mut parents = vec![decision.clone()];
+            if let Some(provider) = &candidate.provider {
+                let id = format!(
+                    "provider:signal:{}/{}@{}#{}",
+                    provider.provider_id,
+                    provider.object_id,
+                    provider.version_id,
+                    provider.snapshot_id
+                );
+                if seen_providers.insert(id.clone()) {
+                    links.push(link(id.clone(), CompositionStage::ExternalProvider, vec![]));
+                }
+                parents.push(id);
+            }
+            let id = format!("signal:{}:{}", candidate.semantic_id, candidate.signal_identity);
+            links.push(link(id.clone(), CompositionStage::StudyRankingProvider, parents));
+            result_parents.push(id);
+        }
+        links.push(link(
+            DESIGN_RANKING_CLAIM_LINK_ID.to_owned(),
+            CompositionStage::Claim,
+            result_parents,
+        ));
+        ProvenanceChain::new(links)
     }
 
     /// Digest of the canonical body; unchanged by candidate order.

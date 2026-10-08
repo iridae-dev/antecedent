@@ -30,6 +30,7 @@ pub mod expr_wire;
 pub mod external_binding_wire;
 pub mod external_claim_artifact;
 pub mod external_estimate;
+pub mod frozen_scores_artifact;
 pub mod graph_dot;
 pub mod graph_gml;
 pub mod graph_json;
@@ -37,6 +38,7 @@ pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod identity;
 pub mod joint_bayesian_transport_artifact;
+pub mod learned_joint_transport_artifact;
 pub mod mechanism_wire;
 pub mod migrate;
 pub mod mixed_source_artifact;
@@ -396,6 +398,10 @@ pub mod latent_class_artifact;
 pub mod learned_continuous_artifact;
 /// Learner-backed trial transport artifact verification.
 pub mod learned_trial_wire;
+/// 2.3 B3 mechanism discrepancy artifact (`mechanism_discrepancy_v1`) and its recomputing consumer.
+pub mod mechanism_discrepancy_artifact;
+/// 2.3 B3 adapter from a marginal sensitivity model result into the F17 sensitivity artifact.
+pub mod msm_sensitivity_adapter;
 /// B4 nonlinear-mediation artifact (`nonlinear_mediation_v1`) and its re-estimating consumer.
 pub mod nonlinear_mediation_artifact;
 /// B2 ordered-response recovery artifact (`ordered_response_recovery_v1`) and its re-deciding consumer.
@@ -406,5 +412,7 @@ pub mod sensitivity_artifact;
 pub mod smoothed_dose_artifact;
 /// X8 fixed-population temporal counterfactual artifact (`temporal_counterfactual_v1`).
 pub mod temporal_counterfactual_artifact;
+/// 2.3.0 A5 transported static path-specific counterfactual artifact (`transported_counterfactual_v1`).
+pub mod transported_counterfactual_artifact;
 /// B4 joint vector-treatment artifact (`vector_treatment_v1`) and its recomputing consumer.
 pub mod vector_treatment_artifact;

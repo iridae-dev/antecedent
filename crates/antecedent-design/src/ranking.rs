@@ -164,10 +164,13 @@ impl RankingError {
                 ..at(signal, "design_ranking.signal_mismatch")
             },
             Self::SourceDigestMismatch => at(signal, "design_ranking.source_digest_mismatch"),
-            Self::CostMappingMismatch => at(
-                antecedent_core::reason_code!("design_cost_units_mismatch"),
-                "design_ranking.cost_units_mismatch",
-            ),
+            Self::CostMappingMismatch => ExternalRefusal {
+                remedy: Some("replay with the cost mapping the ranking was computed under"),
+                ..at(
+                    antecedent_core::reason_code!("design_cost_units_mismatch"),
+                    "design_ranking.cost_units_mismatch",
+                )
+            },
             Self::ContractMismatch => at(signal, "design_ranking.contract_mismatch"),
         }
     }

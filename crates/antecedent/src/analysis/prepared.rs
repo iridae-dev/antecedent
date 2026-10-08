@@ -5444,7 +5444,8 @@ impl PreparedStudy {
                     },
                     diagnostics: Vec::new(),
                     warnings: Vec::new(),
-                    point_status: None,
+                    // Same single-coordinate label as the solo cell route.
+                    point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
                 },
                 assumptions: cache.identification.required_assumptions.clone(),
                 provenance_id: Arc::from("estimate.cell.aipw.retarget"),

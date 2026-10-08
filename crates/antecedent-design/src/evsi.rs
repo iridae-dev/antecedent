@@ -345,7 +345,12 @@ impl EvsiError {
                 ),
                 ..at(units, "evsi.cost_map_required")
             },
-            Self::CostUnitsMismatch(what) => with(units, "evsi.cost_units_mismatch", what.clone()),
+            Self::CostUnitsMismatch(what) => ExternalRefusal {
+                remedy: Some(
+                    "declare each study cost in the cost map's cost unit and map it into the decision's utility unit",
+                ),
+                ..with(units, "evsi.cost_units_mismatch", what.clone())
+            },
             Self::InvalidCost(what) => with(
                 antecedent_core::reason_code!("invalid_argument"),
                 "evsi.invalid_cost",

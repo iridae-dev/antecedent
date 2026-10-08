@@ -1406,7 +1406,9 @@ impl ContinuousResponseEstimator {
                     scope: DiagnosticScope::Global,
                 }],
                 warnings: intervention_plugin_warnings(target_fallback.as_deref()),
-                point_status: None,
+                // One scalar answers the whole (possibly joint) regime, so it has exactly
+                // one coordinate and one label: the summary itself, never a per-treatment claim.
+                point_status: Some(Arc::from([SupportStatus::Extrapolative])),
             },
             scores,
         ))
