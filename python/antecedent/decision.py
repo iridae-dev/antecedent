@@ -29,9 +29,9 @@ with its registered ``reason_code``.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from ._native import composition_lineage as _composition_lineage
 from ._native import decision_contract_normalize as _normalize
@@ -42,7 +42,7 @@ from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
@@ -53,12 +53,12 @@ StructuralPolicy = Literal[
 ]
 
 
-class DecisionRefusal(CausalUnsupportedError):
+class DecisionRefusal(StructuredRefusal):
     """A decision refusal carrying the structured Rust fields.
 
-    ``reason_code`` and ``remedy`` are inherited; the code is registered.
-    ``stage`` is the stage that refused. ``detail`` is the namespaced
-    ``family.slot``; ``offending`` names the action input (``action[input]``) or
+    A :class:`~antecedent.errors.StructuredRefusal`: ``code`` (alias ``reason_code``) and
+    ``remedy`` are the registered fields. ``stage`` is the stage that refused. ``detail`` is
+    the namespaced ``family.slot``; ``offending`` names the action input (``action[input]``) or
     action when there is one; ``expected`` and ``supplied`` carry the compared
     semantics (for example ``joint`` against ``independent_marginals``).
     """
@@ -66,10 +66,7 @@ class DecisionRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         offending = refusal.get("offending")
         text = str(refusal["detail"]) + (f" at {offending}" if offending else "")
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = refusal.get("stage", "")
-        self.detail: str = refusal["detail"]
-        self.offending: str | None = offending
+        super().__init__(refusal, text=text)
         self.expected: str | None = refusal.get("expected")
         self.supplied: str | None = refusal.get("supplied")
 
@@ -118,6 +115,18 @@ def _coerce(value: Expr | float) -> Expr:
     return const(float(value))
 
 
+def _number(name: str, value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise CausalTypeError(f"{name} must be a number, got {type(value).__name__}")
+    return float(value)
+
+
+def _text(name: str, value: object) -> str:
+    if not isinstance(value, str):
+        raise CausalTypeError(f"{name} must be a string, got {type(value).__name__}")
+    return value
+
+
 def x(index: int) -> Expr:
     """The ``index``th input quantity of the action."""
     if isinstance(index, bool) or not isinstance(index, int) or index < 0:
@@ -159,11 +168,13 @@ class Criterion:
 
     @classmethod
     def threshold_probability(cls, threshold: float) -> Criterion:
-        return cls("threshold_probability", threshold=float(threshold))
+        """Maximize ``P(utility >= threshold)``; ``threshold`` is a number in utility units."""
+        return cls("threshold_probability", threshold=_number("threshold", threshold))
 
     @classmethod
     def quantile(cls, p: float) -> Criterion:
-        return cls("quantile", p=float(p))
+        """Maximize the ``p`` quantile of the utility; ``p`` is a number."""
+        return cls("quantile", p=_number("p", p))
 
     @classmethod
     def minimax_over_identified_set(cls) -> Criterion:
@@ -206,7 +217,21 @@ class Action:
     kind: ActionKind = "intervention"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "inputs", tuple(self.inputs))
+        _text("Action.id", self.id)
+        if isinstance(self.inputs, (str, bytes)) or not isinstance(self.inputs, Iterable):
+            raise CausalTypeError("Action.inputs must be a sequence of ScientificQuantity")
+        inputs = tuple(self.inputs)
+        if any(not isinstance(item, ScientificQuantity) for item in inputs):
+            raise CausalTypeError("Action.inputs must hold only ScientificQuantity values")
+        if not isinstance(self.utility, Expr):
+            raise CausalTypeError(
+                "Action.utility must be an Expr built from decision.x(i), decision.const(v) "
+                f"and operators, not {type(self.utility).__name__}; wrap a number with "
+                "decision.const(value)"
+            )
+        if self.kind not in get_args(ActionKind):
+            raise CausalValueError(f"Action.kind must be one of {get_args(ActionKind)}")
+        object.__setattr__(self, "inputs", inputs)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -233,6 +258,14 @@ class Constraint:
     applies_to: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        _text("Constraint.id", self.id)
+        if not isinstance(self.expr, Expr):
+            raise CausalTypeError("Constraint.expr must be an Expr built from decision.x(i)")
+        _number("Constraint.bound", self.bound)
+        _number("Constraint.min_probability", self.min_probability)
+        _text("Constraint.units", self.units)
+        if isinstance(self.applies_to, (str, bytes)):
+            raise CausalTypeError("Constraint.applies_to must be a sequence of action ids")
         object.__setattr__(self, "applies_to", tuple(self.applies_to))
 
     def _wire(self) -> dict[str, Any]:
@@ -342,8 +375,31 @@ class Contract:
     structural_policy: StructuralPolicy = "report_only"
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "actions", tuple(self.actions))
-        object.__setattr__(self, "constraints", tuple(self.constraints))
+        if isinstance(self.actions, (str, bytes)) or not isinstance(self.actions, Iterable):
+            raise CausalTypeError("Contract.actions must be a sequence of Action")
+        actions = tuple(self.actions)
+        if any(not isinstance(action, Action) for action in actions):
+            raise CausalTypeError("Contract.actions must hold only Action values")
+        if isinstance(self.constraints, (str, bytes)) or not isinstance(self.constraints, Iterable):
+            raise CausalTypeError("Contract.constraints must be a sequence of Constraint")
+        constraints = tuple(self.constraints)
+        if any(not isinstance(constraint, Constraint) for constraint in constraints):
+            raise CausalTypeError("Contract.constraints must hold only Constraint values")
+        _text("Contract.utility_units", self.utility_units)
+        _text("Contract.target_population", self.target_population)
+        if not isinstance(self.criterion, Criterion):
+            raise CausalTypeError(
+                "Contract.criterion must be a Criterion such as Criterion.expected_utility(), "
+                f"not {type(self.criterion).__name__}"
+            )
+        if isinstance(self.horizon, bool) or not isinstance(self.horizon, int):
+            raise CausalTypeError("Contract.horizon must be an integer")
+        if self.structural_policy not in get_args(StructuralPolicy):
+            raise CausalValueError(
+                f"Contract.structural_policy must be one of {get_args(StructuralPolicy)}"
+            )
+        object.__setattr__(self, "actions", actions)
+        object.__setattr__(self, "constraints", constraints)
 
     def _wire(self) -> dict[str, Any]:
         return {

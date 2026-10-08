@@ -48,7 +48,7 @@ from antecedent import (
 )
 from antecedent import composition as comp
 from antecedent import composition_bundle as cb
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent import inverse_query as iq
 from antecedent import sensitivity_decision as sd
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
@@ -244,11 +244,11 @@ GUESS_ACTIONS = (dr.ActionUtility("guess0", 1.0, -1.0), dr.ActionUtility("guess1
 UTILITY_MAP = dr.CostMap("utility", "utility", 1.0)
 
 
-def _guess() -> dr.Decision:
-    return dr.Decision(
+def _guess() -> dr.DesignDecision:
+    return dr.DesignDecision(
         contract="contract-1",
         actions=GUESS_ACTIONS,
-        prior=dr.Prior.draws([0.0, 1.0]),
+        prior=dr.StatePrior.draws([0.0, 1.0]),
         utility_units="utility",
     )
 
@@ -266,8 +266,8 @@ def _guess_candidate(cid: str, accuracy: float) -> dr.Candidate:
 
 def _ranking() -> dr.DesignRankingResult:
     return dr.rank_designs(
-        _guess(),
         [_guess_candidate("cand-1", 0.75), _guess_candidate("cand-2", 0.625)],
+        decision=_guess(),
         signal=_signal_spec(),
         cost_map=UTILITY_MAP,
     )
@@ -679,10 +679,12 @@ def _feed_inverse(obj: Any) -> object:
 
 
 def _feed_prior(obj: Any) -> object:
-    framed = dr.Decision(
+    framed = dr.DesignDecision(
         contract="contract-1", actions=GUESS_ACTIONS, prior=obj, utility_units="utility"
     )
-    return dr.rank_designs(framed, [_guess_candidate("cand-1", 0.75)], signal=_signal_spec())
+    return dr.rank_designs(
+        [_guess_candidate("cand-1", 0.75)], decision=framed, signal=_signal_spec()
+    )
 
 
 def _feed_sensitivity(obj: Any) -> object:
@@ -985,10 +987,10 @@ def _check_prior_design(o: Objs) -> None:
     mean, sd_ = o.posterior.mean[2], o.posterior.sd[2]
     states = [mean - sd_, mean, mean + sd_]
     assert states == pytest.approx([1.9, 2.0, 2.1], abs=1e-12)
-    framed = dr.Decision(
+    framed = dr.DesignDecision(
         contract="contract-posterior",
         actions=(dr.ActionUtility("hold", 0.0, 0.0), dr.ActionUtility("act", -1.95, 1.0)),
-        prior=dr.Prior.draws(states),
+        prior=dr.StatePrior.draws(states),
         utility_units="utility",
     )
     no_information = dr.ExternalLaw.decision_values(
@@ -1001,7 +1003,7 @@ def _check_prior_design(o: Objs) -> None:
         cost=0.0,
         cost_unit="utility",
     )
-    ranked = dr.rank_designs(framed, [candidate], signal=_signal_spec())
+    ranked = dr.rank_designs([candidate], decision=framed, signal=_signal_spec())
     # act = state - 1.95 is -0.05, 0.05, 0.15 on the three states: its mean 0.05 beats hold = 0
     # and perfect information would add (0 + 0.05 + 0.15) / 3 - 0.05 = 1/60.
     assert ranked.bayes_action == "act"
@@ -1134,29 +1136,38 @@ def _check_decision_design(o: Objs) -> None:
         criterion=decision.Criterion.expected_utility(),
         target_population="target",
     )
-    framed = dr.Decision(contract=contract, actions=GUESS_ACTIONS, prior=dr.Prior.draws([0.0, 1.0]))
+    framed = dr.DesignDecision(
+        contract=contract, actions=GUESS_ACTIONS, prior=dr.StatePrior.draws([0.0, 1.0])
+    )
     ranked = dr.rank_designs(
-        framed, [_guess_candidate("cand-1", 0.75)], signal=_signal_spec(), cost_map=UTILITY_MAP
+        [_guess_candidate("cand-1", 0.75)],
+        decision=framed,
+        signal=_signal_spec(),
+        cost_map=UTILITY_MAP,
     )
     assert ranked.decision_contract_identity == contract.identity
     assert ranked.candidates[0].evsi == pytest.approx(0.25, abs=1e-12)
     assert ranked.candidates[0].net_value == pytest.approx(0.15, abs=1e-12)
     # The binding to a Contract object checks the action set ...
-    mismatched = dr.Decision(
+    mismatched = dr.DesignDecision(
         contract=contract,
         actions=(dr.ActionUtility("other", 1.0, -1.0), dr.ActionUtility("guess1", 0.0, 1.0)),
-        prior=dr.Prior.draws([0.0, 1.0]),
+        prior=dr.StatePrior.draws([0.0, 1.0]),
     )
     with pytest.raises(CausalValueError):
-        dr.rank_designs(mismatched, [_guess_candidate("cand-1", 0.75)], signal=_signal_spec())
+        dr.rank_designs(
+            [_guess_candidate("cand-1", 0.75)], decision=mismatched, signal=_signal_spec()
+        )
     # ... a bare identity string binds only the identity, so the result's identity is accepted.
-    by_identity = dr.Decision(
+    by_identity = dr.DesignDecision(
         contract=o.result.contract_identity,
         actions=GUESS_ACTIONS,
-        prior=dr.Prior.draws([0.0, 1.0]),
+        prior=dr.StatePrior.draws([0.0, 1.0]),
         utility_units="utility",
     )
-    again = dr.rank_designs(by_identity, [_guess_candidate("cand-1", 0.75)], signal=_signal_spec())
+    again = dr.rank_designs(
+        [_guess_candidate("cand-1", 0.75)], decision=by_identity, signal=_signal_spec()
+    )
     assert again.decision_contract_identity == o.result.contract_identity
 
 

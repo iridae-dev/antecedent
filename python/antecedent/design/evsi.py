@@ -1,27 +1,27 @@
-"""Value of sample information, external candidate signals and a durable design ranking.
+"""Decision problems, candidate signals and the durable value-of-information artifact.
 
-A decision names its terminal actions and a utility affine in one scalar state; a candidate
-study names the signal it would produce. Each candidate's signal comes from a
-:class:`SignalProvider` declaration: a native :class:`GaussianMeanSignal` or
+A :class:`DesignDecision` names its terminal actions and a utility affine in one scalar
+state; a candidate study names the signal it would produce. Each candidate's signal comes
+from a :class:`SignalProvider` declaration: a native :class:`GaussianMeanSignal` or
 :class:`BinomialSignal`, or an :class:`ExternalSignal` that carries *attested* values (a
 predictive likelihood Antecedent updates natively, a posterior computed elsewhere, or
 per-branch decision values) and the name of the party attesting them::
 
-    decision = design_ranking.Decision(
+    decision = design.DesignDecision(
         contract=contract,                       # a decision.Contract or its identity string
         actions=(ActionUtility("guess0", 1.0, -1.0), ActionUtility("guess1", 0.0, 1.0)),
-        prior=design_ranking.Prior.draws([0.0, 1.0]),
+        prior=design.StatePrior.draws([0.0, 1.0]),
         utility_units="utility",
     )
-    ranked = design_ranking.rank_designs(
-        decision,
+    ranked = design.rank_designs(
         [Candidate("cand-1", 1, ExternalSignal(...), cost=0.1, cost_unit="utility")],
-        signal=design_ranking.SignalSpec(...),
-        cost_map=design_ranking.CostMap("utility", "utility", 1.0),
+        decision=decision,
+        signal=design.SignalSpec(...),
+        cost_map=design.CostMap("utility", "utility", 1.0),
     )
     ranked.candidates[0].net_value               # EVSI minus the study cost in utility units
     data = ranked.export()                       # the durable design_ranking_v1 artifact
-    design_ranking.consume(data, expected=ranked.expectation())
+    design.consume(data, expected=ranked.expectation())
 
 Rust owns the exact signal request fingerprint, the provider binding, the preposterior
 integration, source-overlap and cost-unit checks, the artifact identity, independent
@@ -43,26 +43,24 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal
 
-from ._native import composition_lineage as _composition_lineage
-from ._native import consume_design_ranking as _consume
-from ._native import evaluate_design_ranking as _evaluate
-from ._native import rank_structural_designs as _rank_structural
-from .decision import Contract
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
-from .external import LineageLink
-from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .._native import composition_lineage as _composition_lineage
+from .._native import consume_design_ranking as _consume
+from ..decision import Contract
+from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..external import LineageLink
+from ..joint_distribution import JointDistributionArtifact, ScientificQuantity
+from .plans import PLAN_TYPES, DesignPlan
 
 CALIBRATION: Literal["unmeasured"] = "unmeasured"
-#: Identity of the reported ranking within :attr:`DesignRankingResult.lineage`.
+#: Identity of the reported ranking within the result's ``lineage``.
 RESULT_LINK_ID = "design_ranking_result"
 ARTIFACT_KIND = "design_ranking_v1"
 TrustLabel = Literal["native_licensed", "externally_attested", "exact_request_verified"]
 UpdateMode = Literal["native_update", "external_posterior", "external_decision_values"]
 Integration = Literal["exact", "monte_carlo", "externally_computed"]
-Basis = Literal["evsi", "net_value", "structural_sufficiency_cost"]
 
 
 class DesignRankingRefusal(CausalUnsupportedError):
@@ -129,7 +127,11 @@ def _matrix(rows: Sequence[Sequence[float]], what: str) -> list[list[float]]:
 
 @dataclass(frozen=True, slots=True)
 class ActionUtility:
-    """One terminal action with utility ``intercept + slope * state``."""
+    """One terminal action with utility ``intercept + slope * state``.
+
+    This is the design-ranking declaration of an action's utility; the action itself is
+    declared in the decision contract (:class:`antecedent.decision.Action`).
+    """
 
     id: str
     intercept: float
@@ -137,8 +139,12 @@ class ActionUtility:
 
 
 @dataclass(frozen=True, slots=True)
-class Prior:
-    """The belief about the scalar decision state: equally weighted draws or a normal."""
+class StatePrior:
+    """The belief about the scalar decision state: equally weighted draws or a normal.
+
+    Not to be confused with :class:`~antecedent.design.StructurePrior`, the weights over
+    causal structures used by the identification ranking.
+    """
 
     kind: Literal["draws", "normal"]
     states: tuple[float, ...] = ()
@@ -146,12 +152,12 @@ class Prior:
     variance: float | None = None
 
     @classmethod
-    def draws(cls, states: Sequence[float]) -> Prior:
+    def draws(cls, states: Sequence[float]) -> StatePrior:
         """Equally weighted draws; any signal family is supported."""
         return cls("draws", states=tuple(_floats(states, "prior draws")))
 
     @classmethod
-    def normal(cls, mean: float, variance: float) -> Prior:
+    def normal(cls, mean: float, variance: float) -> StatePrior:
         """Conjugate normal belief; needs a :class:`GaussianMeanSignal` and no constraints."""
         return cls("normal", mean=float(mean), variance=float(variance))
 
@@ -162,7 +168,7 @@ class Prior:
 
 
 @dataclass(frozen=True, slots=True)
-class Decision:
+class DesignDecision:
     """The decision problem a study's information is valued for.
 
     ``contract`` is a :class:`antecedent.decision.Contract` (its ``identity`` and
@@ -173,17 +179,17 @@ class Decision:
 
     contract: Contract | str
     actions: tuple[ActionUtility, ...]
-    prior: Prior
+    prior: StatePrior
     utility_units: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.contract, (Contract, str)):
             raise CausalTypeError("contract must be a decision.Contract or its identity string")
-        if not isinstance(self.prior, Prior):
-            raise CausalTypeError("prior must be a design_ranking.Prior")
+        if not isinstance(self.prior, StatePrior):
+            raise CausalTypeError("prior must be a design.StatePrior")
         object.__setattr__(self, "actions", tuple(self.actions))
         if not all(isinstance(action, ActionUtility) for action in self.actions):
-            raise CausalTypeError("actions must contain design_ranking.ActionUtility values")
+            raise CausalTypeError("actions must contain design.ActionUtility values")
 
     def _identity(self) -> str:
         return self.contract if isinstance(self.contract, str) else str(self.contract.identity)
@@ -227,8 +233,8 @@ class Decision:
         explicitly named ``state`` functional. The source's standing and calibration
         remain descriptive; replay issues no native execution authority.
         """
-        from ._native import export_rollout as _export_rollout
-        from .decision import source_digest
+        from .._native import export_rollout as _export_rollout
+        from ..decision import source_digest
 
         if not isinstance(source, JointDistributionArtifact) or not isinstance(
             state, ScientificQuantity
@@ -316,7 +322,7 @@ class RolloutResult:
     @property
     def ranking(self) -> ConsumedRanking:
         """Independently consumed original ranking behind this verified source handoff."""
-        from ._native import rollout_ranking
+        from .._native import rollout_ranking
 
         return consume(bytes(rollout_ranking(self._bytes, self._expectation_json)))
 
@@ -352,7 +358,7 @@ def _rollout_result(report: str, data: bytes) -> RolloutResult:
 
 def consume_rollout(data: bytes, *, expected: Mapping[str, Any]) -> RolloutResult:
     """Replay the original source/ranking under independently retained full inputs."""
-    from ._native import consume_rollout as _consume_rollout
+    from .._native import consume_rollout as _consume_rollout
 
     if len(data) > 32 * 1024 * 1024:
         raise CausalValueError("rollout artifact exceeds its byte bound")
@@ -550,7 +556,10 @@ class Candidate:
 
     ``cost`` is in ``cost_unit``; it is compared with the EVSI only through a
     :class:`CostMap`. ``reused_observations`` names existing observations the study would
-    reuse; any shared with the prior's observations refuses.
+    reuse; any shared with the prior's observations refuses. ``plan`` optionally ties the
+    study to a structural plan (:class:`~antecedent.design.Measurement` and the like): with a
+    ``prior=`` structure prior, :func:`~antecedent.design.rank_designs` reports the plan's
+    identification probability as a gate on the value ranking.
     """
 
     id: str
@@ -560,14 +569,19 @@ class Candidate:
     cost_unit: str = "utility"
     signal: SignalSpec | None = None
     reused_observations: tuple[str, ...] = ()
+    plan: DesignPlan | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "reused_observations", tuple(self.reused_observations))
+        if self.plan is not None and not isinstance(self.plan, PLAN_TYPES):
+            raise CausalTypeError(
+                "plan must be a design.Measurement, Experiment, Environment or Sampling"
+            )
 
 
 @dataclass(frozen=True, slots=True)
 class MonteCarlo:
-    """Monte Carlo ranking configuration used when a signal has no exact integration."""
+    """Monte Carlo configuration, used when a value or probability has no exact integral."""
 
     min_batches: int = 4
     max_batches: int = 64
@@ -646,13 +660,18 @@ class CandidateValue:
     trust_limit: str
 
     @property
+    def score(self) -> float:
+        """The ranking score: the net value under a cost map, otherwise the EVSI."""
+        return self.net_value if self.net_value is not None else self.evsi
+
+    @property
     def claim(self) -> str:
         """``point_only`` for an exact or externally computed value; no coverage is claimed."""
         return "monte_carlo_estimate" if self.integration.method == "monte_carlo" else "point_only"
 
 
 @dataclass(frozen=True, slots=True)
-class SearchReceipt:
+class DesignSearchReceipt:
     """How much of the catalog was evaluated; a truncated search never claims the rest."""
 
     supplied: int
@@ -727,122 +746,6 @@ def _candidate_from_wire(c: Mapping[str, Any], replay: Mapping[str, Any]) -> Can
 
 
 @dataclass(frozen=True, slots=True)
-class DesignRankingResult:
-    """Candidates ranked by net value (with a cost map) or by EVSI, best first.
-
-    ``identity`` is invariant to the order the candidates were supplied in. The result was
-    independently recomputed by the consumer before it was returned: each candidate's
-    ``replay`` and ``natively_replayed`` say how much of its value was recomputed.
-    """
-
-    candidates: tuple[CandidateValue, ...]
-    basis: Literal["evsi", "net_value"]
-    decision_contract_identity: str
-    utility_unit: str
-    action_ids: tuple[str, ...]
-    bayes_action: str
-    prior_expected_utility: float
-    evpi: float
-    cost_map: CostMap | None
-    rng_seed: int
-    source_digests: tuple[str, ...]
-    ties: tuple[tuple[str, str], ...]
-    search: SearchReceipt
-    identity: str
-    ranking_identity: str
-    calibration: Literal["unmeasured"]
-    _bytes: bytes = field(repr=False)
-
-    def candidate(self, candidate_id: str) -> CandidateValue:
-        """The candidate with this semantic id."""
-        for item in self.candidates:
-            if item.id == candidate_id:
-                return item
-        raise CausalValueError(f"no candidate {candidate_id!r} in this ranking")
-
-    def export(self) -> bytes:
-        """The versioned ``design_ranking_v1`` artifact."""
-        return self._bytes
-
-    @property
-    def lineage(self) -> tuple[LineageLink, ...]:
-        """Derivation chain behind the ranking, parents before children.
-
-        The decision contract, each source distribution digest, each external signal
-        provider object, each candidate's study-ranking signal (named by its signal
-        identity) and the ``design_ranking_result`` claim. Rust derives the same chain
-        from the sealed artifact (``DesignRankingArtifactWire::provenance_chain``); the
-        digests of these rows come from the same native chain function, so a changed
-        contract, source, provider, signal law or request changes the digest of every
-        link downstream of it.
-        """
-        decision_id = f"decision:{self.decision_contract_identity}"
-        rows: list[list[Any]] = [[decision_id, "decision_contract", []]]
-        result_parents = [decision_id]
-        for digest in sorted(set(self.source_digests)):
-            source_id = f"distribution:{digest}"
-            rows.append([source_id, "distribution_artifact", []])
-            result_parents.append(source_id)
-        seen_providers: set[str] = set()
-        for candidate in sorted(self.candidates, key=lambda item: item.id):
-            parents = [decision_id]
-            provider = candidate.provider
-            if provider is not None:
-                provider_id = (
-                    f"provider:signal:{provider.provider_id}/{provider.object_id}"
-                    f"@{provider.version_id}#{provider.snapshot_id}"
-                )
-                if provider_id not in seen_providers:
-                    seen_providers.add(provider_id)
-                    rows.append([provider_id, "external_provider", []])
-                parents.append(provider_id)
-            signal_id = f"signal:{candidate.id}:{candidate.signal_identity}"
-            rows.append([signal_id, "study_ranking_provider", parents])
-            result_parents.append(signal_id)
-        rows.append([RESULT_LINK_ID, "claim", result_parents])
-        return tuple(
-            LineageLink(
-                item["id"],
-                item["stage"],
-                tuple(item["parents"]),
-                item["digest"],
-                tuple(item["parent_digests"]),
-            )
-            for item in json.loads(_composition_lineage(json.dumps(rows)))
-        )
-
-    def stages_behind(self, link: str = RESULT_LINK_ID) -> frozenset[str]:
-        """Stages standing behind ``link`` (default: the reported ranking)."""
-        by_id = {item.id: item for item in self.lineage}
-        if link not in by_id:
-            raise CausalValueError(f"unknown lineage link {link!r}")
-        seen: set[str] = set()
-        stack = [link]
-        while stack:
-            current = stack.pop()
-            if current not in seen:
-                seen.add(current)
-                stack.extend(by_id[current].parents)
-        return frozenset(by_id[item].stage for item in seen)
-
-    def expectation(self) -> Expectation:
-        """The identities a consumer would retain from this result."""
-        return Expectation(
-            artifact_identity=self.identity,
-            decision_contract_identity=self.decision_contract_identity,
-            signal_identities={c.id: c.signal_identity for c in self.candidates},
-            source_digests=self.source_digests,
-            cost_map=self.cost_map,
-            no_cost_map=self.cost_map is None,
-        )
-
-    @classmethod
-    def consume(cls, data: bytes, *, expected: Expectation | None = None) -> ConsumedRanking:
-        """Consume an exported artifact by recomputation; see :func:`consume`."""
-        return consume(data, expected=expected)
-
-
-@dataclass(frozen=True, slots=True)
 class ConsumedEntry:
     """One ranked candidate as recovered and checked by an independent consumer."""
 
@@ -878,14 +781,14 @@ class ConsumedRanking:
     rng_seed: int
     source_digests: tuple[str, ...]
     entries: tuple[ConsumedEntry, ...]
-    search: SearchReceipt
+    search: DesignSearchReceipt
     calibration: Literal["unmeasured"]
     #: Checked derivation chain, retained independently of the original provider.
     lineage: tuple[LineageLink, ...] = ()
 
 
-def _search(wire: Mapping[str, Any]) -> SearchReceipt:
-    return SearchReceipt(
+def _search(wire: Mapping[str, Any]) -> DesignSearchReceipt:
+    return DesignSearchReceipt(
         supplied=int(wire["supplied"]),
         evaluated=int(wire["evaluated"]),
         truncated=bool(wire["truncated"]),
@@ -897,6 +800,19 @@ def _cost_map(wire: Mapping[str, Any] | None) -> CostMap | None:
     if wire is None:
         return None
     return CostMap(wire["cost_unit"], wire["utility_unit"], float(wire["utility_per_cost"]))
+
+
+def _links(rows: Any) -> tuple[LineageLink, ...]:
+    return tuple(
+        LineageLink(
+            item["id"],
+            item["stage"],
+            tuple(item["parents"]),
+            item["digest"],
+            tuple(item["parent_digests"]),
+        )
+        for item in json.loads(_composition_lineage(json.dumps(rows)))
+    )
 
 
 def _consumed_from_wire(wire: Mapping[str, Any]) -> ConsumedRanking:
@@ -934,31 +850,40 @@ def _consumed_from_wire(wire: Mapping[str, Any]) -> ConsumedRanking:
         entries=entries,
         search=_search(wire["search"]),
         calibration=wire["calibration"],
-        lineage=tuple(
-            LineageLink(
-                item["id"],
-                item["stage"],
-                tuple(item["parents"]),
-                item["digest"],
-                tuple(item["parent_digests"]),
-            )
-            for item in json.loads(_composition_lineage(json.dumps(wire["lineage"])))
-        ),
+        lineage=_links(wire["lineage"]),
     )
 
 
-def consume(data: bytes, *, expected: Expectation | None = None) -> ConsumedRanking:
+def consume(
+    data: bytes,
+    *,
+    expected: Expectation | None = None,
+    skip_expectation_check: bool = False,
+) -> ConsumedRanking:
     """Consume an exported ranking by independent recomputation.
 
     A native exact-integration signal has its law rebuilt and its EVSI, EVPI and net value
     recomputed; an external likelihood or posterior has only the arithmetic recomputed from
     the retained attested table; external decision values are only checked for coherence and
     combined; a Monte Carlo value is bound but not re-simulated. Only the first is
-    ``natively_replayed``. ``expected`` carries identities retained independently of the
-    bytes; a changed signal, update mode, source digest, cost mapping or contract refuses even
-    when the artifact was resealed. Corruption, truncation and unknown versions raise
+    ``natively_replayed``. Corruption, truncation and unknown versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
+
+    ``expected`` carries identities retained independently of the bytes (build one with
+    ``result.expectation()`` or :class:`Expectation`); a changed signal, update mode, source
+    digest, cost mapping or contract refuses even when the artifact was resealed. Without it
+    the bytes are only checked against themselves, so a resealed artifact would be accepted:
+    pass ``skip_expectation_check=True`` to say that is intended. Supplying neither, or both,
+    raises :class:`~antecedent.errors.CausalValueError`.
     """
+    if expected is None and not skip_expectation_check:
+        raise CausalValueError(
+            "consume needs expected=<design.Expectation> (e.g. result.expectation()) to check "
+            "the artifact against identities you retained; pass skip_expectation_check=True "
+            "to accept the artifact on its own seal"
+        )
+    if expected is not None and skip_expectation_check:
+        raise CausalValueError("pass expected= or skip_expectation_check=True, not both")
     expectation = expected._wire() if expected is not None else None
     consumed, refusal = _consume(
         bytes(data), json.dumps(expectation, allow_nan=False) if expectation is not None else None
@@ -969,7 +894,7 @@ def consume(data: bytes, *, expected: Expectation | None = None) -> ConsumedRank
 
 
 def _request_wire(
-    decision: Decision,
+    decision: DesignDecision,
     candidates: Sequence[Candidate],
     *,
     signal: SignalSpec | None,
@@ -1015,169 +940,6 @@ def _request_wire(
     }
 
 
-def rank_designs(
-    decision: Decision,
-    candidates: Sequence[Candidate],
-    *,
-    signal: SignalSpec | None = None,
-    cost_map: CostMap | None = None,
-    require_net_value: bool = False,
-    prior_observations: Sequence[str] = (),
-    source_digests: Sequence[str] = (),
-    rng_seed: int = 0,
-    mc_error_tolerance: float = 1e-3,
-    tie_tolerance: float = 1e-12,
-    max_candidates: int = 1024,
-    monte_carlo: MonteCarlo | None = None,
-    artifact_id: str = "design-ranking",
-) -> DesignRankingResult:
-    """Rank candidate studies by EVSI, or by net value under an explicit ``cost_map``.
-
-    Every candidate's signal comes from its provider through the existing decision-regret
-    path; the ranking depends only on the candidate set, not the order supplied. Raises
-    :class:`DesignRankingRefusal` (or a subtype) for an incoherent or mismatched signal,
-    source overlap, an incompatible cost unit, a changed action set or a bound violation.
-    The search is bounded by ``max_candidates`` and a truncated search says so.
-
-    ``prior_observations`` are the identities of observations already summarized by the
-    prior; ``source_digests`` the digests of the source distributions behind the prior and
-    any external laws, bound into the identity.
-    """
-    if not candidates:
-        raise CausalValueError("rank_designs needs at least one candidate")
-    request = _request_wire(
-        decision,
-        list(candidates),
-        signal=signal,
-        cost_map=cost_map,
-        require_net_value=require_net_value,
-        prior_observations=prior_observations,
-        source_digests=source_digests,
-        rng_seed=rng_seed,
-        mc_error_tolerance=mc_error_tolerance,
-        tie_tolerance=tie_tolerance,
-        max_candidates=max_candidates,
-        monte_carlo=monte_carlo,
-    )
-    try:
-        text = json.dumps(request, allow_nan=False)
-    except ValueError as error:
-        raise CausalValueError("a declaration contains a non-finite number") from error
-    body, artifact, refusal = _evaluate(text, artifact_id)
-    _raise(refusal)
-    assert body is not None and artifact is not None
-    wire = json.loads(body)
-    data = bytes(artifact)
-    # The result is only returned after an independent reader recomputed it.
-    expectation = _consume(data, None)
-    _raise(expectation[1])
-    assert expectation[0] is not None
-    consumed = json.loads(expectation[0])
-    replays = {e["semantic_id"]: e for e in consumed["entries"]}
-    action_ids = tuple(wire["decision"]["action_ids"])
-    return DesignRankingResult(
-        candidates=tuple(
-            _candidate_from_wire(c, replays[c["semantic_id"]])
-            for c in sorted(wire["candidates"], key=lambda c: int(c["rank"]))
-        ),
-        basis=wire["basis"],
-        decision_contract_identity=wire["decision"]["contract_identity"],
-        utility_unit=wire["decision"]["utility_unit"],
-        action_ids=action_ids,
-        bayes_action=action_ids[int(wire["bayes_action"])],
-        prior_expected_utility=float(wire["prior_expected_utility"]),
-        evpi=float(wire["evpi"]),
-        cost_map=_cost_map(wire["cost_map"]),
-        rng_seed=int(wire["rng_seed"]),
-        source_digests=tuple(sorted(set(wire["source_digests"]))),
-        ties=tuple((a, b) for a, b in wire["ties"]),
-        search=_search(wire["search"]),
-        identity=wire["digest"],
-        ranking_identity=wire["ranking_identity"],
-        calibration=wire["calibration"],
-        _bytes=data,
-    )
-
-
-def evsi(
-    decision: Decision,
-    candidate: Candidate,
-    **options: Any,
-) -> CandidateValue:
-    """The expected value of sample information of one candidate study.
-
-    Equivalent to ``rank_designs(decision, [candidate], **options).candidates[0]``: the same
-    request, receipt and refusals, with EVPI as the upper bound, the integration method and
-    its error, and the provider trust label.
-    """
-    return rank_designs(decision, [candidate], **options).candidates[0]
-
-
-@dataclass(frozen=True, slots=True)
-class StructuralCandidate:
-    """A candidate with a verified structural verdict, for the no-model ordering."""
-
-    id: str
-    verified_sufficient: bool
-    cost_units: int
-    sample_budget: int = 0
-
-
-@dataclass(frozen=True, slots=True)
-class StructuralEntry:
-    """One structurally ranked candidate."""
-
-    id: str
-    rank: int
-    verified_sufficient: bool
-    cost_units: int
-    sample_budget: int
-
-
-@dataclass(frozen=True, slots=True)
-class StructuralRanking:
-    """The preserved 2.2 ordering: verified sufficiency, then cost units, budget, id."""
-
-    entries: tuple[StructuralEntry, ...]
-    identity: str
-    basis: Literal["structural_sufficiency_cost"] = "structural_sufficiency_cost"
-
-
-def rank_structural(candidates: Sequence[StructuralCandidate]) -> StructuralRanking:
-    """Order candidates when no probabilistic model is licensed.
-
-    Verified structural sufficiency first, then fewer cost units, then a smaller sample
-    budget, then the semantic id; invariant to input order. This is not a value of
-    information: it never reports an EVSI.
-    """
-    wire = [
-        {
-            "semantic_id": c.id,
-            "verified_sufficient": bool(c.verified_sufficient),
-            "cost_units": int(c.cost_units),
-            "sample_budget": int(c.sample_budget),
-        }
-        for c in candidates
-    ]
-    body, refusal = _rank_structural(json.dumps(wire))
-    _raise(refusal)
-    assert body is not None
-    parsed = json.loads(body)
-    return StructuralRanking(
-        entries=tuple(
-            StructuralEntry(
-                id=e["semantic_id"],
-                rank=int(e["rank"]),
-                verified_sufficient=bool(e["verified_sufficient"]),
-                cost_units=int(e["cost_units"]),
-                sample_budget=int(e["sample_budget"]),
-            )
-            for e in parsed["entries"]
-        ),
-        identity=parsed["identity"],
-    )
-
-
 __all__ = [
     "RolloutResult",
     "consume_rollout",
@@ -1192,28 +954,21 @@ __all__ = [
     "ConsumedRanking",
     "CostMap",
     "CostUnitsRefusal",
-    "Decision",
+    "DesignDecision",
     "DesignRankingRefusal",
-    "DesignRankingResult",
+    "DesignSearchReceipt",
     "Expectation",
     "ExternalLaw",
     "ExternalSignal",
     "GaussianMeanSignal",
     "IntegrationReport",
     "MonteCarlo",
-    "Prior",
     "ProviderIdentity",
-    "SearchReceipt",
     "SignalProvider",
     "SignalProviderRefusal",
     "SignalSpec",
     "SourceOverlapDiagnostics",
     "SourceOverlapRefusal",
-    "StructuralCandidate",
-    "StructuralEntry",
-    "StructuralRanking",
+    "StatePrior",
     "consume",
-    "evsi",
-    "rank_designs",
-    "rank_structural",
 ]

@@ -135,7 +135,7 @@ def main() -> None:
     assert consumed.claim_label == "point_only_attested"
 
     files = {
-        PY_BUNDLE: bundle.export("composition-bundle"),
+        PY_BUNDLE: bundle.export(artifact_id="composition-bundle"),
         PY_IDENTITY: identity_document(bundle),
     }
     for name, data in files.items():

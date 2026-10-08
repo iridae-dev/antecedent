@@ -50,7 +50,7 @@ import pytest
 from antecedent import composition as comp
 from antecedent import composition_bundle as cb
 from antecedent import decision, external, program_claims, recalc
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent.joint_distribution import JointDistributionArtifact
 from antecedent.recalc import (
     Capabilities,

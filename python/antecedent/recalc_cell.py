@@ -47,7 +47,12 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
-from .errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
+from .errors import (
+    CausalSerializationError,
+    CausalTypeError,
+    CausalUnsupportedError,
+    CausalValueError,
+)
 from .recalc import (
     Decision,
     Law,
@@ -68,6 +73,8 @@ from .recalc import (
 ARTIFACT_KIND = "frozen_scores_v1"
 
 Quantity = Literal["interaction", "average_effect", "cell_minus_control"]
+"""The scalar a cell-AIPW law reports: the ``interaction`` contrast of the joint treatments,
+the ``average_effect`` of one treatment, or one ``cell_minus_control`` contrast (set ``arm``)."""
 _QUANTITIES = ("interaction", "average_effect", "cell_minus_control")
 _UNAVAILABLE = frozenset(
     {"recalc.unavailable_fit", "recalc.unavailable_data", "recalc.unavailable_provider"}
@@ -620,9 +627,9 @@ class ScoreResumeSession:
 def resume_from_scores(
     data: bytes | FrozenScores,
     *,
-    variables: Sequence[str],
-    edges: Sequence[tuple[str, str]],
-    utility: Utility,
+    variables: Sequence[str] | None = None,
+    edges: Sequence[tuple[str, str]] | None = None,
+    utility: Utility | None = None,
     quantity: Quantity = "interaction",
     arm: int | None = None,
     expected_identity: str | None = None,
@@ -636,10 +643,28 @@ def resume_from_scores(
     caller retained independently; an artifact with another identity is refused.
 
     Raises:
+        CausalTypeError: ``data`` is not bytes or :class:`FrozenScores`, or ``variables``,
+            ``edges`` or ``utility`` (all required) were not given.
         ScoreResumeRefusal: ``frozen_scores.identity_mismatch`` for another identity.
         CausalSerializationError: corrupt, oversized, malformed or unsupported-version bytes.
     """
-    raw = data.export() if isinstance(data, FrozenScores) else bytes(data)
+    if isinstance(data, FrozenScores):
+        raw = data.export()
+    elif isinstance(data, (bytes, bytearray, memoryview)):
+        raw = bytes(data)
+    else:
+        raise CausalTypeError("data must be the artifact bytes or a FrozenScores")
+    missing = [
+        name
+        for name, value in (("variables", variables), ("edges", edges), ("utility", utility))
+        if value is None
+    ]
+    if missing or variables is None or edges is None or utility is None:
+        raise CausalTypeError(
+            "resume_from_scores needs the original workflow, which the artifact does not hold: "
+            f"pass {', '.join(f'{name}=' for name in missing)} "
+            "(variables= column names in order, edges= the graph edges, utility= the Utility)"
+        )
     handle = _resume_handle(raw, expected_identity)
     return ScoreResumeSession(
         handle, variables=variables, edges=edges, utility=utility, quantity=quantity, arm=arm

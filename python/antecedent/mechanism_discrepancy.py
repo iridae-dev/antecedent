@@ -3,7 +3,7 @@
 A Wald test of the null that the conditional mechanism of one node ``V`` given its parents is
 the same in a source and a target population, from comparable measurements::
 
-    result = mechanism_discrepancy(
+    result = diagnose_mechanism_discrepancy(
         source=Sample("source", outcome=y_s, parents={"x": x_s}),
         target=Sample("target", outcome=y_t, parents={"x": x_t}),
         measurement=Measurement("V", "mg", parents=[("x", "cm")], protocol_id="protocol-1"),
@@ -43,14 +43,14 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from ._native import mechanism_discrepancy_consume as _consume
 from ._native import mechanism_discrepancy_run as _run
 from ._native import mechanism_discrepancy_summarize as _summarize
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
     "CoefficientDiscrepancy",
@@ -60,34 +60,37 @@ __all__ = [
     "PopulationFit",
     "Sample",
     "SufficientStatistics",
-    "mechanism_discrepancy",
+    "diagnose_mechanism_discrepancy",
 ]
 
 _ARTIFACT_ID = "mechanism-discrepancy"
 _DEPENDENCES = ("independent", "shared_units", "unknown")
 
 
-class MechanismDiscrepancyRefusal(CausalUnsupportedError):
+class _HasTolist(Protocol):
+    def tolist(self) -> list[float]:
+        """The column as a plain list."""
+        ...
+
+
+#: A numeric column: a sequence of numbers or an array exposing ``tolist``.
+Column = Sequence[float] | _HasTolist
+
+
+class MechanismDiscrepancyRefusal(StructuredRefusal):
     """A mechanism discrepancy refusal carrying the structured Rust fields.
 
-    ``reason_code`` is registered. ``detail`` is the namespaced
+    A :class:`~antecedent.errors.StructuredRefusal`: ``code``, ``detail``, ``offending`` and
+    ``remedy`` are machine-readable. ``reason_code`` is registered. ``detail`` is the namespaced
     ``mechanism_discrepancy.<slot>``; ``message`` is the human-readable context. Typical details:
     ``incomparable_measurements`` (a different node, variable set, unit or protocol id, or a blank
     declaration; ``route_not_supported``), ``dependence_unknown`` (shared units or an unknown
     dependence; ``route_not_supported``), ``wrong_contract`` (a consumed artifact whose identity
     differs from the retained one), ``rank_deficient_design``, ``degenerate_covariance``,
     ``sample_too_small``, ``non_finite_value``, ``row_count_mismatch``, ``inconsistent_summary``,
-    ``invalid_alpha``, ``invalid_power`` and ``no_compared_coefficients`` (``invalid_argument``).
+    ``invalid_alpha``, ``invalid_power`` and ``no_compared_coefficients`` (``invalid_argument``,
+    which is also a :class:`~antecedent.errors.CausalValueError`).
     """
-
-    def __init__(self, refusal: Mapping[str, Any]) -> None:
-        message = str(refusal.get("message") or "")
-        detail = str(refusal["detail"])
-        super().__init__(
-            detail + (f": {message}" if message else ""), reason_code=str(refusal["code"])
-        )
-        self.detail: str = detail
-        self.message: str = message
 
 
 def _raise(refusal: str | None) -> None:
@@ -199,19 +202,27 @@ class SufficientStatistics:
 
 @dataclass(frozen=True, slots=True)
 class Sample:
-    """One population: raw rows (``outcome`` and ``parents``) or summary ``statistics``.
+    """One population: raw columns (``outcome`` and ``parents``) or summary ``statistics``.
 
-    ``parents`` maps each parent name to its column; the columns must have one value per
-    ``outcome`` row and the names must equal the measurement's parent names. ``unit_ids`` are
+    There is no ``rows=`` argument: give the columns, not a list of row records. ``outcome`` is
+    one numeric column and ``parents`` maps each parent name to its numeric column::
+
+        Sample("source", outcome=y, parents={"x": x})
+        Sample.from_rows("source", [(y0, {"x": x0}), (y1, {"x": x1})], ...)
+
+    The columns must have one value per ``outcome`` row and the names must equal the
+    measurement's parent names. :meth:`from_rows` builds the columns from ``(outcome,
+    {parent: value})`` row records and :meth:`from_summary` from sufficient statistics.
+    ``unit_ids`` are
     optional row identities used only to detect shared units: a common id between the source and
     the target refuses (``dependence_unknown``). ``measurement`` optionally overrides the
-    measurement contract passed to :func:`mechanism_discrepancy` for this population (for
-    example to declare the population's own units).
+    measurement contract passed to :func:`diagnose_mechanism_discrepancy` for this population
+    (for example to declare the population's own units).
     """
 
     label: str
-    outcome: Any = None
-    parents: Mapping[str, Any] | None = None
+    outcome: Column | None = None
+    parents: Mapping[str, Column] | None = None
     unit_ids: Sequence[str] | None = None
     statistics: SufficientStatistics | None = None
     measurement: Measurement | None = None
@@ -239,6 +250,46 @@ class Sample:
                 raise CausalTypeError("unit_ids must be strings")
 
     @classmethod
+    def from_rows(
+        cls,
+        label: str,
+        rows: Iterable[tuple[float, Mapping[str, float]]],
+        *,
+        unit_ids: Sequence[str] | None = None,
+        measurement: Measurement | None = None,
+    ) -> Sample:
+        """A population given as ``(outcome, {parent: value})`` row records.
+
+        Every row must name the same parents; the records are transposed into the
+        ``outcome`` and ``parents`` columns of the constructor.
+        """
+        records = list(rows)
+        if not records:
+            raise CausalValueError("from_rows needs at least one (outcome, parents) row")
+        names: list[str] | None = None
+        outcome: list[float] = []
+        columns: dict[str, list[float]] = {}
+        for record in records:
+            if not isinstance(record, tuple) or len(record) != 2:
+                raise CausalTypeError("every row is an (outcome, {parent: value}) pair")
+            value, parent_values = record
+            if not isinstance(parent_values, Mapping):
+                raise CausalTypeError("every row's parents must be a mapping of name to value")
+            if names is None:
+                names = list(parent_values)
+                columns = {name: [] for name in names}
+            elif set(parent_values) != set(names):
+                raise CausalValueError(
+                    f"rows disagree on parents: {sorted(parent_values)} vs {sorted(names)}"
+                )
+            outcome.append(_number("outcome", value))
+            for name in names:
+                columns[name].append(_number(f"parent {name!r}", parent_values[name]))
+        return cls(
+            label, outcome=outcome, parents=columns, unit_ids=unit_ids, measurement=measurement
+        )
+
+    @classmethod
     def from_summary(
         cls,
         label: str,
@@ -264,7 +315,8 @@ class Sample:
             stats = self.statistics
             n, xtx, xty, yty = stats.n, list(stats.xtx), list(stats.xty), stats.yty
         else:
-            assert self.parents is not None
+            if self.parents is None:  # pragma: no cover - validated in __post_init__
+                raise CausalValueError("raw rows need both outcome and parents")
             names = declared.parent_names
             if set(self.parents) != set(names):
                 raise CausalValueError(
@@ -281,7 +333,8 @@ class Sample:
                 [_floats(f"parent {name!r}", self.parents[name]) for name in names],
             )
             _raise(refusal)
-            assert text is not None
+            if text is None:  # pragma: no cover - the native contract
+                raise CausalValueError("the native summary returned neither a result nor a refusal")
             summary = json.loads(text)
             n, xtx, xty, yty = (
                 int(summary["n"]),
@@ -493,7 +546,8 @@ class MechanismDiscrepancyResult:
             data, None if expected_identity is None else json.dumps(dict(expected_identity))
         )
         _raise(refusal)
-        assert text is not None
+        if text is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native consumer returned neither a result nor a refusal")
         return cls._from_report(json.loads(text), data)
 
     def __repr__(self) -> str:
@@ -516,7 +570,7 @@ def _declared(sample: Sample, shared: Measurement | None, role: str) -> Measurem
     return declared
 
 
-def mechanism_discrepancy(
+def diagnose_mechanism_discrepancy(
     *,
     source: Sample,
     target: Sample,
@@ -542,6 +596,15 @@ def mechanism_discrepancy(
     rank-deficient design, a sample with fewer than two residual degrees of freedom, a population
     that fits its mechanism exactly and non-finite values refuse with ``invalid_argument`` and
     their own detail. The result never certifies invariance on non-rejection.
+
+    Raises:
+        CausalTypeError: ``source`` / ``target`` are not :class:`Sample` values, or another
+            argument has the wrong type.
+        CausalValueError: ``dependence`` is not a known value, ``alpha`` / ``power`` are not
+            finite, a population has no measurement contract, or its parents do not match its
+            measurement.
+        MechanismDiscrepancyRefusal: the comparison is refused (see above); an
+            ``invalid_argument`` refusal is also a :class:`CausalValueError`.
     """
     if not isinstance(source, Sample) or not isinstance(target, Sample):
         raise CausalTypeError("source and target must be Sample values")
@@ -570,6 +633,6 @@ def mechanism_discrepancy(
         _ARTIFACT_ID,
     )
     _raise(refusal)
-    assert report is not None
-    assert data is not None
+    if report is None or data is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native diagnostic returned neither a result nor a refusal")
     return MechanismDiscrepancyResult._from_report(json.loads(report), data)

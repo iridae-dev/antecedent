@@ -26,6 +26,8 @@ from .recalc_temporal import TemporalSession
 
 
 class Family(StrEnum):
+    """One of the six prepared recalculation families (an analysis route with its own session)."""
+
     ADJUSTED = "adjusted_regression"
     DOUBLY_ROBUST = "doubly_robust_effects"
     STATIC = "static_response_transport"
@@ -36,6 +38,8 @@ class Family(StrEnum):
 
 
 class Operation(StrEnum):
+    """A change a caller can ask a recalculation to make, named by what it alters."""
+
     UTILITY = "utility"
     FUNCTIONAL = "contrast_functional"
     TARGET = "target_weights_law"
@@ -49,6 +53,8 @@ class Operation(StrEnum):
 
 
 class RetainedKind(StrEnum):
+    """The kind of state a family retains between calls, which decides what it can reuse."""
+
     READABLE = "readable_result"
     LIVE_SCORES = "live_score_session"
     LIVE_FIT = "live_adjusted_fit"

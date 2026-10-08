@@ -22,7 +22,7 @@ never returns.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn
 
 from .._native import learned_joint_transport_closed as _learned_joint_transport_closed
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -31,9 +31,24 @@ from ._impl import _non_negative
 
 __all__ = ["learned_joint_transport"]
 
+GraphClass = Literal["fixed_dag", "admg", "graph_posterior"]
+#: Dependence between the source samples (``unknown`` and ``overlapping_units`` refuse).
+Dependence = Literal["independent_samples", "overlapping_units", "unknown"]
+#: Which coefficients vary by source.
+Varying = Literal["intercept", "intercept_and_covariates"]
+#: Whether the varying blocks of the sources are independent or one shared block.
+Sharing = Literal["independent_varying_blocks", "shared_varying_block"]
 _GRAPH_CLASSES = ("fixed_dag", "admg", "graph_posterior")
 _ROUTE = "antecedent.transport.learned_joint"
 _ROUTE_FROZEN = "learned_joint_transport.route_frozen"
+
+
+#: What a caller can do instead: the open point-estimate route of the same transport question.
+_REMEDY = (
+    "use the open learned point-estimate route antecedent.transport.advanced."
+    "prepare_learned_continuous (cross-fitted, interval withheld), or an identified closed-form "
+    "transport estimate; the learned joint posterior opens only when its coverage is measured"
+)
 
 
 def _frozen() -> CausalUnsupportedError:
@@ -41,6 +56,7 @@ def _frozen() -> CausalUnsupportedError:
     return CausalUnsupportedError(
         f"{_ROUTE_FROZEN}: {_ROUTE} is a closed route; calibration is unmeasured",
         reason_code="cell_not_licensed",
+        remedy=_REMEDY,
     )
 
 
@@ -65,10 +81,10 @@ def learned_joint_transport(
     target: Mapping[str, Any] | None,
     features: Sequence[str],
     graph: Admg | None = None,
-    graph_class: str = "fixed_dag",
-    dependence: str = "independent_samples",
-    varying: str = "intercept",
-    sharing: str = "independent_varying_blocks",
+    graph_class: GraphClass = "fixed_dag",
+    dependence: Dependence = "independent_samples",
+    varying: Varying = "intercept",
+    sharing: Sharing = "independent_varying_blocks",
     basis_degree: int = 2,
     draws: int = 4000,
     seed: int = 0,
@@ -107,15 +123,22 @@ def learned_joint_transport(
     _non_negative("basis_degree", basis_degree)
     _non_negative("draws", draws)
     _non_negative("seed", seed)
-    _learned_joint_transport_closed(
-        declared,
-        dependence,
-        varying,
-        sharing,
-        len(feature_names),
-        basis_degree,
-        len(sources),
-        target is not None and len(target) > 0,
-        draws,
-    )
+    try:
+        _learned_joint_transport_closed(
+            declared,
+            dependence,
+            varying,
+            sharing,
+            len(feature_names),
+            basis_degree,
+            len(sources),
+            target is not None and len(target) > 0,
+            draws,
+        )
+    except CausalUnsupportedError as error:
+        if getattr(error, "reason_code", None) == "cell_not_licensed" and not getattr(
+            error, "remedy", None
+        ):
+            error.remedy = _REMEDY
+        raise
     raise _frozen()

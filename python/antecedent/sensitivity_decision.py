@@ -51,7 +51,7 @@ from ._native import sensitivity_artifact_from_z_joint as _from_z_joint
 from ._native import sensitivity_contract as _contract
 from ._native import sensitivity_decide as _decide
 from .decision import Contract, StructuralPolicy
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import LineageLink
 from .joint_distribution import ScientificQuantity
 
@@ -65,10 +65,11 @@ PointSupport = Literal["supported", "unsupported", "unevaluated"]
 DecisionKind = Literal["invariant_action", "assumption_dependent", "no_robust_action", "unresolved"]
 
 
-class SensitivityRefusal(CausalUnsupportedError):
+class SensitivityRefusal(StructuredRefusal):
     """A sensitivity-decision refusal carrying the structured Rust fields.
 
-    ``reason_code`` is registered. ``detail`` is the namespaced
+    A :class:`~antecedent.errors.StructuredRefusal`: ``code``, ``detail``, ``offending`` and
+    ``remedy`` are machine-readable. ``reason_code`` is registered. ``detail`` is the namespaced
     ``sensitivity_decision_composition.<slot>`` (or the engine's own detail);
     ``message`` is the human-readable context. Typical details:
     ``composition_not_licensed`` (a sampling interval composed with the range),
@@ -81,10 +82,8 @@ class SensitivityRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         message = refusal.get("message") or refusal.get("offending") or ""
         text = str(refusal["detail"]) + (f": {message}" if message else "")
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = refusal.get("stage", "")
-        self.detail: str = refusal["detail"]
-        self.message: str = str(message)
+        super().__init__(refusal, text=text)
+        self.message = str(message)
 
 
 def _raise(refusal: str | None) -> None:

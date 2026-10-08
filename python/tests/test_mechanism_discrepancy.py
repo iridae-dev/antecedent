@@ -57,7 +57,7 @@ def _run(
     compare_intercept: bool = True,
     **kwargs: object,
 ) -> md.MechanismDiscrepancyResult:
-    return md.mechanism_discrepancy(
+    return md.diagnose_mechanism_discrepancy(
         source=_one_parent("source", source_y),
         target=_one_parent("target", target_y),
         measurement=_measurement(),
@@ -115,7 +115,7 @@ def test_b3_discrepancy_identical_fits_give_statistic_zero_exactly():
     assert not same.rejected
     # The same OLS fit from the rows in reverse order has identical sufficient statistics.
     reversed_rows = md.Sample("target", outcome=list(reversed(YS)), parents={"x": X[::-1]})
-    result = md.mechanism_discrepancy(
+    result = md.diagnose_mechanism_discrepancy(
         source=_one_parent("source", YS), target=reversed_rows, measurement=_measurement()
     )
     assert result.statistic == 0.0
@@ -164,7 +164,7 @@ def test_b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form():
 def test_b3_discrepancy_two_parent_statistic_matches_slope_block_algebra():
     source, measurement = _two_parents("source", Y6)
     target, _ = _two_parents("target", Y6_TARGET)
-    result = md.mechanism_discrepancy(
+    result = md.diagnose_mechanism_discrepancy(
         source=source, target=target, measurement=measurement, compare_intercept=False
     )
     assert result.source.coefficients == pytest.approx((0.75, 2.75, 0.75), abs=1e-9)
@@ -182,11 +182,11 @@ def test_b3_discrepancy_two_parent_statistic_matches_slope_block_algebra():
 def test_b3_discrepancy_parent_order_is_irrelevant():
     source, measurement = _two_parents("source", Y6)
     target, _ = _two_parents("target", Y6_TARGET)
-    base = md.mechanism_discrepancy(source=source, target=target, measurement=measurement)
+    base = md.diagnose_mechanism_discrepancy(source=source, target=target, measurement=measurement)
     permuted_source, permuted_measurement = _two_parents("source", Y6, ("b", "a"))
     permuted_target, _ = _two_parents("target", Y6_TARGET, ("b", "a"))
     # Each population may declare its own parent order; the test puts them in name order.
-    mixed = md.mechanism_discrepancy(
+    mixed = md.diagnose_mechanism_discrepancy(
         source=md.Sample("source", outcome=Y6, parents={"a": A, "b": B}, measurement=measurement),
         target=md.Sample(
             "target",
@@ -198,7 +198,7 @@ def test_b3_discrepancy_parent_order_is_irrelevant():
     assert mixed.coefficient_names == ("(intercept)", "a", "b")
     assert mixed.statistic == base.statistic
     assert mixed.coefficients == base.coefficients
-    both = md.mechanism_discrepancy(
+    both = md.diagnose_mechanism_discrepancy(
         source=permuted_source, target=permuted_target, measurement=permuted_measurement
     )
     assert both.coefficient_names == ("(intercept)", "a", "b")
@@ -276,7 +276,9 @@ def test_b3_discrepancy_summary_statistics_replay_the_raw_data_result():
     # X'X = [[4, 6], [6, 14]], X'y = [10, 19], y'y = 30 for the source; the target adds 0.5 + 0.5 x.
     source = md.Sample.from_summary("source", n=4, xtx=[[4, 6], [6, 14]], xty=[10, 19], yty=30.0)
     target = md.Sample.from_summary("target", n=4, xtx=[4, 6, 6, 14], xty=[15, 29], yty=66.5)
-    replay = md.mechanism_discrepancy(source=source, target=target, measurement=_measurement())
+    replay = md.diagnose_mechanism_discrepancy(
+        source=source, target=target, measurement=_measurement()
+    )
     assert replay.statistic == pytest.approx(raw.statistic, abs=1e-12)
     assert replay.p_value == pytest.approx(raw.p_value, abs=1e-12)
     for left, right in zip(replay.coefficients, raw.coefficients, strict=True):
@@ -285,7 +287,9 @@ def test_b3_discrepancy_summary_statistics_replay_the_raw_data_result():
     # An inconsistent summary (intercept sum of squares != n) refuses.
     broken = md.Sample.from_summary("target", n=4, xtx=[5, 6, 6, 14], xty=[15, 29], yty=66.5)
     _refusal(
-        lambda: md.mechanism_discrepancy(source=source, target=broken, measurement=_measurement()),
+        lambda: md.diagnose_mechanism_discrepancy(
+            source=source, target=broken, measurement=_measurement()
+        ),
         "invalid_argument",
         "inconsistent_summary",
     )
@@ -293,7 +297,7 @@ def test_b3_discrepancy_summary_statistics_replay_the_raw_data_result():
 
 def test_b3_discrepancy_accepts_numpy_arrays():
     np = pytest.importorskip("numpy")
-    result = md.mechanism_discrepancy(
+    result = md.diagnose_mechanism_discrepancy(
         source=md.Sample("source", outcome=np.array(YS), parents={"x": np.array(X)}),
         target=md.Sample("target", outcome=np.array(YT_BOTH), parents={"x": np.array(X)}),
         measurement=_measurement(),
@@ -352,7 +356,7 @@ def test_b3_discrepancy_incomparable_measurements_refuse():
     }
     for name, target in cases.items():
         error = _refusal(
-            lambda target=target: md.mechanism_discrepancy(
+            lambda target=target: md.diagnose_mechanism_discrepancy(
                 source=source, target=target, measurement=_measurement()
             ),
             "route_not_supported",
@@ -374,7 +378,7 @@ def test_b3_discrepancy_dependence_must_be_declared_independent():
     shared_source = _one_parent("source", YS, unit_ids=["u1", "u2", "u3", "u4"])
     shared_target = _one_parent("target", YT_BOTH, unit_ids=["u9", "u3", "u8", "u7"])
     _refusal(
-        lambda: md.mechanism_discrepancy(
+        lambda: md.diagnose_mechanism_discrepancy(
             source=shared_source, target=shared_target, measurement=_measurement()
         ),
         "route_not_supported",
@@ -382,7 +386,7 @@ def test_b3_discrepancy_dependence_must_be_declared_independent():
     )
     # Disjoint ids are fine.
     disjoint = _one_parent("target", YT_BOTH, unit_ids=["t1", "t2", "t3", "t4"])
-    result = md.mechanism_discrepancy(
+    result = md.diagnose_mechanism_discrepancy(
         source=shared_source, target=disjoint, measurement=_measurement()
     )
     assert result.dependence == "independent"
@@ -393,7 +397,7 @@ def test_b3_discrepancy_degenerate_inputs_refuse():
     source = _one_parent("source", YS)
 
     def against(target: md.Sample, **kwargs: object) -> md.MechanismDiscrepancyResult:
-        return md.mechanism_discrepancy(
+        return md.diagnose_mechanism_discrepancy(
             source=source,
             target=target,
             measurement=_measurement(),
@@ -414,7 +418,7 @@ def test_b3_discrepancy_degenerate_inputs_refuse():
     _refusal(lambda: against(ragged), invalid, "row_count_mismatch")
     # Both populations fit exactly: the sampling variance is not estimable.
     _refusal(
-        lambda: md.mechanism_discrepancy(
+        lambda: md.diagnose_mechanism_discrepancy(
             source=_one_parent("source", [0.0, 1.0, 2.0, 3.0]),
             target=_one_parent("target", [1.0, 3.0, 5.0, 7.0]),
             measurement=_measurement(),
@@ -428,7 +432,7 @@ def test_b3_discrepancy_degenerate_inputs_refuse():
     # A parent-free node with the intercept excluded compares nothing.
     bare = md.Measurement("V", "mg", parents=[], protocol_id="protocol-1")
     _refusal(
-        lambda: md.mechanism_discrepancy(
+        lambda: md.diagnose_mechanism_discrepancy(
             source=md.Sample("source", outcome=YS, parents={}),
             target=md.Sample("target", outcome=YS, parents={}),
             measurement=bare,
@@ -443,22 +447,24 @@ def test_b3_discrepancy_validates_its_arguments_as_typed_errors():
     measurement = _measurement()
     source = _one_parent("source", YS)
     with pytest.raises(CausalTypeError):
-        md.mechanism_discrepancy(source="s", target=source, measurement=measurement)  # type: ignore[arg-type]
+        md.diagnose_mechanism_discrepancy(source="s", target=source, measurement=measurement)  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        md.mechanism_discrepancy(source=source, target=source, measurement="m")  # type: ignore[arg-type]
+        md.diagnose_mechanism_discrepancy(source=source, target=source, measurement="m")  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        md.mechanism_discrepancy(
+        md.diagnose_mechanism_discrepancy(
             source=source,
             target=source,
             measurement=measurement,
             compare_intercept=1,  # type: ignore[arg-type]
         )
     with pytest.raises(CausalTypeError):
-        md.mechanism_discrepancy(source=source, target=source, measurement=measurement, alpha="a")  # type: ignore[arg-type]
+        md.diagnose_mechanism_discrepancy(
+            source=source, target=source, measurement=measurement, alpha="a"
+        )  # type: ignore[arg-type]
     with pytest.raises(CausalValueError):
-        md.mechanism_discrepancy(source=source, target=source)  # no measurement contract
+        md.diagnose_mechanism_discrepancy(source=source, target=source)  # no measurement contract
     with pytest.raises(CausalValueError):
-        md.mechanism_discrepancy(
+        md.diagnose_mechanism_discrepancy(
             source=source, target=source, measurement=measurement, alpha=math.nan
         )
     with pytest.raises(CausalValueError):
@@ -483,7 +489,7 @@ def test_b3_discrepancy_validates_its_arguments_as_typed_errors():
     # Parent columns must match the declared parents.
     mismatch = md.Sample("target", outcome=YT_BOTH, parents={"z": X})
     with pytest.raises(CausalValueError):
-        md.mechanism_discrepancy(source=source, target=mismatch, measurement=measurement)
+        md.diagnose_mechanism_discrepancy(source=source, target=mismatch, measurement=measurement)
 
 
 # ---------------------------------------------------------------------- artifact

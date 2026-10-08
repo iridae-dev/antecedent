@@ -17,7 +17,7 @@ import copy
 
 import pytest
 from antecedent import Admg, Dag, repair
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent import proposals as px
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.joint_distribution import ScientificQuantity
@@ -111,10 +111,10 @@ def quantity(name):
     )
 
 
-GUESS = dr.Decision(
+GUESS = dr.DesignDecision(
     contract="contract-1",
     actions=(dr.ActionUtility("guess0", 1.0, -1.0), dr.ActionUtility("guess1", 0.0, 1.0)),
-    prior=dr.Prior.draws([0.0, 1.0]),
+    prior=dr.StatePrior.draws([0.0, 1.0]),
     utility_units="utility",
 )
 USD_MAP = dr.CostMap("USD", "utility", 0.01)
@@ -159,8 +159,8 @@ def rank(result, studies, accuracies, *, cost_of=None, ids=None):
         for study in studies
     ]
     return dr.rank_designs(
-        GUESS,
         candidates,
+        decision=GUESS,
         signal=signal(),
         cost_map=USD_MAP,
         source_digests=("digest-b", "digest-a"),

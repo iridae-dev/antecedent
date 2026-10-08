@@ -10,7 +10,7 @@ adjustment set (finite strata) and *exact* population inputs::
         MsmStratum(0.5, 0.50, OutcomeLaw.binary(0.8), OutcomeLaw.binary(0.4)),
         MsmStratum(0.5, 0.25, OutcomeLaw.binary(0.5), OutcomeLaw.binary(0.3)),
     ]
-    result = msm_sensitivity(strata, lambda_max=3.0, decision_threshold=0.0)
+    result = msm_ate_sensitivity(strata, lambda_max=3.0, decision_threshold=0.0)
     result.identified       # 0.3: the Lambda = 1 stratified value
     result.grid[2]          # sharp [lower, upper] ATE bounds at the third Lambda
     result.tipping          # smallest Lambda at which the lower bound reaches the threshold
@@ -42,7 +42,7 @@ from typing import Any
 
 from ._native import msm_sensitivity_artifact_run as _artifact_run
 from ._native import msm_sensitivity_run as _run
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .joint_distribution import ScientificQuantity
 from .sensitivity_decision import Action, SensitivityArtifact
 
@@ -54,7 +54,7 @@ __all__ = [
     "MsmTipping",
     "MsmUncertainty",
     "OutcomeLaw",
-    "msm_sensitivity",
+    "msm_ate_sensitivity",
 ]
 
 _DEFAULT_GRID_POINTS = 17
@@ -62,24 +62,18 @@ _DEFAULT_TOLERANCE = 1e-10
 _ARTIFACT_ID = "msm-sensitivity"
 
 
-class MsmSensitivityRefusal(CausalUnsupportedError):
+class MsmSensitivityRefusal(StructuredRefusal):
     """A marginal sensitivity model refusal carrying the structured Rust fields.
 
-    ``reason_code`` is registered. ``detail`` is the namespaced ``msm_sensitivity.<slot>``
-    (``composition_not_licensed``, ``lambda_below_one``, ``lambda_range_empty``,
-    ``positivity``, ``stratum_mass``, ``outcome_law``, ``invalid_threshold``,
-    ``invalid_tolerance``, ``bounds_exceeded``) or, for the artifact, the engine's own
-    ``sensitivity_decision_composition.<slot>``; ``message`` is the human-readable context.
+    A :class:`~antecedent.errors.StructuredRefusal`: ``code`` (the registered reason code),
+    ``detail``, ``offending`` and ``remedy`` are machine-readable. ``detail`` is the namespaced
+    ``msm_sensitivity.<slot>`` (``composition_not_licensed``, ``lambda_below_one``,
+    ``lambda_range_empty``, ``positivity``, ``stratum_mass``, ``outcome_law``,
+    ``invalid_threshold``, ``invalid_tolerance``, ``bounds_exceeded``) or, for the artifact, the
+    engine's own ``sensitivity_decision_composition.<slot>``; ``message`` is the human-readable
+    context. A refusal with code ``invalid_argument`` is also a
+    :class:`~antecedent.errors.CausalValueError`.
     """
-
-    def __init__(self, refusal: Mapping[str, Any]) -> None:
-        message = str(refusal.get("message") or "")
-        detail = str(refusal["detail"])
-        super().__init__(
-            detail + (f": {message}" if message else ""), reason_code=str(refusal["code"])
-        )
-        self.detail: str = detail
-        self.message: str = message
 
 
 def _raise(refusal: str | None) -> None:
@@ -116,8 +110,15 @@ class OutcomeLaw:
 
     @classmethod
     def binary(cls, rate: float) -> OutcomeLaw:
-        """The law of a 0/1 outcome with ``P(Y = 1) = rate``."""
+        """The law of a 0/1 outcome with ``P(Y = 1) = rate``.
+
+        Raises:
+            CausalTypeError: ``rate`` is not a number.
+            CausalValueError: ``rate`` is not a probability in ``[0, 1]``.
+        """
         rate = _number("rate", rate)
+        if not (math.isfinite(rate) and 0.0 <= rate <= 1.0):
+            raise CausalValueError(f"rate must be a probability in [0, 1], got {rate!r}")
         return cls((0.0, 1.0), (1.0 - rate, rate))
 
 
@@ -147,8 +148,17 @@ class MsmStratum:
     control: OutcomeLaw
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "mass", _number("mass", self.mass))
-        object.__setattr__(self, "propensity", _number("propensity", self.propensity))
+        mass = _number("mass", self.mass)
+        propensity = _number("propensity", self.propensity)
+        if not (math.isfinite(propensity) and 0.0 <= propensity <= 1.0):
+            raise CausalValueError(
+                f"propensity must be a probability in [0, 1] (strictly inside (0, 1) to be "
+                f"estimable), got {propensity!r}"
+            )
+        if not (math.isfinite(mass) and 0.0 <= mass <= 1.0):
+            raise CausalValueError(f"mass must be a population mass in [0, 1], got {mass!r}")
+        object.__setattr__(self, "mass", mass)
+        object.__setattr__(self, "propensity", propensity)
         object.__setattr__(self, "treated", _law("treated", self.treated))
         object.__setattr__(self, "control", _law("control", self.control))
 
@@ -207,7 +217,8 @@ class MsmTipping:
             return f"threshold {self.threshold:g} is not reached inside the declared Lambda range"
         if self.status == "reached_at_origin":
             return f"threshold {self.threshold:g} is already reached at Lambda = 1"
-        assert self.bracket is not None
+        if self.bracket is None:  # pragma: no cover - a bracketed status always has one
+            return f"threshold {self.threshold:g}: no bracket"
         low, high = self.bracket
         bound = "lower" if self.direction == "lower_bound_falls" else "upper"
         return (
@@ -306,6 +317,11 @@ class MsmResult:
         interval stays withheld and the artifact refuses any composition with the range.
         Refuses with :class:`MsmSensitivityRefusal` on a malformed surface (``invalid_surface``)
         or fewer than two actions or unlike units (``wrong_contract``).
+
+        Raises:
+            CausalTypeError: ``effect``, ``actions``, ``point_quantities`` or
+                ``causal_contract_id`` has the wrong type.
+            MsmSensitivityRefusal: the surface is malformed or the actions are not comparable.
         """
         if not isinstance(effect, ScientificQuantity):
             raise CausalTypeError("effect must be a ScientificQuantity")
@@ -337,7 +353,8 @@ class MsmResult:
             _ARTIFACT_ID,
         )
         _raise(refusal)
-        assert data is not None
+        if data is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native artifact returned neither a result nor a refusal")
         return SensitivityArtifact.consume(data)
 
 
@@ -383,7 +400,7 @@ def _result(wire: Mapping[str, Any], request: _Request) -> MsmResult:
     )
 
 
-def msm_sensitivity(
+def msm_ate_sensitivity(
     strata: Sequence[MsmStratum],
     lambda_max: float,
     *,
@@ -408,6 +425,15 @@ def msm_sensitivity(
     (``lambda_below_one``) or not above one (``lambda_range_empty``), a propensity outside
     ``(0, 1)`` (``positivity``), masses that do not sum to one (``stratum_mass``), a malformed
     outcome law (``outcome_law``), or exceeded bounds (``bounds_exceeded``).
+
+    Raises:
+        CausalTypeError: ``strata`` is not a sequence of :class:`MsmStratum`, or a numeric
+            argument has the wrong type.
+        CausalValueError: ``grid_points`` is negative. A refusal with reason code
+            ``invalid_argument`` (a bad ``stratum_mass``, ``outcome_law``, tolerance or
+            threshold) is also a :class:`CausalValueError`.
+        MsmSensitivityRefusal: the model is refused (see above), with the machine-readable
+            ``code``, ``detail`` and ``remedy`` of any structured refusal.
     """
     if isinstance(strata, (str, bytes)) or not isinstance(strata, Sequence):
         raise CausalTypeError("strata must be a sequence of MsmStratum")
@@ -435,5 +461,6 @@ def msm_sensitivity(
         sampling_composition,
     )
     _raise(refusal)
-    assert text is not None
+    if text is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native MSM bounds returned neither a result nor a refusal")
     return _result(json.loads(text), request)

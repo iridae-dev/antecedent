@@ -36,7 +36,7 @@ from typing import TypeVar
 import antecedent as ac
 import pytest
 from antecedent import _native, decision, external, repair
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent import inverse_query as iq
 from antecedent import sensitivity_decision as sd
 from antecedent.errors import CausalUnsupportedError
@@ -156,10 +156,10 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
     # rank a study. The ranking is for this contract and rests on the claim's value digest;
     # its state model is the hand-derived guess record (wait = 1 - theta, treat = theta).
     values_digest = claim.identity["values_blake3"]
-    ranked_decision = dr.Decision(
+    ranked_decision = dr.DesignDecision(
         contract=contract,
         actions=(dr.ActionUtility("wait", 1.0, -1.0), dr.ActionUtility("treat", 0.0, 1.0)),
-        prior=dr.Prior.draws([0.0, 1.0]),
+        prior=dr.StatePrior.draws([0.0, 1.0]),
     )
     signal = dr.SignalSpec(
         prior_id="prior-1",
@@ -169,8 +169,8 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
         rng_seed=3,
     )
     ranked = dr.rank_designs(
-        ranked_decision,
         _study_candidates(),
+        decision=ranked_decision,
         signal=signal,
         cost_map=UTILITY_MAP,
         source_digests=(values_digest,),
@@ -213,7 +213,7 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
         """
         import json, sys
         import antecedent as ac
-        from antecedent import design_ranking, external
+        from antecedent import design, external
 
         ident = ac.identify(
             graph=[("x", "a"), ("x", "y"), ("a", "y")],
@@ -229,12 +229,12 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
         )
         claim = spec.load(open(sys.argv[1], "rb").read(), expected=json.loads(sys.argv[3]))
         digest = claim.identity["values_blake3"]
-        ranked = design_ranking.consume(
+        ranked = design.consume(
             open(sys.argv[2], "rb").read(),
-            expected=design_ranking.Expectation(
+            expected=design.Expectation(
                 decision_contract_identity=sys.argv[4],
                 source_digests=[digest],
-                cost_map=design_ranking.CostMap("utility", "utility", 1.0),
+                cost_map=design.CostMap("utility", "utility", 1.0),
             ),
         )
         assert [e.id for e in ranked.entries] == ["cand-1", "cand-2"]
@@ -286,7 +286,7 @@ def _guess_ranking(
     snapshot: str = "snap",
     accuracy_two: float = 0.625,
 ) -> dr.DesignRankingResult:
-    decision_ = dr.Decision(
+    decision_ = dr.DesignDecision(
         contract=contract,
         actions=GUESS.actions,
         prior=GUESS.prior,
@@ -315,7 +315,11 @@ def _guess_ranking(
         for cid, a in (("cand-1", 0.75), ("cand-2", accuracy_two))
     ]
     return dr.rank_designs(
-        decision_, candidates, signal=_signal(), cost_map=UTILITY_MAP, source_digests=digests
+        candidates,
+        decision=decision_,
+        signal=_signal(),
+        cost_map=UTILITY_MAP,
+        source_digests=digests,
     )
 
 
@@ -563,8 +567,8 @@ def test_a0r_refusal_families_keep_their_own_details_across_the_bridge():
     )
     cost_units = _raised(
         lambda: dr.rank_designs(
-            GUESS,
             [_guess_candidate("study", 0.75, 0.1, "usd")],
+            decision=GUESS,
             signal=_signal(),
             cost_map=UTILITY_MAP,
         ),
@@ -572,8 +576,8 @@ def test_a0r_refusal_families_keep_their_own_details_across_the_bridge():
     )
     cost_map_required = _raised(
         lambda: dr.rank_designs(
-            GUESS,
             [_guess_candidate("study", 0.75, 0.1, "usd")],
+            decision=GUESS,
             signal=_signal(),
             require_net_value=True,
         ),
@@ -581,8 +585,8 @@ def test_a0r_refusal_families_keep_their_own_details_across_the_bridge():
     )
     overlap = _raised(
         lambda: dr.rank_designs(
-            GUESS,
             [_guess_candidate("cand-1", 0.75, reused_observations=("obs-prior",))],
+            decision=GUESS,
             signal=_signal(),
             cost_map=UTILITY_MAP,
             prior_observations=("obs-prior",),

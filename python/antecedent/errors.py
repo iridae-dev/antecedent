@@ -24,8 +24,10 @@ same way, through ``build_review_error`` below. A raised review error carries:
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
 from ._native import (
     CausalAttributionError,
@@ -136,6 +138,79 @@ class CausalValueError(CausalValidateError, ValueError):
     def __init__(self, message: str = "", *, reason_code: str | None = None) -> None:
         super().__init__(message)
         self.reason_code = _registered_code(reason_code)
+
+
+#: Reason code of a refusal that rejects a malformed argument rather than a scientific route.
+INVALID_ARGUMENT = "invalid_argument"
+
+_ARGUMENT_VARIANTS: dict[type, type] = {}
+
+
+def _argument_variant(cls: type) -> type:
+    """``cls`` extended with :class:`CausalValueError`, for ``invalid_argument`` refusals."""
+    variant = _ARGUMENT_VARIANTS.get(cls)
+    if variant is None:
+        variant = type(
+            cls.__name__,
+            (cls, CausalValueError),
+            {
+                "__module__": cls.__module__,
+                "__qualname__": cls.__qualname__,
+                "__doc__": cls.__doc__,
+            },
+        )
+        _ARGUMENT_VARIANTS[cls] = variant
+    return variant
+
+
+class StructuredRefusal(CausalUnsupportedError):
+    """The shared base of every refusal that carries machine-readable fields.
+
+    Built from a refusal mapping (the shape the native layer reports), it exposes the same
+    fields on every refusal class so a caller can branch without parsing the message:
+
+    - :attr:`code` (alias :attr:`reason_code`) is the registered refusal code;
+    - :attr:`detail` is the namespaced ``family.slot`` (for example
+      ``msm_sensitivity.lambda_below_one``);
+    - :attr:`offending` is the field, quantity, node or identity the refusal is about, when there
+      is one;
+    - :attr:`remedy` is what the caller can change to proceed, when the refusal names it;
+    - :attr:`stage` is the refusing stage and :attr:`message` the human-readable context.
+
+    A refusal whose code is ``invalid_argument`` rejects a malformed argument, not a scientific
+    route: it is also a :class:`CausalValueError`, so ``except CausalValueError`` catches it.
+    """
+
+    def __new__(cls, refusal: Any = None, *args: Any, **kwargs: Any) -> StructuredRefusal:
+        code = refusal.get("code") if isinstance(refusal, Mapping) else kwargs.get("reason_code")
+        target = cls
+        if code == INVALID_ARGUMENT and not issubclass(cls, ValueError):
+            target = _argument_variant(cls)
+        return super().__new__(target)
+
+    def __init__(self, refusal: Mapping[str, Any], *, text: str | None = None) -> None:
+        detail = str(refusal["detail"])
+        message = refusal.get("message")
+        offending = refusal.get("offending")
+        if text is None:
+            text = f"{detail}: {message}" if message else detail
+            if offending:
+                text = f"{text} at {offending}"
+        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
+        #: Refusing stage.
+        self.stage: str = refusal.get("stage", "")
+        #: Namespaced ``family.slot`` detail.
+        self.detail: str | None = detail
+        #: Human-readable context, when the refusal carries one.
+        self.message: str = str(message or "")
+        #: The field, quantity, node or identity the refusal is about, when there is one.
+        self.offending: str | None = offending
+
+    @property
+    def code(self) -> str | None:
+        """The registered refusal code (the same value as :attr:`reason_code`)."""
+        code: str | None = self.reason_code
+        return code
 
 
 class EffectNotIdentified(CausalUnsupportedError, CausalCompileError):
@@ -322,7 +397,116 @@ def next_action(err: BaseException, edges: Sequence[PendingEdge] = ()) -> str:
     return f"{code}: {err}"
 
 
+#: Refusal classes defined beside the feature they refuse, re-exported here lazily (importing
+#: their modules at the top of this one would be circular). ``name -> defining module``.
+_LAZY_REFUSALS: dict[str, str] = {
+    "CallbackUnavailableRefusal": "composition_bundle",
+    "CompositionBundleRefusal": "composition_bundle",
+    "DecisionRefusal": "decision",
+    "EdgeDigestMismatchRefusal": "composition_bundle",
+    "ExpectedIdentityMismatchRefusal": "composition_bundle",
+    "GraphOrSnapshotMismatchRefusal": "composition_bundle",
+    "IncompatibleVersionRefusal": "composition_bundle",
+    "MechanismDiscrepancyRefusal": "mechanism_discrepancy",
+    "MsmSensitivityRefusal": "msm_sensitivity",
+    "NodeNotFoundRefusal": "composition_bundle",
+    "OversizedRefusal": "composition_bundle",
+    "ProviderRequestChangedRefusal": "composition_bundle",
+    "RecalcNoLiveState": "recalc",
+    "RecalcReceiptRefusal": "recalc",
+    "RecalcRefusal": "recalc",
+    "RecalcUnavailable": "recalc",
+    "RepairArtifactRefusal": "repair",
+    "RepairBudgetRefusal": "repair",
+    "RepairRefusal": "repair",
+    "ScenarioInvarianceRefusal": "scenario_invariance",
+    "ScoreResumeRefusal": "recalc_cell",
+    "ScoreResumeUnavailable": "recalc_cell",
+    "SensitivityRefusal": "sensitivity_decision",
+    "StudyCandidateRefusal": "repair",
+    "SwappedEvidenceRefusal": "composition_bundle",
+    "TamperedQuantityRefusal": "composition_bundle",
+    "TransportedCounterfactualRefusal": "transported_counterfactual",
+    "UnknownNodeKindRefusal": "composition_bundle",
+    "UnsupportedLawRefusal": "composition_bundle",
+}
+
+if TYPE_CHECKING:
+    from .composition_bundle import (
+        CallbackUnavailableRefusal,
+        CompositionBundleRefusal,
+        EdgeDigestMismatchRefusal,
+        ExpectedIdentityMismatchRefusal,
+        GraphOrSnapshotMismatchRefusal,
+        IncompatibleVersionRefusal,
+        NodeNotFoundRefusal,
+        OversizedRefusal,
+        ProviderRequestChangedRefusal,
+        SwappedEvidenceRefusal,
+        TamperedQuantityRefusal,
+        UnknownNodeKindRefusal,
+        UnsupportedLawRefusal,
+    )
+    from .decision import DecisionRefusal
+    from .mechanism_discrepancy import MechanismDiscrepancyRefusal
+    from .msm_sensitivity import MsmSensitivityRefusal
+    from .recalc import (
+        RecalcNoLiveState,
+        RecalcReceiptRefusal,
+        RecalcRefusal,
+        RecalcUnavailable,
+    )
+    from .recalc_cell import ScoreResumeRefusal, ScoreResumeUnavailable
+    from .repair import (
+        RepairArtifactRefusal,
+        RepairBudgetRefusal,
+        RepairRefusal,
+        StudyCandidateRefusal,
+    )
+    from .scenario_invariance import ScenarioInvarianceRefusal
+    from .sensitivity_decision import SensitivityRefusal
+    from .transported_counterfactual import TransportedCounterfactualRefusal
+
+
+def __getattr__(name: str) -> Any:
+    module = _LAZY_REFUSALS.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(f".{module}", __package__), name)
+    globals()[name] = value
+    return value
+
+
 __all__ = [
+    "CallbackUnavailableRefusal",
+    "CompositionBundleRefusal",
+    "DecisionRefusal",
+    "EdgeDigestMismatchRefusal",
+    "ExpectedIdentityMismatchRefusal",
+    "GraphOrSnapshotMismatchRefusal",
+    "IncompatibleVersionRefusal",
+    "MechanismDiscrepancyRefusal",
+    "MsmSensitivityRefusal",
+    "NodeNotFoundRefusal",
+    "OversizedRefusal",
+    "ProviderRequestChangedRefusal",
+    "RecalcNoLiveState",
+    "RecalcReceiptRefusal",
+    "RecalcRefusal",
+    "RecalcUnavailable",
+    "RepairArtifactRefusal",
+    "RepairBudgetRefusal",
+    "RepairRefusal",
+    "ScenarioInvarianceRefusal",
+    "ScoreResumeRefusal",
+    "ScoreResumeUnavailable",
+    "SensitivityRefusal",
+    "StudyCandidateRefusal",
+    "SwappedEvidenceRefusal",
+    "TamperedQuantityRefusal",
+    "TransportedCounterfactualRefusal",
+    "UnknownNodeKindRefusal",
+    "UnsupportedLawRefusal",
     "CausalAttributionError",
     "CausalCancelled",
     "CausalCancelledError",
@@ -347,6 +531,7 @@ __all__ = [
     "EffectNotIdentified",
     "PendingEdge",
     "ReviewRequired",
+    "StructuredRefusal",
     "build_review_error",
     "named_pending_edges",
     "next_action",

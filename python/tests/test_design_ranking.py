@@ -13,7 +13,7 @@ design_ranking_artifact}.rs``, derived by hand and not read from the code under 
 from __future__ import annotations
 
 import pytest
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
 
@@ -43,23 +43,23 @@ def _signal() -> dr.SignalSpec:
     )
 
 
-GUESS = dr.Decision(
+GUESS = dr.DesignDecision(
     contract="contract-1",
     actions=(dr.ActionUtility("guess0", 1.0, -1.0), dr.ActionUtility("guess1", 0.0, 1.0)),
-    prior=dr.Prior.draws([0.0, 1.0]),
+    prior=dr.StatePrior.draws([0.0, 1.0]),
     utility_units="utility",
 )
 UTILITY_MAP = dr.CostMap("utility", "utility", 1.0)
 
 
-def _bet(scale: float = 1.0, shift: float = 0.0) -> dr.Decision:
-    return dr.Decision(
+def _bet(scale: float = 1.0, shift: float = 0.0) -> dr.DesignDecision:
+    return dr.DesignDecision(
         contract="contract-bet",
         actions=(
             dr.ActionUtility("abstain", shift, 0.0),
             dr.ActionUtility("bet", shift - 0.5 * scale, scale),
         ),
-        prior=dr.Prior.draws([0.25, 0.75]),
+        prior=dr.StatePrior.draws([0.25, 0.75]),
         utility_units="utility",
     )
 
@@ -97,7 +97,7 @@ def _frozen() -> list[dr.Candidate]:
 
 
 def _rank(candidates: list[dr.Candidate], **kw: object) -> dr.DesignRankingResult:
-    return dr.rank_designs(GUESS, candidates, signal=_signal(), **kw)  # type: ignore[arg-type]
+    return dr.rank_designs(candidates, decision=GUESS, signal=_signal(), **kw)  # type: ignore[arg-type]
 
 
 def test_f14_independent_consumer_retains_the_checked_derivation_chain() -> None:
@@ -180,12 +180,12 @@ def test_f11_native_and_equivalent_external_signal_agree_on_known_truth() -> Non
 
 def test_f11_every_update_mode_executes_end_to_end() -> None:
     ranking = dr.rank_designs(
-        _bet(),
         [
             _bet_candidate("a_likelihood", _external(BET_LIKELIHOOD)),
             _bet_candidate("b_posterior", _external(BET_POSTERIOR)),
             _bet_candidate("c_values", _external(BET_VALUES)),
         ],
+        decision=_bet(),
         signal=_signal(),
     )
     modes = {c.id: c.update_mode for c in ranking.candidates}
@@ -335,10 +335,10 @@ def test_f12_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant()
 
 
 def test_f12_gaussian_mean_matches_the_closed_form_and_is_a_point_value() -> None:
-    decision = dr.Decision(
+    decision = dr.DesignDecision(
         contract="contract-gauss",
         actions=(dr.ActionUtility("stay", 0.0, 0.0), dr.ActionUtility("treat", 0.0, 1.0)),
-        prior=dr.Prior.normal(0.5, 1.0),
+        prior=dr.StatePrior.normal(0.5, 1.0),
         utility_units="utility",
     )
     candidate = dr.Candidate("gauss", 4, dr.GaussianMeanSignal(12.0))
@@ -351,15 +351,15 @@ def test_f12_gaussian_mean_matches_the_closed_form_and_is_a_point_value() -> Non
 
 
 def test_f12_monte_carlo_value_reports_error_and_makes_no_coverage_claim() -> None:
-    decision = dr.Decision(
+    decision = dr.DesignDecision(
         contract="contract-mc",
         actions=(dr.ActionUtility("abstain", 0.0, 0.0), dr.ActionUtility("bet", -0.45, 1.0)),
-        prior=dr.Prior.draws([0.2, 0.5, 0.8]),
+        prior=dr.StatePrior.draws([0.2, 0.5, 0.8]),
         utility_units="utility",
     )
     ranking = dr.rank_designs(
-        decision,
         [dr.Candidate("mc", 4, dr.GaussianMeanSignal(0.25))],
+        decision=decision,
         signal=_signal(),
         monte_carlo=dr.MonteCarlo(16, 16, 64, 0.0),
         mc_error_tolerance=1.0,
@@ -381,12 +381,12 @@ def test_f12_ties_and_truncated_search_are_reported() -> None:
     def make(cid: str) -> dr.Candidate:
         return _bet_candidate(cid, dr.BinomialSignal())
 
-    tied = dr.rank_designs(_bet(), [make("b"), make("a")], signal=_signal())
+    tied = dr.rank_designs([make("b"), make("a")], decision=_bet(), signal=_signal())
     assert [c.id for c in tied.candidates] == ["a", "b"]
     assert tied.ties == (("a", "b"),)
     assert all(c.rank_uncertain for c in tied.candidates)
     cut = dr.rank_designs(
-        _bet(), [make("c"), make("a"), make("b")], signal=_signal(), max_candidates=2
+        [make("c"), make("a"), make("b")], decision=_bet(), signal=_signal(), max_candidates=2
     )
     assert cut.search.truncated and cut.search.supplied == 3 and cut.search.evaluated == 2
     assert cut.search.unevaluated_ids == ("c",)
@@ -419,7 +419,13 @@ def test_f14_export_consume_round_trip_with_retained_expectation() -> None:
     assert [e.id for e in consumed.entries] == ["cand-1", "cand-2"]
     assert consumed.entries[0].net_value == pytest.approx(0.15, abs=1e-12)
     assert consumed.cost_map == UTILITY_MAP
-    assert dr.DesignRankingResult.consume(data).identity == result.identity
+    unchecked = dr.DesignRankingResult.consume(data, skip_expectation_check=True)
+    assert unchecked.identity == result.identity
+    # The integrity check is never skipped silently: one of the two must be named.
+    with pytest.raises(CausalValueError, match="skip_expectation_check"):
+        dr.consume(data)
+    with pytest.raises(CausalValueError, match="not both"):
+        dr.consume(data, expected=result.expectation(), skip_expectation_check=True)
     for entry in consumed.entries:
         assert entry.provider_trust == "externally_attested"
         assert entry.update_mode == "external_posterior"
@@ -456,7 +462,9 @@ def test_f14_altered_signal_or_update_refuses_replay_against_retained_identities
         evidence_lineage=("snapshot:a",),
         rng_seed=99,
     )
-    reseeded = dr.rank_designs(GUESS, _frozen(), signal=reseeded_spec, cost_map=UTILITY_MAP)
+    reseeded = dr.rank_designs(
+        _frozen(), decision=GUESS, signal=reseeded_spec, cost_map=UTILITY_MAP
+    )
     assert reseeded.candidates[0].request_fingerprint != original.candidates[0].request_fingerprint
     with pytest.raises(dr.DesignRankingRefusal):
         dr.consume(
@@ -491,7 +499,7 @@ def test_f14_overlapping_source_data_and_incompatible_cost_units_refuse() -> Non
 
 def test_f14_external_values_retain_attested_values_and_are_never_marked_native() -> None:
     ranking = dr.rank_designs(
-        _bet(), [_bet_candidate("values", _external(BET_VALUES))], signal=_signal()
+        [_bet_candidate("values", _external(BET_VALUES))], decision=_bet(), signal=_signal()
     )
     row = ranking.candidates[0]
     assert row.provider_trust == "externally_attested"
@@ -500,7 +508,7 @@ def test_f14_external_values_retain_attested_values_and_are_never_marked_native(
     assert row.update_mode == "external_decision_values"
     assert not row.natively_replayed
     assert "not verified" in row.trust_limit
-    consumed = dr.consume(ranking.export())
+    consumed = dr.consume(ranking.export(), expected=ranking.expectation())
     assert not consumed.entries[0].natively_replayed
     assert consumed.entries[0].replay == "attested_values_combined"
 
@@ -510,9 +518,9 @@ def test_f14_corrupt_or_truncated_bytes_raise_a_serialization_error() -> None:
     flipped = bytearray(data)
     flipped[len(flipped) // 2] ^= 0x55
     with pytest.raises(CausalSerializationError):
-        dr.consume(bytes(flipped))
+        dr.consume(bytes(flipped), skip_expectation_check=True)
     with pytest.raises(CausalSerializationError):
-        dr.consume(bytes(data[: len(data) // 2]))
+        dr.consume(bytes(data[: len(data) // 2]), skip_expectation_check=True)
 
 
 def test_f14_structural_order_is_preserved_when_no_probabilistic_model_is_licensed() -> None:
@@ -551,3 +559,88 @@ def test_f14_structural_order_is_preserved_when_no_probabilistic_model_is_licens
             [dr.StructuralCandidate("a", True, 1), dr.StructuralCandidate("a", False, 2)]
         )
     assert caught.value.detail == "design_ranking.duplicate_candidate"
+
+
+# -- the unified surface: basis, typed plans, gate --------------------------------------------
+
+
+def test_value_ranking_names_its_basis_and_renders_a_short_repr() -> None:
+    priced = _rank(_frozen(), cost_map=UTILITY_MAP)
+    assert priced.basis == "net_value"
+    text = repr(priced)
+    assert text.startswith("DesignRankingResult(basis='net_value'") and len(text) < 200
+    assert "Basis: net_value." in priced.explain()
+    assert priced.best is not None and priced.best.id == "cand-1"
+    summary = priced.to_dict()
+    assert summary["basis"] == "net_value" and summary["value"]["identity"] == priced.identity
+    assert [c["id"] for c in summary["candidates"]] == ["cand-1", "cand-2"]
+    unpriced = _rank(_frozen())
+    assert unpriced.basis == "evsi" and "Basis: evsi." in unpriced.explain()
+    with pytest.raises(CausalValueError, match="identification ranking"):
+        _ = priced.violations
+
+
+def test_plans_validate_on_construction() -> None:
+    from antecedent.errors import CausalTypeError
+
+    with pytest.raises(CausalValueError):
+        dr.Measurement([])
+    with pytest.raises(CausalValueError):
+        dr.Experiment([-1])
+    with pytest.raises(CausalTypeError):
+        dr.Environment("7")  # type: ignore[arg-type]
+    with pytest.raises(CausalValueError):
+        dr.Sampling(0)
+    with pytest.raises(CausalValueError):
+        dr.Measurement([1], cost=float("nan"))
+    with pytest.raises(CausalValueError):
+        dr.StructurePrior(weights=(1.0,), identified=(True, False), keys=(1,))
+
+
+def test_rank_designs_requires_exactly_one_basis_and_rejects_mixed_arguments() -> None:
+    from antecedent.errors import CausalTypeError
+
+    plans = [dr.Measurement([3]), dr.Sampling(10)]
+    structure = dr.StructurePrior.uniform([True, False])
+    with pytest.raises(CausalValueError, match="prior=StructurePrior"):
+        dr.rank_designs(plans)
+    with pytest.raises(CausalValueError, match="do not apply to an identification ranking"):
+        dr.rank_designs(plans, prior=structure, cost_map=UTILITY_MAP)
+    with pytest.raises(CausalTypeError, match="design.Candidate"):
+        dr.rank_designs(plans, decision=GUESS, signal=_signal())
+    with pytest.raises(CausalTypeError, match="plans"):
+        dr.rank_designs(_frozen(), prior=structure)
+    with pytest.raises(CausalValueError, match="max_cost"):
+        dr.rank_designs(_frozen(), decision=GUESS, signal=_signal(), max_cost=1.0)
+
+
+def test_identification_gate_reports_and_excludes_unidentifiable_candidates() -> None:
+    structure = dr.StructurePrior(weights=(0.5, 0.5), identified=(True, False), keys=(1, 2))
+    informative = _guess_candidate("cand-1", 0.75, plan=dr.Measurement([3]))
+    futile = _guess_candidate("cand-2", 0.625, plan=dr.Sampling(10))
+    options: dict[str, object] = {
+        "decision": GUESS,
+        "prior": structure,
+        "variable_unlocks": {0: [3]},
+        "signal": _signal(),
+        "cost_map": UTILITY_MAP,
+        "monte_carlo": dr.MonteCarlo(2, 4, 4, 1.0),
+    }
+    open_gate = dr.rank_designs([informative, futile], **options)  # type: ignore[arg-type]
+    assert open_gate.gate is not None and open_gate.gate.rejected == ()
+    probabilities = {e.id: e.probability for e in open_gate.gate.entries}
+    assert probabilities["cand-1"] > probabilities["cand-2"]
+    threshold = (probabilities["cand-1"] + probabilities["cand-2"]) / 2.0
+    ranked = dr.rank_designs(
+        [informative, futile],
+        min_identification=threshold,
+        **options,  # type: ignore[arg-type]
+    )
+    assert ranked.gate is not None
+    assert ranked.gate.rejected == ("cand-2",)
+    assert [c.id for c in ranked.candidates] == ["cand-1"]
+    assert "failed, not valued" in ranked.explain()
+    with pytest.raises(CausalValueError, match="needs a plan"):
+        dr.rank_designs(
+            [_guess_candidate("c", 0.75)], decision=GUESS, prior=structure, signal=_signal()
+        )

@@ -23,7 +23,7 @@ import numpy as np
 from antecedent import composition as comp
 from antecedent import composition_bundle as cb
 from antecedent import decision, external, program_claims
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
@@ -394,12 +394,12 @@ def e2_law_input(
 # ---------------------------------------------------------------------------- ranking
 
 
-def ranking_decision() -> dr.Decision:
+def ranking_decision() -> dr.DesignDecision:
     """abstain pays 0 and bet pays ``theta - 1/2`` over the prior draws ``{1/4, 3/4}``."""
-    return dr.Decision(
+    return dr.DesignDecision(
         contract=rollout_contract(),
         actions=(dr.ActionUtility("abstain", 0.0, 0.0), dr.ActionUtility("bet", -0.5, 1.0)),
-        prior=dr.Prior.draws(STATE_DRAWS),
+        prior=dr.StatePrior.draws(STATE_DRAWS),
     )
 
 
@@ -457,7 +457,9 @@ def rank(**kwargs: Any) -> dr.DesignRankingResult:
     candidate_list = kwargs.pop("candidate_list", None)
     options.update(kwargs)
     return dr.rank_designs(
-        ranking_decision(), candidates() if candidate_list is None else candidate_list, **options
+        candidates() if candidate_list is None else candidate_list,
+        decision=ranking_decision(),
+        **options,
     )
 
 

@@ -27,7 +27,7 @@ import math
 import pytest
 from antecedent import msm_sensitivity as msm
 from antecedent import sensitivity_decision as sd
-from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
 
 
@@ -72,7 +72,7 @@ def _refusal(call, code: str, detail: str) -> msm.MsmSensitivityRefusal:
 
 
 def test_b3_msm_lambda_one_is_the_stratified_identified_value():
-    result = msm.msm_sensitivity(_two_strata(), 3.0)
+    result = msm.msm_ate_sensitivity(_two_strata(), 3.0)
     assert result.identified == pytest.approx(0.3, abs=1e-12)
     first, last = result.grid[0], result.grid[-1]
     assert first.lambda_value == 1.0
@@ -85,7 +85,7 @@ def test_b3_msm_lambda_one_is_the_stratified_identified_value():
 
 
 def test_b3_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation():
-    result = msm.msm_sensitivity(_two_strata(), 2.0, grid_points=2)
+    result = msm.msm_ate_sensitivity(_two_strata(), 2.0, grid_points=2)
     assert result.lambdas == (1.0, 2.0)
     lower, upper = result.assumption_range(2.0)
     assert lower == pytest.approx(0.04375, abs=1e-12)
@@ -94,18 +94,18 @@ def test_b3_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation():
 
 
 def test_b3_msm_three_atom_fractional_split_matches_the_hand_derivation():
-    result = msm.msm_sensitivity(_three_atom(), 2.0, grid_points=2)
+    result = msm.msm_ate_sensitivity(_three_atom(), 2.0, grid_points=2)
     assert result.identified == pytest.approx(0.0, abs=1e-12)
     lower, upper = result.assumption_range()
     assert lower == pytest.approx(-0.375, abs=1e-12)
     assert upper == pytest.approx(0.375, abs=1e-12)
     # Lambda = 3: tau = 1/4 and spread 8/3 give [-2/3, 2/3].
-    wider = msm.msm_sensitivity(_three_atom(), 3.0, grid_points=2)
+    wider = msm.msm_ate_sensitivity(_three_atom(), 3.0, grid_points=2)
     assert wider.assumption_range() == pytest.approx((-2.0 / 3.0, 2.0 / 3.0), abs=1e-12)
 
 
 def test_b3_msm_bounds_widen_with_lambda_and_contain_the_identified_value():
-    result = msm.msm_sensitivity(_two_strata(), 8.0, grid_points=33)
+    result = msm.msm_ate_sensitivity(_two_strata(), 8.0, grid_points=33)
     for before, after in zip(result.grid, result.grid[1:], strict=False):
         assert after.lambda_value > before.lambda_value
         assert after.lower <= before.lower + 1e-12
@@ -116,8 +116,8 @@ def test_b3_msm_bounds_widen_with_lambda_and_contain_the_identified_value():
 
 
 def test_b3_msm_is_invariant_to_stratum_order():
-    forward = msm.msm_sensitivity(_two_strata(), 4.0, decision_threshold=0.0)
-    reversed_ = msm.msm_sensitivity(list(reversed(_two_strata())), 4.0, decision_threshold=0.0)
+    forward = msm.msm_ate_sensitivity(_two_strata(), 4.0, decision_threshold=0.0)
+    reversed_ = msm.msm_ate_sensitivity(list(reversed(_two_strata())), 4.0, decision_threshold=0.0)
     assert forward.identified == pytest.approx(reversed_.identified, abs=1e-12)
     for left, right in zip(forward.grid, reversed_.grid, strict=True):
         assert left.lower == pytest.approx(right.lower, abs=1e-12)
@@ -133,7 +133,7 @@ def test_b3_msm_is_invariant_to_stratum_order():
 
 
 def test_b3_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form():
-    result = msm.msm_sensitivity(_two_strata(), 4.0, decision_threshold=0.0, tolerance=1e-12)
+    result = msm.msm_ate_sensitivity(_two_strata(), 4.0, decision_threshold=0.0, tolerance=1e-12)
     tipping = result.tipping
     assert tipping is not None
     assert tipping.direction == "lower_bound_falls"
@@ -148,31 +148,31 @@ def test_b3_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form():
     assert low - 1e-9 <= star <= high + 1e-9
     assert tipping.lambda_value == high
     # The bracket is certified: not reached at its lower end, reached at its upper end.
-    below = msm.msm_sensitivity(_two_strata(), low)
+    below = msm.msm_ate_sensitivity(_two_strata(), low)
     assert below.grid[-1].lower > 0.0
-    above = msm.msm_sensitivity(_two_strata(), high)
+    above = msm.msm_ate_sensitivity(_two_strata(), high)
     assert above.grid[-1].lower <= 0.0
     assert "lower bound reaches 0" in str(tipping)
 
 
 def test_b3_msm_upper_tipping_origin_and_unreached_statuses():
     # Identified 0.3 below 0.5: the upper bound rises to it.
-    upper = msm.msm_sensitivity(_two_strata(), 4.0, decision_threshold=0.5).tipping
+    upper = msm.msm_ate_sensitivity(_two_strata(), 4.0, decision_threshold=0.5).tipping
     assert upper is not None
     assert upper.direction == "upper_bound_rises"
     assert upper.bracketed
     assert upper.bracket is not None
-    assert msm.msm_sensitivity(_two_strata(), upper.bracket[1]).grid[-1].upper >= 0.5 - 1e-12
+    assert msm.msm_ate_sensitivity(_two_strata(), upper.bracket[1]).grid[-1].upper >= 0.5 - 1e-12
     # A threshold equal to the identified value is reached at the origin.
-    identified = msm.msm_sensitivity(_two_strata(), 2.0).identified
-    origin = msm.msm_sensitivity(_two_strata(), 2.0, decision_threshold=identified).tipping
+    identified = msm.msm_ate_sensitivity(_two_strata(), 2.0).identified
+    origin = msm.msm_ate_sensitivity(_two_strata(), 2.0, decision_threshold=identified).tipping
     assert origin is not None
     assert origin.status == "reached_at_origin"
     assert not origin.bracketed
     assert origin.bracket == (1.0, 1.0)
     assert "already reached" in str(origin)
     # At Lambda 2 the lower bound is 0.04375, so -10 is never reached.
-    far = msm.msm_sensitivity(_two_strata(), 2.0, decision_threshold=-10.0).tipping
+    far = msm.msm_ate_sensitivity(_two_strata(), 2.0, decision_threshold=-10.0).tipping
     assert far is not None
     assert far.status == "not_reached_in_box"
     assert not far.bracketed
@@ -185,7 +185,7 @@ def test_b3_msm_upper_tipping_origin_and_unreached_statuses():
 
 
 def test_b3_msm_keeps_the_sampling_interval_withheld_and_the_range_an_assumption_range():
-    result = msm.msm_sensitivity(_two_strata(), 2.0, decision_threshold=0.0)
+    result = msm.msm_ate_sensitivity(_two_strata(), 2.0, decision_threshold=0.0)
     assert result.inference_claim == "assumption_range"
     assert result.uncertainty.sampling_interval == "sampling interval: not reported"
     assert result.uncertainty.reason_code == "cell_not_licensed"
@@ -201,7 +201,7 @@ def test_b3_msm_keeps_the_sampling_interval_withheld_and_the_range_an_assumption
 
 def test_b3_msm_sampling_composition_request_refuses():
     error = _refusal(
-        lambda: msm.msm_sensitivity(
+        lambda: msm.msm_ate_sensitivity(
             _two_strata(), 2.0, sampling_composition="percentile_bootstrap_of_bounds"
         ),
         "cell_not_licensed",
@@ -216,27 +216,30 @@ def test_b3_msm_sampling_composition_request_refuses():
 def test_b3_msm_refuses_lambda_below_one_and_an_empty_range():
     for lambda_max in (0.9, 0.0, -1.0, math.nan):
         _refusal(
-            lambda lambda_max=lambda_max: msm.msm_sensitivity(_two_strata(), lambda_max),
+            lambda lambda_max=lambda_max: msm.msm_ate_sensitivity(_two_strata(), lambda_max),
             "invalid_argument",
             "msm_sensitivity.lambda_below_one",
         )
     _refusal(
-        lambda: msm.msm_sensitivity(_two_strata(), 1.0),
+        lambda: msm.msm_ate_sensitivity(_two_strata(), 1.0),
         "invalid_argument",
         "msm_sensitivity.lambda_range_empty",
     )
     _refusal(
-        lambda: msm.msm_sensitivity(_two_strata(), 1.0e6),
+        lambda: msm.msm_ate_sensitivity(_two_strata(), 1.0e6),
         "route_not_supported",
         "msm_sensitivity.bounds_exceeded",
     )
 
 
 def test_b3_msm_refuses_propensities_on_the_boundary():
-    for propensity in (0.0, 1.0, -0.1, 1.2, math.nan):
+    for propensity in (-0.1, 1.2, math.nan):
+        with pytest.raises(CausalValueError):
+            _stratum(0.5, propensity, 0.5, 0.3)
+    for propensity in (0.0, 1.0):
         strata = [_stratum(0.5, 0.5, 0.8, 0.4), _stratum(0.5, propensity, 0.5, 0.3)]
         _refusal(
-            lambda strata=strata: msm.msm_sensitivity(strata, 2.0),
+            lambda strata=strata: msm.msm_ate_sensitivity(strata, 2.0),
             "route_not_supported",
             "msm_sensitivity.positivity",
         )
@@ -246,14 +249,14 @@ def test_b3_msm_refuses_malformed_inputs():
     strata = _two_strata()
     bad_mass = [_stratum(0.6, 0.5, 0.8, 0.4), strata[1]]
     _refusal(
-        lambda: msm.msm_sensitivity(bad_mass, 2.0),
+        lambda: msm.msm_ate_sensitivity(bad_mass, 2.0),
         "invalid_argument",
         "msm_sensitivity.stratum_mass",
     )
     over_unit = msm.OutcomeLaw((0.0, 1.0), (0.5, 0.6))
     bad_law = [strata[0], msm.MsmStratum(0.5, 0.25, over_unit, strata[1].control)]
     _refusal(
-        lambda: msm.msm_sensitivity(bad_law, 2.0),
+        lambda: msm.msm_ate_sensitivity(bad_law, 2.0),
         "invalid_argument",
         "msm_sensitivity.outcome_law",
     )
@@ -261,27 +264,27 @@ def test_b3_msm_refuses_malformed_inputs():
         0.5, 0.25, strata[1].treated, msm.OutcomeLaw((math.inf, 1.0), (0.7, 0.3))
     )
     _refusal(
-        lambda: msm.msm_sensitivity([strata[0], infinite], 2.0),
+        lambda: msm.msm_ate_sensitivity([strata[0], infinite], 2.0),
         "invalid_argument",
         "msm_sensitivity.outcome_law",
     )
     _refusal(
-        lambda: msm.msm_sensitivity([], 2.0),
+        lambda: msm.msm_ate_sensitivity([], 2.0),
         "route_not_supported",
         "msm_sensitivity.bounds_exceeded",
     )
     _refusal(
-        lambda: msm.msm_sensitivity(strata, 2.0, grid_points=1),
+        lambda: msm.msm_ate_sensitivity(strata, 2.0, grid_points=1),
         "route_not_supported",
         "msm_sensitivity.bounds_exceeded",
     )
     _refusal(
-        lambda: msm.msm_sensitivity(strata, 2.0, tolerance=0.5),
+        lambda: msm.msm_ate_sensitivity(strata, 2.0, tolerance=0.5),
         "invalid_argument",
         "msm_sensitivity.invalid_tolerance",
     )
     _refusal(
-        lambda: msm.msm_sensitivity(strata, 2.0, decision_threshold=math.nan),
+        lambda: msm.msm_ate_sensitivity(strata, 2.0, decision_threshold=math.nan),
         "invalid_argument",
         "msm_sensitivity.invalid_threshold",
     )
@@ -289,13 +292,13 @@ def test_b3_msm_refuses_malformed_inputs():
 
 def test_b3_msm_validates_its_arguments_as_typed_errors():
     with pytest.raises(CausalTypeError):
-        msm.msm_sensitivity("strata", 2.0)  # type: ignore[arg-type]
+        msm.msm_ate_sensitivity("strata", 2.0)  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        msm.msm_sensitivity([object()], 2.0)  # type: ignore[list-item]
+        msm.msm_ate_sensitivity([object()], 2.0)  # type: ignore[list-item]
     with pytest.raises(CausalTypeError):
-        msm.msm_sensitivity(_two_strata(), "2")  # type: ignore[arg-type]
+        msm.msm_ate_sensitivity(_two_strata(), "2")  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        msm.msm_sensitivity(_two_strata(), 2.0, grid_points=2.5)  # type: ignore[arg-type]
+        msm.msm_ate_sensitivity(_two_strata(), 2.0, grid_points=2.5)  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
         msm.MsmStratum(True, 0.5, msm.OutcomeLaw.binary(0.5), msm.OutcomeLaw.binary(0.5))
     with pytest.raises(CausalTypeError):
@@ -311,7 +314,7 @@ def _artifact(
     actions: list[sd.Action],
     point_quantities: list[tuple[ScientificQuantity, list[float]]] | None = None,
 ) -> sd.SensitivityArtifact:
-    result = msm.msm_sensitivity(_two_strata(), lambda_max, grid_points=grid_points)
+    result = msm.msm_ate_sensitivity(_two_strata(), lambda_max, grid_points=grid_points)
     return result.to_sensitivity_artifact(
         effect=_scientific("ate"),
         point_quantities=point_quantities or [],
@@ -418,7 +421,7 @@ def test_b3_msm_artifact_round_trips_and_refuses_a_foreign_identity():
 
 
 def test_b3_msm_artifact_refuses_a_malformed_surface_and_foreign_arguments():
-    result = msm.msm_sensitivity(_two_strata(), 2.0, grid_points=3)
+    result = msm.msm_ate_sensitivity(_two_strata(), 2.0, grid_points=3)
     actions = [sd.Action("treat", sd.quantity("ate")), sd.Action("skip", sd.const(0.0))]
     # Fewer than two actions cannot be compared.
     with pytest.raises(msm.MsmSensitivityRefusal) as caught:

@@ -29,8 +29,8 @@ from antecedent.transported_counterfactual import (
     CovariateLaw,
     EdgeAssignment,
     Mechanism,
+    MechanismSelection,
     Premises,
-    SelectionDiagram,
     TransportedCounterfactualRefusal,
     TransportedPathSpecificEffect,
     consume_transported_counterfactual_artifact,
@@ -89,7 +89,7 @@ def effect(
         model or scm(),
         source(),
         target_law or target(),
-        selection if selection is not None else SelectionDiagram.on("z"),
+        selection if selection is not None else MechanismSelection.on("z"),
         assignment or nde(),
         premises=premises,
         **kwargs,
@@ -143,12 +143,12 @@ def test_x8t_the_target_law_moves_the_answer_by_exactly_the_hand_amount():
 
 
 def test_x8t_selection_on_a_covariate_or_the_treatment_is_allowed():
-    result = effect(selection=SelectionDiagram.on("z", "a"))
+    result = effect(selection=MechanismSelection.on("z", "a"))
     assert result.target_contrast == pytest.approx(5.34375, abs=1e-12)
 
 
 def test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail():
-    args = (scm(), source(), target(), SelectionDiagram.on("z"), nde())
+    args = (scm(), source(), target(), MechanismSelection.on("z"), nde())
     with pytest.raises(TransportedCounterfactualRefusal) as raised:
         transported_path_specific_effect(*args)
     assert raised.value.detail == "transported_counterfactual.nonadditive_mechanism"
@@ -166,7 +166,7 @@ def test_x8t_premises_default_to_undeclared_and_each_refuses_with_its_own_detail
 
 
 def test_x8t_selection_on_the_outcome_refuses_with_a_two_model_witness():
-    error = refusal_of(selection=SelectionDiagram.on("y"))
+    error = refusal_of(selection=MechanismSelection.on("y"))
     assert error.reason_code == "transport_proven_non_transportable"
     assert error.detail == "transported_counterfactual.selection_on_mechanism"
     witness = error.witness
@@ -184,12 +184,12 @@ def test_x8t_selection_on_the_outcome_refuses_with_a_two_model_witness():
 
 def test_x8t_selection_on_a_mediator_is_witnessed_only_when_the_contrast_depends_on_it():
     # The NDE does not depend on the mediator's equation: refused, no impossibility claimed.
-    error = refusal_of(selection=SelectionDiagram.on("m"))
+    error = refusal_of(selection=MechanismSelection.on("m"))
     assert error.reason_code == "cell_not_licensed"
     assert error.detail == "transported_counterfactual.selection_on_mechanism"
     assert error.witness is None and error.offending == "m"
     # The NIE depends on it: witness (perturbing the A coefficient of M by 1 moves it by 6).
-    error = refusal_of(assignment=nie(), selection=SelectionDiagram.on("m"))
+    error = refusal_of(assignment=nie(), selection=MechanismSelection.on("m"))
     assert error.reason_code == "transport_proven_non_transportable"
     witness = error.witness
     assert witness is not None and witness.selected_node == "m"
@@ -229,7 +229,7 @@ def test_x8t_malformed_inputs_are_refused_or_rejected():
     assert refusal_of(assignment=not_a_child).detail == "transported_counterfactual.invalid_query"
     bad_law = CovariateLaw.univariate("z", {0.0: 0.5, 1.0: 0.25})
     assert refusal_of(target_law=bad_law).detail == "transported_counterfactual.invalid_law"
-    nowhere = SelectionDiagram.on("nowhere")
+    nowhere = MechanismSelection.on("nowhere")
     assert refusal_of(selection=nowhere).detail == "transported_counterfactual.invalid_diagram"
     with pytest.raises(CausalValueError):
         Affine(float("nan"))
@@ -241,7 +241,9 @@ def test_x8t_artifact_round_trips_and_replays():
     original = effect(nie())
     data = original.export()
     assert isinstance(data, bytes)
-    replayed = consume_transported_counterfactual_artifact(data, expected=original.identity)
+    replayed = consume_transported_counterfactual_artifact(
+        data, expected_identity=original.identity
+    )
     assert replayed.target_contrast == original.target_contrast
     assert replayed.source_contrast == original.source_contrast
     assert replayed.unit_contrasts == original.unit_contrasts
@@ -259,7 +261,7 @@ def test_x8t_resealed_changes_are_refused_against_the_retained_identity():
     changed = {
         "model": effect(model=scm(m_on_a=Affine(3.0, {"z": -0.5}))),
         "target_law": effect(target_law=target({0.0: 0.5, 1.0: 0.5})),
-        "selection": effect(selection=SelectionDiagram.on("z", "a")),
+        "selection": effect(selection=MechanismSelection.on("z", "a")),
         "assignment": effect(nie()),
         "evidence": effect(
             evidence=[
@@ -273,7 +275,7 @@ def test_x8t_resealed_changes_are_refused_against_the_retained_identity():
         assert consume_transported_counterfactual_artifact(forged.export()) is not None
         # ... and refused with one.
         with pytest.raises(TransportedCounterfactualRefusal) as raised:
-            consume_transported_counterfactual_artifact(forged.export(), expected=retained)
+            consume_transported_counterfactual_artifact(forged.export(), expected_identity=retained)
         assert raised.value.detail == "transported_counterfactual.artifact_changed"
         assert raised.value.reason_code == "route_not_supported"
         assert raised.value.offending == field

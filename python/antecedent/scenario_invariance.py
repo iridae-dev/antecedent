@@ -34,11 +34,11 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any, Literal
+from dataclasses import asdict, dataclass
+from typing import Any, Literal, Protocol
 
 from . import _native
-from .errors import CausalUnsupportedError
+from .errors import StructuredRefusal
 
 __all__ = [
     "ConditionalReduction",
@@ -57,7 +57,34 @@ __all__ = [
 Edge = tuple[str, str]
 
 
-class ScenarioInvarianceRefusal(CausalUnsupportedError):
+class ScenarioStage(Protocol):
+    """A prepared transport-scenario stage (what ``prepare_transport_scenarios`` returns)."""
+
+    def estimate(self, *args: Any, **kwargs: Any) -> object:
+        """Evaluate the decided scenarios."""
+        ...
+
+
+def _plain(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    return value
+
+
+class _Plain:
+    """Adds a JSON-ready :meth:`to_dict` to a report dataclass."""
+
+    __slots__ = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        """The report as nested plain dicts and lists (tuples become lists)."""
+        result: dict[str, Any] = _plain(asdict(self))  # type: ignore[call-overload]
+        return result
+
+
+class ScenarioInvarianceRefusal(StructuredRefusal):
     """The invariance report could not be produced.
 
     ``detail`` is the namespaced ``scenario_invariance.*`` slot:
@@ -66,24 +93,19 @@ class ScenarioInvarianceRefusal(CausalUnsupportedError):
     scenario stage), or ``scenario_invariance.derivation_inconsistent`` /
     ``scenario_invariance.non_static_node`` for a derivation that contradicts its own formula,
     which a checked derivation cannot contain.
+
+    A :class:`~antecedent.errors.StructuredRefusal`: ``code``, ``detail``, ``offending`` and
+    ``remedy`` are machine-readable attributes.
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         detail = str(refusal["detail"])
         message = refusal.get("message")
-        super().__init__(
-            f"{detail}: {message}" if message else detail,
-            reason_code=refusal["code"],
-            remedy=refusal.get("remedy"),
-        )
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = detail
-        #: Offending variable or scenario, when there is one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal, text=f"{detail}: {message}" if message else detail)
 
 
 @dataclass(frozen=True, slots=True)
-class SelectionDifferences:
+class SelectionDifferences(_Plain):
     """What may differ between source and target under one scenario.
 
     ``targets`` are the variables whose mechanism may differ, ``shared_mechanisms`` every
@@ -98,7 +120,7 @@ class SelectionDifferences:
 
 
 @dataclass(frozen=True, slots=True)
-class SourceInvariance:
+class SourceInvariance(_Plain):
     """One factor the identified formula takes from a source population.
 
     ``variables`` are the factor's variables, ``conditioned_on`` the conditioning variables
@@ -123,7 +145,7 @@ class SourceInvariance:
 
 
 @dataclass(frozen=True, slots=True)
-class TargetFactor:
+class TargetFactor(_Plain):
     """One factor taken from the target population (a target law, not an invariance)."""
 
     variables: tuple[str, ...]
@@ -132,7 +154,7 @@ class TargetFactor:
 
 
 @dataclass(frozen=True, slots=True)
-class ConditionalReduction:
+class ConditionalReduction(_Plain):
     """The rule-2 reduction of a conditional question: coordinates moved into ``do(.)``."""
 
     moves: tuple[str, ...]
@@ -140,7 +162,7 @@ class ConditionalReduction:
 
 
 @dataclass(frozen=True, slots=True)
-class ObstructionWitness:
+class ObstructionWitness(_Plain):
     """Why a scenario is not transportable: the obstruction's variables.
 
     ``kind`` is ``s_hedge``, ``conditional_two_model_witness`` or (an inspection-only
@@ -164,7 +186,7 @@ class ObstructionWitness:
 
 
 @dataclass(frozen=True, slots=True)
-class InvarianceReport:
+class InvarianceReport(_Plain):
     """Selection differences and invariances of one scenario.
 
     ``kind`` says how the scenario was decided:
@@ -194,9 +216,31 @@ class InvarianceReport:
     identity: str
     canonical_text: str
 
+    def __repr__(self) -> str:
+        return (
+            f"InvarianceReport(status={self.status!r}, kind={self.kind!r}, "
+            f"identity={self.identity[:12]!r})"
+        )
+
+    def explain(self) -> str:
+        """A one-paragraph plain-text account of what may differ and what the answer relies on."""
+        targets = ", ".join(self.selection.targets) or "no variable"
+        head = f"{self.kind} ({self.status}); selection on {targets}"
+        if self.kind == "identified":
+            relied = len(self.invariances or ())
+            return (
+                f"{head}; relies on {relied} source factor(s) and "
+                f"{len(self.target_factors or ())} target factor(s) via {', '.join(self.rules)}"
+            )
+        if self.kind == "obstructed":
+            kind = self.obstruction.kind if self.obstruction else "obstruction"
+            return f"{head}; not transportable ({kind})"
+        notes = "; ".join(self.obligations) or "no obligations listed"
+        return f"{head}; undecided: {notes}"
+
 
 @dataclass(frozen=True, slots=True)
-class ScenarioInvariance:
+class ScenarioInvariance(_Plain):
     """One scenario's report beside the status its evaluated result reports.
 
     ``result_status`` can be ``support_failure`` or ``unsupported_provider`` for a scenario
@@ -209,7 +253,7 @@ class ScenarioInvariance:
 
 
 @dataclass(frozen=True, slots=True)
-class EnvelopeExtremeInvariance:
+class EnvelopeExtremeInvariance(_Plain):
     """The selections and invariances that produced one envelope extreme."""
 
     outcome: str
@@ -220,17 +264,34 @@ class EnvelopeExtremeInvariance:
 
 
 @dataclass(frozen=True, slots=True)
-class ScenarioSetInvarianceReport:
+class ScenarioSetInvarianceReport(_Plain):
     """Invariance reports of a whole scenario set.
 
     ``scenarios`` holds one report per scenario in canonical order (failed as well as
     successful); ``extremes`` both extremes of each outcome's envelope (empty when no scenario
-    identified).
+    identified). :meth:`to_dict` is a JSON-ready mapping and :meth:`explain` a plain-text
+    reading.
     """
 
     scenarios: tuple[ScenarioInvariance, ...]
     extremes: tuple[EnvelopeExtremeInvariance, ...]
     canonical_text: str
+
+    def __repr__(self) -> str:
+        names = ", ".join(s.name for s in self.scenarios)
+        return f"ScenarioSetInvarianceReport(scenarios=[{names}], extremes={len(self.extremes)})"
+
+    def explain(self) -> str:
+        """A plain-text account of every scenario's selection and invariances."""
+        lines = [f"Invariance report for {len(self.scenarios)} scenario(s)"]
+        for item in self.scenarios:
+            lines.append(f"- {item.name} (result {item.result_status}): {item.report.explain()}")
+        for extreme in self.extremes:
+            lines.append(
+                f"- {extreme.outcome} {extreme.side} extreme {extreme.value:g} "
+                f"from scenario {extreme.scenario}: {extreme.report.explain()}"
+            )
+        return "\n".join(lines)
 
     def scenario(self, name: str) -> ScenarioInvariance | None:
         """The report of the scenario called ``name``, or ``None``."""
@@ -330,7 +391,7 @@ def _report(raw: Mapping[str, Any]) -> InvarianceReport:
     )
 
 
-def invariance_report(scenario_result: Any) -> ScenarioSetInvarianceReport:
+def invariance_report(scenario_result: ScenarioStage) -> ScenarioSetInvarianceReport:
     """The selection differences and invariances behind each scenario answer.
 
     ``scenario_result`` is the stage returned by

@@ -33,7 +33,7 @@ from numpy.typing import NDArray
 from ._native import ExternalClaimArtifact as _NativeClaim
 from ._native import bind_external_response as _bind_external_response
 from ._native import bind_external_to_program as _bind_external_to_program
-from .errors import CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .extensibility import ProviderTrust
 from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
 
@@ -61,6 +61,28 @@ OBSERVATIONAL = "observational"
 UNSPECIFIED_UNITS = "unspecified"
 
 
+def _strings(what: str, values: object) -> tuple[str, ...]:
+    """A tuple of strings; a bare string (which would split into characters) is refused."""
+    if isinstance(values, (str, bytes)):
+        raise CausalTypeError(f"{what} must be a sequence of strings, not a single string")
+    try:
+        items = tuple(values)  # type: ignore[var-annotated,arg-type]
+    except TypeError as error:
+        raise CausalTypeError(f"{what} must be a sequence of strings") from error
+    if any(not isinstance(item, str) for item in items):
+        raise CausalTypeError(f"{what} must hold only strings")
+    return items
+
+
+def _real(what: str, value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        try:
+            return float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError) as error:
+            raise CausalTypeError(f"{what} must be a real number, got {value!r}") from error
+    return float(value)
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderObject:
     """One foreign provider object at an exact request.
@@ -80,7 +102,12 @@ class ProviderObject:
     capabilities: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "capabilities", tuple(self.capabilities))
+        for name in ("provider_id", "object_id", "version", "snapshot", "request", "meaning"):
+            if not isinstance(getattr(self, name), str):
+                raise CausalTypeError(f"ProviderObject.{name} must be a string")
+        object.__setattr__(
+            self, "capabilities", _strings("ProviderObject.capabilities", self.capabilities)
+        )
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -107,6 +134,12 @@ class VerificationProbe:
     observed: float
     expected: float
     tolerance: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, str):
+            raise CausalTypeError("VerificationProbe.kind must be a string")
+        for name in ("observed", "expected", "tolerance"):
+            _real(f"VerificationProbe.{name}", getattr(self, name))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -140,10 +173,23 @@ class Response:
     graph_id: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "values", tuple(float(v) for v in self.values))
-        object.__setattr__(self, "evidence", tuple(self.evidence))
-        object.__setattr__(self, "assumptions", tuple(self.assumptions))
-        object.__setattr__(self, "probes", tuple(self.probes))
+        if not isinstance(self.provider, ProviderObject):
+            raise CausalTypeError("Response.provider must be a ProviderObject")
+        if isinstance(self.values, (str, bytes)):
+            raise CausalTypeError("Response.values must be a sequence of numbers, not a string")
+        try:
+            values = tuple(_real("Response.values entry", v) for v in self.values)
+        except TypeError as error:
+            raise CausalTypeError("Response.values must be an iterable of numbers") from error
+        object.__setattr__(self, "values", values)
+        object.__setattr__(self, "evidence", _strings("Response.evidence", self.evidence))
+        object.__setattr__(self, "assumptions", _strings("Response.assumptions", self.assumptions))
+        probes = tuple(self.probes)
+        if any(not isinstance(probe, VerificationProbe) for probe in probes):
+            raise CausalTypeError("Response.probes must be VerificationProbe values")
+        object.__setattr__(self, "probes", probes)
+        if self.attested_by is not None and not isinstance(self.attested_by, str):
+            raise CausalTypeError("Response.attested_by must be a string or None")
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,7 +417,7 @@ class ExternalSpec:
         is not the program's refuses with ``program_binding.*`` before anything binds.
         """
         if not isinstance(response, Response):
-            raise TypeError("ExternalSpec.bind expects an antecedent.external.Response")
+            raise CausalTypeError("ExternalSpec.bind expects an antecedent.external.Response")
         quantities = response.quantities if response.quantities is not None else self.quantities
         wire = {
             "provider": response.provider._wire(),

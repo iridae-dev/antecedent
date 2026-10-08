@@ -1,12 +1,12 @@
 """Per-proposal receipts linking identification repair and design ranking (X6).
 
 A failed contract owes evidence (:mod:`antecedent.repair`); a candidate study is
-valued for the decision it would inform (:mod:`antecedent.design_ranking`). A
+valued for the decision it would inform (:mod:`antecedent.design`). A
 :class:`ProposalBundle` binds the two for every candidate the ranking values, by
 identities and digests and never by copy::
 
     repaired = repair.repair(contract, candidates)
-    ranked = design_ranking.rank_designs(decision, ranked_candidates, ...)
+    ranked = design.rank_designs(ranked_candidates, decision=decision, ...)
     bundle = ProposalBundle.build(repaired.export(), ranked.export(), contract=contract)
     bundle.verify(repaired.export(), ranked.export())
     verdict = bundle.on_arrival(candidate, ArrivedEvidence.law("clinic", [...], ...))
@@ -49,7 +49,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from . import _native, design_ranking, repair
+from . import _native, design, repair
 from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -394,7 +394,9 @@ def _bytes(name: str, value: object) -> bytes:
 
 def _replay(repair_artifact: bytes, ranking_artifact: bytes) -> None:
     repair.consume(repair_artifact)
-    design_ranking.consume(ranking_artifact)
+    # The bundle binds the ranking by identity and digest, so the artifact is replayed on its
+    # own seal here; there is no separately retained expectation to compare it with.
+    design.consume(ranking_artifact, skip_expectation_check=True)
 
 
 class ProposalBundle:
@@ -429,7 +431,7 @@ class ProposalBundle:
     ) -> ProposalBundle:
         """The bundle of every candidate the ranking values, from the two exported
         artifacts (``repair.RepairResult.export()`` and
-        ``design_ranking.DesignRankingResult.export()``).
+        ``design.DesignRankingResult.export()``).
 
         With ``consume`` (the default) each artifact is first replayed independently
         by its own consumer. A ranked candidate the repair report does not declare

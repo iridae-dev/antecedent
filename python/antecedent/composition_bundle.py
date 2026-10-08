@@ -47,21 +47,24 @@ changed fit refuses even when the data snapshot is the same.
 
 Rust owns the graph, the digests, the verifiers and every refusal; this module
 raises each as a :class:`CompositionBundleRefusal`, a
-:class:`~antecedent.errors.CausalUnsupportedError` with its registered
-``reason_code`` and the namespaced ``composition_bundle.<stage>`` ``detail``.
+:class:`~antecedent.errors.StructuredRefusal` (a ``CausalUnsupportedError``) with its
+registered ``code`` / ``reason_code``, the namespaced ``composition_bundle.<stage>`` ``detail``,
+``offending`` and ``remedy``.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from inspect import signature as _signature
 from typing import Any, Literal, TypeAlias
 
 from . import _native
 from .decision import Contract
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+
+_UNSET: Any = object()
 
 NodeKind = Literal[
     "causal_contract",
@@ -83,10 +86,17 @@ NodeKind = Literal[
     "recalculation_receipt",
     "frozen_scores",
 ]
+"""The kind of a bundle node, named for the part of a composed decision it carries (a
+distribution, a decision contract or result, a sensitivity artifact, a study ranking, ...).
+:data:`EMBEDDABLE_KINDS` can be embedded from bytes; the rest are carried as references."""
 Relationship = Literal[
     "shared_data", "shared_prior", "shared_fitted_model", "unknown_dependence", "independent"
 ]
+"""How the evidence behind two nodes depends on each other, as declared with
+:meth:`BundleBuilder.relate`; ``independent`` is refused when the two rest on the same evidence."""
 ClaimLabel = Literal["point_only_attested", "joint_draw"]
+"""The claim a decision result carries: ``joint_draw`` when it rests on aligned joint draws,
+``point_only_attested`` when it rests on an external mean (the conservative label)."""
 
 NODE_KINDS: tuple[str, ...] = (
     "causal_contract",
@@ -167,33 +177,38 @@ _STAGE_DETAILS: dict[str, str] = {
 }
 
 
-class CompositionBundleRefusal(CausalUnsupportedError):
+class CompositionBundleRefusal(StructuredRefusal):
     """A refused bundle, node or composition carrying the structured Rust fields.
 
-    ``reason_code`` is registered; ``detail`` is ``composition_bundle.<stage>`` and
-    :attr:`bundle_stage` is that stage's short name. ``offending`` names the node
-    when there is one.
+    A :class:`~antecedent.errors.StructuredRefusal`: ``reason_code`` (alias ``code``) is
+    registered; ``detail`` is ``composition_bundle.<stage>`` and :attr:`bundle_stage` is that
+    stage's short name. ``offending`` names the node when there is one.
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         offending = refusal.get("offending")
-        supplied = refusal.get("supplied")
+        supplied = refusal.get("supplied") or refusal.get("message")
         text = str(refusal["detail"])
         if supplied:
             text += f": {supplied}"
         if offending:
             text += f" (node `{offending}`)"
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = refusal.get("stage", "")
-        self.detail: str = refusal["detail"]
-        self.offending: str | None = offending
+        super().__init__(refusal, text=text)
         self.expected: str | None = refusal.get("expected")
-        self.supplied: str | None = supplied
+        self.supplied: str | None = refusal.get("supplied")
 
     @property
     def bundle_stage(self) -> str:
         """The failed stage's short name, for example ``tampered_quantity``."""
-        return self.detail.rpartition(".")[2]
+        return (self.detail or "").rpartition(".")[2]
+
+
+class NodeNotFoundRefusal(CompositionBundleRefusal):
+    """An edge or relationship names a node that was never added (``node_not_found``).
+
+    The reason code is ``invalid_argument``, so it is also a
+    :class:`~antecedent.errors.CausalValueError`; ``offending`` is the missing node id.
+    """
 
 
 class TamperedQuantityRefusal(CompositionBundleRefusal):
@@ -403,18 +418,41 @@ class BundleBuilder:
             raise CausalValueError("no node has been added yet")
         return self._last
 
-    def add_artifact(self, kind: str, data: object, *, node_id: str | None = None) -> BundleBuilder:
-        """Embed an artifact from its container bytes.
+    def add_artifact(
+        self,
+        kind: NodeKind | Literal["auto"] | object,
+        data: object = _UNSET,
+        *,
+        node_id: str | None = None,
+    ) -> BundleBuilder:
+        """Embed an artifact from its container bytes (or an object that exports them).
 
-        ``kind`` is a node kind (``auto`` reads it from the container). The artifact
-        is decoded through its own consumer and its identity recomputed, so bytes
-        that are not that kind of artifact refuse here with the failed stage.
+        Call ``add_artifact(artifact)`` to infer the node kind from the container, or
+        ``add_artifact(kind, artifact)`` to name it (``"auto"`` reads it from the container
+        too). The artifact is decoded through its own consumer and its identity recomputed,
+        so bytes that are not that kind of artifact refuse here with the failed stage.
+
+        Raises:
+            CausalTypeError: the artifact is neither container bytes nor an object whose
+                ``export`` returns them, or ``kind`` is given without the artifact.
+            CausalValueError: ``kind`` is not a bundle node kind.
+            CompositionBundleRefusal: the bytes are not an artifact of that kind.
         """
+        if data is _UNSET:
+            if isinstance(kind, str):
+                raise CausalTypeError(
+                    "add_artifact(kind, data) needs the artifact after the kind; call "
+                    "add_artifact(artifact) to infer the kind from the container"
+                )
+            kind, data = "auto", kind
+        if not isinstance(kind, str):
+            raise CausalTypeError(f"kind must be a node kind string, one of {NODE_KINDS}")
         added, refusal = self._native.add_artifact(
             _kind(kind, allow_auto=True), _bytes(data), node_id
         )
         _raise(refusal)
-        assert added is not None
+        if added is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
         self._last = added
         return self
@@ -422,7 +460,7 @@ class BundleBuilder:
     def add_reference(
         self,
         node_id: str,
-        kind: str,
+        kind: NodeKind,
         *,
         identity: str,
         requires: Requirement,
@@ -435,6 +473,11 @@ class BundleBuilder:
         ``graph_or_snapshot`` that the bundle cross-checks against connected nodes;
         ``inspected`` values are kept, unverified, so an inspected result survives
         when the reference cannot be resolved.
+
+        Raises:
+            CausalValueError: ``kind`` is not a bundle node kind.
+            CausalTypeError: ``requires`` is not a requirement.
+            CompositionBundleRefusal: the node id is already used or the reference is refused.
         """
         refusal = self._native.add_reference(
             node_id,
@@ -451,32 +494,65 @@ class BundleBuilder:
         self._last = node_id
         return self
 
+    def _require_nodes(self, *node_ids: str) -> None:
+        for node_id in node_ids:
+            if node_id not in self._ids:
+                raise NodeNotFoundRefusal(
+                    {
+                        "code": "invalid_argument",
+                        "stage": "build",
+                        "detail": "composition_bundle.node_not_found",
+                        "offending": node_id,
+                        "message": f"no node `{node_id}` has been added to this builder",
+                        "remedy": f"add `{node_id}` first; nodes so far: {sorted(self._ids)}",
+                    }
+                )
+
     def connect(self, upstream: str, dependent: str) -> BundleBuilder:
-        """Declare that ``dependent`` was derived from ``upstream``."""
+        """Declare that ``dependent`` was derived from ``upstream``.
+
+        Raises:
+            NodeNotFoundRefusal: either node has not been added (also a
+                :class:`~antecedent.errors.CausalValueError`).
+            EdgeDigestMismatchRefusal: the edge would make the graph malformed (a cycle).
+        """
+        self._require_nodes(upstream, dependent)
         _raise(self._native.connect(upstream, dependent))
         return self
 
-    def relate(self, left: str, right: str, relationship: str) -> BundleBuilder:
+    def relate(self, left: str, right: str, relationship: Relationship) -> BundleBuilder:
         """Declare how the evidence behind two nodes depends on each other.
 
         The declaration becomes a node both are connected to, and is checked against
         them: a pair declared ``independent`` that rests on the same evidence is
         refused as ``swapped_evidence``. The pair is unordered.
+
+        Raises:
+            CausalValueError: ``relationship`` is not one of :data:`RELATIONSHIPS`.
+            NodeNotFoundRefusal: either node has not been added.
+            SwappedEvidenceRefusal: the declaration contradicts the evidence.
         """
         if relationship not in RELATIONSHIPS:
             raise CausalValueError(f"`{relationship}` is not one of {RELATIONSHIPS}")
+        self._require_nodes(left, right)
         added, refusal = self._native.relate(left, right, relationship)
         _raise(refusal)
-        assert added is not None
+        if added is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native builder returned neither a node nor a refusal")
         self._ids.append(added)
         self._last = added
         return self
 
     def build(self) -> Bundle:
-        """Seal the graph into a :class:`Bundle`."""
+        """Seal the graph into a :class:`Bundle`.
+
+        Raises:
+            CompositionBundleRefusal: the graph is malformed or exceeds a bound.
+        """
         built, refusal = self._native.build()
         _raise(refusal)
-        assert built is not None
+        if built is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native builder returned neither a bundle nor a refusal")
         return Bundle(built)
 
 
@@ -485,7 +561,7 @@ class NodeSummary:
     """One node of a built bundle."""
 
     id: str
-    kind: str
+    kind: NodeKind
     identity: str
     embedded: bool
     chain_digest: str
@@ -532,12 +608,46 @@ class Bundle:
         wire = json.loads(self._native.edges_json)
         return tuple(Edge(e["from"], e["to"], e["upstream_digest"]) for e in wire)
 
-    def export(self, artifact_id: str = "composition-bundle") -> bytes:
-        """Serialize through the checksummed container (one section per embedded node)."""
+    def export(self, *, artifact_id: str = "composition-bundle") -> bytes:
+        """Serialize through the checksummed container (one section per embedded node).
+
+        Raises:
+            CompositionBundleRefusal: the bundle exceeds a size or count bound.
+        """
         data, refusal = self._native.export(artifact_id)
         _raise(refusal)
-        assert data is not None
+        if data is None:  # pragma: no cover - the native contract
+            raise CausalValueError("the native export returned neither a result nor a refusal")
         return data
+
+    def __repr__(self) -> str:
+        return (
+            f"Bundle(identity={self.identity[:12]!r}, nodes={len(self.nodes)}, "
+            f"edges={len(self.edges)})"
+        )
+
+    def explain(self) -> str:
+        """A plain-text account of the nodes and the dependency edges."""
+        lines = [
+            f"Bundle {self.identity[:12]}: {len(self.nodes)} node(s), {len(self.edges)} edge(s)."
+        ]
+        for node in self.nodes:
+            how = "embedded" if node.embedded else "reference (needs a supplied source)"
+            lines.append(f"- {node.id} ({node.kind}): {how}")
+        for edge in self.edges:
+            lines.append(f"- {edge.source} -> {edge.target}")
+        return "\n".join(lines)
+
+    def to_dict(self) -> dict[str, Any]:
+        """A JSON-ready mapping of the identity, nodes and edges."""
+        return {
+            "identity": self.identity,
+            "nodes": [asdict(node) for node in self.nodes],
+            "edges": [
+                {"from": e.source, "to": e.target, "upstream_digest": e.upstream_digest}
+                for e in self.edges
+            ],
+        }
 
 
 # ------------------------------------------------------------------------ consuming
@@ -575,7 +685,7 @@ class ConsumedNode:
     """One consumed node."""
 
     id: str
-    kind: str
+    kind: NodeKind
     identity: str
     chain_digest: str
     status: NodeStatus
@@ -597,6 +707,20 @@ def _status(wire: Mapping[str, Any]) -> NodeStatus:
     if state == "reference_unresolved":
         return ReferenceUnresolved(_requirement_from(wire["requires"]))
     return Failed(wire["stage"], wire["reason"], wire.get("detail", ""), wire.get("code", ""))
+
+
+def _status_dict(status: NodeStatus) -> dict[str, Any]:
+    if isinstance(status, Failed):
+        return {
+            "state": "failed",
+            "stage": status.stage,
+            "reason": status.reason,
+            "detail": status.detail,
+            "code": status.code,
+        }
+    if isinstance(status, ReferenceUnresolved):
+        return {"state": "reference_unresolved", "requires": asdict(status.requires)}
+    return {"state": "verified"}
 
 
 def _label(value: str | None) -> ClaimLabel | None:
@@ -646,7 +770,11 @@ class ConsumedBundle:
         return self._edges
 
     def node(self, node_id: str) -> ConsumedNode:
-        """One node by id."""
+        """One node by id.
+
+        Raises:
+            CausalValueError: the bundle has no node with that id.
+        """
         for node in self._nodes:
             if node.id == node_id:
                 return node
@@ -677,11 +805,62 @@ class ConsumedBundle:
             return "joint_draw"
         return None
 
+    def __repr__(self) -> str:
+        verified = sum(1 for node in self._nodes if node.verified)
+        return (
+            f"ConsumedBundle(identity={self._identity[:12]!r}, nodes={len(self._nodes)}, "
+            f"verified={verified}, claim_label={self.claim_label!r})"
+        )
+
+    def explain(self) -> str:
+        """A plain-text account of every node's status and the claim the bundle carries."""
+        lines = [
+            f"Consumed bundle {self._identity[:12]}: {len(self._nodes)} node(s), "
+            f"{len(self._edges)} edge(s), claim label {self.claim_label!r}."
+        ]
+        for node in self._nodes:
+            status = node.status
+            if isinstance(status, Failed):
+                state = f"FAILED at {status.stage}: {status.reason}"
+            elif isinstance(status, ReferenceUnresolved):
+                state = "reference unresolved (provider or data source not supplied)"
+            else:
+                state = "verified"
+            lines.append(f"- {node.id} ({node.kind}): {state}")
+        return "\n".join(lines)
+
+    def to_dict(self) -> dict[str, Any]:
+        """A JSON-ready mapping of the identity, nodes (with status) and edges."""
+        return {
+            "identity": self._identity,
+            "claim_label": self.claim_label,
+            "all_verified": self.all_verified,
+            "nodes": [
+                {
+                    "id": node.id,
+                    "kind": node.kind,
+                    "identity": node.identity,
+                    "chain_digest": node.chain_digest,
+                    "status": _status_dict(node.status),
+                    "facts": dict(node.facts),
+                    "values": dict(node.values),
+                    "inspected": dict(node.inspected),
+                    "claim_label": node.claim_label,
+                }
+                for node in self._nodes
+            ],
+            "edges": [
+                {"from": e.source, "to": e.target, "upstream_digest": e.upstream_digest}
+                for e in self._edges
+            ],
+        }
+
     def require_verified(self) -> None:
         """Require every node to have verified.
 
-        Raises the first failed node's typed refusal at its stage, or, for the first
-        unresolved reference, :class:`CallbackUnavailableRefusal`.
+        Raises:
+            CompositionBundleRefusal: the first failed node's typed refusal at its stage, or,
+                for the first unresolved reference, :class:`CallbackUnavailableRefusal`.
         """
         for node in self._nodes:
             status = node.status
@@ -710,7 +889,7 @@ class ConsumedBundle:
 def consume_bundle(
     data: bytes,
     *,
-    expected_identity: str,
+    expected_identity: str | None = None,
     supplied: SuppliedSources | None = None,
     actual_claims: Mapping[str, object] | None = None,
 ) -> ConsumedBundle:
@@ -723,7 +902,30 @@ def consume_bundle(
     without hiding the rest of the bundle. ``actual_claims`` binds original source
     digests to opaque claims from actual executions; each source's original engine
     executes once to resolve its native operation. Serialized metadata is insufficient.
+
+    ``expected_identity`` is required: the bundle identity (``Bundle.identity``) the consumer
+    retained independently of the bytes. It is a keyword so a forgotten identity is named in
+    the error rather than silently trusting the bytes.
+
+    Raises:
+        CausalTypeError: ``data`` is not bytes (for example a path or ``str``: read the file
+            with ``Path.read_bytes()``), or ``expected_identity`` is not a string.
+        CausalValueError: ``expected_identity`` was not given.
+        CompositionBundleRefusal: the container does not verify (see the stage-specific
+            subclasses, for example :class:`ExpectedIdentityMismatchRefusal`).
     """
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        raise CausalTypeError(
+            f"consume_bundle expects the exported bundle bytes, not {type(data).__name__}; "
+            "read a file with Path.read_bytes() or pass Bundle.export()"
+        )
+    if expected_identity is None:
+        raise CausalValueError(
+            "consume_bundle needs expected_identity=: the bundle identity you retained "
+            "independently of the bytes (for example the Bundle.identity recorded at export)"
+        )
+    if not isinstance(expected_identity, str):
+        raise CausalTypeError("expected_identity must be the bundle identity string")
     if actual_claims is None:
         wire, refusal = _native.consume_composition_bundle(
             bytes(data), expected_identity, None if supplied is None else supplied._json()
@@ -732,11 +934,11 @@ def consume_bundle(
         from .program_claims import NativeClaim
 
         if len(actual_claims) > 64:
-            raise ValueError("source resolver count exceeds its bound")
+            raise CausalValueError("source resolver count exceeds its bound")
         handles: dict[str, _native.NativeResponseClaim] = {}
         for digest, claim in actual_claims.items():
             if not isinstance(digest, str) or not isinstance(claim, NativeClaim):
-                raise TypeError(
+                raise CausalTypeError(
                     "source resolution requires source digest to issued NativeClaim mapping"
                 )
             handles[digest] = claim._native
@@ -744,7 +946,8 @@ def consume_bundle(
             bytes(data), expected_identity, None if supplied is None else supplied._json(), handles
         )
     _raise(refusal)
-    assert wire is not None
+    if wire is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native consumer returned neither a result nor a refusal")
     return ConsumedBundle(json.loads(wire))
 
 
@@ -758,17 +961,24 @@ class ArtifactDescription:
     values: Mapping[str, float]
 
 
-def describe_artifact(kind: str, data: object) -> ArtifactDescription:
+def describe_artifact(kind: NodeKind | Literal["auto"], data: object) -> ArtifactDescription:
     """Decode one artifact on its own and report its identity and published facts.
 
-    Raises the typed refusal of the artifact's own consumer for bytes that are not an
-    artifact of that kind.
+    ``kind`` is a node kind, or ``"auto"`` to read it from the container.
+
+    Raises:
+        CausalValueError: ``kind`` is not a bundle node kind.
+        CausalTypeError: ``data`` is neither container bytes nor an object whose ``export``
+            returns them.
+        CompositionBundleRefusal: the bytes are not an artifact of that kind (the typed
+            refusal of the artifact's own consumer).
     """
     wire, refusal = _native.composition_describe_artifact(
         _kind(kind, allow_auto=True), _bytes(data)
     )
     _raise(refusal)
-    assert wire is not None
+    if wire is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native describe returned neither a result nor a refusal")
     body = json.loads(wire)
     return ArtifactDescription(
         body["kind"],
@@ -789,17 +999,26 @@ def mean_decision(
     A contract whose functional a mean cannot answer (a quantile, a probability or a
     nonlinear utility) refuses as ``unsupported_law``; :meth:`Decision.export`
     refuses the same result by design, because only joint draws replay.
+
+    Raises:
+        CausalTypeError: ``claim`` is neither container bytes nor an exporting object.
+        CompositionBundleRefusal: the contract needs more than a mean (``unsupported_law``).
     """
     data, refusal = _native.composition_mean_decision(
         json.dumps(contract._wire()), _bytes(claim), artifact_id
     )
     _raise(refusal)
-    assert data is not None
+    if data is None:  # pragma: no cover - the native contract
+        raise CausalValueError("the native decision returned neither a result nor a refusal")
     return data
 
 
 def detect_kind(data: object) -> str | None:
-    """The node kind a container's artifact fills, or ``None`` when it is not one."""
+    """The node kind a container's artifact fills, or ``None`` when it is not one.
+
+    Raises:
+        CausalTypeError: ``data`` is neither container bytes nor an exporting object.
+    """
     return _native.composition_detect_kind(_bytes(data))
 
 
@@ -824,6 +1043,7 @@ __all__ = [
     "GraphOrSnapshotMismatchRefusal",
     "IncompatibleVersionRefusal",
     "NodeKind",
+    "NodeNotFoundRefusal",
     "NodeStatus",
     "NodeSummary",
     "OversizedRefusal",

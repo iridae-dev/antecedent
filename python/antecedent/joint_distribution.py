@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._native import JointDistributionArtifact as _NativeJointDistributionArtifact
+from .errors import CausalValueError
 
 DistributionMeaning = Literal[
     "parameter_posterior",
@@ -117,9 +118,9 @@ class JointDistributionArtifact:
                 reason_code="invalid_argument",
             )
         if not isinstance(draws, np.ndarray) or draws.dtype != np.float64 or draws.ndim != 2:
-            raise ValueError("draws must be a two-dimensional float64 NumPy array")
+            raise CausalValueError("draws must be a two-dimensional float64 NumPy array")
         if draws.shape[0] > 100_000 or draws.shape[1] > 1_024 or draws.size * 8 > 16 * 1024 * 1024:
-            raise ValueError("distribution draw array exceeds its bounds")
+            raise CausalValueError("distribution draw array exceeds its bounds")
         metadata = {
             "version": 1,
             "identity": identity._wire(),
@@ -207,7 +208,7 @@ class JointDistributionArtifact:
     def __array__(self, dtype: Any = None, copy: bool | None = None) -> NDArray[Any]:
         """Return a NumPy-owned copy; explicit ``copy=False`` cannot avoid it."""
         if copy is False:
-            raise ValueError("JointDistributionArtifact requires one bounded copy into NumPy")
+            raise CausalValueError("JointDistributionArtifact requires one bounded copy into NumPy")
         array = self._native.draws_copy()
         return np.asarray(array, dtype=dtype)
 

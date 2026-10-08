@@ -61,7 +61,11 @@ ARTIFACT_KIND = "recalc_receipt_v1"
 MAX_EXTERNAL_BRANCHES = 8
 
 Retarget = Literal["licensed", "not_declared", "incompatible"]
+"""Whether a target-population change is a licensed reweighting of retained scores
+(``licensed``), has no declared reweighting (``not_declared``) or is incompatible with them."""
 RequestKind = Literal["on_grid", "off_grid", "unsupported"]
+"""How a request relates to the licensed grid of changes: ``on_grid`` (a licensed route),
+``off_grid`` (a refit is needed) or ``unsupported`` (no route)."""
 StatusKind = Literal["reused", "recomputed", "refused"]
 
 _RETARGETS = ("licensed", "not_declared", "incompatible")
@@ -466,7 +470,7 @@ class RecalcUnavailable(RecalcRefusal):
     @property
     def missing(self) -> str:
         """What the fresh process lacks."""
-        return self.detail.rpartition("_")[2]
+        return (self.detail or "").rpartition("_")[2]
 
 
 class RecalcNoLiveState(RecalcRefusal):

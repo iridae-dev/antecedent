@@ -207,7 +207,7 @@ def test_c3_order_invariance_and_deterministic_derived_ids() -> None:
     forward = _joint_builder(parts).build()
     reverse = _joint_builder(parts, reverse=True).build()
     assert forward.identity == reverse.identity
-    assert forward.export("same") == reverse.export("same")
+    assert forward.export(artifact_id="same") == reverse.export(artifact_id="same")
 
     derived = cb.Bundle.builder().add_artifact("auto", parts["law"])
     again = cb.Bundle.builder().add_artifact("distribution", parts["law"])
@@ -260,12 +260,7 @@ def _cycle() -> None:
             "swapped_evidence",
             "external_binding_mismatch",
         ),
-        (
-            _unknown_edge,
-            cb.EdgeDigestMismatchRefusal,
-            "edge_digest_mismatch",
-            "external_binding_mismatch",
-        ),
+        (_unknown_edge, cb.NodeNotFoundRefusal, "node_not_found", "invalid_argument"),
         (
             _cycle,
             cb.EdgeDigestMismatchRefusal,

@@ -54,7 +54,7 @@ from ._native import (
 from ._native import (
     evaluate_transported_counterfactual as _evaluate,
 )
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
     "AdditiveNoiseScm",
@@ -63,9 +63,9 @@ __all__ = [
     "Derivation",
     "EdgeAssignment",
     "Mechanism",
+    "MechanismSelection",
     "NonRecoverableWitness",
     "Premises",
-    "SelectionDiagram",
     "TransportedCounterfactualIdentity",
     "TransportedCounterfactualRefusal",
     "TransportedPathSpecificEffect",
@@ -214,8 +214,12 @@ class CovariateLaw:
 
 
 @dataclass(frozen=True, slots=True)
-class SelectionDiagram:
-    """Selection nodes: ``label -> the variable whose mechanism or law may differ``."""
+class MechanismSelection:
+    """Selection nodes: ``label -> the variable whose mechanism or law may differ``.
+
+    A plain label-to-target mapping for this module's structural model; it is not the
+    selection *diagram* (a graph) of :class:`antecedent.transport.advanced.SelectionDiagram`.
+    """
 
     nodes: Mapping[str, str] = field(default_factory=dict)
 
@@ -227,7 +231,7 @@ class SelectionDiagram:
         object.__setattr__(self, "nodes", nodes)
 
     @classmethod
-    def on(cls, *targets: str) -> SelectionDiagram:
+    def on(cls, *targets: str) -> MechanismSelection:
         """One selection node ``S_<target>`` per listed variable."""
         return cls({f"S_{t}": t for t in targets})
 
@@ -352,8 +356,8 @@ class Derivation:
 class TransportedCounterfactualIdentity:
     """Identity digests a consumer retains independently of the artifact bytes.
 
-    Pass it to :func:`consume_transported_counterfactual_artifact` as ``expected=`` to refuse a
-    *resealed* change of any premise, law, coefficient, selection, assignment or evidence.
+    Pass it to :func:`consume_transported_counterfactual_artifact` as ``expected_identity=``
+    to refuse a *resealed* change of any premise, law, coefficient, selection, assignment or evidence.
     """
 
     model_digest: str
@@ -428,7 +432,7 @@ def _witness_of(raw: Mapping[str, Any]) -> NonRecoverableWitness:
     )
 
 
-class TransportedCounterfactualRefusal(CausalUnsupportedError):
+class TransportedCounterfactualRefusal(StructuredRefusal):
     """A typed refusal of the transported path-specific counterfactual.
 
     ``reason_code`` and ``remedy`` are the inherited registered fields. ``detail`` is the
@@ -441,21 +445,19 @@ class TransportedCounterfactualRefusal(CausalUnsupportedError):
     (``transport_missing_evidence``; ``missing_factors``), ``artifact_changed``
     (``route_not_supported``; ``offending`` is the changed identity field) and the
     ``invalid_argument`` family ``invalid_model``, ``invalid_query``, ``invalid_law``,
-    ``invalid_diagram`` and ``invalid_factor``.
+    ``invalid_diagram`` and ``invalid_factor``. The ``invalid_argument`` family is also a
+    :class:`~antecedent.errors.CausalValueError`.
+
+    A :class:`~antecedent.errors.StructuredRefusal`: ``code``, ``detail``, ``offending`` and
+    ``remedy`` are machine-readable attributes.
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         detail = str(refusal["detail"])
-        message = detail
+        text = detail
         if refusal.get("offending"):
-            message += f" at {refusal['offending']}"
-        super().__init__(message, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = detail
-        #: Offending node, premise, point or factor, when there is one.
-        self.offending: str | None = refusal.get("offending")
+            text += f" at {refusal['offending']}"
+        super().__init__(refusal, text=text)
         #: The two-model impossibility witness, for a selection on a sensitive mechanism.
         self.witness: NonRecoverableWitness | None = (
             _witness_of(refusal["witness"]) if refusal.get("witness") else None
@@ -491,14 +493,61 @@ class TransportedPathSpecificEffect:
         """The checksummed ``transported_counterfactual_v1`` artifact."""
         return self.artifact
 
+    def __repr__(self) -> str:
+        return (
+            f"TransportedPathSpecificEffect(target_contrast={self.target_contrast:g}, "
+            f"source_contrast={self.source_contrast:g}, "
+            f"points={len(self.unit_contrasts)}, spec_id={self.identity.spec_id[:12]!r})"
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """A JSON-ready mapping of the contrasts, derivation and identity (no artifact bytes)."""
+        return {
+            "target_contrast": self.target_contrast,
+            "source_contrast": self.source_contrast,
+            "unit_contrasts": [
+                {
+                    "point": dict(unit.point),
+                    "target_weight": unit.target_weight,
+                    "contrast": unit.contrast,
+                }
+                for unit in self.unit_contrasts
+            ],
+            "derivation": {
+                "theorem": self.derivation.theorem,
+                "checked": list(self.derivation.checked),
+                "declared": list(self.derivation.declared),
+                "claim": self.derivation.claim,
+            },
+            "inference_claim": self.inference_claim,
+            "identity": asdict(self.identity),
+            "artifact_bytes": len(self.artifact),
+        }
+
+    def explain(self) -> str:
+        """A plain-text account: the contrasts, what was checked and what was only declared."""
+        lines = [
+            f"Transported path-specific contrast: target {self.target_contrast:g} "
+            f"(source-only answer {self.source_contrast:g}) over "
+            f"{len(self.unit_contrasts)} target support point(s).",
+            f"Theorem: {self.derivation.theorem}.",
+            "Checked: " + ("; ".join(self.derivation.checked) or "nothing") + ".",
+            "Declared, not checked: " + ("; ".join(self.derivation.declared) or "nothing") + ".",
+            f"Claim: {self.derivation.claim}",
+            f"Inference: {self.inference_claim} (calibration unmeasured).",
+        ]
+        return "\n".join(lines)
+
     @staticmethod
     def consume(
         artifact: bytes,
         *,
-        expected: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
+        expected_identity: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
     ) -> TransportedPathSpecificEffect:
         """Replay an exported artifact; see :func:`consume_transported_counterfactual_artifact`."""
-        return consume_transported_counterfactual_artifact(artifact, expected=expected)
+        return consume_transported_counterfactual_artifact(
+            artifact, expected_identity=expected_identity
+        )
 
 
 def _effect(report_json: str, artifact: bytes) -> TransportedPathSpecificEffect:
@@ -551,7 +600,7 @@ def transported_path_specific_effect(
     scm: AdditiveNoiseScm,
     source_law: CovariateLaw,
     target_law: CovariateLaw,
-    selection: SelectionDiagram,
+    selection: MechanismSelection,
     assignment: EdgeAssignment,
     *,
     premises: Premises | None = None,
@@ -578,8 +627,8 @@ def transported_path_specific_effect(
         raise CausalTypeError("scm must be an AdditiveNoiseScm")
     if not isinstance(source_law, CovariateLaw) or not isinstance(target_law, CovariateLaw):
         raise CausalTypeError("source_law and target_law must be CovariateLaw objects")
-    if not isinstance(selection, SelectionDiagram):
-        raise CausalTypeError("selection must be a SelectionDiagram")
+    if not isinstance(selection, MechanismSelection):
+        raise CausalTypeError("selection must be a MechanismSelection")
     if not isinstance(assignment, EdgeAssignment):
         raise CausalTypeError("assignment must be an EdgeAssignment")
     declared = premises if premises is not None else Premises()
@@ -607,7 +656,7 @@ def transported_path_specific_effect(
 def consume_transported_counterfactual_artifact(
     artifact: bytes,
     *,
-    expected: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
+    expected_identity: TransportedCounterfactualIdentity | Mapping[str, str] | None = None,
 ) -> TransportedPathSpecificEffect:
     """Replay an exported artifact and accept only an identical one.
 
@@ -616,7 +665,7 @@ def consume_transported_counterfactual_artifact(
     derivation must reproduce bit for bit. The replay re-checks the declared premises, so an
     artifact whose premises were relabelled false (or whose selection now points at a mediator
     or outcome mechanism) is refused with the core refusal
-    (:class:`TransportedCounterfactualRefusal`). With ``expected`` (the
+    (:class:`TransportedCounterfactualRefusal`). With ``expected_identity`` (the
     :attr:`TransportedPathSpecificEffect.identity` retained out-of-band) a changed premise, law,
     coefficient, selection or assignment is refused even when the artifact was resealed
     consistently (``route_not_supported``, ``transported_counterfactual.artifact_changed``;
@@ -625,14 +674,16 @@ def consume_transported_counterfactual_artifact(
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    if expected is None:
+    if expected_identity is None:
         expected_json = None
-    elif isinstance(expected, TransportedCounterfactualIdentity):
-        expected_json = json.dumps(expected._wire())
-    elif isinstance(expected, Mapping):
-        expected_json = json.dumps(dict(expected))
+    elif isinstance(expected_identity, TransportedCounterfactualIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
     else:
-        raise CausalTypeError("expected must be a TransportedCounterfactualIdentity or a mapping")
+        raise CausalTypeError(
+            "expected_identity must be a TransportedCounterfactualIdentity or a mapping"
+        )
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
     _raise_refusal(refusal)

@@ -41,13 +41,75 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal, Protocol
 
 from . import _native
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .graph import Admg, Dag
 from .joint_distribution import ScientificQuantity
 from .transport._impl import EvidenceCatalog
+
+#: What an evidence obligation asks for.
+ObligationKind = Literal[
+    "measure",
+    "intervene",
+    "observe_population",
+    "observe_environment",
+    "increase_sample",
+    "provide_joint_law",
+    "provide_conditional_law",
+    "establish_support",
+    "establish_assumption",
+]
+#: How a candidate (subset) fared in the repair search.
+Classification = Literal[
+    "verified_sufficient", "insufficient", "not_certified", "invalid", "unevaluated"
+]
+
+
+class CancelToken(Protocol):
+    """A cancellation token (for example :class:`antecedent.CancellationToken`)."""
+
+    def cancel(self) -> None:
+        """Request cancellation."""
+        ...
+
+    def is_cancelled(self) -> bool:
+        """Whether cancellation was requested."""
+        ...
+
+
+class FailedIdentification(Protocol):
+    """A failed identification stage: it exposes its ``graph``, ``query`` and ``status``."""
+
+    @property
+    def graph(self) -> object:
+        """The identification graph."""
+        ...
+
+    @property
+    def query(self) -> Any:
+        """The identified query (carries ``treatment`` and ``outcome``)."""
+        ...
+
+    @property
+    def status(self) -> object:
+        """The identification status."""
+        ...
+
+    @property
+    def names(self) -> Sequence[str] | None:
+        """The node names an edge-list graph refers to, when the graph is not a ``Dag``."""
+        ...
+
+
+class ZTransportIdentification(Protocol):
+    """A z-transport identification stage: it can freeze its checked failure."""
+
+    def failure_snapshot(self, catalog: EvidenceCatalog) -> bytes:
+        """The checked failure snapshot under ``catalog``."""
+        ...
+
 
 _KINDS = ("experiment", "observation", "sample_increase")
 _OBJECTIVES = ("minimize_cost", "minimize_sample_budget")
@@ -59,12 +121,12 @@ _CONSUME_MAX_OPERATIONS = 100_000
 _CONSUME_MAX_DEPTH = 4
 
 
-class RepairRefusal(CausalUnsupportedError):
+class RepairRefusal(StructuredRefusal):
     """A refused repair request, obligation or candidate.
 
-    ``reason_code`` is the registered runtime-refusal code and :attr:`detail` the
-    stable ``<family>.<slot>`` detail (for example
-    ``identification_repair.not_a_failure`` or
+    A :class:`~antecedent.errors.StructuredRefusal`: ``reason_code`` (alias ``code``) is the
+    registered runtime-refusal code and :attr:`detail` the stable ``<family>.<slot>`` detail
+    (for example ``identification_repair.not_a_failure`` or
     ``identification_repair.bounds_exceeded``).
     """
 
@@ -77,9 +139,17 @@ class RepairRefusal(CausalUnsupportedError):
         remedy: str | None = None,
     ) -> None:
         text = f"{detail}: {message}" if detail else message
-        super().__init__(text, reason_code=reason_code, remedy=remedy)
+        super().__init__(
+            {
+                "code": reason_code,
+                "detail": detail or "",
+                "message": message,
+                "remedy": remedy,
+            },
+            text=text,
+        )
         #: Stable ``<family>.<slot>`` detail, when the refusal names one.
-        self.detail: str | None = detail
+        self.detail = detail
 
 
 class RepairBudgetRefusal(RepairRefusal):
@@ -177,7 +247,7 @@ class EvidenceObligation:
     """
 
     id: str
-    kind: str
+    kind: ObligationKind
     scope: str
     variables: tuple[str, ...]
     population: str | None
@@ -492,7 +562,7 @@ class BackdoorContract:
     @classmethod
     def from_identification(
         cls,
-        identification: Any,
+        identification: FailedIdentification,
         *,
         population: str,
         observed: Sequence[str],
@@ -571,7 +641,11 @@ class ZTransportContract:
 
     @classmethod
     def from_identification(
-        cls, identification: Any, *, catalog: EvidenceCatalog, names: Sequence[str]
+        cls,
+        identification: ZTransportIdentification,
+        *,
+        catalog: EvidenceCatalog,
+        names: Sequence[str],
     ) -> ZTransportContract:
         """Use the actual identification stage's checked failure snapshot."""
         if not callable(getattr(identification, "failure_snapshot", None)):
@@ -594,7 +668,11 @@ class ZTransportContract:
 Contract = TransportContract | BackdoorContract | ZTransportContract
 
 
-def _contract_of(failure: Any, population: str | None, observed: Sequence[str] | None) -> Any:
+def _contract_of(
+    failure: Contract | FailedIdentification,
+    population: str | None,
+    observed: Sequence[str] | None,
+) -> Contract:
     if isinstance(failure, (TransportContract, BackdoorContract, ZTransportContract)):
         return failure
     if hasattr(failure, "graph") and hasattr(failure, "query") and hasattr(failure, "status"):
@@ -612,7 +690,7 @@ def _contract_of(failure: Any, population: str | None, observed: Sequence[str] |
 
 
 def obligations(
-    contract_failure: Any,
+    contract_failure: Contract | FailedIdentification,
     *,
     quantities: Mapping[str, ScientificQuantity] | None = None,
     population: str | None = None,
@@ -690,7 +768,7 @@ class CandidateOutcome:
 
     candidates: tuple[str, ...]
     labels: tuple[str, ...]
-    classification: str
+    classification: Classification
     cost: int
     cost_unit: str | None
     sample_budget: int
@@ -823,7 +901,7 @@ class RepairResult:
         """Alias of :attr:`ranked`: verified-sufficient subsets, best first."""
         return self.ranked
 
-    def classification(self, *labels: str) -> str:
+    def classification(self, *labels: str) -> Classification:
         """The classification of the subset made of the candidates named ``labels``."""
         wanted = frozenset(labels)
         for row in self.table:
@@ -845,10 +923,10 @@ class RepairResult:
 def repair(
     contract: TransportContract | BackdoorContract,
     candidates: Sequence[StudyCandidate],
-    objective: str = "minimize_cost",
+    objective: Literal["minimize_cost", "minimize_sample_budget"] = "minimize_cost",
     limits: RepairLimits | None = None,
     *,
-    cancel: Any = None,
+    cancel: CancelToken | None = None,
 ) -> RepairResult:
     """Which candidates, singly or in bounded subsets, repair the failed contract.
 
@@ -893,7 +971,7 @@ def consume(
     max_operations: int = _CONSUME_MAX_OPERATIONS,
     max_depth: int = _CONSUME_MAX_DEPTH,
     memory_bytes: int | None = None,
-    cancel: Any = None,
+    cancel: CancelToken | None = None,
 ) -> RepairResult:
     """Independently replay an exported repair report and return it.
 
