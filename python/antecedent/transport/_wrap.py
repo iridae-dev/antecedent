@@ -693,8 +693,16 @@ def _grid_view(
             statuses.append(
                 row.support if row.support in _SUPPORT_SEVERITY else "outside_empirical_support"
             )
+            # Scoped to its own requested coordinate: ``values[j]`` is 1 at this record's
+            # coordinate and 0 elsewhere, so no other coordinate reads it as its support.
+            marker = tuple(1.0 if position == index else 0.0 for position in range(len(rows)))
             diagnostics.append(
-                SupportDiagnostic(id=f"grid:{index}", values=(row.coordinate,), detail=detail)
+                SupportDiagnostic(
+                    id=f"grid:{index}",
+                    values=marker,
+                    detail=detail,
+                    scope="per_coordinate",
+                )
             )
             warnings.append(detail)
             continue
@@ -723,6 +731,21 @@ def _grid_view(
             scope="per_coordinate",
         ),
     )
+    # The transport estimators compute no per-point propensity/density and no per-point
+    # source/target overlap, so there is no value to attach to a coordinate. Say so
+    # explicitly rather than leave the absence to read as uniform support.
+    for inapplicable, what in (
+        ("transport.propensity_density", "propensity or density"),
+        ("transport.source_target_overlap", "source/target overlap"),
+    ):
+        diagnostics.append(
+            SupportDiagnostic(
+                id=inapplicable,
+                values=(),
+                detail=f"no per-coordinate {what} is computed by this transport route",
+                scope="inapplicable",
+            )
+        )
     region = {treatment: (min(p[0] for p in points), max(p[0] for p in points))}
     result = CausalResponseView(
         estimand=query.question,

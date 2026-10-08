@@ -46,13 +46,17 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from ._native import composition_lineage as _composition_lineage
 from ._native import consume_design_ranking as _consume
 from ._native import evaluate_design_ranking as _evaluate
 from ._native import rank_structural_designs as _rank_structural
 from .errors import CausalUnsupportedError, CausalValueError
+from .external import LineageLink
 from .joint_distribution import ScientificQuantity
 
 CALIBRATION: Literal["unmeasured"] = "unmeasured"
+#: Identity of the reported ranking within :attr:`DesignRankingResult.lineage`.
+RESULT_LINK_ID = "design_ranking_result"
 ARTIFACT_KIND = "design_ranking_v1"
 TrustLabel = Literal["native_licensed", "externally_attested", "exact_request_verified"]
 UpdateMode = Literal["native_update", "external_posterior", "external_decision_values"]
@@ -606,6 +610,67 @@ class DesignRankingResult:
         """The versioned ``design_ranking_v1`` artifact."""
         return self._bytes
 
+    @property
+    def lineage(self) -> tuple[LineageLink, ...]:
+        """Derivation chain behind the ranking, parents before children.
+
+        The decision contract, each source distribution digest, each external signal
+        provider object, each candidate's study-ranking signal (named by its signal
+        identity) and the ``design_ranking_result`` claim. Rust derives the same chain
+        from the sealed artifact (``DesignRankingArtifactWire::provenance_chain``); the
+        digests of these rows come from the same native chain function, so a changed
+        contract, source, provider, signal law or request changes the digest of every
+        link downstream of it.
+        """
+        decision_id = f"decision:{self.decision_contract_identity}"
+        rows: list[list[Any]] = [[decision_id, "decision_contract", []]]
+        result_parents = [decision_id]
+        for digest in sorted(set(self.source_digests)):
+            source_id = f"distribution:{digest}"
+            rows.append([source_id, "distribution_artifact", []])
+            result_parents.append(source_id)
+        seen_providers: set[str] = set()
+        for candidate in sorted(self.candidates, key=lambda item: item.id):
+            parents = [decision_id]
+            provider = candidate.provider
+            if provider is not None:
+                provider_id = (
+                    f"provider:signal:{provider.provider_id}/{provider.object_id}"
+                    f"@{provider.version_id}#{provider.snapshot_id}"
+                )
+                if provider_id not in seen_providers:
+                    seen_providers.add(provider_id)
+                    rows.append([provider_id, "external_provider", []])
+                parents.append(provider_id)
+            signal_id = f"signal:{candidate.id}:{candidate.signal_identity}"
+            rows.append([signal_id, "study_ranking_provider", parents])
+            result_parents.append(signal_id)
+        rows.append([RESULT_LINK_ID, "claim", result_parents])
+        return tuple(
+            LineageLink(
+                item["id"],
+                item["stage"],
+                tuple(item["parents"]),
+                item["digest"],
+                tuple(item["parent_digests"]),
+            )
+            for item in json.loads(_composition_lineage(json.dumps(rows)))
+        )
+
+    def stages_behind(self, link: str = RESULT_LINK_ID) -> frozenset[str]:
+        """Stages standing behind ``link`` (default: the reported ranking)."""
+        by_id = {item.id: item for item in self.lineage}
+        if link not in by_id:
+            raise CausalValueError(f"unknown lineage link {link!r}")
+        seen: set[str] = set()
+        stack = [link]
+        while stack:
+            current = stack.pop()
+            if current not in seen:
+                seen.add(current)
+                stack.extend(by_id[current].parents)
+        return frozenset(by_id[item].stage for item in seen)
+
     def expectation(self) -> Expectation:
         """The identities a consumer would retain from this result."""
         return Expectation(
@@ -950,6 +1015,7 @@ def rank_structural(candidates: Sequence[StructuralCandidate]) -> StructuralRank
 __all__ = [
     "ARTIFACT_KIND",
     "CALIBRATION",
+    "RESULT_LINK_ID",
     "ActionUtility",
     "BinomialSignal",
     "Candidate",

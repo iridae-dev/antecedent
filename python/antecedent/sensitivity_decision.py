@@ -44,14 +44,18 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ._native import SensitivityArtifact as _NativeSensitivityArtifact
+from ._native import composition_lineage as _composition_lineage
 from ._native import sensitivity_artifact_from_surface as _from_surface
 from ._native import sensitivity_artifact_from_z_joint as _from_z_joint
 from ._native import sensitivity_contract as _contract
 from ._native import sensitivity_decide as _decide
 from .decision import Contract, StructuralPolicy
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .external import LineageLink
 from .joint_distribution import ScientificQuantity
 
+#: Identity of the reported assumption range within :attr:`SensitivityArtifact.lineage`.
+CLAIM_LINK_ID = "sensitivity_claim"
 ASSUMPTION_RANGE_STATEMENT = (
     "assumption range over the declared coordinate set; not a probability, "
     "not a confidence interval and not a sampling interval"
@@ -668,6 +672,52 @@ class SensitivityArtifact:
         return SurfaceProvenance._from_wire(self._summary["provenance"])
 
     @property
+    def lineage(self) -> tuple[LineageLink, ...]:
+        """Derivation chain of the sensitivity input, parents before children.
+
+        The checked causal contract and the data or provider snapshot behind the numbers,
+        the sensitivity input (named by :attr:`identity` ``["digest"]``, so any change of
+        premise or number changes it) and the ``sensitivity_claim`` reporting the
+        assumption range. Rust derives the same chain
+        (``SensitivityArtifact::provenance_chain``); the digests come from the same native
+        chain function.
+        """
+        provenance = self.provenance
+        contract = f"causal_contract:{provenance.causal_contract_id}"
+        snapshot = f"snapshot:{provenance.provider_snapshot}"
+        sensitivity_input = f"sensitivity_input:{self.identity['digest']}"
+        rows = [
+            [contract, "causal_contract", []],
+            [snapshot, "data", []],
+            [sensitivity_input, "sensitivity_input", [contract, snapshot]],
+            [CLAIM_LINK_ID, "claim", [sensitivity_input]],
+        ]
+        return tuple(
+            LineageLink(
+                item["id"],
+                item["stage"],
+                tuple(item["parents"]),
+                item["digest"],
+                tuple(item["parent_digests"]),
+            )
+            for item in json.loads(_composition_lineage(json.dumps(rows)))
+        )
+
+    def stages_behind(self, link: str = CLAIM_LINK_ID) -> frozenset[str]:
+        """Stages standing behind ``link`` (default: the reported assumption range)."""
+        by_id = {item.id: item for item in self.lineage}
+        if link not in by_id:
+            raise CausalValueError(f"unknown lineage link {link!r}")
+        seen: set[str] = set()
+        stack = [link]
+        while stack:
+            current = stack.pop()
+            if current not in seen:
+                seen.add(current)
+                stack.extend(by_id[current].parents)
+        return frozenset(by_id[item].stage for item in seen)
+
+    @property
     def outcome(self) -> Outcome | None:
         """The stored decision over the whole grid, recomputed on consumption.
 
@@ -869,6 +919,7 @@ def decide(
 
 __all__ = [
     "ASSUMPTION_RANGE_STATEMENT",
+    "CLAIM_LINK_ID",
     "Action",
     "AssumptionCoordinate",
     "AtomView",

@@ -121,6 +121,7 @@ from ._learned_continuous import (
     estimator_menu,
     prepare_learned_continuous,
 )
+from ._learned_joint import learned_joint_transport
 from ._mixed_source import (
     MixedSourceQuery,
     consume_mixed_source_artifact,
@@ -223,6 +224,7 @@ __all__ = [
     "consume_learned_continuous",
     "estimator_menu",
     "prepare_learned_continuous",
+    "learned_joint_transport",
     "DoseBasis",
     "PreparedSmoothedDose",
     "SmoothedDoseData",

@@ -7,6 +7,7 @@ structural identification are the same status.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from math import isfinite, isnan
 from typing import Any, ClassVar, Literal, Self, get_args
@@ -444,6 +445,33 @@ class CausalResponseView(ResultModel, ResultAPI):
     quantities: tuple[ScientificQuantity, ...] | None = None
     _prepared: Any = PrivateAttr(default=None)
     _execution: Any = PrivateAttr(default=None)
+    #: The native response payload this view was projected from, when there is one.
+    _raw: Any = PrivateAttr(default=None)
+
+    def response_coordinates(
+        self, *, outcome_units: str, population: str = "target", transform: str = "identity"
+    ) -> tuple[ScientificQuantity, ...]:
+        """Scientific coordinate of every response value, derived natively by Rust.
+
+        Each value is identified by its descriptor, never by grid position. The
+        outcome, intervention regime, horizon and functional come from the native
+        response itself; ``outcome_units`` is required because the response cannot
+        know it, and units are never inferred or converted. A response that cannot
+        be given one coordinate per value (a derivative, a Jacobian, a stochastic or
+        sequenced intervention) refuses with a typed ``coordinate_support.*``
+        :class:`~antecedent.external.ExternalRefusal` instead of being scalarized.
+        """
+        native = getattr(self._raw, "response_coordinates", None)
+        if native is None:
+            raise CausalValueError(
+                "this response view carries no native response payload to derive coordinates from"
+            )
+        quantities, refusal = native(outcome_units, population, transform)
+        if refusal is not None:
+            from ..external import ExternalRefusal
+
+            raise ExternalRefusal(json.loads(refusal))
+        return tuple(ScientificQuantity._from_wire(wire) for wire in json.loads(quantities))
 
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:

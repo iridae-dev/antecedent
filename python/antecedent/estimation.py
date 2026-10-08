@@ -2678,6 +2678,7 @@ def _wrap_prepared_response(
         diagnostics=tuple(getattr(raw, "diagnostics", ()) or ()),
         _prepared=prepared,
         _execution=execution,
+        _raw=raw,
         reasoning=slots,
         program_id=None if slots is None else slots.program_id,
         claim_id=None if slots is None else slots.claim_id,

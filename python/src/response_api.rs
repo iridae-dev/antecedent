@@ -129,6 +129,65 @@ pub(crate) struct ResponseAnalysisResult {
     /// Logical-plan identifier when the result came through Study prepare/estimate.
     #[pyo3(get)]
     identifier: Option<String>,
+    /// What the native response fixes about each value coordinate (regime, horizon,
+    /// functional), or the typed refusal that says why it has none. Units, population
+    /// and scale are declared by the caller of [`Self::response_coordinates`].
+    coordinates: CoordinateSkeleton,
+}
+
+type CoordinateSkeleton =
+    Result<Vec<antecedent_core::ResponseCoordinateSkeleton>, antecedent_core::ExternalRefusal>;
+
+#[pymethods]
+impl ResponseAnalysisResult {
+    /// The scientific coordinates of the response values, derived natively.
+    ///
+    /// Returns `(quantities_json, refusal_json)`: exactly one is `None`. The
+    /// quantities are the `ScientificQuantityWire` objects, one per value in value
+    /// order. Units are never inferred: blank units, population or scale refuse.
+    #[pyo3(signature = (outcome_units, population="target", transform="identity"))]
+    fn response_coordinates(
+        &self,
+        outcome_units: &str,
+        population: &str,
+        transform: &str,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        let labels = antecedent_core::ResponseCoordinateLabels {
+            outcome_units,
+            population_id: population,
+            transform_id: transform,
+        };
+        let labelled = self
+            .coordinates
+            .clone()
+            .and_then(|cells| antecedent_core::label_coordinates(&cells, &labels));
+        match labelled {
+            Ok(quantities) => {
+                let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
+                    quantities.iter().map(Into::into).collect();
+                let json = serde_json::to_string(&wires)
+                    .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                Ok((Some(json), None))
+            }
+            Err(refusal) => {
+                let json = serde_json::to_string(
+                    &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
+                )
+                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                Ok((None, Some(json)))
+            }
+        }
+    }
+}
+
+/// Coordinates a native response fixes, named with the caller's variable names.
+// The refusal is the cold path of a once-per-refusal check; boxing would not pay.
+#[allow(clippy::result_large_err)]
+fn coordinate_skeleton(
+    response: &antecedent_core::CausalResponse,
+    names: &[String],
+) -> CoordinateSkeleton {
+    antecedent_core::response_coordinate_skeleton(response, &|id| names.get(id.as_usize()).cloned())
 }
 
 #[pyfunction]
@@ -423,6 +482,7 @@ fn analyze_response_pag(
             allowlist_parent: None,
             diagnostics: Vec::new(),
             identifier: Some("generalized.adjustment".into()),
+            coordinates: coordinate_skeleton(&first, &names),
         })
     })
 }
@@ -683,6 +743,7 @@ pub(crate) fn response_result(
     evidence: Option<antecedent::CellStatus>,
 ) -> PyResult<ResponseAnalysisResult> {
     let horizon_adjustment_sets = named_horizon_adjustments(&response, names);
+    let coordinates = coordinate_skeleton(&response, names);
     if let Some(first) = first_horizon_template_names(&response, names) {
         adjustment_set = first;
     }
@@ -850,6 +911,7 @@ pub(crate) fn response_result(
         allowlist_parent,
         diagnostics: Vec::new(),
         identifier: None,
+        coordinates,
     })
 }
 

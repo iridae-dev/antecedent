@@ -279,6 +279,9 @@ class ResponseAnalysisResult:
     allowlist_parent: str | None
     diagnostics: list[str]
     identifier: str | None
+    def response_coordinates(
+        self, outcome_units: str, population: str = "target", transform: str = "identity"
+    ) -> tuple[str | None, str | None]: ...
 
 class TransportIdentificationResult:
     outcome: str
@@ -5048,6 +5051,55 @@ def sampled_observation_recovery_closed(
     replicates: int,
     rows: list[tuple[int, int, int, int]],
 ) -> None: ...
+def learned_joint_transport_closed(
+    graph_class: str,
+    dependence: str,
+    varying: str,
+    sharing: str,
+    features: int,
+    basis_degree: int,
+    sources: int,
+    has_target: bool,
+    draws: int,
+) -> None: ...
+def msm_sensitivity_run(
+    strata: list[tuple[float, float, list[float], list[float], list[float], list[float]]],
+    lambda_max: float,
+    grid_points: int,
+    decision_threshold: float | None,
+    tolerance: float,
+    sampling_composition: str | None = None,
+) -> tuple[str | None, str | None]: ...
+def msm_sensitivity_artifact_run(
+    strata: list[tuple[float, float, list[float], list[float], list[float], list[float]]],
+    lambda_max: float,
+    grid_points: int,
+    decision_threshold: float | None,
+    tolerance: float,
+    effect_json: str,
+    point_quantities_json: str,
+    actions_json: str,
+    causal_contract_id: str,
+    artifact_id: str,
+) -> tuple[bytes | None, str | None]: ...
+def mechanism_discrepancy_summarize(
+    label: str,
+    node: str,
+    node_unit: str,
+    parents: list[tuple[str, str]],
+    protocol_id: str,
+    outcome: list[float],
+    parent_values: list[list[float]],
+) -> tuple[str | None, str | None]: ...
+def mechanism_discrepancy_run(
+    request_json: str,
+    source_ids: list[str],
+    target_ids: list[str],
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def mechanism_discrepancy_consume(
+    data: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
 
 class ObservationRecoveryStage:
     @property
@@ -5877,6 +5929,112 @@ class RecalcSessionHandle:
         threads: int | None = None,
     ) -> tuple[str | None, bytes | None, str | None]: ...
 
+class CellSessionHandle:
+    def __init__(self, retarget: str = "licensed") -> None: ...
+    def set_retarget_support(self, retarget: str) -> None: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def score_columns(self) -> list[tuple[int, list[float]]] | None: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatments: list[str],
+        outcome: str,
+        adjustment: list[str],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        folds: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatments: list[str],
+        outcome: str,
+        adjustment: list[str],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        folds: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
+
+class CrossfitSessionHandle:
+    def __init__(self) -> None: ...
+    def is_live(self) -> bool: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
+
+class ScoreResumeHandle:
+    @staticmethod
+    def from_bytes(
+        artifact: bytes, expected_identity: str | None = None
+    ) -> tuple[ScoreResumeHandle | None, str | None]: ...
+    def artifact_identity(self) -> str: ...
+    def n_rows(self) -> int: ...
+    def row_ids(self) -> list[int]: ...
+    def score_columns(self) -> list[tuple[int, list[float]]]: ...
+    def has_run(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def plan(
+        self,
+        n_variables: int,
+        edges: list[tuple[int, int]],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[int] | None = None,
+        target_row_ids: list[int] | None = None,
+        changed_inputs: list[tuple[str, str]] | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def execute_retarget(
+        self,
+        n_variables: int,
+        edges: list[tuple[int, int]],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[int] | None = None,
+        target_row_ids: list[int] | None = None,
+        changed_inputs: list[tuple[str, str]] | None = None,
+    ) -> tuple[str | None, str | None]: ...
+
 def evaluate_design_ranking(
     request_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...
@@ -5981,6 +6139,13 @@ def transported_path_specific_refusal(
     required_factors: list[tuple[str, str]],
     supplied_factors: list[tuple[str, str, str]],
 ) -> str: ...
+def evaluate_transported_counterfactual(
+    request_json: str, artifact_id: str
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_transported_counterfactual_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def scenario_invariance_report(stage: Any) -> tuple[str | None, str | None]: ...
 
 class SensitivityArtifact:
     summary_json: str
