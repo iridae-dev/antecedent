@@ -50,7 +50,8 @@ from ._native import composition_lineage as _composition_lineage
 from ._native import consume_design_ranking as _consume
 from ._native import evaluate_design_ranking as _evaluate
 from ._native import rank_structural_designs as _rank_structural
-from .errors import CausalUnsupportedError, CausalValueError
+from .decision import Contract
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .external import LineageLink
 from .joint_distribution import ScientificQuantity
 
@@ -170,13 +171,19 @@ class Decision:
     information; an action-set change is a separate problem.
     """
 
-    contract: Any
+    contract: Contract | str
     actions: tuple[ActionUtility, ...]
     prior: Prior
     utility_units: str | None = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.contract, (Contract, str)):
+            raise CausalTypeError("contract must be a decision.Contract or its identity string")
+        if not isinstance(self.prior, Prior):
+            raise CausalTypeError("prior must be a design_ranking.Prior")
         object.__setattr__(self, "actions", tuple(self.actions))
+        if not all(isinstance(action, ActionUtility) for action in self.actions):
+            raise CausalTypeError("actions must contain design_ranking.ActionUtility values")
 
     def _identity(self) -> str:
         return self.contract if isinstance(self.contract, str) else str(self.contract.identity)

@@ -734,11 +734,11 @@ Expected = type[BaseException] | tuple[type[BaseException], ...] | None
 Feeder = tuple[str, Callable[[Any], object], Expected]
 FEEDERS: dict[str, tuple[Feeder, ...]] = {
     "decision": (
-        ("Contract.evaluate", _feed_evaluate, None),
+        ("Contract.evaluate", _feed_evaluate, CausalTypeError),
         ("evaluate_with_support", _feed_support, CausalTypeError),
     ),
     "inverse_query": (("InverseQuery.evaluate", _feed_inverse, CausalTypeError),),
-    "design_ranking": (("rank_designs(prior=)", _feed_prior, None),),
+    "design_ranking": (("rank_designs(prior=)", _feed_prior, CausalTypeError),),
     "sensitivity_decision": (("sensitivity_decision.decide", _feed_sensitivity, CausalTypeError),),
     "scenario_decision": (
         ("decide_from_scenarios", _feed_scenarios, CausalTypeError),
@@ -1424,35 +1424,34 @@ def test_c1_matrix_failed_contract_row(consumer: str, objs: Objs) -> None:
 # ------------------------------------------------------------------------ cross-cutting rules
 
 
-def test_c1_matrix_untyped_rejections_are_a_tracked_defect(objs: Objs) -> None:
-    """``Contract.evaluate`` and ``rank_designs`` reject a neighbour, but not with a typed error.
-
-    ``Contract.evaluate`` reads ``source._native`` and ``Decision._wire`` reads
-    ``prior._wire()``, so a neighbouring object fails with an ``AttributeError`` or a native
-    ``TypeError`` instead of a ``CausalTypeError``. Nothing is accepted; the rejection is just
-    not structured. The set may only shrink when those entry points validate their input.
-    """
-    untyped: set[tuple[str, str]] = set()
+def test_c1_matrix_every_boundary_rejects_neighbours_with_typed_errors(objs: Objs) -> None:
+    """Every refused producer reaches a checked boundary, including exporter protocols."""
     for producer in PRODUCERS:
-        for consumer in ("decision", "design_ranking"):
+        for consumer in FEEDERS:
             if _status(producer, consumer) != "REFUSED":
                 continue
-            payload = _object(producer, objs)
+            payload = _payload(producer, consumer, objs)
             for label, feed, expected in FEEDERS[consumer]:
-                if expected is not None:
-                    continue
-                with pytest.raises(Exception) as caught:  # noqa: PT011
+                assert expected is not None, (producer, label)
+                with pytest.raises(expected):
                     feed(payload)
-                if not isinstance(caught.value, TYPED):
-                    untyped.add((producer, consumer))
-                    assert label in {"Contract.evaluate", "rank_designs(prior=)"}
-    refused = {
-        (p, c)
-        for p in PRODUCERS
-        for c in ("decision", "design_ranking")
-        if _status(p, c) == "REFUSED"
-    }
-    assert untyped <= refused
+
+
+def test_c1_matrix_invalid_export_signatures_are_typed_but_callback_errors_propagate(
+    objs: Objs,
+) -> None:
+    # The fitted export's no-argument callback is outside the bundle exporter
+    # protocol. Refuse before invoking it rather than leaking a binding TypeError.
+    with pytest.raises(CausalTypeError, match="artifact_id"):
+        cb.Bundle.builder().add_artifact("auto", objs.compact)
+
+    class BrokenExporter:
+        def export(self, *, artifact_id: str) -> bytes:
+            raise TypeError("failure inside an otherwise valid export callback")
+
+    with pytest.raises(TypeError, match="failure inside") as caught:
+        cb.Bundle.builder().add_artifact("auto", BrokenExporter())
+    assert type(caught.value) is TypeError
 
 
 def test_c1_matrix_a_mean_never_answers_a_probability_a_quantile_or_a_law(objs: Objs) -> None:

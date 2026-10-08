@@ -51,6 +51,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from inspect import signature as _signature
 from typing import Any, Literal, TypeAlias
 
 from . import _native
@@ -337,6 +338,10 @@ def _bytes(data: object) -> bytes:
         return bytes(data)
     export = getattr(data, "export", None)
     if callable(export):
+        try:
+            _signature(export).bind(artifact_id="composition-bundle-node")
+        except (TypeError, ValueError) as error:
+            raise CausalTypeError("artifact export must accept an artifact_id keyword") from error
         exported = export(artifact_id="composition-bundle-node")
         if isinstance(exported, bytes):
             return exported

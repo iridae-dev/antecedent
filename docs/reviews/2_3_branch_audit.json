@@ -2473,10 +2473,21 @@
     },
     {
       "requirement": "C1 producer-consumer matrix",
-      "verdict": "implemented_matrix_with_untyped_boundary_defects",
+      "verdict": "implemented_and_typed_refusals_verified",
       "evidence": [
         "docs/2_3-producer-consumer-matrix.md",
         "python/tests/test_c1_matrix.py"
+      ],
+      "matrix_counts": {
+        "direct": 15,
+        "adapter": 15,
+        "refused": 58,
+        "unverified": 0
+      },
+      "corrections": [
+        "Validate decision sources before reading their native objects.",
+        "Require typed design priors, contract declarations and action utilities.",
+        "Validate bundle exporter signatures before invocation while preserving exceptions inside valid callbacks."
       ]
     }
   ],
@@ -2515,6 +2526,23 @@
       "documentation links"
     ],
     "release_gate": "Not green: 831 existing coverage records owe remeasurement, deferred until implementation completion. No waiver created.",
-    "supplementary_nonmeasurement_rust_suite": "Running; checked-item evidence and affected Rust regression/artifact targets already pass."
+    "supplementary_nonmeasurement_rust_suite": {
+      "completed_test_passes": 3376,
+      "status": "stopped_after_required_evidence_and_affected_regressions_passed",
+      "scope": "All ordinary library/bin/example tests and a supplementary prefix of facade integration targets ran under coverage/calibration/null/power exclusions. This is not a claim that every workspace test ran. The separate 641-row 2.3 cited Rust evidence run completed."
+    }
+  },
+  "follow_on_closeout": {
+    "work_package": "C1",
+    "targeted_python_tests_passed": 136,
+    "promotion_python_rows": {
+      "2.2": 155,
+      "2.3": 246
+    },
+    "scope": "All 88 producer-consumer cells retain their licensed direct/adapter/refused dispositions; invalid neighbouring objects now fail with typed errors. No new scientific route or inference guarantee is licensed.",
+    "full_python_suite": {
+      "passed": 3758,
+      "skipped": 7
+    }
   }
 }

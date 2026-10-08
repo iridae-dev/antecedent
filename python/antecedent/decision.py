@@ -42,7 +42,7 @@ from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
-from .errors import CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
@@ -387,6 +387,11 @@ class Contract:
             _raise(refusal)
             assert result is not None
             return Decision(self, source, json.loads(result))
+        if not isinstance(source, JointDistributionArtifact):
+            raise CausalTypeError(
+                "decision evaluation requires a JointDistributionArtifact, BoundExternalClaim "
+                "or MeanSource"
+            )
         result, refusal = _evaluate(json.dumps(self._wire()), source._native)
         _raise(refusal)
         assert result is not None
