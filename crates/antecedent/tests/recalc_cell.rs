@@ -478,8 +478,8 @@ fn c2_cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fit
     assert_eq!(counts(&resumed), [1, 0, 0, 1, 1]);
     let overrides = [
         (Stage::Identification, "recomputed(fresh_process)"),
-        (Stage::Law, "recomputed(upstream:target_population<-target_population:modified)"),
-        (Stage::Decision, "recomputed(upstream:law<-target_population:modified)"),
+        (Stage::Law, "recomputed(own:law:modified)"),
+        (Stage::Decision, "recomputed(upstream:law<-law:modified)"),
         (Stage::TargetPopulation, "recomputed(own:target_population:modified)"),
     ];
     assert_eq!(table(&resumed), expected(&overrides));
@@ -533,14 +533,94 @@ fn c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() {
     // A fresh process never reuses a derived stage but the portable scores.
     let overrides = [
         (Stage::Identification, "recomputed(fresh_process)"),
-        (Stage::Law, "recomputed(fresh_process)"),
-        (Stage::Decision, "recomputed(fresh_process)"),
+        (Stage::Law, "recomputed(own:law:modified)"),
+        (Stage::Decision, "recomputed(upstream:law<-law:modified)"),
     ];
     assert_eq!(table(&resumed), expected(&overrides));
     assert_eq!(counts(&resumed), [1, 0, 0, 1, 1]);
     assert_eq!(resumed.law.ate.to_bits(), first.law.ate.to_bits());
     assert_eq!(resumed.law.std_error.to_bits(), first.law.std_error.to_bits());
     assert_eq!(resumed.decision.net_benefit.to_bits(), first.decision.net_benefit.to_bits());
+}
+
+#[test]
+fn c2_cell_resumed_contrast_change_reduces_scores_without_reusing_the_old_law() {
+    let base = request();
+    let mut session = CellSession::new();
+    go(&mut session, &base, SEED);
+    let artifact = session.export_scores().unwrap();
+    let mut resumed = ScoreResumeSession::resume_from_scores(&artifact).unwrap();
+    let mut request = ScoreResumeRequest {
+        n_variables: 6,
+        edges: base_edges(),
+        target: None,
+        target_row_ids: None,
+        utility: utility(),
+        quantity: ScoreQuantity::Interaction,
+        changed_inputs: Vec::new(),
+    };
+    let first = execute_resumed_retarget(&mut resumed, &request).unwrap();
+    request.quantity = ScoreQuantity::CellMinusControl { arm: 3 };
+    let (second, fits) = count_cell_model_fits(|| execute_resumed_retarget(&mut resumed, &request));
+    let second = second.unwrap();
+    assert_eq!(fits, 0);
+    assert_eq!(counts(&second), [0, 0, 0, 1, 1]);
+    assert_ne!(first.plan.identity(Stage::Law), second.plan.identity(Stage::Law));
+    let scores = session.score_table().unwrap();
+    let n = scores.n_rows;
+    let expected =
+        (0..n).map(|row| scores.scores[3 * n + row] - scores.scores[row]).sum::<f64>() / n as f64;
+    close(second.law.ate, expected, "changed contrast vs plain score sum");
+    assert!((second.law.ate - first.law.ate).abs() > 0.1);
+    let unchanged = execute_resumed_retarget(&mut resumed, &request).unwrap();
+    assert_eq!(counts(&unchanged), [0; 5]);
+    assert_eq!(unchanged.law.ate.to_bits(), second.law.ate.to_bits());
+    request.quantity = ScoreQuantity::Interaction;
+    let restored = execute_resumed_retarget(&mut resumed, &request).unwrap();
+    close(restored.law.ate, first.law.ate, "original contrast restored");
+}
+
+#[test]
+fn c2_cell_resume_rejects_overridden_request_identities_without_changing_live_state() {
+    let base = request();
+    let mut session = CellSession::new();
+    go(&mut session, &base, SEED);
+    let mut resumed =
+        ScoreResumeSession::resume_from_scores(&session.export_scores().unwrap()).unwrap();
+    let mut request = ScoreResumeRequest {
+        n_variables: 6,
+        edges: base_edges(),
+        target: None,
+        target_row_ids: None,
+        utility: utility(),
+        quantity: ScoreQuantity::Interaction,
+        changed_inputs: Vec::new(),
+    };
+    execute_resumed_retarget(&mut resumed, &request).unwrap();
+    let before = resumed.identities().clone();
+    for stage in [Stage::Graph, Stage::TargetPopulation, Stage::Utility] {
+        request.changed_inputs = vec![(stage, before.own(stage))];
+        assert!(matches!(
+            execute_resumed_retarget(&mut resumed, &request),
+            Err(RecalcRunError::Request("recalc.invalid_changed_input"))
+        ));
+        assert_eq!(resumed.identities(), &before);
+        assert!(resumed.has_run());
+    }
+    request.changed_inputs =
+        vec![(Stage::Query, before.own(Stage::Query)), (Stage::Query, before.own(Stage::Query))];
+    assert!(matches!(
+        resumed.plan(&request),
+        Err(RecalcRunError::Request("recalc.invalid_changed_input"))
+    ));
+    request.changed_inputs.clear();
+    request.utility.cost = f64::NAN;
+    assert!(matches!(
+        execute_resumed_retarget(&mut resumed, &request),
+        Err(RecalcRunError::Request("recalc.invalid_request"))
+    ));
+    assert_eq!(resumed.identities(), &before);
+    assert!(resumed.has_run());
 }
 
 #[test]

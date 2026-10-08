@@ -1,0 +1,2520 @@
+{
+  "schema_version": 1,
+  "reviewed_base": "647bc901e0d90e10e9ba173867e266016d4ae0fb",
+  "checked_items_at_start": 114,
+  "scope": "All originally checked items reviewed against their complete wording and declared bounded scope. Reopened entries are not implementation-complete. Existing point/structural/diagnostic evidence is not statistical calibration. TODO.md is intentionally gitignored local planning; this tracked report preserves the audit.",
+  "validation_status": "checked_item_audit_complete",
+  "calibration": "Deferred until branch implementation is otherwise complete. An initial broad Rust unit-test invocation ran some existing unmarked survival coverage simulations before it was stopped. Subsequent review runs exclude measurement targets and coverage/null/power filters. No coverage record, replay waiver or new inference guarantee is produced or promoted by this review.",
+  "engineering_findings": [
+    {
+      "area": "recalculation dependencies",
+      "correction": "Bind external provider requests and priors to graph, query, regime, evidence, populations and treatment grid."
+    },
+    {
+      "area": "resumed score contrasts",
+      "correction": "Bind selected contrast to the law identity and reject caller overrides of calculated request identities."
+    },
+    {
+      "area": "resume availability",
+      "correction": "Represent a score-bound snapshot identity separately from supplied raw data."
+    },
+    {
+      "area": "decision calculation",
+      "correction": "Share decision logic between executors and reject non-finite utilities and arithmetic overflow."
+    },
+    {
+      "area": "ranking artifact consumption",
+      "correction": "Retain checked provenance after independent consumption; replace repeated linear rank searches with a rank lookup."
+    },
+    {
+      "area": "repository quality gate",
+      "correction": "Add explicit reasons to exact floating-point assertions in the mechanism discrepancy fixtures."
+    },
+    {
+      "area": "calibration dependency map",
+      "correction": "Classify the new composition and transported-counterfactual facades, retain reviewed core bridges and pass the boundary and no-narrowing checks. Measurement debt remains deferred."
+    }
+  ],
+  "items": [
+    {
+      "original_line": 53,
+      "section": "2.3 promotion-record plan — retain the 2.2 gate contract",
+      "requirement": "Add `parity/promotion_2_3.toml` (or a versioned successor with distinct 2.2 and 2.3 sections) and extend `scripts/check_promotion_records.py`, `scripts/gate_promotion.sh`, their self-tests/CI shards and `scripts/gate_release.sh` to validate **both** releases. The current gate defaults to 2.2 and checks `release = \"2.2\"`; merely adding a 2.3 TOML file without wiring the checker and executed-evidence runner does not satisfy this task. Preserve 2.2 validation.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 70,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "Finish outstanding 2.2 release-cut work, or record a concrete failed gate and corrective owner before 2.3 implementation relies on that route: final gate/CI, documentation and claim checks, artifact/package versions and release candidate evidence. Keep this separate from 2.3 feature promotion.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 71,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "Snapshot `parity/promotion_2_2.toml`, `parity/support_licensed.toml`, `parity/transport_stages.toml`, the coverage matrices and calibration backlog. Classify each closed 2.2 route as carryover candidate, deliberate refusal or superseded. Preserve reason codes until a new route is licensed.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 72,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "**X1 multi-source interval:** decide promotion from the measured independent-study and shared-unit records, dependence rules, whole-estimator resampling and artifact replay. Either open the exact measured designs with a support-row/consumer gate or record the failing coordinate and keep its interval refusal. Unknown dependence stays withheld.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 73,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "**X4 smoothed dose-response interval:** decide promotion from the full repeated-sampling grid for the composed estimator while preserving the 2.2 point grid and support/quadrature checks. Record the measured pass/fail at each point; open only the calibrated design or retain its interval refusal. Separate smoothing bias, numerical error and sampling error; pointwise coverage does not license a simultaneous band.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 74,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "**X3 joint sensitivity uncertainty:** the explicit carried-forward record `2.2B.X3.joint_sensitivity_uncertainty` remains closed. Verify its bootstrap and one-sided coverage argument and measured zero/positive-box records; promote at its own coordinate or retain `cell_not_licensed`. The 2.2 assumption range stands independently.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 75,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "Make an explicit promotion-or-refusal disposition for every other measured but closed 2.2 route, including frequentist Jacobian/directional coefficient-sandwich bands and expansion-cell intervals. Record exact coordinates and reason codes; do not infer promotion from measurement. Keep the failed learned-continuous percentile route closed unless a revised method passes its full grid.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 76,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "Decide whether to scope a 2.3A gID/surrogate-experiment extension of the bounded 2.2 conditional ADMG transport row. The 2.2 row explicitly excludes it; require its own theorem, source-regime evidence map, positive/obstruction fixtures and provider license before opening it.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 77,
+      "section": "C0 — Reconcile the 2.2 baseline and carryover",
+      "requirement": "Carry X11's older calibration backlog forward. Generate current cells and distinct coordinates; work through fixed-graph coordinates before graph-posterior coordinates. Add known-truth designs/records or typed reasons for each remaining `estimator_grid_not_measured` row; do not relabel rows to lower the count.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_calibration_plan.md",
+        "parity/2_3_carryover_disposition.md",
+        "parity/baseline_2_2_for_2_3.md"
+      ]
+    },
+    {
+      "original_line": 86,
+      "section": "A0 — Freeze contracts and dependency gates",
+      "requirement": "Allocate separate promotion records, stage/support rows, reason codes and fixture IDs for X2 graph/selection additions, X4 Bayesian transport, the binary nested-Markov pilot, X5 temporal inference, X8 counterfactuals and X10 sampled recovery.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 87,
+      "section": "A0 — Freeze contracts and dependency gates",
+      "requirement": "Name the prerequisite 2.2 route for every cell. An ADMG scenario needs its own transport row; a transported counterfactual needs both transport and fixed-population counterfactual rows; sampled recovery needs the exact X10 formula.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 88,
+      "section": "A0 — Freeze contracts and dependency gates",
+      "requirement": "Freeze source/target, graph, selection, time, observation and sampling identities separately. Specify how shared data, repeated units, posterior draws and cross-world histories stay coupled through execution and artifacts.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 89,
+      "section": "A0 — Freeze contracts and dependency gates",
+      "requirement": "Register the new composition features F1–F25 as explicit work packages with dependencies and promotion records where they make scientific claims. Decide durable wire formats and additive reason codes before exposing public Python/Rust APIs.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 92,
+      "section": "A0 — Freeze contracts and dependency gates",
+      "requirement": "Create the 2.3 evidence ledger at kickoff: for each public route list its substantive algorithm provenance record(s), parity capability/support row, independent oracle and `oracle.kind` for native scientific algorithms (or the semantic contract fixture for a nonnumeric route), expected values/tolerances, calibration coordinate or explicit exact/point-only reason, executing gate and artifact consumer. For externally supplied values, list the provider trust and exact-request verification boundary. Allocate missing fixture/record IDs before implementation so evidence is not retrofitted to outputs.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [],
+      "source_evidence": [
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 100,
+      "section": "A0.1 — F15/F16: quantity coordinates and distribution semantics",
+      "requirement": "(A0 scope) `ScientificQuantity` is the one descriptor in distribution artifacts, external requests and results, decision contracts (their identity includes it) and, optionally, response artifacts (`coordinates`, validated for length, duplicates and descriptor validity), with a Python helper deriving the same descriptors from a query; identity never rests on position or label.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F15.joint_distribution_semantics",
+        "2.3A.F16.distribution_meanings"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_meanings.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 101,
+      "section": "A0.1 — F15/F16: quantity coordinates and distribution semantics",
+      "requirement": "(Remainder: evidence obligations do not exist until B0.1, and `analyze()` does not yet populate response coordinates because that needs a native getter.) Define a reusable scientific quantity descriptor: stable variable ID/name/role, units, population, intervention/regime, horizon, functional, conditioning and scale/transform. Use it in response and distribution artifacts, evidence obligations, external requests and decision contracts; never identify coordinates solely by position or display label.",
+      "verdict": "reopened",
+      "reason": "EvidenceObligationSpec retains variables/population/regime but not the shared ScientificQuantity descriptor with units, horizon and transform.",
+      "promotion_records": [
+        "2.3A.F15.joint_distribution_semantics",
+        "2.3A.F16.distribution_meanings"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/evidence_obligation.rs",
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_meanings.rs"
+      ]
+    },
+    {
+      "original_line": 104,
+      "section": "A0.1 — F15/F16: quantity coordinates and distribution semantics",
+      "requirement": "Preserve declared units and reject incompatible direct compositions. Do not infer units or perform implicit currency conversion.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F15.joint_distribution_semantics",
+        "2.3A.F16.distribution_meanings"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_meanings.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 105,
+      "section": "A0.1 — F15/F16: quantity coordinates and distribution semantics",
+      "requirement": "Type the distinct distribution meanings: posterior over parameters, posterior over causal functionals, posterior predictive outcomes, interventional predictive outcomes, estimator sampling distribution, bootstrap distribution and empirical outcome law. Operations declare accepted meanings; `P(Y^do(a)>y)` cannot consume a posterior over the mean effect as an outcome law.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F15.joint_distribution_semantics",
+        "2.3A.F16.distribution_meanings"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_meanings.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 106,
+      "section": "A0.1 — F15/F16: quantity coordinates and distribution semantics",
+      "requirement": "Test mismatched population, intervention, horizon, conditioning, transform, unit and distribution meaning before numerical evaluation. Document the explicit causal equivalence needed to bind an observational conditional law to an interventional request.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F15.joint_distribution_semantics",
+        "2.3A.F16.distribution_meanings"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_meanings.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 112,
+      "section": "A0.2 — F1/F19: portable aligned joint distributions and posterior transfer",
+      "requirement": "Implement a versioned `DistributionArtifact` (or equivalent) with an explicit semantic tag and documented layout. Carry quantity identities, named axes/shape/order, draw count, joint alignment, units, population/regime/time/conditioning, source/provider and RNG provenance, data snapshot, calibration/trust state, optional weights and missing/unsupported coordinate mask.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F1.aligned_joint_draws",
+        "2.3A.F19.mapped_posterior_transfer"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/src/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent/tests/mapped_posterior_transfer.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_joint_distribution_artifact.py"
+      ]
+    },
+    {
+      "original_line": 113,
+      "section": "A0.2 — F1/F19: portable aligned joint distributions and posterior transfer",
+      "requirement": "Make draw `i` one joint realization across all coordinates. Refuse any consumer that requires covariance/nonlinear integration when given independent marginal artifacts; never pair marginal draws by index.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F1.aligned_joint_draws",
+        "2.3A.F19.mapped_posterior_transfer"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/src/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent/tests/mapped_posterior_transfer.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_joint_distribution_artifact.py"
+      ]
+    },
+    {
+      "original_line": 114,
+      "section": "A0.2 — F1/F19: portable aligned joint distributions and posterior transfer",
+      "requirement": "Expose typed Rust and Python values with `semantic`, `shape`, `n_draws`, `axes`, `quantities`, NumPy array access, export and load. Bound size and allocation before decoding. Zero- or one-copy array access is a performance target; a documented bounded copy is acceptable if semantic fidelity and lifetime safety hold.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F1.aligned_joint_draws",
+        "2.3A.F19.mapped_posterior_transfer"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/src/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent/tests/mapped_posterior_transfer.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_joint_distribution_artifact.py"
+      ]
+    },
+    {
+      "original_line": 117,
+      "section": "A0.2 — F1/F19: portable aligned joint distributions and posterior transfer",
+      "requirement": "Preserve existing `PosteriorArtifact` wire semantics: choose an explicit versioned migration or a new general artifact with checked conversion. A bootstrap/sampling draw set cannot silently become a posterior, nor a posterior predictive set a parameter posterior.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F1.aligned_joint_draws",
+        "2.3A.F19.mapped_posterior_transfer"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/src/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent/tests/mapped_posterior_transfer.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_joint_distribution_artifact.py"
+      ]
+    },
+    {
+      "original_line": 118,
+      "section": "A0.2 — F1/F19: portable aligned joint distributions and posterior transfer",
+      "requirement": "Round-trip joint covariance, axis and row order, weights, provenance, nonlinear transformations and credible-interval re-summarization. Test coordinate masks, version refusal, truncation, oversized input and resealed identity mutations.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F1.aligned_joint_draws",
+        "2.3A.F19.mapped_posterior_transfer"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/src/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent/tests/mapped_posterior_transfer.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_joint_distribution_artifact.py"
+      ]
+    },
+    {
+      "original_line": 119,
+      "section": "A0.2 — F1/F19: portable aligned joint distributions and posterior transfer",
+      "requirement": "Reuse the 2.2 dense covariance and known-residual-variance hydration where compatible instead of building a competing container. For every newly supported 2.3 transfer, preserve mean vector, full covariance or aligned draws, parameter identities, explicit heterogeneous-design mapping and residual-variance semantics. Refuse positional coefficient mapping and incompatible sources; compare sequential updating with pooled known-truth cases. The 2.2 identical-subspace fix alone does not complete general posterior transfer.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F1.aligned_joint_draws",
+        "2.3A.F19.mapped_posterior_transfer"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/src/distribution_artifact.rs",
+        "crates/antecedent-io/tests/distribution_artifact.rs",
+        "crates/antecedent/tests/mapped_posterior_transfer.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_joint_distribution_artifact.py"
+      ]
+    },
+    {
+      "original_line": 127,
+      "section": "A0.3 — F2/F3/F20/F22/F23: external scientific objects and checked binding",
+      "requirement": "Define separate typed responsibilities for `LawProvider` (declared probability law and supported sample/CDF/quantile/etc.), `PosteriorProvider` (parameter, functional, causal-functional or structural-model posterior), `SignalProvider` (candidate observation and update), `EvidenceProvider` (required exact/empirical factor) and `UtilityProvider` (inputs, units, action domain, stochasticity, bounds and declared monotonicity). They need not all be separate public classes.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F2.external_scientific_providers",
+        "2.3A.F3.external_response_binding",
+        "2.3A.F20.provider_capability_negotiation",
+        "2.3A.F22.external_object_verification",
+        "2.3A.F23.external_trust_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/external.rs",
+        "crates/antecedent-core/src/external_binding.rs",
+        "crates/antecedent-io/tests/external_binding_wire.rs",
+        "crates/antecedent-io/tests/external_claim_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_external_binding.py"
+      ]
+    },
+    {
+      "original_line": 130,
+      "section": "A0.3 — F2/F3/F20/F22/F23: external scientific objects and checked binding",
+      "requirement": "Add capability negotiation before invoking a provider: sample, CDF, quantile, log probability, mean, covariance, conditional, intervention and posterior predictive as applicable. A missing CDF cannot satisfy an arbitrary threshold probability unless explicitly licensed sampling approximation returns numerical-error and replicate receipts.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F2.external_scientific_providers",
+        "2.3A.F3.external_response_binding",
+        "2.3A.F20.provider_capability_negotiation",
+        "2.3A.F22.external_object_verification",
+        "2.3A.F23.external_trust_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/external.rs",
+        "crates/antecedent-core/src/external_binding.rs",
+        "crates/antecedent-io/tests/external_binding_wire.rs",
+        "crates/antecedent-io/tests/external_claim_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_external_binding.py"
+      ]
+    },
+    {
+      "original_line": 131,
+      "section": "A0.3 — F2/F3/F20/F22/F23: external scientific objects and checked binding",
+      "requirement": "Preserve native, externally attested and exact-request verified trust states. Add object-level verification for each supplied object kind (`LawProvider`, `PosteriorProvider`, `SignalProvider`, `EvidenceProvider`, `UtilityProvider`) at a complete contract fingerprint. Exercise applicable shape, normalization, moments, known truth, seeded behavior, support and update coherence; verification of one fingerprint/request never verifies another. `verified_extension` is not `native_licensed`.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F2.external_scientific_providers",
+        "2.3A.F3.external_response_binding",
+        "2.3A.F20.provider_capability_negotiation",
+        "2.3A.F22.external_object_verification",
+        "2.3A.F23.external_trust_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/external.rs",
+        "crates/antecedent-core/src/external_binding.rs",
+        "crates/antecedent-io/tests/external_binding_wire.rs",
+        "crates/antecedent-io/tests/external_claim_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_external_binding.py"
+      ]
+    },
+    {
+      "original_line": 132,
+      "section": "A0.3 — F2/F3/F20/F22/F23: external scientific objects and checked binding",
+      "requirement": "Add an explicit identified/compiled-contract-to-external-result binding stage using typed `ExternalResponse`, `ExternalDistribution` and `ExternalPosterior` values rather than unvalidated dictionaries. Check estimand, treatment/outcome, intervention, population, horizon, conditioning, graph identity, coordinate support/dimensions, uncertainty meaning, evidence, assumptions, provider trust and snapshot provenance.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F2.external_scientific_providers",
+        "2.3A.F3.external_response_binding",
+        "2.3A.F20.provider_capability_negotiation",
+        "2.3A.F22.external_object_verification",
+        "2.3A.F23.external_trust_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/external.rs",
+        "crates/antecedent-core/src/external_binding.rs",
+        "crates/antecedent-io/tests/external_binding_wire.rs",
+        "crates/antecedent-io/tests/external_claim_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_external_binding.py"
+      ]
+    },
+    {
+      "original_line": 133,
+      "section": "A0.3 — F2/F3/F20/F22/F23: external scientific objects and checked binding",
+      "requirement": "Bind an external finite response grid to an already identified causal contract and produce a normal inspectable/exportable claim with its external execution identity and trust status. Never describe foreign numerical work as native Antecedent estimation; refuse observational `P(Y|X)` offered for `P(Y|do(X))` absent a separately checked equivalence.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F2.external_scientific_providers",
+        "2.3A.F3.external_response_binding",
+        "2.3A.F20.provider_capability_negotiation",
+        "2.3A.F22.external_object_verification",
+        "2.3A.F23.external_trust_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/external.rs",
+        "crates/antecedent-core/src/external_binding.rs",
+        "crates/antecedent-io/tests/external_binding_wire.rs",
+        "crates/antecedent-io/tests/external_claim_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_external_binding.py"
+      ]
+    },
+    {
+      "original_line": 134,
+      "section": "A0.3 — F2/F3/F20/F22/F23: external scientific objects and checked binding",
+      "requirement": "(A0 scope) The Python lifecycle runs identify → bind a typed external response → inspect/export → evaluate a decision on the bound claim (mean source for an affine expectation) → a fresh-process consumer, in `python/tests/test_lifecycle.py`.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F2.external_scientific_providers",
+        "2.3A.F3.external_response_binding",
+        "2.3A.F20.provider_capability_negotiation",
+        "2.3A.F22.external_object_verification",
+        "2.3A.F23.external_trust_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/external.rs",
+        "crates/antecedent-core/src/external_binding.rs",
+        "crates/antecedent-io/tests/external_binding_wire.rs",
+        "crates/antecedent-io/tests/external_claim_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_external_binding.py"
+      ]
+    },
+    {
+      "original_line": 135,
+      "section": "A0.3 — F2/F3/F20/F22/F23: external scientific objects and checked binding",
+      "requirement": "(Remainder: the \"rank a study\" step needs B0.2 EVSI and design ranking, which do not exist yet.) Expose one coherent Python lifecycle for compile/identify → obtain or bind external scientific object → inspect/export claim → compile/evaluate decision → rank a study. The acceptance example must use a real typed external object, a checked causal contract, and a fresh-process consumer; prose or a mock-only facade is insufficient. Put durable semantics and artifact encoders in Rust; Python callbacks may be slow-path providers. Use typed Python values and keep the existing dictionary-heavy `rank_designs` route as a compatible bridge.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F2.external_scientific_providers",
+        "2.3A.F3.external_response_binding",
+        "2.3A.F20.provider_capability_negotiation",
+        "2.3A.F22.external_object_verification",
+        "2.3A.F23.external_trust_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/external.rs",
+        "crates/antecedent-core/src/external_binding.rs",
+        "crates/antecedent-io/tests/external_binding_wire.rs",
+        "crates/antecedent-io/tests/external_claim_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_external_binding.py"
+      ]
+    },
+    {
+      "original_line": 141,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(A0 scope) `point_status` is populated for static curves, temporal surfaces, Jacobian and directional-derivative joint responses (one label per value component), transported grids (Python), external bound responses and inverse actions (from the forward labels), with `status` kept as the worst-label summary.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 142,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(Remainder: shifted-policy queries with a non-scalar value, the frequentist multi-treatment `InterventionResponse` route, a transported grid with a coordinate that has no value, and Rust-side transport supports are not labelled or not verified.) Populate `SupportReport.point_status` for every finite coordinate grid: static response curves, temporal surfaces, joint interventions, transported grids, external bound responses and inverse actions. Keep `SupportReport.status` as the existing summary for old consumers.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 145,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(A0 scope) Every response diagnostic carries a per-coordinate, global or inapplicable scope, transported grids add an aligned per-coordinate evidence-availability diagnostic, and a missing evidence factor is distinguished from a support failure.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 146,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(Remainder: the transport `grid:{index}` diagnostics keep the default global scope, and propensity/density and source/target overlap are not yet per-coordinate for transport, inverse and decision compositions.) Align every diagnostic that varies by finite coordinate—local effective sample size, propensity/density, evidence availability, denominator support and source/target overlap where defined—with that coordinate. Mark an inapplicable diagnostic explicitly instead of attaching one global value that implies uniform support. Test summary/point consistency and missing-evidence versus support-failure distinction.",
+      "verdict": "reopened",
+      "reason": "The universal diagnostic alignment requirement still exceeds the scoped response/grid diagnostics; downstream inverse/decision composition does not carry every defined coordinate-specific overlap diagnostic.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "crates/antecedent/src/analysis/transport_grid.rs",
+        "python/antecedent/transport/_wrap.py",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 149,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(A0 scope) A queryable `ProvenanceChain` with typed stages is carried by external claims (contract, evidence, equivalence, provider, claim), decision results (causal contract, provider, distribution digest, decision contract, result) and decisions on a bound external claim; artifact identity retains it and a fresh consumer queries it.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 150,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(Remainder: sensitivity inputs and the study-ranking provider have no link yet because study ranking is B0.2.) Carry a queryable provenance chain through every composition: causal contract, evidence/data, external provider, distribution artifact, transformations, decision contract, sensitivity inputs and study-ranking provider. Inspection and independent artifact consumption must answer where each reported number came from.",
+      "verdict": "reopened",
+      "reason": "Ranking and sensitivity chains exist, but native response claims and all composition transformations do not yet retain the complete independently consumable chain.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/src/design_ranking_artifact.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "python/tests/test_a_exit_substrate.py",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 153,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(A0 scope) Structured refusals (stage, namespaced literal detail, offending coordinate or action, expected versus supplied, capability, remedy) are registered with exact-code tests for external declaration, negotiation, verification and binding, and for decision contract, evaluation, structural and design-callback errors.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 154,
+      "section": "A0.4 — F8/F24/F25: coordinate support, provenance and refusals",
+      "requirement": "(Remainder: inverse functional and joint-law failures have no typed error to convert, and design signal, update, EVSI and cost-unit failures have no typed variants until B0.2.) Register stable structured refusal families for external quantity/population/intervention/coordinate mismatch, joint law and capability missing; decision quantity/admissibility/structure/support/utility/no-action failures; inverse functional/joint-law failures; and design signal/update/EVSI/cost-unit failures. Include stage, offending coordinate/action, expected versus supplied semantics, required capability and remedy when known. Preserve existing reason codes and test exact codes/details through Rust, Python and artifact consumption.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F8.coordinate_support",
+        "2.3A.F24.composition_provenance",
+        "2.3A.F25.structured_refusals"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/src/response.rs",
+        "crates/antecedent-core/tests/composition_provenance.rs",
+        "crates/antecedent-design/tests/structured_refusals.rs",
+        "crates/antecedent-estimate/src/response/support.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_structured_refusals.py",
+        "python/tests/test_support_artifact.py"
+      ]
+    },
+    {
+      "original_line": 160,
+      "section": "A0.5 — F21: Rust and Python parity for composition",
+      "requirement": "(A0 scope) Decision contracts, distribution meanings, quantity descriptors, external-result binding, coordinate support and artifact encoding live in durable Rust types; Python hosts only callbacks and declarations.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F21.composition_parity"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/cross_surface_joint_law.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cross_surface.py"
+      ]
+    },
+    {
+      "original_line": 161,
+      "section": "A0.5 — F21: Rust and Python parity for composition",
+      "requirement": "(Remainder: evidence obligations do not exist until B0.1.) Put decision contracts, distribution meanings, quantity descriptors, evidence obligations, external-result binding, coordinate support and artifact encoding in durable Rust types. Python may host callback providers but must not be the sole keeper of scientific identities or refusal rules.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F21.composition_parity"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/cross_surface_joint_law.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cross_surface.py"
+      ]
+    },
+    {
+      "original_line": 162,
+      "section": "A0.5 — F21: Rust and Python parity for composition",
+      "requirement": "(A0 scope) `antecedent.external`, `antecedent.decision` and `antecedent.joint_distribution` are typed Python facades over the Rust contracts with the same identities, trust and support vocabulary and refusal codes; external-claim and decision artifacts built in Python are consumed by Rust and built in Rust are consumed by Python, with committed fixtures and generators in `conformance/cross_surface/`; existing dictionary APIs are untouched.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F21.composition_parity"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/cross_surface_joint_law.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cross_surface.py"
+      ]
+    },
+    {
+      "original_line": 163,
+      "section": "A0.5 — F21: Rust and Python parity for composition",
+      "requirement": "(Remainder: evidence-obligation and study-ranking facades arrive with B0.1 and B0.2.) Expose typed Python dataclasses/facades for those Rust contracts, with the same semantic identities, trust/support states and refusal details on both surfaces. Round-trip fixtures must build on one language surface and consume on the other. Keep existing Python dictionary APIs as compatible bridges, not the primary 2.3 decision interface.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.F21.composition_parity"
+      ],
+      "source_evidence": [
+        "crates/antecedent-io/tests/cross_surface_joint_law.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cross_surface.py"
+      ]
+    },
+    {
+      "original_line": 169,
+      "section": "A1 — X2: selection and graph-completion uncertainty",
+      "requirement": "Choose one additional selection-diagram or enumerated class-completion family beyond the 2.2 supplied-scenario row. State graph class, completion limits, selection semantics, theorem premises and whether search is exhaustive or bounded.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X2.cpdag_completion_scenarios",
+        "2.3A.X2.shared_scenario_covariance",
+        "2.3A.X2.scenario_invariance_report"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
+        "crates/antecedent-estimate/tests/scenario_covariance.rs",
+        "crates/antecedent-estimate/tests/scenario_invariance_report.rs",
+        "crates/antecedent-identify/tests/cpdag_completion.rs",
+        "crates/antecedent-identify/tests/scenario_invariance.rs",
+        "crates/antecedent-io/tests/cpdag_completion_artifact.rs",
+        "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cpdag_scenarios.py",
+        "python/tests/test_scenario_covariance.py",
+        "python/tests/test_scenario_invariance.py"
+      ]
+    },
+    {
+      "original_line": 171,
+      "section": "A1 — X2: selection and graph-completion uncertainty",
+      "requirement": "Bind evidence per scenario/completion. Reuse a source law only if its identity and premises match; retain missing-evidence, unidentified and unevaluated mass rather than normalizing successful members.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X2.cpdag_completion_scenarios",
+        "2.3A.X2.shared_scenario_covariance",
+        "2.3A.X2.scenario_invariance_report"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
+        "crates/antecedent-estimate/tests/scenario_covariance.rs",
+        "crates/antecedent-estimate/tests/scenario_invariance_report.rs",
+        "crates/antecedent-identify/tests/cpdag_completion.rs",
+        "crates/antecedent-identify/tests/scenario_invariance.rs",
+        "crates/antecedent-io/tests/cpdag_completion_artifact.rs",
+        "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cpdag_scenarios.py",
+        "python/tests/test_scenario_covariance.py",
+        "python/tests/test_scenario_invariance.py"
+      ]
+    },
+    {
+      "original_line": 172,
+      "section": "A1 — X2: selection and graph-completion uncertainty",
+      "requirement": "Implement shared-data covariance for one identified scenario family with common observations. Preserve row/unit identities and joint replicate IDs; refuse unknown dependence or incompatible snapshots.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X2.cpdag_completion_scenarios",
+        "2.3A.X2.shared_scenario_covariance",
+        "2.3A.X2.scenario_invariance_report"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
+        "crates/antecedent-estimate/tests/scenario_covariance.rs",
+        "crates/antecedent-estimate/tests/scenario_invariance_report.rs",
+        "crates/antecedent-identify/tests/cpdag_completion.rs",
+        "crates/antecedent-identify/tests/scenario_invariance.rs",
+        "crates/antecedent-io/tests/cpdag_completion_artifact.rs",
+        "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cpdag_scenarios.py",
+        "python/tests/test_scenario_covariance.py",
+        "python/tests/test_scenario_invariance.py"
+      ]
+    },
+    {
+      "original_line": 174,
+      "section": "A1 — X2: selection and graph-completion uncertainty",
+      "requirement": "Keep unweighted structural envelopes separate from weighted posterior summaries and sampling intervals. (A1 scope: completion edges and canonical identities are reported; the cell has no selection diagram.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X2.cpdag_completion_scenarios",
+        "2.3A.X2.shared_scenario_covariance",
+        "2.3A.X2.scenario_invariance_report"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
+        "crates/antecedent-estimate/tests/scenario_covariance.rs",
+        "crates/antecedent-estimate/tests/scenario_invariance_report.rs",
+        "crates/antecedent-identify/tests/cpdag_completion.rs",
+        "crates/antecedent-identify/tests/scenario_invariance.rs",
+        "crates/antecedent-io/tests/cpdag_completion_artifact.rs",
+        "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cpdag_scenarios.py",
+        "python/tests/test_scenario_covariance.py",
+        "python/tests/test_scenario_invariance.py"
+      ]
+    },
+    {
+      "original_line": 175,
+      "section": "A1 — X2: selection and graph-completion uncertainty",
+      "requirement": "Report the selection differences and invariances needed for each answer. Remainder: the A1 cell has no selection shift to report; the per-answer invariance report needs a selection-diagram family.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X2.cpdag_completion_scenarios",
+        "2.3A.X2.shared_scenario_covariance",
+        "2.3A.X2.scenario_invariance_report"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
+        "crates/antecedent-estimate/tests/scenario_covariance.rs",
+        "crates/antecedent-estimate/tests/scenario_invariance_report.rs",
+        "crates/antecedent-identify/tests/cpdag_completion.rs",
+        "crates/antecedent-identify/tests/scenario_invariance.rs",
+        "crates/antecedent-io/tests/cpdag_completion_artifact.rs",
+        "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cpdag_scenarios.py",
+        "python/tests/test_scenario_covariance.py",
+        "python/tests/test_scenario_invariance.py"
+      ]
+    },
+    {
+      "original_line": 176,
+      "section": "A1 — X2: selection and graph-completion uncertainty",
+      "requirement": "Test conflicting identified answers, positive unidentified/unevaluated mass, shared-unit covariance, a budget-limited completion, scenario permutation, missing evidence and independent artifact replay.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X2.cpdag_completion_scenarios",
+        "2.3A.X2.shared_scenario_covariance",
+        "2.3A.X2.scenario_invariance_report"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/cpdag_scenarios.rs",
+        "crates/antecedent-estimate/tests/scenario_covariance.rs",
+        "crates/antecedent-estimate/tests/scenario_invariance_report.rs",
+        "crates/antecedent-identify/tests/cpdag_completion.rs",
+        "crates/antecedent-identify/tests/scenario_invariance.rs",
+        "crates/antecedent-io/tests/cpdag_completion_artifact.rs",
+        "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_cpdag_scenarios.py",
+        "python/tests/test_scenario_covariance.py",
+        "python/tests/test_scenario_invariance.py"
+      ]
+    },
+    {
+      "original_line": 180,
+      "section": "A2 — X4: joint Bayesian transport",
+      "requirement": "Select one already identified transport row and define a joint source/target generative model: likelihoods, invariant and varying mechanisms, priors, graph assumptions, overlap and posterior predictive estimand.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X4.joint_bayesian_transport",
+        "2.3A.X4.learned_joint_transport"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/joint_bayesian_transport.rs",
+        "crates/antecedent-estimate/tests/learned_joint_transport.rs",
+        "crates/antecedent-io/tests/joint_bayesian_transport_artifact.rs",
+        "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs",
+        "crates/antecedent-io/tests/learned_joint_transport_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_learned_joint_closed.py"
+      ]
+    },
+    {
+      "original_line": 182,
+      "section": "A2 — X4: joint Bayesian transport",
+      "requirement": "Define draw sharing, multiple-source dependence, prior sensitivity, diagnostics, failed fits and effective sample size. Refuse double use of observations through a prior bank and likelihood.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X4.joint_bayesian_transport",
+        "2.3A.X4.learned_joint_transport"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/joint_bayesian_transport.rs",
+        "crates/antecedent-estimate/tests/learned_joint_transport.rs",
+        "crates/antecedent-io/tests/joint_bayesian_transport_artifact.rs",
+        "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs",
+        "crates/antecedent-io/tests/learned_joint_transport_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_learned_joint_closed.py"
+      ]
+    },
+    {
+      "original_line": 190,
+      "section": "A3 — X4/X2: bounded binary nested-Markov likelihood pilot",
+      "requirement": "Choose a separately licensed binary ADMG identification row. State parameterization, likelihood, equality constraints, positivity, estimand and graph-size limit.",
+      "verdict": "reopened",
+      "reason": "The Verma MLE pilot is a separate closed row; the checklist requires binding a separately licensed identification route. Its existing internal oracle does not establish that public binding.",
+      "promotion_records": [
+        "2.3A.X4.binary_nested_markov_pilot"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/src/nested_markov_binary.rs",
+        "crates/antecedent-estimate/tests/nested_markov_binary.rs",
+        "crates/antecedent-io/tests/nested_markov_artifact.rs",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 192,
+      "section": "A3 — X4/X2: bounded binary nested-Markov likelihood pilot",
+      "requirement": "Implement fit, convergence and boundary diagnostics with typed numerical refusal. Compare exact enumerated SCM truth and the existing empirical plug-in on the same graph. (A3 scope: the comparator is this cell's own plug-in evaluation of the same identifying formula on empirical cells, because the 2.2B route refuses counted laws.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X4.binary_nested_markov_pilot"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/nested_markov_binary.rs",
+        "crates/antecedent-io/tests/nested_markov_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 198,
+      "section": "A4 — X5: temporal dependence, initial state and new periods",
+      "requirement": "Anchor on the 2.2 two-step discrete sequence. Specify repeated-unit IDs, horizon, history support, time-indexed selection/invariance and whether initial state is fixed, observed or uncertain.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X5.dependent_temporal_interval",
+        "2.3A.X5.uncertain_initial_state",
+        "2.3A.X5.new_period_refresh",
+        "2.3A.F18.temporal_effect_constancy"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/effect_constancy.rs",
+        "crates/antecedent-estimate/tests/effect_constancy_calibration.rs",
+        "crates/antecedent-estimate/tests/temporal_dependent_interval.rs",
+        "crates/antecedent-estimate/tests/temporal_initial_state.rs",
+        "crates/antecedent-estimate/tests/temporal_refresh.rs",
+        "crates/antecedent-io/tests/effect_constancy_artifact.rs",
+        "crates/antecedent-io/tests/temporal_initial_state_artifact.rs",
+        "crates/antecedent-io/tests/temporal_interval_artifact.rs",
+        "crates/antecedent-io/tests/temporal_refresh_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 200,
+      "section": "A4 — X5: temporal dependence, initial state and new periods",
+      "requirement": "Implement dependence-preserving inference resampling/modeling whole histories, with shared-source dependence intact; refuse too few units and unsupported histories. (A4 scope: whole-unit resampling with recorded replicate ids and selection digests, a discrete sequential g-formula estimator rather than the 2.2 exact evaluator, jointly dropped failed replicates.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X5.dependent_temporal_interval",
+        "2.3A.X5.uncertain_initial_state",
+        "2.3A.X5.new_period_refresh",
+        "2.3A.F18.temporal_effect_constancy"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/effect_constancy.rs",
+        "crates/antecedent-estimate/tests/effect_constancy_calibration.rs",
+        "crates/antecedent-estimate/tests/temporal_dependent_interval.rs",
+        "crates/antecedent-estimate/tests/temporal_initial_state.rs",
+        "crates/antecedent-estimate/tests/temporal_refresh.rs",
+        "crates/antecedent-io/tests/effect_constancy_artifact.rs",
+        "crates/antecedent-io/tests/temporal_initial_state_artifact.rs",
+        "crates/antecedent-io/tests/temporal_interval_artifact.rs",
+        "crates/antecedent-io/tests/temporal_refresh_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 202,
+      "section": "A4 — X5: temporal dependence, initial state and new periods",
+      "requirement": "Propagate initial-state uncertainty separately from graph/mechanism uncertainty. Include a fixture where fixing the initial state gives the wrong result. (Enumerated truth 0.421 integrated over the target law versus 0.46 at its mode.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X5.dependent_temporal_interval",
+        "2.3A.X5.uncertain_initial_state",
+        "2.3A.X5.new_period_refresh",
+        "2.3A.F18.temporal_effect_constancy"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/effect_constancy.rs",
+        "crates/antecedent-estimate/tests/effect_constancy_calibration.rs",
+        "crates/antecedent-estimate/tests/temporal_dependent_interval.rs",
+        "crates/antecedent-estimate/tests/temporal_initial_state.rs",
+        "crates/antecedent-estimate/tests/temporal_refresh.rs",
+        "crates/antecedent-io/tests/effect_constancy_artifact.rs",
+        "crates/antecedent-io/tests/temporal_initial_state_artifact.rs",
+        "crates/antecedent-io/tests/temporal_interval_artifact.rs",
+        "crates/antecedent-io/tests/temporal_refresh_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 203,
+      "section": "A4 — X5: temporal dependence, initial state and new periods",
+      "requirement": "Define refresh/invalidation for appended periods, changed lag alignment, new snapshots and altered intervention history. Recheck evidence/support; stale proof, fit or interval cannot silently survive. (Limit: the initial-state and refresh artifacts re-evaluate from a tally summary of the panel, so a coherently resealed forgery of summary, law and values would replay; only the interval artifact embeds the full panel.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X5.dependent_temporal_interval",
+        "2.3A.X5.uncertain_initial_state",
+        "2.3A.X5.new_period_refresh",
+        "2.3A.F18.temporal_effect_constancy"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/effect_constancy.rs",
+        "crates/antecedent-estimate/tests/effect_constancy_calibration.rs",
+        "crates/antecedent-estimate/tests/temporal_dependent_interval.rs",
+        "crates/antecedent-estimate/tests/temporal_initial_state.rs",
+        "crates/antecedent-estimate/tests/temporal_refresh.rs",
+        "crates/antecedent-io/tests/effect_constancy_artifact.rs",
+        "crates/antecedent-io/tests/temporal_initial_state_artifact.rs",
+        "crates/antecedent-io/tests/temporal_interval_artifact.rs",
+        "crates/antecedent-io/tests/temporal_refresh_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 204,
+      "section": "A4 — X5: temporal dependence, initial state and new periods",
+      "requirement": "Implement F18's reusable **EffectConstancy** contract across a declared region or time partition: per-partition effect, covariance where available, global heterogeneity test, multiplicity, coordinate support and structural comparability. Freeze the null and effect estimand, refuse partitions that change either incompatibly, and expose the result without claiming that non-rejection proves constancy. (Cochran Q or Wald with supplied covariance, Holm contrasts; point-only. A known-Gaussian, known-covariance null/power/Holm reference grid is measured in `effect_constancy_calibration`; arbitrary supplied estimates remain unmeasured.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X5.dependent_temporal_interval",
+        "2.3A.X5.uncertain_initial_state",
+        "2.3A.X5.new_period_refresh",
+        "2.3A.F18.temporal_effect_constancy"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/effect_constancy.rs",
+        "crates/antecedent-estimate/tests/effect_constancy_calibration.rs",
+        "crates/antecedent-estimate/tests/temporal_dependent_interval.rs",
+        "crates/antecedent-estimate/tests/temporal_initial_state.rs",
+        "crates/antecedent-estimate/tests/temporal_refresh.rs",
+        "crates/antecedent-io/tests/effect_constancy_artifact.rs",
+        "crates/antecedent-io/tests/temporal_initial_state_artifact.rs",
+        "crates/antecedent-io/tests/temporal_interval_artifact.rs",
+        "crates/antecedent-io/tests/temporal_refresh_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 209,
+      "section": "A5 — X8: temporal and transported counterfactuals",
+      "requirement": "Treat the fixed-population temporal cell as the required first gate. Attempt the transported row only after its two prerequisite licenses exist; if either fails, record the exact missing gate and keep the transported route closed rather than marking that cell complete. (The typed gate names `TransportLicenseMissing`, `FixedPopulationTemporalLicenseMissing` or `CrossPopulationAssumptionsMissing`; the route refuses `transported_counterfactual.route_frozen`.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X8.temporal_fixed_population_counterfactual",
+        "2.3A.X8.transported_path_specific_counterfactual",
+        "2.3A.X8.transported_additive_counterfactual"
+      ],
+      "source_evidence": [
+        "crates/antecedent-counterfactual/tests/temporal_cross_world.rs",
+        "crates/antecedent-counterfactual/tests/transported_path_specific.rs",
+        "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs",
+        "crates/antecedent-io/tests/transported_counterfactual_artifact.rs",
+        "crates/antecedent/tests/transported_counterfactual_facade.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_transported_counterfactual.py"
+      ]
+    },
+    {
+      "original_line": 210,
+      "section": "A5 — X8: temporal and transported counterfactuals",
+      "requirement": "Choose one fixed-population temporal counterfactual with a named cross-world theorem, unit-history semantics, compatible interventions and shared exogenous draws. Test exact SCM truth and incompatible-history/refuting-witness cases.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X8.temporal_fixed_population_counterfactual",
+        "2.3A.X8.transported_path_specific_counterfactual",
+        "2.3A.X8.transported_additive_counterfactual"
+      ],
+      "source_evidence": [
+        "crates/antecedent-counterfactual/tests/temporal_cross_world.rs",
+        "crates/antecedent-counterfactual/tests/transported_path_specific.rs",
+        "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs",
+        "crates/antecedent-io/tests/transported_counterfactual_artifact.rs",
+        "crates/antecedent/tests/transported_counterfactual_facade.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_transported_counterfactual.py"
+      ]
+    },
+    {
+      "original_line": 213,
+      "section": "A5 — X8: temporal and transported counterfactuals",
+      "requirement": "Keep abduction, action and prediction coupled; refuse unsupported cross-world coupling and missing shared histories. (A5 scope: a point-only claim; the result does not distinguish posterior model uncertainty or sampling intervals because none is reported.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X8.temporal_fixed_population_counterfactual",
+        "2.3A.X8.transported_path_specific_counterfactual",
+        "2.3A.X8.transported_additive_counterfactual"
+      ],
+      "source_evidence": [
+        "crates/antecedent-counterfactual/tests/temporal_cross_world.rs",
+        "crates/antecedent-counterfactual/tests/transported_path_specific.rs",
+        "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs",
+        "crates/antecedent-io/tests/transported_counterfactual_artifact.rs",
+        "crates/antecedent/tests/transported_counterfactual_facade.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_transported_counterfactual.py"
+      ]
+    },
+    {
+      "original_line": 217,
+      "section": "A6 — X10: sampled observation recovery",
+      "requirement": "Start from the 2.2 exact binary recovery formula. Name observed margins, response-indicator graph, positivity, missingness assumptions and target law; retain exact-truth and nonrecoverability witnesses.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X10.sampled_observation_recovery"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/recovery_sampled.rs",
+        "crates/antecedent-io/tests/sampled_recovery_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 218,
+      "section": "A6 — X10: sampled observation recovery",
+      "requirement": "Bind sampled margins to population, selection, snapshot and shared-unit identities. Estimate the **whole recovered law** with small-cell/support diagnostics and numerical tolerances. (A6 scope: the artifact stores every row in order with its id and pattern, because the whole-row bootstrap depends on row order.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3A.X10.sampled_observation_recovery"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/recovery_sampled.rs",
+        "crates/antecedent-io/tests/sampled_recovery_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml"
+      ]
+    },
+    {
+      "original_line": 238,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "(Done: `DecisionContract` plus the B wrapper `AdmissibleDecisionContract` carry admissibility rules (declared exclusions, per-input support rules), uncertainty requirements (Point / StructuralEnvelope / Credible, met only by their own kind) and an order-independent identity that changes with every semantic edit; `BoundDecisionContract::bind(&CausalContract, …)` places it beside the causal contract and binds the causal target and identification identities. Rules only remove actions; hard constraints are never softened. Record `2.3B.F4.admissibility_and_support_requirements`.) Define `DecisionContract` beside `CausalContract`: stable semantic action IDs (interventions, policies, regimes, studies or external actions), required quantities, utility/loss, hard and resource constraints, criterion, target population/horizon, admissibility, structural policy, support and uncertainty requirements. Action labels alone do not define identity; hard constraints never become soft penalties.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 239,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "Define typed functionals `Expectation`, `Variance`, `Probability`, `Quantile`, `ExpectedUtility` and `TailExpectation` with their required source representation. A mean can satisfy an expectation; a quantile needs a distribution/quantile provider; nonlinear utility needs aligned joint draws or equivalent integration. A generic functional type does not license every native support row.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 240,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "Implement and exercise the initial criteria as independently scoped routes: posterior expected utility, posterior expected loss, threshold probability, quantile, minimax over an identified set, maximin over structures, regret and expected regret. A single generic scorer with unimplemented criteria does not complete F4/F6. CVaR is optional and must stay unadvertised until its tail/distribution semantics and tests are fixed.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 241,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "(Done: `RobustVerdict` adds structurally robust, support robust, support dependent, graph-dependent choice, unsupported extrapolation, insufficient claims, no admissible action, worst-case choice, Bayes choice and report-only, derived from the per-atom results without editing the evaluator. Record `2.3B.F6.robust_verdicts_and_result_artifact`.) Return `DecisionResult` with admissible/excluded actions and reasons, action values, selected actions, decision uncertainty, structural/support robustness, regret, EVPI where meaningful, assumptions, provenance and contract identity. Distinguish highest expected utility from uniquely optimal, indistinguishable actions, graph-dependent choice, unsupported extrapolation, no admissible action and insufficient scientific claims.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 242,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "(Done at the design layer: adapters for point claims, identified sets, graph-dependent claims, weighted atoms and finite scenarios feed the declared policies; completion counts are refused as probabilities. Remaining, tracked below: direct conversion from the 2.2 estimate-crate `StructuralEnvelope` / `WeightedScenarioReport` types, which needs a facade-level adapter because `antecedent-design` does not depend on `antecedent-estimate`.) Consume point claims, identified sets, graph-dependent claims, weighted graph posterior atoms and finite supplied scenarios only through a declared policy: `RequireInvariantBestAction`, `Maximin`, `BayesOverStructures` or `ReportOnly`. Genuine structure probabilities are required for Bayes weighting; completion counts are not probabilities.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 243,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "(Done: `crates/antecedent/src/analysis/decision_claims.rs`; tests `b_claims_*` drive real 2.2 scenario reports through the structural policies; record `2.3B.F6.scenario_claims_adapters`.) Convert the 2.2 estimate-crate `StructuralEnvelope`, `WeightedScenarioReport` and graph-dependent result types directly into decision atoms through a facade-level adapter (the design crate cannot depend on the estimate crate), with a test that an actual 2.2 scenario-envelope result drives a decision.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 244,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "(Done: the structural range, weighted value, mass where optimal, unidentified and unevaluated mass are retained and never renormalized; partial identification is an interval of utility per action (`evaluate_identified_sets`, outer enclosure by interval arithmetic) and per-atom support status is kept beyond `unevaluated`.) For each action retain structural utility range, meaningful weighted utility, mass where optimal, unidentified mass, unevaluated mass and per-atom support variation. Never renormalize away unidentified/unevaluated mass. Test conflicting best actions, invariant best action, partial identification, unsupported atom and no-admissible-action cases.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 245,
+      "section": "B0 prerequisite — F4/F5/F6: durable decision contracts and distribution functionals",
+      "requirement": "(Done: the A0 artifacts plus `AdmissibleContractArtifact`, the structural result artifact and `RobustResultArtifact`, whose external-callback receipts retain the attested value, exact request fingerprint and trust limit; `ExternalTrustLimit` has no native variant. Identified-set decisions have no durable artifact yet.) Round-trip `DecisionContractArtifact` and `DecisionResultArtifact` with canonical versioned identities depending on scientific claims, semantic actions, utility, constraints, criterion, structural/support policy, providers and referenced distributions. Reordering unordered actions preserves identity; semantic changes do not. Bound decode size and independently inspect/replay the decision from stored inputs and receipts; where an external callback cannot replay, retain the attested value, exact request fingerprint and trust limit rather than claiming native verification.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F4.decision_contract",
+        "2.3B.F5.decision_functionals",
+        "2.3B.F6.structural_decision_policy",
+        "2.3B.F4.admissibility_and_support_requirements",
+        "2.3B.F6.structural_robustness_and_adapters",
+        "2.3B.F6.robust_verdicts_and_result_artifact",
+        "2.3B.F6.scenario_claims_adapters"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/decision_acceptance.rs",
+        "crates/antecedent-design/tests/decision_adapters.rs",
+        "crates/antecedent-design/tests/decision_robust_artifact.rs",
+        "crates/antecedent-design/tests/decision_robustness.rs",
+        "crates/antecedent-design/tests/decision_structural_artifact.rs",
+        "crates/antecedent/tests/decision_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_decision_robust.py",
+        "python/tests/test_scenario_decision.py"
+      ]
+    },
+    {
+      "original_line": 251,
+      "section": "B0 — X6: decision planning with prior and candidate signal",
+      "requirement": "Define the decision, actions/utility/loss, candidate-study outcomes and finite catalog. Retain 2.2 verified structural sufficiency and cost ranking when no probabilistic model is licensed. (`DesignRanking::from_structural` keeps sufficiency, then cost units, sample budget, semantic id.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X6.prior_signal_decision_planning",
+        "2.3B.X6.proposal_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/prior_signal.rs",
+        "crates/antecedent-design/tests/proposal_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_proposals.py"
+      ]
+    },
+    {
+      "original_line": 252,
+      "section": "B0 — X6: decision planning with prior and candidate signal",
+      "requirement": "Filter historical posterior sources through `PriorCatalog` with source-to-target maps, transport policy, lineage, weights, conflict shrinkage and prior strength. Refuse incompatible artifacts and observation reuse.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X6.prior_signal_decision_planning",
+        "2.3B.X6.proposal_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/prior_signal.rs",
+        "crates/antecedent-design/tests/proposal_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_proposals.py"
+      ]
+    },
+    {
+      "original_line": 253,
+      "section": "B0 — X6: decision planning with prior and candidate signal",
+      "requirement": "Build a checked adapter from compatible priors to a **future candidate signal likelihood**; a coefficient prior or structural unlock list alone is not a signal distribution.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X6.prior_signal_decision_planning",
+        "2.3B.X6.proposal_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/prior_signal.rs",
+        "crates/antecedent-design/tests/proposal_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_proposals.py"
+      ]
+    },
+    {
+      "original_line": 254,
+      "section": "B0 — X6: decision planning with prior and candidate signal",
+      "requirement": "Feed the signal and decision model to existing `ReduceDecisionRegret`. Declare exact or Monte Carlo integration, error/ESS, convergence, ties and source-overlap checks. (Exact integration is a point value; Monte Carlo error, ESS and rank uncertainty are reported diagnostics with calibration `unmeasured`.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X6.prior_signal_decision_planning",
+        "2.3B.X6.proposal_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/prior_signal.rs",
+        "crates/antecedent-design/tests/proposal_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_proposals.py"
+      ]
+    },
+    {
+      "original_line": 255,
+      "section": "B0 — X6: decision planning with prior and candidate signal",
+      "requirement": "(Done: `ProposalReceipt` / `ProposalBundle` bind the base failure, delta, derivation, cost, lineage, valuation and decision identities and cross-check the repair and ranking artifacts; `on_arrival` re-runs the family checker on the arrived evidence and a hypothetical derivation is never marked available. Re-running full estimation on arrived data is out of scope here: arrival re-runs identification only. Record `2.3B.X6.proposal_receipt`.) Retain frozen transport failure, hypothetical catalog delta, verified derivation, cost, source/snapshot lineage and decision receipt for each proposal. Re-run identification and estimation on actual new data.",
+      "verdict": "reopened",
+      "reason": "Proposal arrival reruns identification only. The combined requirement also demands estimation on actual new data with retained identities and execution evidence.",
+      "promotion_records": [
+        "2.3B.X6.prior_signal_decision_planning",
+        "2.3B.X6.proposal_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/prior_signal.rs",
+        "crates/antecedent-design/tests/proposal_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_proposals.py"
+      ]
+    },
+    {
+      "original_line": 256,
+      "section": "B0 — X6: decision planning with prior and candidate signal",
+      "requirement": "Test a repairing candidate, impossible candidate, tied costs, truncated search, prior incompatibility, prior/data overlap and a noisy candidate whose regret differs from its structural unlock rank.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X6.prior_signal_decision_planning",
+        "2.3B.X6.proposal_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/prior_signal.rs",
+        "crates/antecedent-design/tests/proposal_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_proposals.py"
+      ]
+    },
+    {
+      "original_line": 262,
+      "section": "B0.1 — F9/F10/F13: evidence obligations and identification-repair facade",
+      "requirement": "Add machine-readable `EvidenceObligation` with stable ID, kind, variables, population, regime, reason, required contract slots and provenance. Initial kinds: `Measure`, `Intervene`, `ObservePopulation`, `ObserveEnvironment`, `IncreaseSample`, `ProvideJointLaw`, `ProvideConditionalLaw`, `EstablishSupport`, and sparingly `EstablishAssumption` (a proposed study does not prove an assumption).",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F9.evidence_obligations",
+        "2.3B.F10.study_candidate",
+        "2.3B.F13.identification_repair",
+        "2.3B.F13.repair_search_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/evidence_obligation.rs",
+        "crates/antecedent-design/tests/repair_artifact.rs",
+        "crates/antecedent-design/tests/repair_facade.rs",
+        "crates/antecedent-design/tests/study_candidate.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_repair.py"
+      ]
+    },
+    {
+      "original_line": 263,
+      "section": "B0.1 — F9/F10/F13: evidence obligations and identification-repair facade",
+      "requirement": "Adapt existing transport factors, z-transport requirements, support missing evidence and planner catalog deltas into obligations without changing theorem-specific identifiers. Expose unresolved obligations from a causal contract and retain their source proof step. (The z-transport adapter exists but has no test and no repair family.)",
+      "verdict": "reopened",
+      "reason": "z_transport_obligations is implemented but has no cited executing test/repair-family consumption; the universal adapter evidence requirement is unfinished.",
+      "promotion_records": [
+        "2.3B.F9.evidence_obligations",
+        "2.3B.F10.study_candidate",
+        "2.3B.F13.identification_repair",
+        "2.3B.F13.repair_search_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/evidence_obligation.rs",
+        "crates/antecedent-design/src/obligation_adapters.rs",
+        "crates/antecedent-design/tests/repair_artifact.rs",
+        "crates/antecedent-design/tests/repair_facade.rs",
+        "crates/antecedent-design/tests/study_candidate.rs",
+        "python/tests/test_repair.py"
+      ]
+    },
+    {
+      "original_line": 264,
+      "section": "B0.1 — F9/F10/F13: evidence obligations and identification-repair facade",
+      "requirement": "Add a durable `StudyCandidate` with semantic ID, kind, population, intervention/measurement regime, sample size, recruitment, timing, cluster/unit rules, cost, feasibility, expected evidence and optional external provider. It describes what a study could produce; Antecedent need not conduct it.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F9.evidence_obligations",
+        "2.3B.F10.study_candidate",
+        "2.3B.F13.identification_repair",
+        "2.3B.F13.repair_search_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/evidence_obligation.rs",
+        "crates/antecedent-design/tests/repair_artifact.rs",
+        "crates/antecedent-design/tests/repair_facade.rs",
+        "crates/antecedent-design/tests/study_candidate.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_repair.py"
+      ]
+    },
+    {
+      "original_line": 265,
+      "section": "B0.1 — F9/F10/F13: evidence obligations and identification-repair facade",
+      "requirement": "Add a generic `design.repair(contract, candidates, objective)` facade that applies hypothetical evidence deltas and re-runs the appropriate theorem-specific identifier/validator. Exercise it on at least two distinct existing obligation families, including one transport or z-transport case and one other supported family; a wrapper around only the 2.2 transport planner does not complete the generic facade. Support individual candidates and bounded subsets with declared depth, operations and memory; preserve existing specialized APIs.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F9.evidence_obligations",
+        "2.3B.F10.study_candidate",
+        "2.3B.F13.identification_repair",
+        "2.3B.F13.repair_search_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/evidence_obligation.rs",
+        "crates/antecedent-design/tests/repair_artifact.rs",
+        "crates/antecedent-design/tests/repair_facade.rs",
+        "crates/antecedent-design/tests/study_candidate.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_repair.py"
+      ]
+    },
+    {
+      "original_line": 266,
+      "section": "B0.1 — F9/F10/F13: evidence obligations and identification-repair facade",
+      "requirement": "Classify each candidate as `verified_sufficient`, `insufficient`, `not_certified`, `invalid` or `unevaluated`. Verify the successful derivation, retain failure reasons and search receipts, and never call exhaustion impossibility. Test a joint-regime obligation that cannot be met by two separate studies.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F9.evidence_obligations",
+        "2.3B.F10.study_candidate",
+        "2.3B.F13.identification_repair",
+        "2.3B.F13.repair_search_receipt"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/evidence_obligation.rs",
+        "crates/antecedent-design/tests/repair_artifact.rs",
+        "crates/antecedent-design/tests/repair_facade.rs",
+        "crates/antecedent-design/tests/study_candidate.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_repair.py"
+      ]
+    },
+    {
+      "original_line": 272,
+      "section": "B0.2 — F11/F12/F14: external signals, EVSI and durable ranking",
+      "requirement": "Let `ReduceDecisionRegret`/EVSI consume a typed external `SignalProvider` for a candidate-specific predictive observation law and posterior update. Specify state, sample size, RNG, evidence lineage, conditional independence and computational limits.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F11.external_signal",
+        "2.3B.F12.evsi",
+        "2.3B.F14.design_ranking_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/design_ranking_artifact.rs",
+        "crates/antecedent-design/tests/evsi.rs",
+        "crates/antecedent-design/tests/signal_provider.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_design_ranking.py"
+      ]
+    },
+    {
+      "original_line": 273,
+      "section": "B0.2 — F11/F12/F14: external signals, EVSI and durable ranking",
+      "requirement": "Put the existing native Gaussian-mean and binomial signal families behind the same scientific request/receipt contract, then compare one native and one equivalent external signal on a fixed known-truth decision. This verifies that the external path is a real alternative rather than a separate scoring shortcut.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F11.external_signal",
+        "2.3B.F12.evsi",
+        "2.3B.F14.design_ranking_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/design_ranking_artifact.rs",
+        "crates/antecedent-design/tests/evsi.rs",
+        "crates/antecedent-design/tests/signal_provider.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_design_ranking.py"
+      ]
+    },
+    {
+      "original_line": 274,
+      "section": "B0.2 — F11/F12/F14: external signals, EVSI and durable ranking",
+      "requirement": "Execute both update modes end to end: native update from a supplied likelihood/predictive model, and externally computed updated posterior or decision-value distribution. Tag external computation and trust; check that candidate, prior and returned posterior quantities align. Supplying an interface for one mode while every request refuses does not complete F11.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F11.external_signal",
+        "2.3B.F12.evsi",
+        "2.3B.F14.design_ranking_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/design_ranking_artifact.rs",
+        "crates/antecedent-design/tests/evsi.rs",
+        "crates/antecedent-design/tests/signal_provider.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_design_ranking.py"
+      ]
+    },
+    {
+      "original_line": 275,
+      "section": "B0.2 — F11/F12/F14: external signals, EVSI and durable ranking",
+      "requirement": "(Reported with calibration `unmeasured`: exact-integration EVSI is a point value; Monte Carlo error, replicates, ESS and rank uncertainty are diagnostics, not guarantees, until the release-cut calibration.) For each candidate report EVSI, Monte Carlo error/replicates where applicable, EVPI bound, sample size, study cost, optional net value, rank uncertainty, provider trust, source-overlap diagnostics and assumptions. Test EVSI nonnegative and no greater than EVPI within declared error, positive affine utility behavior and the same terminal action set before/after information. Treat action-set changes as a separate problem.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F11.external_signal",
+        "2.3B.F12.evsi",
+        "2.3B.F14.design_ranking_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/design_ranking_artifact.rs",
+        "crates/antecedent-design/tests/evsi.rs",
+        "crates/antecedent-design/tests/signal_provider.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_design_ranking.py"
+      ]
+    },
+    {
+      "original_line": 276,
+      "section": "B0.2 — F11/F12/F14: external signals, EVSI and durable ranking",
+      "requirement": "Compute `NetValueOfInformation = EVSI - StudyCostUtility` only when the caller supplies a valid cost-to-utility mapping. Otherwise report value and cost separately; refuse incompatible units rather than assuming currency equals outcome utility.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F11.external_signal",
+        "2.3B.F12.evsi",
+        "2.3B.F14.design_ranking_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/design_ranking_artifact.rs",
+        "crates/antecedent-design/tests/evsi.rs",
+        "crates/antecedent-design/tests/signal_provider.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_design_ranking.py"
+      ]
+    },
+    {
+      "original_line": 277,
+      "section": "B0.2 — F11/F12/F14: external signals, EVSI and durable ranking",
+      "requirement": "(Limits: the consumer recomputes exact native EVSI from the embedded prior, likelihood and decision table; external values stay attested and Monte Carlo values are bound but not re-simulated; a resealed artifact that honestly states a different prior or table is accepted as the ranking of those stated inputs, so `ConsumeExpectation` must carry the retained contract, signal, source and cost identities; the Gaussian closed-form replay reuses `expected_max_affine`.) Export a versioned `DesignRankingArtifact` and EVSI/preposterior receipt referencing the decision contract, candidate semantic IDs, signal provider, external update mode, source distributions, RNG/error and cost mapping. Test reordered candidates, altered signal/update, source-overlap refusal and independent inspection.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F11.external_signal",
+        "2.3B.F12.evsi",
+        "2.3B.F14.design_ranking_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/design_ranking.rs",
+        "crates/antecedent-design/tests/design_ranking_artifact.rs",
+        "crates/antecedent-design/tests/evsi.rs",
+        "crates/antecedent-design/tests/signal_provider.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_design_ranking.py"
+      ]
+    },
+    {
+      "original_line": 283,
+      "section": "B1 — X4: statistical expansion one complete row at a time",
+      "requirement": "Select and promote at least one named additional response-grid, linked/clustered design or model-provider row. State estimand, graph certificate, evidence, nuisance fits, dependence, support, numerical error and inference for each selected row. (Selected: the randomized-dose grid functional, record `2.3B.X4.dose_grid_functional`, point-only; the graph certificate is a caller attestation of randomization, not a re-derived graph.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X4.dose_grid_functional"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/dose_grid_functional.rs",
+        "crates/antecedent-io/tests/dose_grid_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_dose_grid.py"
+      ]
+    },
+    {
+      "original_line": 284,
+      "section": "B1 — X4: statistical expansion one complete row at a time",
+      "requirement": "Add a response grid only with per-dose support and a named functional. Separate pointwise intervals, bandwidth/derivative claims and simultaneous bands. (One functional per call; the simultaneous band is closed.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X4.dose_grid_functional"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/dose_grid_functional.rs",
+        "crates/antecedent-io/tests/dose_grid_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_dose_grid.py"
+      ]
+    },
+    {
+      "original_line": 296,
+      "section": "B2 — X5/X8/X9/X10: further evidence regimes",
+      "requirement": "Expand a selected observation-recovery row only after a new exact formula and nonrecoverability fixture. (Selected: a response-chain m-graph with one `R_h → R_t` edge and optionally `X_h → R_t`; exact formula, an integer-verified self-censoring witness, and adjacent graphs refused as unsupported rather than nonrecoverable. Record `2.3B.X10.chain_observation_recovery`, point-only; no budget fixture because the decision is a bounded edge scan, not a search.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.X10.chain_observation_recovery"
+      ],
+      "source_evidence": [
+        "crates/antecedent-estimate/tests/b2_recovery_chain_truth.rs",
+        "crates/antecedent-identify/tests/b2_recovery_chain.rs",
+        "crates/antecedent-io/tests/recovery_chain_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_recovery_chain.py"
+      ]
+    },
+    {
+      "original_line": 306,
+      "section": "B3 — X3: discrepancy and further sensitivity",
+      "requirement": "(Done for the 2.2 joint mechanism sensitivity result: the artifact lives in `antecedent-io`; sampling-interval composition is refused `composition_not_licensed`; surfaces are exact only at grid points and the tipping point is a labelled interpolation.) Add F17's composition-ready `SensitivityArtifact`: assumption coordinates, effect/distribution surface, tipping points, coordinate support, uncertainty relationship and provenance. Feed an existing 2.2 sensitivity result into a `DecisionContract`; demonstrate an invariant action, an assumption-dependent switch and no robust action on known examples. Keep assumption ranges distinct from sampling intervals; compose them only under a licensed method. An artifact schema without downstream evaluation does not complete F17.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F17.sensitivity_decision_composition",
+        "2.3B.B3.mechanism_discrepancy_diagnostic",
+        "2.3B.B3.msm_sensitivity"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/msm_sensitivity_decision.rs",
+        "crates/antecedent-design/tests/sensitivity_decision.rs",
+        "crates/antecedent-estimate/tests/mechanism_discrepancy.rs",
+        "crates/antecedent-io/tests/mechanism_discrepancy_artifact.rs",
+        "crates/antecedent-io/tests/msm_sensitivity_adapter.rs",
+        "crates/antecedent-io/tests/sensitivity_artifact.rs",
+        "crates/antecedent-validate/tests/msm_sensitivity.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_mechanism_discrepancy.py",
+        "python/tests/test_msm_sensitivity.py",
+        "python/tests/test_sensitivity_decision.py"
+      ]
+    },
+    {
+      "original_line": 312,
+      "section": "B4 — User-reported 2.1.1 expansion cells",
+      "requirement": "**Joint vector-treatment coefficients:** one shared adjustment set and row snapshot, named coefficient vector, full covariance and contrasts; refuse incompatible treatment/support sets. (Record `2.3B.B4.vector_treatment_coefficients`, point-only; standard errors and Wald/Holm p-values are diagnostics with calibration `unmeasured`.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F7.functional_inverse_query",
+        "2.3B.B4.vector_treatment_coefficients",
+        "2.3B.B4.categorical_treatment_contrasts",
+        "2.3B.B4.compact_runtime_export",
+        "2.3B.B4.nonlinear_mediation",
+        "2.3B.B4.latent_class_effects"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/inverse_query.rs",
+        "crates/antecedent-design/tests/inverse_query_artifact.rs",
+        "crates/antecedent-estimate/tests/categorical_treatment.rs",
+        "crates/antecedent-estimate/tests/latent_class_effects.rs",
+        "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+        "crates/antecedent-estimate/tests/vector_treatment.rs",
+        "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+        "crates/antecedent-io/tests/compact_export.rs",
+        "crates/antecedent-io/tests/latent_class_artifact.rs",
+        "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+        "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_categorical_treatment.py",
+        "python/tests/test_compact_export.py",
+        "python/tests/test_inverse_query.py",
+        "python/tests/test_latent_class.py",
+        "python/tests/test_nonlinear_mediation.py",
+        "python/tests/test_vector_treatment.py"
+      ]
+    },
+    {
+      "original_line": 314,
+      "section": "B4 — User-reported 2.1.1 expansion cells",
+      "requirement": "**Categorical treatments:** ordered and unordered regimes, reference and per-level contrasts, correct covariance and a declared monotonicity test for ordered levels. Test sparse/absent levels and multiplicity. (The monotonicity test is a conservative union-intersection test with calibration `unmeasured`.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F7.functional_inverse_query",
+        "2.3B.B4.vector_treatment_coefficients",
+        "2.3B.B4.categorical_treatment_contrasts",
+        "2.3B.B4.compact_runtime_export",
+        "2.3B.B4.nonlinear_mediation",
+        "2.3B.B4.latent_class_effects"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/inverse_query.rs",
+        "crates/antecedent-design/tests/inverse_query_artifact.rs",
+        "crates/antecedent-estimate/tests/categorical_treatment.rs",
+        "crates/antecedent-estimate/tests/latent_class_effects.rs",
+        "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+        "crates/antecedent-estimate/tests/vector_treatment.rs",
+        "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+        "crates/antecedent-io/tests/compact_export.rs",
+        "crates/antecedent-io/tests/latent_class_artifact.rs",
+        "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+        "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_categorical_treatment.py",
+        "python/tests/test_compact_export.py",
+        "python/tests/test_inverse_query.py",
+        "python/tests/test_latent_class.py",
+        "python/tests/test_nonlinear_mediation.py",
+        "python/tests/test_vector_treatment.py"
+      ]
+    },
+    {
+      "original_line": 315,
+      "section": "B4 — User-reported 2.1.1 expansion cells",
+      "requirement": "**Compact runtime export:** coefficients, covariance, declared support and refusal mask; an independent verifier must reject out-of-support queries and tampered identities. State its point/uncertainty scope.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F7.functional_inverse_query",
+        "2.3B.B4.vector_treatment_coefficients",
+        "2.3B.B4.categorical_treatment_contrasts",
+        "2.3B.B4.compact_runtime_export",
+        "2.3B.B4.nonlinear_mediation",
+        "2.3B.B4.latent_class_effects"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/inverse_query.rs",
+        "crates/antecedent-design/tests/inverse_query_artifact.rs",
+        "crates/antecedent-estimate/tests/categorical_treatment.rs",
+        "crates/antecedent-estimate/tests/latent_class_effects.rs",
+        "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+        "crates/antecedent-estimate/tests/vector_treatment.rs",
+        "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+        "crates/antecedent-io/tests/compact_export.rs",
+        "crates/antecedent-io/tests/latent_class_artifact.rs",
+        "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+        "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_categorical_treatment.py",
+        "python/tests/test_compact_export.py",
+        "python/tests/test_inverse_query.py",
+        "python/tests/test_latent_class.py",
+        "python/tests/test_nonlinear_mediation.py",
+        "python/tests/test_vector_treatment.py"
+      ]
+    },
+    {
+      "original_line": 316,
+      "section": "B4 — User-reported 2.1.1 expansion cells",
+      "requirement": "**F7 generalized inverse decision query:** keep finite enumeration as the licensed baseline and run target-mean, target-quantile and probability-threshold constraints through the same typed functional engine on forward claims that actually supply each required law. Define quantile, action grid/order, constraints, uncertainty and multiple-action rule. A public probability form that always refuses, or a quantile hard-coded apart from the shared engine, does not complete F7. Nonlinear-utility inversion is required when an aligned joint law is supplied; refuse it for marginal-only inputs. Calibrate any inference claim separately; do not infer outcome probabilities from a mean posterior.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F7.functional_inverse_query",
+        "2.3B.B4.vector_treatment_coefficients",
+        "2.3B.B4.categorical_treatment_contrasts",
+        "2.3B.B4.compact_runtime_export",
+        "2.3B.B4.nonlinear_mediation",
+        "2.3B.B4.latent_class_effects"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/inverse_query.rs",
+        "crates/antecedent-design/tests/inverse_query_artifact.rs",
+        "crates/antecedent-estimate/tests/categorical_treatment.rs",
+        "crates/antecedent-estimate/tests/latent_class_effects.rs",
+        "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+        "crates/antecedent-estimate/tests/vector_treatment.rs",
+        "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+        "crates/antecedent-io/tests/compact_export.rs",
+        "crates/antecedent-io/tests/latent_class_artifact.rs",
+        "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+        "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_categorical_treatment.py",
+        "python/tests/test_compact_export.py",
+        "python/tests/test_inverse_query.py",
+        "python/tests/test_latent_class.py",
+        "python/tests/test_nonlinear_mediation.py",
+        "python/tests/test_vector_treatment.py"
+      ]
+    },
+    {
+      "original_line": 317,
+      "section": "B4 — User-reported 2.1.1 expansion cells",
+      "requirement": "Preserve `feasible`, `infeasible`, `unsupported`, `unevaluated`, plus `structurally_ambiguous` and `unidentified` where applicable. Report point, interval-region, identified-set, all-scenario and posterior-probability feasibility in distinct fields. Test forward/inverse round trips, unsupported coordinates, conflicting scenarios and joint-law refusal. Continuous optimization remains separately scoped and cannot claim global feasibility from one found point.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F7.functional_inverse_query",
+        "2.3B.B4.vector_treatment_coefficients",
+        "2.3B.B4.categorical_treatment_contrasts",
+        "2.3B.B4.compact_runtime_export",
+        "2.3B.B4.nonlinear_mediation",
+        "2.3B.B4.latent_class_effects"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/inverse_query.rs",
+        "crates/antecedent-design/tests/inverse_query_artifact.rs",
+        "crates/antecedent-estimate/tests/categorical_treatment.rs",
+        "crates/antecedent-estimate/tests/latent_class_effects.rs",
+        "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+        "crates/antecedent-estimate/tests/vector_treatment.rs",
+        "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+        "crates/antecedent-io/tests/compact_export.rs",
+        "crates/antecedent-io/tests/latent_class_artifact.rs",
+        "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+        "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_categorical_treatment.py",
+        "python/tests/test_compact_export.py",
+        "python/tests/test_inverse_query.py",
+        "python/tests/test_latent_class.py",
+        "python/tests/test_nonlinear_mediation.py",
+        "python/tests/test_vector_treatment.py"
+      ]
+    },
+    {
+      "original_line": 318,
+      "section": "B4 — User-reported 2.1.1 expansion cells",
+      "requirement": "**Nonlinear continuous-mediator mediation:** direct/indirect estimand, cross-world or interventional assumptions, mediator/outcome models, overlap and integration error; exact SCM truth and confounding refusal. (Natural effects under cross-world independence plus sequential ignorability; the interventional estimand is refused; record `2.3B.B4.nonlinear_mediation`, point-only.)",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F7.functional_inverse_query",
+        "2.3B.B4.vector_treatment_coefficients",
+        "2.3B.B4.categorical_treatment_contrasts",
+        "2.3B.B4.compact_runtime_export",
+        "2.3B.B4.nonlinear_mediation",
+        "2.3B.B4.latent_class_effects"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/inverse_query.rs",
+        "crates/antecedent-design/tests/inverse_query_artifact.rs",
+        "crates/antecedent-estimate/tests/categorical_treatment.rs",
+        "crates/antecedent-estimate/tests/latent_class_effects.rs",
+        "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+        "crates/antecedent-estimate/tests/vector_treatment.rs",
+        "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+        "crates/antecedent-io/tests/compact_export.rs",
+        "crates/antecedent-io/tests/latent_class_artifact.rs",
+        "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+        "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_categorical_treatment.py",
+        "python/tests/test_compact_export.py",
+        "python/tests/test_inverse_query.py",
+        "python/tests/test_latent_class.py",
+        "python/tests/test_nonlinear_mediation.py",
+        "python/tests/test_vector_treatment.py"
+      ]
+    },
+    {
+      "original_line": 320,
+      "section": "B4 — User-reported 2.1.1 expansion cells",
+      "requirement": "**Latent-class or mixture regime effects:** class identity, label handling, estimand, regime evidence, identification and mixture assumptions; test label switching, weak classes and sampling uncertainty.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3B.F7.functional_inverse_query",
+        "2.3B.B4.vector_treatment_coefficients",
+        "2.3B.B4.categorical_treatment_contrasts",
+        "2.3B.B4.compact_runtime_export",
+        "2.3B.B4.nonlinear_mediation",
+        "2.3B.B4.latent_class_effects"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/inverse_query.rs",
+        "crates/antecedent-design/tests/inverse_query_artifact.rs",
+        "crates/antecedent-estimate/tests/categorical_treatment.rs",
+        "crates/antecedent-estimate/tests/latent_class_effects.rs",
+        "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+        "crates/antecedent-estimate/tests/vector_treatment.rs",
+        "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+        "crates/antecedent-io/tests/compact_export.rs",
+        "crates/antecedent-io/tests/latent_class_artifact.rs",
+        "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+        "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_categorical_treatment.py",
+        "python/tests/test_compact_export.py",
+        "python/tests/test_inverse_query.py",
+        "python/tests/test_latent_class.py",
+        "python/tests/test_nonlinear_mediation.py",
+        "python/tests/test_vector_treatment.py"
+      ]
+    },
+    {
+      "original_line": 342,
+      "section": "C1 — Checked producer-to-consumer bindings",
+      "requirement": "(Limits: a native response carries no population or outcome functional of its own, so both come from the program binding; a Python native claim is mean-only because the response view keeps no draws, so a joint law from a native Python response needs draws retained there. Rust supplies a joint law from credible draws.) Make native response or evaluation results consumable by decision/inverse flows when their quantities and laws satisfy the consumer contract. Populate and validate the native response's scientific quantity coordinates; provide a typed route that does not rely on private-object access or silently reconstruct the query.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C1.program_binding",
+        "2.3C.C1.native_response_claims",
+        "2.3C.C1.composition_boundary"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/program_binding.rs",
+        "crates/antecedent-design/tests/composition_boundary.rs",
+        "crates/antecedent/tests/native_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition.py",
+        "python/tests/test_program_claims.py"
+      ]
+    },
+    {
+      "original_line": 343,
+      "section": "C1 — Checked producer-to-consumer bindings",
+      "requirement": "(Done: `ProgramBinding.identity()` covers every field; the default `external.response` contract identity now comes from it, an explicit `contract_id=` still binds unchanged, and the committed cross-surface fixtures are unchanged.) Bind `external.response` and its quantity coordinates to the actual identified program/request. Reject a caller's incompatible `quantities` override, treatment/outcome substitution, target-population mismatch, or dose-grid change. Derive durable identity from the full contract and request, not a graph-only hash. Add positive and adversarial public Python/Rust fixtures.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C1.program_binding",
+        "2.3C.C1.native_response_claims",
+        "2.3C.C1.composition_boundary"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/program_binding.rs",
+        "crates/antecedent-design/tests/composition_boundary.rs",
+        "crates/antecedent/tests/native_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition.py",
+        "python/tests/test_program_claims.py"
+      ]
+    },
+    {
+      "original_line": 344,
+      "section": "C1 — Checked producer-to-consumer bindings",
+      "requirement": "(Limit: Python cannot state a native execution record, so a native claim enters composition as unverified there; native and exact-request-verified trust are minted only from Rust execution records and verification receipts.) Carry coordinate-level support, missing evidence, provider capability, attestation, exact-request verification, and calibration/trust into every decision input. Reject `exact` or `native` claims asserted solely through artifact metadata. Keep point means distinct from outcome distributions and aligned joint laws; require the law needed for probability, quantile, nonlinear utility, and EVSI operations.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C1.program_binding",
+        "2.3C.C1.native_response_claims",
+        "2.3C.C1.composition_boundary"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/program_binding.rs",
+        "crates/antecedent-design/tests/composition_boundary.rs",
+        "crates/antecedent/tests/native_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition.py",
+        "python/tests/test_program_claims.py"
+      ]
+    },
+    {
+      "original_line": 345,
+      "section": "C1 — Checked producer-to-consumer bindings",
+      "requirement": "Evaluate support per action: exclude or mark unsupported and unevaluated actions with a reason while comparing licensed alternatives when the decision contract allows it. Apply the same policy to external mean sources and joint-draw sources; test one missing coordinate alongside a supported action and the all-actions-unsupported case.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C1.program_binding",
+        "2.3C.C1.native_response_claims",
+        "2.3C.C1.composition_boundary"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/program_binding.rs",
+        "crates/antecedent-design/tests/composition_boundary.rs",
+        "crates/antecedent/tests/native_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition.py",
+        "python/tests/test_program_claims.py"
+      ]
+    },
+    {
+      "original_line": 346,
+      "section": "C1 — Checked producer-to-consumer bindings",
+      "requirement": "Represent source overlap and dependence at the composition boundary. Refuse independent pooling or paired draws when native and external results share data, priors, or fitted models without a licensed covariance or joint-law route. Keep Bayesian borrowing, statistical pooling, transport, and evidence reuse as separate declared operations; conflicting structural atoms must not become silent averages.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C1.program_binding",
+        "2.3C.C1.native_response_claims",
+        "2.3C.C1.composition_boundary"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/program_binding.rs",
+        "crates/antecedent-design/tests/composition_boundary.rs",
+        "crates/antecedent/tests/native_claims.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition.py",
+        "python/tests/test_program_claims.py"
+      ]
+    },
+    {
+      "original_line": 350,
+      "section": "C2 — Selective recalculation with a visible receipt",
+      "requirement": "(Limit: the stage model has no graph or query edge into external-study branches, so a graph or query change reports those branches reused in the plan; only the bind-time program checks protect them. Prior and ProviderRequest are plan-level only.) Define stage dependencies and stable identities for graph/query/evidence, source and target populations, data snapshot and row design, treatment grid, learner/folds/RNG, provider request/version, score or fit artifact, law, utility, and decision. Surface a plan or receipt for each stage: `reused`, `recomputed`, or `refused`, with the dependency that determined the status.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C2.selective_recalculation",
+        "2.3C.C2.recalc_receipt_artifact",
+        "2.3C.C2.cell_recalc_and_frozen_scores",
+        "2.3C.C2.frozen_scores_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/recalc_plan.rs",
+        "crates/antecedent-io/tests/frozen_scores_artifact.rs",
+        "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
+        "crates/antecedent/tests/recalc_cell.rs",
+        "crates/antecedent/tests/recalc_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_recalc.py",
+        "python/tests/test_recalc_cell.py"
+      ]
+    },
+    {
+      "original_line": 352,
+      "section": "C2 — Selective recalculation with a visible receipt",
+      "requirement": "(Done for cross-fit AIPW: the first run is 10 fold fits, a utility-only change and a compatible target-weight retarget do 0, changed folds refit, all read from the cross-fit cache stats, with values equal to independent reruns within 1e-12.) Reuse prepared identification/compilation, compatible nuisance fits within one batch, licensed frozen AIPW/cell-AIPW scores for row-weight retargeting, and portable fitted predictors. Prove reuse by instrumented fit counts or equivalent execution receipts plus value checks against independent reruns; do not describe the existing per-call batch cache as a persistent fit cache.",
+      "verdict": "reopened",
+      "reason": "Cross-fit/cell scores execute and resume, but portable fitted predictors are not implemented. A score-only retarget operation cannot close the predictor requirement.",
+      "promotion_records": [
+        "2.3C.C2.selective_recalculation",
+        "2.3C.C2.recalc_receipt_artifact",
+        "2.3C.C2.cell_recalc_and_frozen_scores",
+        "2.3C.C2.frozen_scores_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/recalc_plan.rs",
+        "crates/antecedent-io/tests/frozen_scores_artifact.rs",
+        "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
+        "crates/antecedent/src/analysis/recalc_cell.rs",
+        "crates/antecedent/tests/recalc_cell.rs",
+        "crates/antecedent/tests/recalc_receipt.rs",
+        "python/antecedent/recalc_cell.py",
+        "python/tests/test_recalc.py",
+        "python/tests/test_recalc_cell.py"
+      ]
+    },
+    {
+      "original_line": 353,
+      "section": "C2 — Selective recalculation with a visible receipt",
+      "requirement": "(External-study mutations are exercised through the plan only; the executed route has no external branches.) Exercise mutations separately: utility-only change recomputes decision only; compatible target-weight change reuses frozen scores; an external-study change invalidates its dependent prior/provider/decision branches; new outcomes or changed folds refit; graph, regime, or query change re-identifies; off-grid or unsupported requests refuse or execute a separately licensed route. Check numerical equivalence and that unrelated branches remain valid.",
+      "verdict": "reopened",
+      "reason": "External study/prior/provider mutations are planned but not executed by the native recalculation executor; numerical equivalence and actual provider-call counts are missing.",
+      "promotion_records": [
+        "2.3C.C2.selective_recalculation",
+        "2.3C.C2.recalc_receipt_artifact",
+        "2.3C.C2.cell_recalc_and_frozen_scores",
+        "2.3C.C2.frozen_scores_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/recalc_plan.rs",
+        "crates/antecedent-io/tests/frozen_scores_artifact.rs",
+        "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
+        "crates/antecedent/src/analysis/recalc_receipt.rs",
+        "crates/antecedent/tests/recalc_cell.rs",
+        "crates/antecedent/tests/recalc_receipt.rs",
+        "python/tests/test_recalc.py",
+        "python/tests/test_recalc_cell.py"
+      ]
+    },
+    {
+      "original_line": 354,
+      "section": "C2 — Selective recalculation with a visible receipt",
+      "requirement": "(Original cross-fit executor boundary: declaring portable state alone returns `NoLiveState`; an ordinary receipt does not resume execution. The working-tree Rust score-resume route is a separate bounded operation to verify under C2.1.) State the fresh-process boundary explicitly. `ant.load` of an ordinary result does not recreate a `PreparedStudy`; only a portable fit/score/model or supplied compatible data/provider can resume its licensed operation. A missing callback, data snapshot, fit, or dependency must yield a specific unavailable/recompute result, never a claim of cache reuse.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C2.selective_recalculation",
+        "2.3C.C2.recalc_receipt_artifact",
+        "2.3C.C2.cell_recalc_and_frozen_scores",
+        "2.3C.C2.frozen_scores_artifact"
+      ],
+      "source_evidence": [
+        "crates/antecedent-core/tests/recalc_plan.rs",
+        "crates/antecedent-io/tests/frozen_scores_artifact.rs",
+        "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
+        "crates/antecedent/tests/recalc_cell.rs",
+        "crates/antecedent/tests/recalc_receipt.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_recalc.py",
+        "python/tests/test_recalc_cell.py"
+      ]
+    },
+    {
+      "original_line": 375,
+      "section": "C3 — Portable composed result",
+      "requirement": "(Limit: causal-contract, attestation, quantity-coordinate and transformation nodes have no verifier, so they travel as references and report `ReferenceUnresolved` without a supplied source; recalc receipts are not bundle nodes.) Define a bounded versioned composition receipt/bundle in the Rust core with a typed Python surface. Link the prepared graph/identified contract, exact quantity/request identities, native execution or portable fit, external claims and attestations, evidence relationships, support/trust/calibration, transformations, decision contract/result, and licensed sensitivity or study-ranking artifacts. Preserve dependency edges and the distinction between embedded artifacts and references requiring a supplied provider or data source.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C3.composition_bundle",
+        "2.3C.C3.composition_verifiers"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/composition_bundle.rs",
+        "crates/antecedent-design/tests/composition_verifiers.rs",
+        "crates/antecedent/tests/composition_facade.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition_bundle.py"
+      ]
+    },
+    {
+      "original_line": 376,
+      "section": "C3 — Portable composed result",
+      "requirement": "(Done in a fresh interpreter via subprocess, with hand-derived values; external-mean decisions are labelled point-only attested. Not done: a Python-built bundle consumed by Rust and the reverse, tracked below.) Export and independently consume a complete native-plus-external decision in a fresh process. Make external-mean decisions exportable as point-only attested results; retain joint-draw decision replay and its aligned-law requirement. Verify Rust/Python compatibility, version handling, source identity, and decision value against an independent finite oracle; do not claim that a serialized result alone recreates an executable study.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C3.composition_bundle",
+        "2.3C.C3.composition_verifiers"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/composition_bundle.rs",
+        "crates/antecedent-design/tests/composition_verifiers.rs",
+        "crates/antecedent/tests/composition_facade.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition_bundle.py"
+      ]
+    },
+    {
+      "original_line": 378,
+      "section": "C3 — Portable composed result",
+      "requirement": "Verify selective replay or revalidation after changed upstream identities. Refuse tampered quantities, swapped evidence, mismatched graph or snapshot, unsupported law, changed provider request, unavailable external callback, and incompatible artifact version with a structured failed stage. Preserve an inspected result even when further execution is unavailable.",
+      "verdict": "verified_scoped",
+      "reason": "Implemented at the declared bounded/point-only scope; broader and inferential requirements remain separately open. Promotion fixtures supply value, refusal and artifact evidence, not calibration.",
+      "promotion_records": [
+        "2.3C.C3.composition_bundle",
+        "2.3C.C3.composition_verifiers"
+      ],
+      "source_evidence": [
+        "crates/antecedent-design/tests/composition_bundle.rs",
+        "crates/antecedent-design/tests/composition_verifiers.rs",
+        "crates/antecedent/tests/composition_facade.rs",
+        "parity/2_3_evidence_ledger.toml",
+        "parity/promotion_2_3.toml",
+        "python/tests/test_composition_bundle.py"
+      ]
+    },
+    {
+      "original_line": 390,
+      "section": "C4 — Multi-source acceptance and release gate",
+      "requirement": "(Limits: the native response in the main story is hand-built so values are exact, with a separate test binding a real `analyze` fit loosely; the ranking is bound to the law by source digest, the rollout contract is not a bundle node; a native response retains no draws, so every joint-law answer comes from the second external study. Tests: `python/tests/test_c4_multi_source.py`, `crates/antecedent/tests/c4_acceptance.rs`.) Run a public end-to-end fixture with an explicit graph, native analysis or learned effect model, at least two external studies, a target population and multiple actions. Bind the sources through checked contracts, ask a decision question, and carry the result to study ranking only when its signal/update route is separately licensed. Include supported and unsupported actions, overlapping evidence, and at least one uncertainty-sensitive consumer; keep point-only and joint-law answers distinct.",
+      "verdict": "reopened",
+      "reason": "The principal C4 story uses a hand-built native response. The separate fitted-response test does not execute the integrated fit-to-recalculation-to-bundle workflow.",
+      "promotion_records": [
+        "2.3C.C4.multi_source_acceptance"
+      ],
+      "source_evidence": [
+        "crates/antecedent/tests/c4_acceptance.rs",
+        "python/tests/_c4_fixtures.py",
+        "python/tests/test_c4_multi_source.py",
+        "python/tests/test_c4_mutations.py"
+      ]
+    },
+    {
+      "original_line": 391,
+      "section": "C4 — Multi-source acceptance and release gate",
+      "requirement": "(Mutation table: `python/tests/test_c4_mutations.py`.) Assert independent decision and, where licensed, ranking values; verify the complete artifact with a fresh-process consumer. Mutate quantity, law, structural assumption, support, data snapshot, provider operation, evidence overlap, and utility to demonstrate the expected reuse/recompute/refusal receipt without duplicate fits or double-counted evidence.",
+      "verdict": "reopened",
+      "reason": "The C4 mutation table does not prove integrated native/external execution counts and selective refitting; it cannot close the no-duplicate-fits execution requirement.",
+      "promotion_records": [
+        "2.3C.C4.multi_source_acceptance"
+      ],
+      "source_evidence": [
+        "crates/antecedent/tests/c4_acceptance.rs",
+        "python/tests/test_c4_multi_source.py",
+        "python/tests/test_c4_mutations.py"
+      ]
+    }
+  ],
+  "todo_reconciliation": [
+    {
+      "requirement": "C3 committed cross-surface bundle fixtures",
+      "verdict": "already_implemented_verified",
+      "evidence": [
+        "crates/antecedent-design/tests/cross_surface_bundle.rs",
+        "python/tests/test_cross_surface_bundle.py",
+        "conformance/cross_surface"
+      ]
+    },
+    {
+      "requirement": "C1 producer-consumer matrix",
+      "verdict": "implemented_matrix_with_untyped_boundary_defects",
+      "evidence": [
+        "docs/2_3-producer-consumer-matrix.md",
+        "python/tests/test_c1_matrix.py"
+      ]
+    }
+  ],
+  "validation": {
+    "python_suite": {
+      "passed": 3757,
+      "skipped": 7,
+      "note": "Rebuilt native extension; fixture writer and missing optional matplotlib/dowhy dependencies account for skips."
+    },
+    "promotion_python_rows": {
+      "2.2": 155,
+      "2.3": 246
+    },
+    "promotion_rust_rows": {
+      "2.3_nonmeasurement": 641,
+      "deferred": [
+        "f18.gaussian_reference.calibration"
+      ]
+    },
+    "static_promotion_registry": {
+      "2.3_records": 64,
+      "promoted": 58,
+      "routes": 82,
+      "licensed": 75,
+      "note": "Checker warnings about aliases/constants in covers remain; cited execution evidence passed."
+    },
+    "quality_gates": [
+      "cargo fmt --all -- --check",
+      "cargo clippy for core/design/io/facade/PyO3 with all targets and -D warnings",
+      "Python ruff/mypy gate",
+      "lint-allow gate",
+      "provenance schema/path gate",
+      "promotion and calibration-facet self-tests",
+      "calibration-facet boundary check",
+      "calibration surface no-narrowing check",
+      "documentation links"
+    ],
+    "release_gate": "Not green: 831 existing coverage records owe remeasurement, deferred until implementation completion. No waiver created.",
+    "supplementary_nonmeasurement_rust_suite": "Running; checked-item evidence and affected Rust regression/artifact targets already pass."
+  }
+}

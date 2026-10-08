@@ -283,9 +283,16 @@ fn input_cases() -> Vec<MutationCase> {
 fn c2_recalc_mutation_tables_are_exact() {
     let mut cases = target_cases();
     cases.extend(input_cases());
-    let base = full_versions();
-    let base_plan = run(&base, &base, &licensed());
     for (name, stage, caps, overrides) in cases {
+        let base = if matches!(
+            stage,
+            Stage::ExternalStudy(_) | Stage::Graph | Stage::Query | Stage::Regime
+        ) {
+            full_versions()
+        } else {
+            native_versions()
+        };
+        let base_plan = run(&base, &base, &licensed());
         let changed = bump(&base, stage);
         let plan = run(&base, &changed, &caps);
         assert_eq!(table(&plan), expected(&base, &overrides), "{name}");
@@ -323,13 +330,20 @@ fn reidentify_overrides(stage: Stage, label: &'static str) -> Vec<(Stage, &'stat
         "regime" => "recomputed(upstream:law<-regime:modified)",
         _ => "recomputed(upstream:law<-query:modified)",
     };
-    vec![
+    let mut overrides = vec![
         (stage, own),
         (Stage::Identification, ident),
         (Stage::ScoreArtifact, scores),
         (Stage::Law, law),
         (Stage::Decision, decision),
-    ]
+    ];
+    // Both external branches are bound to the same causal request. Their data remain
+    // unchanged, but their request and prior interpretation must be checked again.
+    for branch in [b(0), b(1)] {
+        overrides.push((Stage::ProviderRequest(branch), ident));
+        overrides.push((Stage::Prior(branch), ident));
+    }
+    overrides
 }
 
 #[test]
@@ -339,6 +353,8 @@ fn c2_recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
     let plan = run(&base, &changed, &licensed());
     let overrides = [
         (Stage::Evidence, "recomputed(own:evidence:modified)"),
+        (Stage::ProviderRequest(b(0)), "recomputed(upstream:evidence<-evidence:modified)"),
+        (Stage::ProviderRequest(b(1)), "recomputed(upstream:evidence<-evidence:modified)"),
         (Stage::Prior(b(0)), "recomputed(upstream:evidence<-evidence:modified)"),
         (Stage::Prior(b(1)), "recomputed(upstream:evidence<-evidence:modified)"),
         (Stage::Identification, "recomputed(upstream:evidence<-evidence:modified)"),
@@ -348,6 +364,64 @@ fn c2_recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
     ];
     assert_eq!(table(&plan), expected(&base, &overrides));
     assert_identity_consistency(&base, &changed, &licensed(), &plan);
+}
+
+#[test]
+fn c2_recalc_external_requests_and_priors_bind_the_full_causal_request() {
+    let base = full_versions();
+    let before = run(&base, &base, &licensed());
+    for input in [
+        Stage::Graph,
+        Stage::Query,
+        Stage::Regime,
+        Stage::Evidence,
+        Stage::SourcePopulation,
+        Stage::TargetPopulation,
+        Stage::TreatmentGrid,
+    ] {
+        let changed = bump(&base, input);
+        let plan = run(&base, &changed, &licensed());
+        for branch in [b(0), b(1)] {
+            assert!(matches!(
+                plan.status(Stage::ExternalStudy(branch)),
+                Some(StageStatus::Reused { .. })
+            ));
+            for stage in [Stage::ProviderRequest(branch), Stage::Prior(branch)] {
+                assert!(
+                    matches!(plan.status(stage), Some(StageStatus::Recomputed { .. })),
+                    "{input}: {stage}"
+                );
+                assert_ne!(before.identity(stage), plan.identity(stage), "{input}: {stage}");
+            }
+        }
+        assert_identity_consistency(&base, &changed, &licensed(), &plan);
+    }
+}
+
+#[test]
+fn c2_recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
+    let base = native_versions();
+    let resume = ResumeContext {
+        portable_scores: true,
+        scores_snapshot_bound: true,
+        ..ResumeContext::default()
+    };
+    assert!(!resume.supplied_data);
+    let caps = RecalcCapabilities::fresh_process(RetargetSupport::Licensed, resume);
+    let plan = run(&base, &base, &caps);
+    assert!(plan.is_executable());
+    assert!(matches!(plan.status(Stage::DataSnapshot), Some(StageStatus::Reused { .. })));
+    assert!(matches!(plan.status(Stage::ScoreArtifact), Some(StageStatus::Reused { .. })));
+    assert_eq!(
+        plan.recomputed_computations(),
+        vec![Stage::Identification, Stage::Law, Stage::Decision]
+    );
+    // A bound digest only licenses those exact scores, not data for a refit.
+    for stage in [Stage::DataSnapshot, Stage::Query, Stage::LearnerFoldsRng] {
+        let changed = run(&base, &bump(&base, stage), &caps);
+        assert!(!changed.is_executable(), "{stage}");
+        assert!(matches!(changed.status(Stage::ScoreArtifact), Some(StageStatus::Refused { .. })));
+    }
 }
 
 #[test]
@@ -437,6 +511,16 @@ fn c2_recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route()
         let plan = run(&base, &base, &caps);
         let overrides = [
             (Stage::TreatmentGrid, grid_text),
+            (
+                Stage::ProviderRequest(b(0)),
+                "refused(recalc.blocked_by_refused_dependency[treatment_grid])",
+            ),
+            (
+                Stage::ProviderRequest(b(1)),
+                "refused(recalc.blocked_by_refused_dependency[treatment_grid])",
+            ),
+            (Stage::Prior(b(0)), "refused(recalc.blocked_by_refused_dependency[treatment_grid])"),
+            (Stage::Prior(b(1)), "refused(recalc.blocked_by_refused_dependency[treatment_grid])"),
             (Stage::ScoreArtifact, "refused(recalc.blocked_by_refused_dependency[treatment_grid])"),
             (Stage::Law, "refused(recalc.blocked_by_refused_dependency[score_artifact])"),
             (Stage::Decision, "refused(recalc.blocked_by_refused_dependency[law])"),

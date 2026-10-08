@@ -392,6 +392,15 @@ pub struct UtilitySpec {
     pub cost: f64,
 }
 
+impl UtilitySpec {
+    pub(crate) fn validate(self) -> Result<(), RecalcRunError> {
+        if !self.benefit_per_unit.is_finite() || !self.cost.is_finite() {
+            return Err(RecalcRunError::Request("recalc.invalid_request"));
+        }
+        Ok(())
+    }
+}
+
 /// The law of the requested quantity.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LawValue {
@@ -425,7 +434,7 @@ pub struct RecalcRequest {
     pub estimator: AipwAte,
     /// Target population weights; `None` is the observed population.
     pub target: Option<TargetWeights>,
-    /// Utility rule.
+    /// Net-benefit rule.
     pub utility: UtilitySpec,
 }
 
@@ -745,10 +754,18 @@ fn law_stage(
     Ok(LawValue { ate: result.estimate.ate, std_error: result.estimate.se_analytic })
 }
 
-fn decide(law: LawValue, utility: UtilitySpec, recorder: &mut ReceiptRecorder) -> DecisionValue {
-    recorder.record(Counter::Decision, 1);
+pub(crate) fn decide(
+    law: LawValue,
+    utility: UtilitySpec,
+    recorder: &mut ReceiptRecorder,
+) -> Result<DecisionValue, RecalcRunError> {
+    utility.validate()?;
     let net_benefit = utility.benefit_per_unit.mul_add(law.ate, -utility.cost);
-    DecisionValue { net_benefit, treat: net_benefit > 0.0 }
+    if !net_benefit.is_finite() {
+        return Err(RecalcRunError::Request("recalc.invalid_request"));
+    }
+    recorder.record(Counter::Decision, 1);
+    Ok(DecisionValue { net_benefit, treat: net_benefit > 0.0 })
 }
 
 fn run_stages(
@@ -765,7 +782,7 @@ fn run_stages(
         held.map(|(law, _)| law).ok_or(RecalcRunError::NoLiveState(Stage::Law))?
     };
     let decision = if is_recomputed(plan, Stage::Decision) {
-        decide(law, request.utility, recorder)
+        decide(law, request.utility, recorder)?
     } else {
         held.map(|(_, decision)| decision).ok_or(RecalcRunError::NoLiveState(Stage::Decision))?
     };
@@ -789,6 +806,7 @@ pub fn execute_with_receipt(
     request: &RecalcRequest,
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
+    request.utility.validate()?;
     let plan = session.plan(request, ctx);
     if !plan.is_executable() {
         return Err(RecalcRunError::Refused(Box::new(plan)));

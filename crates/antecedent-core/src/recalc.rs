@@ -266,8 +266,30 @@ impl Stage {
                 deps
             }
             Self::Law => vec![Self::ScoreArtifact, Self::TargetPopulation],
-            Self::ProviderRequest(b) => vec![Self::ExternalStudy(b)],
-            Self::Prior(b) => vec![Self::ExternalStudy(b), Self::Evidence],
+            Self::ProviderRequest(b) => {
+                vec![
+                    Self::ExternalStudy(b),
+                    Self::Graph,
+                    Self::Query,
+                    Self::Regime,
+                    Self::Evidence,
+                    Self::SourcePopulation,
+                    Self::TargetPopulation,
+                    Self::TreatmentGrid,
+                ]
+            }
+            Self::Prior(b) => {
+                vec![
+                    Self::ExternalStudy(b),
+                    Self::Evidence,
+                    Self::Graph,
+                    Self::Query,
+                    Self::Regime,
+                    Self::SourcePopulation,
+                    Self::TargetPopulation,
+                    Self::TreatmentGrid,
+                ]
+            }
             Self::Decision => {
                 let mut deps = vec![Self::Law, Self::Utility];
                 for i in 0..MAX_EXTERNAL_BRANCHES {
@@ -389,13 +411,15 @@ pub enum RequestSupport {
 ///
 /// An ordinary loaded result supplies none of these (all `false`).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-// Four independent availability flags; a state enum would not model their combinations.
+// Independent availability flags; a state enum would not model their combinations.
 #[allow(clippy::struct_excessive_bools)]
 pub struct ResumeContext {
     /// A portable fitted predictor is available.
     pub portable_fit: bool,
     /// Portable frozen scores are available.
     pub portable_scores: bool,
+    /// The portable scores bind the unchanged snapshot identity, without supplying its data.
+    pub scores_snapshot_bound: bool,
     /// A compatible data snapshot was supplied.
     pub supplied_data: bool,
     /// A compatible provider (callback) was supplied.
@@ -870,7 +894,13 @@ impl Planner<'_> {
         let unavailable =
             |missing| StageStatus::Refused { reason: RefusalReason::Unavailable { missing } };
         match stage {
-            Stage::DataSnapshot if !resume.supplied_data => {
+            Stage::DataSnapshot
+                if !(resume.supplied_data
+                    || resume.portable_scores
+                        && resume.scores_snapshot_bound
+                        && self.previous.contains(Stage::DataSnapshot)
+                        && self.own_change(Stage::DataSnapshot).is_none()) =>
+            {
                 Some(unavailable(MissingDependency::Data))
             }
             Stage::ProviderRequest(_) if !resume.supplied_provider => {

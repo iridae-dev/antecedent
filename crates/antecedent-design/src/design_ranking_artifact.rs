@@ -990,6 +990,8 @@ pub struct ConsumedDesignRanking {
     pub candidates: Vec<ConsumedCandidate>,
     /// `unmeasured`.
     pub calibration: &'static str,
+    /// Checked derivation chain retained after independent artifact consumption.
+    pub provenance_chain: antecedent_core::ProvenanceChain,
 }
 
 /// Identities the consumer retained independently of the bytes. A `None` field is not
@@ -1940,15 +1942,22 @@ pub fn consume_wire(
             return Err(RankingError::SignalMismatch(extra.clone()).into());
         }
     }
-    consumed.sort_by(|a, b| {
-        let rank = |id: &str| ranking.entries.iter().position(|e| e.semantic_id == id);
-        rank(&a.semantic_id).cmp(&rank(&b.semantic_id))
-    });
+    let rank_order: BTreeMap<&str, usize> = ranking
+        .entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.semantic_id.as_str(), index))
+        .collect();
+    consumed.sort_by_key(|candidate| rank_order.get(candidate.semantic_id.as_str()).copied());
+    let provenance_chain = wire
+        .provenance_chain()
+        .map_err(|_| DesignRankingArtifactError::InvalidWire("provenance chain"))?;
     Ok(ConsumedDesignRanking {
         ranking,
         identity: digest,
         candidates: consumed,
         calibration: DESIGN_RANKING_CALIBRATION,
+        provenance_chain,
     })
 }
 

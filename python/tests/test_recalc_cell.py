@@ -452,6 +452,8 @@ def test_c2_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_ze
             {
                 Stage.IDENTIFICATION: "recomputed(fresh_process)",
                 **TARGET_ONLY,
+                Stage.LAW: "recomputed(own:law:modified)",
+                Stage.DECISION: "recomputed(upstream:law<-law:modified)",
             }
         )
     )
@@ -487,8 +489,8 @@ def test_c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() -> 
     assert out.receipt.status_table == expected(
         {
             Stage.IDENTIFICATION: "recomputed(fresh_process)",
-            Stage.LAW: "recomputed(fresh_process)",
-            Stage.DECISION: "recomputed(fresh_process)",
+            Stage.LAW: "recomputed(own:law:modified)",
+            Stage.DECISION: "recomputed(upstream:law<-law:modified)",
         }
     )
     assert work(out) == (1, 0, 0, 1, 1)

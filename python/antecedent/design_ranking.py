@@ -726,6 +726,8 @@ class ConsumedRanking:
     entries: tuple[ConsumedEntry, ...]
     search: SearchReceipt
     calibration: Literal["unmeasured"]
+    #: Checked derivation chain, retained independently of the original provider.
+    lineage: tuple[LineageLink, ...] = ()
 
 
 def _search(wire: Mapping[str, Any]) -> SearchReceipt:
@@ -778,6 +780,16 @@ def _consumed_from_wire(wire: Mapping[str, Any]) -> ConsumedRanking:
         entries=entries,
         search=_search(wire["search"]),
         calibration=wire["calibration"],
+        lineage=tuple(
+            LineageLink(
+                item["id"],
+                item["stage"],
+                tuple(item["parents"]),
+                item["digest"],
+                tuple(item["parent_digests"]),
+            )
+            for item in json.loads(_composition_lineage(json.dumps(wire["lineage"])))
+        ),
     )
 
 

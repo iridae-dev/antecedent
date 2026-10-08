@@ -198,15 +198,20 @@ class ResumeContext:
     portable_scores: bool = False
     supplied_data: bool = False
     supplied_provider: bool = False
+    #: Portable scores bind the unchanged snapshot identity; raw data remain absent.
+    scores_snapshot_bound: bool = False
 
     def to_wire(self) -> dict[str, bool]:
         """JSON-ready form."""
-        return {
+        wire = {
             "portable_fit": self.portable_fit,
             "portable_scores": self.portable_scores,
             "supplied_data": self.supplied_data,
             "supplied_provider": self.supplied_provider,
         }
+        if self.scores_snapshot_bound:
+            wire["scores_snapshot_bound"] = True
+        return wire
 
 
 @dataclass(frozen=True, slots=True)

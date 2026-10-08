@@ -251,6 +251,7 @@ fn f14_round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
     let consumed = consume(&bytes, &retained(&wire)).unwrap();
     assert_eq!(consumed.identity, wire.digest);
     assert_eq!(consumed.calibration, "unmeasured");
+    assert_eq!(consumed.provenance_chain, wire.provenance_chain().unwrap());
     let entries = &consumed.ranking.entries;
     assert_eq!(entries[0].semantic_id, "cand-1");
     assert_eq!(entries[1].semantic_id, "cand-2");

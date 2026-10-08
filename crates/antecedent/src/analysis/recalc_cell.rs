@@ -22,11 +22,10 @@
 //!   plan's `Unavailable { missing: Data }` before any work.
 //!
 //! How resume is planned. A fresh process holding portable scores is planned under
-//! `ResumeContext { portable_scores: true, supplied_data: true }`. The data is not supplied;
-//! the flag stands for the artifact's bound snapshot *identity*, which is what lets the
-//! planner see an unchanged snapshot and reuse the score artifact. The data content is never
-//! read, and a request is executable only when the planner reuses the score artifact. Every
-//! other request is refused with the plan made under `supplied_data: false`, whose first
+//! `ResumeContext { portable_scores: true, scores_snapshot_bound: true, ..Default::default() }`.
+//! The artifact binds the unchanged snapshot identity; raw data remain unavailable. A request
+//! is executable only when the planner reuses the score artifact. Every other request is
+//! refused with the plan made without the bound-snapshot permission, whose first
 //! refusal is the honest `recalc.unavailable_data`.
 //!
 //! Identification is recomputed in a fresh process (the planner never reuses a derived stage
@@ -59,7 +58,7 @@ use crate::graph::{Dag, DenseNodeId};
 
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, RecalcSession,
-    ReceiptRecorder, TargetWeights, UtilitySpec,
+    ReceiptRecorder, TargetWeights, UtilitySpec, decide,
 };
 
 type Columns = Vec<(String, Vec<f64>)>;
@@ -116,7 +115,7 @@ pub struct CellSpec {
     pub quantity: ScoreQuantity,
     /// Target population weights; `None` is the observed population.
     pub target: Option<TargetWeights>,
-    /// Utility rule.
+    /// Net-benefit rule.
     pub utility: UtilitySpec,
 }
 
@@ -327,12 +326,6 @@ fn score_law(
     Ok(LawValue { ate, std_error })
 }
 
-fn decide(law: LawValue, utility: UtilitySpec, recorder: &mut ReceiptRecorder) -> DecisionValue {
-    recorder.record(Counter::Decision, 1);
-    let net_benefit = utility.benefit_per_unit.mul_add(law.ate, -utility.cost);
-    DecisionValue { net_benefit, treat: net_benefit > 0.0 }
-}
-
 fn is_recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
     matches!(plan.status(stage), Some(StageStatus::Recomputed { .. }))
 }
@@ -535,7 +528,7 @@ fn run_cell_stages(
         held.map(|(law, _)| law).ok_or(RecalcRunError::NoLiveState(Stage::Law))?
     };
     let decision = if is_recomputed(plan, Stage::Decision) {
-        decide(law, request.spec.utility, recorder)
+        decide(law, request.spec.utility, recorder)?
     } else {
         held.map(|(_, decision)| decision).ok_or(RecalcRunError::NoLiveState(Stage::Decision))?
     };
@@ -566,6 +559,7 @@ pub fn execute_cell_with_receipt(
     request: &CellRequest,
     ctx: &ExecutionContext,
 ) -> Result<RecalcOutcome, RecalcRunError> {
+    request.spec.utility.validate()?;
     let plan = session.plan(request, ctx);
     if !plan.is_executable() {
         return Err(RecalcRunError::Refused(Box::new(plan)));
@@ -617,7 +611,7 @@ pub struct ScoreResumeRequest {
     /// The original row ids the weights are indexed by. When given they must equal the frozen
     /// scores' row ids exactly; when `None` only the row count is checked.
     pub target_row_ids: Option<Vec<u32>>,
-    /// Utility rule.
+    /// Net-benefit rule.
     pub utility: UtilitySpec,
     /// The reported contrast.
     pub quantity: ScoreQuantity,
@@ -703,12 +697,28 @@ impl ScoreResumeSession {
         ids.set(Stage::Graph, graph_identity(request.n_variables as usize, &request.edges));
         ids.set(Stage::TargetPopulation, target_identity(request.target.as_ref()));
         ids.set(Stage::Utility, utility_identity(request.utility));
+        let mut changed = BTreeSet::new();
         for (stage, own) in &request.changed_inputs {
-            if !stage.is_input() {
+            if !stage.is_input()
+                || matches!(stage, Stage::Graph | Stage::TargetPopulation | Stage::Utility)
+                || !changed.insert(*stage)
+            {
                 return Err(RecalcRunError::Request("recalc.invalid_changed_input"));
             }
             ids.set(*stage, *own);
         }
+        // Scores support multiple contrasts. The selected reduction is a law input,
+        // independent of the original fitted query, and must not reuse another contrast.
+        ids.set(
+            Stage::Law,
+            StageIdentity::of(
+                "resumed_score_law",
+                &[
+                    self.anchor.own(Stage::Law).as_bytes(),
+                    format!("{:?}", request.quantity).as_bytes(),
+                ],
+            ),
+        );
         Ok(ids)
     }
 
@@ -722,7 +732,7 @@ impl ScoreResumeSession {
         } else {
             Boundary::FreshProcess(ResumeContext {
                 portable_scores: true,
-                supplied_data: true,
+                scores_snapshot_bound: true,
                 ..ResumeContext::default()
             })
         };
@@ -800,7 +810,7 @@ impl ScoreResumeSession {
             held.map(|(law, _)| law).ok_or(RecalcRunError::NoLiveState(Stage::Law))?
         };
         let decision = if is_recomputed(plan, Stage::Decision) {
-            decide(law, request.utility, recorder)
+            decide(law, request.utility, recorder)?
         } else {
             held.map(|(_, d)| d).ok_or(RecalcRunError::NoLiveState(Stage::Decision))?
         };
@@ -827,6 +837,7 @@ pub fn execute_resumed_retarget(
     session: &mut ScoreResumeSession,
     request: &ScoreResumeRequest,
 ) -> Result<RecalcOutcome, RecalcRunError> {
+    request.utility.validate()?;
     let requested = session.requested(request)?;
     let plan = session.licensed_plan(&requested);
     if !plan.is_executable() || !is_reused(&plan, Stage::ScoreArtifact) {

@@ -27,6 +27,7 @@ implementation_deviations = [
   "Replay does not protect against a producer that honestly states a different prior or decision table and reseals: the artifact is then the correct ranking of those stated inputs. A consumer binds the contract identity, signal identities, source digests and cost mapping it retained independently through ConsumeExpectation; without a retained expectation a resealed artifact is checked only for internal consistency.",
   "The Gaussian closed-form replay reuses the same expected-maximum-of-affine-functions routine as the evaluator, so the native Gaussian replay is a consistency check on the stored numbers and the stated inputs, not an independent derivation; the independent check is the closed-form constant asserted in the tests.",
   "Calibration is 'unmeasured': Monte Carlo error coverage and the rank guarantee are not measured, an exact-integration EVSI is a point value, and a truncated catalog (bounded by max_candidates) is recorded in the search receipt and changes the identity but is not a SearchBudget search.",
+  "Independent consumers retain the validated provenance chain, including parent digests, rather than dropping it after arithmetic checks. Rank ordering uses a precomputed semantic-id lookup instead of repeatedly scanning the candidate table inside the comparator.",
   "Decode is bounded before any work (8 MiB, 1,024 candidates, 65,536 states, 4 Mi table cells); stored bounds above the consumer's own maxima refuse. Corruption and truncation are serialization failures, not refusals.",
 ]
 

@@ -393,6 +393,7 @@ impl PyRecalcSession {
         let resume = ResumeContext {
             portable_fit: resume.portable_fit,
             portable_scores: resume.portable_scores,
+            scores_snapshot_bound: resume.scores_snapshot_bound,
             supplied_data: resume.supplied_data,
             supplied_provider: resume.supplied_provider,
         };

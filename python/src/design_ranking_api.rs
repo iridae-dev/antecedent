@@ -175,6 +175,9 @@ fn consumed_json(done: &antecedent::analysis::design_ranking::ConsumedDesignRank
             "utility_per_cost": m.utility_per_cost,
         })),
         "entries": entries,
+        "lineage": done.provenance_chain.links().iter().map(|link| {
+            serde_json::json!([link.id, link.stage.as_str(), link.parents])
+        }).collect::<Vec<_>>(),
         "search": {
             "supplied": ranking.search.supplied,
             "evaluated": ranking.search.evaluated,

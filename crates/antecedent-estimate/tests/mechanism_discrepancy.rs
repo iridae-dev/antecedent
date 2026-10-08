@@ -126,8 +126,7 @@ fn b3_discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
 }
 
 #[test]
-// Exact by construction: identical sufficient statistics give bitwise-equal fits.
-#[allow(clippy::float_cmp)]
+#[allow(clippy::float_cmp, reason = "identical sufficient statistics give bitwise-equal fits")]
 fn b3_discrepancy_identical_fits_give_statistic_zero_exactly() {
     let same = test_mechanism_discrepancy(
         &one_parent("source", &YS),
@@ -424,8 +423,7 @@ fn b3_discrepancy_degenerate_inputs_refuse() {
 }
 
 #[test]
-// Exact by construction: the summary entries are integer-valued sums.
-#[allow(clippy::float_cmp)]
+#[allow(clippy::float_cmp, reason = "the summary entries are integer-valued sums")]
 fn b3_discrepancy_summaries_replay_the_raw_data_result() {
     let source = one_parent("source", &YS);
     let target = one_parent("target", &YT_BOTH);

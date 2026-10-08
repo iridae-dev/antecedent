@@ -17,7 +17,7 @@ implementation_deviations = [
   "Claim policy: point-only. The acceptance composes licensed routes and checks their hand-derived values and refusals; it adds no source, no estimator and no interval or coverage claim. Every standard error, p-value, interval and Monte Carlo error inside a composed artifact is a diagnostic with calibration unmeasured.",
   "A Python native claim cannot state a native execution record, so it enters composition as unverified; the acceptance records this limit and does not work around it.",
   "A native response retains no draws, so only an external aligned joint law answers a probability or quantile; a mean never stands in for the law.",
-  "The recalculation stage model has no graph or query edge into external-study branches: only the program-binding and external-binding refusals protect them, and an external-study change is shown to leave unrelated branches valid, not to invalidate dependent ones through the stage model.",
+  "The recalculation stage model binds provider requests and priors to graph, query, regime, evidence, source and target populations and treatment grid. These external branches remain planning-only; the acceptance does not execute or count external provider refreshes. An external-study change preserves unrelated branches.",
   "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
   "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence.",
 ]

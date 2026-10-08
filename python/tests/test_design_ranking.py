@@ -100,6 +100,25 @@ def _rank(candidates: list[dr.Candidate], **kw: object) -> dr.DesignRankingResul
     return dr.rank_designs(GUESS, candidates, signal=_signal(), **kw)  # type: ignore[arg-type]
 
 
+def test_f14_independent_consumer_retains_the_checked_derivation_chain() -> None:
+    ranked = _rank(_frozen(), source_digests=("source-a", "source-b"))
+    consumed = dr.consume(ranked.export(), expected=ranked.expectation())
+    assert consumed.lineage == ranked.lineage
+    assert consumed.lineage[-1].id == dr.RESULT_LINK_ID
+    assert {item.stage for item in consumed.lineage} >= {
+        "decision_contract",
+        "distribution_artifact",
+        "external_provider",
+        "study_ranking_provider",
+        "claim",
+    }
+    # Input order cannot change either the ranking order or the provenance chain.
+    reordered = _rank(list(reversed(_frozen())), source_digests=("source-b", "source-a"))
+    replay = dr.consume(reordered.export(), expected=reordered.expectation())
+    assert replay.lineage == consumed.lineage
+    assert [entry.id for entry in replay.entries] == [entry.id for entry in consumed.entries]
+
+
 BET_LIKELIHOOD = dr.ExternalLaw.likelihood(
     states=[0.25, 0.75],
     statistics=[0.0, 1.0, 2.0],

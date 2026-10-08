@@ -34,10 +34,10 @@ Evidence is never double counted: a shared registry is reported once, shared dat
 independent pooling instead of being counted twice, and a study that reuses the prior's
 observations refuses.
 
-Known model limit, asserted as it is: the stage graph has no edge from the graph or the query to
-an external-study branch, so the plan alone reports those branches ``reused`` when the program
-changes. What protects them is the program binding (``bind_to_program`` refuses a study bound to
-another program), which these tests assert next to each plan.
+The planner binds external provider requests and priors to the causal program, evidence and
+populations. Raw external-study identities can remain unchanged when the derived request
+changes. External branch execution and provider-call counting remain unfinished; the
+executed fit counts here cover the native AIPW route.
 """
 
 from __future__ import annotations
@@ -226,6 +226,11 @@ def test_c4_mutation_quantity_is_refused_at_the_program_and_recomputes_the_nativ
 
     plan, unchanged = _plan(query=replace(program, dose_units="g").identity)
     assert _recomputed(plan) == {
+        "provider_request.0",
+        "provider_request.1",
+        "prior.0",
+        "prior.1",
+    } | {
         "query",
         "identification",
         "score_artifact",
@@ -233,15 +238,19 @@ def test_c4_mutation_quantity_is_refused_at_the_program_and_recomputes_the_nativ
         "decision",
     }
     assert plan.recomputed_computations == (
+        Stage.provider_request(0),
+        Stage.provider_request(1),
+        Stage.prior(0),
+        Stage.prior(1),
         Stage.IDENTIFICATION,
         Stage.SCORE_ARTIFACT,
         Stage.LAW,
         Stage.DECISION,
     )
     assert dict(plan.table)["identification"] == "recomputed(upstream:query<-query:modified)"
-    # The stage model has no query edge into the external branches (see the module note); the
-    # binding refusals above are what keeps those studies from answering the changed program.
-    _assert_reused_unchanged(plan, unchanged, BRANCHES)
+    # Raw external studies remain unchanged; their derived requests and priors
+    # cannot be reused under the changed causal program.
+    _assert_reused_unchanged(plan, unchanged, {"external_study.0", "external_study.1"})
 
 
 def test_c4_mutation_tampered_quantity_in_a_bundle_fails_the_dependent_decision() -> None:
@@ -362,13 +371,25 @@ def test_c4_mutation_structure_a_changed_graph_or_premise_is_refused_and_reident
     assert comp.check_atom_combination(atoms, "worst_case").kind == "worst_case"
 
     plan, unchanged = _plan(graph=changed_spec.graph_id)
-    assert _recomputed(plan) == {"graph", "identification", "score_artifact", "law", "decision"}
+    assert _recomputed(plan) == {
+        "graph",
+        "identification",
+        "score_artifact",
+        "law",
+        "decision",
+        "provider_request.0",
+        "provider_request.1",
+        "prior.0",
+        "prior.1",
+    }
     assert dict(plan.table)["identification"] == "recomputed(upstream:graph<-graph:modified)"
-    _assert_reused_unchanged(plan, unchanged, BRANCHES)
+    _assert_reused_unchanged(plan, unchanged, {"external_study.0", "external_study.1"})
 
-    # A changed evidence premise reaches both priors but not the provider requests.
+    # A changed evidence premise reaches priors and their provider requests.
     evidence_plan, evidence_unchanged = _plan(evidence="assumption:positivity")
     assert _recomputed(evidence_plan) == {
+        "provider_request.0",
+        "provider_request.1",
         "evidence",
         "identification",
         "prior.0",
@@ -380,7 +401,7 @@ def test_c4_mutation_structure_a_changed_graph_or_premise_is_refused_and_reident
     _assert_reused_unchanged(
         evidence_plan,
         evidence_unchanged,
-        {"provider_request.0", "provider_request.1", "external_study.0", "external_study.1"},
+        {"external_study.0", "external_study.1"},
     )
 
 

@@ -235,7 +235,7 @@ pub struct DeclaredStageWire {
 /// What a fresh process was handed to resume with.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-// Four independent availability flags mirroring `ResumeContext`.
+// Independent availability flags mirroring `ResumeContext`.
 #[allow(clippy::struct_excessive_bools)]
 pub struct ResumeWire {
     /// A portable fitted predictor is available.
@@ -244,6 +244,9 @@ pub struct ResumeWire {
     /// Portable frozen scores are available.
     #[serde(default)]
     pub portable_scores: bool,
+    /// The portable scores bind the unchanged snapshot identity without raw data.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub scores_snapshot_bound: bool,
     /// A compatible data snapshot was supplied.
     #[serde(default)]
     pub supplied_data: bool,
@@ -394,6 +397,7 @@ impl CapabilitiesWire {
                 Some(ResumeWire {
                     portable_fit: resume.portable_fit,
                     portable_scores: resume.portable_scores,
+                    scores_snapshot_bound: resume.scores_snapshot_bound,
                     supplied_data: resume.supplied_data,
                     supplied_provider: resume.supplied_provider,
                 }),
@@ -435,6 +439,7 @@ impl CapabilitiesWire {
             ("fresh_process", Some(resume)) => Boundary::FreshProcess(ResumeContext {
                 portable_fit: resume.portable_fit,
                 portable_scores: resume.portable_scores,
+                scores_snapshot_bound: resume.scores_snapshot_bound,
                 supplied_data: resume.supplied_data,
                 supplied_provider: resume.supplied_provider,
             }),
