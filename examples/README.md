@@ -88,6 +88,14 @@ cargo run -p antecedent --example <name>
 | Difference-in-differences (2.1) | 2x2 and balanced-panel DiD point utilities | [python](python/quasi_difference_in_differences.py) | — |
 | Longitudinal regime value (2.1) | Value of a static treatment rule by inverse-probability g-formula | [python](python/regime_value.py) | — |
 | Survival RMST (2.1) | Randomized survival curve and RMST by arm | [python](python/survival_rmst.py) | — |
+| Decision lifecycle (2.3) | Analyze, bind external evidence, inspect, decide, then rank the next study | [python](python/decision_lifecycle.py) | — |
+| MSM sensitivity (2.3) | Marginal-sensitivity bounds and tipping point for a stratified ATE | [python](python/msm_sensitivity.py) | — |
+| Mechanism discrepancy (2.3) | Test whether a node's mechanism differs between source and target | [python](python/mechanism_discrepancy.py) | — |
+| Scenario invariance (2.3) | Why each transport scenario answers as it does: selection and invariances | [python](python/scenario_invariance.py) | — |
+| Transported counterfactual (2.3) | Transport a direct and an indirect effect, or get a witnessed refusal | [python](python/transported_counterfactual.py) | — |
+| Recalculation with frozen scores (2.3) | Recompute a decision with zero refits; resume from exported scores | [python](python/recalc_cell_resume.py) | — |
+| Composition bundle (2.3) | Export a composed decision and consume it under a retained identity | [python](python/composition_bundle.py) | — |
+| Repair and evidence obligations (2.3) | State the evidence a contract owes and which study would repair it | [python](python/repair_obligations.py) | — |
 | ATE quickstart | Build and run an average-effect analysis | — | [rust](rust/ate_quickstart.rs) |
 | Identify only | Identification without fitting | — | [rust](rust/identify_only.rs) |
 | GCM do | Fit a GCM and sample under `do(·)` | — | [rust](rust/gcm_do.rs) |

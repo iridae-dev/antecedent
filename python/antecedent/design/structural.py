@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from .._native import rank_structural_designs as _rank_structural
-from .evsi import _raise
+from ._declarations import _raise
 
 
 @dataclass(frozen=True, slots=True)

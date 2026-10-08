@@ -14,7 +14,7 @@ One entry point, :func:`rank_designs`, and one result, :class:`DesignRankingResu
     ranked = design.rank_designs(plans, prior=design.StructurePrior.uniform([True, False]))
     ranked = design.rank_designs(studies, decision=decision, signal=spec, cost_map=cost_map)
     print(ranked.explain())
-    design.consume(ranked.export(), expected=ranked.expectation())
+    design.consume(ranked.export(), expected_identity=ranked.expectation())
 
 :func:`rank_structural` is the no-model fallback ordering and :func:`evaluate_decision` scores
 one decision with a Python utility callback.
@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from .._native import DecisionEvaluation
 from .._native import evaluate_decision_py as evaluate_decision
-from .evsi import (
+from ._declarations import (
     ARTIFACT_KIND,
     CALIBRATION,
     RESULT_LINK_ID,

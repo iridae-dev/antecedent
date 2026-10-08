@@ -34,7 +34,7 @@ from .._native import consume_design_ranking as _consume_native
 from .._native import evaluate_design_ranking as _evaluate
 from ..errors import CausalTypeError, CausalValueError
 from ..external import LineageLink
-from .evsi import (
+from ._declarations import (
     RESULT_LINK_ID,
     Candidate,
     CandidateValue,
@@ -359,11 +359,15 @@ class DesignRankingResult:
         cls,
         data: bytes,
         *,
-        expected: Expectation | None = None,
+        expected_identity: Expectation | None = None,
         skip_expectation_check: bool = False,
     ) -> ConsumedRanking:
         """Consume an exported artifact by recomputation; see :func:`antecedent.design.consume`."""
-        return consume(data, expected=expected, skip_expectation_check=skip_expectation_check)
+        return consume(
+            data,
+            expected_identity=expected_identity,
+            skip_expectation_check=skip_expectation_check,
+        )
 
     # -- rendering -----------------------------------------------------------------
 
@@ -423,7 +427,7 @@ class DesignRankingResult:
                     net = f", net {c.net_value:.6g}" if c.net_value is not None else ""
                     lines.append(
                         f"  {c.rank + 1}. {c.id} EVSI {c.evsi:.6g}{net}"
-                        f" ({c.integration.method}, trust {c.provider_trust})"
+                        f" ({c.integration.method}, claim {c.claim}, trust {c.provider_trust})"
                         + (" rank uncertain" if c.rank_uncertain else "")
                     )
             if self.gate is not None:

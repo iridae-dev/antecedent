@@ -231,7 +231,7 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
         digest = claim.identity_fields["values_blake3"]
         ranked = design.consume(
             open(sys.argv[2], "rb").read(),
-            expected=design.Expectation(
+            expected_identity=design.Expectation(
                 decision_contract_identity=sys.argv[4],
                 source_digests=[digest],
                 cost_map=design.CostMap("utility", "utility", 1.0),
@@ -272,7 +272,8 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
     # A different retained contract identity does not consume the same ranking.
     with pytest.raises(dr.DesignRankingRefusal):
         dr.consume(
-            ranking_bytes, expected=dr.Expectation(decision_contract_identity="another-contract")
+            ranking_bytes,
+            expected_identity=dr.Expectation(decision_contract_identity="another-contract"),
         )
 
 
@@ -599,7 +600,7 @@ def test_a0r_refusal_families_keep_their_own_details_across_the_bridge():
     ranking_cost_map = _raised(
         lambda: dr.consume(
             _guess_ranking().export(),
-            expected=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
+            expected_identity=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
         ),
         dr.CostUnitsRefusal,
     )
@@ -727,7 +728,7 @@ def _fixture(name: str) -> bytes:
 def test_a0r_rust_built_design_ranking_and_obligation_are_consumed_by_python():
     ranked = dr.consume(
         _fixture("rust_a0r_design_ranking.bin"),
-        expected=dr.Expectation(
+        expected_identity=dr.Expectation(
             decision_contract_identity="contract-1",
             source_digests=("digest-a", "digest-b"),
             cost_map=UTILITY_MAP,

@@ -55,6 +55,6 @@ assert ranking.basis == "net_value"
 assert ranking.candidate("two-flips").evsi <= ranking.evpi + 1e-12
 
 # Replay the exported artifact against the identities retained from the ranking.
-consumed = design.consume(ranking.export(), expected=ranking.expectation())
+consumed = design.consume(ranking.export(), expected_identity=ranking.expectation())
 assert consumed.identity == ranking.identity
 assert all(entry.natively_replayed for entry in consumed.entries)

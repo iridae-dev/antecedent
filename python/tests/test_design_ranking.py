@@ -102,7 +102,7 @@ def _rank(candidates: list[dr.Candidate], **kw: object) -> dr.DesignRankingResul
 
 def test_f14_independent_consumer_retains_the_checked_derivation_chain() -> None:
     ranked = _rank(_frozen(), source_digests=("source-a", "source-b"))
-    consumed = dr.consume(ranked.export(), expected=ranked.expectation())
+    consumed = dr.consume(ranked.export(), expected_identity=ranked.expectation())
     assert consumed.lineage == ranked.lineage
     assert consumed.lineage[-1].id == dr.RESULT_LINK_ID
     assert {item.stage for item in consumed.lineage} >= {
@@ -114,7 +114,7 @@ def test_f14_independent_consumer_retains_the_checked_derivation_chain() -> None
     }
     # Input order cannot change either the ranking order or the provenance chain.
     reordered = _rank(list(reversed(_frozen())), source_digests=("source-b", "source-a"))
-    replay = dr.consume(reordered.export(), expected=reordered.expectation())
+    replay = dr.consume(reordered.export(), expected_identity=reordered.expectation())
     assert replay.lineage == consumed.lineage
     assert [entry.id for entry in replay.entries] == [entry.id for entry in consumed.entries]
 
@@ -411,7 +411,7 @@ def test_f14_net_values_are_three_twentieths_and_one_fortieth_in_any_input_order
 def test_f14_export_consume_round_trip_with_retained_expectation() -> None:
     result = _rank(_frozen(), cost_map=UTILITY_MAP, source_digests=("digest-b", "digest-a"))
     data = result.export()
-    consumed = dr.consume(data, expected=result.expectation())
+    consumed = dr.consume(data, expected_identity=result.expectation())
     assert consumed.identity == result.identity
     assert consumed.ranking_identity == result.ranking_identity
     assert consumed.calibration == "unmeasured"
@@ -425,7 +425,7 @@ def test_f14_export_consume_round_trip_with_retained_expectation() -> None:
     with pytest.raises(CausalValueError, match="skip_expectation_check"):
         dr.consume(data)
     with pytest.raises(CausalValueError, match="not both"):
-        dr.consume(data, expected=result.expectation(), skip_expectation_check=True)
+        dr.consume(data, expected_identity=result.expectation(), skip_expectation_check=True)
     for entry in consumed.entries:
         assert entry.provider_trust == "externally_attested"
         assert entry.update_mode == "external_posterior"
@@ -447,11 +447,11 @@ def test_f14_altered_signal_or_update_refuses_replay_against_retained_identities
     assert altered.candidates[0].evsi == pytest.approx(0.25, abs=1e-12)
     assert altered.identity != original.identity
     with pytest.raises(dr.DesignRankingRefusal) as caught:
-        dr.consume(altered.export(), expected=original.expectation())
+        dr.consume(altered.export(), expected_identity=original.expectation())
     assert caught.value.detail == "design_ranking.identity_mismatch"
     signals_only = dr.Expectation(signal_identities=original.expectation().signal_identities)
     with pytest.raises(dr.DesignRankingRefusal) as caught:
-        dr.consume(altered.export(), expected=signals_only)
+        dr.consume(altered.export(), expected_identity=signals_only)
     assert caught.value.detail == "design_ranking.signal_mismatch"
     assert caught.value.offending == "cand-1"
     # An altered RNG seed is a different exact request, hence a different fingerprint.
@@ -469,7 +469,9 @@ def test_f14_altered_signal_or_update_refuses_replay_against_retained_identities
     with pytest.raises(dr.DesignRankingRefusal):
         dr.consume(
             reseeded.export(),
-            expected=dr.Expectation(signal_identities=original.expectation().signal_identities),
+            expected_identity=dr.Expectation(
+                signal_identities=original.expectation().signal_identities
+            ),
         )
 
 
@@ -490,11 +492,11 @@ def test_f14_overlapping_source_data_and_incompatible_cost_units_refuse() -> Non
     ranking = _rank(_frozen(), cost_map=UTILITY_MAP)
     other = dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0))
     with pytest.raises(dr.CostUnitsRefusal) as caught:
-        dr.consume(ranking.export(), expected=other)
+        dr.consume(ranking.export(), expected_identity=other)
     assert caught.value.reason_code == "design_cost_units_mismatch"
     assert caught.value.detail == "design_ranking.cost_units_mismatch"
     with pytest.raises(dr.CostUnitsRefusal):
-        dr.consume(ranking.export(), expected=dr.Expectation(no_cost_map=True))
+        dr.consume(ranking.export(), expected_identity=dr.Expectation(no_cost_map=True))
 
 
 def test_f14_external_values_retain_attested_values_and_are_never_marked_native() -> None:
@@ -508,7 +510,7 @@ def test_f14_external_values_retain_attested_values_and_are_never_marked_native(
     assert row.update_mode == "external_decision_values"
     assert not row.natively_replayed
     assert "not verified" in row.trust_limit
-    consumed = dr.consume(ranking.export(), expected=ranking.expectation())
+    consumed = dr.consume(ranking.export(), expected_identity=ranking.expectation())
     assert not consumed.entries[0].natively_replayed
     assert consumed.entries[0].replay == "attested_values_combined"
 

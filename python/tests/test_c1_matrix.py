@@ -1192,7 +1192,7 @@ def _check_decision_bundle(o: Objs) -> None:
 
 
 def _check_ranking_design(o: Objs) -> None:
-    consumed = dr.consume(o.ranking.export(), expected=o.ranking.expectation())
+    consumed = dr.consume(o.ranking.export(), expected_identity=o.ranking.expectation())
     by_id = {e.id: e for e in consumed.entries}
     assert by_id["cand-1"].evsi == pytest.approx(0.25, abs=1e-12)
     assert by_id["cand-2"].evsi == pytest.approx(0.125, abs=1e-12)
@@ -1205,7 +1205,7 @@ def _check_ranking_design(o: Objs) -> None:
     with pytest.raises(dr.CostUnitsRefusal) as refused:
         dr.consume(
             o.ranking.export(),
-            expected=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
+            expected_identity=dr.Expectation(cost_map=dr.CostMap("utility", "utility", 2.0)),
         )
     assert refused.value.reason_code == "design_cost_units_mismatch"
     assert refused.value.detail == "design_ranking.cost_units_mismatch"

@@ -189,8 +189,9 @@ indistinguishable only on exactly equal values. In Python,
 is the claim's own lineage plus the decision contract and `decision_result`.
 Such a decision is not exportable or replayable (`route_not_supported`,
 `decision.mean_source_not_replayable`). `python/tests/test_lifecycle.py` runs
-identify, bind, inspect, export, decide and a fresh-process reload; ranking a
-study is not covered because EVSI and design ranking do not exist yet.
+identify, bind, inspect, export, decide and a fresh-process reload. Ranking a
+study with `design.rank_designs` is covered by [design ranking](2_3-design-ranking.md)
+and the [2.3 lifecycle](2_3-lifecycle.md).
 
 ## Structural result artifact
 

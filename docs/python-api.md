@@ -16,4 +16,18 @@ python -m pip install antecedent pdoc
 python -m pdoc antecedent -o site/python
 ```
 
+## 2.3 features
+
+The 2.3 Python surface is documented by task in the 2.3 guide:
+
+- [The 2.3 lifecycle](2_3-lifecycle.md): analyze, bind an external result, decide with `Contract.evaluate(result)`, rank a study, bundle and export, with the structured-refusal pattern.
+- [Design ranking](2_3-design-ranking.md): `design.rank_designs` with an explicit `basis` (`identification`, `net_value`, `evsi`), `DesignDecision.from_contract`, `StatePrior.from_distribution` and `design.consume`.
+- [Sensitivity and robustness](2_3-sensitivity-and-robustness.md): `msm_sensitivity.msm_ate_sensitivity`, `sensitivity_decision`, `decision_robust` and `mechanism_discrepancy.diagnose_mechanism_discrepancy`.
+- [Transport and counterfactuals](2_3-transport-counterfactuals.md): the affine-additive transported path-specific effect, `MechanismSelection`, the scenario invariance report and the closed learned joint route.
+- [Prepared recalculation](2_3-recalculation-capabilities.md): selective recalculation, frozen scores and portable resume.
+- [Refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies): the shared `StructuredRefusal` base with `.code`, `.detail`, `.offending` and `.remedy`.
+- [Composition and bundles](2_3-composition.md): `composition_bundle.Bundle`, `add_artifact` and `consume_bundle`.
+
+Every stage module is also reachable lazily from the root, for example `antecedent.design`, without a separate import.
+
 For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent).

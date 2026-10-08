@@ -33,7 +33,7 @@ from numpy.typing import NDArray
 from ._native import ExternalClaimArtifact as _NativeClaim
 from ._native import bind_external_response as _bind_external_response
 from ._native import bind_external_to_program as _bind_external_to_program
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .extensibility import ProviderTrust
 from .joint_distribution import DistributionMeaning, QuantityCondition, ScientificQuantity
 
@@ -681,7 +681,7 @@ class BoundExternalClaim:
         )
 
 
-class ExternalRefusal(CausalUnsupportedError):
+class ExternalRefusal(StructuredRefusal):
     """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
 
     Existing ``except CausalUnsupportedError`` handlers keep working;
@@ -696,13 +696,7 @@ class ExternalRefusal(CausalUnsupportedError):
             parts.append(
                 f"(expected {refusal.get('expected')!r}, supplied {refusal.get('supplied')!r})"
             )
-        super().__init__(" ".join(parts), reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage: ``declare``, ``negotiate``, ``verify`` or ``bind``.
-        self.stage: str = refusal["stage"]
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = refusal["detail"]
-        #: Offending coordinate (``coordinate[i]``) or probe, when there is one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal, text=" ".join(parts))
         #: Expected and supplied semantics when a comparison failed.
         self.expected: str | None = refusal.get("expected")
         self.supplied: str | None = refusal.get("supplied")

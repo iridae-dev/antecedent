@@ -116,3 +116,30 @@ can still report an unidentified answer; a numerical solve and its enclosing mod
 separate levels and must not be summed into a fit count. Cached failure reads are
 separate from new numerical solves. Original source support, attestation and uncertainty
 standing remain unchanged.
+Tests execute native score retention and portable-score resume with fit counts, independent reruns and a constant-effect SCM oracle, verify actual adapter paths, and reject readable/flag-only state across all sixty cells. Portable predictor tests verify prediction without turning the model into score or covariance state. No statistical calibration is performed by this inventory or its tests.
+
+## Cell-AIPW scores: frozen scores and portable resume
+
+`antecedent.recalc_cell` (`python/tests/test_recalc_cell.py`) extends the same plan and receipt to the cell-saturated AIPW route over discrete joint binary treatments. `CellSession` mirrors `RecalcSession`: the first `execute` fits the cell models (5 folds x (1 multinomial propensity + 4 cell outcome regressions) = 25 `fold_fits` in the tested fixture); a utility-only change reuses the law and recomputes the decision with `fold_fits == 0`, and a compatible same-row target-weight change reweights the frozen cell scores. The count comes from the estimator's own instrument, so a zero is measured, not asserted. A changed outcome, fold seed, graph, adjustment set or data refits. `CrossfitSession` does the same for cross-fit scores.
+
+`CellSession.export_frozen_scores()` (and `CrossfitSession.export_frozen_scores()`) return `FrozenScores`: a checksummed `frozen_scores_v1` artifact holding the scores and the producing workflow's stage digests, with no data and no model. Its `identity` is 64 hex characters; retain it independently of the bytes. `FrozenScores.load(data, expected_identity=...)` and `resume_from_scores(data, variables=, edges=, utility=, expected_identity=)` refuse a consistently resealed artifact of another run (`frozen_scores.identity_mismatch`) and raise `CausalSerializationError` for corrupt, truncated or unsupported-version bytes. Because the artifact does not hold the original workflow, resume needs `variables=` (column names in order), `edges=` and `utility=`.
+
+```python
+session = recalc_cell.CellSession()
+session.execute(request, seed=7)
+frozen = session.export_frozen_scores()
+
+# Possibly in a fresh interpreter, from the bytes and the retained identity alone:
+resumed = recalc_cell.resume_from_scores(
+    frozen.export(), variables=VARIABLES, edges=EDGES, utility=utility,
+    expected_identity=frozen.identity,
+)
+out = resumed.retarget(TargetWeights(weights, ("z",)), row_ids=resumed.row_ids)
+out.receipt.totals.as_tuple()      # zero fits; only the law and decision are recomputed
+```
+
+`ScoreResumeSession.retarget` is the one licensed operation: reweight the frozen scores by non-negative row weights in the frozen row order (a `TargetWeights` may name `depends_on` variables inside the adjustment set) and recompute the law and decision. An unchanged request reproduces the first run's `ate`, `std_error` and `net_benefit`. In a fresh process the receipt shows `score_artifact` as `reused` and every other derived stage recomputed (for example `recomputed(fresh_process)`), since a fresh process never reuses a derived stage but the portable scores.
+
+Anything that needs the data or a fit is refused before any work and leaves the session unchanged: a changed outcome, folds, graph, row design, data snapshot or treatment grid, and `execute` over new data. These raise `ScoreResumeUnavailable` (`recalc.unavailable_data`, `missing == "data"`, `reason_code == "score_table_unavailable"`); weights over other row ids or of another length, or a declared derived stage, raise `ScoreResumeRefusal`. Both are structured refusals (see [Refusal and partial knowledge](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies)). A `ResumeReceipt` is a verified record, not an exportable artifact: the `recalc_receipt_v1` format refuses a derived stage reused in a fresh process, so `ResumeReceipt.export()` raises.
+
+Runnable example: [`recalc_cell_resume.py`](../examples/python/recalc_cell_resume.py).

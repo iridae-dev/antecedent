@@ -21,7 +21,7 @@ per-branch decision values) and the name of the party attesting them::
     )
     ranked.candidates[0].net_value               # EVSI minus the study cost in utility units
     data = ranked.export()                       # the durable design_ranking_v1 artifact
-    design.consume(data, expected=ranked.expectation())
+    design.consume(data, expected_identity=ranked.expectation())
 
 Rust owns the exact signal request fingerprint, the provider binding, the preposterior
 integration, source-overlap and cost-unit checks, the artifact identity, independent
@@ -51,7 +51,7 @@ import numpy as np
 from .._native import composition_lineage as _composition_lineage
 from .._native import consume_design_ranking as _consume
 from ..decision import Contract
-from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 from ..external import LineageLink
 from ..joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .plans import PLAN_TYPES, DesignPlan
@@ -73,9 +73,11 @@ ARTIFACT_KIND = "design_ranking_v1"
 TrustLabel = Literal["native_licensed", "externally_attested", "exact_request_verified"]
 UpdateMode = Literal["native_update", "external_posterior", "external_decision_values"]
 Integration = Literal["exact", "monte_carlo", "externally_computed"]
+#: The claim a candidate's value carries: a point value, or a Monte Carlo estimate (no coverage).
+CandidateClaim = Literal["point_only", "monte_carlo_estimate"]
 
 
-class DesignRankingRefusal(CausalUnsupportedError):
+class DesignRankingRefusal(StructuredRefusal):
     """A structured refusal from signal providers, EVSI or the ranking artifact.
 
     ``reason_code`` and ``remedy`` are inherited; the code is registered. ``stage`` is the
@@ -86,10 +88,7 @@ class DesignRankingRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         offending = refusal.get("offending")
         text = str(refusal["detail"]) + (f" at {offending}" if offending else "")
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = refusal.get("stage", "")
-        self.detail: str = refusal["detail"]
-        self.offending: str | None = offending
+        super().__init__(refusal, text=text)
         self.expected: str | None = refusal.get("expected")
         self.supplied: str | None = refusal.get("supplied")
 
@@ -829,7 +828,7 @@ class CandidateValue:
         return self.net_value if self.net_value is not None else self.evsi
 
     @property
-    def claim(self) -> str:
+    def claim(self) -> CandidateClaim:
         """``point_only`` for an exact or externally computed value; no coverage is claimed."""
         return "monte_carlo_estimate" if self.integration.method == "monte_carlo" else "point_only"
 
@@ -1021,7 +1020,7 @@ def _consumed_from_wire(wire: Mapping[str, Any]) -> ConsumedRanking:
 def consume(
     data: bytes,
     *,
-    expected: Expectation | None = None,
+    expected_identity: Expectation | None = None,
     skip_expectation_check: bool = False,
 ) -> ConsumedRanking:
     """Consume an exported ranking by independent recomputation.
@@ -1033,22 +1032,22 @@ def consume(
     ``natively_replayed``. Corruption, truncation and unknown versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
 
-    ``expected`` carries identities retained independently of the bytes (build one with
+    ``expected_identity`` carries identities retained independently of the bytes (build one with
     ``result.expectation()`` or :class:`Expectation`); a changed signal, update mode, source
     digest, cost mapping or contract refuses even when the artifact was resealed. Without it
     the bytes are only checked against themselves, so a resealed artifact would be accepted:
     pass ``skip_expectation_check=True`` to say that is intended. Supplying neither, or both,
     raises :class:`~antecedent.errors.CausalValueError`.
     """
-    if expected is None and not skip_expectation_check:
+    if expected_identity is None and not skip_expectation_check:
         raise CausalValueError(
-            "consume needs expected=<design.Expectation> (e.g. result.expectation()) to check "
-            "the artifact against identities you retained; pass skip_expectation_check=True "
-            "to accept the artifact on its own seal"
+            "consume needs expected_identity=<design.Expectation> (e.g. result.expectation()) "
+            "to check the artifact against identities you retained; pass "
+            "skip_expectation_check=True to accept the artifact on its own seal"
         )
-    if expected is not None and skip_expectation_check:
-        raise CausalValueError("pass expected= or skip_expectation_check=True, not both")
-    expectation = expected._wire() if expected is not None else None
+    if expected_identity is not None and skip_expectation_check:
+        raise CausalValueError("pass expected_identity= or skip_expectation_check=True, not both")
+    expectation = expected_identity._wire() if expected_identity is not None else None
     consumed, refusal = _consume(
         bytes(data), json.dumps(expectation, allow_nan=False) if expectation is not None else None
     )
