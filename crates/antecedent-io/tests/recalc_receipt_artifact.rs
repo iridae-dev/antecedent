@@ -79,7 +79,12 @@ fn oracle_identity(meta: &RecalcReceiptMeta) -> String {
         parts.push(entry.stage.clone().into_bytes());
         parts.push(entry.status.clone().into_bytes());
         parts.push(StageIdentity::from_hex(&entry.identity).unwrap().as_bytes().to_vec());
-        parts.push(entry.counts.as_array().iter().flat_map(|n| n.to_le_bytes()).collect());
+        let mut counted: Vec<u8> =
+            entry.counts.as_array().iter().flat_map(|n| n.to_le_bytes()).collect();
+        if entry.counts.model_fits > 0 {
+            counted.extend_from_slice(&entry.counts.model_fits.to_le_bytes());
+        }
+        parts.push(counted);
     }
     let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
     StageIdentity::of("recalc_receipt", &refs).to_hex()
@@ -92,6 +97,7 @@ fn reseal(mut meta: RecalcReceiptMeta) -> RecalcReceiptMeta {
     for entry in &meta.entries {
         totals.identifications += entry.counts.identifications;
         totals.fold_fits += entry.counts.fold_fits;
+        totals.model_fits += entry.counts.model_fits;
         totals.score_computations += entry.counts.score_computations;
         totals.reweights += entry.counts.reweights;
         totals.decisions += entry.counts.decisions;
@@ -475,4 +481,53 @@ fn c2_artifact_is_bounded_and_versioned() {
     let mut meta = artifact.meta().clone();
     meta.capabilities.boundary = "fresh_process".into();
     assert!(matches!(consume(&meta), Err(RecalcReceiptArtifactError::Malformed(_))));
+}
+
+#[test]
+fn c2_artifact_model_fits_are_bound_and_legacy_counts_remain_unchanged() {
+    let legacy = utility_only();
+    let wire = serde_json::to_string(legacy.meta()).unwrap();
+    assert!(!wire.contains("model_fits"));
+    assert_eq!(legacy.receipt_identity(), oracle_identity(legacy.meta()));
+
+    let artifact = RecalcReceiptArtifact::seal(
+        &workflow("u1", "seed1"),
+        &workflow("u1", "seed2"),
+        &in_process(),
+        &counts(&[
+            (Stage::ScoreArtifact, CountsWire { model_fits: 1, ..CountsWire::default() }),
+            (Stage::Law, CountsWire { reweights: 1, ..CountsWire::default() }),
+            (Stage::Decision, decided()),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(artifact.meta().totals.model_fits, 1);
+    assert_eq!(artifact.meta().totals.total(), 3);
+    assert_eq!(artifact.receipt_identity(), oracle_identity(artifact.meta()));
+    let bytes = artifact.to_bytes(ID).unwrap();
+    let loaded =
+        RecalcReceiptArtifact::from_bytes(&bytes, Some(artifact.receipt_identity())).unwrap();
+    assert_eq!(loaded, artifact);
+
+    // A valid count for another execution cannot replace a retained receipt.
+    let mut edited = artifact.meta().clone();
+    let row = edited.entries.iter_mut().find(|r| r.stage == "score_artifact").unwrap();
+    row.counts.model_fits = 2;
+    let edited = reseal(edited);
+    assert!(consume(&edited).is_ok());
+    assert!(matches!(
+        RecalcReceiptArtifact::from_bytes(
+            &encode_parts(&edited, ID).unwrap(),
+            Some(artifact.receipt_identity())
+        ),
+        Err(RecalcReceiptArtifactError::IdentityMismatch { field: "retained_receipt_identity" })
+    ));
+
+    // Fits assigned to a reused identification stage contradict actual work ownership.
+    let mut edited = artifact.meta().clone();
+    edited.entries.iter_mut().find(|r| r.stage == "identification").unwrap().counts.model_fits = 1;
+    assert!(matches!(
+        consume(&reseal(edited)),
+        Err(RecalcReceiptArtifactError::CountsInconsistent { .. })
+    ));
 }

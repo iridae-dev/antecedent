@@ -1,0 +1,26 @@
+feature_id = "c2_adjusted_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+# Original retention, dependency binding and execution instrumentation over existing
+# adjusted regression estimators. Numerical derivations remain owned by estimate.glm,
+# estimate.adjustment and the vector/categorical treatment provenance records.
+papers = []
+implementation_deviations = [
+  "Uses the shared RecalcPlan and RecalcReceipt, not a parallel stage planner. Causal role and graph changes recheck the existing identification crate's sufficient joint backdoor certificate before a retained regression may be used; its derivation is owned by identify.backdoor.",
+  "Model-fit counts come from the executing regression component. They are distinct from nuisance-fold fits and frozen-score computations. Zero-model historical receipts retain their five-count wire and digest; nonzero model counts participate in receipt identity and semantic verification.",
+  "Retained coefficients and joint covariance support only declared compatible contrasts and point predictions. New rows or outcomes, feature/coding/link/fit changes invalidate the fit; unsupported target laws and provider/prior operations remain typed refusals.",
+  "Identity-link contrasts use coefficient differences and the full covariance directly, avoiding cancellation of large predicted levels; fixed target weights are validated before this algebraic reduction. The registered vector fixture checks a large-baseline fractional contrast against the existing public regression engine.",
+  "Reuse preserves estimator inference status. Analytic covariance and p-values remain reported diagnostics with calibration unmeasured; no confidence interval or coverage license is added.",
+  "An independently consumed historical receipt recreates no fitted state. A fresh process needs supplied compatible data and recomputes, or receives an explicit unavailable-state refusal.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/recalc_adjusted.rs",
+  "crates/antecedent-identify/src/backdoor.rs",
+  "crates/antecedent-estimate/src/adjustment_resume.rs",
+  "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
+  "python/tests/test_recalc_adjusted.py",
+]

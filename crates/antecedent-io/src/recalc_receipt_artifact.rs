@@ -183,12 +183,20 @@ pub struct CountsWire {
     pub identifications: u64,
     /// Cross-fitted nuisance fold fits performed.
     pub fold_fits: u64,
+    /// Successfully completed retained regression model fits (not nuisance folds).
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub model_fits: u64,
     /// Score tables built.
     pub score_computations: u64,
     /// Reweights of frozen scores performed.
     pub reweights: u64,
     /// Decision evaluations performed.
     pub decisions: u64,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip predicate requires a reference")]
+const fn is_zero_count(count: &u64) -> bool {
+    *count == 0
 }
 
 impl CountsWire {
@@ -208,13 +216,14 @@ impl CountsWire {
     /// Sum over every kind of work.
     #[must_use]
     pub fn total(&self) -> u64 {
-        self.as_array().iter().fold(0_u64, |sum, n| sum.saturating_add(*n))
+        self.as_array().iter().fold(self.model_fits, |sum, n| sum.saturating_add(*n))
     }
 
     fn merged(self, other: Self) -> Self {
         Self {
             identifications: self.identifications.saturating_add(other.identifications),
             fold_fits: self.fold_fits.saturating_add(other.fold_fits),
+            model_fits: self.model_fits.saturating_add(other.model_fits),
             score_computations: self.score_computations.saturating_add(other.score_computations),
             reweights: self.reweights.saturating_add(other.reweights),
             decisions: self.decisions.saturating_add(other.decisions),
@@ -552,9 +561,10 @@ pub fn plan_from_wire(
 /// Whether `counts` are what `stage` may have counted under its status: nothing unless it was
 /// recomputed, only work it owns, and every kind of work a recomputed computation requires.
 fn counts_consistent(stage: Stage, recomputed: bool, counts: &CountsWire) -> bool {
-    let owned: [(u64, Stage); 5] = [
+    let owned: [(u64, Stage); 6] = [
         (counts.identifications, Stage::Identification),
         (counts.fold_fits, Stage::ScoreArtifact),
+        (counts.model_fits, Stage::ScoreArtifact),
         (counts.score_computations, Stage::ScoreArtifact),
         (counts.reweights, Stage::Law),
         (counts.decisions, Stage::Decision),
@@ -564,6 +574,11 @@ fn counts_consistent(stage: Stage, recomputed: bool, counts: &CountsWire) -> boo
     }
     if !recomputed {
         return true;
+    }
+    // A retained regression fit has no frozen score-table construction. Preserve
+    // the old fold-fit plus score-build requirement for score-only executions.
+    if stage == Stage::ScoreArtifact && counts.model_fits > 0 {
+        return counts.fold_fits == 0 && counts.score_computations == 0;
     }
     let required: &[u64] = match stage {
         Stage::Identification => &[counts.identifications],
@@ -585,6 +600,10 @@ fn compute_receipt_identity(
         let mut counts = Vec::with_capacity(40);
         for n in entry.counts.as_array() {
             counts.extend_from_slice(&n.to_le_bytes());
+        }
+        // Historical zero-model receipts keep their original five-count digest.
+        if entry.counts.model_fits > 0 {
+            counts.extend_from_slice(&entry.counts.model_fits.to_le_bytes());
         }
         parts.push(entry.stage.clone().into_bytes());
         parts.push(entry.status.clone().into_bytes());

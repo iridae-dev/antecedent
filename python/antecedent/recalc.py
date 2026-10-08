@@ -507,6 +507,8 @@ class StageCounts:
     score_computations: int = 0
     reweights: int = 0
     decisions: int = 0
+    #: Successful full-model fits; distinct from nuisance fold fits.
+    model_fits: int = 0
 
     @property
     def total(self) -> int:
@@ -517,6 +519,7 @@ class StageCounts:
             + self.score_computations
             + self.reweights
             + self.decisions
+            + self.model_fits
         )
 
     def as_tuple(self) -> tuple[int, int, int, int, int]:
@@ -657,6 +660,8 @@ class RecalcReceipt:
             work = ", ".join(
                 f"{name}={n}" for name, n in zip(kinds, e.counts.as_tuple(), strict=True) if n
             )
+            if e.counts.model_fits:
+                work += (", " if work else "") + f"model_fits={e.counts.model_fits}"
             suffix = f"  [{work}]" if work else ""
             lines.append(f"{e.stage.value:<{width}}  {e.status.text}{suffix}")
         head = (

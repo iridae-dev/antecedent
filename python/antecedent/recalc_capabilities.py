@@ -15,6 +15,7 @@ from . import _native
 from .errors import CausalValueError
 from .prediction import FittedEffectModel
 from .recalc import RecalcSession, RecalcUnavailable, Stage
+from .recalc_adjusted import AdjustedSession
 from .recalc_cell import CellSession, CrossfitSession, ScoreResumeSession
 
 
@@ -43,6 +44,7 @@ class Operation(StrEnum):
 class RetainedKind(StrEnum):
     READABLE = "readable_result"
     LIVE_SCORES = "live_score_session"
+    LIVE_FIT = "live_adjusted_fit"
     SCORES = "verified_portable_scores"
     PREDICTOR = "verified_portable_predictor"
     DRAWS = "aligned_posterior_draws"
@@ -210,8 +212,9 @@ _FAMILY_FIELDS = {
 
 _OBJECTS = {
     Family.ADJUSTED: (
+        "AdjustedSession checked joint fit and coefficient covariance",
         "PreparedAnalysis compiled plan; not a persistent fit",
-        "readable adjustment result",
+        "readable adjustment result or receipt; no fitted-state resume",
     ),
     Family.DOUBLY_ROBUST: (
         "RecalcSession/CrossfitSession/CellSession",
@@ -291,6 +294,30 @@ _LOAD_SCORES = Adapter(
 )
 
 
+_ADJUSTED = Adapter(
+    RetainedKind.LIVE_FIT,
+    AdjustedSession,
+    "antecedent.recalc_adjusted.AdjustedSession.execute",
+    "antecedent::analysis::recalc_adjusted::execute_adjusted_with_receipt",
+    "checked selective adjusted execution",
+    "Linear/GLM and vector/categorical mean contrasts over a checked common adjustment set. Compatible contrasts, same-row target weights and utility reuse the joint fit; raw snapshot/model/roles/coding changes refit. Full coefficient covariance retained; conditional analytic uncertainty has unmeasured calibration. Receipts and flags provide no portable fit.",
+)
+_ADJUSTED_PREDICT = replace(
+    _ADJUSTED,
+    python_path="antecedent.recalc_adjusted.AdjustedSession.predict",
+    rust_path="antecedent::analysis::recalc_adjusted::AdjustedSession::predict",
+    operation="measured retained-model prediction",
+    scope="Point conditional means at the retained named feature schema and checked treatment support. Actual model fit count is measured as zero; no shared-stage receipt, new outcome fitting or prediction interval is supplied.",
+)
+_ADJUSTED_RESUME = replace(
+    _ADJUSTED,
+    python_path="antecedent.recalc_adjusted.AdjustedSession.resume",
+    rust_path="antecedent::analysis::recalc_adjusted::AdjustedSession::resume",
+    operation="supplied-data refit at process boundary",
+    scope="A receipt supplies input identities only; a fresh process must supply raw data and refit. Portable-fit/score flags cannot supply executable adjusted state.",
+)
+
+
 @cache
 def capability_matrix() -> tuple[Capability, ...]:
     """Return all sixty immutable cells, including explicit unavailable adapters.
@@ -305,6 +332,21 @@ def capability_matrix() -> tuple[Capability, ...]:
         for operation in Operation:
             adapters: tuple[Adapter, ...] = ()
             compatible = "No family adapter; readable/prepared results do not grant this operation."
+            if family == Family.ADJUSTED and operation != Operation.PROVIDER:
+                adapters = (_ADJUSTED_RESUME,) if operation == Operation.RESUME else (_ADJUSTED,)
+                if operation == Operation.DATA:
+                    adapters = (_ADJUSTED, _ADJUSTED_PREDICT)
+                compatible = {
+                    Operation.UTILITY: "Reuse the checked fit and law; recompute only the changed net-benefit rule.",
+                    Operation.FUNCTIONAL: "Evaluate supported numeric or declared-level mean contrasts from retained joint coefficients and covariance. Other functionals have no execution license.",
+                    Operation.TARGET: "Same-row finite nonnegative weights depending only on checked adjustment variables standardize the retained response model; changed row law/data refit.",
+                    Operation.ACTION_GRID: "Supported finite numeric actions and declared categorical contrasts reuse the model; changed categorical level/reference/coding declarations refit and recheck support.",
+                    Operation.DATA: "New rows or outcomes in a supplied snapshot invalidate the fit; scoped retained-model prediction separately validates feature schema and treatment support without fitting.",
+                    Operation.STRUCTURE: "Changed causal roles, graph or adjustment set rerun checked identification and affected fits; incompatible adjustment refuses.",
+                    Operation.LEARNER: "Declared OLS covariance or GLM family/fit-option and RNG changes invalidate the model. Arbitrary learners/bases are unsupported.",
+                    Operation.INFERENCE: "Declared model covariance changes invalidate the joint fit. No calibrated intervals or additional resampling/inference settings are licensed.",
+                    Operation.RESUME: "No adjusted fitted-state artifact loader: supplied compatible raw data refit at the fresh-process boundary; receipt-only/flag-only resume refuses.",
+                }[operation]
             if family == Family.DOUBLY_ROBUST:
                 if operation in (Operation.UTILITY, Operation.TARGET):
                     adapters = (*_LIVE_ADAPTERS, _SCORES)
@@ -340,7 +382,10 @@ def capability(family: Family | str, operation: Operation | str) -> Capability:
 
 def retained_kind(state: object) -> RetainedKind:
     """Inspect actual native-backed state; caller-set capability flags are ignored."""
-    if isinstance(state, (RecalcSession, CrossfitSession, CellSession)):
+    if isinstance(state, AdjustedSession):
+        if isinstance(state._handle, _native.AdjustedSessionHandle) and state._handle.is_live():
+            return RetainedKind.LIVE_FIT
+    elif isinstance(state, (RecalcSession, CrossfitSession, CellSession)):
         if (
             isinstance(
                 state._handle,

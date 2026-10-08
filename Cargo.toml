@@ -126,3 +126,9 @@ codegen-units = 256
 
 [profile.release.package.antecedent]
 codegen-units = 16
+
+# PyO3 binding code delegates numerical work to the estimator/statistics crates.
+# Parallel codegen keeps repeated native-bridge rebuilds practical without
+# changing the single-unit compilation of those numerical kernels.
+[profile.release.package.antecedent-py]
+codegen-units = 16

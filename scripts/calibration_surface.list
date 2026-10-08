@@ -608,3 +608,8 @@ allow mechanism crates/antecedent/src/analysis/z_transport.rs SelectionDiagram e
 allow mechanism crates/antecedent/src/analysis/z_transport_sensitivity_artifact.rs VersionPeek
 allow mechanism crates/antecedent/src/counterfactual_id.rs check_bounds evaluate
 allow mechanism crates/antecedent/src/graph.rs SelectionDiagram
+
+# Adjusted recalculation uses the shared stage planner and decision utility. These
+# names are workflow metadata and counted decision execution, not calibration
+# design generation or a new statistical measurement facet.
+allow design crates/antecedent/src/analysis/recalc_adjusted.rs Utility antecedent_core decide finish names

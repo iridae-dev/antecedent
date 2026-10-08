@@ -65,6 +65,8 @@ pub enum Counter {
     Identification,
     /// One cross-fitted nuisance fold fit.
     FoldFit,
+    /// One successful adjusted-regression model fit.
+    ModelFit,
     /// A frozen score table was built.
     ScoreComputation,
     /// Frozen scores were reweighted into a law.
@@ -87,7 +89,7 @@ impl Counter {
     pub const fn stage(self) -> Stage {
         match self {
             Self::Identification => Stage::Identification,
-            Self::FoldFit | Self::ScoreComputation => Stage::ScoreArtifact,
+            Self::FoldFit | Self::ModelFit | Self::ScoreComputation => Stage::ScoreArtifact,
             Self::Reweight => Stage::Law,
             Self::Decision => Stage::Decision,
         }
@@ -101,6 +103,8 @@ pub struct StageCounts {
     pub identifications: u64,
     /// Cross-fitted nuisance fold fits performed.
     pub fold_fits: u64,
+    /// Successful adjusted-regression model fits.
+    pub model_fits: u64,
     /// Score tables built.
     pub score_computations: u64,
     /// Reweights of frozen scores performed.
@@ -116,6 +120,7 @@ impl StageCounts {
         match counter {
             Counter::Identification => self.identifications,
             Counter::FoldFit => self.fold_fits,
+            Counter::ModelFit => self.model_fits,
             Counter::ScoreComputation => self.score_computations,
             Counter::Reweight => self.reweights,
             Counter::Decision => self.decisions,
@@ -127,6 +132,7 @@ impl StageCounts {
     pub const fn total(&self) -> u64 {
         self.identifications
             .saturating_add(self.fold_fits)
+            .saturating_add(self.model_fits)
             .saturating_add(self.score_computations)
             .saturating_add(self.reweights)
             .saturating_add(self.decisions)
@@ -136,6 +142,7 @@ impl StageCounts {
         let slot = match counter {
             Counter::Identification => &mut self.identifications,
             Counter::FoldFit => &mut self.fold_fits,
+            Counter::ModelFit => &mut self.model_fits,
             Counter::ScoreComputation => &mut self.score_computations,
             Counter::Reweight => &mut self.reweights,
             Counter::Decision => &mut self.decisions,
@@ -147,6 +154,7 @@ impl StageCounts {
         for counter in Counter::ALL {
             self.add(counter, other.get(counter));
         }
+        self.add(Counter::ModelFit, other.model_fits);
         self
     }
 }
@@ -339,6 +347,9 @@ impl RecalcReceipt {
                 for counter in Counter::ALL {
                     counts.extend_from_slice(&e.counts.get(counter).to_le_bytes());
                 }
+                if e.counts.model_fits > 0 {
+                    counts.extend_from_slice(&e.counts.model_fits.to_le_bytes());
+                }
                 [
                     e.stage.label().into_bytes(),
                     e.status.to_string().into_bytes(),
@@ -358,7 +369,7 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
         StageStatus::Recomputed { .. } => required_work(stage),
         StageStatus::Reused { .. } | StageStatus::Refused { .. } => &[],
     };
-    for counter in Counter::ALL {
+    for counter in Counter::ALL.into_iter().chain([Counter::ModelFit]) {
         let n = entry.counts.get(counter);
         let allowed =
             matches!(entry.status, StageStatus::Recomputed { .. }) && counter.stage() == stage;
@@ -366,6 +377,14 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
             return Err(ReceiptError::UnexpectedWork { stage });
         }
     }
+    let required = if stage == Stage::ScoreArtifact && entry.counts.model_fits > 0 {
+        if entry.counts.fold_fits > 0 || entry.counts.score_computations > 0 {
+            return Err(ReceiptError::UnexpectedWork { stage });
+        }
+        &[Counter::ModelFit][..]
+    } else {
+        required
+    };
     for &counter in required {
         if entry.counts.get(counter) == 0 {
             return Err(ReceiptError::MissingWork { stage, counter });

@@ -251,7 +251,9 @@ fn pair_contrast(name: String, from: &str, to: &str, reference: &str) -> Contras
 }
 
 /// Validate the declared design and return the canonical level order.
-fn validate_spec(spec: &CategoricalTreatmentSpec) -> Result<Vec<String>, EstimationError> {
+pub(crate) fn validate_spec(
+    spec: &CategoricalTreatmentSpec,
+) -> Result<Vec<String>, EstimationError> {
     let invalid = reason_code!("invalid_argument");
     let mut order = spec.declared_levels.clone();
     let distinct: BTreeSet<&str> = order.iter().map(String::as_str).collect();
@@ -314,7 +316,7 @@ fn validate_spec(spec: &CategoricalTreatmentSpec) -> Result<Vec<String>, Estimat
 }
 
 /// Count rows per level; refuse undeclared, absent and sparse levels (the level is named).
-fn count_levels(
+pub(crate) fn count_levels(
     input: &CategoricalTreatmentInput,
     spec: &CategoricalTreatmentSpec,
     order: &[String],
@@ -362,7 +364,7 @@ fn count_levels(
     Ok(out)
 }
 
-fn dummy_columns(
+pub(crate) fn dummy_columns(
     input: &CategoricalTreatmentInput,
     order: &[String],
     reference: &str,

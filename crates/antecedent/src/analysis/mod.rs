@@ -56,6 +56,7 @@ pub mod native_claims;
 pub mod nonlinear_mediation;
 mod preflight;
 mod rank_drop_estimate;
+pub mod recalc_adjusted;
 pub mod recalc_cell;
 pub mod recalc_receipt;
 mod recovery;

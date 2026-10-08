@@ -128,7 +128,7 @@ def test_missing_adapters_and_inference_never_inherit_adjacent_routes():
     assert not capability(Family.DOUBLY_ROBUST, Operation.PROVIDER).adapters
     assert not capability(Family.DOUBLY_ROBUST, Operation.INFERENCE).adapters
     for family in Family:
-        if family != Family.DOUBLY_ROBUST:
+        if family not in (Family.DOUBLY_ROBUST, Family.ADJUSTED):
             assert all(not capability(family, op).adapters for op in Operation)
 
 
@@ -162,3 +162,40 @@ def test_verified_predictor_supports_point_prediction_without_becoming_score_sta
     with pytest.raises(RecalcUnavailable) as error:
         require_adapter(Family.DOUBLY_ROBUST, Operation.TARGET, model)
     assert error.value.reason_code == "route_not_supported"
+
+
+def test_adjusted_capabilities_require_actual_native_fit_and_refuse_provider():
+    from antecedent.recalc_adjusted import AdjustedRequest, AdjustedSession
+
+    class FalselyLiveAdjusted(AdjustedSession):
+        @property
+        def is_live(self):
+            return True
+
+    assert retained_kind(FalselyLiveAdjusted()) == RetainedKind.READABLE
+    request = AdjustedRequest(
+        data={
+            "t": np.tile([0.0, 1.0], 100),
+            "y": np.tile([0.0, 2.0], 100) + np.linspace(-0.1, 0.1, 200),
+        },
+        edges=(("t", "y"),),
+        treatments=("t",),
+        outcome="y",
+        adjustment=(),
+        utility=Utility(1),
+    )
+    session = AdjustedSession()
+    first = session.execute(request, seed=3)
+    assert first.receipt.totals.model_fits == 1
+    assert retained_kind(session) == RetainedKind.LIVE_FIT
+    for operation in Operation:
+        if operation == Operation.PROVIDER:
+            with pytest.raises(RecalcUnavailable):
+                require_adapter(Family.ADJUSTED, operation, session)
+        else:
+            adapter = require_adapter(Family.ADJUSTED, operation, session)
+            assert adapter.retained == RetainedKind.LIVE_FIT
+            assert callable(resolve(adapter.python_path))
+    result = session.execute(replace(request, utility=Utility(2, 0.1)), seed=3)
+    assert result.receipt.totals.model_fits == 0
+    assert result.plan.recomputed_computations == (Stage.DECISION,)

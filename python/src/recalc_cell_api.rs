@@ -327,6 +327,7 @@ fn counts_wire(counts: &StageCounts) -> CountsWire {
     CountsWire {
         identifications: counts.identifications,
         fold_fits: counts.fold_fits,
+        model_fits: counts.model_fits,
         score_computations: counts.score_computations,
         reweights: counts.reweights,
         decisions: counts.decisions,

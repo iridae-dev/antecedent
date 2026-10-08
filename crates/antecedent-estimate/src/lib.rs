@@ -382,3 +382,6 @@ pub use static_mediation::{
     estimate_static_mediation_bayesian_outcome_prior, linear_no_interaction_restriction,
 };
 pub mod augmented_panel_did;
+
+/// Retained adjusted-regression execution and measured model fits.
+pub mod adjustment_resume;

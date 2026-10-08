@@ -33,21 +33,21 @@ use crate::{CausalSerializationError, detach_catch, py_err, py_msg, value_err, w
 
 /// Largest declaration JSON accepted.
 const MAX_JSON_BYTES: usize = 1024 * 1024;
-type RunPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
+pub(crate) type RunPayload = (Option<String>, Option<Vec<u8>>, Option<String>);
 type ConsumePayload = (Option<String>, Option<String>);
 
-fn invalid(detail: &str, text: impl AsRef<str>) -> PyErr {
+pub(crate) fn invalid(detail: &str, text: impl AsRef<str>) -> PyErr {
     with_reason_code(
         value_err(format!("{detail}: {}", text.as_ref())),
         antecedent_core::reason_code!("invalid_argument"),
     )
 }
 
-fn artifact_invalid(error: &RecalcReceiptArtifactError) -> PyErr {
+pub(crate) fn artifact_invalid(error: &RecalcReceiptArtifactError) -> PyErr {
     invalid("recalc.invalid_declaration", error.to_string())
 }
 
-fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
+pub(crate) fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
     if text.len() > MAX_JSON_BYTES {
         return Err(PyValueError::new_err(format!("recalc {what} declaration is too large")));
     }
@@ -55,7 +55,7 @@ fn parse_json<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResul
         .map_err(|e| invalid("recalc.invalid_declaration", format!("{what}: {e}")))
 }
 
-fn refusal_json(
+pub(crate) fn refusal_json(
     code: &str,
     stage: &str,
     detail: &str,
@@ -79,7 +79,7 @@ fn refusal_json(
 }
 
 /// The refusal a refused plan carries: its first refused stage and reason.
-fn plan_refusal_json(plan: &RecalcPlan) -> String {
+pub(crate) fn plan_refusal_json(plan: &RecalcPlan) -> String {
     let Some((stage, reason)) = plan.first_refusal() else {
         return refusal_json(
             antecedent_core::reason_code!("not_executed"),
@@ -316,17 +316,20 @@ fn build_request(
     })
 }
 
-fn context(seed: u64, threads: Option<u32>) -> ExecutionContext {
+pub(crate) fn context(seed: u64, threads: Option<u32>) -> ExecutionContext {
     let mut ctx = ExecutionContext::production(seed, crate::resolve_user_threads(threads));
     // The route proves reuse by counted fits; no persistent cache may stand in for a fit.
     ctx.cache_policy = antecedent_core::CachePolicy::disabled();
     ctx
 }
 
-fn counts_wire(counts: &antecedent::analysis::recalc_receipt::StageCounts) -> CountsWire {
+pub(crate) fn counts_wire(
+    counts: &antecedent::analysis::recalc_receipt::StageCounts,
+) -> CountsWire {
     CountsWire {
         identifications: counts.identifications,
         fold_fits: counts.fold_fits,
+        model_fits: counts.model_fits,
         score_computations: counts.score_computations,
         reweights: counts.reweights,
         decisions: counts.decisions,

@@ -80,6 +80,7 @@ mod prior_bank;
 mod program_claims_api;
 mod provider_api;
 mod quasi_api;
+mod recalc_adjusted_api;
 mod recalc_api;
 mod recalc_cell_api;
 mod recovery_api;
@@ -2748,6 +2749,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     external_api::register(m)?;
     effect_constancy_api::register(m)?;
     recalc_api::register(m)?;
+    recalc_adjusted_api::register(m)?;
     recalc_cell_api::register(m)?;
     dose_grid_api::register(m)?;
     recovery_chain_api::register(m)?;

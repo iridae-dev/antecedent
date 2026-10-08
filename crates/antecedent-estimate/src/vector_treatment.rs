@@ -299,7 +299,7 @@ fn build_design(input: &VectorTreatmentInput) -> Design {
     Design { names, cols, first_treatment }
 }
 
-fn validate_input(
+pub(crate) fn validate_input(
     input: &VectorTreatmentInput,
     min_treatments: usize,
 ) -> Result<(), EstimationError> {
@@ -811,10 +811,20 @@ pub(crate) fn fit_joint(
     options: &VectorTreatmentOptions,
     min_treatments: usize,
 ) -> Result<VectorTreatmentFit, EstimationError> {
+    fit_joint_retained(input, options, min_treatments).map(|(fit, _, _)| fit)
+}
+
+/// Retain the full joint regression for compatible predictions.
+pub(crate) fn fit_joint_retained(
+    input: &VectorTreatmentInput,
+    options: &VectorTreatmentOptions,
+    min_treatments: usize,
+) -> Result<(VectorTreatmentFit, Vec<f64>, Vec<f64>), EstimationError> {
     validate_input(input, min_treatments)?;
     let design = build_design(input);
     check_design(&design, input)?;
     let ols = fit_ols(&design, &input.outcome)?;
+    crate::adjustment_resume::record_model_fit();
     let full = full_covariance(&design, &ols, options.covariance)?;
     let n = input.outcome.len();
     let p = design.cols.len();
@@ -827,7 +837,8 @@ pub(crate) fn fit_joint(
         p,
         residual_variance: dot(&ols.residuals, &ols.residuals) / count(n - p),
     };
-    assemble(solved, options)
+    let fit = assemble(solved, options)?;
+    Ok((fit, ols.beta, full))
 }
 
 /// A solved joint fit awaiting its coefficient table, Wald test and contrasts.
