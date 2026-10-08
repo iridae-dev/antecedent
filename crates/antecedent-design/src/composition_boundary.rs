@@ -1504,6 +1504,11 @@ pub fn check_composition(
     if inputs.len() < 2 {
         return Err(BoundaryError::InvalidInput("composition needs at least two inputs"));
     }
+    for (position, input) in inputs.iter().enumerate() {
+        if inputs[..position].iter().any(|earlier| earlier.id == input.id) {
+            return Err(BoundaryError::InvalidInput("duplicate input id"));
+        }
+    }
     validate_relations(inputs, relations)?;
     let mut routes = Vec::new();
     let mut shared = Vec::new();
@@ -1559,27 +1564,34 @@ pub fn check_composition(
 ///
 /// Pairing draws from separate sources treats them as independent, so this is
 /// statistical pooling plus a requirement that every input is an aligned joint
-/// law.
+/// law with the same draw count.
 ///
 /// # Errors
 /// Everything [`check_composition`] refuses under statistical pooling, and any
-/// input that is not an aligned joint law.
+/// input that is not an aligned joint law, or a draw-count mismatch.
 pub fn check_paired_draws(
     inputs: &[DecisionInput],
     relations: &[PairRelation],
 ) -> Result<CompositionReceipt, BoundaryError> {
+    let mut draw_count = None;
     for input in inputs {
-        let aligned = matches!(
-            &input.source,
-            InputSource::JointLaw(artifact)
-                if artifact.metadata().identity.alignment == DrawAlignment::Joint
-        );
-        if !aligned {
+        let InputSource::JointLaw(artifact) = &input.source else {
+            return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
+                action: None,
+                supplied_alignment: "not_a_joint_law",
+            }));
+        };
+        if artifact.metadata().identity.alignment != DrawAlignment::Joint {
             return Err(BoundaryError::Eval(DecisionEvalError::JointLawRequired {
                 action: None,
                 supplied_alignment: "not_a_joint_law",
             }));
         }
+        let n = artifact.metadata().shape[0];
+        if draw_count.is_some_and(|previous| previous != n) {
+            return Err(BoundaryError::InvalidInput("paired draw count mismatch"));
+        }
+        draw_count = Some(n);
     }
     check_composition(inputs, relations, Some(CompositionOperation::StatisticalPooling))
 }

@@ -256,6 +256,45 @@ fn f11_predictive_law_without_coherent_posterior_update_refuses() {
 }
 
 #[test]
+fn f11_repeated_state_draws_require_one_conditional_law() {
+    let req = request("study-a", 1);
+    let states = vec![0.0, 0.0, 1.0];
+    let law = ExternalLaw::Likelihood {
+        states: states.clone(),
+        statistics: vec![0.0, 1.0],
+        probabilities: vec![vec![0.75, 0.25, 0.25], vec![0.25, 0.75, 0.75]],
+    };
+    let obj = object(&req, FACTOR_CAPS.to_vec());
+    let error = ExternalSignal::new(obj.clone(), attested(&obj), body(&req, law)).unwrap_err();
+    assert_eq!(error, SignalError::LawIncoherent);
+
+    let coherent = ExternalLaw::Likelihood {
+        states: states.clone(),
+        statistics: vec![0.0, 1.0],
+        probabilities: vec![vec![0.75, 0.75, 0.25], vec![0.25, 0.25, 0.75]],
+    };
+    let provider = ExternalSignal::new(obj.clone(), attested(&obj), body(&req, coherent)).unwrap();
+    let signal = likelihood(provider.prepare(&req).unwrap());
+    let mut log_likelihood = [0.0; 3];
+    signal.log_likelihood(0.0, 1, &states, &mut log_likelihood).unwrap();
+    assert!(close(log_likelihood[0], log_likelihood[1]));
+    assert!(close(log_likelihood[0].exp(), 0.75));
+
+    // The averaged posterior still recovers each draw's prior weight, but it
+    // assigns different observation laws to identical state values.
+    let posterior = ExternalLaw::Posterior {
+        states,
+        statistics: vec![0.0, 1.0],
+        predictive: vec![0.5, 0.5],
+        posterior: vec![vec![0.5, 1.0 / 6.0, 1.0 / 3.0], vec![1.0 / 6.0, 0.5, 1.0 / 3.0]],
+    };
+    let obj = object(&req, UPDATE_CAPS.to_vec());
+    let error =
+        ExternalSignal::new(obj.clone(), attested(&obj), body(&req, posterior)).unwrap_err();
+    assert_eq!(error, SignalError::PosteriorIncoherent);
+}
+
+#[test]
 fn f11_wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
     let req = request("study-a", 1);
     let provider = external_posterior(&req);

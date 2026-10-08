@@ -217,8 +217,19 @@ fn b2_chain_invalid_observed_laws_are_refused() {
 #[test]
 fn b2_chain_malformed_plan_is_refused() {
     let (observed, _) = scm(0, true);
-    let mut bad = plan(IDS, &IDS, 0, true);
-    bad.head = 2;
-    let error = evaluate_chain_recovery(&bad, &observed).unwrap_err();
-    assert_eq!(error.detail, ChainRecoveryDetail::InvalidDerivation);
+    let original = plan(IDS, &IDS, 0, true);
+    assert!(original.is_intact());
+    let mut wrong_head = original.clone();
+    wrong_head.head = 1; // still in range, but not the checked response order
+    let mut wrong_formula = original.clone();
+    wrong_formula.tail_depends_on_head_variable = false;
+    let mut wrong_version = original.clone();
+    wrong_version.rule_version = "b2.recovery_chain.v0";
+    let mut wrong_premise = original.clone();
+    wrong_premise.premises.clear();
+    for bad in [wrong_head, wrong_formula, wrong_version, wrong_premise] {
+        assert!(!bad.is_intact());
+        let error = evaluate_chain_recovery(&bad, &observed).unwrap_err();
+        assert_eq!(error.detail, ChainRecoveryDetail::InvalidDerivation);
+    }
 }

@@ -168,6 +168,31 @@ fn b2_artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shap
 }
 
 #[test]
+fn b2_artifact_producer_refuses_a_mutated_checked_plan() {
+    let graph = build(&edges(0, true, &[]));
+    let ChainRecoveryDecision::Recovered(plan) =
+        decide_chain_recovery(&graph, &query(), &ctx()).unwrap()
+    else {
+        panic!("expected a recovery plan");
+    };
+    let (law, _) = scm(0, true);
+    let recovered = evaluate_chain_recovery(&plan, &law).unwrap();
+    let mut altered = *plan;
+    altered.tail_depends_on_head_variable = false;
+    assert!(
+        RecoveryChainArtifactWire::from_recovered(
+            &graph,
+            &query(),
+            &names(),
+            &altered,
+            &law,
+            &recovered,
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn b2_artifact_nonrecoverable_carries_a_reverified_witness() {
     let wire = nonrecoverable_wire();
     assert_eq!(wire.outcome, RECOVERY_CHAIN_NONRECOVERABLE);

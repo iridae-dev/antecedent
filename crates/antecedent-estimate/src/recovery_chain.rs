@@ -144,10 +144,10 @@ pub fn evaluate_chain_recovery(
     plan: &ChainRecoveryPlan,
     observed: &ChainPatternLaw,
 ) -> Result<ChainRecoveredLaw, ChainRecoveryError> {
-    if plan.head > 1 {
+    if !plan.is_intact() || plan.head > 1 {
         return Err(refuse(
             ChainRecoveryDetail::InvalidDerivation,
-            "the plan's head axis is not 0 or 1",
+            "the checked recovery plan was altered or has an invalid head axis",
         ));
     }
     let head = plan.head;

@@ -516,6 +516,9 @@ impl RecoveryChainArtifactWire {
         observed: &ChainPatternLaw,
         recovered: &ChainRecoveredLaw,
     ) -> Result<Self, IoError> {
+        if !plan.is_intact() || plan.query != *query {
+            return Err(IoError::Convert("the recovery plan is not the checked query plan".into()));
+        }
         let mut wire = Self::base(graph, query, variable_names, RECOVERY_CHAIN_RECOVERED)?;
         wire.plan = Some(ChainPlanWire::of_plan(plan));
         wire.observed = Some(ChainLawWire::of_law(observed));

@@ -216,6 +216,38 @@ pub struct ChainRecoveryPlan {
     pub formula: String,
     /// Operations charged by the decision.
     pub operations_consumed: usize,
+    // Prevent a caller from changing the checked graph class or formula after
+    // identification. Only this module can construct a sealed plan.
+    seal: [u8; 32],
+}
+
+impl ChainRecoveryPlan {
+    fn digest(&self) -> [u8; 32] {
+        let mut hasher = blake3::Hasher::new_derive_key("antecedent.recovery_chain.plan.v1");
+        for part in [self.query.first, self.query.second] {
+            for id in [part.variable, part.response, part.proxy] {
+                hasher.update(&id.raw().to_le_bytes());
+            }
+        }
+        hasher.update(&(self.head as u64).to_le_bytes());
+        hasher.update(&[u8::from(self.tail_depends_on_head_variable)]);
+        for value in std::iter::once(self.rule_version)
+            .chain(self.premises.iter().map(String::as_str))
+            .chain(std::iter::once(self.formula.as_str()))
+        {
+            hasher.update(&(value.len() as u64).to_le_bytes());
+            hasher.update(value.as_bytes());
+        }
+        hasher.update(&(self.premises.len() as u64).to_le_bytes());
+        hasher.update(&(self.operations_consumed as u64).to_le_bytes());
+        *hasher.finalize().as_bytes()
+    }
+
+    /// Whether the plan still matches the identifier's checked result.
+    #[must_use]
+    pub fn is_intact(&self) -> bool {
+        self.seal == self.digest() && self.rule_version == CHAIN_RECOVERY_RULE_VERSION
+    }
 }
 
 /// One mechanism of a witness model: `P(node = 1 | parents) = numerator / 60`,
@@ -484,7 +516,7 @@ pub fn decide_chain_recovery(
     } else {
         "p(x_h,x_t) = P(R_h=1,R_t=1,X*_h=x_h,X*_t=x_t) / [P(R_h=1) * P(R_h=1,R_t=1) / P(R_h=1)]"
     };
-    Ok(ChainRecoveryDecision::Recovered(Box::new(ChainRecoveryPlan {
+    let mut plan = ChainRecoveryPlan {
         query: *query,
         head,
         tail_depends_on_head_variable: dependent,
@@ -492,7 +524,10 @@ pub fn decide_chain_recovery(
         premises,
         formula: formula.to_owned(),
         operations_consumed: meter.budget.operations(),
-    })))
+        seal: [0; 32],
+    };
+    plan.seal = plan.digest();
+    Ok(ChainRecoveryDecision::Recovered(Box::new(plan)))
 }
 
 fn sorted_parents(graph: &Admg, v: VariableId) -> Option<Vec<u32>> {

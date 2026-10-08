@@ -760,6 +760,53 @@ fn c1_boundary_a_mean_source_cannot_supply_paired_draws() {
     assert_eq!(error.reason_code(), "joint_law_required");
 }
 
+#[test]
+fn c1_boundary_composition_rejects_duplicate_inputs_and_unequal_draw_counts() {
+    let first = joint_input("first", "engine", "snap-a", &attested());
+    let duplicate = joint_input("first", "lab", "snap-b", &attested());
+    let error = check_composition(
+        &[first.clone(), duplicate],
+        &[],
+        Some(CompositionOperation::StatisticalPooling),
+    )
+    .unwrap_err();
+    assert_eq!(error, BoundaryError::InvalidInput("duplicate input id"));
+
+    let mut short = joint(
+        "lab",
+        "snap-b",
+        DistributionTrust::Unverified,
+        DistributionCalibration::Unmeasured,
+        None,
+    );
+    let mut metadata = short.metadata().clone();
+    metadata.shape[0] -= 1;
+    short = DistributionArtifact::new(metadata, short.draws()[..9].to_vec()).unwrap();
+    let second = DecisionInput::from_distribution_artifact(
+        "second",
+        &short,
+        &attested(),
+        TrustRequirement::Unrestricted,
+    )
+    .unwrap();
+    let relation = PairRelation {
+        left: "first".into(),
+        right: "second".into(),
+        relation: EvidenceRelation::IndependentSources,
+        route: None,
+    };
+    assert!(
+        check_composition(
+            &[first.clone(), second.clone()],
+            std::slice::from_ref(&relation),
+            Some(CompositionOperation::StatisticalPooling),
+        )
+        .is_ok()
+    );
+    let error = check_paired_draws(&[first, second], &[relation]).unwrap_err();
+    assert_eq!(error, BoundaryError::InvalidInput("paired draw count mismatch"));
+}
+
 // ----------------------------------------------------- source overlap and dependence
 
 fn shared_data(left: &str, right: &str, route: Option<DependenceRoute>) -> PairRelation {

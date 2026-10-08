@@ -244,6 +244,23 @@ fn b1_insufficient_local_weight_is_labelled_and_refused() {
 }
 
 #[test]
+fn b1_support_report_uses_the_same_local_ess_floor_as_estimation() {
+    let (dose, outcome) = design(0.1);
+    let mut asked = request(&dose, &outcome, &GRID, DoseFunctional::Level, claims(true, false));
+    for minimum in [-1.0, 0.0, 2.0] {
+        asked.minimum_local_ess = minimum;
+        assert_eq!(
+            reason(&dose_support_report(&dose, &GRID, 0.4, minimum).unwrap_err()),
+            "dose_grid.invalid_request"
+        );
+        assert_eq!(
+            reason(&estimate_dose_grid_functional(&asked).unwrap_err()),
+            "dose_grid.invalid_request"
+        );
+    }
+}
+
+#[test]
 fn b1_bandwidth_outside_declared_range_is_refused() {
     let (dose, outcome) = design(0.1);
     for bandwidth in [0.05, 2.0] {

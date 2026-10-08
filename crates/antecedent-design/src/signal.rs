@@ -647,6 +647,30 @@ fn rectangular(rows: &[Vec<f64>], n_rows: usize, n_cols: usize) -> bool {
     rows.len() == n_rows && rows.iter().all(|r| r.len() == n_cols)
 }
 
+// The finite signal is indexed by state value. Repeated prior draws are valid,
+// but they must describe the same conditional observation law.
+fn repeated_states_agree(
+    states: &[f64],
+    rows: &[Vec<f64>],
+    include_row: impl Fn(usize) -> bool,
+) -> bool {
+    let mut first = BTreeMap::new();
+    for (column, &state) in states.iter().enumerate() {
+        if let Some(&previous) = first.get(&state_key(state)) {
+            if rows
+                .iter()
+                .enumerate()
+                .any(|(index, row)| include_row(index) && !near(row[column], row[previous]))
+            {
+                return false;
+            }
+        } else {
+            first.insert(state_key(state), column);
+        }
+    }
+    true
+}
+
 fn validate_likelihood(
     states: &[f64],
     statistics: &[f64],
@@ -668,6 +692,9 @@ fn validate_likelihood(
         if !near(mass, 1.0) {
             return Err(SignalError::LawIncoherent);
         }
+    }
+    if !repeated_states_agree(states, probabilities, |_| true) {
+        return Err(SignalError::LawIncoherent);
     }
     Ok(())
 }
@@ -705,6 +732,11 @@ fn validate_posterior(
         if !near(recovered, prior_mass) {
             return Err(SignalError::PosteriorIncoherent);
         }
+    }
+    // At an observation with positive predictive mass, identical states must
+    // have identical posterior weight under the equal-draw prior.
+    if !repeated_states_agree(states, posterior, |index| predictive[index] > 0.0) {
+        return Err(SignalError::PosteriorIncoherent);
     }
     Ok(())
 }

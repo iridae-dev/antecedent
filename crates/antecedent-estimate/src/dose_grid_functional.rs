@@ -435,7 +435,7 @@ fn build_report(
 /// # Errors
 ///
 /// Fewer than three finite aligned rows, empty or non-finite `points`, or a
-/// non-positive bandwidth.
+/// non-positive bandwidth, or a minimum local ESS below the row's floor of 3.
 pub fn dose_support_report(
     dose: &[f64],
     points: &[f64],
@@ -455,8 +455,14 @@ pub fn dose_support_report(
     if points.is_empty() || points.iter().any(|v| !v.is_finite()) {
         return Err(invalid("the requested doses must be non-empty and finite"));
     }
-    if !bandwidth.is_finite() || bandwidth <= 0.0 || !minimum_local_ess.is_finite() {
-        return Err(invalid("bandwidth and minimum effective sample size must be finite"));
+    if !bandwidth.is_finite()
+        || bandwidth <= 0.0
+        || !minimum_local_ess.is_finite()
+        || minimum_local_ess < MINIMUM_ESS_FLOOR
+    {
+        return Err(invalid(
+            "bandwidth must be positive and minimum effective sample size at least 3",
+        ));
     }
     let (labels, ess) = label_points(dose, points, bandwidth, minimum_local_ess);
     Ok(build_report(dose, points, &labels, ess))
