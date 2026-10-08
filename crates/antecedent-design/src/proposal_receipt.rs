@@ -893,6 +893,7 @@ fn owner(family: RepairFamilyRef<'_>) -> &dyn RepairFamily {
     match family {
         RepairFamilyRef::Transport(f) => f,
         RepairFamilyRef::Backdoor(f) => f,
+        RepairFamilyRef::ZTransport(f) => f,
     }
 }
 
@@ -903,6 +904,7 @@ fn hypothetical_of(
     let regimes = match family {
         RepairFamilyRef::Transport(f) => f.hypothetical_regimes(&[candidate]),
         RepairFamilyRef::Backdoor(f) => f.hypothetical_regimes(&[candidate]),
+        RepairFamilyRef::ZTransport(f) => f.hypothetical_regimes(&[candidate]),
     };
     regimes.map_err(|reasons| {
         ProposalReceiptError::invalid("proposal_receipt.invalid_delta", reasons.join("; "))
@@ -1108,6 +1110,17 @@ fn run_family(
             f.check_regimes(as_proposed, ctx)
         }
         RepairFamilyRef::Backdoor(f) => f.check_regimes(regimes, ctx),
+        RepairFamilyRef::ZTransport(f) => f.check_regimes(
+            regimes
+                .iter()
+                .cloned()
+                .map(|mut regime| {
+                    regime.evidence_kind = EvidenceKind::Proposed;
+                    regime
+                })
+                .collect(),
+            ctx,
+        ),
     };
     verdict.map_err(|RepairCancelled| ProposalReceiptError::cancelled())
 }

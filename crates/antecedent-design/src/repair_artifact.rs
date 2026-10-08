@@ -60,6 +60,8 @@ use crate::repair::{
     RepairClassification, RepairError, RepairFamily, RepairLimits, RepairObjective, RepairOutcome,
     RepairReport, TransportRepairFamily, repair,
 };
+use crate::{ZTransportFailureSnapshot, ZTransportFailureSnapshotWire, ZTransportRepairFamily};
+
 use crate::study_candidate::{
     DurableStudyCandidate, ExpectedEvidence, StudyCostDeclaration, StudyKind, UnitRules,
 };
@@ -149,6 +151,10 @@ impl RepairArtifactError {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ObligationWire {
+    /// Declared full scientific coordinates, keyed by structural variable ID.
+    /// Legacy structural obligations omit this field rather than inventing units.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quantities: Vec<(u32, antecedent_io::quantity_wire::ScientificQuantityWire)>,
     /// Stable id.
     pub id: String,
     /// Kind name.
@@ -311,6 +317,18 @@ pub struct RepairLimitsWire {
     pub memory_limit_bytes: u64,
 }
 
+/// Frozen z-transport proof, evidence state and theorem-verification limits.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ZTransportPremisesWire {
+    /// Independently replayable missing-evidence snapshot.
+    pub snapshot: ZTransportFailureSnapshotWire,
+    /// Theorem-verification operation bound.
+    pub sid_steps: usize,
+    /// Theorem-verification depth bound.
+    pub sid_depth: usize,
+}
+
 /// Everything the report is a function of, except the data.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -325,6 +343,9 @@ pub struct RepairPremisesWire {
     pub transport: Option<TransportPremisesWire>,
     /// Back-door structure, for the back-door family.
     pub backdoor: Option<BackdoorPremisesWire>,
+    /// Checked z-transport snapshot and verification limits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub z_transport: Option<ZTransportPremisesWire>,
     /// Every declared candidate, in semantic-id order.
     pub candidates: Vec<DurableStudyCandidateWire>,
     /// Search limits.
@@ -495,6 +516,8 @@ pub enum RepairFamilyRef<'a> {
     Transport(&'a TransportRepairFamily),
     /// A back-door adjustment contract.
     Backdoor(&'a BackdoorRepairFamily),
+    /// A checked single-source z-transport missing-evidence contract.
+    ZTransport(&'a ZTransportRepairFamily),
 }
 
 impl RepairFamilyRef<'_> {
@@ -502,6 +525,7 @@ impl RepairFamilyRef<'_> {
         match self {
             Self::Transport(family) => *family,
             Self::Backdoor(family) => *family,
+            Self::ZTransport(family) => *family,
         }
     }
 }
@@ -612,6 +636,16 @@ fn classify_verdict(verdict: &FamilyVerdict, blocked: bool) -> RepairClassificat
 fn obligation_wire(obligation: &EvidenceObligation) -> ObligationWire {
     let (scope, horizon) = scope_parts(obligation.scope);
     ObligationWire {
+        quantities: obligation
+            .quantities
+            .iter()
+            .map(|(variable, quantity)| {
+                (
+                    variable.raw(),
+                    antecedent_io::quantity_wire::ScientificQuantityWire::from(quantity),
+                )
+            })
+            .collect(),
         id: obligation.id.to_string(),
         kind: obligation.kind.as_str().to_owned(),
         scope,
@@ -635,6 +669,19 @@ fn obligation_from_wire(wire: &ObligationWire) -> Result<EvidenceObligation, Rep
         RepairArtifactError::invalid(format!("unknown obligation kind {:?}", wire.kind))
     })?;
     let obligation = EvidenceObligation::try_new(EvidenceObligationSpec {
+        quantities: {
+            let mut quantities = std::collections::BTreeMap::new();
+            for (variable, wire) in &wire.quantities {
+                let quantity = antecedent_core::ScientificQuantity::try_from(wire.clone())
+                    .map_err(RepairArtifactError::invalid)?;
+                if quantities.insert(VariableId::from_raw(*variable), quantity).is_some() {
+                    return Err(RepairArtifactError::invalid(
+                        "duplicate scientific coordinate variable",
+                    ));
+                }
+            }
+            quantities
+        },
         kind,
         scope: scope_from_parts(&wire.scope, wire.horizon)?,
         variables: ids(&wire.variables),
@@ -876,7 +923,7 @@ impl RepairReportArtifact {
             by_id.entry(candidate.semantic_id()).or_insert(candidate);
         }
         let limits = report.receipt.limits;
-        let (transport, backdoor, data) = match family {
+        let (transport, backdoor, z_transport, data) = match family {
             RepairFamilyRef::Transport(f) => {
                 let diagram = f.diagram();
                 if !dense_static(diagram.causal_graph().nodes()) {
@@ -897,6 +944,7 @@ impl RepairReportArtifact {
                         sid_steps: f.sid_limits().steps,
                         sid_depth: f.sid_limits().depth,
                     }),
+                    None,
                     None,
                     RepairDataWire {
                         catalog: Some(EvidenceCatalogWire::from_catalog(f.base_catalog())),
@@ -939,7 +987,26 @@ impl RepairReportArtifact {
                         population: f.population().to_owned(),
                         assumptions,
                     }),
+                    None,
                     RepairDataWire { catalog: None, base_law: Some(raw(&f.base_law())) },
+                )
+            }
+            RepairFamilyRef::ZTransport(f) => {
+                let snapshot = f
+                    .snapshot()
+                    .to_wire()
+                    .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
+                let data =
+                    RepairDataWire { catalog: Some(snapshot.catalog.clone()), base_law: None };
+                (
+                    None,
+                    None,
+                    Some(ZTransportPremisesWire {
+                        snapshot,
+                        sid_steps: f.sid_limits().steps,
+                        sid_depth: f.sid_limits().depth,
+                    }),
+                    data,
                 )
             }
         };
@@ -962,6 +1029,7 @@ impl RepairReportArtifact {
                     let regimes = match family {
                         RepairFamilyRef::Transport(f) => f.hypothetical_regimes(&members),
                         RepairFamilyRef::Backdoor(f) => f.hypothetical_regimes(&members),
+                        RepairFamilyRef::ZTransport(f) => f.hypothetical_regimes(&members),
                     }
                     .map_err(|reasons| RepairArtifactError::invalid(reasons.join("; ")))?;
                     Some(regimes_wire(&regimes)?)
@@ -979,6 +1047,7 @@ impl RepairReportArtifact {
                 objective: objective_name(report.objective).to_owned(),
                 transport,
                 backdoor,
+                z_transport,
                 candidates: declared.iter().map(|c| candidate_wire(c)).collect(),
                 limits: RepairLimitsWire {
                     operations: limits.search.operations,
@@ -1141,6 +1210,7 @@ impl RepairReportArtifact {
 enum Rebuilt {
     Transport(Box<TransportRepairFamily>),
     Backdoor(Box<BackdoorRepairFamily>),
+    ZTransport(Box<ZTransportRepairFamily>),
 }
 
 impl Rebuilt {
@@ -1148,6 +1218,7 @@ impl Rebuilt {
         match self {
             Self::Transport(family) => &**family,
             Self::Backdoor(family) => &**family,
+            Self::ZTransport(family) => &**family,
         }
     }
 
@@ -1155,6 +1226,7 @@ impl Rebuilt {
         match self {
             Self::Transport(family) => RepairFamilyRef::Transport(family),
             Self::Backdoor(family) => RepairFamilyRef::Backdoor(family),
+            Self::ZTransport(family) => RepairFamilyRef::ZTransport(family),
         }
     }
 }
@@ -1169,13 +1241,37 @@ fn repair_error_to_artifact(error: &RepairError, replay: bool) -> RepairArtifact
     }
 }
 
+fn rebuild_z_transport(
+    z: &ZTransportPremisesWire,
+    data: &RepairDataWire,
+    ctx: &ExecutionContext,
+) -> Result<Rebuilt, RepairArtifactError> {
+    let limits = SidLimits { steps: z.sid_steps, depth: z.sid_depth };
+    let snapshot = ZTransportFailureSnapshot::from_wire(&z.snapshot, limits, ctx)
+        .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
+    if data.base_law.is_some() || data.catalog.as_ref() != Some(&z.snapshot.catalog) {
+        return Err(RepairArtifactError::invalid(
+            "z-transport data must equal the frozen snapshot catalog",
+        ));
+    }
+    Ok(Rebuilt::ZTransport(Box::new(
+        ZTransportRepairFamily::try_new(snapshot, limits)
+            .map_err(|e| repair_error_to_artifact(&e, true))?,
+    )))
+}
+
 fn rebuild(
     artifact: &RepairReportArtifact,
     ctx: &ExecutionContext,
 ) -> Result<Rebuilt, RepairArtifactError> {
     let premises = &artifact.premises;
-    let rebuilt = match (premises.family.as_str(), &premises.transport, &premises.backdoor) {
-        ("transport", Some(t), None) => {
+    let rebuilt = match (
+        premises.family.as_str(),
+        &premises.transport,
+        &premises.backdoor,
+        &premises.z_transport,
+    ) {
+        ("transport", Some(t), None, None) => {
             let catalog = artifact
                 .data
                 .catalog
@@ -1206,7 +1302,7 @@ fn rebuild(
                 .map_err(|e| repair_error_to_artifact(&e, true))?,
             ))
         }
-        ("backdoor", None, Some(b)) => {
+        ("backdoor", None, Some(b), None) => {
             let dag = antecedent_io::dag_from_wire(&b.graph)
                 .map_err(|e| RepairArtifactError::invalid(e.to_string()))?;
             let base_law = artifact
@@ -1246,6 +1342,7 @@ fn rebuild(
                 .map_err(|e| repair_error_to_artifact(&e, true))?,
             ))
         }
+        ("z_transport", None, None, Some(z)) => rebuild_z_transport(z, &artifact.data, ctx)?,
         _ => {
             return Err(RepairArtifactError::invalid(
                 "the artifact names an unknown repair family or an inconsistent premises layout",
@@ -1408,6 +1505,7 @@ impl RepairReportArtifact {
             let verdict = match rebuilt {
                 Rebuilt::Transport(family) => family.check_regimes(regimes, ctx),
                 Rebuilt::Backdoor(family) => family.check_regimes(&regimes, ctx),
+                Rebuilt::ZTransport(family) => family.check_regimes(regimes, ctx),
             }
             .map_err(|RepairCancelled| RepairArtifactError::budget("the replay was cancelled"))?;
             if classify_verdict(&verdict, blocked) != stored {
@@ -1423,5 +1521,51 @@ impl RepairReportArtifact {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod scientific_obligation_tests {
+    use super::*;
+
+    #[test]
+    fn declared_scientific_coordinates_round_trip_and_tampering_is_refused() {
+        let variable = VariableId::from_raw(0);
+        let obligation = EvidenceObligation::try_new(EvidenceObligationSpec {
+            quantities: std::collections::BTreeMap::from([(
+                variable,
+                antecedent_core::ScientificQuantity {
+                    variable_id: "schema:y".into(),
+                    variable_name: "Outcome".into(),
+                    role: antecedent_core::QuantityRole::Outcome,
+                    units: "kg".into(),
+                    population_id: "target".into(),
+                    regime_id: "observational".into(),
+                    horizon: 2,
+                    functional_id: "mean".into(),
+                    conditioning: vec![],
+                    transform_id: "identity".into(),
+                },
+            )]),
+            kind: EvidenceObligationKind::Measure,
+            scope: ObligationScope::Horizon { horizon: 2 },
+            variables: Arc::from([variable]),
+            population: Some(Arc::from("target")),
+            regime: ObligationRegime::observational(false),
+            reason: Arc::from("measurement owed"),
+            required_slots: Arc::from([Arc::from("coordinate:y")]),
+            min_additional_samples: None,
+            provenance: ObligationProvenance {
+                family: Arc::from("support"),
+                source: Arc::from("response"),
+                proof_step: None,
+            },
+        })
+        .unwrap();
+        let bytes = serde_json::to_vec(&obligation_wire(&obligation)).unwrap();
+        let mut stored: ObligationWire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(obligation_from_wire(&stored).unwrap(), obligation);
+        stored.quantities[0].1.units = "lb".into();
+        assert!(obligation_from_wire(&stored).is_err());
     }
 }

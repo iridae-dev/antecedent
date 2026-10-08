@@ -36,6 +36,7 @@ fn with_reason(
     reason: String,
 ) -> Result<EvidenceObligation, EvidenceObligationError> {
     EvidenceObligation::try_new(EvidenceObligationSpec {
+        quantities: obligation.quantities,
         kind: obligation.kind,
         scope: obligation.scope,
         variables: obligation.variables,
@@ -214,6 +215,7 @@ pub fn support_obligations(
             .max_by_key(|status| status.severity())
             .map_or("missing_evidence", SupportStatus::as_str);
         out.push(EvidenceObligation::try_new(EvidenceObligationSpec {
+            quantities: std::collections::BTreeMap::new(),
             kind,
             scope: ObligationScope::Factor,
             variables: Arc::from(treatments),
@@ -262,6 +264,7 @@ pub fn delta_obligations(
                 RegimeKind::Observational => EvidenceObligationKind::Measure,
             };
             EvidenceObligation::try_new(EvidenceObligationSpec {
+                quantities: std::collections::BTreeMap::new(),
                 kind,
                 scope: ObligationScope::Factor,
                 variables: Arc::clone(&regime.measured),

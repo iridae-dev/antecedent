@@ -82,6 +82,7 @@ fn offer(
     samples: Option<u64>,
 ) -> EvidenceOffer {
     EvidenceOffer {
+        quantities: std::collections::BTreeMap::new(),
         population: Arc::from(population),
         interventions: vars(interventions).into(),
         conditioned_on: Arc::from([]),
@@ -93,6 +94,7 @@ fn offer(
 
 fn spec(kind: EvidenceObligationKind) -> EvidenceObligationSpec {
     EvidenceObligationSpec {
+        quantities: std::collections::BTreeMap::new(),
         kind,
         scope: ObligationScope::Factor,
         variables: vars(&[Y, Z]).into(),
@@ -331,4 +333,88 @@ fn f9_increase_sample_is_addressed_only_by_enough_rows() {
     assert!(!obligation.addressed_by(&offer("source", &[X], &[Y], true, Some(499))));
     assert!(!obligation.addressed_by(&offer("source", &[X], &[Y], true, None)));
     assert!(obligation.addressed_by(&offer("source", &[X], &[Y], true, Some(500))));
+}
+
+fn scientific_coordinates()
+-> std::collections::BTreeMap<VariableId, antecedent_core::ScientificQuantity> {
+    [Y, Z]
+        .into_iter()
+        .map(|id| {
+            (
+                VariableId::from_raw(id),
+                antecedent_core::ScientificQuantity {
+                    variable_id: format!("schema:{id}"),
+                    variable_name: format!("measurement {id}"),
+                    role: antecedent_core::QuantityRole::Outcome,
+                    units: "kg".into(),
+                    population_id: "source".into(),
+                    regime_id: "observational".into(),
+                    horizon: 3,
+                    functional_id: "law".into(),
+                    conditioning: vec![],
+                    transform_id: "identity".into(),
+                },
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn scientific_obligations_bind_every_semantic_dimension_and_ignore_display_labels() {
+    let base = EvidenceObligation::try_new(spec(EvidenceObligationKind::ProvideJointLaw))
+        .unwrap()
+        .with_quantities(scientific_coordinates())
+        .unwrap();
+    let mut renamed = scientific_coordinates();
+    renamed.get_mut(&VariableId::from_raw(Y)).unwrap().variable_name = "renamed".into();
+    assert_eq!(base.clone().with_quantities(renamed).unwrap().id, base.id);
+    for dimension in [
+        "variable",
+        "role",
+        "units",
+        "regime",
+        "horizon",
+        "functional",
+        "conditioning",
+        "transform",
+    ] {
+        let mut coordinates = scientific_coordinates();
+        let q = coordinates.get_mut(&VariableId::from_raw(Y)).unwrap();
+        match dimension {
+            "variable" => q.variable_id = "different".into(),
+            "role" => q.role = antecedent_core::QuantityRole::Mediator,
+            "units" => q.units = "lb".into(),
+            "regime" => q.regime_id = "do(t=1)".into(),
+            "horizon" => q.horizon = 4,
+            "functional" => q.functional_id = "mean".into(),
+            "conditioning" => {
+                q.conditioning = vec![antecedent_core::QuantityCondition {
+                    variable_id: "schema:c".into(),
+                    value_id: "high".into(),
+                }]
+            }
+            _ => q.transform_id = "log".into(),
+        }
+        assert_ne!(base.clone().with_quantities(coordinates).unwrap().id, base.id, "{dimension}");
+    }
+    let mut wrong_population = scientific_coordinates();
+    wrong_population.get_mut(&VariableId::from_raw(Y)).unwrap().population_id = "target".into();
+    assert!(base.clone().with_quantities(wrong_population).is_err());
+    let mut incomplete = scientific_coordinates();
+    incomplete.remove(&VariableId::from_raw(Y));
+    assert!(base.with_quantities(incomplete).is_err());
+}
+
+#[test]
+fn scientific_obligation_screen_refuses_missing_or_incompatible_measurement_semantics() {
+    let obligation = EvidenceObligation::try_new(spec(EvidenceObligationKind::ProvideJointLaw))
+        .unwrap()
+        .with_quantities(scientific_coordinates())
+        .unwrap();
+    let mut supplied = offer("source", &[X], &[Y, Z], true, None);
+    assert!(!obligation.addressed_by(&supplied));
+    supplied.quantities = scientific_coordinates();
+    assert!(obligation.addressed_by(&supplied));
+    supplied.quantities.get_mut(&VariableId::from_raw(Y)).unwrap().units = "lb".into();
+    assert!(!obligation.addressed_by(&supplied));
 }

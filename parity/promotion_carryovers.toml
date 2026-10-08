@@ -1,0 +1,45 @@
+version = 1
+
+# Failed obligations, not waivers. Promotion must remove the corresponding
+# disposition only after its public routes pass their own evidence gates.
+[[cell]]
+id = "2.2B.X3.joint_sensitivity_uncertainty"
+failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]
+detail = "The measured internal percentile estimator is calibration-internal; the released producer and artifact have no interval path. Positive-box coverage targets the upper extremal bound, not a two-sided effect interval."
+corrective_action = "Implement the normal-build interval producer and versioned independent consumer at the exact dependence, box and endpoint coordinates; remeasure after numerical changes."
+
+[[cell]]
+id = "2.3A.X4.joint_bayesian_transport"
+failed_gates = ["whole_posterior_calibration"]
+detail = "The exact conjugate Gaussian engine and replay artifact exist, but the allocated frequentist credible-interval coverage record is unmeasured."
+corrective_action = "After implementation stabilizes, measure the declared source-target dependence and prior coordinates; execute the public producer and independent consumer before licensing."
+
+[[cell]]
+id = "2.3A.X4.binary_nested_markov_pilot"
+failed_gates = ["licensed_identification_binding", "posterior_interval_implementation", "whole_posterior_calibration"]
+detail = "The likelihood pilot returns an MLE point fit, not the frozen posterior interval claim, and is not bound to a separately licensed identification row. No posterior or interval coverage exists."
+corrective_action = "Bind the pilot to its separately licensed identification row, implement the claimed posterior and interval with replay, then measure the whole method after stabilization."
+
+[[cell]]
+id = "2.3A.X5.dependent_temporal_interval"
+failed_gates = ["whole_temporal_interval_calibration"]
+detail = "The dependence-preserving resampling engine and replay artifact exist; the allocated whole-estimator interval coverage is unmeasured."
+corrective_action = "Measure the complete estimator at its unit/time dependence coordinates after stabilization, then execute and license the public producer and consumer."
+
+[[cell]]
+id = "2.3A.X8.transported_path_specific_counterfactual"
+failed_gates = ["joint_cross_world_transport_theorem", "general_provider_and_artifact_evidence"]
+detail = "The general transported cross-world theorem is not derived. The separately promoted affine-additive row does not license this general path-specific route."
+corrective_action = "Derive the joint theorem and factor/evidence map, implement the matching provider and replay consumer, and execute positive and obstruction witnesses at that exact row."
+
+[[cell]]
+id = "2.3A.X10.sampled_observation_recovery"
+failed_gates = ["whole_recovery_interval_calibration"]
+detail = "Whole-row bootstrap, recovered-cell covariance and replay exist, but whole-path coverage including overlapping-margin dependence is unmeasured. Component variance cannot license the interval."
+corrective_action = "Measure whole-path uncertainty at the declared missingness and dependence coordinates after stabilization, then execute and license the public producer and independent consumer."
+
+[[cell]]
+id = "2.3A.X4.learned_joint_transport"
+failed_gates = ["whole_learned_posterior_calibration"]
+detail = "The polynomial-basis known-variance conjugate Gaussian fit and replay exist; the allocated learned source-target credible-interval coverage is unmeasured. This is not a non-conjugate sampler."
+corrective_action = "Measure the declared basis, prior and independent-sample coordinates after stabilization; execute the public producer and independent consumer before licensing."

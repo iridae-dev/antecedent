@@ -4,7 +4,8 @@
 //! A failed contract is a [`RepairFamily`]: a transport contract that misses
 //! evidence ([`TransportRepairFamily`]) or a fixed-graph back-door contract
 //! whose adjustment covariates were never measured jointly
-//! ([`BackdoorRepairFamily`]). The family exposes its unresolved
+//! ([`BackdoorRepairFamily`]), or a checked z-transport proof whose required
+//! factors are missing ([`ZTransportRepairFamily`]). The family exposes its unresolved
 //! [`EvidenceObligation`]s, each retaining its source proof step, and
 //! [`repair_contract`] applies the hypothetical evidence of
 //! [`DurableStudyCandidate`]s (one study, or a bounded subset) and re-runs the
@@ -28,7 +29,7 @@ pub use antecedent_design::{
     RepairArtifactError, RepairClassification, RepairConsumeLimits, RepairError, RepairFamily,
     RepairFamilyRef, RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
     RepairReportArtifact, StudyCandidateError, StudyCostDeclaration, StudyKind,
-    TransportRepairFamily, UnitRules,
+    TransportRepairFamily, UnitRules, ZTransportRepairFamily,
 };
 
 /// A refused repair or artifact operation: the registered reason code and the
@@ -103,6 +104,7 @@ pub fn repair_with_artifact(
     let owner: &dyn RepairFamily = match family {
         RepairFamilyRef::Transport(f) => f,
         RepairFamilyRef::Backdoor(f) => f,
+        RepairFamilyRef::ZTransport(f) => f,
     };
     let report = repair_contract(owner, candidates, objective, limits, ctx)?;
     let artifact = RepairReportArtifact::build(family, candidates, &report)?;

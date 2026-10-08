@@ -8,7 +8,7 @@
 //! anything: the family's theorem decides, population, regime and joint law
 //! included.
 //!
-//! Two families ship here, reusing existing checkers unchanged:
+//! The families reuse existing checkers unchanged:
 //!
 //! * [`TransportRepairFamily`] re-runs the catalog-aware classical transport
 //!   identifier ([`antecedent_identify::identify_catalog_transport`], the same
@@ -20,6 +20,9 @@
 //!   from a single joint law with the treatment and outcome, so two separate
 //!   studies never combine) and independently re-verifies the returned set by
 //!   d-separation.
+//! * [`crate::ZTransportRepairFamily`] independently re-verifies a frozen
+//!   missing-evidence z-transport proof and binds its exact factors against the
+//!   hypothetical catalog, retaining the original expression-leaf obligations.
 //!
 //! The subset search charges a [`SearchBudget`] during work (one operation per
 //! subset evaluated, the subset size as depth, a live-state estimate as memory)
@@ -732,7 +735,7 @@ pub fn repair(
 
 /// The proposed regimes of every study in `studies` (a sample increase adds
 /// none), with consecutive ids after the base catalog's largest.
-fn hypothetical_regimes(
+pub(crate) fn hypothetical_regimes(
     base: &EvidenceCatalog,
     studies: &[&DurableStudyCandidate],
 ) -> Result<Vec<EvidenceRegime>, Vec<String>> {
@@ -748,7 +751,7 @@ fn hypothetical_regimes(
 
 /// The validated hypothetical delta of already-proposed `regimes`; `Ok(None)`
 /// when there are none.
-fn delta_of_regimes(
+pub(crate) fn delta_of_regimes(
     base: &EvidenceCatalog,
     regimes: Vec<EvidenceRegime>,
 ) -> Result<Option<EvidenceCatalogDelta>, Vec<String>> {
@@ -1065,6 +1068,7 @@ impl BackdoorRepairFamily {
                 let list = needed.iter().map(|v| v.raw().to_string()).collect::<Vec<_>>().join(",");
                 out.push(
                     EvidenceObligation::try_new(antecedent_core::EvidenceObligationSpec {
+                        quantities: std::collections::BTreeMap::new(),
                         kind: EvidenceObligationKind::ProvideJointLaw,
                         scope: ObligationScope::Factor,
                         variables: needed.iter().copied().collect::<Vec<_>>().into(),
@@ -1085,6 +1089,7 @@ impl BackdoorRepairFamily {
             LawAnalysis::NotIdentified(reason) | LawAnalysis::Failed(reason) => {
                 out.push(
                     EvidenceObligation::try_new(antecedent_core::EvidenceObligationSpec {
+                        quantities: std::collections::BTreeMap::new(),
                         kind: EvidenceObligationKind::EstablishAssumption,
                         scope: ObligationScope::Program,
                         variables: Arc::from([]),

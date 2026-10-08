@@ -163,3 +163,186 @@ def test_a0r_transport_grid_diagnostics_are_scoped_to_their_coordinate():
     for name in ("transport.propensity_density", "transport.source_target_overlap"):
         assert by_id[name].scope == "inapplicable"
         assert tuple(by_id[name].values) == ()
+
+
+def test_analyze_populates_native_scientific_coordinates_with_declared_units():
+    result = analyze(
+        _curve_data(),
+        query=ResponseCurve("a", "y", grid=GRID),
+        graph=[("a", "y")],
+        outcome_units="mmHg",
+        quantity_population="clinic",
+        quantity_transform="identity",
+    )
+    assert result.quantities == result.response_coordinates(
+        outcome_units="mmHg", population="clinic"
+    )
+    assert len(result.quantities) == len(GRID)
+
+
+@pytest.mark.parametrize("units", ["", " "])
+def test_analyze_coordinate_declarations_refuse_blank_units(units):
+    from antecedent.errors import CausalValueError
+
+    with pytest.raises(CausalValueError, match="outcome_units must be non-empty"):
+        analyze(
+            _curve_data(),
+            query=ResponseCurve("a", "y", grid=GRID),
+            graph=[("a", "y")],
+            outcome_units=units,
+        )
+
+
+def test_declared_response_coordinates_survive_a_fresh_checked_artifact_consumer(tmp_path):
+    import json
+    import subprocess
+    import sys
+
+    from antecedent import artifacts
+    from antecedent.errors import CausalSerializationError
+
+    result = analyze(
+        _curve_data(),
+        query=ResponseCurve("a", "y", grid=GRID),
+        graph=[("a", "y")],
+        outcome_units="mmHg",
+        quantity_population="clinic",
+    )
+    encoded = result.export()
+    decoded = artifacts.loads(encoded)
+    assert decoded.payload["response"]["coordinates"] == json.loads(
+        json.dumps([quantity._wire() for quantity in result.quantities])
+    )
+    acceptance = artifacts.accept(encoded)
+    assert result.claim_id == bytes(decoded.contract["claim"]["claim_id"]).hex()
+    assert result.inspect().claim_id == result.claim_id
+    artifact_path = tmp_path / "response.bin"
+    artifact_path.write_bytes(encoded)
+    consumer = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import json, sys
+from antecedent import artifacts
+payload = open(sys.argv[1], 'rb').read()
+print(json.dumps({'acceptance': artifacts.accept(payload),
+                  'coordinates': artifacts.loads(payload).payload['response']['coordinates']}))
+""",
+            str(artifact_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    fresh = json.loads(consumer.stdout)
+    assert fresh["acceptance"] == acceptance
+    assert fresh["coordinates"] == decoded.payload["response"]["coordinates"]
+    import copy
+
+    changed_payload = copy.deepcopy(decoded.payload)
+    changed_payload["response"]["coordinates"][0]["units"] = "kg"
+    repacked = artifacts.dumps(
+        decoded.payload_kind,
+        decoded.payload,
+        variable_names=decoded.variable_names,
+        artifact_id=decoded.artifact_id,
+        contract=decoded.contract,
+    )
+    assert artifacts.accept(repacked) == acceptance
+    # The native encoder reuses independent contract verification; a valid
+    # coordinate with changed units cannot retain the original body-bound claim.
+    with pytest.raises(CausalSerializationError, match="claim.id"):
+        artifacts.dumps(
+            decoded.payload_kind,
+            changed_payload,
+            variable_names=decoded.variable_names,
+            artifact_id=decoded.artifact_id,
+            contract=decoded.contract,
+        )
+    response = artifacts.loads(
+        artifacts.dumps(
+            "response_result",
+            decoded.payload["response"],
+            variable_names=decoded.variable_names,
+            artifact_id="coordinate-response",
+        )
+    )
+    assert response.payload["coordinates"] == decoded.payload["response"]["coordinates"]
+
+
+def test_response_export_refuses_semantic_relabeling_of_the_executed_response():
+    from dataclasses import replace
+
+    from antecedent.errors import CausalValueError
+
+    result = analyze(
+        _curve_data(),
+        query=ResponseCurve("a", "y", grid=GRID),
+        graph=[("a", "y")],
+        outcome_units="mmHg",
+    )
+    changed = result.model_copy(
+        update={"quantities": (replace(result.quantities[0], horizon=1), *result.quantities[1:])}
+    )
+    with pytest.raises(CausalValueError, match="executed native response"):
+        changed.export()
+
+
+@pytest.mark.parametrize(
+    "metadata", [{"quantity_population": "clinic"}, {"quantity_transform": "log"}]
+)
+def test_response_metadata_without_declared_units_is_refused(metadata):
+    from antecedent.errors import CausalValueError
+
+    with pytest.raises(CausalValueError, match="require declared outcome_units"):
+        analyze(
+            _curve_data(), query=ResponseCurve("a", "y", grid=GRID), graph=[("a", "y")], **metadata
+        )
+
+
+def test_declared_native_response_coordinates_feed_public_decision_composition():
+    from dataclasses import replace
+
+    from antecedent import decision, program_claims
+
+    query = ResponseCurve("a", "y", grid=GRID)
+    result = analyze(
+        _curve_data(),
+        query=query,
+        graph=[("a", "y")],
+        bootstrap=0,
+        outcome_units="kg",
+        quantity_population="clinic",
+        quantity_transform="log",
+    )
+    identification = antecedent.identify(graph=[("a", "y")], names=["a", "y"], query=query)
+    program = program_claims.ProgramBinding.from_identification(
+        identification, outcome_units="kg", dose_units="mg", population="clinic", transform="log"
+    )
+    claim = program_claims.native_claim(result, program)
+    assert claim.coordinates == result.quantities
+    contract = decision.Contract(
+        actions=(
+            decision.Action("A", inputs=(claim.coordinates[0],), utility=decision.x(0)),
+            decision.Action("B", inputs=(claim.coordinates[-1],), utility=decision.x(0)),
+        ),
+        utility_units="util",
+        criterion=decision.Criterion.expected_utility(),
+        target_population="clinic",
+    )
+    source = claim.as_decision_source(contract)
+    assert source.coordinates == result.quantities
+    evaluated = contract.evaluate(source.source)
+    by_id = {action.id: action for action in evaluated.actions}
+    assert by_id["B"].expected_utility == pytest.approx(result.response.values[-1][0])
+    assert evaluated.selected == ("B",)
+    for changed in (
+        replace(program, outcome_units="lb"),
+        replace(program, population_id="elsewhere"),
+        replace(program, transform_id="identity"),
+    ):
+        with pytest.raises(ExternalRefusal) as caught:
+            program_claims.native_claim(result, changed)
+        assert caught.value.reason_code == "quantity_semantics_mismatch"
+        assert caught.value.detail.startswith("program_binding.")

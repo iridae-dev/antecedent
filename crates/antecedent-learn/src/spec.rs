@@ -299,6 +299,13 @@ pub fn resolve_for(
     spec: LearnerSpec,
     task: PredictionTask,
 ) -> Result<Box<dyn LearnerFactory>, LearnError> {
+    resolve_uninstrumented(spec, task).map(crate::fit_counts::instrument)
+}
+
+fn resolve_uninstrumented(
+    spec: LearnerSpec,
+    task: PredictionTask,
+) -> Result<Box<dyn LearnerFactory>, LearnError> {
     spec.validate()?;
     match spec {
         LearnerSpec::Linear(_) => {

@@ -18,6 +18,8 @@ bash scripts/gate_composition.sh --self-test
 bash scripts/gate_transport.sh --self-test
 bash scripts/gate_promotion.sh --self-test
 python3 scripts/promotion_selftest.py --release 2.3
+python3 scripts/release_evidence_report.py --self-test
+python3 scripts/b_exit_report_cli_selftest.py
 python3 scripts/check_2_3_prerequisites.py --self-test
 python3 scripts/run_evidence_rows_selftest.py
 python3 scripts/verify_wheel_matrix_selftest.py

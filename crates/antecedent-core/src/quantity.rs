@@ -79,6 +79,34 @@ pub enum QuantityMismatch {
 }
 
 impl ScientificQuantity {
+    /// Unambiguous semantic identity excluding the mutable display label.
+    /// Length framing prevents identities containing separators from colliding.
+    #[must_use]
+    pub fn canonical_identity(&self) -> String {
+        let role = format!("{:?}", self.role);
+        let horizon = self.horizon.to_string();
+        let mut result = String::new();
+        for field in [
+            self.variable_id.as_str(),
+            role.as_str(),
+            self.units.as_str(),
+            self.population_id.as_str(),
+            self.regime_id.as_str(),
+            horizon.as_str(),
+            self.functional_id.as_str(),
+            self.transform_id.as_str(),
+        ] {
+            result.push_str(&format!("{}:{field}", field.len()));
+        }
+        result.push_str(&format!("{}:", self.conditioning.len()));
+        for condition in &self.conditioning {
+            for field in [&condition.variable_id, &condition.value_id] {
+                result.push_str(&format!("{}:{field}", field.len()));
+            }
+        }
+        result
+    }
+
     /// Validate required identities and canonical conditioning before binding.
     ///
     /// # Errors

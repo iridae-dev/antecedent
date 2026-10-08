@@ -57,6 +57,8 @@ pub mod study_plan_artifact;
 pub mod study_planner;
 pub mod transport_planner;
 pub mod z_transport_planner;
+pub mod z_transport_repair;
+pub use z_transport_repair::ZTransportRepairFamily;
 
 /// The plan the proposals are read from, owned by the identification crate that
 /// runs it; re-exported so the facade reaches it through the design crate.

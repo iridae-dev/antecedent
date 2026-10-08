@@ -525,6 +525,9 @@ allow mechanism crates/antecedent-design/src/study_candidate.rs canonical
 allow mechanism crates/antecedent-design/src/study_plan_artifact.rs strings
 allow mechanism crates/antecedent-design/src/study_planner.rs canonical check_bounds
 allow mechanism crates/antecedent-design/src/z_transport_planner.rs canonical
+# The local repair-request validator shares a bare name with a mechanism helper;
+# this family rechecks identification and cannot execute a numerical mechanism.
+allow mechanism crates/antecedent-design/src/z_transport_repair.rs invalid
 allow mechanism crates/antecedent-io/src/admg_conditional_transport_artifact.rs VersionPeek check_bounds evaluate
 allow mechanism crates/antecedent-io/src/analysis_result_artifact.rs ARTIFACT_KIND invalid
 allow mechanism crates/antecedent-io/src/analysis_wire.rs invalid

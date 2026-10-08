@@ -815,4 +815,12 @@ class ResultAPI:
                 "This result has no retained execution artifact.",
                 reason_code="not_executed",
             )
+        quantities = getattr(self, "quantities", None)
+        if quantities is not None:
+            import json
+
+            return execution.export_contracted_artifact(
+                artifact_id=artifact_id,
+                quantities_json=json.dumps([quantity._wire() for quantity in quantities]),
+            )
         return execution.export_contracted_artifact(artifact_id=artifact_id)

@@ -15,8 +15,8 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Two distinct families ship: TransportRepairFamily (catalog-aware classical transport identifier plus derivation verification) and BackdoorRepairFamily (back-door identifier on the one joint observational law a study would deliver, with the returned adjustment set re-verified by d-separation). A subset is verified_sufficient only when its family's checker identifies the hypothetical evidence, the derivation re-verifies and no unresolved assumption obligation remains.",
-  "There is no z-transport repair family; the z-transport proof has an obligation adapter only. A sample increase has no transport checker and is not_certified.",
+  "Three distinct families ship: TransportRepairFamily (catalog-aware classical transport identifier plus derivation verification) and BackdoorRepairFamily (back-door identifier on the one joint observational law a study would deliver, with the returned adjustment set re-verified by d-separation). ZTransportRepairFamily consumes a checked missing-evidence snapshot, independently re-verifies the frozen z-transport derivation and binds its exact factors to hypothetical evidence. A subset is verified_sufficient only when its family's checker identifies the hypothetical evidence, the derivation re-verifies and no unresolved assumption obligation remains.",
+  "Z-transport repair accepts only missing-evidence snapshots carrying a checked positive formula; proof obstructions and exhausted or unresolved identification searches are not evidence-repair contracts. Its snapshot is independently portable and repair_search_receipt_v1 exports and independently replays the z-transport family, including exact hypothetical deltas and stopped-search receipts. A sample increase has no classical transport checker and is not_certified.",
   "The search is exhaustive only within the declared bounds (at most 16 candidates, subset size at most 4, 100000 operations) and is never a completeness claim: a stop leaves the remaining subsets unevaluated, a subset larger than the declared depth is not examined and the receipt says so, and exhaustion is reported as a resource outcome, never impossibility. Supersets of a sufficient subset are skipped for ranking only.",
   "A level-restricted experiment is a restricted domain and does not supply an unrestricted symbolic response.",
   "The repair_search_receipt_v1 artifact replays each stored verdict by re-running the family's checker on the stored hypothetical delta; it requires graphs over dense static variables 0..n, and its digests are content fingerprints, not cryptographic guarantees against a producer that fabricates a consistent contract.",
@@ -29,4 +29,6 @@ test_sources = [
   "crates/antecedent-design/tests/repair_facade.rs",
   "crates/antecedent-design/tests/repair_artifact.rs",
   "python/tests/test_repair.py",
+  "crates/antecedent/tests/z_transport_repair.rs",
+  "python/tests/test_z_transport_repair.py",
 ]

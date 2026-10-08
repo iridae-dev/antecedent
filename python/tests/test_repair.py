@@ -424,3 +424,83 @@ def test_f13_consumer_refuses_oversized_limits_and_malformed_bytes():
         repair.consume(b"not an artifact")
     with pytest.raises((CausalSerializationError, repair.RepairArtifactRefusal)):
         repair.consume(data[: len(data) // 2])
+
+
+def test_evidence_obligations_carry_complete_native_scientific_coordinates():
+    from antecedent.joint_distribution import ScientificQuantity
+
+    contract = backdoor()
+    structural = repair.obligations(contract)
+    names = structural[0].variables
+    descriptors = {
+        name: ScientificQuantity(
+            variable_id=f"schema:{name}",
+            variable_name=name,
+            role="outcome",
+            units="kg",
+            population_id="clinic",
+            regime_id="observational",
+            horizon=2,
+            functional_id="law",
+            conditioning=(),
+            transform_id="identity",
+        )
+        for name in names
+    }
+    (bound,) = repair.obligations(contract, quantities=descriptors)
+    assert bound.quantities == descriptors
+    assert bound.id != structural[0].id
+    from dataclasses import replace
+
+    changed = dict(descriptors)
+    changed[names[0]] = replace(changed[names[0]], units="lb")
+    assert repair.obligations(contract, quantities=changed)[0].id != bound.id
+    changed[names[0]] = replace(changed[names[0]], variable_name="renamed")
+    assert (
+        repair.obligations(contract, quantities=changed)[0].id
+        == repair.obligations(
+            contract,
+            quantities={**descriptors, names[0]: replace(descriptors[names[0]], units="lb")},
+        )[0].id
+    )
+    from antecedent.errors import CausalValueError
+
+    with pytest.raises(CausalValueError, match="cover every"):
+        repair.obligations(contract, quantities={names[0]: descriptors[names[0]]})
+
+
+def test_scientific_obligation_descriptors_refuse_wrong_population_and_duplicate_ids():
+    from antecedent.errors import CausalValueError
+    from antecedent.joint_distribution import ScientificQuantity
+
+    contract = backdoor()
+    names = repair.obligations(contract)[0].variables
+    descriptors = {
+        name: ScientificQuantity(
+            variable_id=f"schema:{name}",
+            variable_name=name,
+            role="outcome",
+            units="kg",
+            population_id="other",
+            regime_id="observational",
+            horizon=2,
+            functional_id="law",
+        )
+        for name in names
+    }
+    with pytest.raises(CausalValueError, match="population"):
+        repair.obligations(contract, quantities=descriptors)
+    from dataclasses import replace
+
+    descriptors = {
+        name: replace(quantity, population_id="clinic", variable_id="same")
+        for name, quantity in descriptors.items()
+    }
+    with pytest.raises(CausalValueError, match="distinct stable variable"):
+        repair.obligations(contract, quantities=descriptors)
+
+
+@pytest.mark.parametrize("quantities", [42, "y", ["y"], {"y": "kg"}])
+def test_obligation_quantities_refuse_untyped_inputs(quantities):
+    with pytest.raises(CausalTypeError, match="quantities must"):
+        repair.obligations(backdoor(), quantities=quantities)

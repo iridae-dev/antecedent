@@ -16,7 +16,7 @@ use antecedent::analysis::repair::{
     BackdoorRepairFamily, DurableStudyCandidate, EvidenceObligation, ExpectedEvidence,
     RepairArtifactError, RepairConsumeLimits, RepairError, RepairFamily, RepairFamilyRef,
     RepairLimits, RepairObjective, RepairReport, RepairReportArtifact, StudyCostDeclaration,
-    StudyKind, TransportRepairFamily, UnitRules, repair_contract,
+    StudyKind, TransportRepairFamily, UnitRules, ZTransportRepairFamily, repair_contract,
 };
 use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
 use antecedent_core::{
@@ -60,6 +60,7 @@ fn names_of(names: &[String], variables: &[VariableId]) -> Vec<String> {
 enum Contract {
     Transport(Box<TransportRepairFamily>),
     Backdoor(Box<BackdoorRepairFamily>),
+    ZTransport(Box<ZTransportRepairFamily>),
 }
 
 impl Contract {
@@ -67,6 +68,7 @@ impl Contract {
         match self {
             Self::Transport(family) => &**family,
             Self::Backdoor(family) => &**family,
+            Self::ZTransport(family) => &**family,
         }
     }
 
@@ -74,12 +76,16 @@ impl Contract {
         match self {
             Self::Transport(family) => RepairFamilyRef::Transport(family),
             Self::Backdoor(family) => RepairFamilyRef::Backdoor(family),
+            Self::ZTransport(family) => RepairFamilyRef::ZTransport(family),
         }
     }
 }
 
 fn obligation_json(obligation: &EvidenceObligation, names: &[String]) -> serde_json::Value {
     serde_json::json!({
+        "quantities": obligation.quantities.iter().map(|(variable, quantity)| {
+            (names[variable.raw() as usize].clone(), antecedent_io::quantity_wire::ScientificQuantityWire::from(quantity))
+        }).collect::<BTreeMap<_, _>>(),
         "id": obligation.id.as_ref(),
         "kind": obligation.kind.as_str(),
         "scope": obligation.scope.as_str(),
@@ -311,14 +317,40 @@ impl RepairContractStage {
     }
 
     /// The unresolved obligations, each with its source proof step.
-    fn obligations(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let values = self
-            .contract
-            .family()
-            .unresolved_obligations()
-            .iter()
-            .map(|o| obligation_json(o, &self.names))
-            .collect::<Vec<_>>();
+    #[pyo3(signature = (quantities_json=None))]
+    fn obligations(&self, py: Python<'_>, quantities_json: Option<&str>) -> PyResult<Py<PyAny>> {
+        let declared: BTreeMap<String, antecedent_io::quantity_wire::ScientificQuantityWire> =
+            serde_json::from_str(quantities_json.unwrap_or("{}"))
+                .map_err(|error| crate::value_err(error.to_string()))?;
+        let mut coordinates = BTreeMap::new();
+        for (name, wire) in declared {
+            let variable =
+                self.names.iter().position(|candidate| candidate == &name).ok_or_else(|| {
+                    crate::value_err(format!("unknown scientific coordinate variable {name}"))
+                })?;
+            let quantity =
+                antecedent_core::ScientificQuantity::try_from(wire).map_err(crate::value_err)?;
+            let variable = u32::try_from(variable).map_err(|_| {
+                crate::value_err("scientific coordinate variable index exceeds u32")
+            })?;
+            coordinates.insert(VariableId::from_raw(variable), quantity);
+        }
+        let mut values = Vec::new();
+        for obligation in self.contract.family().unresolved_obligations() {
+            let obligation = if coordinates.is_empty() {
+                obligation
+            } else {
+                let selected = coordinates
+                    .iter()
+                    .filter(|(variable, _)| obligation.variables.contains(variable))
+                    .map(|(variable, quantity)| (*variable, quantity.clone()))
+                    .collect();
+                obligation
+                    .with_quantities(selected)
+                    .map_err(|error| crate::value_err(error.to_string()))?
+            };
+            values.push(obligation_json(&obligation, &self.names));
+        }
         to_py_json(py, &serde_json::Value::Array(values))
     }
 
@@ -443,6 +475,36 @@ fn repair_transport_contract(
     Ok(RepairContractStage { contract: Contract::Transport(Box::new(family)), names })
 }
 
+/// Restore the existing z-transport failure snapshot as a repair contract.
+#[pyfunction]
+#[pyo3(signature = (names, failure_snapshot, *, max_steps=100_000, max_depth=256, memory_bytes=None, cancel=None))]
+fn repair_z_transport_contract(
+    py: Python<'_>,
+    names: Vec<String>,
+    failure_snapshot: &[u8],
+    max_steps: usize,
+    max_depth: usize,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<RepairContractStage> {
+    let wire: antecedent_design::ZTransportFailureSnapshotWire =
+        serde_json::from_slice(failure_snapshot).map_err(serialization_error)?;
+    check_names(&names, wire.graph.node_count)?;
+    let family = crate::detach_catch(py, move || {
+        let ctx = execution_context(0, memory_bytes, cancel);
+        let limits = SidLimits { steps: max_steps, depth: max_depth };
+        let snapshot = antecedent_design::ZTransportFailureSnapshot::from_wire(&wire, limits, &ctx)
+            .map_err(|e| {
+                crate::refusal(
+                    "invalid_argument",
+                    format!("identification_repair.invalid_request: {e}"),
+                )
+            })?;
+        ZTransportRepairFamily::try_new(snapshot, limits).map_err(|e| repair_error(&e))
+    })?;
+    Ok(RepairContractStage { contract: Contract::ZTransport(Box::new(family)), names })
+}
+
 /// Freeze a failed back-door contract: `observed` are the variables currently
 /// measured jointly with treatment and outcome in `population`, and each
 /// `(id, description, required_check)` assumption is an unresolved
@@ -515,9 +577,14 @@ fn consume_repair_artifact(
     };
     crate::detach_catch(py, move || {
         let stored = RepairReportArtifact::from_bytes(&bytes).map_err(|e| artifact_error(&e))?;
-        let node_count = match (&stored.premises.transport, &stored.premises.backdoor) {
-            (Some(t), None) => t.graph.node_count,
-            (None, Some(b)) => b.graph.node_count,
+        let node_count = match (
+            &stored.premises.transport,
+            &stored.premises.backdoor,
+            &stored.premises.z_transport,
+        ) {
+            (Some(t), None, None) => t.graph.node_count,
+            (None, Some(b), None) => b.graph.node_count,
+            (None, None, Some(z)) => z.snapshot.graph.node_count,
             _ => return Err(serialization_error("invalid repair artifact premises")),
         };
         check_names(&names, node_count)?;
@@ -534,6 +601,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<RepairStage>()?;
     module.add_function(wrap_pyfunction!(repair_transport_contract, module)?)?;
     module.add_function(wrap_pyfunction!(repair_backdoor_contract, module)?)?;
+    module.add_function(wrap_pyfunction!(repair_z_transport_contract, module)?)?;
     module.add_function(wrap_pyfunction!(consume_repair_artifact, module)?)?;
     Ok(())
 }

@@ -62,7 +62,7 @@ pub struct ZTransportFailureSnapshot {
 }
 
 /// Serializable representation of a failure snapshot.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ZTransportFailureSnapshotWire {
     /// Schema version.
@@ -104,6 +104,24 @@ pub struct ZTransportFailureSnapshotWire {
 const SNAPSHOT_VERSIONS: [u32; 2] = [1, 2];
 
 impl ZTransportFailureSnapshot {
+    /// Frozen selection diagram used by the checked proof.
+    #[must_use]
+    pub fn diagram(&self) -> &SelectionDiagram {
+        &self.diagram
+    }
+
+    /// Frozen query, including the controllable intervention set.
+    #[must_use]
+    pub fn query(&self) -> &ZTransportQuery {
+        &self.query
+    }
+
+    /// Evidence state on which the failure was established.
+    #[must_use]
+    pub fn catalog(&self) -> &EvidenceCatalog {
+        &self.catalog
+    }
+
     /// Freeze an outcome, catalog, query, and graph as the planning anchor.
     fn new(
         diagram: &SelectionDiagram,

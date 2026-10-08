@@ -4668,11 +4668,12 @@ impl PyPreparedAnalysis {
     }
 
     /// Export the last estimate as an `analysis_result` with a contract section.
-    #[pyo3(signature = (*, artifact_id="prepared-contract"))]
+    #[pyo3(signature = (*, artifact_id="prepared-contract", quantities_json=None))]
     fn export_contracted_artifact<'py>(
         &self,
         py: Python<'py>,
         artifact_id: &str,
+        quantities_json: Option<&str>,
     ) -> PyResult<Bound<'py, pyo3::types::PyBytes>> {
         let result = self.last.as_ref().ok_or_else(|| {
             PyValueError::new_err("estimate before exporting a contracted artifact")
@@ -4684,11 +4685,65 @@ impl PyPreparedAnalysis {
             None,
             Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
         );
+        let quantities: Option<Vec<antecedent_core::ScientificQuantity>> = quantities_json
+            .map(|json| {
+                let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
+                    serde_json::from_str(json)
+                        .map_err(|error| crate::value_err(error.to_string()))?;
+                wires
+                    .into_iter()
+                    .map(|wire| {
+                        antecedent_core::ScientificQuantity::try_from(wire)
+                            .map_err(crate::value_err)
+                    })
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .transpose()?;
+        let labels = quantities
+            .as_ref()
+            .map(|quantities| {
+                let first = quantities
+                    .first()
+                    .ok_or_else(|| crate::value_err("scientific coordinates cannot be empty"))?;
+                Ok::<_, PyErr>(antecedent_core::ResponseCoordinateLabels {
+                    outcome_units: &first.units,
+                    population_id: &first.population_id,
+                    transform_id: &first.transform_id,
+                })
+            })
+            .transpose()?;
+        if let (Some(supplied), Some(labels)) = (&quantities, &labels) {
+            let response = result
+                .response
+                .as_ref()
+                .ok_or_else(|| crate::value_err("scientific coordinates require a response"))?;
+            let expected = antecedent_core::response_coordinates(
+                response,
+                &|id| self.names.get(id.as_usize()).cloned(),
+                labels,
+            )
+            .map_err(|error| crate::value_err(format!("{}: {}", error.code, error.detail)))?;
+            if supplied.len() != expected.len()
+                || supplied
+                    .iter()
+                    .zip(&expected)
+                    .any(|(supplied, expected)| expected.require_same_coordinate(supplied).is_err())
+            {
+                return Err(crate::value_err(
+                    "scientific coordinates do not match the executed native response",
+                ));
+            }
+        }
         let bytes = self
             .last_study
             .as_ref()
             .unwrap_or(&self.inner)
-            .encode_contracted_result(result, artifact_id, &ctx)
+            .encode_contracted_result_with_quantity_labels(
+                result,
+                artifact_id,
+                &ctx,
+                labels.as_ref(),
+            )
             .map_err(py_err)?;
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }

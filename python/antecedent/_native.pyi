@@ -1070,6 +1070,7 @@ class PreparedAnalysis:
         self,
         *,
         artifact_id: str = "prepared-contract",
+        quantities_json: str | None = None,
     ) -> bytes: ...
     @staticmethod
     def identify_existing(
@@ -4210,6 +4211,7 @@ def encode_causal_artifact(
     variable_names: list[str],
     payload_json: str,
     artifact_id: str,
+    contract_json: str | None = None,
 ) -> bytes: ...
 def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...
 def accept_analysis_result_contract(bytes: bytes) -> dict[str, str]: ...
@@ -4862,7 +4864,7 @@ class RepairContractStage:
     def family(self) -> str: ...
     @property
     def contract_id(self) -> str: ...
-    def obligations(self) -> list[dict[str, Any]]: ...
+    def obligations(self, quantities_json: str | None = None) -> list[dict[str, Any]]: ...
     def repair(
         self,
         candidates_json: str,
@@ -4888,6 +4890,15 @@ def repair_transport_contract(
     outcomes: list[str],
     treatments: list[str],
     catalog: Any,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> RepairContractStage: ...
+def repair_z_transport_contract(
+    names: list[str],
+    failure_snapshot: bytes,
     *,
     max_steps: int = 100_000,
     max_depth: int = 256,

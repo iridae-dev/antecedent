@@ -339,6 +339,7 @@ impl DurableStudyCandidate {
     pub fn offers(&self) -> Vec<EvidenceOffer> {
         if self.kind == StudyKind::SampleIncrease {
             return vec![EvidenceOffer {
+                quantities: std::collections::BTreeMap::new(),
                 population: Arc::clone(&self.population),
                 interventions: Arc::clone(&self.interventions),
                 conditioned_on: Arc::from([]),
@@ -350,6 +351,7 @@ impl DurableStudyCandidate {
         self.expected_evidence
             .iter()
             .map(|evidence| EvidenceOffer {
+                quantities: std::collections::BTreeMap::new(),
                 population: Arc::clone(&evidence.population),
                 interventions: Arc::clone(&evidence.interventions),
                 conditioned_on: Arc::clone(&evidence.conditioned_on),

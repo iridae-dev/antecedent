@@ -446,9 +446,29 @@ def native_claim(
     caller. A response without a label for every coordinate, or one that is not point
     identified, refuses.
     """
+    projection = _projection(response)
+    binding_json = json.dumps(program._wire())
+    if response.quantities is not None:
+        declared = {
+            "contract_id": program.contract_id,
+            "graph_id": program.graph_id,
+            "declared_identity": program.identity,
+            "treatment_id": projection["treatment"],
+            "outcome_id": projection["outcome"],
+            "population_id": response.quantities[0].population_id
+            if response.quantities
+            else program.population_id,
+            "doses": projection["grid"],
+            "dose_units": program.dose_units,
+            "quantities": [quantity._wire() for quantity in response.quantities],
+        }
+        # Rust owns the full coordinate comparison and registered refusals.
+        # A descriptor-bearing response cannot be relabelled by a new program.
+        _, refusal = _check_external_program(binding_json, json.dumps(declared))
+        _raise(refusal)
     claim, refusal = _native_response_claim(
-        json.dumps(_projection(response)),
-        json.dumps(program._wire()),
+        json.dumps(projection),
+        binding_json,
         snapshot_id if snapshot_id is not None else (response.data_snapshot_id or ""),
         rng_id,
         calibration or ("point_only" if response.uncertainty.kind == "none" else "unmeasured"),

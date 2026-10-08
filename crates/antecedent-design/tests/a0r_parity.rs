@@ -851,6 +851,7 @@ fn a0r_obligation_refusals_use_the_registered_codes_and_details_python_reports()
     assert_eq!(wrong.code, "transport_missing_evidence");
     assert_eq!(wrong.detail, "evidence_obligations.wrong_contract");
     let invalid = EvidenceObligation::try_new(EvidenceObligationSpec {
+        quantities: std::collections::BTreeMap::new(),
         kind: EvidenceObligationKind::Measure,
         scope: ObligationScope::Factor,
         variables: Arc::from([v(0)]),

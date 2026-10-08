@@ -15,12 +15,13 @@ bounded subsets, would make the contract identify::
     result.best                              # cheapest verified-sufficient subset, or None
     result.export()                          # portable, independently replayable artifact
 
-Two families are supported, each deferring to its own theorem checker rather
+Three families are supported, each deferring to its own theorem checker rather
 than matching variable names: :class:`TransportContract` (the catalog-aware
 classical transport identifier, re-verified after the hypothetical evidence is
 applied) and :class:`BackdoorContract` (the back-door identifier on the one
 joint law a study would deliver; covariates measured in separate studies never
-combine). Every candidate lands in exactly one class: ``verified_sufficient``,
+combine), and :class:`ZTransportContract` (a checked z-transport failure snapshot
+whose original expression leaves are re-verified and bound). Every candidate lands in exactly one class: ``verified_sufficient``,
 ``insufficient``, ``not_certified``, ``invalid`` or ``unevaluated``. A search
 that a budget stopped keeps its unevaluated subsets and reports ``exhausted``:
 exhaustion is never an impossibility claim, and ``none_certified`` only says
@@ -45,6 +46,7 @@ from typing import Any
 from . import _native
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .graph import Admg, Dag
+from .joint_distribution import ScientificQuantity
 from .transport._impl import EvidenceCatalog
 
 _KINDS = ("experiment", "observation", "sample_increase")
@@ -189,6 +191,7 @@ class EvidenceObligation:
     source: str
     proof_step: str | None
     satisfiable_by_study: bool
+    quantities: Mapping[str, ScientificQuantity] = field(default_factory=dict)
 
     @classmethod
     def _from_native(cls, value: Mapping[str, Any]) -> EvidenceObligation:
@@ -210,6 +213,10 @@ class EvidenceObligation:
             source=provenance["source"],
             proof_step=provenance["proof_step"],
             satisfiable_by_study=value["satisfiable_by_study"],
+            quantities={
+                name: ScientificQuantity._from_wire(wire)
+                for name, wire in value.get("quantities", {}).items()
+            },
         )
 
 
@@ -525,11 +532,70 @@ class BackdoorContract:
         return str(self._stage.contract_id)
 
 
-Contract = TransportContract | BackdoorContract
+@dataclass(frozen=True, slots=True)
+class ZTransportContract:
+    """A checked z-transport missing-evidence snapshot as a repair contract.
+
+    ``failure_snapshot`` is exported by an existing z-transport identification
+    stage's ``failure_snapshot(catalog)``. ``names`` supplies its exact graph
+    coordinate order. Construction independently replays the snapshot; a graph
+    obstruction, exhausted search or failure without a checked formula refuses.
+    The generic repair report exports and independently replays the same source
+    proof leaves and hypothetical candidate evidence.
+    """
+
+    names: Sequence[str]
+    failure_snapshot: bytes
+    max_steps: int = 100_000
+    max_depth: int = 256
+    memory_bytes: int | None = None
+    _stage: Any = field(init=False, repr=False, compare=False, default=None)
+
+    def __post_init__(self) -> None:
+        names = _names("names", self.names, allow_empty=False)
+        if not isinstance(self.failure_snapshot, bytes):
+            raise CausalTypeError("failure_snapshot must be bytes from a z-transport stage")
+        object.__setattr__(self, "names", names)
+        object.__setattr__(
+            self,
+            "_stage",
+            _call(
+                _native.repair_z_transport_contract,
+                list(names),
+                self.failure_snapshot,
+                max_steps=_count("max_steps", self.max_steps),
+                max_depth=_count("max_depth", self.max_depth),
+                memory_bytes=self.memory_bytes,
+            ),
+        )
+
+    @classmethod
+    def from_identification(
+        cls, identification: Any, *, catalog: EvidenceCatalog, names: Sequence[str]
+    ) -> ZTransportContract:
+        """Use the actual identification stage's checked failure snapshot."""
+        if not callable(getattr(identification, "failure_snapshot", None)):
+            raise CausalTypeError("from_identification requires a z-transport identification stage")
+        if not isinstance(catalog, EvidenceCatalog):
+            raise CausalTypeError("catalog must be EvidenceCatalog")
+        return cls(names=names, failure_snapshot=bytes(identification.failure_snapshot(catalog)))
+
+    @property
+    def family(self) -> str:
+        """``z_transport``."""
+        return "z_transport"
+
+    @property
+    def contract_id(self) -> str:
+        """The frozen failure's semantic identity."""
+        return str(self._stage.contract_id)
+
+
+Contract = TransportContract | BackdoorContract | ZTransportContract
 
 
 def _contract_of(failure: Any, population: str | None, observed: Sequence[str] | None) -> Any:
-    if isinstance(failure, (TransportContract, BackdoorContract)):
+    if isinstance(failure, (TransportContract, BackdoorContract, ZTransportContract)):
         return failure
     if hasattr(failure, "graph") and hasattr(failure, "query") and hasattr(failure, "status"):
         if population is None or observed is None:
@@ -541,26 +607,47 @@ def _contract_of(failure: Any, population: str | None, observed: Sequence[str] |
             failure, population=population, observed=observed
         )
     raise CausalTypeError(
-        "obligations() requires a TransportContract, a BackdoorContract or a failed identification"
+        "obligations() requires a TransportContract, a BackdoorContract, a ZTransportContract or a failed identification"
     )
 
 
 def obligations(
     contract_failure: Any,
     *,
+    quantities: Mapping[str, ScientificQuantity] | None = None,
     population: str | None = None,
     observed: Sequence[str] | None = None,
 ) -> tuple[EvidenceObligation, ...]:
     """The unresolved evidence obligations of a failed contract.
 
-    Accepts a :class:`TransportContract`, a :class:`BackdoorContract` or a failed
+    Accepts a :class:`TransportContract`, :class:`BackdoorContract`, :class:`ZTransportContract` or a failed
     identification (then ``population=`` and ``observed=`` say where and what is
     measured so far). Each obligation retains its source proof step; a contract
     that already identifies refuses with ``identification_repair.not_a_failure``
-    when it is built.
+    when it is built. ``quantities`` explicitly maps every requested variable to
+    its scientific descriptor; Rust validates the binding and includes every
+    semantic dimension in the obligation ID. With no declaration, obligations
+    remain structural requests with an empty coordinate map, not measurements
+    in inferred units.
     """
     contract = _contract_of(contract_failure, population, observed)
-    return tuple(EvidenceObligation._from_native(o) for o in contract._stage.obligations())
+    if quantities is not None and not isinstance(quantities, Mapping):
+        raise CausalTypeError(
+            "quantities must be a mapping of variable names to ScientificQuantity descriptors"
+        )
+    if quantities is not None and any(
+        not isinstance(name, str) or not isinstance(quantity, ScientificQuantity)
+        for name, quantity in quantities.items()
+    ):
+        raise CausalTypeError(
+            "quantities must map variable names to ScientificQuantity descriptors"
+        )
+    declarations = json.dumps(
+        {name: quantity._wire() for name, quantity in (quantities or {}).items()}
+    )
+    return tuple(
+        EvidenceObligation._from_native(o) for o in contract._stage.obligations(declarations)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -703,7 +790,7 @@ class RepairResult:
 
     @property
     def family(self) -> str:
-        """The family whose theorem checker decided (``transport`` or ``backdoor``)."""
+        """The family whose theorem checker decided (``transport``, ``backdoor`` or ``z_transport``)."""
         return str(self._report["family"])
 
     @property
@@ -778,8 +865,10 @@ def repair(
     the budget stops before the search (:class:`RepairBudgetRefusal`). A stop
     during the search is a result with ``outcome == "exhausted"``.
     """
-    if not isinstance(contract, (TransportContract, BackdoorContract)):
-        raise CausalTypeError("repair requires a TransportContract or BackdoorContract")
+    if not isinstance(contract, (TransportContract, BackdoorContract, ZTransportContract)):
+        raise CausalTypeError(
+            "repair requires a TransportContract, BackdoorContract or ZTransportContract"
+        )
     candidates = tuple(candidates)
     if any(not isinstance(c, StudyCandidate) for c in candidates):
         raise CausalTypeError("candidates must be StudyCandidate values")
@@ -848,6 +937,7 @@ __all__ = [
     "StudyCandidate",
     "StudyCandidateRefusal",
     "TransportContract",
+    "ZTransportContract",
     "UnresolvedAssumption",
     "consume",
     "obligations",

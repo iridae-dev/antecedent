@@ -74,6 +74,7 @@ fn candidate_c() -> DurableStudyCandidate {
 
 fn joint_obligation() -> EvidenceObligation {
     EvidenceObligation::try_new(EvidenceObligationSpec {
+        quantities: std::collections::BTreeMap::new(),
         kind: EvidenceObligationKind::ProvideJointLaw,
         scope: ObligationScope::Factor,
         variables: vars(&[Y, Z]),

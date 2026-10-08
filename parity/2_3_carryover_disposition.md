@@ -2,7 +2,26 @@
 
 The values below are the checked-in 2.2 calibration records, not new 2.3 measurements. All three public interval families remain closed at kickoff. Their point estimates and, for X3, the assumption range remain independently available. An internal calibrated method does not license a public producer or consumer.
 
-`scripts/gate_calibration_attestation.sh` passes on the 2.3 kickoff tree: the X1 and X3 facets match their measurement commits; the smoothed-dose changes use the reviewed bit-identical replay waiver already recorded by that gate. This attests the listed internal measurements, not a public interval route.
+At the 2.3 kickoff, `scripts/gate_calibration_attestation.sh` passed: the X1 and X3 facets matched their measurement commits; the smoothed-dose changes used the reviewed bit-identical replay waiver already recorded by that gate. This historical result attests those internal measurements, not the current branch or a public interval route. The release cut requires fresh attestation after implementation stabilizes.
+
+## Versioned release evidence reports
+
+`python3 scripts/release_evidence_report.py` reports both `parity/promotion_2_2.toml` and `parity/promotion_2_3.toml`, including every record's declared status, inference claim, fixture and route citations, and allocated coverage ids. `--json` retains the complete fixture and route metadata for downstream evidence reports; `--release-version 2.3` selects the current release. The release inventory invokes this report, and the gate self-tests exercise missing dispositions, missing failed gates, stale dispositions and incorrectly opened carried routes. An inventory success proves metadata consistency; execution, calibration and release certification are explicitly unverified by this report.
+
+`parity/promotion_carryovers.toml` is the enforced disposition contract for every carried-forward record in either release. The report rejects omissions and stale entries, requires concrete failed gates and corrective actions, takes corrective owners directly from the promotion registry, and requires every carried route to retain its closed status, reason code and named refusal evidence. The promotion gate separately checks those routes against their owning support/stage registries and executes their refusal witnesses.
+
+The legacy `b_exit_report.py` defaults to the retained 2.2 B stories. `--promotion` accepts only the canonical `parity/promotion_2_2.toml` or `parity/promotion_2_3.toml` registry in the selected tree; alternate paths and unknown flags refuse instead of silently reporting a different registry. Selecting 2.3 explicitly emits its inventory; it refuses 2.2 story/interval inputs and cannot satisfy `--release` or implementation/calibration requirements. With `--self-test`, both reporter self-tests execute. The old B story map cannot serve as evidence for the different 2.3 package map. `scripts/b_exit_report_cli_selftest.py` exercises these CLI boundaries.
+
+| Current carried-forward record | Precise failed obligations | Unchanged public refusal |
+| --- | --- | --- |
+| `2.3A.X4.joint_bayesian_transport` | Whole conjugate-Gaussian source-target posterior calibration is unmeasured. | `cell_not_licensed` / `bayesian_transport.route_frozen` |
+| `2.3A.X4.binary_nested_markov_pilot` | Separate licensed identification binding, posterior/interval implementation, and whole-posterior calibration. The existing MLE point fit does not implement the frozen posterior claim. | `cell_not_licensed` / `nested_markov.route_frozen` |
+| `2.3A.X5.dependent_temporal_interval` | Whole dependence-preserving temporal interval calibration is unmeasured. | `cell_not_licensed` / `temporal_interval.route_frozen` |
+| `2.3A.X8.transported_path_specific_counterfactual` | General joint cross-world transport theorem and matching provider/artifact evidence. The separate affine-additive row does not license this route. | `cell_not_licensed` / `transported_counterfactual.route_frozen` |
+| `2.3A.X10.sampled_observation_recovery` | Whole recovery-path interval calibration, including overlapping-margin dependence, is unmeasured. | `cell_not_licensed` / `sampled_recovery.route_frozen`; component-only variance also refuses with `sampled_recovery.component_variance_only` |
+| `2.3A.X4.learned_joint_transport` | Whole polynomial-basis conjugate-Gaussian source-target posterior calibration is unmeasured. | `cell_not_licensed` / `learned_joint_transport.route_frozen` |
+
+The disposition contract also includes the retained `2.2B.X3.joint_sensitivity_uncertainty` public producer/consumer gap described below. No status, route license, coverage record or waiver is changed by reporting these blockers. Calibration remains the final step after implementation stabilizes.
 
 ## X1 multi-source mz transport
 

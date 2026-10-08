@@ -23,9 +23,14 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
-use crate::{EvidenceCatalog, FactorNeed, ObligationRecord, ObligationScope, VariableId};
+use crate::{
+    EvidenceCatalog, FactorNeed, ObligationRecord, ObligationScope, ScientificQuantity, VariableId,
+};
 
 /// Declared bound on the variable coordinates of one obligation.
 pub const MAX_OBLIGATION_COORDINATES: usize = 1024;
@@ -137,6 +142,9 @@ pub struct ObligationProvenance {
 /// Everything an obligation is made of; the stable id is derived from it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EvidenceObligationSpec {
+    /// Explicit scientific coordinates keyed by structural variable identity.
+    /// Empty means no measurement semantics have been declared; never infer units.
+    pub quantities: BTreeMap<VariableId, ScientificQuantity>,
     /// Kind of evidence requested.
     pub kind: EvidenceObligationKind,
     /// Scope reused from the existing obligation vocabulary.
@@ -194,6 +202,9 @@ impl EvidenceObligationError {
 /// What a candidate study could produce, as far as an obligation can screen it.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EvidenceOffer {
+    /// Explicit scientific coordinates keyed by structural variable identity.
+    /// Empty means no measurement semantics have been declared; never infer units.
+    pub quantities: BTreeMap<VariableId, ScientificQuantity>,
     /// Population the evidence would be collected in.
     pub population: Arc<str>,
     /// Hard-intervention set of the evidence.
@@ -211,6 +222,9 @@ pub struct EvidenceOffer {
 /// One machine-readable evidence request.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EvidenceObligation {
+    /// Explicit scientific coordinates keyed by structural variable identity.
+    /// Empty means no measurement semantics have been declared; never infer units.
+    pub quantities: BTreeMap<VariableId, ScientificQuantity>,
     /// Stable id: a digest of the canonical (order-independent) content.
     pub id: Arc<str>,
     /// Kind of evidence requested.
@@ -273,6 +287,7 @@ impl EvidenceObligation {
         let id = derive_id(&spec);
         Ok(Self {
             id,
+            quantities: spec.quantities,
             kind: spec.kind,
             scope: spec.scope,
             variables: spec.variables,
@@ -282,6 +297,35 @@ impl EvidenceObligation {
             required_slots: spec.required_slots,
             min_additional_samples: spec.min_additional_samples,
             provenance: spec.provenance,
+        })
+    }
+
+    /// Bind explicitly declared measurement semantics to a structural obligation.
+    /// Every requested variable must have a valid descriptor in the same population.
+    /// The returned ID includes units, regime, horizon, functional, conditioning and transform.
+    ///
+    /// # Errors
+    /// Refuses incomplete, invalid or incompatible coordinate declarations.
+    pub fn with_quantities(
+        self,
+        quantities: BTreeMap<VariableId, ScientificQuantity>,
+    ) -> Result<Self, EvidenceObligationError> {
+        if quantities.len() != self.variables.len() {
+            return Err(EvidenceObligationError::invalid(
+                "declared scientific coordinates must cover every requested variable",
+            ));
+        }
+        Self::try_new(EvidenceObligationSpec {
+            quantities,
+            kind: self.kind,
+            scope: self.scope,
+            variables: self.variables,
+            population: self.population,
+            regime: self.regime,
+            reason: self.reason,
+            required_slots: self.required_slots,
+            min_additional_samples: self.min_additional_samples,
+            provenance: self.provenance,
         })
     }
 
@@ -295,6 +339,7 @@ impl EvidenceObligation {
     #[must_use]
     pub fn canonical(&self) -> String {
         canonical_content(&EvidenceObligationSpec {
+            quantities: self.quantities.clone(),
             kind: self.kind,
             scope: self.scope,
             variables: Arc::clone(&self.variables),
@@ -343,7 +388,17 @@ impl EvidenceObligation {
                 .is_some_and(|(have, need)| have >= need),
             _ => true,
         };
-        needed.iter().all(measured_or_set) && conditioning_ok && joint_ok && samples_ok
+        let quantities_ok = self.quantities.iter().all(|(variable, quantity)| {
+            offer
+                .quantities
+                .get(variable)
+                .is_some_and(|supplied| quantity.require_same_coordinate(supplied).is_ok())
+        });
+        needed.iter().all(measured_or_set)
+            && conditioning_ok
+            && joint_ok
+            && samples_ok
+            && quantities_ok
     }
 
     /// The obligation of one executable factor that no available catalog regime
@@ -383,6 +438,7 @@ impl EvidenceObligation {
             EvidenceObligationKind::Measure
         };
         Self::try_new(EvidenceObligationSpec {
+            quantities: std::collections::BTreeMap::new(),
             kind,
             scope: ObligationScope::Factor,
             variables: Arc::from(need.variables),
@@ -409,6 +465,7 @@ impl EvidenceObligation {
             return None;
         }
         Self::try_new(EvidenceObligationSpec {
+            quantities: std::collections::BTreeMap::new(),
             kind: EvidenceObligationKind::EstablishAssumption,
             scope: record.scope,
             variables: Arc::from([]),
@@ -452,6 +509,25 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
             "obligation variables must be distinct and within the coordinate bound",
         ));
     }
+    if spec.quantities.values().map(|quantity| &quantity.variable_id).collect::<BTreeSet<_>>().len()
+        != spec.quantities.len()
+    {
+        return Err(invalid("scientific coordinates need distinct stable variable identities"));
+    }
+    for (variable, quantity) in &spec.quantities {
+        if !spec.variables.contains(variable)
+            || quantity.validate().is_err()
+            || spec.population.as_deref() != Some(quantity.population_id.as_str())
+            || matches!(spec.scope, ObligationScope::Horizon { horizon } if horizon != quantity.horizon)
+        {
+            return Err(invalid(
+                "scientific coordinates must be valid and match obligation variables, population and horizon",
+            ));
+        }
+    }
+    if !spec.quantities.is_empty() && spec.quantities.len() != spec.variables.len() {
+        return Err(invalid("declared scientific coordinates must cover every requested variable"));
+    }
     if spec.kind == K::EstablishAssumption {
         return if spec.population.is_none() && spec.min_additional_samples.is_none() {
             Ok(())
@@ -492,7 +568,7 @@ fn validate_spec(spec: &EvidenceObligationSpec) -> Result<(), EvidenceObligation
 fn canonical_content(spec: &EvidenceObligationSpec) -> String {
     let mut slots: Vec<&str> = spec.required_slots.iter().map(AsRef::as_ref).collect();
     slots.sort_unstable();
-    format!(
+    let mut content = format!(
         "kind={};scope={};pop={};vars=[{}];do=[{}];cond=[{}];joint={};n={};slots=[{}];\
          family={};source={};step={}",
         spec.kind.as_str(),
@@ -507,7 +583,16 @@ fn canonical_content(spec: &EvidenceObligationSpec) -> String {
         spec.provenance.family,
         spec.provenance.source,
         spec.provenance.proof_step.as_deref().unwrap_or(""),
-    )
+    );
+    // Preserve existing structural IDs, while binding every declared semantic dimension.
+    for (variable, quantity) in &spec.quantities {
+        content.push_str(&format!(
+            ";quantity:{}:{}",
+            variable.raw(),
+            quantity.canonical_identity()
+        ));
+    }
+    content
 }
 
 fn derive_id(spec: &EvidenceObligationSpec) -> Arc<str> {
@@ -527,6 +612,7 @@ mod tests {
 
     fn spec(kind: EvidenceObligationKind) -> EvidenceObligationSpec {
         EvidenceObligationSpec {
+            quantities: std::collections::BTreeMap::new(),
             kind,
             scope: ObligationScope::Factor,
             variables: Arc::from([VariableId::from_raw(2), VariableId::from_raw(1)]),
