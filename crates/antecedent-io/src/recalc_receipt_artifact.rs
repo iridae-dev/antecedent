@@ -575,10 +575,11 @@ fn counts_consistent(stage: Stage, recomputed: bool, counts: &CountsWire) -> boo
     if !recomputed {
         return true;
     }
-    // A retained regression fit has no frozen score-table construction. Preserve
-    // the old fold-fit plus score-build requirement for score-only executions.
-    if stage == Stage::ScoreArtifact && counts.model_fits > 0 {
-        return counts.fold_fits == 0 && counts.score_computations == 0;
+    // Regression-only execution has a model solve and no nuisance folds or scores.
+    // A DR CATE execution additionally fits a final model after nuisance folds and
+    // score construction; a model count cannot excuse either missing score work.
+    if stage == Stage::ScoreArtifact && counts.score_computations == 0 {
+        return counts.model_fits > 0 && counts.fold_fits == 0;
     }
     let required: &[u64] = match stage {
         Stage::Identification => &[counts.identifications],

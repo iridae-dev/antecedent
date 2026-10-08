@@ -58,6 +58,7 @@ mod preflight;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
 pub mod recalc_cell;
+pub mod recalc_dr;
 pub mod recalc_receipt;
 mod recovery;
 pub mod recovery_chain;

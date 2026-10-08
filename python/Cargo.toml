@@ -44,6 +44,7 @@ antecedent-discovery = { path = "../crates/antecedent-discovery" }
 # Concrete estimator structs for the `estimator_config=` parser; the
 # `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
 antecedent-estimate = { path = "../crates/antecedent-estimate" }
+antecedent-learn = { path = "../crates/antecedent-learn" }
 pyo3 = { workspace = true, features = ["multiple-pymethods"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }

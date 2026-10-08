@@ -17,6 +17,7 @@ from .prediction import FittedEffectModel
 from .recalc import RecalcSession, RecalcUnavailable, Stage
 from .recalc_adjusted import AdjustedSession
 from .recalc_cell import CellSession, CrossfitSession, ScoreResumeSession
+from .recalc_dr import DrSession
 
 
 class Family(StrEnum):
@@ -218,6 +219,7 @@ _OBJECTS = {
     ),
     Family.DOUBLY_ROBUST: (
         "RecalcSession/CrossfitSession/CellSession",
+        "DrSession checked DML AIPW scores and optional actual CATE model",
         "FrozenScores via ScoreResumeSession",
         "FittedEffectModel via verified load",
         "readable RecalcReceipt",
@@ -259,7 +261,28 @@ _RECALC = replace(
     state_type=RecalcSession,
     python_path="antecedent.recalc.RecalcSession.execute",
 )
-_LIVE_ADAPTERS = (_LIVE, _CROSSFIT, _RECALC)
+_DR = replace(
+    _LIVE,
+    state_type=DrSession,
+    python_path="antecedent.recalc_dr.DrSession.execute",
+    rust_path="antecedent::analysis::recalc_dr::execute_dr_with_receipt",
+    scope="Checked DML AIPW or DR-Learner with Linear/Ridge outcome and final learners; Linear/Ridge/Logistic treatment, fixed binary contrast. PLR, trimming and arbitrary providers are unsupported.",
+)
+_DR_PREDICT = replace(
+    _DR,
+    python_path="antecedent.recalc_dr.DrSession.predict",
+    rust_path="antecedent::analysis::recalc_dr::DrSession::predict",
+    operation="retained CATE point prediction",
+    scope="Actual retained CATE map, exact ordered feature names and finite rows; no fitting or sampling covariance.",
+)
+_DR_RESUME = replace(
+    _DR,
+    python_path="antecedent.recalc_dr.DrSession.resume",
+    rust_path="antecedent::analysis::recalc_dr::DrSession::resume",
+    operation="supplied-data refit at process boundary",
+    scope="Receipts supply identities only; fresh processes must supply raw data and refit. Verified scores/predictors separately restore their scoped consumers.",
+)
+_LIVE_ADAPTERS = (_LIVE, _CROSSFIT, _RECALC, _DR)
 _SCORES = Adapter(
     RetainedKind.SCORES,
     ScoreResumeSession,
@@ -352,7 +375,7 @@ def capability_matrix() -> tuple[Capability, ...]:
                     adapters = (*_LIVE_ADAPTERS, _SCORES)
                     compatible = "Reuse same-row licensed scores; recheck target weights/support and recompute law/decision as required. A new target law is unsupported."
                 elif operation == Operation.DATA:
-                    adapters = (*_LIVE_ADAPTERS, _PREDICT)
+                    adapters = (*_LIVE_ADAPTERS, _DR_PREDICT, _PREDICT)
                     compatible = "Supplied new rows/outcomes require native refitting; a portable predictor only predicts on new feature rows."
                 elif operation in (
                     Operation.FUNCTIONAL,
@@ -361,9 +384,9 @@ def capability_matrix() -> tuple[Capability, ...]:
                     Operation.LEARNER,
                 ):
                     adapters = _LIVE_ADAPTERS
-                    compatible = "The native adapter rechecks support/identification and refits invalidated scores for its supported cell quantity, treatment columns, graph, folds or RNG. Arbitrary learner changes and off-grid actions remain unsupported."
+                    compatible = "The native adapter rechecks support/identification and refits invalidated scores for its supported cell, DML AIPW or DR-Learner quantity, treatment columns, graph, folds or RNG. Arbitrary learner changes and off-grid actions remain unsupported."
                 elif operation == Operation.RESUME:
-                    adapters = (_LOAD_SCORES, _LOAD_PREDICT)
+                    adapters = (_LOAD_SCORES, _LOAD_PREDICT, _DR_RESUME)
                     compatible = "Verified scores resume same-row retargeting; verified predictors resume point prediction. Neither restores a general executable PreparedStudy."
             rows.append(
                 Capability(family, operation, identities, _OBJECTS[family], adapters, compatible)
@@ -385,6 +408,9 @@ def retained_kind(state: object) -> RetainedKind:
     if isinstance(state, AdjustedSession):
         if isinstance(state._handle, _native.AdjustedSessionHandle) and state._handle.is_live():
             return RetainedKind.LIVE_FIT
+    elif isinstance(state, DrSession):
+        if isinstance(state._handle, _native.DrSessionHandle) and state._handle.is_live():
+            return RetainedKind.LIVE_SCORES
     elif isinstance(state, (RecalcSession, CrossfitSession, CellSession)):
         if (
             isinstance(
@@ -420,6 +446,12 @@ def require_adapter(family: Family | str, operation: Operation | str, state: obj
     kind = retained_kind(state)
     for adapter in row.adapters:
         if adapter.retained == kind and isinstance(state, adapter.state_type):
+            if adapter is _DR_PREDICT and (
+                not isinstance(state, DrSession)
+                or not isinstance(state._handle, _native.DrSessionHandle)
+                or state._handle.prediction_columns() is None
+            ):
+                continue
             return adapter
     raise RecalcUnavailable(
         {

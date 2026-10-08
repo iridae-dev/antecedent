@@ -65,7 +65,7 @@ pub enum Counter {
     Identification,
     /// One cross-fitted nuisance fold fit.
     FoldFit,
-    /// One successful adjusted-regression model fit.
+    /// One successful retained or final-stage model fit.
     ModelFit,
     /// A frozen score table was built.
     ScoreComputation,
@@ -103,7 +103,7 @@ pub struct StageCounts {
     pub identifications: u64,
     /// Cross-fitted nuisance fold fits performed.
     pub fold_fits: u64,
-    /// Successful adjusted-regression model fits.
+    /// Successful retained or final-stage model fits.
     pub model_fits: u64,
     /// Score tables built.
     pub score_computations: u64,
@@ -377,11 +377,17 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
             return Err(ReceiptError::UnexpectedWork { stage });
         }
     }
-    let required = if stage == Stage::ScoreArtifact && entry.counts.model_fits > 0 {
-        if entry.counts.fold_fits > 0 || entry.counts.score_computations > 0 {
-            return Err(ReceiptError::UnexpectedWork { stage });
+    let required = if stage == Stage::ScoreArtifact
+        && matches!(entry.status, StageStatus::Recomputed { .. })
+    {
+        if entry.counts.score_computations == 0 && entry.counts.model_fits > 0 {
+            if entry.counts.fold_fits > 0 {
+                return Err(ReceiptError::UnexpectedWork { stage });
+            }
+            &[Counter::ModelFit][..]
+        } else {
+            &[Counter::FoldFit, Counter::ScoreComputation][..]
         }
-        &[Counter::ModelFit][..]
     } else {
         required
     };

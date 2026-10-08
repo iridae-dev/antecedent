@@ -21,12 +21,14 @@ use antecedent_io::recalc_receipt_artifact::{
 use antecedent_stats::{GlmFamily, GlmOptions};
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
-use pyo3::types::{PyList, PyTuple};
 use serde::Deserialize;
 
 use crate::recalc_api::{
     RunPayload, artifact_invalid, context, counts_wire, invalid, parse_json, plan_refusal_json,
     refusal_json,
+};
+use crate::recalc_bounds::{
+    MAX_COLUMNS, MAX_ROWS, MAX_VALUES, bounded_prediction_rows, check_columns,
 };
 use crate::{detach_catch, py_msg};
 
@@ -73,75 +75,7 @@ struct RequestWire {
     target_depends_on: Vec<String>,
 }
 
-const MAX_ROWS: usize = 100_000;
-const MAX_COLUMNS: usize = 256;
-const MAX_VALUES: usize = 1_000_000;
 const MAX_GLM_ITERATIONS: u32 = 1_000;
-
-fn sequence_len(sequence: &Bound<'_, PyAny>) -> PyResult<usize> {
-    if let Ok(list) = sequence.cast::<PyList>() {
-        Ok(list.len())
-    } else if let Ok(tuple) = sequence.cast::<PyTuple>() {
-        Ok(tuple.len())
-    } else {
-        Err(invalid(
-            "recalc.adjusted_prediction_schema_mismatch",
-            "prediction rows must be lists or tuples",
-        ))
-    }
-}
-
-fn sequence_item<'py>(sequence: &Bound<'py, PyAny>, index: usize) -> PyResult<Bound<'py, PyAny>> {
-    if let Ok(list) = sequence.cast::<PyList>() {
-        list.get_item(index)
-    } else {
-        sequence.cast::<PyTuple>()?.get_item(index)
-    }
-}
-
-// Inspect Python's actual list/tuple dimensions before any numeric extraction.
-// Direct indexing bypasses arbitrary subclass iterators and their allocation behavior.
-fn bounded_prediction_rows(raw_rows: &Bound<'_, PyAny>) -> PyResult<Vec<Vec<f64>>> {
-    let nrows = sequence_len(raw_rows)?;
-    if nrows > MAX_ROWS {
-        return Err(invalid("recalc.limits_exceeded", "adjusted predictions exceed row limit"));
-    }
-    let mut total = 0usize;
-    for i in 0..nrows {
-        let row = sequence_item(raw_rows, i)?;
-        let width = sequence_len(&row)?;
-        total = total
-            .checked_add(width)
-            .ok_or_else(|| invalid("recalc.limits_exceeded", "prediction size overflow"))?;
-        if width > MAX_COLUMNS || total > MAX_VALUES {
-            return Err(invalid(
-                "recalc.limits_exceeded",
-                "adjusted predictions exceed feature/value limits",
-            ));
-        }
-    }
-    let mut rows = Vec::with_capacity(nrows);
-    total = 0;
-    for i in 0..nrows {
-        let row = sequence_item(raw_rows, i)?;
-        let width = sequence_len(&row)?;
-        total = total
-            .checked_add(width)
-            .ok_or_else(|| invalid("recalc.limits_exceeded", "prediction size overflow"))?;
-        if width > MAX_COLUMNS || total > MAX_VALUES {
-            return Err(invalid(
-                "recalc.limits_exceeded",
-                "adjusted predictions exceed feature/value limits",
-            ));
-        }
-        let mut values = Vec::with_capacity(width);
-        for j in 0..width {
-            values.push(sequence_item(&row, j)?.extract::<f64>()?);
-        }
-        rows.push(values);
-    }
-    Ok(rows)
-}
 
 fn covariance(name: &str) -> PyResult<VectorCovariance> {
     Ok(match name {
@@ -160,18 +94,7 @@ fn build_request(
     specification: &str,
 ) -> PyResult<AdjustedRequest> {
     let wire: RequestWire = parse_json(specification, "adjusted request")?;
-    if names.len() > MAX_COLUMNS
-        || columns.first().is_some_and(|c| c.len().unwrap_or(usize::MAX) > MAX_ROWS)
-        || columns
-            .iter()
-            .try_fold(0usize, |n, c| c.len().ok().and_then(|len| n.checked_add(len)))
-            .is_none_or(|n| n > MAX_VALUES)
-    {
-        return Err(invalid(
-            "recalc.limits_exceeded",
-            "adjusted data exceed row/column/value limits",
-        ));
-    }
+    check_columns(&names, columns)?;
     if names.is_empty() || names.len() != columns.len() {
         return Err(invalid("recalc.invalid_data", "one named column per name is required"));
     }
@@ -452,7 +375,7 @@ impl PyAdjustedSession {
         rows: &Bound<'_, PyAny>,
         columns: Vec<String>,
     ) -> PyResult<(Option<String>, Option<String>)> {
-        let rows = bounded_prediction_rows(rows)?;
+        let rows = bounded_prediction_rows(rows, "recalc.adjusted_prediction_schema_mismatch")?;
         if rows.len() > MAX_ROWS
             || columns.len() > MAX_COLUMNS
             || rows

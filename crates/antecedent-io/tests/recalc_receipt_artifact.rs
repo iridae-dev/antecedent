@@ -523,6 +523,49 @@ fn c2_artifact_model_fits_are_bound_and_legacy_counts_remain_unchanged() {
         Err(RecalcReceiptArtifactError::IdentityMismatch { field: "retained_receipt_identity" })
     ));
 
+    // A DR CATE score stage may include a measured final-stage model fit in
+    // addition to nuisance folds and score construction. Both remain bound.
+    let mixed = RecalcReceiptArtifact::seal(
+        &workflow("u1", "seed1"),
+        &workflow("u1", "seed2"),
+        &in_process(),
+        &counts(&[
+            (
+                Stage::ScoreArtifact,
+                CountsWire {
+                    fold_fits: 6,
+                    model_fits: 1,
+                    score_computations: 1,
+                    ..CountsWire::default()
+                },
+            ),
+            (Stage::Law, CountsWire { reweights: 1, ..CountsWire::default() }),
+            (Stage::Decision, decided()),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(mixed.meta().totals.total(), 10);
+    let loaded = RecalcReceiptArtifact::from_bytes(
+        &mixed.to_bytes(ID).unwrap(),
+        Some(mixed.receipt_identity()),
+    )
+    .unwrap();
+    assert_eq!(loaded, mixed);
+    assert_eq!(mixed.receipt_identity(), oracle_identity(mixed.meta()));
+    for missing_scores in [true, false] {
+        let mut edited = mixed.meta().clone();
+        let row = edited.entries.iter_mut().find(|r| r.stage == "score_artifact").unwrap();
+        if missing_scores {
+            row.counts.score_computations = 0;
+        } else {
+            row.counts.fold_fits = 0;
+        }
+        assert!(matches!(
+            consume(&reseal(edited)),
+            Err(RecalcReceiptArtifactError::CountsInconsistent { .. })
+        ));
+    }
+
     // Fits assigned to a reused identification stage contradict actual work ownership.
     let mut edited = artifact.meta().clone();
     edited.entries.iter_mut().find(|r| r.stage == "identification").unwrap().counts.model_fits = 1;

@@ -20,5 +20,7 @@ upstream_implementations_observed = [
 ]
 
 test_sources = [
+ "crates/antecedent/tests/recalc_dr.rs",
+ "python/tests/test_recalc_dr.py",
  "independently generated synthetic confounded SCM with known ATE",
 ]

@@ -4981,3 +4981,59 @@ limits = "Existing AIPW/cell planner behavior and historical receipts remain unc
 evidence_test = "python/tests/test_recalc_adjusted.py"
 evidence_assertion = "test_adjusted_prediction_uses_named_native_schema_and_measures_zero_fits"
 notes = "Checked adjusted regression with actual model-fit counts; unmeasured diagnostics only."
+
+
+[[routes]]
+route = "antecedent.recalc_dr.DrSession.execute"
+stage = "evaluate"
+status = "licensed"
+graph = "Fully observed static DAG, one binary treatment and mean outcome, checked adjustment-shaped identification. No latent, temporal, design-specific or external provider contract."
+evidence = "Known heterogeneous finite structural outcomes, independent weighted score covariance, original estimator and full-rerun differential tests, executing factory observers, semantic mutations and fresh-process consumers."
+functional = "Marginal binary AIPW mean contrasts under fixed same-row targets; separate final-stage conditional model point predictions."
+guarantee = "checked_dr_score_and_cate_reuse_actual_learner_counts_point_only"
+limits = "Existing direct DML/DR-Learner and AIPW/cell/adjusted routes preserve their own contracts. Receipt-only state recreates no estimator; explicit supplied raw data refits. PLR, trimming, arbitrary callbacks and unsupported target operations remain unavailable in this adapter."
+evidence_test = "python/tests/test_recalc_dr.py"
+evidence_assertion = "test_dr_native_dml_cate_counts_and_full_rerun"
+notes = "Checked selective DR score and CATE model operations; unmeasured diagnostics and point predictions only."
+
+
+[[routes]]
+route = "antecedent.recalc_dr.DrSession.predict"
+stage = "evaluate"
+status = "licensed"
+graph = "Fully observed static DAG, one binary treatment and mean outcome, checked adjustment-shaped identification. No latent, temporal, design-specific or external provider contract."
+evidence = "Known heterogeneous finite structural outcomes, independent weighted score covariance, original estimator and full-rerun differential tests, executing factory observers, semantic mutations and fresh-process consumers."
+functional = "Marginal binary AIPW mean contrasts under fixed same-row targets; separate final-stage conditional model point predictions."
+guarantee = "checked_dr_score_and_cate_reuse_actual_learner_counts_point_only"
+limits = "Existing direct DML/DR-Learner and AIPW/cell/adjusted routes preserve their own contracts. Receipt-only state recreates no estimator; explicit supplied raw data refits. PLR, trimming, arbitrary callbacks and unsupported target operations remain unavailable in this adapter."
+evidence_test = "python/tests/test_recalc_dr.py"
+evidence_assertion = "test_dr_cate_predict_named_schema_zero_fits_independent_truth"
+notes = "Checked selective DR score and CATE model operations; unmeasured diagnostics and point predictions only."
+
+
+[[routes]]
+route = "antecedent.recalc_dr.DrSession.export_scores"
+stage = "representation"
+status = "licensed"
+graph = "Fully observed static DAG, one binary treatment and mean outcome, checked adjustment-shaped identification. No latent, temporal, design-specific or external provider contract."
+evidence = "Known heterogeneous finite structural outcomes, independent weighted score covariance, original estimator and full-rerun differential tests, executing factory observers, semantic mutations and fresh-process consumers."
+functional = "Marginal binary AIPW mean contrasts under fixed same-row targets; separate final-stage conditional model point predictions."
+guarantee = "checked_dr_score_and_cate_reuse_actual_learner_counts_point_only"
+limits = "Existing direct DML/DR-Learner and AIPW/cell/adjusted routes preserve their own contracts. Receipt-only state recreates no estimator; explicit supplied raw data refits. PLR, trimming, arbitrary callbacks and unsupported target operations remain unavailable in this adapter."
+evidence_test = "python/tests/test_recalc_dr.py"
+evidence_assertion = "test_dr_portable_scores_and_predictor_fresh_process"
+notes = "Checked selective DR score and CATE model operations; unmeasured diagnostics and point predictions only."
+
+
+[[routes]]
+route = "antecedent.recalc_dr.DrSession.export_predictor"
+stage = "representation"
+status = "licensed"
+graph = "Fully observed static DAG, one binary treatment and mean outcome, checked adjustment-shaped identification. No latent, temporal, design-specific or external provider contract."
+evidence = "Known heterogeneous finite structural outcomes, independent weighted score covariance, original estimator and full-rerun differential tests, executing factory observers, semantic mutations and fresh-process consumers."
+functional = "Marginal binary AIPW mean contrasts under fixed same-row targets; separate final-stage conditional model point predictions."
+guarantee = "checked_dr_score_and_cate_reuse_actual_learner_counts_point_only"
+limits = "Existing direct DML/DR-Learner and AIPW/cell/adjusted routes preserve their own contracts. Receipt-only state recreates no estimator; explicit supplied raw data refits. PLR, trimming, arbitrary callbacks and unsupported target operations remain unavailable in this adapter."
+evidence_test = "python/tests/test_recalc_dr.py"
+evidence_assertion = "test_dr_portable_scores_and_predictor_fresh_process"
+notes = "Checked selective DR score and CATE model operations; unmeasured diagnostics and point predictions only."

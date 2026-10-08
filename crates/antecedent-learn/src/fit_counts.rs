@@ -17,6 +17,7 @@ use crate::{
 
 thread_local! {
     static ACTIVE: RefCell<Option<Arc<AtomicU64>>> = const { RefCell::new(None) };
+    static OBSERVERS: RefCell<Vec<Arc<AtomicU64>>> = const { RefCell::new(Vec::new()) };
 }
 
 struct Restore(Option<Arc<AtomicU64>>);
@@ -40,17 +41,36 @@ pub fn count_resolved_fits<T>(operation: impl FnOnce() -> T) -> (T, u64) {
     (result, count.load(Ordering::Relaxed))
 }
 
-pub(crate) fn instrument(factory: Box<dyn LearnerFactory>) -> Box<dyn LearnerFactory> {
-    let count = ACTIVE.with(|slot| slot.borrow().clone());
-    match count {
-        Some(count) => Box::new(CountedFactory { factory, count }),
-        None => factory,
+/// Observe successful resolved factory fits, including nested independent measurement scopes.
+/// Already resolved and direct concrete factories remain outside this instrument. Factories
+/// carry observers across worker threads; join workers before returning.
+pub fn observe_resolved_fits<T>(operation: impl FnOnce() -> T) -> (T, u64) {
+    struct RestoreObservers(usize);
+    impl Drop for RestoreObservers {
+        fn drop(&mut self) {
+            OBSERVERS.with(|observers| observers.borrow_mut().truncate(self.0));
+        }
     }
+    let count = Arc::new(AtomicU64::new(0));
+    let _restore = RestoreObservers(OBSERVERS.with(|observers| {
+        let mut observers = observers.borrow_mut();
+        let before = observers.len();
+        observers.push(Arc::clone(&count));
+        before
+    }));
+    let result = operation();
+    (result, count.load(Ordering::Relaxed))
 }
-
+pub(crate) fn instrument(factory: Box<dyn LearnerFactory>) -> Box<dyn LearnerFactory> {
+    let mut counts = OBSERVERS.with(|observers| observers.borrow().clone());
+    if let Some(count) = ACTIVE.with(|slot| slot.borrow().clone()) {
+        counts.push(count);
+    }
+    if counts.is_empty() { factory } else { Box::new(CountedFactory { factory, counts }) }
+}
 struct CountedFactory {
     factory: Box<dyn LearnerFactory>,
-    count: Arc<AtomicU64>,
+    counts: Vec<Arc<AtomicU64>>,
 }
 
 impl LearnerFactory for CountedFactory {
@@ -68,7 +88,9 @@ impl LearnerFactory for CountedFactory {
         ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
         let result = self.factory.fit(x, y, weights, ctx)?;
-        self.count.fetch_add(1, Ordering::Relaxed);
+        for count in &self.counts {
+            count.fetch_add(1, Ordering::Relaxed);
+        }
         Ok(result)
     }
 }
@@ -104,6 +126,26 @@ mod tests {
         });
         assert_eq!(outer, 2);
         let (_, clean) = count_resolved_fits(|| {});
+        assert_eq!(clean, 0);
+    }
+
+    #[test]
+    fn cumulative_observers_include_nested_independent_scopes_and_restore_after_unwind() {
+        let (_, observed) = observe_resolved_fits(|| {
+            let (_, outer) = count_resolved_fits(|| {
+                fit();
+                let (_, inner) = count_resolved_fits(fit);
+                assert_eq!(inner, 1);
+                let (_, nested) = observe_resolved_fits(fit);
+                assert_eq!(nested, 1);
+                let failed = std::panic::catch_unwind(|| observe_resolved_fits(|| panic!("test")));
+                assert!(failed.is_err());
+                fit();
+            });
+            assert_eq!(outer, 3);
+        });
+        assert_eq!(observed, 4);
+        let (_, clean) = observe_resolved_fits(|| {});
         assert_eq!(clean, 0);
     }
 

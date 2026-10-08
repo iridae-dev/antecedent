@@ -128,7 +128,7 @@ pub struct CellRequest {
     pub spec: CellSpec,
 }
 
-fn graph_identity(n_variables: usize, edges: &[(u32, u32)]) -> StageIdentity {
+pub(crate) fn graph_identity(n_variables: usize, edges: &[(u32, u32)]) -> StageIdentity {
     let mut edges = edges.to_vec();
     edges.sort_unstable();
     edges.dedup();
@@ -137,7 +137,7 @@ fn graph_identity(n_variables: usize, edges: &[(u32, u32)]) -> StageIdentity {
     digest("graph", &[to_u64(n_variables).to_le_bytes().to_vec(), edge_bytes])
 }
 
-fn target_identity(target: Option<&TargetWeights>) -> StageIdentity {
+pub(crate) fn target_identity(target: Option<&TargetWeights>) -> StageIdentity {
     target.map_or_else(
         || literal("target_population", "all_observed"),
         |t| {
@@ -148,7 +148,7 @@ fn target_identity(target: Option<&TargetWeights>) -> StageIdentity {
     )
 }
 
-fn utility_identity(utility: UtilitySpec) -> StageIdentity {
+pub(crate) fn utility_identity(utility: UtilitySpec) -> StageIdentity {
     digest("utility", &[f64_bytes(&[utility.benefit_per_unit, utility.cost])])
 }
 
@@ -336,7 +336,7 @@ fn is_reused(plan: &RecalcPlan, stage: Stage) -> bool {
 
 // -- freezing scores ------------------------------------------------------------------------
 
-fn freeze(
+pub(crate) fn freeze(
     table: &ScoreTable,
     declared: &StageIdentities,
     input_rows: u64,

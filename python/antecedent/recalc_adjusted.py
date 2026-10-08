@@ -17,10 +17,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
-import numpy as np
 from numpy.typing import ArrayLike
 
 from . import _native
+from ._recalc_bounds import MAX_COLUMNS, MAX_ROWS, MAX_VALUES, _columns
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .recalc import (
     Capabilities,
@@ -107,27 +107,6 @@ class AdjustedRequest:
     model: LinearModel | GlmModel | CategoricalModel = LinearModel()
     contrast: NumericContrast | CategoricalContrast = NumericContrast()
     target: TargetWeights | None = None
-
-
-MAX_ROWS = 100_000
-MAX_COLUMNS = 256
-MAX_VALUES = 1_000_000
-
-
-def _columns(data: Mapping[str, ArrayLike]) -> tuple[list[str], list[Any]]:
-    names = list(data)
-    if len(names) > MAX_COLUMNS:
-        raise CausalValueError(
-            "recalc.limits_exceeded: adjusted data exceed column limit",
-            reason_code="invalid_argument",
-        )
-    views = [np.asarray(data[name]) for name in names]
-    if any(view.size > MAX_ROWS for view in views) or sum(view.size for view in views) > MAX_VALUES:
-        raise CausalValueError(
-            "recalc.limits_exceeded: adjusted data exceed row/value limit",
-            reason_code="invalid_argument",
-        )
-    return names, [_column(name, values) for name, values in zip(names, views, strict=True)]
 
 
 def _spec(request: AdjustedRequest) -> dict[str, Any]:

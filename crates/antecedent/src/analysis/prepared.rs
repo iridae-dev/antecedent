@@ -6035,6 +6035,32 @@ impl PreparedStudy {
         self.stamp(&data, result)
     }
 
+    /// Refresh only a DML/DR nuisance configuration, retaining the checked causal query.
+    /// The adapter has already checked that graph/query/regime/schema identities are unchanged.
+    pub(crate) fn refresh_dr_configuration(
+        &mut self,
+        data: TabularData,
+        spec: crate::estimator_spec::EstimatorSpec,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        use crate::strategy_table::EstimatorId;
+        if !matches!(spec.id(), EstimatorId::Dml | EstimatorId::DrLearner)
+            || self.analysis.estimator != Some(spec.id())
+            || !matches!(self.execution, PreparedExecution::OrdinaryDispatch)
+            || self.analysis.identification_cache.is_none()
+        {
+            return Err(CausalError::Unsupported {
+                message: "DML/DR configuration refresh requires the same checked estimator family",
+            });
+        }
+        self.analysis.estimator_spec_identity =
+            Some(super::contract_identity::estimator_spec_identity(&spec));
+        self.analysis.overlap_policy = spec.propensity_overlap();
+        self.analysis.estimator_spec = Some(spec);
+        self.program_cache = std::sync::OnceLock::new();
+        self.refresh(data, ctx)
+    }
+
     /// Second-click / background refute: replace validation on a prior estimate.
     ///
     /// Leaves ATE / identification / estimand unchanged. Records `validate` stage timing.

@@ -613,3 +613,7 @@ allow mechanism crates/antecedent/src/graph.rs SelectionDiagram
 # names are workflow metadata and counted decision execution, not calibration
 # design generation or a new statistical measurement facet.
 allow design crates/antecedent/src/analysis/recalc_adjusted.rs Utility antecedent_core decide finish names
+
+# DR recalculation uses checked study preparation, existing artifact I/O and
+# counted decision execution; these names do not add calibration designs.
+allow design crates/antecedent/src/analysis/recalc_dr.rs Utility antecedent_core antecedent_io build decide finish names prepare

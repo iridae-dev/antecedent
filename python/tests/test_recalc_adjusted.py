@@ -443,6 +443,8 @@ def test_adjusted_bridge_bounds_columns_and_glm_iterations_before_execution():
     for names, columns in [
         ([f"x{i}" for i in range(257)], [np.zeros(2) for _ in range(257)]),
         (list(request.data), [np.zeros(100_001) for _ in request.data]),
+        (list(request.data), [np.zeros(1), np.zeros(100_001), np.zeros(1)]),
+        (list(request.data), [np.zeros(2) for _ in range(257)]),
     ]:
         with pytest.raises(CausalValueError, match="recalc.limits_exceeded") as error:
             native.execute(names, columns, json.dumps(_spec(request)))

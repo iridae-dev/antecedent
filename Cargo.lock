@@ -324,6 +324,7 @@ dependencies = [
  "antecedent-graph",
  "antecedent-identify",
  "antecedent-io",
+ "antecedent-learn",
  "antecedent-model",
  "antecedent-prob",
  "antecedent-stats",
