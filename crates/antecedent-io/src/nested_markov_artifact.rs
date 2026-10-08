@@ -501,6 +501,15 @@ impl NestedMarkovArtifactWire {
     ) -> Result<(Self, PilotReport), IoError> {
         let report = evaluate_nested_markov_pilot(input, options, ctx)
             .map_err(|refusal| pilot_refusal(&refusal))?;
+        let wire = Self::from_report(input, options, &report)?;
+        Ok((wire, report))
+    }
+
+    fn from_report(
+        input: &NestedMarkovInput,
+        options: &FitOptions,
+        report: &PilotReport,
+    ) -> Result<Self, IoError> {
         let mut wire = Self {
             version: NESTED_MARKOV_ARTIFACT_VERSION,
             required_features: vec![NESTED_MARKOV_ARTIFACT_FEATURE.into()],
@@ -509,7 +518,7 @@ impl NestedMarkovArtifactWire {
             graph: NestedGraphWire::from_graph(&input.graph),
             regimes: input.regimes.iter().map(NestedRegimeWire::from_counts).collect(),
             options: NestedOptionsWire::from_options(options),
-            receipt: NestedReceiptWire::from_report(&report),
+            receipt: NestedReceiptWire::from_report(report),
             calibration: NESTED_MARKOV_CALIBRATION.into(),
             premises_digest: String::new(),
             data_digest: String::new(),
@@ -517,7 +526,7 @@ impl NestedMarkovArtifactWire {
         wire.check_limits(&NestedMarkovConsumeLimits::default())?;
         wire.premises_digest = wire.expected_premises_digest()?;
         wire.data_digest = wire.expected_data_digest()?;
-        Ok((wire, report))
+        Ok(wire)
     }
 
     /// The premises digest the stored premises should carry. Recomputing it grants
@@ -672,5 +681,107 @@ impl NestedMarkovArtifactWire {
             return Err(NestedMarkovArtifactError::ReceiptMismatch.into());
         }
         Ok((wire, report))
+    }
+}
+
+/// Internal covariance/interval candidate envelope, awaiting whole-method calibration.
+/// The existing public point artifact does not accept this separate feature marker.
+#[cfg(feature = "calibration-internal")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NestedFisherArtifact {
+    /// Candidate envelope version.
+    pub version: u32,
+    /// Exact internal method marker; never a calibrated public inference label.
+    pub method: String,
+    /// Declared sampling assumption, not authenticated from the count table.
+    pub sampling: String,
+    /// Must remain unmeasured until separate activation after calibration.
+    pub calibration: String,
+    /// Bound point-fit premises, data and likelihood receipt.
+    pub point: NestedMarkovArtifactWire,
+    /// Nominal two-sided level, not a measured coverage guarantee.
+    pub nominal_level: f64,
+    /// Row-major eleven-parameter covariance (exactly 121 entries).
+    pub parameter_covariance: Vec<f64>,
+    /// Covariance of two means and their contrast.
+    pub effect_covariance: [[f64; 3]; 3],
+    /// Unmeasured normal-delta candidates.
+    pub interval_candidates: [[f64; 2]; 3],
+    /// Inverse information residual.
+    pub inverse_residual: f64,
+}
+
+#[cfg(feature = "calibration-internal")]
+impl NestedFisherArtifact {
+    /// Fit once and construct the separately marked internal uncertainty artifact.
+    /// # Errors
+    /// Scope, sampling, fit, information, nominal-level or encoding refusal.
+    pub fn build(
+        input: &NestedMarkovInput,
+        options: &FitOptions,
+        nominal_level: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        use antecedent_estimate::nested_markov_uncertainty::nested_markov_fisher_internal;
+        let candidate = nested_markov_fisher_internal(input, options, nominal_level, ctx)
+            .map_err(|e| estimation_refusal(&e))?;
+        Ok(Self {
+            version: 1,
+            method: "binary_verma_expected_fisher_delta_internal_v1".into(),
+            sampling: "iid_multinomial_integer_counts_correctly_specified_interior_model".into(),
+            calibration: "unmeasured".into(),
+            point: NestedMarkovArtifactWire::from_report(input, options, &candidate.pilot)?,
+            nominal_level,
+            parameter_covariance: candidate.parameter_covariance,
+            effect_covariance: candidate.effect_covariance,
+            interval_candidates: candidate.interval_candidates,
+            inverse_residual: candidate.inverse_residual,
+        })
+    }
+
+    /// Export internal candidate evidence; no public route can load it as a licensed interval.
+    /// # Errors
+    /// CBOR encoding failure.
+    pub fn export(&self) -> Result<Vec<u8>, IoError> {
+        crate::to_cbor(self)
+    }
+
+    /// Independently replay the bound point fit and the entire information propagation.
+    /// # Errors
+    /// Payload, consumer limit, changed premise/count/receipt, unsupported method or claim,
+    /// or nonidentical covariance/interval candidate. No caller metadata activates inference.
+    pub fn consume(
+        bytes: &[u8],
+        expected: &NestedMarkovExpectation,
+        limits: NestedMarkovConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        if bytes.len() > 256 * 1024 {
+            return Err(NestedMarkovArtifactError::LimitsExceeded("candidate byte size").into());
+        }
+        let wire: Self = crate::from_cbor(bytes)?;
+        if wire.version != 1 {
+            return Err(IoError::UnsupportedVersion { version: wire.version });
+        }
+        if wire.parameter_covariance.len() != 121 {
+            return Err(NestedMarkovArtifactError::LimitsExceeded("covariance shape").into());
+        }
+        let point_bytes = wire.point.export()?;
+        let (point, _) =
+            NestedMarkovArtifactWire::consume_expecting(&point_bytes, expected, limits, ctx)?;
+        let input = NestedMarkovInput {
+            graph: point.graph.to_graph(),
+            regimes: point
+                .regimes
+                .iter()
+                .map(NestedRegimeWire::to_counts)
+                .collect::<Result<Vec<_>, _>>()?,
+        };
+        let replay = Self::build(&input, &point.options.to_options(), wire.nominal_level, ctx)?;
+        if crate::to_cbor(&wire)? != crate::to_cbor(&replay)? {
+            return Err(NestedMarkovArtifactError::ReceiptMismatch.into());
+        }
+        Ok(wire)
     }
 }

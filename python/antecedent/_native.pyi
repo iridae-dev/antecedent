@@ -6327,3 +6327,102 @@ class DrSessionHandle:
     def export_predictor(
         self, *, seed: int = 1, threads: int | None = None
     ) -> tuple[bytes | None, str | None]: ...
+
+class StaticResponseSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> StaticResponseSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: list[Any],
+        graph: Admg,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: list[Any],
+        graph: Admg,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class MultiSourceSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> MultiSourceSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(
+        self,
+        graph: Admg,
+        catalog: Any,
+        laws: Any,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        graph: Admg,
+        catalog: Any,
+        laws: Any,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class DesignSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> DesignSessionHandle: ...
+    @staticmethod
+    def consume(
+        artifact: bytes,
+        names: list[str] | None = None,
+        columns: list[Any] | None = None,
+        specification: str | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[DesignSessionHandle | None, str | None, bytes | None, str | None, str | None]: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: list[Any],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: list[Any],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(self) -> tuple[bytes | None, str | None]: ...

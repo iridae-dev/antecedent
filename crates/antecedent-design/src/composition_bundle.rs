@@ -319,11 +319,15 @@ pub enum NodeKind {
     InverseQuery,
     /// An identification-repair search report.
     RepairReport,
+    /// Independently checked historical selective execution receipt; no live state.
+    RecalculationReceipt,
+    /// Independently checked frozen same-row scores for their licensed retarget operation.
+    FrozenScores,
 }
 
 impl NodeKind {
     /// Every kind.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 17] = [
         Self::CausalContract,
         Self::ExecutionOrFit,
         Self::ExternalClaim,
@@ -339,6 +343,8 @@ impl NodeKind {
         Self::StudyRanking,
         Self::InverseQuery,
         Self::RepairReport,
+        Self::RecalculationReceipt,
+        Self::FrozenScores,
     ];
 
     /// Stable `snake_case` wire name.
@@ -360,6 +366,8 @@ impl NodeKind {
             Self::StudyRanking => "study_ranking",
             Self::InverseQuery => "inverse_query",
             Self::RepairReport => "repair_report",
+            Self::RecalculationReceipt => "recalculation_receipt",
+            Self::FrozenScores => "frozen_scores",
         }
     }
 
@@ -374,12 +382,15 @@ impl NodeKind {
     pub const fn stage(self) -> CompositionStage {
         match self {
             Self::CausalContract => CompositionStage::CausalContract,
-            Self::ExecutionOrFit | Self::Distribution => CompositionStage::DistributionArtifact,
+            Self::ExecutionOrFit | Self::Distribution | Self::FrozenScores => {
+                CompositionStage::DistributionArtifact
+            }
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
             Self::EvidenceRelationship
             | Self::QuantityCoordinates
             | Self::SupportTrustCalibration
-            | Self::RepairReport => CompositionStage::Evidence,
+            | Self::RepairReport
+            | Self::RecalculationReceipt => CompositionStage::Evidence,
             Self::Transformation => CompositionStage::Transformation,
             Self::DecisionContract => CompositionStage::DecisionContract,
             Self::DecisionResult | Self::InverseQuery => CompositionStage::Claim,

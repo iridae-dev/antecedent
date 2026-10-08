@@ -296,3 +296,43 @@ fn b1_numerical_error_is_measured_and_negligible() {
         .fold(0.0, f64::max);
     assert!(worst < 1e-7, "{worst}");
 }
+
+#[test]
+fn b1_exact_quadratic_scope_derives_zero_bias_without_claiming_sampling_calibration() {
+    use antecedent_estimate::dose_grid_functional::estimate_dose_grid_quadratic_mean;
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/transport/quadratic_dose/expected.json"
+    ))
+    .unwrap();
+    let coefficients = oracle["conditional_mean_coefficients"].as_array().unwrap();
+    let b: Vec<f64> = coefficients.iter().map(|value| value.as_f64().unwrap()).collect();
+    let (dose, outcome) = design(0.0);
+    for bandwidth in [0.2, 0.4, 0.8] {
+        for functional in [
+            DoseFunctional::Level,
+            DoseFunctional::Derivative,
+            DoseFunctional::Contrast { from: 1.0, to: 3.0 },
+        ] {
+            let mut req = request(&dose, &outcome, &GRID, functional, claims(true, true));
+            req.bandwidth = bandwidth;
+            let scoped = estimate_dose_grid_quadratic_mean(&req).unwrap();
+            let generic = estimate_dose_grid_functional(&req).unwrap();
+            for p in &scoped.levels {
+                assert!((p.level - (b[0] + b[1] * p.dose + b[2] * p.dose.powi(2))).abs() < 1e-6);
+                assert!(p.interval.smoothing_bias_included);
+                assert_eq!(p.interval.calibration, IntervalCalibration::Unmeasured);
+            }
+            for p in &scoped.derivatives {
+                assert!((p.derivative - (b[1] + 2.0 * b[2] * p.dose)).abs() < 1e-5);
+                assert!(p.interval.smoothing_bias_included);
+            }
+            if let Some(c) = &scoped.contrast {
+                assert!((c.estimate - oracle["contrast"].as_f64().unwrap()).abs() < 1e-6);
+                assert!(c.interval.smoothing_bias_included);
+            }
+            assert!(generic.levels.iter().all(|p| !p.interval.smoothing_bias_included));
+            assert!(generic.derivatives.iter().all(|p| !p.interval.smoothing_bias_included));
+            assert!(generic.contrast.is_none_or(|c| !c.interval.smoothing_bias_included));
+        }
+    }
+}

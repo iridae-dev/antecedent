@@ -114,7 +114,7 @@ pub const TRUST_NATIVE: &str = "native_licensed";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 9] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 11] = [
     NodeKind::Distribution,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
@@ -124,6 +124,8 @@ pub const VERIFIABLE_KINDS: [NodeKind; 9] = [
     NodeKind::InverseQuery,
     NodeKind::RepairReport,
     NodeKind::EvidenceRelationship,
+    NodeKind::RecalculationReceipt,
+    NodeKind::FrozenScores,
 ];
 
 const KIND_DISTRIBUTION: &str = "joint_distribution_v1";
@@ -823,6 +825,47 @@ fn inspect_relationship(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     })
 }
 
+// Historical work and frozen scores are separate independently validated objects.
+// Neither reports a joint outcome law or authenticates a native provider.
+fn inspect_recalculation_receipt(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
+    use antecedent_io::recalc_receipt_artifact::RecalcReceiptArtifact;
+    let artifact = RecalcReceiptArtifact::from_bytes(bytes, None)
+        .map_err(|e| failure(BundleStage::SwappedEvidence, e.to_string()))?;
+    let meta = artifact.meta();
+    let mut facts = BTreeMap::from([
+        ("execution_status".into(), "historical_receipt".into()),
+        (FACT_TRUST.into(), TRUST_UNVERIFIED.into()),
+    ]);
+    if let Some(stage) = meta.requested.iter().find(|s| s.stage == "data_snapshot") {
+        facts.insert(FACT_SNAPSHOT.into(), stage.own.clone());
+    }
+    if let Some(stage) =
+        meta.entries.iter().find(|s| s.stage == "score_artifact" && s.tag != "refused")
+    {
+        facts.insert("recalc_score_identity".into(), stage.identity.clone());
+    }
+    Ok(Inspected {
+        identity: artifact.receipt_identity().to_owned(),
+        facts,
+        ..Inspected::default()
+    })
+}
+fn inspect_frozen_scores(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
+    use antecedent_io::frozen_scores_artifact::FrozenScoreTable;
+    let artifact = FrozenScoreTable::from_bytes(bytes, None)
+        .map_err(|e| failure(BundleStage::SwappedEvidence, e.to_string()))?;
+    Ok(Inspected {
+        identity: artifact.identity().to_owned(),
+        facts: BTreeMap::from([
+            (FACT_SNAPSHOT.into(), artifact.meta().snapshot_digest.clone()),
+            ("recalc_score_identity".into(), artifact.meta().fit_identity.clone()),
+            ("reusable_state".into(), "frozen_same_row_scores".into()),
+            (FACT_TRUST.into(), TRUST_UNVERIFIED.into()),
+        ]),
+        ..Inspected::default()
+    })
+}
+
 fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     match kind {
         NodeKind::Distribution => inspect_distribution(bytes),
@@ -834,6 +877,8 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         NodeKind::InverseQuery => inspect_inverse(bytes),
         NodeKind::RepairReport => inspect_repair(bytes),
         NodeKind::EvidenceRelationship => inspect_relationship(bytes),
+        NodeKind::RecalculationReceipt => inspect_recalculation_receipt(bytes),
+        NodeKind::FrozenScores => inspect_frozen_scores(bytes),
         other => Err(failure(
             BundleStage::UnknownNodeKind,
             format!("no verifier is registered for kind `{}`", other.as_str()),
@@ -931,6 +976,18 @@ fn cross_check(
     inspected: &mut Inspected,
     upstream: &[UpstreamNode<'_>],
 ) -> Result<(), NodeFailure> {
+    if let Some(expected) = inspected.facts.get("recalc_score_identity") {
+        for source in upstream {
+            if let Some(actual) = source.facts.get("recalc_score_identity") {
+                if expected != actual {
+                    return Err(failure(
+                        BundleStage::SwappedEvidence,
+                        "frozen scores and execution receipt name different executed fits",
+                    ));
+                }
+            }
+        }
+    }
     check_relationship(inspected, upstream)?;
     check_receipts(inspected, upstream)?;
     let contracts: Vec<&UpstreamNode<'_>> =
@@ -1064,6 +1121,12 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
         DESIGN_RANKING_ARTIFACT_KIND => Some(NodeKind::StudyRanking),
         INVERSE_QUERY_ARTIFACT_FEATURE => Some(NodeKind::InverseQuery),
         REPAIR_ARTIFACT_KIND => Some(NodeKind::RepairReport),
+        antecedent_io::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE => {
+            Some(NodeKind::RecalculationReceipt)
+        }
+        antecedent_io::frozen_scores_artifact::FROZEN_SCORES_ARTIFACT_FEATURE => {
+            Some(NodeKind::FrozenScores)
+        }
         _ => None,
     }
 }
@@ -1157,6 +1220,17 @@ kind_verifier!(
     NodeKind::EvidenceRelationship
 );
 
+kind_verifier!(
+    /// Verifies a historical selective receipt without supplying executable state.
+    RecalculationReceiptVerifier,
+    NodeKind::RecalculationReceipt
+);
+kind_verifier!(
+    /// Verifies frozen same-row scores and their producing snapshot/fit bindings.
+    FrozenScoresVerifier,
+    NodeKind::FrozenScores
+);
+
 /// The verifier of one node kind, when it has one.
 #[must_use]
 pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
@@ -1170,6 +1244,8 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::InverseQuery => Box::new(InverseQueryVerifier),
         NodeKind::RepairReport => Box::new(RepairReportVerifier),
         NodeKind::EvidenceRelationship => Box::new(EvidenceRelationshipVerifier),
+        NodeKind::RecalculationReceipt => Box::new(RecalculationReceiptVerifier),
+        NodeKind::FrozenScores => Box::new(FrozenScoresVerifier),
         _ => return None,
     };
     Some(verifier)

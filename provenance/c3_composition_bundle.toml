@@ -32,4 +32,9 @@ test_sources = [
   "crates/antecedent-design/tests/composition_bundle.rs",
   "crates/antecedent/tests/composition_facade.rs",
   "python/tests/test_composition_bundle.py",
+  "crates/antecedent/tests/recalc_dr.rs",
+  "python/tests/test_recalc_dr.py",
 ]
+
+# Additive independently consumed receipt and frozen-score nodes bind the actual producing
+# snapshot/fit identity. Historical counts are inspectable records, not executable state.

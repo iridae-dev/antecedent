@@ -225,3 +225,106 @@ def test_b1_consumer_limits_and_corrupt_artifacts_refuse() -> None:
         consume_dose_grid_artifact(bytes(corrupt))
     with pytest.raises(TypeError, match="artifact must be bytes"):
         consume_dose_grid_artifact("text")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("functional", ["level", "derivative", "contrast"])
+@pytest.mark.parametrize("bandwidth", [0.2, 0.4, 0.8])
+def test_b1_quadratic_scope_recovers_functional_across_fixed_bandwidths(
+    functional: str, bandwidth: float
+) -> None:
+    from antecedent.dose_grid import quadratic_dose_functional
+
+    dose, outcome = design()
+    options = {"contrast": (1.0, 3.0)} if functional == "contrast" else {"grid": GRID}
+    result = quadratic_dose_functional(
+        dose,
+        outcome,
+        functional=functional,
+        bandwidth=bandwidth,
+        bandwidth_range=(0.1, 1.0),
+        **options,
+    )
+    assert result.quadratic_mean and result.smoothing_bias_included
+    assert result.calibration == "unmeasured" and result.simultaneous_band == "closed"
+    for point in result.levels:
+        assert point.value == pytest.approx(truth_level(point.dose), abs=1e-6)
+        assert point.smoothing_bias_included
+    for point in result.derivatives:
+        assert point.value == pytest.approx(truth_derivative(point.dose), abs=1e-5)
+        assert point.smoothing_bias_included
+    if result.contrast is not None:
+        assert result.contrast.estimate == pytest.approx(3.0, abs=1e-6)
+        assert result.contrast.smoothing_bias_included
+    fresh = consume_dose_grid_artifact(result.export())
+    assert fresh == result
+    assert fresh.quadratic_mean
+    assert fresh.to_dict()["quadratic_mean"] is True
+
+
+def test_b1_quadratic_scope_keeps_sampling_uncertainty_and_support_restrictions() -> None:
+    from antecedent.dose_grid import quadratic_dose_functional
+
+    dose, outcome = design(0.1)
+    scoped = quadratic_dose_functional(
+        dose, outcome, grid=GRID, bandwidth=0.4, bandwidth_range=(0.1, 1.0)
+    )
+    generic = run("level", noise=0.1)
+    assert not generic.quadratic_mean and not generic.smoothing_bias_included
+    assert scoped.premises_digest != generic.premises_digest
+    assert scoped.data_digest == generic.data_digest
+    assert [p.standard_error for p in scoped.levels] == [p.standard_error for p in generic.levels]
+    assert all(p.standard_error > 0 for p in scoped.levels)
+    refused(
+        lambda: quadratic_dose_functional(
+            dose, outcome, grid=[10.0], bandwidth=0.4, bandwidth_range=(0.1, 1.0)
+        ),
+        "dose_grid.unsupported_dose",
+        "cell_not_licensed",
+    )
+    refused(
+        lambda: quadratic_dose_functional(
+            dose,
+            outcome,
+            grid=GRID,
+            bandwidth=0.4,
+            bandwidth_range=(0.1, 1.0),
+            claims=DoseClaims(pointwise_level=True, simultaneous_band=True),
+        ),
+        "dose_grid.simultaneous_band_closed",
+        "route_not_supported",
+    )
+
+
+def test_b1_quadratic_scope_fresh_process_replays_attested_artifact() -> None:
+    import json
+    import subprocess
+    import sys
+
+    from antecedent.dose_grid import quadratic_dose_functional
+
+    dose, outcome = design()
+    produced = quadratic_dose_functional(
+        dose, outcome, grid=[1.0], bandwidth=0.4, bandwidth_range=(0.1, 1.0)
+    )
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import json,sys; "
+                "from antecedent.dose_grid import consume_dose_grid_artifact; "
+                "r=consume_dose_grid_artifact(sys.stdin.buffer.read()); "
+                "print(json.dumps({'value':r.levels[0].value, "
+                "'quadratic_mean':r.quadratic_mean, 'bias':r.smoothing_bias_included, "
+                "'calibration':r.calibration, 'premises':r.premises_digest}))"
+            ),
+        ],
+        input=produced.export(),
+        capture_output=True,
+        check=True,
+    )
+    replayed = json.loads(child.stdout)
+    assert replayed["value"] == pytest.approx(1.75, abs=1e-6)
+    assert replayed["quadratic_mean"] is True and replayed["bias"] is True
+    assert replayed["calibration"] == "unmeasured"
+    assert replayed["premises"] == produced.premises_digest

@@ -91,6 +91,7 @@ impl DenseLinearAlgebra for FaerBackend {
         }
         let rss: f64 = residuals.iter().map(|e| e * e).sum();
 
+        crate::fit_counts::completed_solve();
         Ok(LeastSquaresFit {
             coefficients,
             residuals: residuals.to_vec(),

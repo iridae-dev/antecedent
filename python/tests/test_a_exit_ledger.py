@@ -21,7 +21,7 @@ its record must then be promoted. Composes the committed refusal tests
 ``test_closed_pilots.py``, ``test_temporal_extensions.py`` and ``test_temporal_counterfactual.py``
 by copying their request builders.
 
-Calibration is unmeasured for the four calibrated A claims at this commit; this file asserts the
+Calibration is unmeasured for the calibrated A claims at this commit; this file asserts the
 registry state, it does not measure anything.
 """
 
@@ -206,6 +206,11 @@ def _nested_markov() -> object:
     return transport.binary_nested_markov(graph=graph, regimes=[{"counts": CELLS}])
 
 
+def _nested_markov_fisher() -> object:
+    graph = Admg.from_edges(NODES, [("X1", "X2"), ("X2", "X3"), ("X3", "X4")], [("X2", "X4")])
+    return transport.binary_nested_markov_fisher_interval(graph=graph, regimes=[{"counts": CELLS}])
+
+
 def _sampled_recovery() -> object:
     query = transport.ObservationRecoveryQuery(
         population="clinic",
@@ -245,6 +250,7 @@ CLOSED_PRODUCERS: dict[str, Callable[[], object]] = {
     "antecedent.transport.joint_bayesian": _joint_bayesian,
     "antecedent.learned.joint_transport": _learned_joint,
     "antecedent.transport.binary_nested_markov": _nested_markov,
+    "antecedent.transport.binary_nested_markov_fisher_interval": _nested_markov_fisher,
     "antecedent.transport.sampled_observation_recovery": _sampled_recovery,
     "antecedent.transport.temporal_dependent_interval": _dependent_interval,
     "antecedent.cross_world.transported_path_specific": _transported_path_specific,

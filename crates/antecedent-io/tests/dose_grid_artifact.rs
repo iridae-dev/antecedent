@@ -46,6 +46,7 @@ fn request(kind: &str, noise: f64) -> DoseGridRequestWire {
     let contrast = kind == "contrast";
     DoseGridRequestWire {
         design: "randomized_dose".into(),
+        quadratic_mean: false,
         functional: DoseFunctionalWire {
             kind: kind.into(),
             from: contrast.then_some(1.0),
@@ -305,4 +306,71 @@ fn b1_support_table_labels_every_dose_without_refusing() {
     // Bad inputs are the row's typed invalid-request refusal.
     let (code, why) = dose_support_table(&dose, &[], 0.4, 10.0).unwrap_err().refusal();
     assert_eq!((code, why.as_str()), ("invalid_argument", "dose_grid.invalid_request"));
+}
+
+#[test]
+fn b1_quadratic_mean_scope_replays_truth_across_fixed_bandwidths() {
+    for kind in ["level", "derivative", "contrast"] {
+        for bandwidth in [0.2, 0.4, 0.8] {
+            let mut premise = request(kind, 0.0);
+            premise.quadratic_mean = true;
+            premise.bandwidth = bandwidth;
+            let wire = DoseGridArtifactWire::seal(premise).unwrap();
+            let consumed = consume(&wire.export().unwrap()).unwrap();
+            assert_eq!(consumed, wire);
+            assert!(consumed.request.quadratic_mean);
+            assert!(consumed.result.smoothing_bias_included);
+            assert_eq!(consumed.result.calibration, "unmeasured");
+            assert_eq!(
+                consumed.required_features,
+                ["dose_grid_functional_row_v1", "dose_grid_quadratic_mean_v1",]
+            );
+            for point in &consumed.result.levels {
+                assert!((point.value - truth_level(point.dose)).abs() < 1e-6);
+                assert!(point.smoothing_bias_included);
+            }
+            for point in &consumed.result.derivatives {
+                assert!((point.value - truth_derivative(point.dose)).abs() < 1e-5);
+                assert!(point.smoothing_bias_included);
+            }
+            if let Some(contrast) = &consumed.result.contrast {
+                assert!((contrast.estimate - 3.0).abs() < 1e-6);
+                assert!(contrast.smoothing_bias_included);
+            }
+        }
+    }
+}
+
+#[test]
+fn b1_quadratic_mean_premise_and_required_feature_cannot_be_silently_changed() {
+    let generic = seal("level", 0.1);
+    let old_json = serde_json::to_value(&generic.request).unwrap();
+    assert!(old_json.get("quadratic_mean").is_none());
+    let old_request: DoseGridRequestWire = serde_json::from_value(old_json).unwrap();
+    assert!(!old_request.quadratic_mean);
+    assert_eq!(DoseGridArtifactWire::seal(old_request).unwrap(), generic);
+    let mut premise = generic.request.clone();
+    premise.quadratic_mean = true;
+    let scoped = DoseGridArtifactWire::seal(premise).unwrap();
+    assert_ne!(generic.premises_digest, scoped.premises_digest);
+    assert_eq!(generic.data_digest, scoped.data_digest);
+    // Exact-model scope changes the bias premise, not the sampling-variance engine.
+    for (old, new) in generic.result.levels.iter().zip(&scoped.result.levels) {
+        assert_eq!(old.standard_error, new.standard_error);
+        assert_eq!(new.calibration, "unmeasured");
+        assert!(!old.smoothing_bias_included && new.smoothing_bias_included);
+    }
+    let mut missing_feature = scoped.clone();
+    missing_feature.required_features.pop();
+    assert!(consume(&missing_feature.export().unwrap()).is_err());
+    let mut changed_premise = scoped.clone();
+    changed_premise.request.quadratic_mean = false;
+    changed_premise.required_features.pop();
+    assert!(consume(&reseal(changed_premise)).is_err());
+    let mut changed_result = scoped;
+    changed_result.result.levels[0].smoothing_bias_included = false;
+    assert_eq!(
+        consume(&reseal(changed_result)).unwrap_err(),
+        DoseGridArtifactError::ResultMismatch
+    );
 }

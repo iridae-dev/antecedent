@@ -28,7 +28,7 @@ pub(crate) fn check_columns(
     Ok(())
 }
 
-fn sequence_len(sequence: &Bound<'_, PyAny>, detail: &str) -> PyResult<usize> {
+pub(crate) fn sequence_len(sequence: &Bound<'_, PyAny>, detail: &str) -> PyResult<usize> {
     if let Ok(list) = sequence.cast::<PyList>() {
         Ok(list.len())
     } else if let Ok(tuple) = sequence.cast::<PyTuple>() {
@@ -38,7 +38,10 @@ fn sequence_len(sequence: &Bound<'_, PyAny>, detail: &str) -> PyResult<usize> {
     }
 }
 
-fn sequence_item<'py>(sequence: &Bound<'py, PyAny>, index: usize) -> PyResult<Bound<'py, PyAny>> {
+pub(crate) fn sequence_item<'py>(
+    sequence: &Bound<'py, PyAny>,
+    index: usize,
+) -> PyResult<Bound<'py, PyAny>> {
     if let Ok(list) = sequence.cast::<PyList>() {
         list.get_item(index)
     } else {

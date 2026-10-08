@@ -1447,3 +1447,6 @@ mod tests {
         assert!(arena.compile(ExprId::from_raw(7)).is_err());
     }
 }
+
+/// Executing finite factor and functional work counters.
+pub mod execution_counts;

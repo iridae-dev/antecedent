@@ -413,3 +413,53 @@ def test_dr_capabilities_inspect_native_score_and_predictor_states():
         assert (session._handle.prediction_columns() is not None) == cate
         if cate:
             assert retained_kind(session.export_predictor()) == RetainedKind.PREDICTOR
+
+
+def test_dr_composition_bundle_fresh_process_preserves_receipt_and_resumes_scores(tmp_path):
+    from antecedent.composition_bundle import Bundle, consume_bundle
+
+    original = request(cate=True)
+    session = DrSession()
+    result = session.execute(original, seed=3)
+    scores = session.export_scores()
+    builder = Bundle.builder()
+    builder.add_artifact("recalculation_receipt", result.receipt.export(), node_id="receipt")
+    builder.add_artifact("frozen_scores", scores.export(), node_id="scores")
+    builder.connect("receipt", "scores")
+    bundle = builder.build()
+    checked = consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    checked.require_verified()
+    assert checked.node("receipt").facts["execution_status"] == "historical_receipt"
+    assert "reusable_state" not in checked.node("receipt").facts
+    assert checked.node("scores").facts["reusable_state"] == "frozen_same_row_scores"
+    assert "law" not in checked.node("scores").facts
+    (tmp_path / "bundle.bin").write_bytes(bundle.export())
+    (tmp_path / "scores.bin").write_bytes(scores.export())
+    script = """
+import json,sys
+from pathlib import Path
+from antecedent.composition_bundle import consume_bundle
+from antecedent.recalc_cell import resume_from_scores
+from antecedent.recalc import Utility
+p=Path(sys.argv[1])
+checked=consume_bundle((p/'bundle.bin').read_bytes(),expected_identity=sys.argv[2])
+checked.require_verified()
+resumed=resume_from_scores((p/'scores.bin').read_bytes(), variables=['z','w','t','y'],
+    edges=[('z','t'),('w','t'),('z','y'),('w','y'),('t','y')],
+    utility=Utility(1),quantity='average_effect',expected_identity=sys.argv[3])
+result=resumed.retarget()
+print(json.dumps({'ate':result.law.ate,'fits':result.receipt.totals.fold_fits,
+    'reweights':result.receipt.totals.reweights,'past':checked.node('receipt').facts['execution_status']}))
+"""
+    wire = json.loads(
+        subprocess.check_output(
+            [sys.executable, "-c", script, str(tmp_path), bundle.identity, scores.identity],
+            text=True,
+        )
+    )
+    assert wire == {
+        "ate": pytest.approx(2.0, abs=1e-8),
+        "fits": 0,
+        "reweights": 1,
+        "past": "historical_receipt",
+    }

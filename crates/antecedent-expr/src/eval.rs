@@ -119,6 +119,9 @@ impl CompiledEvaluator {
             origins[slot] = ExprId::from_raw(expression);
         }
         let density_vars = compute_density_vars(&ops, arena);
+        crate::execution_counts::note_static_work(
+            crate::execution_counts::StaticWork::ProgramCompilation,
+        );
         Ok(Self { ops, origins, free_vars, density_vars, root: root_slot })
     }
 

@@ -17,7 +17,9 @@ from .prediction import FittedEffectModel
 from .recalc import RecalcSession, RecalcUnavailable, Stage
 from .recalc_adjusted import AdjustedSession
 from .recalc_cell import CellSession, CrossfitSession, ScoreResumeSession
+from .recalc_design import DesignSession
 from .recalc_dr import DrSession
+from .recalc_static import MultiSourceSession, StaticResponseSession
 
 
 class Family(StrEnum):
@@ -46,6 +48,8 @@ class RetainedKind(StrEnum):
     READABLE = "readable_result"
     LIVE_SCORES = "live_score_session"
     LIVE_FIT = "live_adjusted_fit"
+    LIVE_PROGRAM = "live_static_program"
+    LIVE_DESIGN = "live_checked_design"
     SCORES = "verified_portable_scores"
     PREDICTOR = "verified_portable_predictor"
     DRAWS = "aligned_posterior_draws"
@@ -225,6 +229,7 @@ _OBJECTS = {
         "readable RecalcReceipt",
     ),
     Family.STATIC: (
+        "StaticResponseSession or MultiSourceSession native retained program/result",
         "prepared response/transport stage",
         "bound factor/external claim",
         "readable response/transport artifact",
@@ -239,7 +244,11 @@ _OBJECTS = {
         "history/initial-state artifact",
         "readable temporal result",
     ),
-    Family.DESIGN: ("PreparedAnalysis compiled design plan", "readable IV/RD/front-door result"),
+    Family.DESIGN: (
+        "DesignSession native checked proof and fitted result",
+        "PreparedAnalysis compiled design plan",
+        "readable IV/RD/front-door result",
+    ),
 }
 
 _LIVE = Adapter(
@@ -341,6 +350,62 @@ _ADJUSTED_RESUME = replace(
 )
 
 
+_STATIC_RESPONSE = Adapter(
+    RetainedKind.LIVE_PROGRAM,
+    StaticResponseSession,
+    "antecedent.recalc_static.StaticResponseSession.execute",
+    "antecedent::analysis::recalc_static::execute_static_response_with_receipt",
+    "checked finite ADMG mean response",
+    "General-ID ADMG with bidirected edges, at least two increasing finite support points, and selected mean contrasts; raw graph/data/query changes recheck native dependencies. No derivatives, arbitrary target weights or inference license.",
+)
+_MZ = replace(
+    _STATIC_RESPONSE,
+    state_type=MultiSourceSession,
+    python_path="antecedent.recalc_static.MultiSourceSession.execute",
+    rust_path="antecedent::analysis::recalc_static::execute_mz_with_receipt",
+    operation="checked catalog-bound finite multi-source transport",
+    scope="Two to four cited source populations, finite exact/count laws, declared intervention assignments and one outcome mean; changed catalog/proof/source law requires native checking. No arbitrary provider callbacks or interval promotion.",
+)
+_STATIC_RESUME = replace(
+    _STATIC_RESPONSE,
+    python_path="antecedent.recalc_static.StaticResponseSession.resume",
+    rust_path="antecedent::analysis::recalc_static::StaticResponseSession::resume",
+    operation="fresh supplied-input refit",
+    scope="Receipt identities are historical; fresh response execution requires actual raw data. Existing result consumers verify artifacts without restoring an executable session.",
+)
+_MZ_RESUME = replace(
+    _MZ,
+    python_path="antecedent.recalc_static.MultiSourceSession.resume",
+    rust_path="antecedent::analysis::recalc_static::MzRecalcSession::resume",
+    operation="fresh supplied-input preparation",
+    scope="Fresh transport execution requires actual graph/catalog/laws/requests; caller flags cannot create retained proof, programs or providers.",
+)
+_DESIGN = Adapter(
+    RetainedKind.LIVE_DESIGN,
+    DesignSession,
+    "antecedent.recalc_design.DesignSession.execute",
+    "antecedent::analysis::recalc_design::execute_design_with_receipt",
+    "checked design selective execution",
+    "Binary-instrument IV 2SLS, configured sharp local-linear RD, or linear front-door path product, with actual fitted native proof/state. Unsupported IV decision bounds refuse with attempted point and actual diagnostics; no new interval license.",
+)
+_DESIGN_RESUME = replace(
+    _DESIGN,
+    python_path="antecedent.recalc_design.DesignSession.resume",
+    rust_path="antecedent::analysis::recalc_design::DesignSession::resume",
+    operation="fresh supplied-data refit",
+    scope="Actual compatible raw inputs refit; result artifacts and historical receipts never restore general executable design state.",
+)
+
+
+_DESIGN_REPLAY = replace(
+    _DESIGN_RESUME,
+    python_path="antecedent.recalc_design.consume_design_result",
+    rust_path="antecedent::analysis::recalc_design::consume_design_with_data",
+    operation="independent source-backed checked replay",
+    scope="Original verified scientific artifact plus actual matching raw inputs rerun and compare the full contract and scientific body; historical receipts alone supply no model state.",
+)
+
+
 @cache
 def capability_matrix() -> tuple[Capability, ...]:
     """Return all sixty immutable cells, including explicit unavailable adapters.
@@ -370,6 +435,38 @@ def capability_matrix() -> tuple[Capability, ...]:
                     Operation.INFERENCE: "Declared model covariance changes invalidate the joint fit. No calibrated intervals or additional resampling/inference settings are licensed.",
                     Operation.RESUME: "No adjusted fitted-state artifact loader: supplied compatible raw data refit at the fresh-process boundary; receipt-only/flag-only resume refuses.",
                 }[operation]
+            if family == Family.STATIC:
+                if operation in (
+                    Operation.UTILITY,
+                    Operation.FUNCTIONAL,
+                    Operation.ACTION_GRID,
+                    Operation.DATA,
+                    Operation.STRUCTURE,
+                    Operation.LEARNER,
+                ):
+                    adapters = (_STATIC_RESPONSE, _MZ)
+                    compatible = "Reuse checked finite mean response values and compatible compiled factor programs; changed raw graph/query/support/catalog/laws recheck affected native work. Unsupported functionals and off-support actions refuse."
+                elif operation in (Operation.TARGET, Operation.PROVIDER):
+                    adapters = (_MZ,)
+                    compatible = "Only compatible finite catalog-bound laws and actual cited source regimes; changed population/proof/provider coordinates recheck preparation. Caller callbacks and row weights supply no execution license."
+                elif operation == Operation.RESUME:
+                    adapters = (_STATIC_RESUME, _MZ_RESUME)
+                    compatible = "Fresh supplied raw inputs require preparation; independent artifact consumers replay result proof/points without supplying executable session state."
+            if family == Family.DESIGN:
+                if operation in (
+                    Operation.UTILITY,
+                    Operation.DATA,
+                    Operation.STRUCTURE,
+                    Operation.LEARNER,
+                ):
+                    adapters = (_DESIGN,)
+                    compatible = "Checked IV, sharp RD or linear front-door model and causal roles; utility-only changes reuse actual results, while changed raw data/graph/window/RNG refit affected stages."
+                elif operation == Operation.RESUME:
+                    adapters = (
+                        _DESIGN_RESUME,
+                        _DESIGN_REPLAY,
+                    )
+                    compatible = "Fresh compatible supplied raw data refit; portable/result/receipt flags cannot create executable fitted design state."
             if family == Family.DOUBLY_ROBUST:
                 if operation in (Operation.UTILITY, Operation.TARGET):
                     adapters = (*_LIVE_ADAPTERS, _SCORES)
@@ -408,6 +505,18 @@ def retained_kind(state: object) -> RetainedKind:
     if isinstance(state, AdjustedSession):
         if isinstance(state._handle, _native.AdjustedSessionHandle) and state._handle.is_live():
             return RetainedKind.LIVE_FIT
+    elif isinstance(state, (StaticResponseSession, MultiSourceSession)):
+        if (
+            isinstance(
+                state._handle,
+                (_native.StaticResponseSessionHandle, _native.MultiSourceSessionHandle),
+            )
+            and state._handle.is_live()
+        ):
+            return RetainedKind.LIVE_PROGRAM
+    elif isinstance(state, DesignSession):
+        if isinstance(state._handle, _native.DesignSessionHandle) and state._handle.is_live():
+            return RetainedKind.LIVE_DESIGN
     elif isinstance(state, DrSession):
         if isinstance(state._handle, _native.DrSessionHandle) and state._handle.is_live():
             return RetainedKind.LIVE_SCORES

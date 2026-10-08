@@ -617,3 +617,17 @@ allow design crates/antecedent/src/analysis/recalc_adjusted.rs Utility anteceden
 # DR recalculation uses checked study preparation, existing artifact I/O and
 # counted decision execution; these names do not add calibration designs.
 allow design crates/antecedent/src/analysis/recalc_dr.rs Utility antecedent_core antecedent_io build decide finish names prepare
+
+# Design-specific recalculation invokes existing checked fit preparation and
+# counted utility decisions, without introducing calibration design generation.
+allow design crates/antecedent/src/analysis/recalc_design.rs Utility antecedent_core antecedent_io build decide finish names prepare
+
+# Separately owned selected nested-Markov likelihood/information method.
+estimator.nested_markov crates/antecedent-estimate/src/nested_markov_binary.rs
+estimator.nested_markov crates/antecedent-estimate/src/nested_markov_uncertainty.rs
+key estimator.nested_markov estimator nested_markov.*
+
+# Selective facades use existing checked engines; these references describe input, utility and artifact identities.
+allow design crates/antecedent/src/analysis/recalc_static.rs Utility antecedent_core antecedent_io build decide finish names prepare
+allow mechanism crates/antecedent/src/analysis/recalc_design.rs result_digest
+allow mechanism crates/antecedent/src/analysis/recalc_static.rs canonical

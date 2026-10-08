@@ -15,6 +15,9 @@
 //! [`DoseGridFunctional::evaluate`] runs and seals the row;
 //! [`DoseGridFunctional::consume`] recomputes the local-quadratic fit from the
 //! exported table and refuses any resealed change of premise, table or value.
+//! A `quadratic_mean` request explicitly attests an exact quadratic conditional mean;
+//! polynomial reproduction accounts for its zero smoothing bias, with sampling
+//! calibration still unmeasured. Its artifact binds this additional premise and feature.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -23,9 +26,10 @@ pub use antecedent_estimate::dose_grid_functional::{
 };
 pub use antecedent_io::dose_grid_functional_artifact::{
     DOSE_GRID_ARTIFACT_FEATURE, DOSE_GRID_ARTIFACT_VERSION, DOSE_GRID_BAND_CLOSED,
-    DOSE_GRID_CALIBRATION, DOSE_GRID_INFERENCE_CLAIM, DoseClaimsWire, DoseContrastWire,
-    DoseFunctionalWire, DoseGridArtifactError, DoseGridArtifactWire, DoseGridConsumeLimits,
-    DoseGridRequestWire, DoseGridResultWire, DosePointWire, DoseSupportWire, dose_support_table,
+    DOSE_GRID_CALIBRATION, DOSE_GRID_INFERENCE_CLAIM, DOSE_GRID_QUADRATIC_FEATURE, DoseClaimsWire,
+    DoseContrastWire, DoseFunctionalWire, DoseGridArtifactError, DoseGridArtifactWire,
+    DoseGridConsumeLimits, DoseGridRequestWire, DoseGridResultWire, DosePointWire, DoseSupportWire,
+    dose_support_table,
 };
 
 use crate::error::CausalError;

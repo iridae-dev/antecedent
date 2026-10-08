@@ -73,6 +73,20 @@ pub enum Counter {
     Reweight,
     /// The decision rule was evaluated.
     Decision,
+    /// Successful empirical factor table constructions.
+    FactorBuild,
+    /// Successful expression program compilations.
+    ProgramCompilation,
+    /// Successful provider construction or rebinding.
+    ProviderBinding,
+    /// Uncached numerical factor evaluations.
+    FactorEvaluation,
+    /// Successful full functional integrations.
+    Integration,
+    /// Factor provider invocations, including cache hits.
+    ProviderCall,
+    /// Checked fit or retained law was reduced to a scalar summary.
+    LawSummary,
 }
 
 impl Counter {
@@ -84,13 +98,32 @@ impl Counter {
         Self::Decision,
     ];
 
+    const EXTENDED: [Self; 7] = [
+        Self::FactorBuild,
+        Self::ProgramCompilation,
+        Self::ProviderBinding,
+        Self::FactorEvaluation,
+        Self::Integration,
+        Self::ProviderCall,
+        Self::LawSummary,
+    ];
+
     /// The one stage this work belongs to.
     #[must_use]
     pub const fn stage(self) -> Stage {
         match self {
             Self::Identification => Stage::Identification,
-            Self::FoldFit | Self::ModelFit | Self::ScoreComputation => Stage::ScoreArtifact,
-            Self::Reweight => Stage::Law,
+            Self::FoldFit
+            | Self::ModelFit
+            | Self::ScoreComputation
+            | Self::FactorBuild
+            | Self::ProgramCompilation
+            | Self::ProviderBinding => Stage::ScoreArtifact,
+            Self::Reweight
+            | Self::FactorEvaluation
+            | Self::Integration
+            | Self::ProviderCall
+            | Self::LawSummary => Stage::Law,
             Self::Decision => Stage::Decision,
         }
     }
@@ -111,6 +144,20 @@ pub struct StageCounts {
     pub reweights: u64,
     /// Decision evaluations performed.
     pub decisions: u64,
+    /// Successful empirical factor table constructions.
+    pub factor_builds: u64,
+    /// Successful expression program compilations.
+    pub program_compilations: u64,
+    /// Successful provider construction or rebinding.
+    pub provider_bindings: u64,
+    /// Uncached numerical factor evaluations.
+    pub factor_evaluations: u64,
+    /// Successful full functional integrations.
+    pub integrations: u64,
+    /// Factor provider invocations, including cache hits.
+    pub provider_calls: u64,
+    /// Checked scalar summary reductions.
+    pub law_summaries: u64,
 }
 
 impl StageCounts {
@@ -124,6 +171,13 @@ impl StageCounts {
             Counter::ScoreComputation => self.score_computations,
             Counter::Reweight => self.reweights,
             Counter::Decision => self.decisions,
+            Counter::FactorBuild => self.factor_builds,
+            Counter::ProgramCompilation => self.program_compilations,
+            Counter::ProviderBinding => self.provider_bindings,
+            Counter::FactorEvaluation => self.factor_evaluations,
+            Counter::Integration => self.integrations,
+            Counter::ProviderCall => self.provider_calls,
+            Counter::LawSummary => self.law_summaries,
         }
     }
 
@@ -136,6 +190,13 @@ impl StageCounts {
             .saturating_add(self.score_computations)
             .saturating_add(self.reweights)
             .saturating_add(self.decisions)
+            .saturating_add(self.factor_builds)
+            .saturating_add(self.program_compilations)
+            .saturating_add(self.provider_bindings)
+            .saturating_add(self.factor_evaluations)
+            .saturating_add(self.integrations)
+            .saturating_add(self.provider_calls)
+            .saturating_add(self.law_summaries)
     }
 
     fn add(&mut self, counter: Counter, n: u64) {
@@ -146,6 +207,13 @@ impl StageCounts {
             Counter::ScoreComputation => &mut self.score_computations,
             Counter::Reweight => &mut self.reweights,
             Counter::Decision => &mut self.decisions,
+            Counter::FactorBuild => &mut self.factor_builds,
+            Counter::ProgramCompilation => &mut self.program_compilations,
+            Counter::ProviderBinding => &mut self.provider_bindings,
+            Counter::FactorEvaluation => &mut self.factor_evaluations,
+            Counter::Integration => &mut self.integrations,
+            Counter::ProviderCall => &mut self.provider_calls,
+            Counter::LawSummary => &mut self.law_summaries,
         };
         *slot = slot.saturating_add(n);
     }
@@ -155,6 +223,9 @@ impl StageCounts {
             self.add(counter, other.get(counter));
         }
         self.add(Counter::ModelFit, other.model_fits);
+        for counter in Counter::EXTENDED {
+            self.add(counter, other.get(counter));
+        }
         self
     }
 }
@@ -350,6 +421,13 @@ impl RecalcReceipt {
                 if e.counts.model_fits > 0 {
                     counts.extend_from_slice(&e.counts.model_fits.to_le_bytes());
                 }
+                for (index, counter) in Counter::EXTENDED.iter().enumerate() {
+                    let n = e.counts.get(*counter);
+                    if n > 0 {
+                        counts.push(u8::try_from(index + 1).unwrap_or(u8::MAX));
+                        counts.extend_from_slice(&n.to_le_bytes());
+                    }
+                }
                 [
                     e.stage.label().into_bytes(),
                     e.status.to_string().into_bytes(),
@@ -369,7 +447,7 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
         StageStatus::Recomputed { .. } => required_work(stage),
         StageStatus::Reused { .. } | StageStatus::Refused { .. } => &[],
     };
-    for counter in Counter::ALL.into_iter().chain([Counter::ModelFit]) {
+    for counter in Counter::ALL.into_iter().chain([Counter::ModelFit]).chain(Counter::EXTENDED) {
         let n = entry.counts.get(counter);
         let allowed =
             matches!(entry.status, StageStatus::Recomputed { .. }) && counter.stage() == stage;
@@ -380,7 +458,17 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
     let required = if stage == Stage::ScoreArtifact
         && matches!(entry.status, StageStatus::Recomputed { .. })
     {
-        if entry.counts.score_computations == 0 && entry.counts.model_fits > 0 {
+        if entry.counts.provider_bindings > 0 {
+            if entry.counts.fold_fits > 0
+                || entry.counts.model_fits > 0
+                || entry.counts.score_computations > 0
+            {
+                return Err(ReceiptError::UnexpectedWork { stage });
+            }
+            &[Counter::ProviderBinding][..]
+        } else if entry.counts.factor_builds > 0 || entry.counts.program_compilations > 0 {
+            return Err(ReceiptError::MissingWork { stage, counter: Counter::ProviderBinding });
+        } else if entry.counts.score_computations == 0 && entry.counts.model_fits > 0 {
             if entry.counts.fold_fits > 0 {
                 return Err(ReceiptError::UnexpectedWork { stage });
             }
@@ -388,6 +476,28 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
         } else {
             &[Counter::FoldFit, Counter::ScoreComputation][..]
         }
+    } else if stage == Stage::Law
+        && matches!(entry.status, StageStatus::Recomputed { .. })
+        && entry.counts.law_summaries > 0
+    {
+        if entry.counts.reweights > 0
+            || entry.counts.integrations > 0
+            || entry.counts.factor_evaluations > 0
+            || entry.counts.provider_calls > 0
+        {
+            return Err(ReceiptError::UnexpectedWork { stage });
+        }
+        &[Counter::LawSummary][..]
+    } else if stage == Stage::Law
+        && matches!(entry.status, StageStatus::Recomputed { .. })
+        && (entry.counts.integrations > 0
+            || entry.counts.factor_evaluations > 0
+            || entry.counts.provider_calls > 0)
+    {
+        if entry.counts.reweights > 0 {
+            return Err(ReceiptError::UnexpectedWork { stage });
+        }
+        &[Counter::Integration][..]
     } else {
         required
     };

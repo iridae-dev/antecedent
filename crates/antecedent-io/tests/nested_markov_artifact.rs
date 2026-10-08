@@ -82,6 +82,69 @@ fn input_for(law: &[f64; 16], n: f64) -> NestedMarkovInput {
     }
 }
 
+#[test]
+fn nested_fisher_candidate_replays_covariance_and_refuses_semantic_mutations() {
+    use antecedent_io::nested_markov_artifact::NestedFisherArtifact;
+    let mut input = input_for(&scm_law(0.4, 0.), 1_000_000.);
+    for count in &mut input.regimes[0].cells {
+        *count = count.round();
+    }
+    let producer = NestedFisherArtifact::build(
+        &input,
+        &FitOptions::default(),
+        0.95,
+        &ExecutionContext::for_tests(21),
+    )
+    .unwrap();
+    let bytes = producer.export().unwrap();
+    let expected = NestedMarkovExpectation {
+        premises_digest: Some(producer.point.premises_digest.clone()),
+        data_digest: Some(producer.point.data_digest.clone()),
+    };
+    let consumer = NestedFisherArtifact::consume(
+        &bytes,
+        &expected,
+        NestedMarkovConsumeLimits::default(),
+        &ExecutionContext::for_tests(999),
+    )
+    .unwrap();
+    assert_eq!(consumer.effect_covariance, producer.effect_covariance);
+    assert_eq!(consumer.interval_candidates, producer.interval_candidates);
+    assert_eq!(consumer.calibration, "unmeasured");
+    assert!(
+        NestedMarkovArtifactWire::decode(&bytes).is_err(),
+        "point reader cannot mint an interval license"
+    );
+    for mutation in
+        ["covariance", "interval", "sampling", "calibration", "method", "count", "version"]
+    {
+        let mut bad = producer.clone();
+        match mutation {
+            "covariance" => bad.effect_covariance[0][1] += 0.01,
+            "interval" => bad.interval_candidates[2][1] += 0.01,
+            "sampling" => bad.sampling = "dependent_rows".into(),
+            "calibration" => bad.calibration = "measured".into(),
+            "method" => bad.method = "posterior".into(),
+            "count" => {
+                bad.point.regimes[0].cells[0] += 1.;
+                bad.point.data_digest = bad.point.expected_data_digest().unwrap();
+            }
+            "version" => bad.version = 99,
+            _ => unreachable!(),
+        }
+        assert!(
+            NestedFisherArtifact::consume(
+                &bad.export().unwrap(),
+                &expected,
+                NestedMarkovConsumeLimits::default(),
+                &ExecutionContext::for_tests(22)
+            )
+            .is_err(),
+            "{mutation}"
+        );
+    }
+}
+
 fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(1)
 }

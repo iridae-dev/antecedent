@@ -84,6 +84,21 @@ fn oracle_identity(meta: &RecalcReceiptMeta) -> String {
         if entry.counts.model_fits > 0 {
             counted.extend_from_slice(&entry.counts.model_fits.to_le_bytes());
         }
+        let extras = [
+            entry.counts.factor_builds,
+            entry.counts.program_compilations,
+            entry.counts.provider_bindings,
+            entry.counts.factor_evaluations,
+            entry.counts.integrations,
+            entry.counts.provider_calls,
+            entry.counts.law_summaries,
+        ];
+        for (tag, n) in (1_u8..=7).zip(extras) {
+            if n > 0 {
+                counted.push(tag);
+                counted.extend_from_slice(&n.to_le_bytes());
+            }
+        }
         parts.push(counted);
     }
     let refs: Vec<&[u8]> = parts.iter().map(Vec::as_slice).collect();
@@ -101,6 +116,13 @@ fn reseal(mut meta: RecalcReceiptMeta) -> RecalcReceiptMeta {
         totals.score_computations += entry.counts.score_computations;
         totals.reweights += entry.counts.reweights;
         totals.decisions += entry.counts.decisions;
+        totals.factor_builds += entry.counts.factor_builds;
+        totals.program_compilations += entry.counts.program_compilations;
+        totals.provider_bindings += entry.counts.provider_bindings;
+        totals.factor_evaluations += entry.counts.factor_evaluations;
+        totals.integrations += entry.counts.integrations;
+        totals.provider_calls += entry.counts.provider_calls;
+        totals.law_summaries += entry.counts.law_summaries;
     }
     meta.totals = totals;
     meta.receipt_identity = oracle_identity(&meta);
@@ -573,4 +595,93 @@ fn c2_artifact_model_fits_are_bound_and_legacy_counts_remain_unchanged() {
         consume(&reseal(edited)),
         Err(RecalcReceiptArtifactError::CountsInconsistent { .. })
     ));
+}
+
+#[test]
+fn c2_factor_work_counts_bind_identity_and_refuse_incomplete_or_mixed_families() {
+    let legacy = serde_json::to_string(utility_only().meta()).unwrap();
+    assert!(!legacy.contains("factor_builds") && !legacy.contains("provider_calls"));
+    let artifact = RecalcReceiptArtifact::seal(
+        &workflow("u1", "seed1"),
+        &workflow("u1", "seed2"),
+        &in_process(),
+        &counts(&[
+            (
+                Stage::ScoreArtifact,
+                CountsWire {
+                    factor_builds: 3,
+                    program_compilations: 2,
+                    provider_bindings: 1,
+                    ..CountsWire::default()
+                },
+            ),
+            (
+                Stage::Law,
+                CountsWire {
+                    factor_evaluations: 5,
+                    integrations: 2,
+                    provider_calls: 8,
+                    ..CountsWire::default()
+                },
+            ),
+            (Stage::Decision, decided()),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(artifact.meta().totals.total(), 22);
+    assert_eq!(artifact.receipt_identity(), oracle_identity(artifact.meta()));
+    let bytes = artifact.to_bytes(ID).unwrap();
+    assert_eq!(
+        RecalcReceiptArtifact::from_bytes(&bytes, Some(artifact.receipt_identity())).unwrap(),
+        artifact
+    );
+    for field in ["provider", "integration", "score", "reweight", "wrong_owner", "summary"] {
+        let mut mutated = artifact.meta().clone();
+        let score = mutated.entries.iter_mut().find(|e| e.stage == "score_artifact").unwrap();
+        match field {
+            "provider" => score.counts.provider_bindings = 0,
+            "score" => score.counts.score_computations = 1,
+            "wrong_owner" => score.counts.provider_calls = 1,
+            _ => {}
+        }
+        let law = mutated.entries.iter_mut().find(|e| e.stage == "law").unwrap();
+        match field {
+            "integration" => law.counts.integrations = 0,
+            "reweight" => law.counts.reweights = 1,
+            "summary" => law.counts.law_summaries = 1,
+            _ => {}
+        }
+        assert!(
+            matches!(
+                consume(&reseal(mutated)),
+                Err(RecalcReceiptArtifactError::CountsInconsistent { .. })
+            ),
+            "{field}"
+        );
+    }
+    let mut changed = artifact.meta().clone();
+    changed.entries.iter_mut().find(|e| e.stage == "law").unwrap().counts.provider_calls += 1;
+    let changed = reseal(changed);
+    assert!(consume(&changed).is_ok());
+    assert_ne!(changed.receipt_identity, artifact.receipt_identity());
+    let summary = RecalcReceiptArtifact::seal(
+        &workflow("u1", "seed1"),
+        &workflow("u1", "seed2"),
+        &in_process(),
+        &counts(&[
+            (Stage::ScoreArtifact, CountsWire { model_fits: 1, ..CountsWire::default() }),
+            (Stage::Law, CountsWire { law_summaries: 1, ..CountsWire::default() }),
+            (Stage::Decision, decided()),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(summary.meta().totals.total(), 3);
+    assert_eq!(summary.receipt_identity(), oracle_identity(summary.meta()));
+    assert!(
+        RecalcReceiptArtifact::from_bytes(
+            &summary.to_bytes(ID).unwrap(),
+            Some(summary.receipt_identity())
+        )
+        .is_ok()
+    );
 }

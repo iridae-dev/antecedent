@@ -192,6 +192,27 @@ pub struct CountsWire {
     pub reweights: u64,
     /// Decision evaluations performed.
     pub decisions: u64,
+    /// Successful empirical factor table constructions.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub factor_builds: u64,
+    /// Successful functional program compilations.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub program_compilations: u64,
+    /// Successful provider constructions or rebindings.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub provider_bindings: u64,
+    /// Uncached factor evaluations.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub factor_evaluations: u64,
+    /// Successful full functional integrations.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub integrations: u64,
+    /// Provider invocations, including cache hits.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub provider_calls: u64,
+    /// Successful projection of a checked fitted result into its retained point law.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub law_summaries: u64,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip predicate requires a reference")]
@@ -216,7 +237,25 @@ impl CountsWire {
     /// Sum over every kind of work.
     #[must_use]
     pub fn total(&self) -> u64 {
-        self.as_array().iter().fold(self.model_fits, |sum, n| sum.saturating_add(*n))
+        self.as_array()
+            .into_iter()
+            .chain([self.model_fits])
+            .chain(self.extended_array())
+            .fold(0_u64, u64::saturating_add)
+    }
+
+    /// Additive factor-work counts, in their stable tagged identity order.
+    #[must_use]
+    pub const fn extended_array(&self) -> [u64; 7] {
+        [
+            self.factor_builds,
+            self.program_compilations,
+            self.provider_bindings,
+            self.factor_evaluations,
+            self.integrations,
+            self.provider_calls,
+            self.law_summaries,
+        ]
     }
 
     fn merged(self, other: Self) -> Self {
@@ -227,6 +266,15 @@ impl CountsWire {
             score_computations: self.score_computations.saturating_add(other.score_computations),
             reweights: self.reweights.saturating_add(other.reweights),
             decisions: self.decisions.saturating_add(other.decisions),
+            factor_builds: self.factor_builds.saturating_add(other.factor_builds),
+            program_compilations: self
+                .program_compilations
+                .saturating_add(other.program_compilations),
+            provider_bindings: self.provider_bindings.saturating_add(other.provider_bindings),
+            factor_evaluations: self.factor_evaluations.saturating_add(other.factor_evaluations),
+            integrations: self.integrations.saturating_add(other.integrations),
+            provider_calls: self.provider_calls.saturating_add(other.provider_calls),
+            law_summaries: self.law_summaries.saturating_add(other.law_summaries),
         }
     }
 }
@@ -561,19 +609,41 @@ pub fn plan_from_wire(
 /// Whether `counts` are what `stage` may have counted under its status: nothing unless it was
 /// recomputed, only work it owns, and every kind of work a recomputed computation requires.
 fn counts_consistent(stage: Stage, recomputed: bool, counts: &CountsWire) -> bool {
-    let owned: [(u64, Stage); 6] = [
+    let owned: [(u64, Stage); 13] = [
         (counts.identifications, Stage::Identification),
         (counts.fold_fits, Stage::ScoreArtifact),
         (counts.model_fits, Stage::ScoreArtifact),
         (counts.score_computations, Stage::ScoreArtifact),
         (counts.reweights, Stage::Law),
         (counts.decisions, Stage::Decision),
+        (counts.factor_builds, Stage::ScoreArtifact),
+        (counts.program_compilations, Stage::ScoreArtifact),
+        (counts.provider_bindings, Stage::ScoreArtifact),
+        (counts.factor_evaluations, Stage::Law),
+        (counts.integrations, Stage::Law),
+        (counts.provider_calls, Stage::Law),
+        (counts.law_summaries, Stage::Law),
     ];
     if owned.iter().any(|(n, owner)| *n > 0 && !(recomputed && *owner == stage)) {
         return false;
     }
     if !recomputed {
         return true;
+    }
+    if stage == Stage::ScoreArtifact && counts.extended_array()[..3].iter().any(|n| *n > 0) {
+        return counts.provider_bindings > 0
+            && counts.fold_fits == 0
+            && counts.model_fits == 0
+            && counts.score_computations == 0;
+    }
+    if stage == Stage::Law && counts.law_summaries > 0 {
+        return counts.reweights == 0
+            && counts.integrations == 0
+            && counts.factor_evaluations == 0
+            && counts.provider_calls == 0;
+    }
+    if stage == Stage::Law && counts.extended_array()[3..6].iter().any(|n| *n > 0) {
+        return counts.integrations > 0 && counts.reweights == 0;
     }
     // Regression-only execution has a model solve and no nuisance folds or scores.
     // A DR CATE execution additionally fits a final model after nuisance folds and
@@ -605,6 +675,12 @@ fn compute_receipt_identity(
         // Historical zero-model receipts keep their original five-count digest.
         if entry.counts.model_fits > 0 {
             counts.extend_from_slice(&entry.counts.model_fits.to_le_bytes());
+        }
+        for (tag, n) in (1_u8..=7).zip(entry.counts.extended_array()) {
+            if n > 0 {
+                counts.push(tag);
+                counts.extend_from_slice(&n.to_le_bytes());
+            }
         }
         parts.push(entry.stage.clone().into_bytes());
         parts.push(entry.status.clone().into_bytes());

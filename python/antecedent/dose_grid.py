@@ -13,6 +13,11 @@ bandwidth (never data-selected here); the functional is that smoother's level, f
 derivative or difference of levels. The smoothing bias ``m_h - m`` is not estimated and is not
 included in any interval.
 
+:func:`quadratic_dose_functional` adds a caller-attested exact quadratic conditional
+mean premise. Polynomial reproduction then derives zero smoothing bias at the fixed
+bandwidth; the premise and its required feature travel in the artifact. Sampling
+calibration remains unmeasured.
+
 Every requested dose is labelled ``supported`` / ``weak_overlap`` / ``outside_empirical_support``
 (:func:`dose_support_table` shows the labels without refusing). The row *refuses* any dose that
 is not supported; it never extrapolates. Intervals are pointwise normal intervals from a
@@ -53,6 +58,7 @@ __all__ = [
     "DoseSupport",
     "consume_dose_grid_artifact",
     "dose_functional",
+    "quadratic_dose_functional",
     "dose_support_table",
 ]
 
@@ -201,6 +207,8 @@ class DoseFunctionalResult:
     premises_digest: str
     data_digest: str
     artifact: bytes = field(repr=False, compare=False)
+    #: Caller attests an exact quadratic conditional mean; smoothing bias is zero under it.
+    quadratic_mean: bool = False
 
     def export(self) -> bytes:
         """The artifact: premises, compact dose/outcome table, result and both digests."""
@@ -238,6 +246,7 @@ class DoseFunctionalResult:
             "calibration": self.calibration,
             "simultaneous_band": self.simultaneous_band,
             "inference_claim": self.inference_claim,
+            "quadratic_mean": self.quadratic_mean,
         }
 
 
@@ -341,10 +350,11 @@ def _result(report_json: str, artifact: bytes) -> DoseFunctionalResult:
         premises_digest=report["premises_digest"],
         data_digest=report["data_digest"],
         artifact=artifact,
+        quadratic_mean=bool(request.get("quadratic_mean", False)),
     )
 
 
-def dose_functional(
+def _dose_functional(
     dose: Sequence[float] | np.ndarray,
     outcome: Sequence[float] | np.ndarray,
     *,
@@ -356,6 +366,7 @@ def dose_functional(
     minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
     claims: DoseClaims | None = None,
     design: Design = "randomized_dose",
+    quadratic_mean: bool = False,
 ) -> DoseFunctionalResult:
     """Estimate one named functional of a randomized-dose response curve.
 
@@ -417,6 +428,8 @@ def dose_functional(
         "dose": [],
         "outcome": [],
     }
+    if quadratic_mean:
+        request["quadratic_mean"] = True
     report, artifact, refusal = _evaluate(
         json.dumps(request, allow_nan=False), _column(dose, "dose"), _column(outcome, "outcome")
     )
@@ -424,6 +437,76 @@ def dose_functional(
     if report is None or artifact is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native dose-grid row returned neither a result nor a refusal")
     return _result(report, bytes(artifact))
+
+
+def dose_functional(
+    dose: Sequence[float] | np.ndarray,
+    outcome: Sequence[float] | np.ndarray,
+    *,
+    bandwidth: float,
+    bandwidth_range: tuple[float, float],
+    functional: Functional = "level",
+    grid: Sequence[float] | None = None,
+    contrast: tuple[float, float] | None = None,
+    minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
+    claims: DoseClaims | None = None,
+    design: Design = "randomized_dose",
+) -> DoseFunctionalResult:
+    """Estimate a randomized-dose smoother functional with unmeasured smoothing bias.
+
+    Level, derivative and contrast claims, fixed bandwidth and support refusals are
+    described in the module documentation. Sampling calibration remains unmeasured.
+    """
+    return _dose_functional(
+        dose,
+        outcome,
+        bandwidth=bandwidth,
+        bandwidth_range=bandwidth_range,
+        functional=functional,
+        grid=grid,
+        contrast=contrast,
+        minimum_local_ess=minimum_local_ess,
+        claims=claims,
+        design=design,
+    )
+
+
+def quadratic_dose_functional(
+    dose: Sequence[float] | np.ndarray,
+    outcome: Sequence[float] | np.ndarray,
+    *,
+    bandwidth: float,
+    bandwidth_range: tuple[float, float],
+    functional: Functional = "level",
+    grid: Sequence[float] | None = None,
+    contrast: tuple[float, float] | None = None,
+    minimum_local_ess: float = DEFAULT_MINIMUM_LOCAL_ESS,
+    claims: DoseClaims | None = None,
+    design: Design = "randomized_dose",
+) -> DoseFunctionalResult:
+    """Attest an exact quadratic conditional mean and estimate its named functional.
+
+    By calling this function the caller declares E[Y|D=d] = beta0 + beta1*d + beta2*d²
+    throughout the randomized dose support. The local quadratic reproduces that mean
+    at every fixed bandwidth, so smoothing bias is zero under this explicit premise.
+    The observed residuals do not establish the premise. Sampling uncertainty uses
+    the same residual sandwich and remains unmeasured; no coverage claim is made.
+    All ordinary support, claim, independence and bandwidth restrictions still apply.
+    The premise and its required feature are bound into the replayable artifact.
+    """
+    return _dose_functional(
+        dose,
+        outcome,
+        bandwidth=bandwidth,
+        bandwidth_range=bandwidth_range,
+        functional=functional,
+        grid=grid,
+        contrast=contrast,
+        minimum_local_ess=minimum_local_ess,
+        claims=claims,
+        design=design,
+        quadratic_mean=True,
+    )
 
 
 def dose_support_table(

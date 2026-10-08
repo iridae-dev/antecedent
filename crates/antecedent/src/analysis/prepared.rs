@@ -529,6 +529,7 @@ impl CheckedFunctionalEffectResponseMember {
 /// family so it shares the same checked identification and provider binding.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedAdmgResponseCurveOperation {
+    factor_snapshot_digest: [u8; 32],
     query: antecedent_core::ResponseQuery,
     grid: Arc<[f64]>,
     members: Arc<[CheckedFunctionalEffectResponseMember]>,
@@ -564,21 +565,7 @@ impl CheckedAdmgResponseCurveOperation {
             .members
             .iter()
             .map(|member| {
-                let (treatment, outcome) =
-                    member.query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                        message: "retained ADMG response member lost its treatment/outcome roles"
-                            .into(),
-                    })?;
-                let prepared = self
-                    .fitter
-                    .prepare(
-                        data,
-                        &member.estimand,
-                        &member.identification.arena,
-                        member.identification.required_assumptions.clone(),
-                        &[treatment, outcome],
-                    )
-                    .map_err(CausalError::from)?;
+                let prepared = member.prepared.rebind_checked(data).map_err(CausalError::from)?;
                 Ok(CheckedFunctionalEffectResponseMember { prepared, ..member.clone() })
             })
             .collect::<Result<Vec<_>, CausalError>>()?;
@@ -599,6 +586,7 @@ impl CheckedAdmgResponseCurveOperation {
         }
         let mut rebound = self.clone();
         rebound.members = Arc::from(members);
+        rebound.factor_snapshot_digest = data.storage().content_digest();
         Ok(rebound)
     }
 
@@ -4125,8 +4113,16 @@ impl PreparedStudy {
     ) -> Result<Option<Arc<[antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot]>>, CausalError>{
         let Some(operation) = self.execution.admg_response_curve() else { return Ok(None) };
         self.ensure_schema_compatible(data)?;
-        let rebound = operation.rebind(data)?;
-        let snapshots = rebound
+        // Compare the factors' actual producing snapshot, rather than the
+        // study's retained data: generic refresh can replace only the latter.
+        let rebound;
+        let current = if operation.factor_snapshot_digest == data.storage().content_digest() {
+            operation
+        } else {
+            rebound = operation.rebind(data)?;
+            &rebound
+        };
+        let snapshots = current
             .members
             .iter()
             .map(|member| member.prepared.factor_snapshot().map_err(CausalError::from))
@@ -6033,6 +6029,44 @@ impl PreparedStudy {
         self.score_table = scores;
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
+    }
+
+    /// Execute the retained discrete ADMG response providers without rebuilding them.
+    pub(crate) fn execute_static_functional_retained(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let operation = self.execution.admg_response_curve().ok_or(CausalError::Unsupported {
+            message: "prepared static functional response required",
+        })?;
+        let DataInput::Tabular(data) = &self.analysis.data else {
+            return Err(CausalError::Unsupported {
+                message: "static functional tabular data required",
+            });
+        };
+        let mut result = operation.execute(data, ctx)?;
+        result.executed_contract =
+            Some(self.executed_contract(&self.analysis.data, operation.refute, None)?);
+        Ok(result)
+    }
+    /// Rebind only the empirical factor providers of the retained checked static response.
+    pub(crate) fn rebind_static_functional_data(
+        &mut self,
+        data: TabularData,
+    ) -> Result<(), CausalError> {
+        self.ensure_schema_compatible(&data)?;
+        let operation = self
+            .execution
+            .admg_response_curve()
+            .ok_or(CausalError::Unsupported {
+                message: "prepared static functional response required",
+            })?
+            .rebind(&data)?;
+        let mut study = self.analysis.clone();
+        study.data = DataInput::Tabular(data);
+        self.replace_study(study);
+        self.execution = PreparedExecution::AdmgResponseCurve(operation);
+        Ok(())
     }
 
     /// Refresh only a DML/DR nuisance configuration, retaining the checked causal query.
@@ -8682,6 +8716,7 @@ impl Study {
                     });
                 }
                 Some(CheckedAdmgResponseCurveOperation {
+                    factor_snapshot_digest: data.storage().content_digest(),
                     query: query.clone(),
                     grid: Arc::from(grid),
                     members: Arc::from(members),

@@ -8,6 +8,10 @@
 //! standard errors and intervals (calibration `unmeasured`, smoothing bias not
 //! included), the measured numerical residual of the local solves, and the closed
 //! simultaneous-band marker.
+//! The optional caller-attested exact quadratic mean premise requires
+//! `dose_grid_quadratic_mean_v1`; polynomial reproduction accounts for zero smoothing
+//! bias under that premise. The sampling calibration remains unmeasured. Omitting the
+//! premise preserves the historical format and digests.
 //!
 //! A consumer trusts nothing in the result. It re-validates the stored request,
 //! recomputes the Gaussian-kernel local-quadratic fit from the embedded table and
@@ -30,6 +34,7 @@ use antecedent_estimate::EstimationError;
 use antecedent_estimate::dose_grid_functional::{
     ClaimSet, DoseDesign, DoseFunctional, DoseGridRequest, DoseGridRow, IntervalCalibration,
     PointwiseInterval, dose_support_report, estimate_dose_grid_functional,
+    estimate_dose_grid_quadratic_mean,
 };
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +44,8 @@ use crate::IoError;
 pub const DOSE_GRID_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const DOSE_GRID_ARTIFACT_FEATURE: &str = "dose_grid_functional_row_v1";
+/// Additional required semantics: caller attests an exact conditional quadratic mean.
+pub const DOSE_GRID_QUADRATIC_FEATURE: &str = "dose_grid_quadratic_mean_v1";
 /// Calibration status of every interval of this row.
 pub const DOSE_GRID_CALIBRATION: &str = "unmeasured";
 /// State of the simultaneous band of this row.
@@ -175,6 +182,11 @@ pub struct DoseClaimsWire {
 pub struct DoseGridRequestWire {
     /// `randomized_dose` or `observational` (refused by the row).
     pub design: String,
+    /// Caller-attested exact `E[Y|D=d] = beta0 + beta1*d + beta2*d²`.
+    /// Under this premise polynomial reproduction implies zero smoothing bias.
+    /// It is not inferred from the observed residuals; sampling calibration stays unmeasured.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub quadratic_mean: bool,
     /// The one named functional.
     pub functional: DoseFunctionalWire,
     /// Grid doses of a level or derivative; empty for a contrast.
@@ -215,7 +227,7 @@ pub struct DosePointWire {
     pub nominal_level: f64,
     /// Calibration status (`unmeasured`).
     pub calibration: String,
-    /// Whether smoothing bias is included (never).
+    /// Whether smoothing bias is accounted for: only the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
 }
 
@@ -243,7 +255,7 @@ pub struct DoseContrastWire {
     pub nominal_level: f64,
     /// Calibration status (`unmeasured`).
     pub calibration: String,
-    /// Whether smoothing bias is included (never).
+    /// Whether smoothing bias is accounted for: only the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
 }
 
@@ -287,7 +299,7 @@ pub struct DoseGridResultWire {
     pub max_abs_influence_sum: f64,
     /// Calibration status of every interval (`unmeasured`).
     pub calibration: String,
-    /// Whether smoothing bias is included in any interval (never).
+    /// Whether zero smoothing bias is derived under the attested exact-quadratic scope.
     pub smoothing_bias_included: bool,
     /// Simultaneous band state (`closed`).
     pub simultaneous_band: String,
@@ -317,6 +329,8 @@ pub struct DoseGridArtifactWire {
 struct PremisesView<'a> {
     tag: &'static str,
     design: &'a str,
+    #[serde(skip_serializing_if = "is_false")]
+    quadratic_mean: bool,
     kind: &'a str,
     from: Option<u64>,
     to: Option<u64>,
@@ -342,6 +356,19 @@ struct VersionPeek {
 
 fn bits(values: &[f64]) -> Vec<u64> {
     values.iter().map(|v| v.to_bits()).collect()
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref, reason = "serde predicates receive field references")]
+const fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+fn required_features(quadratic_mean: bool) -> Vec<String> {
+    let mut features = vec![DOSE_GRID_ARTIFACT_FEATURE.to_owned()];
+    if quadratic_mean {
+        features.push(DOSE_GRID_QUADRATIC_FEATURE.to_owned());
+    }
+    features
 }
 
 fn status_name(label: SupportStatus) -> String {
@@ -410,6 +437,7 @@ impl DoseGridRequestWire {
         PremisesView {
             tag: "dose_grid_functional_premises_v1",
             design: &self.design,
+            quadratic_mean: self.quadratic_mean,
             kind: &self.functional.kind,
             from: self.functional.from.map(f64::to_bits),
             to: self.functional.to.map(f64::to_bits),
@@ -461,7 +489,11 @@ impl DoseGridRequestWire {
             },
             design,
         };
-        let row = estimate_dose_grid_functional(&request)?;
+        let row = if self.quadratic_mean {
+            estimate_dose_grid_quadratic_mean(&request)?
+        } else {
+            estimate_dose_grid_functional(&request)?
+        };
         let points = self.evaluation_points(functional);
         let result = self.render(&row, &points, design);
         if !result_is_finite(&result) {
@@ -530,7 +562,7 @@ impl DoseGridRequestWire {
             fits: row.numerical.fits,
             max_abs_influence_sum: row.numerical.max_abs_influence_sum,
             calibration: DOSE_GRID_CALIBRATION.to_owned(),
-            smoothing_bias_included: false,
+            smoothing_bias_included: self.quadratic_mean,
             simultaneous_band: if row.simultaneous_band.is_none() {
                 DOSE_GRID_BAND_CLOSED.to_owned()
             } else {
@@ -617,7 +649,7 @@ impl DoseGridArtifactWire {
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
         let wire = Self {
             version: DOSE_GRID_ARTIFACT_VERSION,
-            required_features: vec![DOSE_GRID_ARTIFACT_FEATURE.to_owned()],
+            required_features: required_features(request.quadratic_mean),
             premises_digest: request.premises_digest().map_err(undecodable)?,
             data_digest: request.data_digest().map_err(undecodable)?,
             request,
@@ -646,11 +678,11 @@ impl DoseGridArtifactWire {
 
     fn validate_shape(&self) -> Result<(), DoseGridArtifactError> {
         let unsupported = DoseGridArtifactError::UnsupportedSemantics;
-        if self.required_features != [DOSE_GRID_ARTIFACT_FEATURE] {
+        if self.required_features != required_features(self.request.quadratic_mean) {
             return Err(unsupported("required features"));
         }
         if self.result.calibration != DOSE_GRID_CALIBRATION
-            || self.result.smoothing_bias_included
+            || self.result.smoothing_bias_included != self.request.quadratic_mean
             || self.result.inference_claim != DOSE_GRID_INFERENCE_CLAIM
         {
             return Err(unsupported("this row publishes pointwise unmeasured intervals only"));

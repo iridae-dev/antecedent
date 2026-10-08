@@ -127,6 +127,23 @@ def test_x4_nested_markov_route_is_closed_with_cell_not_licensed():
     assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
 
 
+def test_nested_fisher_public_interval_remains_closed_and_validates_level():
+    error = refusal_of(
+        lambda: transport.binary_nested_markov_fisher_interval(
+            graph=verma(), regimes=[observational()], nominal_level=0.95
+        )
+    )
+    assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
+    for level in [0.0, 1.0, float("nan")]:
+        error = refusal_of(
+            lambda level=level: transport.binary_nested_markov_fisher_interval(
+                graph=verma(), regimes=[observational()], nominal_level=level
+            ),
+            CausalValueError,
+        )
+        assert_refused(error, "invalid_argument", "nested_markov.fisher_invalid_level")
+
+
 def test_x4_nested_markov_outside_class_requests_refuse_without_a_nonidentification_claim():
     adjacent = Admg.from_edges(NODES, VERMA_DIRECTED, [("X1", "X4")])
     cases = [

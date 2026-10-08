@@ -671,6 +671,7 @@ impl IdIdentifier {
         workspace: &mut IdentificationWorkspace,
         assignments: Arc<[(DenseNodeId, Value)]>,
     ) -> Result<IdentificationResult, IdentificationError> {
+        crate::execution_counts::note_check();
         require_disjoint(y, x)?;
         let mut prepared = prepared.clone();
         let mut arena = CausalExprArena::new();

@@ -536,6 +536,7 @@ fn dr_receipt_independent_reader_preserves_executed_counts_and_identity() {
                     score_computations: c.score_computations,
                     reweights: c.reweights,
                     decisions: c.decisions,
+                    ..CountsWire::default()
                 },
             )
         })
@@ -553,4 +554,126 @@ fn dr_receipt_independent_reader_preserves_executed_counts_and_identity() {
         RecalcReceiptArtifact::from_bytes(&bytes, Some(artifact.receipt_identity())).unwrap();
     assert_eq!(restored.receipt_identity(), artifact.receipt_identity());
     assert!(RecalcReceiptArtifact::from_bytes(&bytes[..bytes.len() / 2], None).is_err());
+}
+
+fn bundle_receipt_bytes(
+    session: &antecedent::analysis::recalc_dr::DrSession,
+    result: &antecedent::analysis::recalc_receipt::RecalcOutcome,
+) -> Vec<u8> {
+    use antecedent_core::recalc::{RecalcCapabilities, RetargetSupport, StageIdentities};
+    use antecedent_io::recalc_receipt_artifact::{CountsWire, RecalcReceiptArtifact};
+    let counts = result
+        .receipt
+        .entries()
+        .iter()
+        .map(|entry| {
+            let c = entry.counts;
+            (
+                entry.stage,
+                CountsWire {
+                    identifications: c.identifications,
+                    fold_fits: c.fold_fits,
+                    model_fits: c.model_fits,
+                    score_computations: c.score_computations,
+                    reweights: c.reweights,
+                    decisions: c.decisions,
+                    ..CountsWire::default()
+                },
+            )
+        })
+        .collect();
+    RecalcReceiptArtifact::seal(
+        &StageIdentities::new(),
+        session.identities(),
+        &RecalcCapabilities::in_process(RetargetSupport::Licensed),
+        &counts,
+    )
+    .unwrap()
+    .to_bytes("composed-dr-receipt")
+    .unwrap()
+}
+
+#[test]
+fn dr_bundle_independently_consumes_historical_receipt_and_real_resumable_scores() {
+    use antecedent::analysis::composition::{
+        BundleBuilder, NodeKind, SuppliedSources, consume, export_bundle,
+    };
+    use antecedent::analysis::recalc_cell::{
+        ScoreResumeRequest, ScoreResumeSession, execute_resumed_retarget,
+    };
+    use antecedent::analysis::recalc_dr::DrSession;
+    use antecedent::analysis::recalc_receipt::UtilitySpec;
+    let mut session = DrSession::new();
+    let outcome = run(&mut session, &request(true));
+    let receipt = bundle_receipt_bytes(&session, &outcome);
+    let scores = session.export_scores().unwrap();
+    let score_bytes = scores.to_bytes("composed-dr-scores").unwrap();
+    let mut builder = BundleBuilder::new();
+    builder.add_artifact(Some("receipt"), NodeKind::RecalculationReceipt, &receipt).unwrap();
+    builder.add_detected_artifact(Some("scores"), &score_bytes).unwrap();
+    builder.connect("receipt", "scores").unwrap();
+    let bundle = builder.build().unwrap();
+    let bytes = export_bundle(&bundle, "dr-state-bundle").unwrap();
+    let consumer = consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap();
+    consumer.require_verified().unwrap();
+    let past = consumer.node("receipt").unwrap();
+    assert_eq!(past.facts.get("execution_status").unwrap(), "historical_receipt");
+    assert_eq!(past.facts.get("trust").unwrap(), "unverified");
+    assert!(!past.facts.contains_key("reusable_state"));
+    let retained = consumer.node("scores").unwrap();
+    assert_eq!(retained.facts.get("reusable_state").unwrap(), "frozen_same_row_scores");
+    assert!(!retained.facts.contains_key("law"));
+    // Resume executes a new same-row law operation; past receipt counts are not reused.
+    let mut resumed =
+        ScoreResumeSession::resume_from_score_bytes(&score_bytes, Some(scores.identity())).unwrap();
+    let target = ScoreResumeRequest {
+        n_variables: 3,
+        edges: request(true).edges,
+        target: None,
+        target_row_ids: None,
+        quantity: antecedent::analysis::recalc_cell::ScoreQuantity::AverageEffect,
+        changed_inputs: vec![],
+        utility: UtilitySpec { benefit_per_unit: 2.0, cost: 0.5 },
+    };
+    let updated = execute_resumed_retarget(&mut resumed, &target).unwrap();
+    close(updated.law.ate, 2.0);
+    assert_eq!(updated.receipt.totals().fold_fits, 0);
+    assert_eq!(updated.receipt.totals().reweights, 1);
+}
+
+#[test]
+fn dr_bundle_refuses_same_snapshot_scores_from_another_executed_fit() {
+    use antecedent::analysis::composition::{
+        BundleBuilder, BundleStage, NodeKind, NodeStatus, SuppliedSources, consume, export_bundle,
+    };
+    use antecedent::analysis::recalc_dr::{DrEstimator, DrSession};
+    use antecedent_estimate::DrLearner;
+    use antecedent_learn::{LearnerSpec, LinearSpec};
+    let mut session = DrSession::new();
+    let first = run(&mut session, &request(true));
+    let receipt = bundle_receipt_bytes(&session, &first);
+    let original = session.export_scores().unwrap();
+    let mut different = request(true);
+    different.estimator = DrEstimator::Cate(
+        DrLearner::new().with_outcome(LearnerSpec::Linear(LinearSpec::default())).with_folds(3),
+    );
+    let mut other = DrSession::new();
+    run(&mut other, &different);
+    let swapped = other.export_scores().unwrap();
+    assert_eq!(original.meta().snapshot_digest, swapped.meta().snapshot_digest);
+    assert_ne!(original.meta().fit_identity, swapped.meta().fit_identity);
+    let mut builder = BundleBuilder::new();
+    builder.add_artifact(Some("receipt"), NodeKind::RecalculationReceipt, &receipt).unwrap();
+    builder
+        .add_artifact(Some("scores"), NodeKind::FrozenScores, &swapped.to_bytes("swapped").unwrap())
+        .unwrap();
+    builder.connect("receipt", "scores").unwrap();
+    let bundle = builder.build().unwrap();
+    let bytes = export_bundle(&bundle, "swapped-dr-fit").unwrap();
+    let consumed = consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap();
+    assert!(matches!(
+        &consumed.node("scores").unwrap().status,
+        NodeStatus::Failed { stage: BundleStage::SwappedEvidence, .. }
+    ));
+    assert!(consumed.require_verified().is_err());
 }

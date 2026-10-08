@@ -989,6 +989,8 @@ impl FunctionalDistribution {
 /// Prepared scalar functional (ATE / path-specific NE contrast).
 #[derive(Clone, Debug)]
 pub struct PreparedFunctionalEffect {
+    semantic_schema: CausalSchema,
+    vars_needed: HashSet<VariableId>,
     /// Identified estimand.
     pub estimand: IdentifiedEstimand,
     /// Arena owning the functional. Shared (never mutated after `prepare`);
@@ -1015,6 +1017,38 @@ pub struct PreparedFunctionalEffect {
 }
 
 impl PreparedFunctionalEffect {
+    /// Rebind empirical factors without reconstructing the checked causal program.
+    /// # Errors
+    /// Changed semantic schema or unavailable complete-case factors.
+    pub fn rebind_checked(&self, data: &TabularData) -> Result<Self, EstimationError> {
+        if data.schema() != &self.semantic_schema {
+            return Err(EstimationError::data_msg(
+                "functional effect refresh changed semantic schema",
+            ));
+        }
+        let (provider, columns) = build_empirical_provider(
+            data,
+            &self.vars_needed,
+            &self.bootstrap_factors,
+            &self.bootstrap_signatures,
+        )?;
+        Ok(Self {
+            semantic_schema: self.semantic_schema.clone(),
+            vars_needed: self.vars_needed.clone(),
+            estimand: self.estimand.clone(),
+            arena: Arc::clone(&self.arena),
+            compiled: self.compiled.clone(),
+            program: self.program.clone(),
+            program_evaluator: self.program_evaluator.clone(),
+            provider,
+            assumptions: self.assumptions.clone(),
+            free_variables: Arc::clone(&self.free_variables),
+            bootstrap_columns: columns,
+            bootstrap_factors: self.bootstrap_factors.clone(),
+            bootstrap_signatures: self.bootstrap_signatures.clone(),
+            source_rows: data.row_count(),
+        })
+    }
     /// Checked expression owner used for every numerical evaluation.
     #[must_use]
     pub fn program(&self) -> &FunctionalProgram {
@@ -1062,7 +1096,12 @@ impl PreparedFunctionalEffect {
         average_over_free_variables(provider, &self.free_variables, &Assignment::new(), |env| {
             self.program_evaluator.evaluate_with(provider, &ctx, env).map(|v| vec![v])
         })
-        .map(|values| values[0])
+        .map(|values| {
+            antecedent_expr::execution_counts::note_static_work(
+                antecedent_expr::execution_counts::StaticWork::Integration,
+            );
+            values[0]
+        })
     }
 }
 
@@ -1154,6 +1193,8 @@ impl FunctionalEffect {
         let program_evaluator = program.compile().map_err(eval_err)?;
         let compiled = program.arena().compile(estimand.functional).map_err(eval_err)?;
         Ok(PreparedFunctionalEffect {
+            semantic_schema: data.schema().clone(),
+            vars_needed,
             estimand: estimand.clone(),
             arena: Arc::new(arena.clone()),
             compiled,
@@ -1441,6 +1482,9 @@ fn build_empirical_provider(
     }
     let columns = columns.gather(&complete);
     let provider = provider_from_columns(&columns, complete.len(), factors, signatures, None)?;
+    antecedent_expr::execution_counts::note_static_work(
+        antecedent_expr::execution_counts::StaticWork::ProviderBinding,
+    );
     Ok((provider, columns))
 }
 
@@ -1564,6 +1608,7 @@ fn functional_posterior_from_draws(
 #[derive(Clone, Debug)]
 struct EncodedColumns {
     n: usize,
+    row_ids: Vec<usize>,
     columns: HashMap<VariableId, EncodedColumn>,
 }
 
@@ -1601,7 +1646,7 @@ impl EncodedColumns {
             }
             columns.insert(id, EncodedColumn { codes: col.codes, levels: Arc::from(col.levels) });
         }
-        Ok(Self { n, columns })
+        Ok(Self { n, row_ids: (0..n).collect(), columns })
     }
 
     /// Row count.
@@ -1629,7 +1674,7 @@ impl EncodedColumns {
                 (id, EncodedColumn { codes, levels: Arc::clone(&col.levels) })
             })
             .collect();
-        Self { n: idx.len(), columns }
+        Self { n: idx.len(), row_ids: idx.iter().map(|&i| self.row_ids[i]).collect(), columns }
     }
 
     fn column(&self, id: VariableId) -> Result<&EncodedColumn, EstimationError> {
@@ -1660,7 +1705,7 @@ impl EncodedColumns {
                 (id, EncodedColumn { codes, levels: Arc::from(levels) })
             })
             .collect();
-        Self { n, columns }
+        Self { n, row_ids: (0..n).collect(), columns }
     }
 
     /// Test view of one column as cells.
@@ -1816,7 +1861,96 @@ fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationE
 /// Depends only on the rows and weights, not on the intervention slot or domain a
 /// factor is later registered under, so it is computed once per `(vars, cond)`. Counts
 /// are keyed by the mixed-radix integer of the rows' level codes.
+/// Bounded retained empirical factor fits, shared only under an explicit execution scope.
+#[derive(Default, Debug)]
+pub struct EmpiricalFactorCache {
+    entries: std::sync::Mutex<
+        Vec<(
+            antecedent_core::recalc::StageIdentity,
+            std::sync::Arc<Vec<(Assignment, f64)>>,
+            usize,
+        )>,
+    >,
+}
+thread_local! {static ACTIVE_FACTOR_CACHE:std::cell::RefCell<Option<std::sync::Arc<EmpiricalFactorCache>>>=const{std::cell::RefCell::new(None)};}
+impl EmpiricalFactorCache {
+    /// Empty bounded retained factor cache.
+    #[must_use]
+    pub fn new() -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self::default())
+    }
+    /// Execute existing factor construction with exact physical identities and scoped reuse.
+    pub fn scope<R>(self: &std::sync::Arc<Self>, work: impl FnOnce() -> R) -> R {
+        struct Restore(Option<std::sync::Arc<EmpiricalFactorCache>>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                ACTIVE_FACTOR_CACHE.with(|active| *active.borrow_mut() = self.0.take());
+            }
+        }
+        let _restore = Restore(
+            ACTIVE_FACTOR_CACHE.with(|active| active.replace(Some(std::sync::Arc::clone(self)))),
+        );
+        work()
+    }
+    /// Retained numeric factor identities; these are not identification licenses.
+    pub fn identities(&self) -> Vec<antecedent_core::recalc::StageIdentity> {
+        self.entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .map(|entry| entry.0)
+            .collect()
+    }
+}
 fn cpt_entries(
+    columns: &EncodedColumns,
+    n: usize,
+    vars: &[VariableId],
+    cond: &[VariableId],
+    weights: Option<&[f64]>,
+) -> Result<Vec<(Assignment, f64)>, EstimationError> {
+    const MAX_VALUES: usize = 1 << 24;
+    let active = ACTIVE_FACTOR_CACHE.with(|active| active.borrow().clone());
+    let Some(active) = active else {
+        return cpt_entries_uncached(columns, n, vars, cond, weights);
+    };
+    let mut pieces = vec![format!("{vars:?}:{cond:?}:{:?}", columns.row_ids).into_bytes()];
+    for &id in vars.iter().chain(cond) {
+        let column = columns.column(id)?;
+        pieces.push(format!("{:?}:{:?}", column.levels, column.codes).into_bytes());
+    }
+    if let Some(weights) = weights {
+        pieces.push(weights.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect());
+    }
+    let identity = antecedent_core::recalc::StageIdentity::of(
+        "empirical.cpt.fit.v1",
+        &pieces.iter().map(Vec::as_slice).collect::<Vec<_>>(),
+    );
+    let mut entries = active
+        .entries
+        .lock()
+        .map_err(|_| EstimationError::data_msg("factor cache lock poisoned"))?;
+    if let Some(entry) = entries.iter().find(|entry| entry.0 == identity) {
+        return Ok(entry.1.as_ref().clone());
+    }
+    let result = cpt_entries_uncached(columns, n, vars, cond, weights)?;
+    let cost = result
+        .len()
+        .saturating_mul(vars.len().saturating_add(cond.len()).saturating_mul(2).saturating_add(1));
+    if cost <= MAX_VALUES {
+        while !entries.is_empty()
+            && (entries.len() >= 64
+                || entries.iter().map(|entry| entry.2).sum::<usize>().saturating_add(cost)
+                    > MAX_VALUES)
+        {
+            entries.remove(0);
+        }
+        entries.push((identity, std::sync::Arc::new(result.clone()), cost));
+    }
+    Ok(result)
+}
+
+fn cpt_entries_uncached(
     columns: &EncodedColumns,
     n: usize,
     vars: &[VariableId],
@@ -1827,6 +1961,17 @@ fn cpt_entries(
         vars.iter().map(|&v| columns.column(v)).collect::<Result<_, _>>()?;
     let cond_cols: Vec<&EncodedColumn> =
         cond.iter().map(|&v| columns.column(v)).collect::<Result<_, _>>()?;
+    // Bound the complete table before enumerating either Cartesian domain.
+    // The retained-cache budget cannot protect an uncached allocation.
+    let cells = var_cols.iter().chain(&cond_cols).try_fold(1usize, |cells, column| {
+        cells.checked_mul(column.levels.len()).filter(|&product| product <= 1_000_000)
+    });
+    if cells.is_none() {
+        return Err(EstimationError::refused(
+            antecedent_core::reason_code!("invalid_argument"),
+            "functional.factor_cell_budget: empirical factor exceeds one million Cartesian cells",
+        ));
+    }
     let radices = |cols: &[&EncodedColumn]| -> Vec<u64> {
         cols.iter().map(|c| c.levels.len() as u64).collect()
     };
@@ -1911,6 +2056,9 @@ fn cpt_entries(
             }
         }
     }
+    antecedent_expr::execution_counts::note_static_work(
+        antecedent_expr::execution_counts::StaticWork::FactorBuild,
+    );
     Ok(entries)
 }
 
@@ -1998,6 +2146,20 @@ mod tests {
         assert!((lookup(&weighted, &interv) - 0.4).abs() < 1e-15);
     }
 
+    #[test]
+    fn small_input_refuses_large_cartesian_factor_before_allocation() {
+        let vars: Vec<_> = (0..4).map(VariableId::from_raw).collect();
+        let cells: HashMap<_, _> =
+            vars.iter().map(|&id| (id, (0..64).map(|v| Some(Value::Int64(v))).collect())).collect();
+        let columns = EncodedColumns::from_values(cells);
+        let (result, work) = antecedent_expr::execution_counts::count_static_work(|| {
+            cpt_entries_uncached(&columns, 64, &vars[..2], &vars[2..], None)
+        });
+        assert!(
+            matches!(result, Err(EstimationError::Refused { code: "invalid_argument", message }) if message.starts_with("functional.factor_cell_budget:"))
+        );
+        assert_eq!(work.factor_builds, 0);
+    }
     fn binary_confounding_table() -> TabularData {
         // Z, T, Y with known interventional mean E[Y|do(T=1)] = 0.7
         // Rows generated from: P(Z)=0.5, P(T|Z)=..., P(Y|T,Z) matching id_scm tables.

@@ -13,6 +13,9 @@
 //!   quadratic smoother at the declared fixed bandwidth `h`; the functional is that
 //!   smoother's level, first derivative or difference of levels. The smoothing bias
 //!   `m_h - m` is not estimated and not included in any interval.
+//!   [`estimate_dose_grid_quadratic_mean`] adds a caller-attested exact quadratic mean
+//!   premise: polynomial reproduction derives zero smoothing bias at fixed bandwidth.
+//!   Its sampling calibration remains unmeasured.
 //! * **Graph certificate.** [`DoseDesign::RandomizedDose`]: the dose is assigned
 //!   independently of the potential-outcome process (no parent of the dose is an
 //!   ancestor of the outcome and no backdoor path is open), so the empty adjustment
@@ -116,7 +119,7 @@ pub struct PointwiseInterval {
     pub nominal_level: f64,
     /// Calibration status (always unmeasured here).
     pub calibration: IntervalCalibration,
-    /// Whether the smoothing bias is included (never).
+    /// Whether smoothing bias is accounted for (only under the exact-quadratic premise).
     pub smoothing_bias_included: bool,
 }
 
@@ -644,4 +647,31 @@ pub fn estimate_dose_grid_functional(
         support,
         numerical,
     })
+}
+
+/// Evaluate the same local-quadratic row under a declared exact quadratic mean model.
+///
+/// For `E[Y|D=d] = beta0 + beta1*d + beta2*d²`, every nonsingular weighted
+/// quadratic solve reproduces that conditional mean exactly, at any fixed bandwidth.
+/// Its derivative and differences of levels also reproduce their targets. Conditional
+/// on the observed doses the smoothing bias is therefore zero; the residual sandwich
+/// still estimates sampling variance and its normal approximation awaits calibration.
+/// The caller supplies the model premise: observed fit residuals cannot prove it.
+///
+/// # Errors
+/// The same design, claims, support and numerical refusals as the unrestricted row.
+pub fn estimate_dose_grid_quadratic_mean(
+    request: &DoseGridRequest<'_>,
+) -> Result<DoseGridRow, EstimationError> {
+    let mut row = estimate_dose_grid_functional(request)?;
+    for point in &mut row.levels {
+        point.interval.smoothing_bias_included = true;
+    }
+    for point in &mut row.derivatives {
+        point.interval.smoothing_bias_included = true;
+    }
+    if let Some(contrast) = &mut row.contrast {
+        contrast.interval.smoothing_bias_included = true;
+    }
+    Ok(row)
 }

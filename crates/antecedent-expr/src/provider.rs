@@ -772,6 +772,12 @@ impl DistributionProvider for EmpiricalTableProvider {
         assignment: &Assignment,
         _ctx: &EvalContext,
     ) -> Result<f64, EvalError> {
+        crate::execution_counts::note_static_work(
+            crate::execution_counts::StaticWork::ProviderCall,
+        );
+        crate::execution_counts::note_static_work(
+            crate::execution_counts::StaticWork::FactorEvaluation,
+        );
         // Borrowed-key lookup: no owned `FactorKey` (and its per-field `Arc`
         // allocations) on the hot path — only the value row is assembled.
         let values = factor_values(spec, assignment)?;

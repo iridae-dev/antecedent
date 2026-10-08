@@ -58,6 +58,7 @@ mod preflight;
 mod rank_drop_estimate;
 pub mod recalc_adjusted;
 pub mod recalc_cell;
+pub mod recalc_design;
 pub mod recalc_dr;
 pub mod recalc_receipt;
 mod recovery;
@@ -242,3 +243,6 @@ pub(crate) use checked_temporal_response::{
 };
 pub use execute::{CheckedBayesianSpecialistInfo, CheckedTransportTrialInfo};
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};
+
+/// Shared finite static response and multi-source transport recalculation.
+pub mod recalc_static;

@@ -1,0 +1,22 @@
+feature_id = "x4_nested_markov_fisher"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+ { title = "Smooth, identifiable supermodels of discrete DAG models with latent variables", sections = ["Example 1.1, eleven-parameter Verma model and equation (1); Section 5.3, Theorem 5.5 and Corollary 5.6 (verified in arXiv:1511.06813v2, pages 2 and 23)"] },
+]
+implementation_deviations = [
+ "Exactly the existing four-variable binary observational Verma pilot. General nested Markov likelihoods, other graphs/regimes, dependence and Bayesian priors are outside this method.",
+ "Original analytic differentiation of the eleven-parameter multinomial cell law. Expected information is N sum_i dp_i dp_i^T/p_i; Cholesky inversion is unregularized with a numerical residual check. The full covariance propagates to both do-means and their difference. The normal delta candidates are an asymptotic correctly specified interior-model approximation, not finite-sample coverage inherited from the model-smoothness theorem.",
+ "Requires positive integer frequency counts; fractional exact/pseudo-count laws cannot supply an IID sample-size claim. A count table cannot authenticate independence or correct model specification. Existing empirical constraint residuals, convergence and boundary diagnostics remain visible; optional strict fit checks still refuse.",
+ "Numerical covariance and interval candidates are compiled only under calibration-internal, absent from released Rust/Python builds. The public binary_nested_markov_fisher_interval route stays closed until whole-method repeated-sampling coverage is measured and separately activated.",
+ "A separately marked internal artifact binds the point-fit premises, count snapshot, sampling declaration, method, nominal level, full covariance and candidate intervals. Independent replay refuses altered claims, covariance, intervals, sampling, counts and version; hashes are not authentication of scientific premises.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "crates/antecedent-estimate/tests/nested_markov_uncertainty.rs",
+ "crates/antecedent-io/tests/nested_markov_artifact.rs",
+ "python/tests/test_closed_pilots.py",
+]

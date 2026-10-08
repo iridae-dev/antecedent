@@ -497,6 +497,7 @@ fn adjusted_receipt_artifact_roundtrip_and_fresh_boundary_never_fake_a_fit() {
                     score_computations: c.score_computations,
                     reweights: c.reweights,
                     decisions: c.decisions,
+                    ..CountsWire::default()
                 },
             )
         })

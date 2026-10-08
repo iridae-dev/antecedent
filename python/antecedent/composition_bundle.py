@@ -38,7 +38,12 @@ claim publishes a mean-only law and no stronger trust than its attestation (it i
 ``verified_extension`` only when the artifact retains its exact-request
 verification receipt), and a decision whose functional needs an aligned joint law
 is refused over a mean-only claim as ``unsupported_law``. A bundle never claims
-that a serialized result recreates an executable study.
+that a serialized result recreates an executable study. Independently checked
+``recalculation_receipt`` nodes report historical work and supply no live state
+or provider authentication. ``frozen_scores`` nodes retain their original
+snapshot and executed-fit identities for the separately licensed same-row
+retarget operation. Connecting a receipt to scores checks both bindings; a
+changed fit refuses even when the data snapshot is the same.
 
 Rust owns the graph, the digests, the verifiers and every refusal; this module
 raises each as a :class:`CompositionBundleRefusal`, a
@@ -74,6 +79,8 @@ NodeKind = Literal[
     "study_ranking",
     "inverse_query",
     "repair_report",
+    "recalculation_receipt",
+    "frozen_scores",
 ]
 Relationship = Literal[
     "shared_data", "shared_prior", "shared_fitted_model", "unknown_dependence", "independent"
@@ -96,6 +103,8 @@ NODE_KINDS: tuple[str, ...] = (
     "study_ranking",
     "inverse_query",
     "repair_report",
+    "recalculation_receipt",
+    "frozen_scores",
 )
 #: Kinds whose artifacts can be embedded (the rest are carried as references).
 EMBEDDABLE_KINDS: tuple[str, ...] = (
@@ -108,6 +117,8 @@ EMBEDDABLE_KINDS: tuple[str, ...] = (
     "study_ranking",
     "inverse_query",
     "repair_report",
+    "recalculation_receipt",
+    "frozen_scores",
 )
 RELATIONSHIPS: tuple[str, ...] = (
     "shared_data",

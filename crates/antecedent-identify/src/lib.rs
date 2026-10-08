@@ -26,6 +26,8 @@ pub mod efficient;
 pub(crate) mod enum_masks;
 pub mod envelope;
 pub mod error;
+/// Actual finite identification checker counters.
+pub mod execution_counts;
 pub mod frontdoor;
 pub mod generalized;
 pub mod hedge;

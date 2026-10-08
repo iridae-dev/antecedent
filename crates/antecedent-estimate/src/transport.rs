@@ -490,6 +490,9 @@ pub fn trial_to_target_ipw_se(
 pub const fn transport_outcome_kind(error: &antecedent_expr::EvalError) -> TransportOutcomeKind {
     use antecedent_expr::EvalError;
     match error {
+        EvalError::ExactLaw(error) if error.is_missing_provider() => {
+            TransportOutcomeKind::MissingProvider
+        }
         EvalError::ExactLaw(_)
         | EvalError::ExactRatioSupport { .. }
         | EvalError::DivisionByZero
@@ -966,6 +969,36 @@ pub fn prepare_exact_transport(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn absent_law_is_not_a_skippable_support_cell() {
+        let error = |kind| {
+            antecedent_expr::EvalError::ExactLaw(Box::new(antecedent_expr::ExactLawError {
+                kind,
+                population: std::sync::Arc::from("source"),
+                regime: None,
+                variables: std::sync::Arc::from([]),
+                conditioning: std::sync::Arc::from([]),
+                interventions: std::sync::Arc::from([]),
+            }))
+        };
+        let missing = error("missing_exact_provider");
+        assert_eq!(
+            super::transport_outcome_kind(&missing),
+            antecedent_core::TransportOutcomeKind::MissingProvider
+        );
+        assert!(!super::is_support_failure(&missing));
+        assert!(matches!(
+            super::refuse_eval(&missing),
+            crate::EstimationError::Refused { code: "transport_missing_provider", .. }
+        ));
+        let null_cell = error("zero_conditioning_mass");
+        assert!(super::is_support_failure(&null_cell));
+        assert!(matches!(
+            super::refuse_eval(&null_cell),
+            crate::EstimationError::Refused { code: "transport_support_failure", .. }
+        ));
+    }
+
     use antecedent_core::{
         DependenceGroup, DistributionAvailability, Environment, EvidenceCatalog, EvidenceKind,
         ExecutionContext, RegimeBinding, RegimeId, RegimeKind, SamplingDesign, Value,

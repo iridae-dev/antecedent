@@ -79,6 +79,7 @@ impl ExactDistribution {
         if invalid || !total.is_finite() {
             return Err(EvalError::ProviderKind("exact mean requires finite numeric outcomes"));
         }
+        crate::execution_counts::note_static_work(crate::execution_counts::StaticWork::Integration);
         Ok(total)
     }
     /// Difference of numeric means between two complete laws.
@@ -259,6 +260,7 @@ impl ExactEvaluationPlan {
         {
             return Err(EvalError::ProviderKind("unnormalized exact target distribution"));
         }
+        crate::execution_counts::note_static_work(crate::execution_counts::StaticWork::Integration);
         Ok(ExactDistribution {
             outcomes: self.outcomes.clone(),
             atoms,

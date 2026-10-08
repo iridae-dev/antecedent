@@ -509,6 +509,13 @@ class StageCounts:
     decisions: int = 0
     #: Successful full-model fits; distinct from nuisance fold fits.
     model_fits: int = 0
+    law_summaries: int = 0
+    factor_builds: int = 0
+    program_compilations: int = 0
+    provider_bindings: int = 0
+    factor_evaluations: int = 0
+    integrations: int = 0
+    provider_calls: int = 0
 
     @property
     def total(self) -> int:
@@ -520,6 +527,13 @@ class StageCounts:
             + self.reweights
             + self.decisions
             + self.model_fits
+            + self.law_summaries
+            + self.factor_builds
+            + self.program_compilations
+            + self.provider_bindings
+            + self.factor_evaluations
+            + self.integrations
+            + self.provider_calls
         )
 
     def as_tuple(self) -> tuple[int, int, int, int, int]:
@@ -660,8 +674,19 @@ class RecalcReceipt:
             work = ", ".join(
                 f"{name}={n}" for name, n in zip(kinds, e.counts.as_tuple(), strict=True) if n
             )
-            if e.counts.model_fits:
-                work += (", " if work else "") + f"model_fits={e.counts.model_fits}"
+            for name in (
+                "model_fits",
+                "law_summaries",
+                "factor_builds",
+                "program_compilations",
+                "provider_bindings",
+                "factor_evaluations",
+                "integrations",
+                "provider_calls",
+            ):
+                value = getattr(e.counts, name)
+                if value:
+                    work += (", " if work else "") + f"{name}={value}"
             suffix = f"  [{work}]" if work else ""
             lines.append(f"{e.stage.value:<{width}}  {e.status.text}{suffix}")
         head = (
@@ -711,7 +736,7 @@ class Law:
     """The law of the requested quantity."""
 
     ate: float
-    std_error: float
+    std_error: float | None
 
 
 @dataclass(frozen=True, slots=True)

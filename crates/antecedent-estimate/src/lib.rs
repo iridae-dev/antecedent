@@ -60,6 +60,7 @@ pub mod mechanism_discrepancy;
 pub mod mixed_source;
 pub mod multi_arm;
 pub mod nested_markov_binary;
+pub mod nested_markov_uncertainty;
 pub mod nonlinear_mediation;
 pub mod observation;
 pub mod overlap;

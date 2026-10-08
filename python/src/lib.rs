@@ -84,7 +84,9 @@ mod recalc_adjusted_api;
 mod recalc_api;
 mod recalc_bounds;
 mod recalc_cell_api;
+mod recalc_design_api;
 mod recalc_dr_api;
+mod recalc_static_api;
 mod recovery_api;
 mod recovery_chain_api;
 mod regimes_api;
@@ -2753,6 +2755,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     recalc_api::register(m)?;
     recalc_adjusted_api::register(m)?;
     recalc_dr_api::register(m)?;
+    recalc_design_api::register(m)?;
+    recalc_static_api::register(m)?;
     recalc_cell_api::register(m)?;
     dose_grid_api::register(m)?;
     recovery_chain_api::register(m)?;

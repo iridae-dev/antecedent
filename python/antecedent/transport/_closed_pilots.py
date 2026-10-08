@@ -39,7 +39,12 @@ from ..graph import Admg
 from ._impl import _non_negative
 from ._recovery import ObservationRecoveryQuery
 
-__all__ = ["binary_nested_markov", "joint_bayesian_transport", "sampled_observation_recovery"]
+__all__ = [
+    "binary_nested_markov",
+    "binary_nested_markov_fisher_interval",
+    "joint_bayesian_transport",
+    "sampled_observation_recovery",
+]
 
 _GRAPH_CLASSES = ("fixed_dag", "admg", "graph_posterior")
 _MAX_BYTE = 255
@@ -208,6 +213,36 @@ def _row(row: Sequence[int]) -> tuple[int, int, int, int]:
     if row_id < 0 or any(not 0 <= value <= _MAX_BYTE for value in (responses, proxies, fully)):
         raise CausalValueError("a row id must be non-negative and each pattern field in 0..=255")
     return row_id, responses, proxies, fully
+
+
+def binary_nested_markov_fisher_interval(
+    *,
+    graph: Admg,
+    regimes: Sequence[Mapping[str, Any]],
+    nominal_level: float = 0.95,
+    max_iterations: int = 50_000,
+    tolerance: float = 1e-11,
+) -> NoReturn:
+    """Expected-Fisher/delta interval for the selected IID binary model: closed.
+
+    The internal method propagates the full eleven-parameter constrained-model
+    covariance to both intervention means and their contrast. It assumes positive
+    integer IID multinomial counts and a correctly specified interior model. Its
+    covariance and artifact replay have independent value evidence, but coverage
+    has not been measured. A valid request therefore refuses with
+    ``cell_not_licensed`` / ``nested_markov.route_frozen``. This entry does not
+    publish an interval or imply a Bayesian posterior.
+    """
+    if isinstance(nominal_level, bool) or not isinstance(nominal_level, (int, float)):
+        raise CausalTypeError("nominal_level must be a number")
+    if not (math.isfinite(nominal_level) and 0 < nominal_level < 1):
+        raise CausalValueError(
+            "nested_markov.fisher_invalid_level: nominal level must lie between zero and one",
+            reason_code="invalid_argument",
+        )
+    binary_nested_markov(
+        graph=graph, regimes=regimes, max_iterations=max_iterations, tolerance=tolerance
+    )
 
 
 def sampled_observation_recovery(

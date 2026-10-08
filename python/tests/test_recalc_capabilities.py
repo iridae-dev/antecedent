@@ -127,8 +127,10 @@ def test_live_score_and_resume_adapters_execute_at_the_declared_coordinate():
 def test_missing_adapters_and_inference_never_inherit_adjacent_routes():
     assert not capability(Family.DOUBLY_ROBUST, Operation.PROVIDER).adapters
     assert not capability(Family.DOUBLY_ROBUST, Operation.INFERENCE).adapters
+    for family in (Family.STATIC, Family.DESIGN):
+        assert not capability(family, Operation.INFERENCE).adapters
     for family in Family:
-        if family not in (Family.DOUBLY_ROBUST, Family.ADJUSTED):
+        if family in (Family.BAYESIAN, Family.TEMPORAL):
             assert all(not capability(family, op).adapters for op in Operation)
 
 

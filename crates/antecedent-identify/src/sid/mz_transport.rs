@@ -669,6 +669,7 @@ pub fn decide_mz_transport(
     limits: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportDecision, IdentificationError> {
+    crate::execution_counts::note_check();
     decide_bounded(graph, query, catalog, limits, MZ_TRANSPORT_MEMORY_BYTES, ctx)
 }
 
@@ -1218,6 +1219,7 @@ pub fn bind_mz_transport_catalog(
     derivation: &MzTransportDerivation,
     catalog: &EvidenceCatalog,
 ) -> Result<BoundMzTransportFunctional, IdentificationError> {
+    crate::execution_counts::note_check();
     let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
         .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
     if super::graph_signature(&shared) != derivation.graph_signature {

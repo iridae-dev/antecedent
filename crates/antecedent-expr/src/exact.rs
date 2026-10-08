@@ -111,6 +111,24 @@ pub struct ExactLawError {
 }
 
 impl ExactLawError {
+    /// Whether the requested population/regime/world has no covering law.
+    /// This is provider availability, not an unsupported conditional cell.
+    #[must_use]
+    pub const fn is_missing_provider(&self) -> bool {
+        let expected = b"missing_exact_provider";
+        let actual = self.kind.as_bytes();
+        if actual.len() != expected.len() {
+            return false;
+        }
+        let mut index = 0;
+        while index < expected.len() {
+            if actual[index] != expected[index] {
+                return false;
+            }
+            index += 1;
+        }
+        true
+    }
     /// Whether this is a conditional on a structurally null event (see
     /// `ZERO_CONDITIONING_MASS`), the only failure an exact evaluation may extend across.
     #[must_use]
@@ -353,6 +371,27 @@ impl ExactDiscreteLaw {
     pub const fn regime(&self) -> RegimeId {
         self.regime
     }
+    /// Stable identity of the complete numerical provider contract.
+    #[must_use]
+    pub fn content_identity(&self) -> antecedent_core::recalc::StageIdentity {
+        let descriptor = format!(
+            "{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}:{:?}",
+            self.population,
+            self.regime,
+            self.interventions,
+            self.axes,
+            self.snapshot_identity,
+            self.tolerance,
+            self.origin,
+            self.empirical_counts
+        );
+        let probabilities: Vec<u8> =
+            self.probabilities.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect();
+        antecedent_core::recalc::StageIdentity::of(
+            "exact.law.content.v1",
+            &[descriptor.as_bytes(), &probabilities],
+        )
+    }
     /// Physical snapshot identity (not identification authority).
     #[must_use]
     pub fn snapshot_identity(&self) -> &str {
@@ -553,7 +592,8 @@ fn lookup_world_key(assignments: &[InterventionAssignment]) -> Cow<'_, [Interven
     }
 }
 
-type JointQueryKey = (usize, Vec<(usize, usize)>, Vec<(usize, usize)>);
+type JointQueryKey =
+    (antecedent_core::recalc::StageIdentity, Vec<(usize, usize)>, Vec<(usize, usize)>);
 #[derive(Debug)]
 struct SharedFactorCache {
     capacity: usize,
@@ -564,6 +604,7 @@ struct SharedFactorCache {
 #[derive(Clone, Debug)]
 pub struct ExactTransportData {
     laws: Arc<[ExactDiscreteLaw]>,
+    law_identities: Arc<[antecedent_core::recalc::StageIdentity]>,
     index: Arc<WorldIndex>,
     domains: Arc<BTreeMap<VariableId, Arc<[Value]>>>,
     max_support_rows: usize,
@@ -630,8 +671,14 @@ impl ExactTransportData {
                 }
             }
         }
+        let law_identities =
+            laws.iter().map(ExactDiscreteLaw::content_identity).collect::<Vec<_>>().into();
+        crate::execution_counts::note_static_work(
+            crate::execution_counts::StaticWork::ProviderBinding,
+        );
         Ok(Self {
             laws,
+            law_identities,
             index: Arc::new(index),
             domains: Arc::new(domains),
             max_support_rows,
@@ -639,6 +686,30 @@ impl ExactTransportData {
             world_bound_regimes: None,
         })
     }
+    /// Validate the current laws and reuse only content-bound cached values from a prior
+    /// provider. Changed source laws cannot alias unchanged source values, even if labels,
+    /// row ordering or caller-supplied snapshot names coincide.
+    /// # Errors
+    /// Incompatible laws, domains or support budget, as for [`Self::try_new`].
+    pub fn rebind_reusing_factor_cache(
+        &self,
+        previous: Option<&Self>,
+        capacity: usize,
+    ) -> Result<Self, ExactLawError> {
+        let mut rebound = Self::try_new(self.laws.clone(), self.max_support_rows)?;
+        rebound.world_bound_regimes.clone_from(&self.world_bound_regimes);
+        rebound.factor_cache = previous.and_then(|old| old.factor_cache.clone());
+        if rebound.factor_cache.is_none() {
+            rebound = rebound.with_shared_factor_cache(capacity);
+        }
+        Ok(rebound)
+    }
+    /// Content identities of actual population/regime/world/snapshot laws.
+    #[must_use]
+    pub fn law_identities(&self) -> &[antecedent_core::recalc::StageIdentity] {
+        &self.law_identities
+    }
+
     /// Let a leaf that names no regime select its law by intervention world.
     ///
     /// A z-transport factor whose exchanged coordinate is bound at evaluation
@@ -730,6 +801,9 @@ impl ExactTransportData {
         spec: &FactorSpec<'_>,
         assignment: &Assignment,
     ) -> Result<f64, ExactLawError> {
+        crate::execution_counts::note_static_work(
+            crate::execution_counts::StaticWork::ProviderCall,
+        );
         let law = self.require_factor(spec)?;
         let locate = |mut error: ExactLawError| {
             error.variables = Arc::from(spec.variables);
@@ -745,7 +819,7 @@ impl ExactTransportData {
         let key = self.factor_cache.as_ref().map(|_| {
             let index = self.index[spec.population][&law.regime]
                 [lookup_world_key(spec.intervention).as_ref()];
-            (index, outputs.clone(), conditions.clone())
+            (self.law_identities[index], outputs.clone(), conditions.clone())
         });
         if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
             if let Some(value) =
@@ -754,6 +828,9 @@ impl ExactTransportData {
                 return Ok(*value);
             }
         }
+        crate::execution_counts::note_static_work(
+            crate::execution_counts::StaticWork::FactorEvaluation,
+        );
         if let Some(counts) = &law.empirical_counts {
             let observed = counts.iter().enumerate().any(|(i, count)| {
                 *count > 0
