@@ -1,0 +1,32 @@
+feature_id = "a0r_coordinates_remainder"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The A0 remainder for scientific response coordinates: a native getter that reads, from a
+# CausalResponse alone, the outcome, intervention regime, horizon and functional of each value
+# coordinate (crates/antecedent-core/src/response_coordinates.rs), and the per-point support label
+# now set on the frequentist intervention_response route and the cell-AIPW multi-treatment route.
+# It estimates and rescales nothing. papers = [] is an explicit judgment: this is bookkeeping of
+# coordinate identity and support labels (original engineering) over estimators cited by their own
+# records, and no paper introduces it. It amends provenance/f8_coordinate_support.toml in scope
+# only; it adds no statistical procedure.
+papers = []
+
+implementation_deviations = [
+  "Claim policy: no estimate, interval or coverage claim is added. The getter names coordinates and the point labels describe support; both are point_only bookkeeping and grant no causal or interval license.",
+  "Units, population and scale are DECLARED by the caller and never inferred or converted: response_coordinates labels the derived skeletons with them and refuses blank declarations (coordinate_support.units_required).",
+  "Only a mean curve or a static intervention response is given scientific coordinates. Derivative, directional-derivative and Jacobian functionals refuse (coordinate_support.functional_not_described); a stochastic, soft, sequenced, categorical or symbolic intervention refuses (coordinate_support.regime_not_describable); a horizon-indexed intervention path refuses (coordinate_support.temporal_path_not_described); a variable the caller cannot name refuses (coordinate_support.unknown_variable) and an invalid dose grid refuses (coordinate_support.invalid_grid). A response is never scalarized or relabeled to fit a coordinate.",
+  "The multi-treatment intervention_response value is one scalar answering the whole joint regime, so it has exactly one coordinate whose regime id names every intervention in query order. Per-point point_status labels on the frequentist intervention_response and the cell-AIPW multi-treatment routes follow the existing worst-label summary contract of provenance/f8_coordinate_support.toml; a missing evidence factor stays its own weakest label.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-core/tests/a0r_coordinates_remainder.rs",
+  "crates/antecedent-estimate/tests/a0r_intervention_support.rs",
+  "crates/antecedent/tests/a0r_native_coordinate_parity.rs",
+  "python/tests/test_a0r_coordinates_remainder.py",
+]

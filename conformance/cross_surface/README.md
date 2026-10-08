@@ -45,3 +45,30 @@ and `safe` (policy, `max(x0, 0)`), expected utility, hard constraint `q-cap`
 - `{py,rust}_decision_result.bin`: the result, replayable from contract and source.
 - `py_decision.identities.json`: Python's contract identity and source digest
   (cross-check only).
+
+## Composition bundle (C3)
+
+One bundle with two hand-derived decisions, nodes `contract`, `law`, `result`,
+`claim`, `mean_contract`, `mean_result` and edges `law -> result`,
+`contract -> result`, `claim -> mean_result`, `mean_contract -> mean_result`.
+
+- Joint law: the `P * Q` source and contract above; `result` reads
+  `risky.expected_utility = 2` and `safe.expected_utility = 3`.
+- Point only: the external claim above (`E[Y | do(a)] = 1 + 2a`, values `[1, 3, 5]`)
+  with utility `2 * mean - 1`; `mean_result` reads `wait.expected_utility = 1`
+  (`a = 0`) and `treat.expected_utility = 9` (`a = 2`). The claim is `mean_only` and
+  `externally_attested`, so the bundle label is `point_only_attested`.
+
+Files: `py_composition_bundle.bin` and `py_composition_bundle.identity.json`
+(bundle identity, cross-check only), `rust_composition_bundle.bin`.
+
+Generation (from the repository root):
+
+    python python/tests/generate_cross_surface_bundle_fixtures.py
+    ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test cross_surface_bundle -- --ignored regenerate_rust_fixtures
+
+Consumers: `crates/antecedent-design/tests/cross_surface_bundle.rs` (builds the
+expected bundle from Rust constants and consumes `py_composition_bundle.bin` under its
+identity) and `python/tests/test_cross_surface_bundle.py` (builds the expected bundle
+in-process and consumes `rust_composition_bundle.bin`). A missing `py_*` fixture fails
+the Rust test; a missing `rust_*` fixture fails the Python test.

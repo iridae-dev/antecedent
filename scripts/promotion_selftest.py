@@ -2,6 +2,7 @@
 
     python3 scripts/promotion_selftest.py                   # gate_promotion.sh --self-test
     python3 scripts/promotion_selftest.py --mutation-check  # manual: every rule has a live case
+    python3 scripts/promotion_selftest.py --release 2.3     # the broken-record cases against a 2.3 registry
 
 The self-test builds ONE synthetic record (2.2A.XT.self_test_cell) with its own owning
 registries and source files in a temp dir, so it never depends on the state of any
@@ -743,6 +744,241 @@ positives = [
 ]
 
 
+# ------------------------------------------------------------------ 2.3 release
+#
+#   python3 scripts/promotion_selftest.py --release 2.3 [--mutation-check]
+#
+# The same broken-record machinery against a synthetic registry named
+# promotion_2_3.toml (the checker derives the expected release from the file name):
+# release = "2.3", record id 2.3A.XT.self_test_cell, and the 2.3 record fields
+# prerequisite_records / prerequisite_reason. The checked-in cases are re-rendered
+# for 2.3 (to_23) and a curated subset is selected (SELECT_23); the prerequisite
+# graph rules live in scripts/check_2_3_prerequisites.py, not in the checker's
+# RULES, so they are exercised in-process by prereq_case below. Nothing under
+# parity/ is read or written.
+
+FILES_ACTIVE = FILES
+REGISTRY_FILE = "record.toml"
+
+PREREQ_TOKEN = "@@OLD_RELEASE@@"
+PREREQ_LINE = 'prerequisite_records = ["2.2A.XT.self_test_base"]\n'
+PREREQ_REASON = 'prerequisite_reason = "self-test prerequisite"\n'
+OLD_SYN = [{"id": "2.2A.XT.self_test_base", "status": "promoted"}]
+
+
+def to_23(text):
+    """Render a 2.2 synthetic string (file, edit or expected message) for 2.3."""
+    if text is None:
+        return None
+    with_prereq = REC_BODY.replace(
+        'owners = ["self-test"]\n',
+        'owners = ["self-test"]\n' + PREREQ_LINE.replace("2.2A", PREREQ_TOKEN) + PREREQ_REASON,
+        1,
+    )
+    text = text.replace(REC_BODY, with_prereq)
+    text = (
+        text.replace("2.2A.XT", "2.3A.XT")
+        .replace('release = "2.2"', 'release = "2.3"')
+        .replace("and release 2.2", "and release 2.3")
+    )
+    return text.replace(PREREQ_TOKEN, "2.2A")
+
+
+# (rule, label) of the 2.2 cases re-run against 2.3, grouped by the plan's list.
+SELECT_23 = [
+    # missing frozen fields / registry header / duplicate and unknown records
+    ("frozen_field", "missing frozen theorem"),
+    ("registry_header", "wrong release"),
+    ("duplicate_record", "duplicate record id"),
+    ("unknown_status", "unknown status"),
+    # orphan public surface
+    ("surface_symbol", "python surface symbol without a route"),
+    ("surface_symbol", "public rust function without a route"),
+    ("surface_symbol", "hidden rust item not listed as internal"),
+    ("surface_symbol", "pyo3 function without a route"),
+    ("surface_symbol", "pyo3 method without a route"),
+    ("surface_symbol", "owned export without a route"),
+    ("surface_value_method_verb", "executing-verb method on a listed value type"),
+    # unexecuted fixture
+    ("evidence_pair", "evidence_test without an assertion"),
+    ("evidence_unresolved", "evidence that does not resolve"),
+    ("evidence_no_assertion", "rust test without an assertion"),
+    ("evidence_no_assertion", "python test without an assertion"),
+    ("evidence_should_panic", "should_panic test as evidence"),
+    ("evidence_shared", "one test backs two fixture roles"),
+    ("promoted_evidence", "promoted without evidence"),
+    ("licensed_unevidenced", "licensed point route without evidence"),
+    ("closed_refusal_required", "closed route without refusal evidence"),
+    ("closed_refusal_reason_named", "refusal test that never names the reason"),
+    # missing artifact / budget / calibration evidence
+    ("fixture_roles", "missing negative fixture"),
+    ("fixture_roles", "calibrated claim without a calibration fixture"),
+    ("coverage_required", "calibrated without records"),
+    ("coverage_unexpected", "coverage ids for a point claim"),
+    ("coverage_unknown", "promoted record with an unregistered coverage id"),
+    ("budget_symbol", "budget fixture that never names the contract"),
+    ("budget_asserts", "budget fixture that names but never observes the stop"),
+    ("bounds_limit", "search without depth limit"),
+    ("search_charge_loop", "one straight-line charge is a pre-flight"),
+    # false licensed status
+    ("licensed_status", "route licensed while frozen"),
+    ("licensed_uncertainty", "licensed uncertainty route before promotion"),
+    ("promoted_closed_route", "promoted record with a closed non-permanent route"),
+    ("nominal_route", "licensed route carries the nominal marker"),
+    ("stages_missing", "route without an owning-registry row"),
+    ("stages_licensed_only_here", "route licensed in the record only"),
+    ("stages_licensed_only_there", "transport stage licensed before promotion"),
+    ("stages_reason", "owning row with another reason code"),
+    ("support_licensed_no_cell", "support route licensed without a cell"),
+    ("support_no_closed_row", "closed support route without a closed row"),
+    # refusal mismatch
+    ("refusal_code", "unregistered refusal code"),
+    ("refusal_detail_missing", "record detail absent from code"),
+    ("refusal_detail_undeclared", "rust code detail absent from record"),
+    ("refusal_detail_undeclared", "python code detail absent from record"),
+    ("refusal_pair_code", "the detail is emitted without its code"),
+    ("refusal_dynamic", "rust format! builds a detail"),
+    ("refusal_dead_const", "a detail held in a const nothing uses"),
+]
+SELECT_23_POSITIVE = ["shared evidence on every fixture that shares the test"]
+
+IDENT_LICENSED = '  { name = "self_test_cell.identify_route", stage = "identify", status = "licensed", claim = "none" },\n'
+IDENT_CLOSED = (
+    f'  {{ name = "self_test_cell.identify_route", stage = "identify", status = "closed", reason_code = "{REASON}" }},\n'
+)
+POINT_CLOSED = (
+    f'  {{ name = "self_test_cell.point_route", stage = "evaluate", status = "closed", reason_code = "{REASON}" }},\n'
+)
+STAGE_IDENT = 'route = "self_test_cell.identify_route"\nstage = "identify"\nstatus = "licensed"'
+STATUS_IN_PROGRESS = '\nstatus = "in_progress"\n'
+STATUS_CARRIED = '\nstatus = "carried_forward"\n'
+PREREQ_BLOCK = PREREQ_LINE + PREREQ_REASON
+SECOND_RECORD = (
+    '\n[[record]]\nid = "2.3A.XT.self_test_second"\nworkstream = "XT"\n'
+    'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.self_test_cell"]\n'
+)
+
+# Cases written directly for 2.3 (already in 2.3 form; not passed through to_23).
+NEW_23_CASES = [
+    ("registry_header", "a 2.3 registry file marked release 2.2", [rec('release = "2.3"', 'release = "2.2"')],
+     "promotion registry requires version 1 and release 2.3", None),
+    ("frozen_field", "missing frozen consumer question", [rec('\nconsumer_question = ', '\nconsumer_question_draft = ')],
+     "missing frozen field consumer_question", None),
+    ("frozen_field", "missing frozen refusal boundary", [rec('\nrefusals = [', '\nrefusals_draft = [')],
+     "missing frozen field refusals", None),
+    ("fixture_roles", "missing artifact fixture", [rec(ART, "")],
+     "2.3A.XT.self_test_cell: missing fixture roles artifact", None),
+    ("fixture_roles", "missing budget fixture on a search record", [rec(BUD, "")],
+     "2.3A.XT.self_test_cell: missing fixture roles budget", None),
+    ("licensed_status", "licensed routes on a carried_forward record", [rec(STATUS_IN_PROGRESS, STATUS_CARRIED)],
+     "identify_route: licensed while its record is carried_forward", None),
+]
+# Constructs the 2.3 checker must accept.
+NEW_23_POSITIVES = [
+    ("a carried_forward record with every route closed and its owning rows closed",
+     [rec(STATUS_IN_PROGRESS, STATUS_CARRIED),
+      rec(IDENT_LICENSED, IDENT_CLOSED),
+      rec(POINT, POINT_CLOSED),
+      ("stages.toml", STAGE_IDENT, STAGE_IDENT.replace('"licensed"', '"closed"') + f'\nreason_code = "{REASON}"'),
+      ("stages.toml", STAGE_POINT, STAGE_POINT.replace('"licensed"', '"closed"') + f'\nreason_code = "{REASON}"')]),
+]
+# Prerequisite-graph cases (check_2_3_prerequisites.problems): (label, edits, expected, old registry).
+PREREQ_CASES = [
+    ("a 2.3 record with no prerequisite", [rec(PREREQ_BLOCK, "prerequisite_records = []\n")],
+     "needs a named 2.2 prerequisite", None),
+    ("a 2.3 record with no prerequisite and no reason", [rec(PREREQ_BLOCK, "prerequisite_records = []\n")],
+     "no 2.2 executing base needs an explicit prerequisite_reason", None),
+    ("a 2.3 record without the prerequisite field", [rec(PREREQ_BLOCK, "")],
+     "prerequisite_records must be a list of record IDs", None),
+    ("a self-prerequisite",
+     [rec(PREREQ_LINE, 'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.self_test_cell"]\n')],
+     "2.3A.XT.self_test_cell: self prerequisite", None),
+    ("an unknown prerequisite",
+     [rec(PREREQ_LINE, 'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.nope"]\n')],
+     "unknown prerequisite 2.3A.XT.nope", None),
+    ("a cyclic prerequisite",
+     [rec(PREREQ_LINE, 'prerequisite_records = ["2.2A.XT.self_test_base", "2.3A.XT.self_test_second"]\n'),
+      ("record.toml", None, SECOND_RECORD)],
+     "cyclic 2.3 prerequisites", None),
+    ("a 2.2 prerequisite that is not an executing base", [("record.toml", None, "\n")],
+     "is not an executing base", [{"id": "2.2A.XT.self_test_base", "status": "carried_forward"}]),
+]
+
+
+def release_23_cases() -> list:
+    by_key = {(c[0], c[1]): c for c in cases}
+    missing = [key for key in SELECT_23 if key not in by_key]
+    if missing:
+        raise SystemExit(f"SELF-TEST FAIL: --release 2.3 selects unknown 2.2 cases {missing}")
+    rendered = []
+    for key in SELECT_23:
+        rule, label, edits, expect, forbid = by_key[key]
+        rendered.append((rule, label, [(n, to_23(o), to_23(w)) for n, o, w in edits], to_23(expect), to_23(forbid)))
+    return rendered + NEW_23_CASES
+
+
+def release_23_positives() -> list:
+    by_label = {p[0]: p for p in positives}
+    missing = [label for label in SELECT_23_POSITIVE if label not in by_label]
+    if missing:
+        raise SystemExit(f"SELF-TEST FAIL: --release 2.3 selects unknown 2.2 positives {missing}")
+    rendered = []
+    for label in SELECT_23_POSITIVE:
+        _, edits, *rest = by_label[label]
+        rendered.append((label, [(n, to_23(o), to_23(w)) for n, o, w in edits], *[to_23(r) for r in rest]))
+    return rendered + NEW_23_POSITIVES
+
+
+def configure_release_23() -> None:
+    """Switch the module to the 2.3 rendering (before any case runs)."""
+    global FILES_ACTIVE, REGISTRY_FILE
+    FILES_ACTIVE = {name: to_23(body) for name, body in FILES.items()}
+    REGISTRY_FILE = "promotion_2_3.toml"
+    new_cases, new_positives = release_23_cases(), release_23_positives()
+    cases[:] = new_cases
+    positives[:] = new_positives
+
+
+def coverage_problems_23() -> list[str]:
+    listed, _ = rule_ids()
+    return [f"a 2.3 self-test case is tagged with unknown rule {r}" for r in sorted({c[0] for c in cases} - set(listed))]
+
+
+def prereq_case(index: int, label: str, edits, expect: str | None, old=None) -> tuple[bool, str]:
+    """Run check_2_3_prerequisites.problems over the synthetic 2.3 registry."""
+    import tomllib
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import check_2_3_prerequisites as prereq
+
+    try:
+        reg, _ = synthetic(index, edits, baseline=expect is None)
+    except LookupError as err:
+        return False, f"SELF-TEST FAIL: prerequisite '{label}': {err}"
+    found = prereq.problems(old if old is not None else OLD_SYN, tomllib.loads(reg.read_text())["record"])
+    if expect is None:
+        if found:
+            return False, f"SELF-TEST FAIL: prerequisite baseline must pass, got {found}"
+        return True, f"self-test ok: prerequisite '{label}' passes"
+    if not any(expect in item for item in found):
+        return False, f"SELF-TEST FAIL: prerequisite '{label}' did not report {expect!r}; got {found}"
+    return True, f"self-test ok: prerequisite '{label}' fails"
+
+
+def release_arg() -> str:
+    for i, arg in enumerate(sys.argv):
+        value = arg.split("=", 1)[1] if arg.startswith("--release=") else (
+            sys.argv[i + 1] if arg == "--release" and i + 1 < len(sys.argv) else None
+        )
+        if value is not None:
+            if value not in ("2.2", "2.3"):
+                raise SystemExit("usage: promotion_selftest.py [--release 2.2|2.3] [--mutation-check]")
+            return value
+        if arg == "--release":
+            raise SystemExit("usage: promotion_selftest.py [--release 2.2|2.3] [--mutation-check]")
+    return "2.2"
+
+
 # ------------------------------------------------------------------------ runner
 
 CACHE = None
@@ -760,7 +996,8 @@ def synthetic(index: int, edits, *, baseline: bool = False, disable: str | None 
     """Write the (possibly mutated) synthetic registry and its owning files."""
     case = TMP / f"case{index}"
     case.mkdir()
-    texts = dict(FILES)
+    base = FILES_ACTIVE  # FILES for 2.2; the 2.3 rendering of FILES under --release 2.3
+    texts = dict(base)
     for name, old, new in edits:
         if old is None:  # append
             texts[name] += new
@@ -771,16 +1008,17 @@ def synthetic(index: int, edits, *, baseline: bool = False, disable: str | None 
             raise LookupError(f"edit of {name} changes nothing")
         texts[name] = texts[name].replace(old, new, 1)
     for name, body in texts.items():
-        (case / name).write_text(body.replace("{D}", str(case)))
+        target = REGISTRY_FILE if name == "record.toml" else name
+        (case / target).write_text(body.replace("{D}", str(case)))
     env = {key: str(case / name) for key, name in ENV_FILES.items()}
     env["PROMOTION_EXTRA_SOURCES"] = os.pathsep.join(str(case / n) for n in ("code.rs", "code.py"))
     env["PROMOTION_SYNTHETIC_EVIDENCE"] = "1"
     env["PROMOTION_EVIDENCE_CACHE"] = str(CACHE)
     if disable:
         env["PROMOTION_DISABLE_RULES"] = disable
-    if texts == FILES and not baseline:
+    if texts == base and not baseline:
         raise LookupError("case changed nothing")
-    return case / "record.toml", env
+    return case / REGISTRY_FILE, env
 
 
 def check(index: int, case, disable: str | None = None) -> tuple[bool, str]:
@@ -864,7 +1102,10 @@ def coverage_problems() -> list[str]:
 def main() -> int:
     global CACHE, TMP
     mutation = "--mutation-check" in sys.argv
-    problems = coverage_problems()
+    release = release_arg()
+    if release == "2.3":
+        configure_release_23()
+    problems = coverage_problems() if release == "2.2" else coverage_problems_23()
     for p in problems:
         print(f"SELF-TEST FAIL: {p}")
     if problems:
@@ -886,10 +1127,14 @@ def main() -> int:
                     by_rule.setdefault(case[0], []).append(i)
                 jobs += [pool.submit(check, i, cases[i], rule) for rule, idx in by_rule.items() for i in idx]
             else:
-                if os.environ.get("PROMOTION_SELFTEST_SKIP_COMMITTED") != "1":  # analysis only
+                # The 2.3 run leaves the committed-registry sanity check to the 2.2 run (it covers both).
+                if release == "2.2" and os.environ.get("PROMOTION_SELFTEST_SKIP_COMMITTED") != "1":  # analysis only
                     jobs.append(pool.submit(committed))
                 jobs += [pool.submit(check, i, c) for i, c in enumerate(cases)]
                 jobs += [pool.submit(positive, 1000 + i, label, *rest) for i, (label, *rest) in enumerate(positives)]
+                if release == "2.3":
+                    jobs.append(pool.submit(prereq_case, 1999, "baseline (one 2.2 base, a reason)", [], None))
+                    jobs += [pool.submit(prereq_case, 2000 + i, *c) for i, c in enumerate(PREREQ_CASES)]
             results = [j.result() for j in jobs]
     for _, message in results:
         print(message)
@@ -897,6 +1142,8 @@ def main() -> int:
         return 1
     if mutation:
         print(f"gate_promotion mutation-check: ok ({len({c[0] for c in cases})} rules, {len(cases)} cases)")
+    elif release == "2.3":
+        print(f"gate_promotion 2.3 self-test: ok ({len(cases)} cases, {len(positives)} positives, {len(PREREQ_CASES) + 1} prerequisite cases)")
     else:
         print("gate_promotion self-test: ok")
     return 0
