@@ -14,7 +14,7 @@ is supplied) with per-pair contrasts adjusted by Holm's step-down procedure::
         [("p1", 1.0, 0.5), ("p2", 2.0, 0.5)], estimand=effect
     )
     result.statistic, result.p_value, result.conclusion      # 2.0, 0.157..., NOT_REJECTED
-    again = temporal.consume_effect_constancy_artifact(result.export(), expected=result.identity)
+    again = temporal.consume_effect_constancy_artifact(result.export(), expected_identity=result.identity)
 
 What the answer is **not**:
 
@@ -35,7 +35,7 @@ Every statistic, identity digest, refusal rule and artifact is computed in Rust;
 builds the declaration and presents the result. The exported artifact is a checksummed
 container whose consumer recomputes the statistic, p-value and Holm values from the embedded
 effects, standard errors and covariance. Pass the :attr:`EffectConstancyResult.identity` you
-retained out-of-band as ``expected=`` to refuse a *resealed* change of partition identity,
+retained out-of-band as ``expected_identity=`` to refuse a *resealed* change of partition identity,
 estimand, covariance, null or multiplicity family.
 """
 
@@ -252,7 +252,7 @@ class EffectConstancyIdentity:
     """Identity digests a consumer retains independently of the artifact bytes.
 
     Each is BLAKE3 over a canonical encoding in label order. Pass it to
-    :func:`consume_effect_constancy_artifact` as ``expected=``.
+    :func:`consume_effect_constancy_artifact` as ``expected_identity=``.
     """
 
     partition_id: str
@@ -509,13 +509,13 @@ def effect_constancy(
 def consume_effect_constancy_artifact(
     artifact: bytes,
     *,
-    expected: EffectConstancyIdentity | Mapping[str, str] | None = None,
+    expected_identity: EffectConstancyIdentity | Mapping[str, str] | None = None,
 ) -> EffectConstancyResult:
     """Recompute an exported constancy artifact and accept only an identical one.
 
     The statistic, p-value, per-pair contrasts and Holm values are recomputed from the
     embedded effects, standard errors and covariance, and every stored value must reproduce
-    bit for bit. With ``expected`` (the :attr:`EffectConstancyResult.identity` retained
+    bit for bit. With ``expected_identity`` (the :attr:`EffectConstancyResult.identity` retained
     out-of-band) a changed partition identity, estimand, covariance, null or multiplicity
     family is refused even when the artifact was resealed consistently
     (:class:`TemporalRefusal`, ``route_not_supported``, ``effect_constancy.wrong_contract``).
@@ -524,14 +524,14 @@ def consume_effect_constancy_artifact(
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    if expected is None:
+    if expected_identity is None:
         expected_json = None
-    elif isinstance(expected, EffectConstancyIdentity):
-        expected_json = json.dumps(expected._wire())
-    elif isinstance(expected, Mapping):
-        expected_json = json.dumps(dict(expected))
+    elif isinstance(expected_identity, EffectConstancyIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
     else:
-        raise CausalTypeError("expected must be an EffectConstancyIdentity or a mapping")
+        raise CausalTypeError("expected_identity must be an EffectConstancyIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
     _raise_refusal(refusal)

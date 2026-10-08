@@ -199,7 +199,7 @@ def main() -> None:
     files: dict[str, bytes] = {
         "py_external_claim.bin": claim.export(artifact_id="claim"),
         "py_external_claim.identity.json": (
-            json.dumps(claim.identity, sort_keys=True, indent=2) + "\n"
+            json.dumps(claim.identity_fields, sort_keys=True, indent=2) + "\n"
         ).encode(),
         "py_decision_contract.bin": contract.export(artifact_id="decision-contract"),
         "py_decision_result.bin": result.export(artifact_id="decision-result"),

@@ -311,7 +311,7 @@ def test_b3_msm_validates_its_arguments_as_typed_errors():
 def _artifact(
     lambda_max: float,
     grid_points: int,
-    actions: list[sd.Action],
+    actions: list[sd.SensitivityAction],
     point_quantities: list[tuple[ScientificQuantity, list[float]]] | None = None,
 ) -> sd.SensitivityArtifact:
     result = msm.msm_ate_sensitivity(_two_strata(), lambda_max, grid_points=grid_points)
@@ -327,7 +327,10 @@ def _treat_vs(lambda_max: float, grid_points: int, skip: float) -> sd.Sensitivit
     return _artifact(
         lambda_max,
         grid_points,
-        [sd.Action("treat", sd.quantity("ate")), sd.Action("skip", sd.const(skip))],
+        [
+            sd.SensitivityAction("treat", sd.quantity("ate")),
+            sd.SensitivityAction("skip", sd.const(skip)),
+        ],
     )
 
 
@@ -371,7 +374,7 @@ def test_b3_msm_decision_assumption_dependent_switch():
     artifact = _artifact(
         3.0,
         3,
-        [sd.Action("treat", net), sd.Action("skip", sd.const(0.0))],
+        [sd.SensitivityAction("treat", net), sd.SensitivityAction("skip", sd.const(0.0))],
         [(_scientific("cost"), [0.0, 0.0, 2.0])],
     )
     decided = sd.decide(artifact.contract(), artifact)
@@ -422,7 +425,10 @@ def test_b3_msm_artifact_round_trips_and_refuses_a_foreign_identity():
 
 def test_b3_msm_artifact_refuses_a_malformed_surface_and_foreign_arguments():
     result = msm.msm_ate_sensitivity(_two_strata(), 2.0, grid_points=3)
-    actions = [sd.Action("treat", sd.quantity("ate")), sd.Action("skip", sd.const(0.0))]
+    actions = [
+        sd.SensitivityAction("treat", sd.quantity("ate")),
+        sd.SensitivityAction("skip", sd.const(0.0)),
+    ]
     # Fewer than two actions cannot be compared.
     with pytest.raises(msm.MsmSensitivityRefusal) as caught:
         result.to_sensitivity_artifact(

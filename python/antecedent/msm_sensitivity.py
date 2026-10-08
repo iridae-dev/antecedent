@@ -44,7 +44,7 @@ from ._native import msm_sensitivity_artifact_run as _artifact_run
 from ._native import msm_sensitivity_run as _run
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .joint_distribution import ScientificQuantity
-from .sensitivity_decision import Action, SensitivityArtifact
+from .sensitivity_decision import SensitivityAction, SensitivityArtifact
 
 __all__ = [
     "MsmPoint",
@@ -161,6 +161,73 @@ class MsmStratum:
         object.__setattr__(self, "propensity", propensity)
         object.__setattr__(self, "treated", _law("treated", self.treated))
         object.__setattr__(self, "control", _law("control", self.control))
+
+    @classmethod
+    def table(
+        cls,
+        table: Any,
+        *,
+        mass: str = "mass",
+        propensity: str = "propensity",
+        treated: str = "treated",
+        control: str = "control",
+    ) -> tuple[MsmStratum, ...]:
+        """The strata of a plain per-stratum summary table, one stratum per row.
+
+        ``table`` is a mapping of equal-length columns (``{"mass": [...], ...}``), a
+        sequence of row mappings, or anything with ``to_dict("records")`` (a pandas
+        ``DataFrame``). ``mass``, ``propensity``, ``treated`` and ``control`` name the
+        columns. A ``treated`` / ``control`` cell is an :class:`OutcomeLaw`, a mapping with
+        ``values`` and ``probabilities``, a ``(values, probabilities)`` pair, or a bare
+        number, which is read as ``P(Y = 1)`` of a binary outcome (:meth:`OutcomeLaw.binary`).
+        Nothing is estimated or normalized: the table must already hold exact stratum
+        quantities, and Rust still checks that the masses sum to one and every law is valid.
+
+        Raises:
+            CausalTypeError: ``table`` is not a mapping of columns, a sequence of rows or a
+                frame, or a cell has the wrong type.
+            CausalValueError: a named column is missing, columns differ in length, or the
+                table is empty.
+        """
+        if hasattr(table, "to_dict") and not isinstance(table, Mapping):
+            rows: list[Mapping[str, Any]] = list(table.to_dict("records"))
+        elif isinstance(table, Mapping):
+            columns = {name: list(values) for name, values in table.items()}
+            lengths = {len(values) for values in columns.values()}
+            if len(lengths) > 1:
+                raise CausalValueError(f"table columns differ in length: {sorted(lengths)}")
+            count = lengths.pop() if lengths else 0
+            rows = [{name: values[i] for name, values in columns.items()} for i in range(count)]
+        elif isinstance(table, Sequence) and not isinstance(table, (str, bytes)):
+            rows = list(table)
+            if any(not isinstance(row, Mapping) for row in rows):
+                raise CausalTypeError("table rows must be mappings from column name to value")
+        else:
+            raise CausalTypeError(
+                "table must be a mapping of columns, a sequence of row mappings or a DataFrame"
+            )
+        if not rows:
+            raise CausalValueError("table has no rows")
+
+        def cell(row: Mapping[str, Any], name: str) -> Any:
+            if name not in row:
+                raise CausalValueError(f"table has no column {name!r}; columns: {sorted(row)}")
+            return row[name]
+
+        def law(value: Any) -> Any:
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return OutcomeLaw.binary(float(value))
+            return value
+
+        return tuple(
+            cls(
+                cell(row, mass),
+                cell(row, propensity),
+                law(cell(row, treated)),
+                law(cell(row, control)),
+            )
+            for row in rows
+        )
 
     def _wire(self) -> tuple[float, float, list[float], list[float], list[float], list[float]]:
         return (
@@ -302,7 +369,7 @@ class MsmResult:
         self,
         *,
         effect: ScientificQuantity,
-        actions: Sequence[Action],
+        actions: Sequence[SensitivityAction],
         causal_contract_id: str,
         point_quantities: Sequence[tuple[ScientificQuantity, Sequence[float]]] = (),
     ) -> SensitivityArtifact:
@@ -337,8 +404,8 @@ class MsmResult:
             wire_values = list(_numbers("values", values))
             points.append({"quantity": quantity._wire(), "values": wire_values})
         declared = list(actions)
-        if any(not isinstance(action, Action) for action in declared):
-            raise CausalTypeError("actions must be sensitivity_decision.Action values")
+        if any(not isinstance(action, SensitivityAction) for action in declared):
+            raise CausalTypeError("actions must be sensitivity_decision.SensitivityAction values")
         request = self._request
         data, refusal = _artifact_run(
             [stratum._wire() for stratum in request.strata],

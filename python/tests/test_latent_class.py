@@ -231,13 +231,15 @@ def test_b4_latent_premise_and_configuration_refusals() -> None:
 
 def test_b4_latent_artifact_round_trips_with_a_bit_for_bit_refit() -> None:
     result = fit(seed=7, bootstrap_replicates=10)
-    again = consume_latent_class_artifact(result.export(), expected=result.identity)
+    again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
     np.testing.assert_array_equal(again.responsibilities, result.responsibilities)
     assert again.identity == result.identity
     assert again.log_likelihood_trace_head == result.log_likelihood_trace_head
     assert result.responsibilities_summary.digest == again.responsibilities_summary.digest
-    from_mapping = consume_latent_class_artifact(result.export(), expected=result.identity._wire())
+    from_mapping = consume_latent_class_artifact(
+        result.export(), expected_identity=result.identity._wire()
+    )
     assert from_mapping.identity == result.identity
 
 
@@ -249,7 +251,7 @@ def test_b4_latent_artifact_refuses_a_resealed_change_against_retained_identity(
     resealed = fit(d)
     assert consume_latent_class_artifact(resealed.export()).identity == resealed.identity
     with pytest.raises(LatentClassRefusal) as caught:
-        consume_latent_class_artifact(resealed.export(), expected=original.identity)
+        consume_latent_class_artifact(resealed.export(), expected_identity=original.identity)
     assert caught.value.detail == "latent_class.wrong_contract"
     assert caught.value.offending == "data"
     assert caught.value.reason_code == "route_not_supported"

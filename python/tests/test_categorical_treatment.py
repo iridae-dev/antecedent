@@ -219,7 +219,7 @@ def test_b4_categorical_input_validation_is_typed() -> None:
 
 def test_b4_categorical_artifact_round_trip_recomputes_everything() -> None:
     result = monotone(pairs=[("lo", "hi")])
-    again = consume_categorical_effects(result.export(), expected=result.identity)
+    again = consume_categorical_effects(result.export(), expected_identity=result.identity)
     assert again.effects == result.effects
     assert again.pairs == result.pairs
     assert again.omnibus == result.omnibus
@@ -227,7 +227,9 @@ def test_b4_categorical_artifact_round_trip_recomputes_everything() -> None:
     assert again.counts == result.counts
     assert np.array_equal(again.covariance, result.covariance)
     assert again.identity == result.identity
-    mapped = consume_categorical_effects(result.export(), expected=result.to_dict()["identity"])
+    mapped = consume_categorical_effects(
+        result.export(), expected_identity=result.to_dict()["identity"]
+    )
     assert mapped.identity == result.identity
 
 
@@ -237,7 +239,7 @@ def test_b4_categorical_robust_covariance_embeds_the_rows_and_replays() -> None:
     assert robust.replay == "rows"
     assert not np.allclose(robust.covariance, model.covariance)
     assert robust.effect("c").estimate == pytest.approx(7.0, abs=1e-9)
-    again = consume_categorical_effects(robust.export(), expected=robust.identity)
+    again = consume_categorical_effects(robust.export(), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)
 
 
@@ -263,7 +265,7 @@ def test_b4_categorical_resealed_change_is_refused_against_the_retained_identity
     for offending, changed in cases.items():
         assert consume_categorical_effects(changed.export()).identity == changed.identity
         with pytest.raises(CategoricalTreatmentRefusal) as refused:
-            consume_categorical_effects(changed.export(), expected=original.identity)
+            consume_categorical_effects(changed.export(), expected_identity=original.identity)
         assert refused.value.reason_code == "route_not_supported"
         assert refused.value.detail == "categorical_treatment.wrong_contract"
         assert refused.value.offending == offending

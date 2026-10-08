@@ -18,7 +18,7 @@ coefficient is zero::
     fit.covariance                       # k x k, off-diagonals included
     fit.contrast("a_minus_b").standard_error
     fit.joint_wald.p_value
-    again = vector_treatment.consume_joint_effects(fit.export(), expected=fit.identity)
+    again = vector_treatment.consume_joint_effects(fit.export(), expected_identity=fit.identity)
 
 What the answer is **not**:
 
@@ -39,7 +39,7 @@ artifact is computed in Rust; this module builds the declaration and presents th
 exported artifact embeds a compact design (``X'X``, ``X'y`` and the residual sum of squares for
 the model-based covariance; the rows, capped, for a heteroskedasticity-robust covariance) from
 which the consumer recomputes everything bit for bit. Pass the :attr:`JointEffects.identity` you
-retained out-of-band as ``expected=`` to refuse a *resealed* change.
+retained out-of-band as ``expected_identity=`` to refuse a *resealed* change.
 """
 
 from __future__ import annotations
@@ -213,7 +213,7 @@ class JointWald:
 class VectorTreatmentIdentity:
     """Identity digests a consumer retains independently of the artifact bytes.
 
-    Pass it to :func:`consume_joint_effects` as ``expected=``.
+    Pass it to :func:`consume_joint_effects` as ``expected_identity=``.
     """
 
     snapshot_id: str
@@ -487,13 +487,13 @@ def joint_effects(
 def consume_joint_effects(
     artifact: bytes,
     *,
-    expected: VectorTreatmentIdentity | Mapping[str, str] | None = None,
+    expected_identity: VectorTreatmentIdentity | Mapping[str, str] | None = None,
 ) -> JointEffects:
     """Recompute an exported joint-fit artifact and accept only an identical one.
 
     The coefficients, full covariance, contrasts, Holm values and joint Wald test are recomputed
     from the embedded compact design and every stored value must reproduce bit for bit. With
-    ``expected`` (the :attr:`JointEffects.identity` retained out-of-band) a changed snapshot,
+    ``expected_identity`` (the :attr:`JointEffects.identity` retained out-of-band) a changed snapshot,
     adjustment set, coefficient order, design, covariance kind, contrasts, null or result is
     refused even when the artifact was resealed consistently
     (:class:`VectorTreatmentRefusal`, ``route_not_supported``,
@@ -502,14 +502,14 @@ def consume_joint_effects(
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    if expected is None:
+    if expected_identity is None:
         expected_json = None
-    elif isinstance(expected, VectorTreatmentIdentity):
-        expected_json = json.dumps(expected._wire())
-    elif isinstance(expected, Mapping):
-        expected_json = json.dumps(dict(expected))
+    elif isinstance(expected_identity, VectorTreatmentIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
     else:
-        raise CausalTypeError("expected must be a VectorTreatmentIdentity or a mapping")
+        raise CausalTypeError("expected_identity must be a VectorTreatmentIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
     if refusal is not None:

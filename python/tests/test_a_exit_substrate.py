@@ -90,7 +90,7 @@ EXTERNAL_SCRIPT = textwrap.dedent(
     import generate_cross_surface_fixtures as gen
 
     claim = gen.external_spec().load(
-        open(sys.argv[2], "rb").read(), expected=json.loads(sys.argv[3])
+        open(sys.argv[2], "rb").read(), expected_identity=sys.argv[3]
     )
     print(json.dumps({
         "values": [float(v) for v in claim.values],
@@ -265,7 +265,7 @@ def test_a_exit_substrate_external_claim_carries_the_substrate_through_a_fresh_p
     path = gen.FIXTURE_DIR / name
     assert path.is_file(), f"missing committed fixture {path}"
     identity = gen.external_claim().identity
-    report = fresh(EXTERNAL_SCRIPT, TESTS_DIR, str(path), json.dumps(identity))
+    report = fresh(EXTERNAL_SCRIPT, TESTS_DIR, str(path), identity)
     # E[Y | do(a)] = 1 + 2a on a = 0, 1, 2.
     assert report["values"] == pytest.approx([1.0, 3.0, 5.0], abs=1e-12)
     assert report["native"] is False
@@ -286,7 +286,7 @@ def test_a_exit_substrate_external_claim_carries_the_substrate_through_a_fresh_p
 
 def test_a_exit_substrate_external_claim_refuses_a_foreign_identity_in_a_fresh_process() -> None:
     path = gen.FIXTURE_DIR / "py_external_claim.bin"
-    changed = {**gen.external_claim().identity, "snapshot_id": "other-snapshot"}
+    changed = {**gen.external_claim().identity_fields, "snapshot_id": "other-snapshot"}
     done = subprocess.run(
         [sys.executable, "-c", EXTERNAL_SCRIPT, TESTS_DIR, str(path), json.dumps(changed)],
         capture_output=True,

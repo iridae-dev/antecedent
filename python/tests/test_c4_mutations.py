@@ -42,7 +42,6 @@ executed fit counts here cover the native AIPW route.
 
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 
 import numpy as np
@@ -86,7 +85,7 @@ BRANCHES = {
 
 
 def _claim_identity(claim: external.BoundExternalClaim) -> str:
-    return json.dumps(claim.identity, sort_keys=True)
+    return claim.identity
 
 
 def workflow(**changes: str) -> dict[Stage, str]:

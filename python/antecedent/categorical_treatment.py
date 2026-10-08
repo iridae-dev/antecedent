@@ -20,7 +20,7 @@ jointly, so every contrast uses the full covariance, off-diagonals included::
     fit.effect("high").estimate                      # effect(high) - effect(none)
     fit.pair("low", "high").p_holm                   # Holm over the declared family
     fit.monotonicity.p_value
-    again = categorical_treatment.consume_categorical_effects(fit.export(), expected=fit.identity)
+    again = categorical_treatment.consume_categorical_effects(fit.export(), expected_identity=fit.identity)
 
 What the answer is **not**:
 
@@ -194,7 +194,7 @@ class MonotonicityTest:
 class CategoricalTreatmentIdentity:
     """Identity digests a consumer retains independently of the artifact bytes.
 
-    Pass it to :func:`consume_categorical_effects` as ``expected=``.
+    Pass it to :func:`consume_categorical_effects` as ``expected_identity=``.
     """
 
     snapshot_id: str
@@ -548,13 +548,13 @@ def categorical_effects(
 def consume_categorical_effects(
     artifact: bytes,
     *,
-    expected: CategoricalTreatmentIdentity | Mapping[str, str] | None = None,
+    expected_identity: CategoricalTreatmentIdentity | Mapping[str, str] | None = None,
 ) -> CategoricalEffects:
     """Recompute an exported categorical artifact and accept only an identical one.
 
     Every coefficient, covariance entry, contrast, Holm value, omnibus and monotonicity result
     is recomputed from the embedded compact design and must reproduce bit for bit. With
-    ``expected`` (the :attr:`CategoricalEffects.identity` retained out-of-band) a changed level
+    ``expected_identity`` (the :attr:`CategoricalEffects.identity` retained out-of-band) a changed level
     order, reference, scale, family, covariance kind, design, null or result is refused even
     when the artifact was resealed consistently (:class:`CategoricalTreatmentRefusal`,
     ``route_not_supported``, ``categorical_treatment.wrong_contract``). Corruption and unknown
@@ -562,14 +562,16 @@ def consume_categorical_effects(
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    if expected is None:
+    if expected_identity is None:
         expected_json = None
-    elif isinstance(expected, CategoricalTreatmentIdentity):
-        expected_json = json.dumps(expected._wire())
-    elif isinstance(expected, Mapping):
-        expected_json = json.dumps(dict(expected))
+    elif isinstance(expected_identity, CategoricalTreatmentIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
     else:
-        raise CausalTypeError("expected must be a CategoricalTreatmentIdentity or a mapping")
+        raise CausalTypeError(
+            "expected_identity must be a CategoricalTreatmentIdentity or a mapping"
+        )
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
     if refusal is not None:

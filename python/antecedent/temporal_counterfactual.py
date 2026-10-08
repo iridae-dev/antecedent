@@ -304,7 +304,7 @@ class AbductionReceipt:
 class TemporalCounterfactualIdentity:
     """Identity digests a consumer retains independently of the artifact bytes.
 
-    Pass it to :func:`consume_temporal_counterfactual_artifact` as ``expected=`` to refuse a
+    Pass it to :func:`consume_temporal_counterfactual_artifact` as ``expected_identity=`` to refuse a
     *resealed* change of action time, unit history, snapshot, mechanism fit or graph.
     """
 
@@ -457,13 +457,13 @@ def temporal_fixed_population(
 def consume_temporal_counterfactual_artifact(
     artifact: bytes,
     *,
-    expected: TemporalCounterfactualIdentity | Mapping[str, str] | None = None,
+    expected_identity: TemporalCounterfactualIdentity | Mapping[str, str] | None = None,
 ) -> TemporalCounterfactualEffect:
     """Replay both worlds of an exported artifact and accept only an identical one.
 
     Every unit's exogenous history is abduced again from the stored factual history and both
     action histories are replayed with the same evaluator; every stored outcome, both means
-    and the whole shared-abduction receipt must reproduce bit for bit. With ``expected`` (the
+    and the whole shared-abduction receipt must reproduce bit for bit. With ``expected_identity`` (the
     :attr:`TemporalCounterfactualEffect.identity` retained out-of-band) a changed action time,
     unit history, snapshot, mechanism fit or graph is refused even when the artifact was
     resealed consistently (:class:`~antecedent.temporal.TemporalRefusal`,
@@ -472,14 +472,16 @@ def consume_temporal_counterfactual_artifact(
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    if expected is None:
+    if expected_identity is None:
         expected_json = None
-    elif isinstance(expected, TemporalCounterfactualIdentity):
-        expected_json = json.dumps(expected._wire())
-    elif isinstance(expected, Mapping):
-        expected_json = json.dumps(dict(expected))
+    elif isinstance(expected_identity, TemporalCounterfactualIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
     else:
-        raise CausalTypeError("expected must be a TemporalCounterfactualIdentity or a mapping")
+        raise CausalTypeError(
+            "expected_identity must be a TemporalCounterfactualIdentity or a mapping"
+        )
     data = bytes(artifact)
     report, refusal = _consume_temporal(data, expected_json)
     _raise_refusal(refusal)

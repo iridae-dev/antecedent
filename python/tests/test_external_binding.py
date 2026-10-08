@@ -252,10 +252,10 @@ def test_fresh_process_consumer_loads_only_under_its_own_identity():
     spec = _spec_with_premises()
     claim = spec.bind(_response())
     data = claim.export()
-    assert spec.load(data, expected=claim.identity).values.tolist() == [1.0, 3.0, 5.0]
-    changed = {**claim.identity, "snapshot_id": "other-snapshot"}
+    assert spec.load(data, expected_identity=claim.identity).values.tolist() == [1.0, 3.0, 5.0]
+    changed = {**claim.identity_fields, "snapshot_id": "other-snapshot"}
     with pytest.raises(Exception, match="differs"):
-        spec.load(data, expected=changed)
+        spec.load(data, expected_identity=changed)
 
     script = textwrap.dedent(
         """
@@ -271,21 +271,20 @@ def test_fresh_process_consumer_loads_only_under_its_own_identity():
         )
         spec = external.response(ident, outcome_units="mmHg", population="target")
         expected = json.loads(sys.argv[2])
-        claim = spec.load(open(sys.argv[1], "rb").read(), expected=expected)
+        claim = spec.load(open(sys.argv[1], "rb").read(), expected_identity=expected)
         v = claim.values
         assert abs((v[2] - v[0]) / 2.0 - 2.0) < 1e-12 and abs(v[0] - 1.0) < 1e-12
         assert claim.native is False
         assert claim.provenance_label == "external:lab/curve@v3#snap-9"
         """
     )
-    import json
     import tempfile
 
     with tempfile.NamedTemporaryFile(suffix=".bin") as handle:
         handle.write(data)
         handle.flush()
         done = subprocess.run(
-            [sys.executable, "-c", script, handle.name, json.dumps(claim.identity)],
+            [sys.executable, "-c", script, handle.name, claim.identity],
             capture_output=True,
             text=True,
             check=False,

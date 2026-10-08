@@ -51,7 +51,7 @@ def _provenance() -> sd.SurfaceProvenance:
 def _artifact(
     grid: list[float],
     quantities: list[sd.SurfaceQuantity],
-    actions: list[sd.Action],
+    actions: list[sd.SensitivityAction],
     **kwargs: object,
 ) -> sd.SensitivityArtifact:
     coordinate = sd.AssumptionCoordinate(
@@ -75,7 +75,10 @@ def _frozen() -> sd.SensitivityArtifact:
     return _artifact(
         [0.0, 1.0, 2.0],
         [_point("ua", [2.0, 1.0, 0.0]), _point("ub", [1.0, 1.0, 1.0])],
-        [sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        [
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
     )
 
 
@@ -109,7 +112,10 @@ def test_f17_invariant_action_across_the_whole_assumption_range():
     artifact = _artifact(
         [0.0, 1.0, 2.0],
         [_point("ua", [5.0, 4.0, 3.0]), _point("ub", [1.0, 1.0, 1.0])],
-        [sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        [
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
     )
     result = sd.decide(artifact.contract(), artifact)
     assert result.kind == "invariant_action"
@@ -128,7 +134,10 @@ def test_f17_tipping_coordinate_is_the_labelled_interpolated_crossing():
     artifact = _artifact(
         [0.0, 0.5, 1.5, 2.0],
         [_point("ua", [2.0, 1.5, 0.5, 0.0]), _point("ub", [1.0, 1.0, 1.0, 1.0])],
-        [sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        [
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
     )
     result = sd.decide(artifact.contract(), artifact)
     switch = result.switch
@@ -148,7 +157,10 @@ def test_f17_no_robust_action_when_the_range_straddles_at_every_point():
             sd.SurfaceQuantity(_quantity("effect"), (-1.0,) * 3, (2.0,) * 3),
             _point("status_quo", [0.0, 0.0, 0.0]),
         ],
-        [sd.Action("A", sd.quantity("effect")), sd.Action("B", sd.quantity("status_quo"))],
+        [
+            sd.SensitivityAction("A", sd.quantity("effect")),
+            sd.SensitivityAction("B", sd.quantity("status_quo")),
+        ],
     )
     result = sd.decide(artifact.contract(), artifact)
     assert result.kind == "no_robust_action"
@@ -171,7 +183,10 @@ def test_f17_range_is_distinct_from_a_sampling_interval_and_never_composed():
                 sd.SurfaceQuantity(_quantity("effect"), (0.5, 0.4, 0.3), (1.5, 1.4, 1.3)),
                 _point("status_quo", [0.0, 0.0, 0.0]),
             ],
-            [sd.Action("A", sd.quantity("effect")), sd.Action("B", sd.quantity("status_quo"))],
+            [
+                sd.SensitivityAction("A", sd.quantity("effect")),
+                sd.SensitivityAction("B", sd.quantity("status_quo")),
+            ],
             sampling=sampling,
         )
 
@@ -222,7 +237,10 @@ def test_f17_range_is_distinct_from_a_sampling_interval_and_never_composed():
         _artifact(
             [0.0, 1.0, 2.0],
             [_point("ua", [2.0, 1.0, 0.0]), _point("ub", [1.0, 1.0, 1.0])],
-            [sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+            [
+                sd.SensitivityAction("A", sd.quantity("ua")),
+                sd.SensitivityAction("B", sd.quantity("ub")),
+            ],
             sampling=claimed,
         )
     assert at_construction.value.reason_code == "cell_not_licensed"
@@ -238,7 +256,10 @@ def test_f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
     artifact = _artifact(
         [0.0, 1.0, 2.0],
         [_point("ua", [5.0, 4.0, 3.0]), _point("ub", [1.0, 1.0, 1.0])],
-        [sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        [
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
         support=["supported", "unsupported", "supported"],
     )
     assert artifact.outcome is None
@@ -252,7 +273,10 @@ def test_f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it():
     unevaluated = _artifact(
         [0.0, 1.0, 2.0],
         [_point("ua", [5.0, 4.0, 3.0]), _point("ub", [1.0, 1.0, 1.0])],
-        [sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        [
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
         support=["supported", "unevaluated", "supported"],
     )
     result = sd.decide(unevaluated.contract(), unevaluated)
@@ -267,8 +291,8 @@ def test_f17_mixed_estimands_and_foreign_inputs_refuse():
             [0.0, 1.0],
             [_point("ua", [1.0, 2.0]), sd.SurfaceQuantity(_quantity("kg", "kg"), (1.0, 2.0))],
             [
-                sd.Action("A", sd.quantity("ua") + sd.quantity("kg")),
-                sd.Action("B", sd.quantity("ua")),
+                sd.SensitivityAction("A", sd.quantity("ua") + sd.quantity("kg")),
+                sd.SensitivityAction("B", sd.quantity("ua")),
             ],
         )
     assert mixed.value.detail == "sensitivity_decision_composition.wrong_contract"
@@ -308,7 +332,10 @@ def test_f17_artifact_is_exported_consumed_and_refuses_a_resealed_mutation():
     other = _artifact(
         [0.0, 1.0, 2.0],
         [_point("ua", [5.0, 4.0, 3.0]), _point("ub", [1.0, 1.0, 1.0])],
-        [sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        [
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
     )
     resealed = other.export()
     sd.SensitivityArtifact.consume(resealed)
@@ -399,8 +426,8 @@ def test_f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract():
         deviation,
         effect=effect,
         actions=[
-            sd.Action("adopt", sd.quantity("effect")),
-            sd.Action("status_quo", sd.const(0.45)),
+            sd.SensitivityAction("adopt", sd.quantity("effect")),
+            sd.SensitivityAction("status_quo", sd.const(0.45)),
         ],
         causal_contract_id="checked-contract",
     )

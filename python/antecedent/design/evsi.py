@@ -46,6 +46,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+import numpy as np
+
 from .._native import composition_lineage as _composition_lineage
 from .._native import consume_design_ranking as _consume
 from ..decision import Contract
@@ -53,6 +55,16 @@ from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..external import LineageLink
 from ..joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .plans import PLAN_TYPES, DesignPlan
+
+#: Distribution meanings that are a belief about a quantity (usable as a state prior).
+_BELIEF_MEANINGS = frozenset(
+    {
+        "parameter_posterior",
+        "causal_functional_posterior",
+        "posterior_predictive",
+        "interventional_predictive",
+    }
+)
 
 CALIBRATION: Literal["unmeasured"] = "unmeasured"
 #: Identity of the reported ranking within the result's ``lineage``.
@@ -161,10 +173,106 @@ class StatePrior:
         """Conjugate normal belief; needs a :class:`GaussianMeanSignal` and no constraints."""
         return cls("normal", mean=float(mean), variance=float(variance))
 
+    @classmethod
+    def from_distribution(
+        cls, distribution: JointDistributionArtifact, coordinate: int | ScientificQuantity
+    ) -> StatePrior:
+        """Equally weighted draws of one coordinate of a joint distribution artifact.
+
+        Only a distribution that is a *belief* about the state qualifies
+        (``parameter_posterior``, ``causal_functional_posterior``, ``posterior_predictive``
+        or ``interventional_predictive``): the sampling distribution of an estimator, a
+        bootstrap and an empirical outcome are not beliefs and refuse. Unequal weights and
+        draws marked unsupported refuse too, because the prior is equally weighted. A mean
+        grid (a claim or mean source) has no draws and is not offered here.
+
+        Args:
+            coordinate: the column index, or the :class:`ScientificQuantity` identifying it.
+
+        Raises:
+            CausalTypeError: ``distribution`` is not a ``JointDistributionArtifact``.
+            CausalValueError: the distribution is not a belief, has unequal weights or
+                unsupported draws, or the coordinate is not one of its quantities.
+        """
+        if not isinstance(distribution, JointDistributionArtifact):
+            raise CausalTypeError(
+                "StatePrior.from_distribution needs a JointDistributionArtifact, not "
+                f"{type(distribution).__name__}"
+            )
+        if distribution.semantic not in _BELIEF_MEANINGS:
+            raise CausalValueError(
+                f"a {distribution.semantic!r} distribution is not a belief about the state; "
+                f"a state prior needs one of {sorted(_BELIEF_MEANINGS)}"
+            )
+        weights = distribution.weights
+        if weights is not None and (max(weights) - min(weights)) > 1e-12 * max(weights):
+            raise CausalValueError("a state prior is equally weighted; weighted draws refuse")
+        supported = distribution.supported
+        if supported is not None and not all(supported):
+            raise CausalValueError("draws marked unsupported cannot form a state prior")
+        quantities = distribution.quantities
+        if isinstance(coordinate, ScientificQuantity):
+            if coordinate not in quantities:
+                raise CausalValueError("the coordinate is not one of the distribution's quantities")
+            index = quantities.index(coordinate)
+        elif isinstance(coordinate, int) and not isinstance(coordinate, bool):
+            if not 0 <= coordinate < len(quantities):
+                raise CausalValueError(
+                    f"coordinate index {coordinate} is outside 0..{len(quantities) - 1}"
+                )
+            index = coordinate
+        else:
+            raise CausalTypeError("coordinate must be a column index or a ScientificQuantity")
+        return cls.draws([float(v) for v in np.asarray(distribution)[:, index]])
+
     def _wire(self) -> dict[str, Any]:
         if self.kind == "draws":
             return {"kind": "draws", "states": list(self.states)}
         return {"kind": "normal", "mean": self.mean, "variance": self.variance}
+
+
+def _affine_in_state(action: Any, state: ScientificQuantity) -> tuple[float, float]:
+    """``(intercept, slope)`` of an action's utility in the state, or a typed refusal."""
+
+    def refuse(reason: str) -> CausalValueError:
+        return CausalValueError(
+            f"action {action.id!r} utility is not affine in the state quantity: {reason}"
+        )
+
+    def walk(node: Any) -> tuple[float, float]:
+        if "const" in node:
+            return float(node["const"]), 0.0
+        if "input" in node:
+            index = node["input"]
+            if index >= len(action.inputs):
+                raise refuse(f"it reads input {index} but the action declares {len(action.inputs)}")
+            if action.inputs[index] != state:
+                raise refuse(
+                    f"input {index} is {action.inputs[index].variable_id!r} "
+                    f"({action.inputs[index].regime_id}), not the state"
+                )
+            return 0.0, 1.0
+        ((op, args),) = node.items()
+        if op == "neg":
+            a, b = walk(args)
+            return -a, -b
+        left, right = walk(args[0]), walk(args[1])
+        if op == "add":
+            return left[0] + right[0], left[1] + right[1]
+        if op == "sub":
+            return left[0] - right[0], left[1] - right[1]
+        if op == "mul":
+            if left[1] == 0.0:
+                return left[0] * right[0], left[0] * right[1]
+            if right[1] == 0.0:
+                return right[0] * left[0], right[0] * left[1]
+            raise refuse("it multiplies the state by the state")
+        if op in ("max", "min") and left[1] == 0.0 and right[1] == 0.0:
+            pick = max if op == "max" else min
+            return pick(left[0], right[0]), 0.0
+        raise refuse(f"it takes a {op} that depends on the state")
+
+    return walk(action.utility._wire_value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +298,62 @@ class DesignDecision:
         object.__setattr__(self, "actions", tuple(self.actions))
         if not all(isinstance(action, ActionUtility) for action in self.actions):
             raise CausalTypeError("actions must contain design.ActionUtility values")
+
+    @classmethod
+    def from_contract(
+        cls,
+        contract: Contract,
+        *,
+        prior: StatePrior,
+        state: ScientificQuantity | None = None,
+    ) -> DesignDecision:
+        """The study-ranking decision of a :class:`antecedent.decision.Contract`.
+
+        Study ranking values information about one scalar state on which every action's
+        utility is affine, ``intercept + slope * state``. This reads each action's
+        utility expression and extracts exactly that pair, so the declaration cannot drift
+        from the contract it names. ``state`` is the one quantity the utilities read; when
+        omitted it is the single distinct input quantity across the contract's actions.
+
+        Raises:
+            CausalTypeError: ``contract`` is not a ``decision.Contract`` or ``prior`` is not
+                a :class:`StatePrior`.
+            CausalValueError: the criterion is not ``expected_utility``; the contract has hard
+                constraints (study ranking does not carry them); ``state`` cannot be inferred;
+                or an action's utility is not affine in the state (the message names the
+                action and why: a nonlinear product, a ``max``/``min`` of the state, or an
+                input that is not the state quantity).
+        """
+        if not isinstance(contract, Contract):
+            raise CausalTypeError(
+                "DesignDecision.from_contract needs a decision.Contract, "
+                f"not {type(contract).__name__}"
+            )
+        if contract.criterion.kind != "posterior_expected_utility":
+            raise CausalValueError(
+                "study ranking values expected utility; the contract's criterion is "
+                f"{contract.criterion.kind!r}"
+            )
+        if contract.constraints:
+            raise CausalValueError(
+                "study ranking does not carry hard constraints; the contract declares "
+                f"{[c.id for c in contract.constraints]}"
+            )
+        if state is None:
+            distinct = {q for action in contract.actions for q in action.inputs}
+            if len(distinct) != 1:
+                raise CausalValueError(
+                    f"state= is required: the actions read {len(distinct)} distinct input "
+                    "quantities, not exactly one"
+                )
+            (state,) = distinct
+        elif not isinstance(state, ScientificQuantity):
+            raise CausalTypeError("state must be a ScientificQuantity")
+        actions = []
+        for action in contract.actions:
+            intercept, slope = _affine_in_state(action, state)
+            actions.append(ActionUtility(action.id, intercept, slope))
+        return cls(contract=contract, actions=tuple(actions), prior=prior)
 
     def _identity(self) -> str:
         return self.contract if isinstance(self.contract, str) else str(self.contract.identity)

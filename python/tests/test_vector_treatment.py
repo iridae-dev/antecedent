@@ -199,7 +199,7 @@ def test_b4_vector_input_validation_is_typed() -> None:
 
 def test_b4_vector_artifact_round_trip_recomputes_everything() -> None:
     result = fit(contrasts=[DIFF, SUM], adjust={"w": W})
-    again = consume_joint_effects(result.export(), expected=result.identity)
+    again = consume_joint_effects(result.export(), expected_identity=result.identity)
     assert again.names == result.names
     assert again.coefficients == result.coefficients
     assert again.contrasts == result.contrasts
@@ -207,7 +207,7 @@ def test_b4_vector_artifact_round_trip_recomputes_everything() -> None:
     assert np.array_equal(again.covariance, result.covariance)
     assert again.identity == result.identity
     # A mapping form of the retained identity is accepted too.
-    mapped = consume_joint_effects(result.export(), expected=result.to_dict()["identity"])
+    mapped = consume_joint_effects(result.export(), expected_identity=result.to_dict()["identity"])
     assert mapped.identity == result.identity
 
 
@@ -218,7 +218,7 @@ def test_b4_vector_robust_covariance_embeds_the_rows_and_replays() -> None:
     assert robust.covariance_kind == "hc1"
     assert not np.allclose(robust.covariance, model.covariance)
     assert robust.estimates == pytest.approx(model.estimates, abs=1e-12)
-    again = consume_joint_effects(robust.export(), expected=robust.identity)
+    again = consume_joint_effects(robust.export(), expected_identity=robust.identity)
     assert np.array_equal(again.covariance, robust.covariance)
 
 
@@ -245,14 +245,14 @@ def test_b4_vector_resealed_change_is_refused_against_the_retained_identity() ->
     assert consume_joint_effects(changed.export()).identity == changed.identity
     # ... but against the identity the consumer retained it is refused.
     with pytest.raises(VectorTreatmentRefusal) as refused:
-        consume_joint_effects(changed.export(), expected=original.identity)
+        consume_joint_effects(changed.export(), expected_identity=original.identity)
     assert refused.value.reason_code == "route_not_supported"
     assert refused.value.detail == "vector_treatment.wrong_contract"
     assert refused.value.offending == "design"
     assert_registered_refusal(refused.value)
     dropped = fit(snapshot="snap")
     with pytest.raises(VectorTreatmentRefusal) as contracts:
-        consume_joint_effects(dropped.export(), expected=original.identity)
+        consume_joint_effects(dropped.export(), expected_identity=original.identity)
     assert contracts.value.offending == "contrasts"
 
 

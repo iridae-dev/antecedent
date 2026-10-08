@@ -31,7 +31,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from ._native import composition_lineage as _composition_lineage
 from ._native import decision_contract_normalize as _normalize
@@ -42,9 +42,12 @@ from ._native import export_decision_contract as _export_contract
 from ._native import export_decision_result as _export_result
 from ._native import load_decision_contract as _load_contract
 from ._native import replay_decision_result as _replay
-from .errors import CausalTypeError, CausalValueError, StructuredRefusal
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+
+if TYPE_CHECKING:
+    from .program_claims import ProgramBinding
 
 RESULT_LINK_ID = "decision_result"
 ActionKind = Literal["intervention", "policy", "regime", "study", "external"]
@@ -105,6 +108,28 @@ class Expr:
 
     def __repr__(self) -> str:
         return f"Expr({json.dumps(self._wire_value, sort_keys=True)})"
+
+
+def _leaf_kinds(expr: Expr) -> frozenset[str]:
+    """The leaf kinds an expression reads: ``input``, ``quantity`` and/or ``const``.
+
+    A decision utility reads ``input`` leaves (:func:`x`); a sensitivity utility reads
+    ``quantity`` leaves (:func:`antecedent.sensitivity_decision.quantity`). The same
+    :class:`Expr` type carries both, and each declaration refuses the other's leaves.
+    """
+    found: set[str] = set()
+    stack: list[Any] = [expr._wire_value]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in ("input", "quantity", "const"):
+                    found.add(key)
+                else:
+                    stack.append(value)
+        elif isinstance(node, list):
+            stack.extend(node)
+    return frozenset(found)
 
 
 def _coerce(value: Expr | float) -> Expr:
@@ -228,6 +253,12 @@ class Action:
                 "Action.utility must be an Expr built from decision.x(i), decision.const(v) "
                 f"and operators, not {type(self.utility).__name__}; wrap a number with "
                 "decision.const(value)"
+            )
+        if "quantity" in _leaf_kinds(self.utility):
+            raise CausalTypeError(
+                "Action.utility reads inputs by position (decision.x(i)); a "
+                "sensitivity_decision.quantity(...) leaf belongs to "
+                "sensitivity_decision.SensitivityAction"
             )
         if self.kind not in get_args(ActionKind):
             raise CausalValueError(f"Action.kind must be one of {get_args(ActionKind)}")
@@ -362,6 +393,63 @@ class MeanSource:
         )
 
 
+def _result_mean_source(
+    contract: Contract,
+    source: object,
+    *,
+    program: ProgramBinding | None,
+    outcome_units: str | None,
+    dose_units: str | None,
+    population: str,
+) -> MeanSource | None:
+    """The mean source an analysis result makes for ``contract``, or ``None`` for other sources.
+
+    Reuses the native-claim path (``program_claims.native_claim`` then
+    ``NativeClaim.as_decision_source``) so support labels, trust, snapshot identity and every
+    refusal stay Rust-owned.
+    """
+    from .results._execution import ResultAPI
+
+    if not isinstance(source, ResultAPI):
+        if program is not None or outcome_units is not None or dose_units is not None:
+            raise CausalTypeError(
+                "program=, outcome_units= and dose_units= apply only when evaluating an "
+                f"analysis result, not {type(source).__name__}"
+            )
+        return None
+    from .results.response import CausalResponseView
+
+    if not isinstance(source, CausalResponseView):
+        raise CausalUnsupportedError(
+            f"a {type(source).__name__} carries no per-dose mean response coordinates, so a "
+            "decision contract cannot read it; analyze a ResponseCurve query for a mean "
+            "source, or supply a JointDistributionArtifact of aligned draws",
+            reason_code="route_not_supported",
+            remedy="run antecedent.analyze with a ResponseCurve query, or pass joint draws",
+        )
+    from . import program_claims
+
+    if program is None:
+        missing = [
+            name
+            for name, value in (("outcome_units", outcome_units), ("dose_units", dose_units))
+            if not isinstance(value, str) or not value.strip()
+        ]
+        if missing:
+            raise CausalValueError(
+                f"evaluating an analysis result needs {' and '.join(missing)}= (units are "
+                "never inferred or converted), or program=ProgramBinding(...)"
+            )
+        assert outcome_units is not None and dose_units is not None
+        program = program_claims.ProgramBinding.from_response(
+            source, outcome_units=outcome_units, dose_units=dose_units, population=population
+        )
+    elif outcome_units is not None or dose_units is not None:
+        raise CausalValueError("pass program= or the units, not both")
+    claim = program_claims.native_claim(source, program)
+    return claim.as_decision_source(contract).source
+
+
 @dataclass(frozen=True, slots=True)
 class Contract:
     """A durable decision problem."""
@@ -425,12 +513,44 @@ class Contract:
         return str(self._normalized()["identity"])
 
     def evaluate(
-        self, source: JointDistributionArtifact | BoundExternalClaim | MeanSource
+        self,
+        source: JointDistributionArtifact | BoundExternalClaim | MeanSource | Any,
+        *,
+        program: ProgramBinding | None = None,
+        outcome_units: str | None = None,
+        dose_units: str | None = None,
+        population: str = "target",
     ) -> Decision:
-        """Evaluate on aligned joint draws, a bound external response grid or a mean source.
+        """Evaluate on aligned joint draws, a bound external response grid, a mean source
+        or an analysis result.
+
+        ``source`` is one of:
+
+        * a :class:`~antecedent.joint_distribution.JointDistributionArtifact` (aligned draws:
+          every criterion, replayable);
+        * a :class:`~antecedent.external.BoundExternalClaim` or a :class:`MeanSource` (one
+          mean per coordinate: the expectation of an affine utility only);
+        * a response-curve analysis result (the :class:`~antecedent.results.CausalResponseView`
+          that ``antecedent.analyze(..., query=ResponseCurve(...))`` returns). Its response
+          values are turned into a native mean claim through
+          :func:`antecedent.program_claims.native_claim` and evaluated as a mean source, so
+          the same restrictions hold and the result is not replayable. Units are never
+          inferred: pass ``program=`` (a
+          :class:`~antecedent.program_claims.ProgramBinding`) or both ``outcome_units=`` and
+          ``dose_units=`` (``population=`` names the target population). A result that is not
+          a point-identified response curve refuses with a typed
+          :class:`~antecedent.external.ExternalRefusal` or
+          :class:`~antecedent.errors.CausalUnsupportedError` naming what is missing, and a
+          contract that needs a joint law (a probability, a quantile, a nonlinear utility, a
+          hard constraint) refuses ``decision_contract_unsatisfied`` because a mean
+          response retains no outcome draws.
 
         A :class:`MeanSource` (for example from a native response claim) answers the
         same affine expectation and refuses everything else, exactly as below.
+
+        Raises:
+            CausalTypeError: ``source`` is none of the accepted types.
+            CausalValueError: ``source`` is an analysis result and units were not supplied.
 
         A :class:`~antecedent.external.BoundExternalClaim` supplies one mean per
         coordinate, so it answers only the expectation of an affine utility: a
@@ -438,8 +558,18 @@ class Contract:
         ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
+        result_source = _result_mean_source(
+            self,
+            source,
+            program=program,
+            outcome_units=outcome_units,
+            dose_units=dose_units,
+            population=population,
+        )
+        if result_source is not None:
+            source = result_source
         if isinstance(source, BoundExternalClaim):
-            identity = source.identity
+            identity = source.identity_fields
             result, refusal = _evaluate_means(
                 json.dumps(self._wire()),
                 json.dumps([q._wire() for q in source.quantities]),
@@ -465,9 +595,16 @@ class Contract:
             assert result is not None
             return Decision(self, source, json.loads(result))
         if not isinstance(source, JointDistributionArtifact):
+            hint = (
+                "; a NativeClaim is not a source itself: pass "
+                "claim.as_decision_source(contract).source"
+                if type(source).__name__ == "NativeClaim"
+                else ""
+            )
             raise CausalTypeError(
-                "decision evaluation requires a JointDistributionArtifact, BoundExternalClaim "
-                "or MeanSource"
+                "Contract.evaluate needs a JointDistributionArtifact (aligned draws), a "
+                "BoundExternalClaim or MeanSource (means), or a response-curve analysis "
+                f"result (antecedent.analyze(...)), not {type(source).__name__}{hint}"
             )
         result, refusal = _evaluate(json.dumps(self._wire()), source._native)
         _raise(refusal)
@@ -734,6 +871,13 @@ def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact
     different contract or from different draws, or one whose numbers were edited,
     refuses.
     """
+    if not isinstance(contract, Contract):
+        raise CausalTypeError(f"replay needs a decision.Contract, not {type(contract).__name__}")
+    if not isinstance(source, JointDistributionArtifact):
+        raise CausalTypeError(
+            "replay needs the JointDistributionArtifact of aligned draws the result was computed "
+            f"from, not {type(source).__name__}; only a joint-draw decision replays"
+        )
     result, refusal = _replay(data, json.dumps(contract._wire()), source._native)
     _raise(refusal)
     assert result is not None
@@ -742,6 +886,10 @@ def replay(data: bytes, *, contract: Contract, source: JointDistributionArtifact
 
 def source_digest(source: JointDistributionArtifact) -> str:
     """Digest of a source's aligned draws, to retain alongside a result."""
+    if not isinstance(source, JointDistributionArtifact):
+        raise CausalTypeError(
+            f"source_digest needs a JointDistributionArtifact, not {type(source).__name__}"
+        )
     return str(_source_digest(source._native))
 
 

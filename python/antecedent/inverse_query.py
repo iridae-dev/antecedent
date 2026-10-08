@@ -47,7 +47,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
@@ -243,7 +243,7 @@ class MeanClaim:
     @classmethod
     def from_external(cls, claim: BoundExternalClaim) -> MeanClaim:
         """The mean grid of a bound external response."""
-        identity = claim.identity
+        identity = claim.identity_fields
         return cls(
             coordinates=tuple(claim.quantities),
             means=tuple(float(v) for v in claim.values),
@@ -469,6 +469,7 @@ class InverseResult:
 
     @property
     def query(self) -> InverseQuery:
+        """The query this result answers."""
         return self._query
 
     @property
@@ -478,6 +479,7 @@ class InverseResult:
 
     @property
     def contract_identity(self) -> str:
+        """Identity of the decision contract the query ranges over."""
         return str(self._body["contract_identity"])
 
     @property
@@ -528,19 +530,23 @@ class InverseResult:
 
     @property
     def evaluations_used(self) -> int:
+        """How many forward evaluations were spent."""
         return int(self._body["evaluations_used"])
 
     @property
     def budget_exhausted(self) -> bool:
+        """Whether the evaluation budget stopped the search before it finished."""
         return bool(self._body["budget_exhausted"])
 
     @property
     def point_source(self) -> SourceReceipt | None:
+        """Lineage (provider and snapshot) of the point claim, or ``None`` without one."""
         wire = self._body["point_source"]
         return None if wire is None else SourceReceipt(**wire)
 
     @property
     def scope_note(self) -> str:
+        """What the answer does and does not claim."""
         return str(self._body["scope_note"])
 
     def action(self, id: str) -> ActionReport:  # noqa: A002
@@ -574,6 +580,26 @@ class InverseResult:
         elif self.existence == "found_feasible_action" and not self.exhaustive:
             text += "; a feasible point was found, which is not a global feasibility claim"
         return text + ". " + self.scope_note
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: selection, existence, per-action feasibility fields and lineage."""
+        source = self.point_source
+        return {
+            "contract_identity": self.contract_identity,
+            "identity": self.identity,
+            "selected": self.selected,
+            "selection": self.selection,
+            "selection_certified": self.selection_certified,
+            "feasible_actions": list(self.feasible_actions),
+            "grid_fully_decided": self.grid_fully_decided,
+            "existence": self.existence,
+            "exhaustive": self.exhaustive,
+            "evaluations_used": self.evaluations_used,
+            "budget_exhausted": self.budget_exhausted,
+            "point_source": None if source is None else asdict(source),
+            "actions": [asdict(a) for a in self.actions],
+            "scope_note": self.scope_note,
+        }
 
     def export(self, *, artifact_id: str = "inverse-query") -> bytes:
         """The query, its forward evidence and this result table, replayable.

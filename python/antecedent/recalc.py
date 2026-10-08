@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import Any, Literal, NamedTuple
 
@@ -426,6 +426,24 @@ class RecalcPlan:
         )
         return "\n".join([head, *lines])
 
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: per-stage status and identity."""
+        return {
+            "identity": self.identity,
+            "executable": self.is_executable,
+            "entries": [
+                {"stage": e.stage.value, "status": e.status.text, "identity": e.identity}
+                for e in self.entries
+            ],
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"<RecalcPlan {self.identity[:12]} reused={len(self.reused)} "
+            f"recomputed={len(self.recomputed)} refused={len(self.refused)} "
+            f"executable={self.is_executable}>"
+        )
+
 
 def plan_recalculation(
     previous: Mapping[Stage, str] | Mapping[str, str],
@@ -706,6 +724,34 @@ class RecalcReceipt:
         )
         return "\n".join([head, *lines])
 
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: per-stage status, identity and counts, with the totals."""
+        return {
+            "identity": self.identity,
+            "plan_identity": self.plan_identity,
+            "boundary": self.capabilities.boundary,
+            "loaded": self.loaded,
+            "entries": [
+                {
+                    "stage": e.stage.value,
+                    "status": e.status.text,
+                    "identity": e.identity,
+                    "counts": asdict(e.counts),
+                }
+                for e in self.entries
+            ],
+            "totals": asdict(self.totals),
+            "previous": {stage.value: digest for stage, digest in self.previous.items()},
+            "requested": {stage.value: digest for stage, digest in self.requested.items()},
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"<RecalcReceipt {self.identity[:12]} reused={len(self.reused)} "
+            f"recomputed={len(self.recomputed)} refused={len(self.refused)} "
+            f"loaded={self.loaded}>"
+        )
+
 
 # -- request and results --------------------------------------------------------------------
 
@@ -764,6 +810,24 @@ class RecalcResult(NamedTuple):
     receipt: RecalcReceipt
     law: Law
     decision: Decision
+
+    def explain(self) -> str:
+        """The decision, the law behind it and what the recalculation reused."""
+        verdict = "treat" if self.decision.treat else "do not treat"
+        return (
+            f"Decision: {verdict} (net benefit {self.decision.net_benefit:.4g}) on an average "
+            f"effect of {self.law.ate:.4g} (standard error {self.law.std_error:.4g}). "
+            f"{len(self.receipt.reused)} stage(s) reused, {len(self.receipt.recomputed)} "
+            f"recomputed, {len(self.receipt.refused)} refused."
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form of the law, decision and receipt."""
+        return {
+            "law": {"ate": self.law.ate, "std_error": self.law.std_error},
+            "decision": {"net_benefit": self.decision.net_benefit, "treat": self.decision.treat},
+            "receipt": self.receipt.to_dict(),
+        }
 
 
 def _column(name: str, values: ArrayLike) -> NDArray[np.float64]:

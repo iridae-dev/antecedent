@@ -274,7 +274,7 @@ def test_f18_artifact_round_trip_retains_identities_covariance_and_calibration()
     result = run([("a", 1.0, 0.5), ("b", 2.0, 0.5)], covariance=[[0.25, 0.125], [0.125, 0.25]])
     artifact = result.export()
     assert isinstance(artifact, bytes)
-    fresh = consume_effect_constancy_artifact(artifact, expected=result.identity)
+    fresh = consume_effect_constancy_artifact(artifact, expected_identity=result.identity)
     assert fresh.statistic == result.statistic
     assert fresh.p_value == result.p_value
     assert fresh.contrasts == result.contrasts
@@ -285,7 +285,7 @@ def test_f18_artifact_round_trip_retains_identities_covariance_and_calibration()
     assert fresh.estimand == EFFECT
     assert fresh.export() == artifact
     # The identity may also be given as the plain mapping a consumer stored out-of-band.
-    assert consume_effect_constancy_artifact(artifact, expected=result.identity._wire())
+    assert consume_effect_constancy_artifact(artifact, expected_identity=result.identity._wire())
     assert consume_effect_constancy_artifact(artifact).identity == result.identity
 
 
@@ -299,7 +299,7 @@ def test_f18_resealed_mutations_are_refused_against_the_retained_identity() -> N
         assert consume_effect_constancy_artifact(mutated.export()).identity == mutated.identity
         # ... but against the identity the consumer retained it is refused.
         with pytest.raises(TemporalRefusal) as raised:
-            consume_effect_constancy_artifact(mutated.export(), expected=original.identity)
+            consume_effect_constancy_artifact(mutated.export(), expected_identity=original.identity)
         assert raised.value.reason_code == "route_not_supported"
         assert raised.value.detail == "effect_constancy.wrong_contract"
         assert raised.value.offending == field, field

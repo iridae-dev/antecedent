@@ -17,7 +17,7 @@ covariate-dependent class prior is not offered)::
     result.mixture_effect                   # sum_k pi_k * tau_k
     [(c.weight, c.effect) for c in result.classes]
     result.responsibilities                 # (n, K) posterior class probabilities
-    again = consume_latent_class_artifact(result.export(), expected=result.identity)
+    again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
 
 Labels carry no meaning. Classes are reported in a **canonical order**: ascending effect, then
 intercept, then weight. ``raw_index`` and :attr:`LatentClassEffects.class_order` keep the mapping
@@ -34,7 +34,7 @@ weights hold, and ``K`` is the true number of classes. Weak or degenerate classe
 Standard errors are a seeded, label-aligned bootstrap with calibration ``"unmeasured"``: no
 coverage claim and no interval is made. :func:`consume_latent_class_artifact` refits from the
 artifact's embedded dataset under the stored seed and configuration and refuses unless the
-canonical output reproduces bit for bit; with ``expected`` (the
+canonical output reproduces bit for bit; with ``expected_identity`` (the
 :attr:`LatentClassEffects.identity` retained out-of-band) a resealed change of configuration,
 data or result is refused too.
 """
@@ -159,7 +159,7 @@ class LatentClassPremise:
 class LatentClassIdentity:
     """Identity digests a consumer retains independently of the artifact bytes.
 
-    Pass it to :func:`consume_latent_class_artifact` as ``expected=``.
+    Pass it to :func:`consume_latent_class_artifact` as ``expected_identity=``.
     """
 
     premises_id: str
@@ -501,13 +501,13 @@ def latent_class_effects(
 def consume_latent_class_artifact(
     artifact: bytes,
     *,
-    expected: LatentClassIdentity | Mapping[str, str] | None = None,
+    expected_identity: LatentClassIdentity | Mapping[str, str] | None = None,
 ) -> LatentClassEffects:
     """Refit an exported latent-class artifact and accept only an identical one.
 
     The dataset embedded in the artifact is refit under the stored seed and configuration, and
     the canonical output (classes, weights, effects, responsibilities digest, log-likelihood
-    trace) must reproduce bit for bit. With ``expected`` (the
+    trace) must reproduce bit for bit. With ``expected_identity`` (the
     :attr:`LatentClassEffects.identity` retained out-of-band) a changed configuration, dataset
     or result is refused even when the artifact was resealed consistently
     (:class:`LatentClassRefusal`, ``route_not_supported``, ``latent_class.wrong_contract``).
@@ -516,14 +516,14 @@ def consume_latent_class_artifact(
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    if expected is None:
+    if expected_identity is None:
         expected_json = None
-    elif isinstance(expected, LatentClassIdentity):
-        expected_json = json.dumps(expected._wire())
-    elif isinstance(expected, Mapping):
-        expected_json = json.dumps(dict(expected))
+    elif isinstance(expected_identity, LatentClassIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
     else:
-        raise CausalTypeError("expected must be a LatentClassIdentity or a mapping")
+        raise CausalTypeError("expected_identity must be a LatentClassIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
     _raise_refusal(refusal)

@@ -299,7 +299,10 @@ def _frozen_sensitivity() -> sd.SensitivityArtifact:
             sd.SurfaceQuantity(_surface_q("ua"), (2.0, 1.0, 0.0)),
             sd.SurfaceQuantity(_surface_q("ub"), (1.0, 1.0, 1.0)),
         ],
-        actions=[sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        actions=[
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
         provenance=sd.SurfaceProvenance(
             source_kind="supplied_surface",
             query_binding="c1-matrix",
@@ -1243,7 +1246,10 @@ def _recalc_stage(producer: str, o: Objs) -> tuple[Stage, str]:
     return {
         "native_response": (Stage.QUERY, o.native.program_identity),
         "fitted_effect_model": (Stage.SCORE_ARTIFACT, o.compact.identity),
-        "external_claim": (Stage.external_study(0), str(o.claim.identity["provider_fingerprint"])),
+        "external_claim": (
+            Stage.external_study(0),
+            str(o.claim.identity_fields["provider_fingerprint"]),
+        ),
         "joint_draws": (Stage.LAW, decision.source_digest(o.law)),
         "bayesian_prior": (Stage.prior(0), "ate:" + ",".join(map(str, o.posterior.mean))),
         "identified_scenarios": (Stage.GRAPH, hashlib.sha256(bytes(o.stage.export())).hexdigest()),

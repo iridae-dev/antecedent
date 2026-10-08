@@ -64,45 +64,45 @@ def _flip_last_byte(data: bytes) -> bytes:
 
 def test_rust_external_claim_loads_under_the_python_declared_identity():
     spec = gen.external_spec()
-    expected = gen.external_claim().identity
+    expected = gen.external_claim().identity_fields
     data = _read("rust_external_claim.bin")
 
-    claim = spec.load(data, expected=expected)
+    claim = spec.load(data, expected_identity=expected)
     assert np.allclose(claim.values, gen.EXTERNAL_VALUES, atol=1e-12, rtol=0)
     assert claim.native is False
     assert claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
     assert claim.support == gen.SUPPORT
     assert claim.support_status == "outside_empirical_support"
     assert claim.provenance_label == "external:lab/curve@v3#snap-9"
-    assert claim.identity == expected
+    assert claim.identity_fields == expected
     assert {"causal_contract", "evidence", "external_provider"} <= claim.stages_behind()
     assert [link.id for link in claim.lineage][-1] == "claim"
     # Independent constants, not read back from the artifact.
-    assert (claim.identity["graph_id"], claim.identity["causal_contract_id"]) == (
+    assert (claim.identity_fields["graph_id"], claim.identity_fields["causal_contract_id"]) == (
         "graph-1",
         "checked-contract",
     )
-    assert claim.identity["evidence_ids"] == ["factor:z"]
-    assert claim.identity["assumption_ids"] == ["ignorability"]
+    assert claim.identity_fields["evidence_ids"] == ["factor:z"]
+    assert claim.identity_fields["assumption_ids"] == ["ignorability"]
     assert [q.regime_id for q in claim.quantities] == ["do(a=0)", "do(a=1)", "do(a=2)"]
 
     fields = ("provider_id", "object_id", "version_id", "snapshot_id", "request_id")
-    assert [claim.identity[f] for f in fields] == ["lab", "curve", "v3", "snap-9", "req-1"]
+    assert [claim.identity_fields[f] for f in fields] == ["lab", "curve", "v3", "snap-9", "req-1"]
 
 
 def test_rust_external_claim_refuses_a_different_identity_or_changed_bytes():
     spec = gen.external_spec()
-    expected = gen.external_claim().identity
+    expected = gen.external_claim().identity_fields
     data = _read("rust_external_claim.bin")
 
     with pytest.raises(Exception, match="differs|verification receipt"):
-        spec.load(data, expected={**expected, "snapshot_id": "other-snapshot"})
+        spec.load(data, expected_identity={**expected, "snapshot_id": "other-snapshot"})
     with pytest.raises(Exception, match="differs|verification receipt"):
-        spec.load(data, expected={**expected, "trust": "verified_extension"})
+        spec.load(data, expected_identity={**expected, "trust": "verified_extension"})
     with pytest.raises(REFUSED):
-        spec.load(_flip_last_byte(data), expected=expected)
+        spec.load(_flip_last_byte(data), expected_identity=expected)
     with pytest.raises(REFUSED):
-        spec.load(data[:-5], expected=expected)
+        spec.load(data[:-5], expected_identity=expected)
 
 
 def test_rust_decision_contract_loads_under_the_python_declared_identity():
@@ -165,8 +165,10 @@ def test_committed_python_fixtures_still_load_and_match_their_identities():
     import json
 
     claim_identity = json.loads(_read("py_external_claim.identity.json"))
-    assert claim_identity == gen.external_claim().identity
-    claim = gen.external_spec().load(_read("py_external_claim.bin"), expected=claim_identity)
+    assert claim_identity == gen.external_claim().identity_fields
+    claim = gen.external_spec().load(
+        _read("py_external_claim.bin"), expected_identity=claim_identity
+    )
     assert np.allclose(claim.values, gen.EXTERNAL_VALUES, atol=1e-12, rtol=0)
 
     contract = gen.decision_contract()
@@ -186,16 +188,16 @@ def test_committed_python_fixtures_still_load_and_match_their_identities():
 
 def test_trust_and_support_vocabulary_matches_the_rust_wire_names():
     attested = gen.external_claim()
-    assert attested.identity["trust"] == "externally_attested"
-    assert attested.identity["verification"] is None
+    assert attested.identity_fields["trust"] == "externally_attested"
+    assert attested.identity_fields["verification"] is None
     assert attested.trust.value == "externally_attested"
-    assert set(attested.identity["point_status"]) <= SUPPORT_LABELS
-    assert attested.identity["point_status"] == list(gen.SUPPORT)
-    assert attested.identity["provider_meaning"] == "interventional_predictive"
-    assert attested.identity["identification"] == "nonparametrically_identified"
+    assert set(attested.identity_fields["point_status"]) <= SUPPORT_LABELS
+    assert attested.identity_fields["point_status"] == list(gen.SUPPORT)
+    assert attested.identity_fields["provider_meaning"] == "interventional_predictive"
+    assert attested.identity_fields["identification"] == "nonparametrically_identified"
 
     undeclared = gen.external_spec().bind(gen.external_response(support=None))
-    assert undeclared.identity["point_status"] == ["missing_evidence"] * 3
+    assert undeclared.identity_fields["point_status"] == ["missing_evidence"] * 3
     assert undeclared.support_status == "missing_evidence"
 
     probes = tuple(
@@ -203,9 +205,9 @@ def test_trust_and_support_vocabulary_matches_the_rust_wire_names():
         for kind in ("shape", "support", "moments", "known_truth")
     )
     verified = gen.external_spec().bind(gen.external_response(attested_by=None, probes=probes))
-    assert verified.identity["trust"] == "verified_extension"
+    assert verified.identity_fields["trust"] == "verified_extension"
     assert verified.trust is ProviderTrust.VERIFIED_EXTENSION
-    assert [p["kind"] for p in verified.identity["verification"]] == [
+    assert [p["kind"] for p in verified.identity_fields["verification"]] == [
         "shape",
         "support",
         "moments",

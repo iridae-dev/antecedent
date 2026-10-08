@@ -8,6 +8,8 @@ an expected identity supplied by the consumer, separate from the input bytes.
 from __future__ import annotations
 
 import json
+import math
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
@@ -15,7 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._native import JointDistributionArtifact as _NativeJointDistributionArtifact
-from .errors import CausalValueError
+from .errors import CausalTypeError, CausalValueError
 
 DistributionMeaning = Literal[
     "parameter_posterior",
@@ -47,6 +49,161 @@ class ScientificQuantity:
     functional_id: str
     conditioning: tuple[QuantityCondition, ...] = ()
     transform_id: str = "identity"
+
+    @classmethod
+    def of(
+        cls,
+        role: Literal["treatment", "outcome", "covariate", "mediator", "selection", "utility"],
+        variable: str,
+        *,
+        units: str,
+        population: str,
+        regime: str,
+        horizon: int = 0,
+        functional: str = "mean",
+        conditioning: Iterable[QuantityCondition] = (),
+        transform: str = "identity",
+        variable_id: str | None = None,
+    ) -> ScientificQuantity:
+        """Declare a quantity without spelling every wire field.
+
+        Only the genuinely conventional fields have defaults: ``horizon=0`` (a static,
+        single-period quantity), ``functional="mean"`` (the expectation), ``transform=
+        "identity"`` (no transform) and ``variable_id`` (the variable's own name; pass the
+        schema identity when the two differ). The scientific meaning is never defaulted:
+        ``units``, ``population`` (the population the quantity is about, for example
+        ``"target"``) and ``regime`` (the intervention or observation regime, for example
+        ``"do(a=1)"`` or ``"observational"``) are required, as is the ``role``.
+
+        Raises:
+            CausalValueError: a required text field is blank, or ``horizon`` is not a
+                non-negative integer.
+        """
+        for name, value in (
+            ("variable", variable),
+            ("units", units),
+            ("population", population),
+            ("regime", regime),
+            ("functional", functional),
+            ("transform", transform),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise CausalValueError(f"{name}= must be a non-empty string")
+        if variable_id is not None and (not isinstance(variable_id, str) or not variable_id):
+            raise CausalValueError("variable_id= must be a non-empty string when given")
+        if isinstance(horizon, bool) or not isinstance(horizon, int) or horizon < 0:
+            raise CausalValueError("horizon= must be a non-negative integer")
+        return cls(
+            variable_id=variable_id or variable,
+            variable_name=variable,
+            role=role,
+            units=units,
+            population_id=population,
+            regime_id=regime,
+            horizon=horizon,
+            functional_id=functional,
+            conditioning=tuple(conditioning),
+            transform_id=transform,
+        )
+
+    @classmethod
+    def outcome(cls, variable: str, **kwargs: Any) -> ScientificQuantity:
+        """An outcome quantity; keywords as :meth:`of` (``units``, ``population``, ``regime``)."""
+        return cls.of("outcome", variable, **kwargs)
+
+    @classmethod
+    def treatment(cls, variable: str, **kwargs: Any) -> ScientificQuantity:
+        """A treatment quantity; keywords as :meth:`of`."""
+        return cls.of("treatment", variable, **kwargs)
+
+    @classmethod
+    def covariate(cls, variable: str, **kwargs: Any) -> ScientificQuantity:
+        """A covariate quantity; keywords as :meth:`of`."""
+        return cls.of("covariate", variable, **kwargs)
+
+    @classmethod
+    def mediator(cls, variable: str, **kwargs: Any) -> ScientificQuantity:
+        """A mediator quantity; keywords as :meth:`of`."""
+        return cls.of("mediator", variable, **kwargs)
+
+    @classmethod
+    def utility(cls, variable: str, **kwargs: Any) -> ScientificQuantity:
+        """A utility quantity; keywords as :meth:`of`."""
+        return cls.of("utility", variable, **kwargs)
+
+    @classmethod
+    def from_response(
+        cls,
+        response: Any,
+        *,
+        outcome_units: str,
+        population: str = "target",
+        transform: str = "identity",
+    ) -> tuple[ScientificQuantity, ...]:
+        """The coordinates of a response-curve result's values, one per grid point.
+
+        ``response`` is the result of ``antecedent.analyze(..., query=ResponseCurve(...))``
+        (a :class:`~antecedent.results.CausalResponseView`). The coordinates are those the
+        result itself carries (``response.quantities``) or derives natively
+        (``response.response_coordinates``); a result with no native payload falls back to
+        the derivation from its query, which is the same one. ``outcome_units`` is required
+        because a response cannot know it; nothing is converted. The tuple is in grid order;
+        :meth:`from_response_dose` picks one grid point.
+
+        Raises:
+            CausalTypeError: ``response`` is not a response-curve result.
+            CausalValueError: units are blank.
+        """
+        if not hasattr(response, "response_coordinates") or not hasattr(response, "response"):
+            raise CausalTypeError(
+                "ScientificQuantity.from_response needs a response-curve analysis result, "
+                f"not {type(response).__name__}"
+            )
+        if not isinstance(outcome_units, str) or not outcome_units.strip():
+            raise CausalValueError("outcome_units= is required: units are never inferred")
+        if response.quantities is not None:
+            coordinates = tuple(response.quantities)
+        elif getattr(response, "_raw", None) is not None:
+            coordinates = tuple(
+                response.response_coordinates(
+                    outcome_units=outcome_units, population=population, transform=transform
+                )
+            )
+        else:
+            from .results.coordinates import response_coordinates
+
+            coordinates = response_coordinates(
+                response.estimand,
+                outcome_units=outcome_units,
+                population=population,
+                transform=transform,
+            )
+        return coordinates
+
+    @classmethod
+    def from_response_dose(
+        cls,
+        response: Any,
+        dose: float,
+        *,
+        outcome_units: str,
+        population: str = "target",
+        transform: str = "identity",
+    ) -> ScientificQuantity:
+        """The coordinate of a response-curve result at one grid ``dose``.
+
+        Raises:
+            CausalValueError: ``dose`` is not a grid point of the response.
+        """
+        coordinates = cls.from_response(
+            response, outcome_units=outcome_units, population=population, transform=transform
+        )
+        view = response.response
+        points = [] if view is None else [point[0] for point in view.points]
+        for point, coordinate in zip(points, coordinates, strict=False):
+            if math.isclose(point, float(dose), rel_tol=1e-12, abs_tol=1e-12):
+                return coordinate
+        raise CausalValueError(f"dose {dose!r} is not a grid point of this response: {points}")
 
     def _wire(self) -> dict[str, Any]:
         return {"version": 1, **asdict(self)}

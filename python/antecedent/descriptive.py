@@ -34,7 +34,7 @@ import json
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, NoReturn
+from typing import Any, Literal, NoReturn
 
 from ._native import CancellationToken
 from ._native import attribute_gap_to_columns as _attribute_gap_to_columns
@@ -103,9 +103,46 @@ class DescriptiveComparison:
     adjusted_standard_error: float | None
     gap: float
     scale: str = "mean_difference"
-    claim: str = "point_only"
+    claim: Literal["point_only"] = "point_only"
     interpretation: str = _INTERPRETATION
     gap_interval_unavailable: tuple[str, str] = _GAP_INTERVAL_UNAVAILABLE
+
+    def explain(self) -> str:
+        """The raw contrast, the adjusted estimate and the gap, and what the gap is not."""
+        text = (
+            f"Raw {self.scale.replace('_', ' ')} {self.raw_difference:.4g} "
+            f"(active n={self.active.n}, control n={self.control.n}) against adjusted estimate "
+            f"{self.adjusted_estimate:.4g}: gap {self.gap:.4g}. "
+        )
+        if self.raw_standard_error is not None:
+            text += f"Raw Welch standard error {self.raw_standard_error:.4g}. "
+        return (
+            text + "The gap is descriptive and point only: it mixes confounding, model form, "
+            "estimator differences and sampling noise, is not attributed to adjustment columns, "
+            f"and has no interval ({self.gap_interval_unavailable[1]})."
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form (the export body without its digest)."""
+        return {
+            "scale": self.scale,
+            "claim": self.claim,
+            "interpretation": self.interpretation,
+            "active": {"n": self.active.n, "mean": self.active.mean},
+            "control": {"n": self.control.n, "mean": self.control.mean},
+            "raw_difference": self.raw_difference,
+            "raw_standard_error": self.raw_standard_error,
+            "adjusted_estimate": self.adjusted_estimate,
+            "adjusted_standard_error": self.adjusted_standard_error,
+            "gap": self.gap,
+            "gap_interval_unavailable": list(self.gap_interval_unavailable),
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"<DescriptiveComparison raw={self.raw_difference:.4g} "
+            f"adjusted={self.adjusted_estimate:.4g} gap={self.gap:.4g} {self.claim}>"
+        )
 
     def export(self) -> str:
         """A self-describing JSON artifact that :func:`replay_descriptive_comparison` re-derives."""
@@ -141,7 +178,33 @@ class ReportingTransform:
     gradients: tuple[tuple[float, float], ...]
     covariance: tuple[tuple[float, ...], ...] | None
     covariance_unavailable: tuple[str, str] | None
-    claim: str = "point_only"
+    claim: Literal["point_only"] = "point_only"
+
+    def explain(self) -> str:
+        """The transformed values and whether a covariance (and so a standard error) exists."""
+        pairs = ", ".join(f"{s} = {v:.4g}" for s, v in zip(self.scales, self.values, strict=True))
+        if self.covariance is None:
+            reason = (self.covariance_unavailable or ("", ""))[1]
+            tail = f"No covariance is available ({reason}); independence is never assumed."
+        else:
+            tail = "First-order delta-method covariance is available."
+        return f"Reporting transform of a mean pair: {pairs}. Point only, no interval. {tail}"
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form of this transform."""
+        return {
+            "scales": list(self.scales),
+            "values": list(self.values),
+            "gradients": [list(g) for g in self.gradients],
+            "covariance": None if self.covariance is None else [list(r) for r in self.covariance],
+            "covariance_unavailable": None
+            if self.covariance_unavailable is None
+            else list(self.covariance_unavailable),
+            "claim": self.claim,
+        }
+
+    def __repr__(self) -> str:
+        return f"<ReportingTransform {list(self.scales)!r} {self.claim}>"
 
     def standard_error(self, scale: str) -> float | None:
         """Delta-method standard error of one scale, or ``None`` without a covariance."""

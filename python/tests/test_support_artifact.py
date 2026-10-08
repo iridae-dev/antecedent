@@ -75,7 +75,7 @@ def test_three_ordered_doses_exclude_only_the_middle_and_keep_order_through_expo
     assert claim.support_status == "weak_overlap"
     assert claim.support_status == _worst(claim.support)
 
-    reloaded = spec.load(claim.export(), expected=claim.identity)
+    reloaded = spec.load(claim.export(), expected_identity=claim.identity)
     assert reloaded.support == declared
     assert reloaded.support_status == "weak_overlap"
     assert np.allclose(reloaded.values, [1.0, 3.0, 5.0])

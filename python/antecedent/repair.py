@@ -41,7 +41,7 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from . import _native
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
@@ -65,6 +65,12 @@ ObligationKind = Literal[
 Classification = Literal[
     "verified_sufficient", "insufficient", "not_certified", "invalid", "unevaluated"
 ]
+#: How a whole repair search ended; never an impossibility claim.
+RepairOutcome = Literal["repaired", "none_certified", "exhausted"]
+#: Which theorem checker decided a repair.
+RepairFamily = Literal["transport", "backdoor", "z_transport"]
+#: The bound that ended a search early.
+SearchStop = Literal["search.operations", "search.depth", "search.memory", "search.cancelled"]
 
 
 class CancelToken(Protocol):
@@ -262,6 +268,27 @@ class EvidenceObligation:
     proof_step: str | None
     satisfiable_by_study: bool
     quantities: Mapping[str, ScientificQuantity] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form of this request."""
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "scope": self.scope,
+            "variables": list(self.variables),
+            "population": self.population,
+            "interventions": list(self.interventions),
+            "conditioned_on": list(self.conditioned_on),
+            "joint": self.joint,
+            "reason": self.reason,
+            "required_slots": list(self.required_slots),
+            "min_additional_samples": self.min_additional_samples,
+            "family": self.family,
+            "source": self.source,
+            "proof_step": self.proof_step,
+            "satisfiable_by_study": self.satisfiable_by_study,
+            "quantities": {name: q._wire() for name, q in self.quantities.items()},
+        }
 
     @classmethod
     def _from_native(cls, value: Mapping[str, Any]) -> EvidenceObligation:
@@ -777,6 +804,30 @@ class CandidateOutcome:
     unmet: tuple[str, ...]
     derivation: Derivation | None
 
+    def __repr__(self) -> str:
+        return f"<CandidateOutcome {self.classification} {list(self.labels)!r}>"
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form of this row."""
+        return {
+            "candidates": list(self.candidates),
+            "labels": list(self.labels),
+            "classification": self.classification,
+            "cost": self.cost,
+            "cost_unit": self.cost_unit,
+            "sample_budget": self.sample_budget,
+            "reasons": list(self.reasons),
+            "addressed": list(self.addressed),
+            "unmet": list(self.unmet),
+            "derivation": None
+            if self.derivation is None
+            else {
+                "checker": self.derivation.checker,
+                "steps": list(self.derivation.steps),
+                "verified": self.derivation.verified,
+            },
+        }
+
     @classmethod
     def _from_native(cls, value: Mapping[str, Any]) -> CandidateOutcome:
         derivation = value["derivation"]
@@ -819,7 +870,7 @@ class SearchReceipt:
     unevaluated_total: int
     dominated_skipped: int
     beyond_declared_depth: bool
-    stop: str | None
+    stop: SearchStop | None
 
 
 class RepairResult:
@@ -858,18 +909,18 @@ class RepairResult:
             unevaluated_total=receipt["unevaluated_total"],
             dominated_skipped=receipt["dominated_skipped"],
             beyond_declared_depth=receipt["beyond_declared_depth"],
-            stop=receipt["stop"],
+            stop=cast("SearchStop | None", receipt["stop"]),
         )
 
     @property
-    def outcome(self) -> str:
+    def outcome(self) -> RepairOutcome:
         """``repaired``, ``none_certified`` or ``exhausted``."""
-        return str(self._report["outcome"])
+        return cast(RepairOutcome, str(self._report["outcome"]))
 
     @property
-    def family(self) -> str:
+    def family(self) -> RepairFamily:
         """The family whose theorem checker decided (``transport``, ``backdoor`` or ``z_transport``)."""
-        return str(self._report["family"])
+        return cast(RepairFamily, str(self._report["family"]))
 
     @property
     def contract_id(self) -> str:
@@ -912,6 +963,64 @@ class RepairResult:
     def export(self) -> bytes:
         """A portable ``repair_search_receipt_v1`` artifact; see :func:`consume`."""
         return bytes(_call(self._stage.export))
+
+    def explain(self) -> str:
+        """What the search found, what it did not, and why it is not an estimate."""
+        if self.outcome == "repaired" and self.best is not None:
+            labels = ", ".join(self.best.labels) or "no candidates"
+            text = (
+                f"{len(self.ranked)} of {len(self.table)} candidate subset(s) would make the "
+                f"{self.family} contract identify if the studies deliver exactly their declared "
+                f"evidence; best: {labels}"
+            )
+            if self.best.cost_unit is not None:
+                text += f" (cost {self.best.cost} {self.best.cost_unit})"
+            text += "."
+        elif self.outcome == "exhausted":
+            text = (
+                f"The search for a {self.family} repair stopped on a budget "
+                f"({self.receipt.stop}) with {self.receipt.unevaluated_total} subset(s) "
+                "unexamined; exhaustion is not an impossibility claim."
+            )
+        else:
+            text = (
+                f"None of {len(self.table)} candidate subset(s) was certified to repair the "
+                f"{self.family} contract; that does not show no repair exists."
+            )
+        if self.reason_code is not None:
+            text += f" Reason: {self.reason_code} ({self.detail})."
+        return (
+            text + " A repair is a hypothetical identification, not an estimate: "
+            f"inference claim is {self.inference_claim!r}, and no proposed study "
+            "establishes an assumption."
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe summary of the outcome, ranked subsets and search receipt."""
+        return {
+            "outcome": self.outcome,
+            "family": self.family,
+            "contract_id": self.contract_id,
+            "reason_code": self.reason_code,
+            "detail": self.detail,
+            "inference_claim": self.inference_claim,
+            "obligations": [o.to_dict() for o in self.obligations],
+            "table": [row.to_dict() for row in self.table],
+            "ranked": [row.to_dict() for row in self.ranked],
+            "receipt": {
+                "operations_limit": self.receipt.operations_limit,
+                "depth_limit": self.receipt.depth_limit,
+                "memory_limit_bytes": self.receipt.memory_limit_bytes,
+                "operations_consumed": self.receipt.operations_consumed,
+                "depth_reached": self.receipt.depth_reached,
+                "explored": list(self.receipt.explored),
+                "unevaluated": list(self.receipt.unevaluated),
+                "unevaluated_total": self.receipt.unevaluated_total,
+                "dominated_skipped": self.receipt.dominated_skipped,
+                "beyond_declared_depth": self.receipt.beyond_declared_depth,
+                "stop": self.receipt.stop,
+            },
+        }
 
     def __repr__(self) -> str:
         return (
@@ -1008,10 +1117,13 @@ __all__ = [
     "ExpectedEvidence",
     "RepairArtifactRefusal",
     "RepairBudgetRefusal",
+    "RepairFamily",
     "RepairLimits",
+    "RepairOutcome",
     "RepairRefusal",
     "RepairResult",
     "SearchReceipt",
+    "SearchStop",
     "StudyCandidate",
     "StudyCandidateRefusal",
     "TransportContract",

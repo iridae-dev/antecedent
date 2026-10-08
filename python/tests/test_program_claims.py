@@ -207,7 +207,7 @@ def test_c1_a_faithful_spec_binds_to_its_program_and_stays_external():
     claim = bound.bind(_response())
     assert claim.native is False
     assert claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
-    assert claim.identity["causal_contract_id"] == program.identity
+    assert claim.identity_fields["causal_contract_id"] == program.identity
     assert list(claim.values) == [3.0, 5.0]
     assert claim.quantities == (_q("1"), _q("2"))
 
@@ -361,8 +361,8 @@ def test_c1_explicit_contract_id_still_binds_unchanged():
     )
     assert spec.contract_id == "checked-contract"
     claim = spec.bind(_response())
-    assert claim.identity["causal_contract_id"] == "checked-contract"
-    assert claim.identity["graph_id"] == "graph-1"
+    assert claim.identity_fields["causal_contract_id"] == "checked-contract"
+    assert claim.identity_fields["graph_id"] == "graph-1"
     # It names no program, so it cannot be bound to one.
     program = dataclasses.replace(_program(), graph_id="graph-1")
     refusal = _refusal(lambda: program_claims.bind_to_program(spec, program))

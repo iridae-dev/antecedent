@@ -184,6 +184,52 @@ class ProgramBinding:
         )
 
     @classmethod
+    def from_response(
+        cls,
+        response: CausalResponseView,
+        *,
+        outcome_units: str,
+        dose_units: str,
+        population: str = "target",
+        transform: str = "identity",
+    ) -> ProgramBinding:
+        """The program a native response curve itself answers, from its own compiled identity.
+
+        Treatment, outcome and dose grid come from the response; the graph and contract
+        identities are the response's compiled ``program_id`` (so changing the executed
+        program changes the binding). Units are required and never inferred or converted.
+        Use :meth:`from_identification` instead when the binding must carry the contract
+        premises (accepted meanings, required evidence) of an external spec.
+
+        Raises:
+            CausalValueError: a unit is blank.
+            CausalUnsupportedError: the response is not a static single-treatment mean
+                curve, or carries no compiled program identity.
+        """
+        for name, value in (("outcome_units", outcome_units), ("dose_units", dose_units)):
+            if not isinstance(value, str) or not value.strip():
+                raise CausalValueError(f"{name}= is required: units are never inferred")
+        projection = _projection(response)
+        program_id = response.program_id
+        if not program_id:
+            raise CausalUnsupportedError(
+                "this response carries no compiled program identity to bind a decision to",
+                reason_code="route_not_supported",
+            )
+        identity = f"program:{program_id}"
+        return cls(
+            graph_id=identity,
+            contract_id=identity,
+            treatment_id=projection["treatment"],
+            outcome_id=projection["outcome"],
+            population_id=population,
+            dose_grid=tuple(projection["grid"]),
+            dose_units=dose_units,
+            outcome_units=outcome_units,
+            transform_id=transform,
+        )
+
+    @classmethod
     def from_identification(
         cls,
         identification: Any,
@@ -367,6 +413,7 @@ class NativeClaim:
 
     @property
     def means(self) -> tuple[float, ...]:
+        """One mean per coordinate, in grid order."""
         return tuple(self._native.means)
 
     @property
@@ -381,10 +428,12 @@ class NativeClaim:
 
     @property
     def trust(self) -> ProviderTrust:
+        """Always ``native_licensed``: the claim is built in process, never from metadata."""
         return ProviderTrust(self._native.trust)
 
     @property
     def calibration(self) -> str:
+        """``unmeasured`` or ``point_only``; never upgraded here."""
         return self._native.calibration
 
     @property
@@ -414,6 +463,7 @@ class NativeClaim:
 
     @property
     def provenance_id(self) -> str:
+        """Identity of the native execution that produced the means."""
         return self._native.provenance_id
 
     @property
@@ -441,6 +491,31 @@ class NativeClaim:
             assert artifact is not None
             joint = JointDistributionArtifact._from_native(artifact)
         return NativeDecisionSource._from_wire(decoded, joint, self)
+
+    def explain(self) -> str:
+        """What the numbers are, that Antecedent produced them, and how far they are trusted."""
+        joint = "retains" if self.has_joint_law else "does not retain"
+        return (
+            f"{len(self.means)} mean(s) estimated natively by Antecedent for program "
+            f"{self.program_identity[:12]}. Provider trust: {self.trust.value}; calibration: "
+            f"{self.calibration}; worst support: {self.support_status}. The response {joint} "
+            "aligned draws, so it answers an affine expectation but not a distribution; "
+            "calibration is never upgraded here."
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: means, support, trust and provenance."""
+        return {
+            "means": list(self.means),
+            "coordinates": [q._wire() for q in self.coordinates],
+            "support": list(self.support),
+            "support_status": self.support_status,
+            "provider_trust": self.trust.value,
+            "calibration": self.calibration,
+            "program_identity": self.program_identity,
+            "provenance_id": self.provenance_id,
+            "has_joint_law": self.has_joint_law,
+        }
 
     def __repr__(self) -> str:
         return (

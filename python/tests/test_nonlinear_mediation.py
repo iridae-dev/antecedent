@@ -259,10 +259,12 @@ def test_b4_mediation_records_premises_declared_versus_checked() -> None:
 
 def test_b4_mediation_artifact_round_trips_and_checks_the_retained_identity() -> None:
     result = run(grid(scm()), bootstrap_replicates=8, seed=3)
-    again = consume_mediation_artifact(result.export(), expected=result.identity)
+    again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
     assert again.identity == result.identity
-    from_mapping = consume_mediation_artifact(result.export(), expected=result.identity._wire())
+    from_mapping = consume_mediation_artifact(
+        result.export(), expected_identity=result.identity._wire()
+    )
     assert from_mapping.identity == result.identity
 
 
@@ -276,7 +278,7 @@ def test_b4_mediation_artifact_refuses_a_resealed_change_against_retained_identi
     assert consume_mediation_artifact(resealed.export()).identity == resealed.identity
     # ... and refused by the identity the consumer retained independently.
     with pytest.raises(MediationRefusal) as caught:
-        consume_mediation_artifact(resealed.export(), expected=original.identity)
+        consume_mediation_artifact(resealed.export(), expected_identity=original.identity)
     assert caught.value.detail == "nonlinear_mediation.wrong_contract"
     assert caught.value.offending == "data"
     assert caught.value.reason_code == "route_not_supported"
@@ -292,7 +294,7 @@ def test_b4_mediation_artifact_corruption_and_type_errors() -> None:
     with pytest.raises(CausalTypeError):
         consume_mediation_artifact("not bytes")  # type: ignore[arg-type]
     with pytest.raises(CausalTypeError):
-        consume_mediation_artifact(result.export(), expected=3)  # type: ignore[arg-type]
+        consume_mediation_artifact(result.export(), expected_identity=3)  # type: ignore[arg-type]
     g = grid(scm())
     with pytest.raises(CausalTypeError):
         mediation_effects(

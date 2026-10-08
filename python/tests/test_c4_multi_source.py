@@ -120,11 +120,12 @@ def test_c4_both_studies_and_the_native_claim_bind_to_the_same_program() -> None
     for claim in (e1, e2):
         assert claim.native is False
         assert claim.trust is ProviderTrust.EXTERNALLY_ATTESTED
-        assert claim.identity["causal_contract_id"] == program.identity
+        assert claim.identity_fields["causal_contract_id"] == program.identity
         assert claim.support == fx.SUPPORTED
         assert claim.quantities == expected
-    assert (e1.identity["provider_id"], e1.identity["snapshot_id"]) == ("lab-1", "snap-e1")
-    assert (e2.identity["provider_id"], e2.identity["snapshot_id"]) == ("lab-2", "snap-e2")
+    e1_fields, e2_fields = e1.identity_fields, e2.identity_fields
+    assert (e1_fields["provider_id"], e1_fields["snapshot_id"]) == ("lab-1", "snap-e1")
+    assert (e2_fields["provider_id"], e2_fields["snapshot_id"]) == ("lab-2", "snap-e2")
     assert list(e1.values) == list(fx.E1_MEANS)
     assert list(e2.values) == list(fx.E2_MEANS)
 

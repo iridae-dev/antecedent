@@ -14,7 +14,7 @@ A binary treatment ``A`` acts on an outcome ``Y`` directly and through a continu
         premises=MediationPremises.sequentially_ignorable(),
     )
     result.natural_direct, result.natural_indirect, result.total
-    again = consume_mediation_artifact(result.export(), expected=result.identity)
+    again = consume_mediation_artifact(result.export(), expected_identity=result.identity)
 
 The mediator is linear-Gaussian in ``(A, X)``; the outcome is a polynomial of ``outcome_degree``
 in the standardized mediator with a treatment interaction, linear in ``A`` and ``X``. The
@@ -34,7 +34,7 @@ Bootstrap standard errors (fixed seed, replicate ids ``0 .. replicates``) have c
 diagnostics are the claim.
 
 :func:`consume_mediation_artifact` re-estimates from the artifact's embedded dataset under the
-stored seed and refuses unless every stored value reproduces bit for bit; with ``expected`` (the
+stored seed and refuses unless every stored value reproduces bit for bit; with ``expected_identity`` (the
 :attr:`MediationEffects.identity` retained out-of-band) a resealed change of premises,
 configuration, data or result is refused too.
 """
@@ -213,7 +213,7 @@ class MediationBootstrap:
 class MediationIdentity:
     """Identity digests a consumer retains independently of the artifact bytes.
 
-    Pass it to :func:`consume_mediation_artifact` as ``expected=``.
+    Pass it to :func:`consume_mediation_artifact` as ``expected_identity=``.
     """
 
     premises_id: str
@@ -541,13 +541,13 @@ def mediation_effects(
 def consume_mediation_artifact(
     artifact: bytes,
     *,
-    expected: MediationIdentity | Mapping[str, str] | None = None,
+    expected_identity: MediationIdentity | Mapping[str, str] | None = None,
 ) -> MediationEffects:
     """Re-estimate an exported mediation artifact and accept only an identical one.
 
     The dataset embedded in the artifact is re-run through the estimator under the stored
     premises, configuration and seed, and every stored value must reproduce bit for bit. With
-    ``expected`` (the :attr:`MediationEffects.identity` retained out-of-band) a changed premise,
+    ``expected_identity`` (the :attr:`MediationEffects.identity` retained out-of-band) a changed premise,
     configuration, dataset or result is refused even when the artifact was resealed consistently
     (:class:`MediationRefusal`, ``route_not_supported``, ``nonlinear_mediation.wrong_contract``).
     Corruption and unknown major versions raise
@@ -555,14 +555,14 @@ def consume_mediation_artifact(
     """
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
-    if expected is None:
+    if expected_identity is None:
         expected_json = None
-    elif isinstance(expected, MediationIdentity):
-        expected_json = json.dumps(expected._wire())
-    elif isinstance(expected, Mapping):
-        expected_json = json.dumps(dict(expected))
+    elif isinstance(expected_identity, MediationIdentity):
+        expected_json = json.dumps(expected_identity._wire())
+    elif isinstance(expected_identity, Mapping):
+        expected_json = json.dumps(dict(expected_identity))
     else:
-        raise CausalTypeError("expected must be a MediationIdentity or a mapping")
+        raise CausalTypeError("expected_identity must be a MediationIdentity or a mapping")
     data = bytes(artifact)
     report, refusal = _consume(data, expected_json)
     _raise_refusal(refusal)

@@ -9,7 +9,6 @@ reload the claim under its own retained identity and recompute the decision.
 from __future__ import annotations
 
 import dataclasses
-import json
 import subprocess
 import sys
 import tempfile
@@ -151,7 +150,7 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process():
             require_assumptions=("ignorability",),
         )
         expected = json.loads(sys.argv[2])
-        claim = spec.load(open(sys.argv[1], "rb").read(), expected=expected)
+        claim = spec.load(open(sys.argv[1], "rb").read(), expected_identity=expected)
         wait_q, _, treat_q = claim.quantities
         utility = decision.x(0) * 2.0 - 1.0
         contract = decision.Contract(
@@ -181,7 +180,7 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process():
                 "-c",
                 script,
                 handle.name,
-                json.dumps(claim.identity),
+                claim.identity,
                 contract.identity,
             ],
             capture_output=True,
@@ -191,9 +190,9 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process():
     assert done.returncode == 0, done.stderr
 
     # A claim loaded under a changed identity does not reach a decision.
-    changed = {**claim.identity, "snapshot_id": "other-snapshot"}
+    changed = {**claim.identity_fields, "snapshot_id": "other-snapshot"}
     with pytest.raises(Exception, match="differs"):
-        spec.load(data, expected=changed)
+        spec.load(data, expected_identity=changed)
 
 
 def test_a_mean_grid_refuses_what_only_a_distribution_can_answer():

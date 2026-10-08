@@ -61,6 +61,16 @@ from .joint_distribution import ScientificQuantity
 _POLICIES = ("require_invariant_best_action", "maximin", "bayes_over_structures", "report_only")
 _CALIBRATIONS = ("exact", "point_only", "measured", "unmeasured")
 Calibration = Literal["exact", "point_only", "measured", "unmeasured"]
+#: What the structural analysis of a scenario decision can claim.
+StructuralVerdictKind = Literal[
+    "invariant_best",
+    "no_invariant_best",
+    "worst_case_choice",
+    "bayes_choice",
+    "report_only",
+    "insufficient_science",
+    "no_admissible_action",
+]
 
 
 class ScenarioDecisionRefusal(DecisionRefusal):
@@ -149,7 +159,7 @@ class StructuralVerdict:
     worst-case policy) or ``no_admissible_action``.
     """
 
-    kind: str
+    kind: StructuralVerdictKind
     action: str | None = None
     leaders: tuple[tuple[str, tuple[str, ...]], ...] = ()
     reason: str | None = None
@@ -179,7 +189,7 @@ class ScenarioDecision:
 
     kind: Literal["transport_scenarios", "cpdag_completions"]
     contract_identity: str
-    policy: str
+    policy: StructuralPolicy
     declared_weights: bool
     atoms: tuple[ScenarioAtom, ...]
     actions: tuple[ActionAcrossAtoms, ...]
@@ -221,7 +231,7 @@ class ScenarioDecision:
         raise CausalValueError(f"no action {action_id!r} in this decision")
 
     def explain(self) -> str:
-        """The verdict, who leads where, and the mass that stays unresolved."""
+        """The verdict, who leads where, the mass that stays unresolved and the robustness state."""
         verdict = self.verdict
         if verdict.kind in {"invariant_best", "worst_case_choice"}:
             text = f"{verdict.action!r}: {verdict.kind.replace('_', ' ')}"
@@ -239,7 +249,79 @@ class ScenarioDecision:
         ):
             if mass:
                 notes.append(f"{mass:.3g} {name} mass is reported, not renormalized away")
+        if self.unsupported_atoms:
+            notes.append(f"structures without support: {', '.join(self.unsupported_atoms)}")
+        notes.append(
+            f"robustness: {self.robust_verdict.kind.replace('_', ' ')}"
+            + (" (declared weights)" if self.declared_weights else " (no declared weights)")
+        )
         return text + "".join(f"; {note}" for note in notes) + "."
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: verdict, atom table, per-action ranges and every retained mass."""
+        verdict = self.verdict
+        robust = self.robust_verdict
+        return {
+            "kind": self.kind,
+            "contract_identity": self.contract_identity,
+            "policy": self.policy,
+            "declared_weights": self.declared_weights,
+            "verdict": {
+                "kind": verdict.kind,
+                "action": verdict.action,
+                "leaders": [[a, list(ids)] for a, ids in verdict.leaders],
+                "reason": verdict.reason,
+                "evaluated_mass": verdict.evaluated_mass,
+            },
+            "robust_verdict": {
+                "kind": robust.kind,
+                "action": robust.action,
+                "unrestricted_choice": robust.unrestricted_choice,
+                "reason": robust.reason,
+                "evaluated_mass": robust.evaluated_mass,
+            },
+            "atoms": [
+                {
+                    "id": a.id,
+                    "status": a.status,
+                    "kind": a.kind,
+                    "weight": a.weight,
+                    "support": a.support,
+                    "digest": a.digest,
+                    "detail": a.detail,
+                    "values": dict(a.values),
+                    "leaders": list(a.leaders),
+                }
+                for a in self.atoms
+            ],
+            "actions": [
+                {
+                    "id": a.id,
+                    "per_atom": dict(a.per_atom),
+                    "range": None if a.range is None else [a.range[0], a.range[1]],
+                    "weighted_value": a.weighted_value,
+                    "mass_where_best": a.mass_where_best,
+                    "excluded_in": list(a.excluded_in),
+                }
+                for a in self.actions
+            ],
+            "masses": [{"status": m.status, "count": m.count, "mass": m.mass} for m in self.masses],
+            "residual_mass": self.residual_mass,
+            "unidentified_mass": self.unidentified_mass,
+            "unevaluated_mass": self.unevaluated_mass,
+            "evaluated_mass": self.evaluated_mass,
+            "unsupported_atoms": list(self.unsupported_atoms),
+            "completion_counts": dict(self.completion_counts),
+            "source_identity": self.source_identity,
+            "premises_digest": self.premises_digest,
+            "data_digest": self.data_digest,
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"<ScenarioDecision {self.kind} {self.verdict.kind} {self.selected!r} "
+            f"atoms={len(self.atoms)}>"
+        )
 
 
 def _contract(contract: AdmissibleContract | Contract) -> AdmissibleContract:

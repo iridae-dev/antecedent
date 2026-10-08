@@ -40,7 +40,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ._native import admissible_contract_normalize as _normalize
 from ._native import evaluate_identified_set_decision as _evaluate_sets
@@ -61,6 +61,31 @@ SupportLabel = Literal[
 UncertaintyRequirement = Literal["none", "point_only", "structural_envelope", "credible"]
 ClaimKind = Literal["point", "graph_dependent", "weighted_graph_posterior", "finite_scenarios"]
 ExternalTrust = Literal["externally_attested", "verified_extension"]
+#: What a :class:`RobustVerdict` can claim about the robustness of a choice.
+RobustVerdictKind = Literal[
+    "structurally_robust",
+    "support_robust",
+    "support_dependent",
+    "graph_dependent_choice",
+    "unsupported_extrapolation",
+    "insufficient_claims",
+    "no_admissible_action",
+    "worst_case_choice",
+    "bayes_choice",
+    "report_only",
+]
+#: What an :class:`IdentifiedVerdict` can claim over identified sets.
+IdentifiedVerdictKind = Literal[
+    "necessarily_best",
+    "no_necessarily_best",
+    "worst_case_choice",
+    "minimax_regret_choice",
+    "tied",
+    "report_only",
+    "unsupported_extrapolation",
+    "insufficient_claims",
+    "no_admissible_action",
+]
 RESULT_LINK_ID = "robust_decision"
 _CLAIM_KINDS = ("point", "graph_dependent", "weighted_graph_posterior", "finite_scenarios")
 
@@ -354,7 +379,7 @@ class ExternalReceipt:
         request references therefore establish no numerical verification or source
         diagnostic license, even when the original bound response was verified.
         """
-        identity = claim.identity
+        identity = claim.identity_fields
         return cls(
             atom_id=atom_id,
             provider_id=str(identity["provider_id"]),
@@ -398,7 +423,7 @@ class RobustVerdict:
     ``worst_case_choice``, ``bayes_choice`` and ``report_only``.
     """
 
-    kind: str
+    kind: RobustVerdictKind
     action: str | None = None
     unrestricted_choice: str | None = None
     leaders: tuple[tuple[str, tuple[str, ...]], ...] = ()
@@ -413,7 +438,7 @@ class RobustVerdict:
     @classmethod
     def _from_wire(cls, wire: Any) -> RobustVerdict:
         if isinstance(wire, str):
-            return cls(wire)
+            return cls(cast("RobustVerdictKind", wire))
         ((kind, value),) = wire.items()
         if kind == "support_dependent":
             return cls(
@@ -462,6 +487,10 @@ class ClaimProfile:
 
 def _range(value: Any) -> tuple[float, float] | None:
     return None if value is None else (float(value[0]), float(value[1]))
+
+
+def _range_list(value: tuple[float, float] | None) -> list[float] | None:
+    return None if value is None else [value[0], value[1]]
 
 
 class RobustDecision:
@@ -679,6 +708,55 @@ class RobustDecision:
         assert data is not None
         return bytes(data)
 
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: verdict, per-action ranges, retained masses and external receipts."""
+        verdict = self.verdict
+        return {
+            "kind": self.kind,
+            "contract_identity": self.contract_identity,
+            "verdict": {
+                "kind": verdict.kind,
+                "action": verdict.action,
+                "unrestricted_choice": verdict.unrestricted_choice,
+                "leaders": [[atom, list(ids)] for atom, ids in verdict.leaders],
+                "reason": verdict.reason,
+                "evaluated_mass": verdict.evaluated_mass,
+            },
+            "actions": [
+                {
+                    "id": a.id,
+                    "declared_exclusion": a.declared_exclusion,
+                    "range": _range_list(a.range),
+                    "supported_range": _range_list(a.supported_range),
+                    "unsupported_in": list(a.unsupported_in),
+                }
+                for a in self.actions
+            ],
+            "unsupported_atoms": list(self.unsupported_atoms),
+            "unsupported_mass": self.unsupported_mass,
+            "unidentified_mass": self.unidentified_mass,
+            "unevaluated_mass": self.unevaluated_mass,
+            "evaluated_mass": self.evaluated_mass,
+            "uncertainty_required": self.uncertainty_required,
+            "uncertainty_supplied": self.uncertainty_supplied,
+            "assumptions": list(self.assumptions),
+            "native_verified": self.native_verified,
+            "receipts": [
+                {
+                    "atom_id": r.atom_id,
+                    "provider_id": r.provider_id,
+                    "snapshot_id": r.snapshot_id,
+                    "request_fingerprint": r.request_fingerprint,
+                    "attested_value": r.attested_value,
+                    "provider_trust": r.trust,
+                    "attestor": r.attestor,
+                }
+                for r in self.receipts
+            ],
+            "replayed": self.replayed,
+            "external_atoms": list(self.external_atoms),
+        }
+
     def __repr__(self) -> str:
         return f"<RobustDecision {self.verdict.kind} {self.selected!r}>"
 
@@ -892,7 +970,7 @@ class IdentifiedVerdict:
     ``no_admissible_action``.
     """
 
-    kind: str
+    kind: IdentifiedVerdictKind
     action: str | None = None
     actions: tuple[str, ...] = ()
     reason: str | None = None
@@ -912,9 +990,11 @@ class IdentifiedDecision:
 
     @property
     def selected(self) -> str | None:
+        """The chosen action, or ``None`` when the verdict does not choose one."""
         return self.verdict.action
 
     def explain(self) -> str:
+        """The choice (or why none), with the identified interval behind it."""
         verdict = self.verdict
         by_id = {a.id: a for a in self.actions}
         if verdict.kind in {"necessarily_best", "worst_case_choice", "minimax_regret_choice"}:
@@ -937,6 +1017,41 @@ class IdentifiedDecision:
                 f"{self.upper_leader!r} differ"
             )
         return text + "."
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: verdict, leaders and each action's identified interval."""
+        verdict = self.verdict
+        return {
+            "contract_identity": self.contract_identity,
+            "policy": self.policy,
+            "verdict": {
+                "kind": verdict.kind,
+                "action": verdict.action,
+                "actions": list(verdict.actions),
+                "reason": verdict.reason,
+            },
+            "lower_leader": self.lower_leader,
+            "upper_leader": self.upper_leader,
+            "conflicting_leaders": self.conflicting_leaders,
+            "actions": [
+                {
+                    "id": a.id,
+                    "utility": list(a.utility),
+                    "hard_exclusions": list(a.hard_exclusions),
+                    "declared_exclusion": a.declared_exclusion,
+                    "support_shortfalls": [list(s) for s in a.support_shortfalls],
+                    "eligible": a.eligible,
+                    "dominated_by": list(a.dominated_by),
+                    "possibly_optimal": a.possibly_optimal,
+                    "necessarily_optimal": a.necessarily_optimal,
+                    "max_regret": a.max_regret,
+                }
+                for a in self.actions
+            ],
+        }
+
+    def __repr__(self) -> str:
+        return f"<IdentifiedDecision {self.verdict.kind} {self.selected!r}>"
 
 
 def identified_sets(
@@ -982,7 +1097,7 @@ def identified_sets(
         upper_leader=wire["upper_leader"],
         conflicting_leaders=wire["conflicting_leaders"],
         verdict=IdentifiedVerdict(
-            kind=verdict["kind"],
+            kind=cast("IdentifiedVerdictKind", verdict["kind"]),
             action=verdict.get("action"),
             actions=tuple(verdict.get("actions", ())),
             reason=verdict.get("reason"),

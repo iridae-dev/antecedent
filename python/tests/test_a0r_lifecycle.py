@@ -155,7 +155,7 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
 
     # rank a study. The ranking is for this contract and rests on the claim's value digest;
     # its state model is the hand-derived guess record (wait = 1 - theta, treat = theta).
-    values_digest = claim.identity["values_blake3"]
+    values_digest = claim.identity_fields["values_blake3"]
     ranked_decision = dr.DesignDecision(
         contract=contract,
         actions=(dr.ActionUtility("wait", 1.0, -1.0), dr.ActionUtility("treat", 0.0, 1.0)),
@@ -227,8 +227,8 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
             require_evidence=("factor:z",),
             require_assumptions=("ignorability",),
         )
-        claim = spec.load(open(sys.argv[1], "rb").read(), expected=json.loads(sys.argv[3]))
-        digest = claim.identity["values_blake3"]
+        claim = spec.load(open(sys.argv[1], "rb").read(), expected_identity=sys.argv[3])
+        digest = claim.identity_fields["values_blake3"]
         ranked = design.consume(
             open(sys.argv[2], "rb").read(),
             expected=design.Expectation(
@@ -260,7 +260,7 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
                 script,
                 claim_file.name,
                 ranking_file.name,
-                json.dumps(claim.identity),
+                claim.identity,
                 contract.identity,
             ],
             capture_output=True,
@@ -437,7 +437,10 @@ def _surface(
             sd.SurfaceQuantity(quantity("ua"), ua),
             sd.SurfaceQuantity(quantity("ub"), (1.0, 1.0, 1.0)),
         ],
-        actions=[sd.Action("A", sd.quantity("ua")), sd.Action("B", sd.quantity("ub"))],
+        actions=[
+            sd.SensitivityAction("A", sd.quantity("ua")),
+            sd.SensitivityAction("B", sd.quantity("ub")),
+        ],
         provenance=sd.SurfaceProvenance(
             source_kind="supplied_surface",
             query_binding="a0r-test",

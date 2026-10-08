@@ -394,7 +394,7 @@ class DecisionInput:
         """
         if not isinstance(claim, BoundExternalClaim):
             raise CausalTypeError("claim must be a BoundExternalClaim")
-        identity = claim.identity
+        identity = claim.identity_fields
         result = cls.from_means(
             input_id,
             claim.quantities,
@@ -437,6 +437,7 @@ class DecisionInput:
 
     @property
     def provenance(self) -> InputProvenance:
+        """Who produced the input and how far it is trusted, as the evidence supports."""
         return self._provenance
 
     @property
@@ -448,6 +449,36 @@ class DecisionInput:
     def support(self) -> tuple[CoordinateSupport, ...]:
         """Every coordinate with its support status, in source order."""
         return self._support
+
+    def explain(self) -> str:
+        """What the input supplies, who produced it, and how far it is trusted and supported."""
+        p = self._provenance
+        who = "Antecedent itself" if p.native else f"an external provider ({p.provider_id})"
+        weakest = [c.status for c in self._support]
+        worst = max(weakest, key=_SUPPORT_NAMES.index) if weakest else "no coordinates"
+        return (
+            f"Input {self.id!r} supplies a {self._source.replace('_', ' ')} produced by {who}. "
+            f"Provider trust: {p.trust}; calibration: {p.calibration}; natively executed: "
+            f"{self.native}. {len(self._support)} coordinate(s), weakest support: {worst}. "
+            "Trust is what the evidence supports, never a label."
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe provenance and per-coordinate support."""
+        p = self._provenance
+        return {
+            "id": self.id,
+            "source": self._source,
+            "provider_kind": p.provider_kind,
+            "provider_trust": p.trust,
+            "calibration": p.calibration,
+            "native": self.native,
+            "capabilities": list(p.capabilities),
+            "provider_id": p.provider_id,
+            "snapshot_id": p.snapshot_id,
+            "lineage_digest": p.lineage_digest,
+            "support": [c.status for c in self._support],
+        }
 
     def __repr__(self) -> str:
         return (
@@ -501,10 +532,12 @@ class SupportPolicy:
 
     @classmethod
     def compare_supported(cls, weakest_support: SupportLabel = "supported") -> SupportPolicy:
+        """Report unevaluable actions and compare the rest."""
         return cls("compare_supported", weakest_support)
 
     @classmethod
     def require_all(cls, weakest_support: SupportLabel = "supported") -> SupportPolicy:
+        """Refuse unless every action can be evaluated."""
         return cls("require_all", weakest_support)
 
 
@@ -542,6 +575,7 @@ class ActionDisposition:
 
     @property
     def evaluated(self) -> bool:
+        """Whether this action was scored."""
         return self.status == "evaluated"
 
 
@@ -606,14 +640,17 @@ class SupportedDecision:
 
     @property
     def evaluated_actions(self) -> tuple[str, ...]:
+        """Ids of the actions that were scored."""
         return tuple(d.id for d in self.dispositions if d.status == "evaluated")
 
     @property
     def unsupported_actions(self) -> tuple[str, ...]:
+        """Ids of the actions a coordinate's missing or weak support blocked."""
         return tuple(d.id for d in self.dispositions if d.status == "unsupported")
 
     @property
     def unevaluated_actions(self) -> tuple[str, ...]:
+        """Ids of the supported actions no input's representation can answer."""
         return tuple(d.id for d in self.dispositions if d.status == "unevaluated")
 
     def outcome(self, action_id: str) -> ActionOutcome:
@@ -622,6 +659,83 @@ class SupportedDecision:
             if item.id == action_id:
                 return item
         raise CausalValueError(f"action {action_id!r} was not evaluated")
+
+    def explain(self) -> str:
+        """The verdict, which actions were never scored and why, and what is withheld."""
+        verdict = self.verdict
+        if verdict.kind == "uniquely_optimal":
+            text = f"Among {len(self.outcomes)} compared action(s), {verdict.actions[0]!r} is best."
+        elif verdict.kind == "indistinguishable":
+            text = "The best actions are indistinguishable: " + ", ".join(
+                repr(a) for a in verdict.actions
+            )
+            text += "."
+        elif verdict.kind == "only_one_evaluated":
+            text = f"Only {verdict.actions[0]!r} could be evaluated, so nothing was compared."
+        elif verdict.kind == "no_admissible_action":
+            text = "No evaluated action satisfies the hard constraints."
+        else:
+            text = "No action is supported by the supplied inputs, so nothing was scored."
+        if self.unsupported_actions:
+            text += " Unsupported (never scored): " + ", ".join(self.unsupported_actions) + "."
+        if self.unevaluated_actions:
+            text += (
+                " Unevaluated (no input can answer): " + ", ".join(self.unevaluated_actions) + "."
+            )
+        if self.evpi is None:
+            text += " Regret and EVPI are withheld: the actions are not on one aligned source."
+        else:
+            text += f" EVPI {self.evpi:.4g}."
+        if self.assumptions:
+            text += " Assumptions: " + "; ".join(self.assumptions) + "."
+        return text
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form: verdict, dispositions, outcomes and assumptions."""
+        return {
+            "contract_identity": self.contract_identity,
+            "verdict": {"kind": self.verdict.kind, "actions": list(self.verdict.actions)},
+            "dispositions": [
+                {
+                    "id": d.id,
+                    "status": d.status,
+                    "input_id": d.input_id,
+                    "reasons": [
+                        {
+                            "input_id": r.input_id,
+                            "coordinate": r.coordinate,
+                            "issue": r.issue,
+                            "support": r.support,
+                        }
+                        for r in d.reasons
+                    ],
+                    "unevaluated_reason": d.unevaluated_reason,
+                }
+                for d in self.dispositions
+            ],
+            "outcomes": [
+                {
+                    "id": o.id,
+                    "admissible": o.admissible,
+                    "expected_utility": o.expected_utility,
+                    "value": o.value,
+                    "standard_error": o.standard_error,
+                    "expected_regret": o.expected_regret,
+                    "max_regret": o.max_regret,
+                }
+                for o in self.outcomes
+            ],
+            "evpi": self.evpi,
+            "sources": self.sources,
+            "assumptions": list(self.assumptions),
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"<SupportedDecision {self.verdict.kind} evaluated={len(self.evaluated_actions)} "
+            f"unsupported={len(self.unsupported_actions)} "
+            f"unevaluated={len(self.unevaluated_actions)}>"
+        )
 
 
 def _outcome(wire: Mapping[str, Any]) -> ActionOutcome:
@@ -735,14 +849,17 @@ class Functional:
 
     @classmethod
     def expectation(cls) -> Functional:
+        """The expectation of the action's utility."""
         return cls("expectation")
 
     @classmethod
     def expected_utility(cls) -> Functional:
+        """The expected utility of the action."""
         return cls("expected_utility")
 
     @classmethod
     def variance(cls) -> Functional:
+        """The variance of the action's utility; needs a joint law."""
         return cls("variance")
 
     @classmethod
@@ -752,10 +869,12 @@ class Functional:
 
     @classmethod
     def quantile(cls, p: float) -> Functional:
+        """The ``p`` quantile of the action's utility; needs a joint law."""
         return cls("quantile", p=float(p))
 
     @classmethod
     def tail_expectation(cls, p: float, tail: Literal["lower", "upper"] = "lower") -> Functional:
+        """The mean of the ``tail`` ``p`` fraction of the utility; needs a joint law."""
         return cls("tail_expectation", p=float(p), tail=tail)
 
     def _wire(self) -> dict[str, Any]:
@@ -854,22 +973,27 @@ class EvidenceRelation:
 
     @classmethod
     def independent(cls) -> EvidenceRelation:
+        """The two inputs rest on independent sources (declared, not checked)."""
         return cls("independent_sources")
 
     @classmethod
     def shared_data(cls, *ids: str) -> EvidenceRelation:
+        """The two inputs were fitted on shared data named by ``ids``."""
         return cls("shared_data", tuple(ids))
 
     @classmethod
     def shared_prior(cls, prior_id: str) -> EvidenceRelation:
+        """The two inputs share the prior ``prior_id``."""
         return cls("shared_prior", (_text("prior_id", prior_id),))
 
     @classmethod
     def shared_fitted_model(cls, model_id: str) -> EvidenceRelation:
+        """The two inputs come from the one fitted model ``model_id``."""
         return cls("shared_fitted_model", (_text("model_id", model_id),))
 
     @classmethod
     def unknown(cls) -> EvidenceRelation:
+        """Dependence is unknown; this is never independence and refuses every operation."""
         return cls("unknown_dependence")
 
     def _wire(self) -> dict[str, Any]:
@@ -925,6 +1049,34 @@ class CompositionReceipt:
     independence_assumed: bool
     routes: tuple[str, ...]
     shared_evidence: tuple[str, ...]
+
+    def explain(self) -> str:
+        """What was checked, whether independence was assumed, and what evidence is shared."""
+        text = f"The inputs may be combined under {self.operation!r}."
+        if self.independence_assumed:
+            text += " Independence of the sources was assumed, not shown."
+        else:
+            text += " Independence was not assumed."
+        if self.shared_evidence:
+            text += " Shared evidence: " + ", ".join(self.shared_evidence) + "."
+        if self.routes:
+            text += " Declared dependence routes: " + ", ".join(self.routes) + "."
+        return text
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form of this receipt."""
+        return {
+            "operation": self.operation,
+            "independence_assumed": self.independence_assumed,
+            "routes": list(self.routes),
+            "shared_evidence": list(self.shared_evidence),
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"<CompositionReceipt {self.operation} independence_assumed="
+            f"{self.independence_assumed} shared={len(self.shared_evidence)}>"
+        )
 
 
 def _receipt(result: str | None) -> CompositionReceipt:

@@ -50,7 +50,11 @@ from ._native import sensitivity_artifact_from_surface as _from_surface
 from ._native import sensitivity_artifact_from_z_joint as _from_z_joint
 from ._native import sensitivity_contract as _contract
 from ._native import sensitivity_decide as _decide
-from .decision import Contract, StructuralPolicy
+from .decision import Contract, StructuralPolicy, _leaf_kinds
+from .decision import Expr as _Expr
+from .decision import const as _const
+from .decision import maximum as _maximum
+from .decision import minimum as _minimum
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import LineageLink
 from .joint_distribution import ScientificQuantity
@@ -94,71 +98,50 @@ def _raise(refusal: str | None) -> None:
 # --------------------------------------------------------------------------- terms
 
 
-@dataclass(frozen=True, slots=True)
-class Utility:
-    """A closed utility expression over named surface quantities; build with operators."""
-
-    _wire_value: Any
-
-    def __add__(self, other: Utility | float) -> Utility:
-        return Utility({"add": [self._wire_value, _coerce(other)._wire_value]})
-
-    def __radd__(self, other: float) -> Utility:
-        return _coerce(other) + self
-
-    def __sub__(self, other: Utility | float) -> Utility:
-        return Utility({"sub": [self._wire_value, _coerce(other)._wire_value]})
-
-    def __rsub__(self, other: float) -> Utility:
-        return _coerce(other) - self
-
-    def __mul__(self, other: Utility | float) -> Utility:
-        return Utility({"mul": [self._wire_value, _coerce(other)._wire_value]})
-
-    def __rmul__(self, other: float) -> Utility:
-        return _coerce(other) * self
-
-    def __neg__(self) -> Utility:
-        return Utility({"neg": self._wire_value})
-
-    def __repr__(self) -> str:
-        return f"Utility({json.dumps(self._wire_value, sort_keys=True)})"
+#: Utility expressions are the one :class:`antecedent.decision.Expr` type, with its operators and
+#: ``const`` / ``maximum`` / ``minimum`` builders re-exported here unchanged. Only the leaf
+#: differs: a decision reads inputs by position (``decision.x(i)``), a sensitivity surface reads
+#: a quantity by ``variable_id`` (:func:`quantity`). Each declaration refuses the other's leaf.
+Expr = _Expr
+const = _const
+maximum = _maximum
+minimum = _minimum
 
 
-def _coerce(value: Utility | float) -> Utility:
-    if isinstance(value, Utility):
-        return value
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise CausalTypeError("a utility combines Utility values and numbers")
-    return const(float(value))
-
-
-def quantity(variable_id: str) -> Utility:
-    """The surface quantity with this ``variable_id``."""
-    return Utility({"quantity": variable_id})
-
-
-def const(value: float) -> Utility:
-    """A constant."""
-    return Utility({"const": float(value)})
-
-
-def maximum(left: Utility | float, right: Utility | float) -> Utility:
-    """Pointwise maximum (not multilinear: vertices then certify only the vertices)."""
-    return Utility({"max": [_coerce(left)._wire_value, _coerce(right)._wire_value]})
-
-
-def minimum(left: Utility | float, right: Utility | float) -> Utility:
-    """Pointwise minimum (not multilinear: vertices then certify only the vertices)."""
-    return Utility({"min": [_coerce(left)._wire_value, _coerce(right)._wire_value]})
+def quantity(variable_id: str) -> Expr:
+    """The surface quantity with this ``variable_id`` (a sensitivity-utility leaf)."""
+    if not isinstance(variable_id, str):
+        raise CausalTypeError(f"variable_id must be a string, got {type(variable_id).__name__}")
+    return Expr({"quantity": variable_id})
 
 
 @dataclass(frozen=True, slots=True)
-class Action:
-    """One action and the utility it reads from the surface quantities."""
+class SensitivityAction:
+    """One action of a sensitivity surface and the utility it reads from surface quantities.
+
+    This is not :class:`antecedent.decision.Action`: it has no ``inputs`` or ``kind``, because
+    a surface names its quantities by ``variable_id`` (through :func:`quantity`) instead of
+    by position. ``decision.Action`` belongs to a :class:`~antecedent.decision.Contract`.
+    """
 
     id: str
-    utility: Utility
+    utility: Expr
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.id, str):
+            raise CausalTypeError(
+                f"SensitivityAction.id must be a string, got {type(self.id).__name__}"
+            )
+        if not isinstance(self.utility, Expr):
+            raise CausalTypeError(
+                "SensitivityAction.utility must be an Expr built from sensitivity_decision."
+                f"quantity(...), const(...) and operators, not {type(self.utility).__name__}"
+            )
+        if "input" in _leaf_kinds(self.utility):
+            raise CausalTypeError(
+                "SensitivityAction.utility reads quantities by variable_id "
+                "(sensitivity_decision.quantity); a decision.x(i) leaf belongs to decision.Action"
+            )
 
     def _wire(self) -> dict[str, Any]:
         return {"id": self.id, "utility": self.utility._wire_value}
@@ -507,7 +490,7 @@ class SensitivityArtifact:
         coordinate: AssumptionCoordinate,
         grid: Sequence[float],
         quantities: Sequence[SurfaceQuantity],
-        actions: Sequence[Action],
+        actions: Sequence[SensitivityAction],
         provenance: SurfaceProvenance,
         support: Sequence[PointSupport] | None = None,
         sampling: SamplingInterval | SamplingWithheld | None = None,
@@ -563,7 +546,7 @@ class SensitivityArtifact:
         deviation: Any,
         *,
         effect: ScientificQuantity,
-        actions: Sequence[Action],
+        actions: Sequence[SensitivityAction],
         causal_contract_id: str,
         grid_points: int | None = None,
         memory_bytes: int | None = None,
@@ -675,8 +658,10 @@ class SensitivityArtifact:
         )
 
     @property
-    def actions(self) -> tuple[Action, ...]:
-        return tuple(Action(a["id"], Utility(a["utility"])) for a in self._summary["actions"])
+    def actions(self) -> tuple[SensitivityAction, ...]:
+        return tuple(
+            SensitivityAction(a["id"], Expr(a["utility"])) for a in self._summary["actions"]
+        )
 
     @property
     def utility_units(self) -> str | None:
@@ -951,15 +936,16 @@ def decide(
 __all__ = [
     "ASSUMPTION_RANGE_STATEMENT",
     "CLAIM_LINK_ID",
-    "Action",
     "AssumptionCoordinate",
     "AtomView",
     "DecisionSwitch",
+    "Expr",
     "IdentifiedBound",
     "Outcome",
     "SamplingInterval",
     "SamplingReport",
     "SamplingWithheld",
+    "SensitivityAction",
     "SensitivityArtifact",
     "SensitivityDecision",
     "SensitivityRefusal",
@@ -967,7 +953,6 @@ __all__ = [
     "SurfaceProvenance",
     "SurfaceQuantity",
     "Uncertainty",
-    "Utility",
     "const",
     "decide",
     "maximum",

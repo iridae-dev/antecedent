@@ -383,7 +383,12 @@ class SimultaneousBand(ResultModel):
 
     @classmethod
     def from_support(cls, support: SupportReport) -> SimultaneousBand | None:
-        """Rebuild the band from its support diagnostics, or ``None`` if none was published."""
+        """Rebuild the band from its support diagnostics, or ``None`` if none was published.
+
+        Raises:
+            CausalValueError: the published diagnostics do not describe an ordered,
+                aligned band (level outside (0, 1), unordered or misaligned rows).
+        """
         by_id = {diagnostic.id: diagnostic for diagnostic in support.diagnostics}
         lower = by_id.get(SIMULTANEOUS_BAND_LOWER)
         upper = by_id.get(SIMULTANEOUS_BAND_UPPER)
@@ -467,6 +472,11 @@ class CausalResponseView(ResultModel, ResultAPI):
         be given one coordinate per value (a derivative, a Jacobian, a stochastic or
         sequenced intervention) refuses with a typed ``coordinate_support.*``
         :class:`~antecedent.external.ExternalRefusal` instead of being scalarized.
+
+        Raises:
+            CausalValueError: the view carries no native response payload.
+            ExternalRefusal: the response cannot be given one coordinate per value
+                (``coordinate_support.*``).
         """
         native = getattr(self._raw, "response_coordinates", None)
         if native is None:
@@ -528,6 +538,7 @@ class CausalResponseView(ResultModel, ResultAPI):
         )
 
     def rendering_limitation(self) -> str | None:
+        """Why this view must not be rendered as a plain point answer, or ``None``."""
         if self.reasoning is not None:
             limit = self.reasoning.rendering_limitation()
             if limit is not None:

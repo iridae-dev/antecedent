@@ -219,6 +219,34 @@ class DoseFunctionalResult:
         """The per-dose support labels, in request order."""
         return self.support
 
+    def explain(self) -> str:
+        """What was estimated, how well supported it is, and which claims are not made."""
+        text = (
+            f"Dose-response functional {self.functional!r} ({self.design}) from {self.n_rows} "
+            f"rows at bandwidth {self.bandwidth:g}: worst support {self.support_status} over "
+            f"{len(self.support)} dose(s), smallest local effective sample size "
+            f"{self.minimum_local_ess:.3g}."
+        )
+        if self.contrast is not None:
+            c = self.contrast
+            text += (
+                f" Contrast m({c.to_dose:g}) - m({c.from_dose:g}) = {c.estimate:.4g} "
+                f"(pointwise standard error {c.standard_error:.4g})."
+            )
+        text += (
+            f" Pointwise intervals are nominal only (calibration {self.calibration}, smoothing "
+            f"bias {'included' if self.smoothing_bias_included else 'not included'}); the "
+            f"simultaneous band is {self.simultaneous_band}; inference claim "
+            f"{self.inference_claim!r}."
+        )
+        return text
+
+    def __repr__(self) -> str:
+        return (
+            f"<DoseFunctionalResult {self.functional} n={self.n_rows} "
+            f"support={self.support_status} claim={self.inference_claim}>"
+        )
+
     def to_dict(self) -> dict[str, Any]:
         """A JSON-ready mapping of the result (the table is not repeated)."""
         return {

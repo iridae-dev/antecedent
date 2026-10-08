@@ -273,6 +273,38 @@ class ClaimInspection:
             f"{self.statement}\n  trust: {self.trust.value}; native: {self.native}\n  from: {chain}"
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"<ClaimInspection trust={self.trust.value} native={self.native} "
+            f"support={self.support_status} links={len(self.lineage)}>"
+        )
+
+    def explain(self) -> str:
+        """The statement with its provider trust, support and lineage."""
+        text = (
+            f"{self.statement} Provider trust: {self.trust.value}; natively estimated: "
+            f"{self.native}; worst support: {self.support_status}; provenance: "
+            f"{self.provenance_label}; {len(self.lineage)} lineage link(s)."
+        )
+        if self.uncertainty_method is not None:
+            text += f" Provider-declared uncertainty: {self.uncertainty_method}."
+        return text
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe form of this inspection."""
+        return {
+            "statement": self.statement,
+            "provider_trust": self.trust.value,
+            "native": self.native,
+            "support_status": self.support_status,
+            "provenance_label": self.provenance_label,
+            "uncertainty_method": self.uncertainty_method,
+            "lineage": [
+                {"id": link.id, "stage": link.stage, "parents": list(link.parents)}
+                for link in self.lineage
+            ],
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class ProgramRequest:
@@ -447,14 +479,37 @@ class ExternalSpec:
             raise _refusal_error(json.loads(refusal or "{}"))
         return BoundExternalClaim(native, self.statement)
 
-    def load(self, data: bytes, *, expected: Mapping[str, Any]) -> BoundExternalClaim:
+    def load(
+        self, data: bytes, *, expected_identity: str | Mapping[str, Any]
+    ) -> BoundExternalClaim:
         """Load a claim exported elsewhere under the consumer's retained identity.
 
-        ``expected`` is the identity mapping the consumer holds independently of
-        the bytes (for example a producer's ``claim.identity`` recorded
-        out-of-band); an artifact whose identity differs refuses.
+        ``expected_identity`` is the identity the consumer holds independently of the
+        bytes: a producer's :attr:`BoundExternalClaim.identity` string (or its
+        :attr:`~BoundExternalClaim.identity_fields` mapping) recorded out-of-band. An
+        artifact whose identity differs refuses.
+
+        Raises:
+            CausalTypeError: ``expected_identity`` is neither a string nor a mapping.
+            CausalValueError: ``expected_identity`` is a string that is not an identity.
+            CausalUnsupportedError: the artifact is corrupt or its identity differs.
         """
-        native = _NativeClaim.load(data, json.dumps(dict(expected)))
+        if isinstance(expected_identity, str):
+            try:
+                fields = json.loads(expected_identity)
+            except ValueError as error:
+                raise CausalValueError(
+                    "expected_identity is not a BoundExternalClaim.identity string"
+                ) from error
+            if not isinstance(fields, dict):
+                raise CausalValueError(
+                    "expected_identity is not a BoundExternalClaim.identity string"
+                )
+        elif isinstance(expected_identity, Mapping):
+            fields = dict(expected_identity)
+        else:
+            raise CausalTypeError("expected_identity must be an identity string or a mapping")
+        native = _NativeClaim.load(data, json.dumps(fields))
         return BoundExternalClaim(native, self.statement)
 
 
@@ -467,8 +522,17 @@ class BoundExternalClaim:
         self._meta: dict[str, Any] = json.loads(native.metadata_json)
 
     @property
-    def identity(self) -> dict[str, Any]:
-        """The full identity a consumer should retain to load this claim."""
+    def identity(self) -> str:
+        """The identity a consumer retains to load this claim, as one canonical string.
+
+        Canonical JSON of :attr:`identity_fields`; pass it to
+        :meth:`ExternalSpec.load` as ``expected_identity=``.
+        """
+        return json.dumps(self._meta["identity"], sort_keys=True)
+
+    @property
+    def identity_fields(self) -> dict[str, Any]:
+        """The structured identity (provider, snapshot, contract, trust, lineage, ...)."""
         return dict(self._meta["identity"])
 
     @property
@@ -478,6 +542,7 @@ class BoundExternalClaim:
 
     @property
     def trust(self) -> ProviderTrust:
+        """How far the provider's numbers are trusted (never ``native_licensed``)."""
         return ProviderTrust(self._meta["identity"]["trust"])
 
     @property
@@ -487,6 +552,7 @@ class BoundExternalClaim:
 
     @property
     def quantities(self) -> tuple[ScientificQuantity, ...]:
+        """The scientific coordinate of each value, in value order."""
         return tuple(ScientificQuantity._from_wire(q) for q in self._meta["identity"]["quantities"])
 
     @property
@@ -501,10 +567,12 @@ class BoundExternalClaim:
 
     @property
     def identification(self) -> str:
+        """The identification status of the contract this claim answers."""
         return str(self._meta["identity"]["identification"])
 
     @property
     def uncertainty_method(self) -> str | None:
+        """The provider's declared uncertainty method, or ``None`` when none was declared."""
         return self._meta["identity"]["uncertainty_method"]
 
     @property
@@ -537,6 +605,7 @@ class BoundExternalClaim:
 
     @property
     def provenance_label(self) -> str:
+        """The external execution that supplied the values (provider and snapshot)."""
         return self._native.provenance_label
 
     def claim(self) -> str:
@@ -548,6 +617,7 @@ class BoundExternalClaim:
         )
 
     def inspect(self) -> ClaimInspection:
+        """What stands behind this claim, as data."""
         return ClaimInspection(
             statement=self.claim(),
             trust=self.trust,
@@ -566,7 +636,43 @@ class BoundExternalClaim:
         return SourceEvidence._deferred(lambda: self._native.source_evidence)
 
     def export(self, *, artifact_id: str = "external-claim") -> bytes:
+        """Serialize the claim; reload it with :meth:`ExternalSpec.load` and ``identity``."""
         return self._native.export(artifact_id)
+
+    def explain(self) -> str:
+        """What the numbers are, who supplied them, how far they are trusted and supported."""
+        text = (
+            f"{self.claim()} Provider trust: {self.trust.value}; natively estimated: "
+            f"{self.native}; identification: {self.identification}; worst support: "
+            f"{self.support_status} over {len(self.support)} coordinate(s)."
+        )
+        if self.uncertainty_method is None:
+            text += " No uncertainty was declared by the provider."
+        else:
+            text += (
+                f" Provider-declared uncertainty ({self.uncertainty_method}) is a declaration, "
+                "not an Antecedent interval."
+            )
+        return text
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe summary: trust, support, lineage and identity (values included)."""
+        return {
+            "statement": self.claim(),
+            "provenance_label": self.provenance_label,
+            "provider_trust": self.trust.value,
+            "native": self.native,
+            "identification": self.identification,
+            "support": list(self.support),
+            "support_status": self.support_status,
+            "uncertainty_method": self.uncertainty_method,
+            "values": [float(v) for v in self.values],
+            "lineage": [
+                {"id": link.id, "stage": link.stage, "parents": list(link.parents)}
+                for link in self.lineage
+            ],
+            "identity": self.identity,
+        }
 
     def __repr__(self) -> str:
         return (

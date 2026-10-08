@@ -197,19 +197,21 @@ def test_a_exit_external_response_binds_inspects_exports_and_shows_support_and_p
     spec = gen.external_spec()
     data = claim.export(artifact_id="claim")
     for blob in (data, _read("py_external_claim.bin"), _read("rust_external_claim.bin")):
-        loaded = spec.load(blob, expected=claim.identity)
+        loaded = spec.load(blob, expected_identity=claim.identity)
         assert np.allclose(loaded.values, gen.EXTERNAL_VALUES, atol=TOLERANCE, rtol=0)
         assert loaded.support == claim.support
         assert loaded.identity == claim.identity
         assert [link.id for link in loaded.lineage] == [link.id for link in claim.lineage]
     fields = ("provider_id", "object_id", "version_id", "snapshot_id", "request_id")
-    assert [claim.identity[f] for f in fields] == ["lab", "curve", "v3", "snap-9", "req-1"]
-    assert claim.identity["evidence_ids"] == ["factor:z"]
-    assert claim.identity["assumption_ids"] == ["ignorability"]
+    assert [claim.identity_fields[f] for f in fields] == ["lab", "curve", "v3", "snap-9", "req-1"]
+    assert claim.identity_fields["evidence_ids"] == ["factor:z"]
+    assert claim.identity_fields["assumption_ids"] == ["ignorability"]
     with pytest.raises(Exception, match="differs|verification receipt"):
-        spec.load(data, expected={**claim.identity, "snapshot_id": "other-snapshot"})
+        spec.load(
+            data, expected_identity={**claim.identity_fields, "snapshot_id": "other-snapshot"}
+        )
     with pytest.raises(REFUSED):
-        spec.load(_flip_last_byte(data), expected=claim.identity)
+        spec.load(_flip_last_byte(data), expected_identity=claim.identity)
 
 
 def test_a_exit_external_response_refuses_observational_mismatched_and_unverified() -> None:
