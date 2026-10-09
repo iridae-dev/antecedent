@@ -5164,7 +5164,7 @@ evidence_assertion = "test_c1_boundary_caller_native_constructor_refuses_before_
 [[routes]]
 id = "2.3C.C3.rollout_state_binding"
 work_package = "C3.1"
-route = "antecedent.design_ranking.Decision.export_rollout"
+route = "antecedent.design.DesignDecision.export_rollout"
 stage = "representation"
 status = "licensed"
 claim = "point_only"
@@ -5179,7 +5179,7 @@ evidence_assertion = "test_rollout_public_source_prior_terminal_and_ranking_matc
 [[routes]]
 id = "2.3C.C3.rollout_state_binding"
 work_package = "C3.1"
-route = "antecedent.design_ranking.consume_rollout"
+route = "antecedent.design.consume_rollout"
 stage = "consume"
 status = "licensed"
 claim = "point_only"
@@ -5479,7 +5479,7 @@ evidence_assertion = "test_sensitivity_full_original_v3_source_replays_surface_a
 [[routes]]
 id = "2.3C.C3.rollout_state_binding"
 work_package = "C3.1"
-route = "antecedent.design_ranking.RolloutResult.ranking"
+route = "antecedent.design.RolloutResult.ranking"
 stage = "consume"
 status = "licensed"
 claim = "point_only"

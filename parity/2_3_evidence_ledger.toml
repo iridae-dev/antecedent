@@ -1790,7 +1790,7 @@ exact_request_verification = "not_applicable_no_provider_execution"
 
 [[cell]]
 id = "2.3C.C3.rollout_state_binding"
-route = "antecedent.design_ranking.Decision.export_rollout"
+route = "antecedent.design.DesignDecision.export_rollout"
 work_package = "C3.1"
 algorithm_provenance = ["provenance/c3_rollout_state_binding.toml"]
 parity_registry = "parity/promotion_2_3.toml"
@@ -1808,7 +1808,7 @@ exact_request_verification = "original_source_standing_and_identity_only_no_fore
 
 [[cell]]
 id = "2.3C.C3.rollout_state_binding"
-route = "antecedent.design_ranking.consume_rollout"
+route = "antecedent.design.consume_rollout"
 work_package = "C3.1"
 algorithm_provenance = ["provenance/c3_rollout_state_binding.toml"]
 parity_registry = "parity/promotion_2_3.toml"
@@ -2168,7 +2168,7 @@ exact_request_verification = "complete_original_source_request_and_derived_resul
 
 [[cell]]
 id = "2.3C.C3.rollout_state_binding"
-route = "antecedent.design_ranking.RolloutResult.ranking"
+route = "antecedent.design.RolloutResult.ranking"
 work_package = "C3.1"
 algorithm_provenance = ["provenance/c3_rollout_state_binding.toml"]
 parity_registry = "parity/promotion_2_3.toml"
