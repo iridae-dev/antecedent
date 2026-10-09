@@ -7,341 +7,701 @@
 # the collector. `scripts/gate_parity_schema.sh` checks every row.
 
 [[gate]]
+group = "adjusted_recalc_precision__adjusted_logit_fixed_target_delta_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "adjusted_recalc_precision__adjusted_logit_fixed_target_delta_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "adjusted_recalc_precision__adjusted_logit_fixed_target_delta_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "adjusted_recalc_precision__adjusted_ols_retained_covariance_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "adjusted_recalc_precision__adjusted_ols_retained_covariance_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "adjusted_recalc_precision__adjusted_ols_retained_covariance_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
 group = "antecedent-discovery__pc_null_fpr_near_alpha"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-discovery__pcmci_null_fpr_near_alpha"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-discovery__pcmci_planted_lag1_power"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__bayesian_panel_hierarchical_nominal_90_coverage"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__bayesian_pulse_conjugate_nominal_90_coverage"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__bayesian_sustained_multi_step_conjugate_nominal_90_coverage"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__bayesian_sustained_single_step_conjugate_nominal_90_coverage"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__iv_2sls_hc1_heteroskedastic_ci_coverage.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__iv_2sls_hc1_heteroskedastic_ci_coverage.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__iv_2sls_hc1_heteroskedastic_ci_coverage.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__rd_sharp_hc1_curved_heterogeneous_probe.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__rd_sharp_hc1_curved_heterogeneous_probe.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__rd_sharp_hc1_curved_heterogeneous_probe.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__wald_iv_hc1_ci_coverage.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__wald_iv_hc1_ci_coverage.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-estimate__wald_iv_hc1_ci_coverage.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__gpdc_block_shuffle_autocorrelated_type_i_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__gpdc_conditional_null_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__gsquared_calibration_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__gsquared_conditional_null_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__knn_conditional_null_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__knn_dependence_calibration_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__knn_perm_pvalue_uniformity_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__knn_unconditional_block_shuffle_autocorrelated_type_i_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__multivariate_block_calibration_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__multivariate_block_shuffle_calibration_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__parcorr_block_shuffle_conditional_autocorrelated_type_i_gate"
 passed = 2
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__parcorr_conditional_null_gate"
 passed = 3
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__parcorr_perm_pvalue_uniformity_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__robust_parcorr_calibration_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__robust_parcorr_conditional_null_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__symbolic_cmi_conditional_null_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__weighted_parcorr_block_shuffle_conditional_autocorrelated_type_i_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__weighted_parcorr_calibration_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-stats__weighted_parcorr_conditional_null_gate"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-validate__bayesian_checks__tests__calibration_gate__posterior_calibration_synthetic_scm_nominal_90_coverage"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent-validate__bayesian_checks__tests__calibration_gate__sbc_conjugate_gaussian_ranks_are_uniform"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "antecedent__analysis__execute__block_length_tests__shared_block_length_sensitivity"
 passed = 2
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_basis_prior_precision__mapped_native_source_prior_adapter_summary_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_basis_prior_precision__mapped_native_source_prior_adapter_summary_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_basis_prior_precision__mapped_native_source_prior_adapter_summary_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_basis_prior_precision__quadratic_basis_nig_adapter_summary_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_basis_prior_precision__quadratic_basis_nig_adapter_summary_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_basis_prior_precision__quadratic_basis_nig_adapter_summary_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_recalc_calibration__gaussian_adapter_posterior_summary_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_recalc_calibration__gaussian_adapter_posterior_summary_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bayesian_recalc_calibration__gaussian_adapter_posterior_summary_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bootstrap_effect_precision__nonlinear_mediation_whole_method_bootstrap_se.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bootstrap_effect_precision__nonlinear_mediation_whole_method_bootstrap_se.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "bootstrap_effect_precision__nonlinear_mediation_whole_method_bootstrap_se.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "design_ar_precision_calibration__checked_design_iv_ar_full_method_error_rate_and_weak_boundaries.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "design_ar_precision_calibration__checked_design_iv_ar_full_method_error_rate_and_weak_boundaries.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "design_ar_precision_calibration__checked_design_iv_ar_full_method_error_rate_and_weak_boundaries.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "effect_constancy_calibration__known_gaussian_null_power_and_holm"
 passed = 1
-calibration_sha = "4bd246a8722c824b3299c204983968cad32fb1c1"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_finite_and_conjugate_exact_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_finite_and_conjugate_exact_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_finite_and_conjugate_exact_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_fixed_rank_selection_and_tie_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_fixed_rank_selection_and_tie_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_fixed_rank_selection_and_tie_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_monte_carlo_score_error_and_net_value_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_monte_carlo_score_error_and_net_value_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__evsi_monte_carlo_score_error_and_net_value_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__paired_crn_adaptive_rank_selection_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__paired_crn_adaptive_rank_selection_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "evsi_precision_calibration__paired_crn_adaptive_rank_selection_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "gate_response_calibration.sh"
 passed = 37
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "generic_aipw_precision__generic_aipw_five_fold_known_target_score_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "generic_aipw_precision__generic_aipw_five_fold_known_target_score_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "generic_aipw_precision__generic_aipw_five_fold_known_target_score_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "learned_continuous_calibration__learned_trial_aipw_misspecified_nuisance_cases"
 passed = 1
-calibration_sha = "be7f7e3223ebd6b8adcb31229f1892a5a515d724"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "learned_continuous_calibration__learned_trial_aipw_weak_overlap_boundary"
 passed = 1
-calibration_sha = "be7f7e3223ebd6b8adcb31229f1892a5a515d724"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "mechanism_discrepancy_calibration__independent_mechanism_full_coefficient_diagnostic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "mechanism_discrepancy_calibration__independent_mechanism_full_coefficient_diagnostic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "mechanism_discrepancy_calibration__independent_mechanism_full_coefficient_diagnostic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "mechanism_discrepancy_calibration__independent_mechanism_slope_mdd_diagnostic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "mechanism_discrepancy_calibration__independent_mechanism_slope_mdd_diagnostic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "mechanism_discrepancy_calibration__independent_mechanism_slope_mdd_diagnostic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "posterior_summary_calibration__posterior_type7_quantile_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "posterior_summary_calibration__posterior_type7_quantile_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "posterior_summary_calibration__posterior_type7_quantile_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "retained_score_precision__retained_dml_weighted_score_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "retained_score_precision__retained_dml_weighted_score_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "retained_score_precision__retained_dml_weighted_score_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "retained_score_precision__retained_dr_weighted_score_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "retained_score_precision__retained_dr_weighted_score_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "retained_score_precision__retained_dr_weighted_score_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "scenario_covariance_calibration__shared_row_mean_covariance_precision.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "scenario_covariance_calibration__shared_row_mean_covariance_precision.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "scenario_covariance_calibration__shared_row_mean_covariance_precision.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "smoothed_dose_calibration__smoothed_dose_transport_grid_points"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "smoothed_dose_calibration__smoothed_dose_transport_weak_overlap_boundary"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_full_fit_heteroskedastic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_full_fit_heteroskedastic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_full_fit_heteroskedastic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_full_fit_homoskedastic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_full_fit_homoskedastic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_full_fit_homoskedastic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_monotonicity_heteroskedastic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_monotonicity_heteroskedastic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_monotonicity_heteroskedastic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_monotonicity_homoskedastic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_monotonicity_homoskedastic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__categorical_monotonicity_homoskedastic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__vector_full_fit_heteroskedastic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__vector_full_fit_heteroskedastic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__vector_full_fit_heteroskedastic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__vector_full_fit_homoskedastic.p0"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__vector_full_fit_homoskedastic.p1"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
+
+[[gate]]
+group = "treatment_inference_calibration__vector_full_fit_homoskedastic.p2"
+passed = 1
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_calibration__mediation_confounded_mediator_probe.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_calibration__mediation_confounded_mediator_probe.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_calibration__mediation_confounded_mediator_probe.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p0"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p1"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
 
 [[gate]]
 group = "v19_temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p2"
 passed = 1
-calibration_sha = "e15acabd3746fb63daab7cde40831ec33cbaa832"
+calibration_sha = "623f16dd9d33205b0d0a86b6bb15c4f0be4773a5"
