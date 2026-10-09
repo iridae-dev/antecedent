@@ -201,6 +201,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "export",
         "inspect",
         "interval",
+        "interval_method",
         "level",
         "load",
     },

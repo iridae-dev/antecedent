@@ -672,6 +672,7 @@ suite.temporal_unit_calibration crates/antecedent-estimate/tests/temporal_unit_c
 suite.recovery_whole_method_calibration crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs
 suite.recovery_whole_method_calibration crates/antecedent-estimate/tests/support/recovery_scm.rs
 estimator.dependent_temporal_interval crates/antecedent-estimate/src/temporal_dependent_interval.rs
+estimator.dependent_temporal_interval crates/antecedent/src/analysis/recalc_temporal_studentized.rs
 key estimator.dependent_temporal_interval estimator dependent_temporal_interval
 estimator.sampled_recovery crates/antecedent-estimate/src/recovery_sampled.rs
 key estimator.sampled_recovery estimator sampled_observation_recovery

@@ -514,7 +514,7 @@ def test_extensibility_exported():
         ),
         (
             "sampled_observation_recovery",
-            "stage query rows snapshot replicates seed",
+            "stage query rows snapshot replicates seed interval_method",
             "SampledRecoveryCandidate",
         ),
         (

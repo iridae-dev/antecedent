@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from copy import deepcopy
 from pathlib import Path
 
 import tomllib
@@ -186,6 +187,18 @@ def per_output_inference(records: list[dict]) -> list[str]:
         allocated = set(record.get("coverage_records", [])) | set(
             record.get("candidate_coverage_records", [])
         )
+        historical = {entry["id"] for entry in record.get("historical_coverage_records", [])}
+        if historical & allocated:
+            raise ValueError(f"{record['id']}: historical allocations overlap selected IDs")
+        for entry in record.get("historical_coverage_records", []):
+            matching = [output for output in outputs
+                        if entry["id"] in output["allocated_coverage_records"]]
+            if entry.get("status") != "failed" or not matching or any(
+                output.get("allocation_status") != "historical_measurement_failed_route_closed"
+                for output in matching
+            ):
+                raise ValueError(f"{record['id']}: historical allocation must retain failed output standing")
+        allocated |= historical
         for output in outputs:
             missing = REQUIRED_INFERENCE_OUTPUT_FIELDS - set(output)
             if missing or output.get("id") in seen:
@@ -366,10 +379,42 @@ def render() -> str:
     return "\n".join(lines)
 
 
+
+def self_test() -> None:
+    """Historical failures stay visible without replacing selected ownership."""
+    records = tomllib.loads(PROMOTION.read_text())["record"]
+    source = next(record for record in records if record.get("historical_coverage_records"))
+    per_output_inference([source])
+    historical_id = source["historical_coverage_records"][0]["id"]
+    overlap = deepcopy(source)
+    overlap.setdefault("coverage_records", []).append(historical_id)
+    wrong_standing = deepcopy(source)
+    wrong_standing["historical_coverage_records"][0]["status"] = "passed"
+    unowned = deepcopy(source)
+    unowned["historical_coverage_records"] = []
+    for label, mutant, expected in (
+        ("historical/selected overlap", overlap, "overlap selected"),
+        ("historical relabeling", wrong_standing, "failed output standing"),
+        ("lost historical ownership", unowned, "unowned emitter"),
+    ):
+        try:
+            per_output_inference([mutant])
+        except ValueError as error:
+            if expected not in str(error):
+                raise AssertionError(f"{label}: wrong refusal {error}") from error
+        else:
+            raise AssertionError(f"{label}: invalid allocation accepted")
+    print("2.3 calibration plan historical allocation self-test: ok")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
+    if args.self_test:
+        self_test()
+        return
     content = render()
     if args.check:
         if not OUTPUT.exists() or OUTPUT.read_text() != content:

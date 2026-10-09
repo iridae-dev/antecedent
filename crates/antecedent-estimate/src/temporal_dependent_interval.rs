@@ -339,7 +339,9 @@ pub trait TemporalEstimator {
     fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError>;
 
     /// Checked estimator-specific exact unit scores for a balanced binary panel.
-    /// Arbitrary estimators have no studentization authority by default.
+    /// The default declines studentization. Advanced Rust implementations may
+    /// override this hook, but the result remains unmeasured; an override does
+    /// not grant the closed checked-adapter or replay-artifact scope.
     /// # Errors
     /// A certified implementation refuses incompatible balance/support.
     fn balanced_unit_scores(
@@ -428,7 +430,9 @@ impl TemporalEstimator for BalancedTemporalEstimator {
 /// Every unit must contain the same positive multiplicity of all sixteen binary
 /// histories. Then fixed target weights, covariate probabilities and denominators
 /// are invariant to unit resampling, and the estimator is the mean of unit scores.
-/// This helper does not confer a capability on an arbitrary callback.
+/// This public helper does not establish the score derivation for an arbitrary
+/// callback. The checked adapter and artifact consumer use original native
+/// estimators and independently replay their scores.
 /// # Errors
 /// Unequal/nonbinary/incomplete histories, or unsupported unit fits.
 pub fn balanced_linear_unit_scores<E: TemporalEstimator + ?Sized>(

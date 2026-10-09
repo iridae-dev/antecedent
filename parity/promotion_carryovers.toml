@@ -23,8 +23,8 @@ corrective_action = "After stabilization execute the frozen continuous-posterior
 [[cell]]
 id = "2.3A.X5.dependent_temporal_interval"
 failed_gates = ["whole_temporal_interval_calibration"]
-detail = "The dependence-preserving resampling engine and replay artifact exist; the allocated whole-estimator interval coverage is unmeasured."
-corrective_action = "Measure the complete estimator at its unit/time dependence coordinates after stabilization, then execute and license the public producer and consumer."
+detail = "Original 623f16dd percentile/basic measurements failed: checked response n64 rechecks1873/2000 and1867/2000; balanced unit response n200 rechecks1861/2000 and1857/2000, all zero skips. A distinct balanced complete-history equal-tailed bootstrap-t construction now has three new allocated IDs; it remains unmeasured. Original paired-effect percentile/basic passes are retained separately."
+corrective_action = "Measure the new studentized unit,response,effect methods on every original frozen grid point with unchanged denominator and precision gates. Preserve old failures and passing effect constructions; license only exact passing construction/scope after producer and consumer checks."
 
 [[cell]]
 id = "2.3A.X8.transported_path_specific_counterfactual"
@@ -35,8 +35,8 @@ corrective_action = "Complete the dependency-ordered 2.4 general finite counterf
 [[cell]]
 id = "2.3A.X10.sampled_observation_recovery"
 failed_gates = ["whole_recovery_interval_calibration"]
-detail = "Whole-row bootstrap, recovered-cell covariance and replay exist, but whole-path coverage including overlapping-margin dependence is unmeasured. Component variance cannot license the interval."
-corrective_action = "Measure whole-path uncertainty at the declared missingness and dependence coordinates after stabilization, then execute and license the public producer and independent consumer."
+detail = "Original 623f16dd B500 percentile coverage failed at n2000:1874/2000=.937, zero skips, below the unchanged2MCSE precision floor. Distinct B2000 whole-row BCa with exact delete-one-row acceleration, midrank bias correction and version3 replay is implemented but unmeasured. Legacy v2 percentile and its failed evidence remain retained; component variance cannot license either interval."
+corrective_action = "Measure distinct B2000 BCa on the complete frozen n1000/2000/4000 grid with original coverage/precision/failure gates, including exact jackknife and adjusted-tail refusal. Preserve legacy failure; execute public producer and independent version3 consumer before exact-scope licensing."
 
 [[cell]]
 id = "2.3A.X4.learned_joint_transport"

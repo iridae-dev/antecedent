@@ -225,6 +225,49 @@ def registration_owns_id(registration: dict, literals: set[str], coverage_id: st
     )
 
 
+
+def historical_allocations(record: dict, selected: list[str], present: set[str], errors: list[str]) -> set[str]:
+    """Own failed original emitters without selecting or licensing their intervals."""
+    historical = set()
+    rid = record["id"]
+    declarations = record.get("historical_coverage_records", [])
+    if not isinstance(declarations, list):
+        errors.append(f"{rid}: historical coverage must be explicit failed emitter declarations")
+        return historical
+    for entry in declarations:
+        if not isinstance(entry, dict):
+            errors.append(f"{rid}: historical coverage must be explicit failed emitter declarations")
+            continue
+        cid, source, test = entry.get("id"), entry.get("harness"), entry.get("test")
+        if (
+            not isinstance(cid, str) or not COV_ID.fullmatch(cid)
+            or not isinstance(source, str) or not source.startswith("crates/")
+            or not isinstance(test, str) or not test
+            or entry.get("status") != "failed"
+            or not isinstance(entry.get("measurement_commit"), str)
+            or not re.fullmatch(r"[0-9a-f]{40}", entry["measurement_commit"])
+            or not isinstance(entry.get("failure"), str) or not entry["failure"].strip()
+        ):
+            errors.append(f"{rid}: historical coverage needs failed status, original source/test, commit and failure")
+            continue
+        path = ROOT / source
+        literals = ignored_test_literals(path).get(test, []) if path.is_file() else []
+        if not registration_owns_id({"name": test}, literals, cid):
+            errors.append(f"{rid}: historical coverage id {cid} has no original ignored harness emitter")
+            continue
+        if cid in selected or cid in historical:
+            errors.append(f"{rid}: historical coverage must be disjoint from selected allocations and unique")
+        if cid in present:
+            errors.append(f"{rid}: failed historical coverage cannot be a passing licensed record")
+        matching_outputs = [output for output in record.get("inference_outputs", [])
+                            if cid in output.get("allocated_coverage_records", [])]
+        if not matching_outputs or any(output.get("allocation_status") != "historical_measurement_failed_route_closed"
+                                       for output in matching_outputs):
+            errors.append(f"{rid}: historical coverage needs an explicitly failed output allocation")
+        historical.add(cid)
+    return historical
+
+
 def check() -> dict:
     errors: list[str] = []
     notes: list[str] = []
@@ -280,6 +323,7 @@ def check() -> dict:
         active = list(record.get("coverage_records") or [])
         candidates = list(record.get("candidate_coverage_records") or [])
         allocated = active + candidates
+        historical = historical_allocations(record, allocated, present, errors)
         if len(allocated) != len(set(allocated)):
             errors.append(f"{rid}: active and candidate coverage allocations must be distinct")
         missing_active = [cid for cid in active if cid not in present]
@@ -342,7 +386,7 @@ def check() -> dict:
                 i.rstrip(".")
                 for t in text_fields(record)
                 for i in COV_ID.findall(t)
-                if i.rstrip(".") not in allocated and i.rstrip(".") not in inherited
+                if i.rstrip(".") not in allocated and i.rstrip(".") not in inherited and i.rstrip(".") not in historical
             }
         )
         for cid in hidden:
@@ -1010,6 +1054,34 @@ def self_test_23() -> int:
             baseline = expect("scoped candidate allocation and typed status", None)
             if baseline["calibration"].get("2.3A.F1.synthetic", {}).get("status") != "PENDING_CALIBRATION":
                 failures.append("unmeasured diagnostic candidate lost its pending state")
+            historical_id = "cov.synth.dag.frequentist.l95.old_method"
+            historical_source = "crates/synth/tests/historical.rs"
+            write(historical_source, '#[test]\n#[ignore = "measurement"]\nfn old_method() {\n'
+                  f'    emit("{historical_id}");\n}}\n')
+            history = (
+                'historical_coverage_records = [{id="' + historical_id + '", '
+                'harness="' + historical_source + '", test="old_method", status="failed", '
+                'measurement_commit="' + 'a' * 40 + '", failure="below unchanged precision floor"}]\n'
+                'inference_outputs = [{allocation_status="historical_measurement_failed_route_closed", '
+                'allocated_coverage_records=["' + historical_id + '"]}]\n'
+            )
+            write("parity/promotion_2_3.toml", record + history)
+            expect("failed historical emitter remains owned without release selection", None)
+            write("parity/promotion_2_3.toml", record + history.replace('status="failed"', 'status="passed"'))
+            expect("history cannot relabel passed evidence", "needs failed status")
+            write("parity/promotion_2_3.toml", record + history.replace('test="old_method"', 'test="invented"'))
+            expect("history binds actual original emitter", "no original ignored harness emitter")
+            write("parity/promotion_2_3.toml", record + history.replace(historical_id, coverage_id).replace(
+                historical_source, "crates/synth/tests/calibration.rs").replace('test="old_method"', 'test="whole_method"'))
+            expect("historical cannot hide selected obligation", "disjoint from selected")
+            write("parity/promotion_2_3.toml", record + history.replace(
+                'historical_measurement_failed_route_closed', 'frozen_harness_compiled_measurement_pending'))
+            expect("history cannot be allocated as unmeasured candidate", "explicitly failed output")
+            write("parity/promotion_2_3.toml", record + history)
+            write("parity/coverage_records.toml", '[[record]]\nid="' + historical_id + '"\n')
+            expect("failed history cannot supply passing record", "cannot be a passing licensed record")
+            write("parity/coverage_records.toml", "")
+            write("parity/promotion_2_3.toml", record)
             multi_ids = [f"cov.synth.dag.frequentist.l95.whole_method.{label}" for label in ("mean0", "mean1", "contrast")]
             multi_record = record.replace(f'candidate_coverage_records = ["{coverage_id}"]',
                 "candidate_coverage_records = " + json.dumps(multi_ids))

@@ -255,8 +255,10 @@ run_temporal_recalc() {
   check "temporal_recalc_calibration: ${name}" cargo test --release -p antecedent --test temporal_recalc_calibration "$name" -- --ignored --exact --nocapture
 }
 echo "== 2.3 C2 checked temporal response and paired effect candidates =="
-run_temporal_recalc temporal_checked_response_percentile_l95
-run_temporal_recalc temporal_checked_response_basic_l95
+# Original response percentile/basic measurements failed. Their harnesses and
+# archived results remain retained; bootstrap-t is a distinct required method.
+run_temporal_recalc temporal_checked_response_studentized_l95
+run_temporal_recalc temporal_checked_effect_studentized_l95
 run_temporal_recalc temporal_checked_effect_percentile_l95
 run_temporal_recalc temporal_checked_effect_basic_l95
 
@@ -349,9 +351,10 @@ run_recovery_whole_method() {
   check "recovery_whole_method_calibration: ${name}" cargo test --release -p antecedent-estimate --test recovery_whole_method_calibration "$name" -- --ignored --exact --nocapture
 }
 echo "== 2.3 closed temporal and recovery whole-method candidates =="
-run_temporal_unit temporal_two_step_units_percentile_l95
-run_temporal_unit temporal_two_step_units_basic_l95
-run_recovery_whole_method binary_missingness_whole_row_recovery_l95
+# Distinct corrected constructions; historical percentile/basic failures are
+# preserved in the original harnesses and carryover disposition, never relabeled.
+run_temporal_unit temporal_two_step_units_studentized_l95
+run_recovery_whole_method binary_missingness_whole_row_recovery_bca_l95
 
 run_learned_joint() {
   local name="$1"

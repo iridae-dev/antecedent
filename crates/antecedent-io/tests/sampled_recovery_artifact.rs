@@ -420,8 +420,12 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     assert!(
-        SampledRecoveryArtifactWire::consume_with_limits(&bytes, Default::default(), &cancelled)
-            .is_err()
+        SampledRecoveryArtifactWire::consume_with_limits(
+            &bytes,
+            SampledRecoveryConsumeLimits::default(),
+            &cancelled
+        )
+        .is_err()
     );
 }
 

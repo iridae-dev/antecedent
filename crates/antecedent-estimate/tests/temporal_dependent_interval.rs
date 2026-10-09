@@ -376,6 +376,16 @@ fn studentized_balanced_unit_variance_and_pivots_match_independent_two_point_alg
 
 #[test]
 fn studentized_refuses_unbalanced_units_and_uncertified_estimator() {
+    struct Arbitrary(std::cell::Cell<usize>);
+    impl antecedent_estimate::temporal_dependent_interval::TemporalEstimator for Arbitrary {
+        fn label(&self) -> &'static str {
+            "arbitrary"
+        }
+        fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
+            self.0.set(self.0.get() + 1);
+            Ok(units.iter().map(|u| u.histories[0].y).sum::<f64>() / units.len() as f64)
+        }
+    }
     let p = panel(30, false);
     let mut units = p.units().to_vec();
     units[0].histories.pop();
@@ -387,16 +397,6 @@ fn studentized_refuses_unbalanced_units_and_uncertified_estimator() {
             .to_string()
             .contains("studentized_unbalanced")
     );
-    struct Arbitrary(std::cell::Cell<usize>);
-    impl antecedent_estimate::temporal_dependent_interval::TemporalEstimator for Arbitrary {
-        fn label(&self) -> &'static str {
-            "arbitrary"
-        }
-        fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
-            self.0.set(self.0.get() + 1);
-            Ok(units.iter().map(|u| u.histories[0].y).sum::<f64>() / units.len() as f64)
-        }
-    }
     let arbitrary = Arbitrary(std::cell::Cell::new(0));
     assert!(
         dependent_unit_interval(&p, &arbitrary, &config, &ctx())
