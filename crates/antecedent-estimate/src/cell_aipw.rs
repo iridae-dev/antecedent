@@ -568,18 +568,28 @@ fn multinomial_propensity(
                     .sum::<f64>()
                     / n as f64
             };
-            let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-            for _ in 0..100 {
-                let prob = probabilities(train, n, &beta);
+            let score = |prob: &[f64]| {
                 let mut gradient = vec![0.0; d];
+                for r in 0..n {
+                    for c in 0..k - 1 {
+                        for j in 0..p {
+                            gradient[c * p + j] += train[j * n + r]
+                                * (prob[c * n + r] - f64::from(cells[r] == c))
+                                / n as f64;
+                        }
+                    }
+                }
+                gradient
+            };
+            let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+            for iteration in 0..100 {
+                let prob = probabilities(train, n, &beta);
+                let gradient = score(&prob);
                 let mut hessian = vec![0.0; d * d];
                 for r in 0..n {
                     for c in 0..k - 1 {
                         for j in 0..p {
                             let a = c * p + j;
-                            gradient[a] += train[j * n + r]
-                                * (prob[c * n + r] - f64::from(cells[r] == c))
-                                / n as f64;
                             for e in 0..k - 1 {
                                 for l in 0..p {
                                     let b = e * p + l;
@@ -609,17 +619,27 @@ fn multinomial_propensity(
                 for _ in 0..30 {
                     let trial: Vec<_> =
                         beta.iter().zip(&step).map(|(b, s)| b - scale * s).collect();
-                    if loss(&probabilities(train, n, &trial)) < old {
+                    let trial_prob = probabilities(train, n, &trial);
+                    if loss(&trial_prob) < old {
                         beta = trial;
                         accepted = true;
                         break;
                     }
+                    // At the optimum, a summed loss cannot reliably resolve the
+                    // final Newton decrease (O(score²)). Certify that trial using
+                    // the SAME unpenalized score tolerance as the iteration entry;
+                    // never accept mere loss equality or a small parameter step.
+                    if score(&trial_prob).iter().all(|v| v.abs() < 1e-8) {
+                        return Ok(probabilities(valid, nv, &trial));
+                    }
                     scale *= 0.5;
                 }
                 if !accepted {
-                    return Err(EstimationError::data_msg(
-                        "multinomial propensity failed to converge",
-                    ));
+                    return Err(EstimationError::data_msg(format!(
+                        "multinomial propensity failed to converge: iteration={iteration}, loss={old:.17e}, max_score={:.17e}, newton_decrement={:.17e}",
+                        gradient.iter().map(|v| v.abs()).fold(0.0_f64, f64::max),
+                        gradient.iter().zip(&step).map(|(g, s)| g * s).sum::<f64>(),
+                    )));
                 }
             }
             Err(EstimationError::data_msg("multinomial propensity exceeded iteration limit"))
@@ -818,6 +838,50 @@ mod tests {
     };
     use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
     use antecedent_kernels::standard_normal;
+
+    #[test]
+    fn multinomial_propensity_matches_exact_two_stratum_frequencies() {
+        // With [1,Z] and Z in {-1,+1}, each reference-cell log odds is
+        // independently parameterized in both strata. Its MLE is the observed
+        // cell frequency: no production Newton or softmax function is reused.
+        for counts in
+            [[[77usize, 93, 81, 96], [95, 91, 96, 99]], [[1, 20, 200, 100], [3, 7, 11, 19]]]
+        {
+            let n: usize = counts.iter().flatten().sum();
+            let mut train = vec![1.0; n];
+            let mut cells = Vec::with_capacity(n);
+            for (stratum, row) in counts.iter().enumerate() {
+                for (cell, &count) in row.iter().enumerate() {
+                    for _ in 0..count {
+                        train.push(if stratum == 0 { -1.0 } else { 1.0 });
+                        cells.push(cell);
+                    }
+                }
+            }
+            let probabilities = super::multinomial_propensity(
+                &train,
+                n,
+                &cells,
+                &[1.0, 1.0, -1.0, 1.0],
+                2,
+                2,
+                4,
+                FaerBackend,
+            )
+            .unwrap();
+            for stratum in 0..2 {
+                let total = counts[stratum].iter().sum::<usize>() as f64;
+                for cell in 0..4 {
+                    let expected = counts[stratum][cell] as f64 / total;
+                    assert!((probabilities[cell * 2 + stratum] - expected).abs() < 1e-7);
+                }
+                assert!(
+                    ((0..4).map(|cell| probabilities[cell * 2 + stratum]).sum::<f64>() - 1.0).abs()
+                        < 1e-14
+                );
+            }
+        }
+    }
 
     fn interaction_dgp(n: usize) -> TabularData {
         let mut rng = ExecutionContext::for_tests(9).rng.stream_for(StreamDomain::Estimate, 0xC11);

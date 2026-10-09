@@ -24,6 +24,16 @@ use antecedent_estimate::{CellSaturatedAipw, DmlAte, DrLearner};
 use antecedent_io::frozen_scores_artifact::FrozenScoreTable;
 use antecedent_learn::{LearnerSpec, LinearSpec};
 use serde_json::json;
+#[derive(Debug, serde::Serialize)]
+struct FitFailure {
+    stage: &'static str,
+    error: String,
+    seed: u64,
+    mode: u8,
+}
+fn failure(seed: u64, mode: u8, stage: &'static str, error: impl std::fmt::Display) -> FitFailure {
+    FitFailure { stage, error: error.to_string(), seed, mode }
+}
 struct Sample {
     laws: [LawValue; 2],
     fits: u64,
@@ -56,11 +66,21 @@ fn portable(
     weights: TargetWeights,
     quantity: ScoreQuantity,
     law: LawValue,
-) -> Option<()> {
-    let bytes = artifact.to_bytes("retained-score-se-diagnostic").ok()?;
-    let verified = FrozenScoreTable::from_bytes(&bytes, Some(artifact.identity())).ok()?;
-    let rows = verified.score_table().ok()?.row_index.to_vec();
-    let mut session = ScoreResumeSession::resume_from_scores(&verified).ok()?;
+    seed: u64,
+    mode: u8,
+) -> Result<(), FitFailure> {
+    let bytes = artifact
+        .to_bytes("retained-score-se-diagnostic")
+        .map_err(|e| failure(seed, mode, "portable.encode", e))?;
+    let verified = FrozenScoreTable::from_bytes(&bytes, Some(artifact.identity()))
+        .map_err(|e| failure(seed, mode, "portable.decode", e))?;
+    let rows = verified
+        .score_table()
+        .map_err(|e| failure(seed, mode, "portable.score_table", e))?
+        .row_index
+        .to_vec();
+    let mut session = ScoreResumeSession::resume_from_scores(&verified)
+        .map_err(|e| failure(seed, mode, "portable.resume", e))?;
     let request = ScoreResumeRequest {
         n_variables: if quantity == ScoreQuantity::Interaction { 4 } else { 3 },
         edges,
@@ -70,35 +90,55 @@ fn portable(
         quantity,
         changed_inputs: vec![],
     };
-    let out = execute_resumed_retarget(&mut session, &request).ok()?;
+    let out = execute_resumed_retarget(&mut session, &request)
+        .map_err(|e| failure(seed, mode, "portable.retarget", e))?;
     if out.receipt.totals().fold_fits + out.receipt.totals().model_fits != 0
         || (out.law.ate - law.ate).abs() > 1e-10
         || (out.law.std_error - law.std_error).abs() > 1e-10
     {
-        return None;
+        return Err(failure(
+            seed,
+            mode,
+            "portable.invariant",
+            format!(
+                "fits={} expected point={} se={}, observed point={} se={}",
+                out.receipt.totals().fold_fits + out.receipt.totals().model_fits,
+                law.ate,
+                law.std_error,
+                out.law.ate,
+                out.law.std_error
+            ),
+        ));
     }
-    Some(())
+    Ok(())
 }
 fn utility() -> UtilitySpec {
     UtilitySpec { benefit_per_unit: 1., cost: 0. }
 }
-fn fit(n: usize, seed: u64, mode: u8) -> Option<Sample> {
+fn fit(n: usize, seed: u64, mode: u8) -> Result<Sample, FitFailure> {
     let ((result, cell_fits), learner_fits) =
         antecedent_learn::fit_counts::observe_resolved_fits(|| {
             antecedent_estimate::cell_aipw::count_cell_model_fits(|| fit_inner(n, seed, mode))
         });
     let sample = result?;
     if sample.fits != cell_fits + learner_fits {
-        return None;
+        return Err(failure(
+            seed,
+            mode,
+            "fit_count",
+            format!("receipt={} observed={}", sample.fits, cell_fits + learner_fits),
+        ));
     }
-    Some(sample)
+    Ok(sample)
 }
-fn fit_inner(n: usize, seed: u64, mode: u8) -> Option<Sample> {
+fn fit_inner(n: usize, seed: u64, mode: u8) -> Result<Sample, FitFailure> {
     let columns = data(n, seed, mode == 2);
     let z = if mode == 2 { 3 } else { 2 };
     let weights = TargetWeights {
         weights: columns[z].1.iter().map(|v| if *v > 0. { 3. } else { 1. }).collect(),
-        depends_on: vec![VariableId::from_raw(u32::try_from(z).ok()?)],
+        depends_on: vec![VariableId::from_raw(
+            u32::try_from(z).map_err(|e| failure(seed, mode, "data.adjustment", e))?,
+        )],
     };
     let ctx = ExecutionContext::for_tests(seed);
     let edges = if mode == 2 {
@@ -123,15 +163,23 @@ fn fit_inner(n: usize, seed: u64, mode: u8) -> Option<Sample> {
             },
         };
         let mut session = CellSession::new();
-        let first = execute_cell_with_receipt(&mut session, &req, &ctx).ok()?;
-        let artifact = session.export_scores().ok()?;
+        let first = execute_cell_with_receipt(&mut session, &req, &ctx)
+            .map_err(|e| failure(seed, mode, "cell.execute", e))?;
+        let artifact =
+            session.export_scores().map_err(|e| failure(seed, mode, "cell.export_scores", e))?;
         req.spec.target = Some(weights.clone());
-        let weighted = execute_cell_with_receipt(&mut session, &req, &ctx).ok()?;
+        let weighted = execute_cell_with_receipt(&mut session, &req, &ctx)
+            .map_err(|e| failure(seed, mode, "cell.weighted_retarget", e))?;
         if weighted.receipt.totals().fold_fits != 0 {
-            return None;
+            return Err(failure(
+                seed,
+                mode,
+                "cell.weighted_fit_count",
+                "retarget unexpectedly fitted nuisance models",
+            ));
         }
-        portable(&artifact, edges, weights, ScoreQuantity::Interaction, weighted.law)?;
-        Some(Sample { laws: [first.law, weighted.law], fits: first.receipt.totals().fold_fits })
+        portable(&artifact, edges, weights, ScoreQuantity::Interaction, weighted.law, seed, mode)?;
+        Ok(Sample { laws: [first.law, weighted.law], fits: first.receipt.totals().fold_fits })
     } else {
         let linear = LearnerSpec::Linear(LinearSpec::default());
         let estimator = if mode == 0 {
@@ -151,15 +199,31 @@ fn fit_inner(n: usize, seed: u64, mode: u8) -> Option<Sample> {
             utility: utility(),
         };
         let mut session = DrSession::new();
-        let first = execute_dr_with_receipt(&mut session, &req, &ctx).ok()?;
-        let artifact = session.export_scores().ok()?;
+        let first = execute_dr_with_receipt(&mut session, &req, &ctx)
+            .map_err(|e| failure(seed, mode, "dr.execute", e))?;
+        let artifact =
+            session.export_scores().map_err(|e| failure(seed, mode, "dr.export_scores", e))?;
         req.target = Some(weights.clone());
-        let weighted = execute_dr_with_receipt(&mut session, &req, &ctx).ok()?;
+        let weighted = execute_dr_with_receipt(&mut session, &req, &ctx)
+            .map_err(|e| failure(seed, mode, "dr.weighted_retarget", e))?;
         if weighted.receipt.totals().fold_fits + weighted.receipt.totals().model_fits != 0 {
-            return None;
+            return Err(failure(
+                seed,
+                mode,
+                "dr.weighted_fit_count",
+                "retarget unexpectedly fitted nuisance models",
+            ));
         }
-        portable(&artifact, edges, weights, ScoreQuantity::AverageEffect, weighted.law)?;
-        Some(Sample {
+        portable(
+            &artifact,
+            edges,
+            weights,
+            ScoreQuantity::AverageEffect,
+            weighted.law,
+            seed,
+            mode,
+        )?;
+        Ok(Sample {
             laws: [first.law, weighted.law],
             fits: first.receipt.totals().fold_fits + first.receipt.totals().model_fits,
         })
@@ -171,15 +235,16 @@ fn measure(test: &str, mode: u8) {
     let results: Vec<_> = (0..calibration::n_sim().max(2000))
         .map(|i| fit(n, seed.wrapping_add(u64::from(i)), mode))
         .collect();
-    let failed = results.iter().filter(|f| f.is_none()).count();
+    let failures: Vec<_> = results.iter().filter_map(|result| result.as_ref().err()).collect();
+    let failed = failures.len();
     if failed > 0 {
         println!(
             "INFERENCE_DIAGNOSTIC_RECORD {}",
-            json!({"test":test,"rows":n,"attempts":results.len(),"failed":failed,"pass":false})
+            json!({"test":test,"rows":n,"seed":seed,"attempts":results.len(),"failed":failed,"failures":failures,"pass":false})
         );
         panic!("all full-fit and portable consumer attempts must succeed");
     }
-    let fits: Vec<_> = results.iter().flatten().collect();
+    let fits: Vec<_> = results.iter().filter_map(|result| result.as_ref().ok()).collect();
     let r = results.len() as f64;
     for (j, truth, v) in [(0, 2., 0.25), (1, 2.25, 0.140_625)] {
         let mean = fits.iter().map(|f| f.laws[j].ate).sum::<f64>() / r;
@@ -213,32 +278,64 @@ fn retained_cell_weighted_score_precision() {
     measure("retained_cell_weighted_score_precision", 2);
 }
 
+fn assert_exact_score_moments(sample: &Sample, n: usize, seed: u64, cell: bool) {
+    assert!(sample.fits > 0);
+    let columns = data(n, seed, cell);
+    let z = &columns.last().unwrap().1;
+    for weighted in [false, true] {
+        let weights: Vec<_> = z.iter().map(|v| if weighted && *v > 0. { 3. } else { 1. }).collect();
+        let total: f64 = weights.iter().sum();
+        let scores: Vec<_> = z.iter().map(|v| 2. + 0.5 * v).collect();
+        let mean = scores.iter().zip(&weights).map(|(s, w)| s * w).sum::<f64>() / total;
+        let variance = n as f64 / (n - 1) as f64
+            * scores
+                .iter()
+                .zip(&weights)
+                .map(|(s, w)| (w / total * (s - mean)).powi(2))
+                .sum::<f64>();
+        let actual = sample.laws[usize::from(weighted)];
+        assert!((actual.ate - mean).abs() < 1e-9);
+        assert!((actual.std_error - variance.sqrt()).abs() < 1e-9);
+    }
+}
+
 /// Numerical plumbing only: one actual snapshot per family, no calibration repetitions.
 #[test]
 fn retained_score_one_snapshot_exact_truth_and_portable_plumbing() {
-    let n = 1200;
-    let seed = 97;
     for mode in 0..3 {
         let sample =
-            fit(n, seed, mode).expect("one-snapshot original fit/retarget/consumer must execute");
-        assert!(sample.fits > 0);
-        let columns = data(n, seed, mode == 2);
-        let z = &columns.last().unwrap().1;
-        for weighted in [false, true] {
-            let weights: Vec<_> =
-                z.iter().map(|v| if weighted && *v > 0. { 3. } else { 1. }).collect();
-            let total: f64 = weights.iter().sum();
-            let scores: Vec<_> = z.iter().map(|v| 2. + 0.5 * v).collect();
-            let mean = scores.iter().zip(&weights).map(|(s, w)| s * w).sum::<f64>() / total;
-            let variance = n as f64 / (n - 1) as f64
-                * scores
-                    .iter()
-                    .zip(&weights)
-                    .map(|(s, w)| (w / total * (s - mean)).powi(2))
-                    .sum::<f64>();
-            let law = sample.laws[usize::from(weighted)];
-            assert!((law.ate - mean).abs() < 1e-9);
-            assert!((law.std_error - variance.sqrt()).abs() < 1e-9);
-        }
+            fit(1200, 97, mode).expect("one-snapshot original fit/retarget/consumer must execute");
+        assert_exact_score_moments(&sample, 1200, 97, mode == 2);
     }
+}
+
+/// Exact score/portable regression for snapshots that previously stalled in the
+/// multinomial final Newton step. These are four fixed datasets, not calibration.
+#[test]
+fn retained_cell_stalled_snapshots_have_exact_scores_and_portable_plumbing() {
+    for seed in [
+        15_111_065_703_642_557_704,
+        15_111_065_703_642_557_713,
+        15_111_065_703_642_557_718,
+        15_111_065_703_642_557_729,
+    ] {
+        let sample =
+            fit(2000, seed, 2).expect("original cell solver and frozen consumer must execute");
+        assert_exact_score_moments(&sample, 2000, seed, true);
+    }
+}
+
+#[test]
+fn retained_score_failed_fit_preserves_stage_error_and_seed() {
+    let Err(error) = fit(4, 97, 2) else {
+        panic!("four rows cannot support original four-fold cell fitting");
+    };
+    assert_eq!(error.stage, "cell.execute");
+    assert_eq!(error.seed, 97);
+    assert_eq!(error.mode, 2);
+    assert!(!error.error.is_empty());
+    let record = serde_json::to_value(&error).unwrap();
+    assert_eq!(record["stage"], "cell.execute");
+    assert_eq!(record["seed"], 97);
+    assert_eq!(record["error"], error.error);
 }
