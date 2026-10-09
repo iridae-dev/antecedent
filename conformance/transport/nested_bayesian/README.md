@@ -66,6 +66,19 @@ mixed stationary chains. It is an estimated precision check, not a rigorous endp
 confidence guarantee. A failed precision check is a whole-replicate failure, never
 permission to discard draws or change the frozen estimator.
 
+Extension rechecks restore a bounded auxiliary JSON sidecar adjacent to the exact
+original tally path, keyed by test and sample size. Its fixture digest binds the original
+law, raw prior family, sample grid/seed, sampler/RNG, precision gates and measured commit. The recorded
+replicate prefix must equal the requested extension start; missing, mismatched, oversized
+or inconsistent state is refused. Successful counts, sums, cross-products, posterior
+covariance sums, failure categories and diagnostic extrema resume in replicate order.
+Thus covariance, bias and diagnostics aggregate the original 400 plus the next 1600,
+matching a whole 2000-replicate run. Worker results retain only independently replayed
+summary statistics; full posterior draw arrays are released inside each worker, so their
+peak memory follows the worker count rather than all measurement replicates. Atomic synchronized writes occur before coverage
+assertions so a deferred recheck can recover the same prefix. A nonignored synthetic
+partition/roundtrip test checks exact aggregation and incompatibility without simulation.
+
 The harness uses shared `n_sim()` (default 400), the existing 1000-replicate precision
 layer and 2000-replicate recheck rule without altering their acceptance bands or the 1%
 failure cap. All zero-cell/scope/MLE/chain/numerical/budget/replay/MC-precision failures
