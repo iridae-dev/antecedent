@@ -3360,7 +3360,7 @@ activation_disposition = "retain_current_point_or_model_conditional_standing_no_
 allocation_status = "implemented_numerical_precision_harness_unmeasured"
 role_allocation_note = "Registered consume/load/verify routes distinguished from producers; fixtures identify independent consumer execution. Nonregistered internal candidate producer stays in method_source rather than claiming a public route."
 measurement_design_status = "frozen_whole_method_bootstrap_diagnostic_design_and_rules"
-truth_grid_allocation = "IID two-class Gaussian mixture at200/400/800 rows; latent class probabilities [.6,.4], independently randomized binary treatment, class means A and20-2A, noiseSD.5. Original ten-restart EM plus aligned whole-row bootstrap; no generating class labels supplied. Canonical truths effects[-2,1], weights[.4,.6], mixture effect-.2; full independent repetitions assess actual bootstrap-SE precision for all five coordinates."
+truth_grid_allocation = "IID two-class Gaussian mixture at200/400/800 rows; latent class probabilities [.6,.4], independently randomized binary treatment A and independent X uniform{-1,0,1}, class means A+.3X and20-2A+.3X, noiseSD.5. Six distinct (A,X) points exceed the original d+K-1=4 design-support requirement. Original ten-restart EM plus aligned whole-row bootstrap; no generating class labels supplied. Canonical truths effects[-2,1], weights[.4,.6], mixture effect-.2; full independent repetitions assess actual bootstrap-SE precision for all five coordinates."
 allocated_coverage_records = []
 inherited_coverage_records = []
 
