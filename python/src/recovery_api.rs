@@ -824,6 +824,7 @@ fn sampled_candidate_json(
 
 /// Candidate consumer reruns the original whole-row method under retained identities.
 #[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
 #[pyfunction]
 #[pyo3(signature=(artifact, premises_digest, data_digest, *, max_rows=100_000, max_replicates=2000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]
