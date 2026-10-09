@@ -111,6 +111,7 @@ def produce(*, seed=7, sample=None, declaration=None, snapshot="snap-1"):
         rows=rows() if sample is None else sample,
         snapshot=snapshot,
         replicates=500,
+        interval_method="bootstrap_percentile",
         seed=seed,
     )
 
@@ -203,6 +204,7 @@ def test_fake_stage_callback_cannot_issue_candidate_authority():
             rows=rows(),
             snapshot="snap-1",
             replicates=500,
+            interval_method="bootstrap_percentile",
             seed=7,
         )
     assert calls == []
@@ -318,3 +320,78 @@ def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
         ) == expected
         assert result.inspect()["result"]["effect"] == expected[0]
     assert result.export() == artifact
+
+
+def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_path):
+    from statistics import NormalDist
+
+    sample = rows()
+    stage = transport.identify_observation_recovery(
+        graph=graph(),
+        query=query(),
+        catalog=catalog(),
+        effect_outcomes=["y"],
+        effect_treatments=["t"],
+    )
+    candidate = transport.sampled_observation_recovery(
+        stage=stage,
+        query=query(),
+        rows=sample,
+        snapshot="snap-1",
+        seed=7,
+    )
+    assert candidate.interval_method == "bootstrap_bca"
+    assert candidate.calibration == "unmeasured"
+    receipt = candidate.inspect()["receipt"]
+    assert receipt["config"]["replicates"] == 2000
+    assert receipt["config"]["max_failed_fraction"] == 0
+    assert len(receipt["replicates"]) == 2000
+    assert all(r["failure"] is None and r["effect"] is not None for r in receipt["replicates"])
+    bca = receipt["bca"]
+    assert bca["convention"] == "midrank_exact_ties:type7:delete_one_row"
+    jack = np.array([oracle(sample[:i] + sample[i + 1 :])[1] for i in range(len(sample))])
+    for row in bca["jackknife"]:
+        indexes = [i for i, value in enumerate(sample) if tuple(value[1:]) == tuple(row["pattern"])]
+        assert row["multiplicity"] == len(indexes)
+        assert jack[indexes] == pytest.approx(row["effect"], abs=1e-12)
+    differences = jack.mean() - jack
+    acceleration = np.sum(differences**3) / (6 * np.sum(differences**2) ** 1.5)
+    assert bca["acceleration"] == pytest.approx(acceleration, abs=1e-10)
+    effects = np.array([oracle(resample(sample, r, 7))[1] for r in range(2000)])
+    point = oracle(sample)[1]
+    normal = NormalDist()
+    z0 = normal.inv_cdf(
+        (np.count_nonzero(effects < point) + 0.5 * np.count_nonzero(effects == point)) / 2000
+    )
+    assert bca["bias_correction"] == pytest.approx(z0, abs=1e-7)
+    adjusted = []
+    for tail in (0.025, 0.975):
+        z = z0 + normal.inv_cdf(tail)
+        adjusted.append(normal.cdf(z0 + z / (1 - acceleration * z)))
+    assert bca["adjusted_probabilities"] == pytest.approx(adjusted, abs=1e-7)
+    assert candidate.interval == pytest.approx(np.quantile(effects, adjusted), abs=1e-7)
+    artifact = tmp_path / "bca.cbor"
+    artifact.write_bytes(candidate.export())
+    identity = candidate.expected_identity
+    replayed = subprocess.check_output(
+        [
+            sys.executable,
+            "-c",
+            """
+import pathlib, sys
+from antecedent.transport.advanced import SampledRecoveryCandidate, SampledRecoveryIdentity
+r=SampledRecoveryCandidate.load(pathlib.Path(sys.argv[1]).read_bytes(),expected=SampledRecoveryIdentity(sys.argv[2],sys.argv[3]))
+assert r.interval_method=='bootstrap_bca'
+print(r.interval)
+""",
+            str(artifact),
+            identity.premises_digest,
+            identity.data_digest,
+        ],
+        text=True,
+    )
+    assert replayed.strip() == str(candidate.interval)
+    with pytest.raises(CausalValueError, match="exactly 2000"):
+        transport.sampled_observation_recovery(
+            stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=500
+        )

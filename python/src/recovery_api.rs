@@ -269,7 +269,7 @@ struct ObservationRecoveryStage {
 impl ObservationRecoveryStage {
     /// Internal release-acceptance producer; default wheels omit this method.
     #[cfg(feature = "calibration-internal")]
-    #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed))]
+    #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_percentile"))]
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     fn sampled_candidate(
         &self,
@@ -282,6 +282,7 @@ impl ObservationRecoveryStage {
         snapshot: String,
         replicates: usize,
         seed: u64,
+        interval_method: &str,
     ) -> PyResult<(String, Vec<u8>)> {
         use antecedent_estimate::{
             ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
@@ -289,6 +290,16 @@ impl ObservationRecoveryStage {
         };
         use antecedent_io::sampled_recovery_artifact::{
             SampledRecoveryArtifactInput, SampledRecoveryArtifactWire,
+        };
+        let config = match interval_method {
+            "bootstrap_percentile" => SampledRecoveryConfig::new(replicates, seed),
+            "bootstrap_bca" if replicates == 2000 => SampledRecoveryConfig::bca(seed),
+            _ => {
+                return Err(sampled_candidate_error(
+                    "invalid_argument",
+                    "sampled_recovery.invalid_input: BCa requires 2000 replicates and a known interval method",
+                ));
+            }
         };
         let declared = ObservationRecoveryQuery {
             population: population.into(),
@@ -383,13 +394,8 @@ impl ObservationRecoveryStage {
         let names = self.graph.names.clone();
         let ctx = execution_context(seed, self.memory_bytes, None);
         crate::detach_catch(py, move || {
-            let result = estimate_sampled_recovery(
-                &derivation,
-                &input,
-                &SampledRecoveryConfig::new(replicates, seed),
-                &ctx,
-            )
-            .map_err(|e| sampled_candidate_error(e.reason_code(), &e.to_string()))?;
+            let result = estimate_sampled_recovery(&derivation, &input, &config, &ctx)
+                .map_err(|e| sampled_candidate_error(e.reason_code(), &e.to_string()))?;
             let wire = SampledRecoveryArtifactWire::checked(&SampledRecoveryArtifactInput {
                 graph: &graph,
                 effect: &effect,

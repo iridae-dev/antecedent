@@ -626,6 +626,7 @@ def test_a_exit_demo_temporal_counterfactual_and_closed_cells_stay_visibly_close
             rows=complete,
             snapshot="snap-observed",
             replicates=100,
+            interval_method="bootstrap_percentile",
             seed=3,
         ),
         "2.3A.X10.sampled_observation_recovery",

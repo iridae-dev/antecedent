@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from .. import _native
 from .._native import binary_nested_markov_closed as _binary_nested_markov_closed
@@ -415,8 +415,9 @@ def sampled_observation_recovery(
     query: ObservationRecoveryQuery,
     rows: Sequence[Sequence[int]],
     snapshot: str,
-    replicates: int = 200,
+    replicates: int = 2000,
     seed: int = 0,
+    interval_method: Literal["bootstrap_bca", "bootstrap_percentile"] = "bootstrap_bca",
 ) -> SampledRecoveryCandidate:
     """Whole-method sampling interval of an exactly recovered effect: closed.
 
@@ -430,8 +431,12 @@ def sampled_observation_recovery(
     or a malformed row raises ``route_not_supported`` /
     ``sampled_recovery.unrecoverable_pattern`` or ``sampled_recovery.bounds_exceeded``, or an
     invalid-input refusal. Every other request raises ``cell_not_licensed`` /
-    ``sampled_recovery.route_frozen``: the percentile interval's calibration is unmeasured.
+    ``sampled_recovery.route_frozen``: both interval methods' calibration is unmeasured. The default BCa candidate
+    uses 2,000 whole-row draws, exact-midrank tie correction and a complete delete-one-row
+    jackknife. The legacy percentile method remains a distinct unmeasured protocol.
     """
+    if interval_method not in ("bootstrap_bca", "bootstrap_percentile"):
+        raise CausalValueError("interval_method must be bootstrap_bca or bootstrap_percentile")
     outcome = getattr(stage, "outcome", None)
     if outcome not in ("recovered", "nonrecoverable"):
         raise CausalTypeError("stage must be the stage of identify_observation_recovery")
@@ -451,6 +456,8 @@ def sampled_observation_recovery(
             reason_code="invalid_argument",
         )
     _non_negative("replicates", replicates)
+    if interval_method == "bootstrap_bca" and replicates != 2000:
+        raise CausalValueError("BCa requires exactly 2000 whole-row bootstrap replicates")
     _non_negative("seed", seed)
     if seed > 2**64 - 1 or replicates > 2**64 - 1:
         raise CausalValueError("seed and replicates must fit unsigned 64-bit integers")
@@ -484,6 +491,7 @@ def sampled_observation_recovery(
             snapshot,
             replicates,
             seed,
+            interval_method,
         )
         return SampledRecoveryCandidate._from_native(payload, bytes(artifact))
     raise _frozen(

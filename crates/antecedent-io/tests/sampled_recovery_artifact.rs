@@ -347,8 +347,8 @@ fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
 fn x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
     let f = fixture(seeded_rows(4000, 17), &loose(40, 99));
     let wire = wire_of(&f);
-    // Version 1 is the exact-law point artifact; version 3 is unknown.
-    for version in [1, 3] {
+    // Version 1 is the exact-law point artifact; version 4 is unknown.
+    for version in [1, 4] {
         let mut other = wire.clone();
         other.version = version;
         assert!(matches!(
@@ -384,4 +384,66 @@ fn x10_sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() 
             .to_string();
         assert!(message.contains("consumer limit exceeded"), "{message}");
     }
+}
+
+#[test]
+fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
+    let f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::bca(7142));
+    let wire = wire_of(&f);
+    assert_eq!(wire.version, 3);
+    let bca = wire.receipt.bca.as_ref().unwrap();
+    assert_eq!(bca.convention, "midrank_exact_ties:type7:delete_one_row");
+    let bytes = wire.export().unwrap();
+    let consumed = consume(&bytes).unwrap();
+    assert_eq!(consumed.wire.export().unwrap(), wire.export().unwrap());
+    for corrupt in [
+        resealed(&wire, |w| w.receipt.bca.as_mut().unwrap().acceleration += 0.01),
+        resealed(&wire, |w| w.receipt.bca.as_mut().unwrap().jackknife[0].effect += 0.01),
+        resealed(&wire, |w| w.receipt.bca.as_mut().unwrap().jackknife[0].multiplicity += 1),
+        resealed(&wire, |w| w.receipt.replicates[0].failure = Some("forged_failure".into())),
+    ] {
+        assert!(consume(&corrupt).is_err());
+    }
+    let legacy_disguise = resealed(&wire, |w| w.version = 2);
+    assert!(SampledRecoveryArtifactWire::decode(&legacy_disguise).is_err());
+    let wrong_convention =
+        resealed(&wire, |w| w.receipt.bca.as_mut().unwrap().convention = "strict_less".into());
+    assert!(SampledRecoveryArtifactWire::decode(&wrong_convention).is_err());
+    assert!(
+        SampledRecoveryArtifactWire::consume_with_limits(
+            &bytes,
+            SampledRecoveryConsumeLimits { max_replicates: 500, ..Default::default() },
+            &ctx()
+        )
+        .is_err()
+    );
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert!(
+        SampledRecoveryArtifactWire::consume_with_limits(&bytes, Default::default(), &cancelled)
+            .is_err()
+    );
+}
+
+#[test]
+fn legacy_percentile_v2_remains_method_distinct_and_replayable() {
+    let f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::new(20, 7142));
+    let wire = wire_of(&f);
+    assert_eq!(wire.version, 2);
+    assert!(wire.receipt.config.interval_method.is_none());
+    assert!(wire.receipt.bca.is_none());
+    assert_eq!(
+        consume(&wire.export().unwrap()).unwrap().wire.export().unwrap(),
+        wire.export().unwrap()
+    );
+    // Legacy digests omitted failure strings; complete replay still checks them.
+    let forged =
+        resealed(&wire, |w| w.receipt.replicates[0].failure = Some("invented_failure".into()));
+    assert!(consume(&forged).is_err());
+    let bca_disguise = resealed(&wire, |w| {
+        w.version = 3;
+        w.required_features = vec!["sampled_observation_recovery_bca_v3".into()];
+        w.receipt.config.interval_method = Some("bootstrap_bca".into());
+    });
+    assert!(SampledRecoveryArtifactWire::decode(&bca_disguise).is_err());
 }

@@ -224,6 +224,7 @@ def sampled_kwargs(**overrides):
         "rows": complete_rows(),
         "snapshot": "snap-observed",
         "replicates": 100,
+        "interval_method": "bootstrap_percentile",
         "seed": 3,
     }
     kwargs.update(overrides)
@@ -301,3 +302,15 @@ def test_x10_closed_pilot_routes_are_exported_from_the_advanced_namespace():
     ):
         assert name in transport.__all__
         assert callable(getattr(transport, name))
+
+
+def test_sampled_bca_default_protocol_stays_closed_and_validates_distinct_method():
+    values = sampled_kwargs()
+    values.pop("replicates")
+    values.pop("interval_method")
+    error = refusal_of(lambda: transport.sampled_observation_recovery(**values))
+    assert_refused(error, "cell_not_licensed", "sampled_recovery.route_frozen")
+    with pytest.raises(CausalValueError, match="exactly 2000"):
+        transport.sampled_observation_recovery(**values, replicates=500)
+    with pytest.raises(CausalValueError, match="interval_method"):
+        transport.sampled_observation_recovery(**values, interval_method="percentile_alias")

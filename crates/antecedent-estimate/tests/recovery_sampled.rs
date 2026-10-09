@@ -506,3 +506,154 @@ fn x10_sampled_recovery_replay_component_variance_only_and_route_frozen_refuse()
     assert_eq!(frozen.detail.detail(), "sampled_recovery.route_frozen");
     assert_eq!(frozen.reason_code(), "cell_not_licensed");
 }
+
+// Independent inverse-response/standardization formula for this fixture only.
+// It never calls recovery/effect evaluation, so it detects a wrong delete-one
+// normalization or conditioning set in the production compressed jackknife.
+fn independent_effect(rows: &[ObservationRow]) -> f64 {
+    let n = rows.len() as f64;
+    let mut o_count = [0.0; 2];
+    let mut rt_count = [0.0; 2];
+    let mut t_observed = [0.0; 2];
+    let mut ry_observed = [0.0; 2];
+    let mut complete = [[[0.0; 2]; 2]; 2];
+    for row in rows {
+        let p = row.pattern;
+        let o = usize::from(p.fully);
+        let t = usize::from(p.proxies & 1);
+        let y = usize::from((p.proxies >> 1) & 1);
+        o_count[o] += 1.0;
+        if p.responses & 1 != 0 {
+            rt_count[o] += 1.0;
+            t_observed[t] += 1.0;
+            if p.responses & 2 != 0 {
+                ry_observed[t] += 1.0;
+                complete[t][y][o] += 1.0;
+            }
+        }
+    }
+    let mut q = [[[0.0; 2]; 2]; 2];
+    for t in 0..2 {
+        for y in 0..2 {
+            for o in 0..2 {
+                q[t][y][o] = complete[t][y][o]
+                    / n
+                    / (rt_count[o] / o_count[o])
+                    / (ry_observed[t] / t_observed[t]);
+            }
+        }
+    }
+    let total: f64 = q.iter().flatten().flatten().sum();
+    (0..2)
+        .map(|o| {
+            let weight = (q[0][0][o] + q[0][1][o] + q[1][0][o] + q[1][1][o]) / total;
+            weight
+                * (q[1][1][o] / (q[1][0][o] + q[1][1][o]) - q[0][1][o] / (q[0][0][o] + q[0][1][o]))
+        })
+        .sum()
+}
+
+// Independent normal integration/inversion: Simpson quadrature and bisection,
+// not the Acklam/error-function kernels used by the estimator.
+fn reference_normal_cdf(x: f64) -> f64 {
+    let steps = 4000;
+    let h = x.abs() / f64::from(steps);
+    let density = |z: f64| (-z * z / 2.0).exp() / (2.0 * std::f64::consts::PI).sqrt();
+    let mut integral = density(0.0) + density(x.abs());
+    for i in 1..steps {
+        integral += if i % 2 == 0 { 2.0 } else { 4.0 } * density(f64::from(i) * h);
+    }
+    0.5 + x.signum() * integral * h / 3.0
+}
+fn reference_normal_inverse(p: f64) -> f64 {
+    let (mut lo, mut hi) = (-8.0, 8.0);
+    for _ in 0..60 {
+        let mid = (lo + hi) / 2.0;
+        if reference_normal_cdf(mid) < p {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    (lo + hi) / 2.0
+}
+
+#[test]
+#[allow(clippy::float_cmp, reason = "reference reproduces the declared exact-tie BCa convention")]
+fn sampled_bca_grouped_delete_one_matches_independent_every_row_reference() {
+    let model = model();
+    let derivation = derive(&model);
+    let data = input(seeded_rows(2000, 8123));
+    let result =
+        estimate_sampled_recovery(&derivation, &data, &SampledRecoveryConfig::bca(7142), &ctx())
+            .unwrap();
+    let bca = result.receipt.bca.as_ref().unwrap();
+    assert_eq!(result.failed_replicates, 0);
+    assert_eq!(result.receipt.replicates.len(), 2000);
+    assert_eq!(bca.jackknife.iter().map(|r| r.multiplicity).sum::<u64>(), 2000);
+    assert!((result.effect - independent_effect(&data.rows)).abs() < 1e-12);
+    let mut every_row = Vec::with_capacity(data.rows.len());
+    let mut reduced = data.rows.clone();
+    for i in 0..data.rows.len() {
+        let row = reduced.remove(i);
+        let effect = independent_effect(&reduced);
+        let grouped = bca.jackknife.iter().find(|r| r.pattern == row.pattern).unwrap();
+        assert!((effect - grouped.effect).abs() < 1e-12);
+        every_row.push(effect);
+        reduced.insert(i, row);
+    }
+    let mean = every_row.iter().sum::<f64>() / every_row.len() as f64;
+    let sum2 = every_row.iter().map(|x| (mean - x).powi(2)).sum::<f64>();
+    let sum3 = every_row.iter().map(|x| (mean - x).powi(3)).sum::<f64>();
+    assert!((bca.acceleration - sum3 / (6.0 * sum2.powf(1.5))).abs() < 1e-10);
+    let below = result.replicate_effects.iter().filter(|x| **x < result.effect).count();
+    let ties = result.replicate_effects.iter().filter(|x| **x == result.effect).count();
+    let z0 = reference_normal_inverse((below as f64 + 0.5 * ties as f64) / 2000.0);
+    assert!((bca.bias_correction - z0).abs() < 1e-7);
+    let mut sorted = result.replicate_effects.clone();
+    sorted.sort_by(f64::total_cmp);
+    for (i, tail) in [0.025, 0.975].into_iter().enumerate() {
+        let z = z0 + reference_normal_inverse(tail);
+        let adjusted = reference_normal_cdf(z0 + z / (1.0 - bca.acceleration * z));
+        assert!((bca.adjusted_probabilities[i] - adjusted).abs() < 1e-7);
+        let index = adjusted * 1999.0;
+        let lower = index.floor() as usize;
+        let endpoint = sorted[lower] + (index - lower as f64) * (sorted[lower + 1] - sorted[lower]);
+        let actual = if i == 0 { result.interval.lower } else { result.interval.upper };
+        assert!((actual - endpoint).abs() < 1e-7);
+    }
+    assert!(result.receipt.verify_digest());
+}
+
+#[test]
+fn sampled_bca_refuses_protocol_changes_and_delete_one_support_boundary() {
+    let model = model();
+    let derivation = derive(&model);
+    let mut config = SampledRecoveryConfig::bca(1);
+    config.replicates = 500;
+    assert_eq!(
+        estimate_sampled_recovery(&derivation, &input(seeded_rows(2000, 8123)), &config, &ctx())
+            .unwrap_err()
+            .detail,
+        SampledRecoveryDetail::InvalidInput
+    );
+    let mut rows = seeded_rows(2000, 8123);
+    let rare = ObservationPattern { responses: 3, proxies: 0, fully: 0 };
+    let mut seen = false;
+    rows.retain(|r| {
+        r.pattern != rare || {
+            let keep = !seen;
+            seen = true;
+            keep
+        }
+    });
+    let error = estimate_sampled_recovery(
+        &derivation,
+        &input(rows),
+        &SampledRecoveryConfig::bca(1),
+        &ctx(),
+    )
+    .unwrap_err();
+    assert_eq!(error.detail, SampledRecoveryDetail::UnrecoverablePattern);
+    assert_eq!(error.patterns, vec![rare]);
+}

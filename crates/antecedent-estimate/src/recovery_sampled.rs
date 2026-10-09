@@ -10,7 +10,7 @@
 //! whole ROWS with replacement, so every observed margin of a replicate is computed
 //! from the same drawn rows and the covariance of margins computed from overlapping
 //! rows is preserved. Each replicate reruns recovery and effect evaluation and the
-//! percentile interval is formed from the replicate effects, never from per-margin
+//! requested interval is formed from the replicate effects, never from per-margin
 //! variances.
 //!
 //! The empirical law is a finite-sample table, so the recovered masses need not
@@ -45,6 +45,8 @@ use antecedent_identify::{
     RecoveryDetail, RecoveryError, RecoveryLimits, decide_observation_recovery,
 };
 
+use antecedent_kernels::{norm_cdf, norm_inv};
+
 use crate::recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 
@@ -56,7 +58,7 @@ pub const SAMPLED_RECOVERY_MIN_REPLICATES: usize = 20;
 pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
 /// Most binary substantive variables (`X ∪ O`) one request may recover.
 pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
-/// Nominal level of the percentile interval.
+/// Nominal level of either whole-row interval.
 pub const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
 /// Calibration status of the interval: whole-method coverage is not measured.
 pub const SAMPLED_RECOVERY_CALIBRATION: &str = "unmeasured";
@@ -244,9 +246,55 @@ pub struct SampledObservationInput {
     pub rows: Vec<ObservationRow>,
 }
 
+/// Interval procedure. The old percentile protocol remains replayable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SampledIntervalMethod {
+    /// Uncorrected whole-row percentile bootstrap (legacy artifact v2).
+    Percentile,
+    /// Bias-corrected and accelerated whole-row bootstrap (artifact v3).
+    Bca,
+}
+
+impl SampledIntervalMethod {
+    /// Actual interval identity, never a coverage claim.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Percentile => "bootstrap_percentile",
+            Self::Bca => "bootstrap_bca",
+        }
+    }
+}
+
+/// A delete-one-row effect shared by every row of this observation pattern.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledJackknifeRecord {
+    /// Original observed pattern.
+    pub pattern: ObservationPattern,
+    /// Number of rows with that pattern; every delete-one-row value is represented.
+    pub multiplicity: u64,
+    /// Effect from all original rows except one row of this pattern.
+    pub effect: f64,
+}
+
+/// `BCa` arithmetic and the complete count-compressed delete-one jackknife.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SampledBcaReceipt {
+    /// Bias correction: inverse-normal rank with half weight for exact ties.
+    pub bias_correction: f64,
+    /// Jackknife acceleration, with multiplicity weights.
+    pub acceleration: f64,
+    /// Adjusted probabilities used for type-7 quantiles.
+    pub adjusted_probabilities: [f64; 2],
+    /// Every nonempty observed pattern, in canonical pattern order.
+    pub jackknife: Vec<SampledJackknifeRecord>,
+}
+
 /// Request configuration. Numerical tolerances are explicit.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SampledRecoveryConfig {
+    /// Explicit interval procedure; legacy construction remains percentile.
+    pub interval_method: SampledIntervalMethod,
     /// Bootstrap replicates, from `SAMPLED_RECOVERY_MIN_REPLICATES` to
     /// `SAMPLED_RECOVERY_MAX_REPLICATES`.
     pub replicates: usize,
@@ -273,6 +321,7 @@ impl SampledRecoveryConfig {
     #[must_use]
     pub const fn new(replicates: usize, seed: u64) -> Self {
         Self {
+            interval_method: SampledIntervalMethod::Percentile,
             replicates,
             seed,
             max_failed_fraction: 0.05,
@@ -280,6 +329,16 @@ impl SampledRecoveryConfig {
             small_cell_count: 5.0,
             treated_level: 1.0,
             control_level: 0.0,
+        }
+    }
+    /// Frozen `BCa` candidate protocol: 2,000 whole-row bootstrap draws; no failed
+    /// draw is discarded to form a conditional distribution.
+    #[must_use]
+    pub const fn bca(seed: u64) -> Self {
+        Self {
+            interval_method: SampledIntervalMethod::Bca,
+            max_failed_fraction: 0.0,
+            ..Self::new(2000, seed)
         }
     }
 }
@@ -307,14 +366,14 @@ pub struct SampledRecoveryDiagnostics {
     pub normalization_tolerance: f64,
 }
 
-/// The percentile interval of the whole-method bootstrap.
+/// The requested interval of the whole-method bootstrap.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SampledEffectInterval {
     /// Nominal level.
     pub level: f64,
-    /// Lower percentile endpoint.
+    /// Lower empirical quantile endpoint.
     pub lower: f64,
-    /// Upper percentile endpoint.
+    /// Upper empirical quantile endpoint.
     pub upper: f64,
     /// Always [`SAMPLED_RECOVERY_CALIBRATION`]: no coverage claim is made.
     pub calibration: &'static str,
@@ -351,10 +410,12 @@ pub struct SampledRecoveryReceipt {
     pub config: SampledRecoveryConfig,
     /// The recovered effect point.
     pub point_effect: f64,
-    /// The percentile interval.
+    /// The requested interval.
     pub interval: SampledEffectInterval,
     /// Every replicate, failed ones included, in id order.
     pub replicates: Vec<SampledReplicateRecord>,
+    /// Exact `BCa` settings and jackknife; absent for the legacy percentile method.
+    pub bca: Option<SampledBcaReceipt>,
     /// Digest of everything above.
     pub receipt_digest: String,
 }
@@ -365,7 +426,10 @@ impl SampledRecoveryReceipt {
     #[must_use]
     pub fn recompute_digest(&self) -> String {
         let mut digest = Digest::new();
-        digest.str("sampled_recovery.receipt.v1");
+        digest.str(match self.config.interval_method {
+            SampledIntervalMethod::Percentile => "sampled_recovery.receipt.v1",
+            SampledIntervalMethod::Bca => "sampled_recovery.receipt.bca.v1",
+        });
         digest.str(&self.snapshot_id);
         digest.usize(self.rows);
         digest.str(&self.derivation_identity);
@@ -393,9 +457,39 @@ impl SampledRecoveryReceipt {
                 }
                 None => digest.bytes(&[0]),
             }
+            if self.config.interval_method == SampledIntervalMethod::Bca {
+                match &record.failure {
+                    Some(reason) => {
+                        digest.bytes(&[1]);
+                        digest.str(reason);
+                    }
+                    None => digest.bytes(&[0]),
+                }
+            }
             digest.usize(record.zero_patterns.len());
             for pattern in &record.zero_patterns {
                 digest.pattern(*pattern);
+            }
+        }
+        if self.config.interval_method == SampledIntervalMethod::Bca {
+            digest.str(self.config.interval_method.name());
+            digest.str("midrank_exact_ties:type7:delete_one_row");
+            match &self.bca {
+                Some(bca) => {
+                    digest.bytes(&[1]);
+                    digest.f64(bca.bias_correction);
+                    digest.f64(bca.acceleration);
+                    for p in bca.adjusted_probabilities {
+                        digest.f64(p);
+                    }
+                    digest.usize(bca.jackknife.len());
+                    for row in &bca.jackknife {
+                        digest.pattern(row.pattern);
+                        digest.u64(row.multiplicity);
+                        digest.f64(row.effect);
+                    }
+                }
+                None => digest.bytes(&[0]),
             }
         }
         digest.finish()
@@ -417,7 +511,7 @@ pub struct SampledRecoveryResult {
     pub effect: f64,
     /// Small-cell and support diagnostics.
     pub diagnostics: SampledRecoveryDiagnostics,
-    /// The percentile interval of the whole-method bootstrap.
+    /// The requested interval of the whole-method bootstrap.
     pub interval: SampledEffectInterval,
     /// Effects of the replicates that succeeded, in replicate order.
     pub replicate_effects: Vec<f64>,
@@ -435,7 +529,7 @@ pub struct SampledRecoveryResult {
 }
 
 impl SampledRecoveryResult {
-    /// Bind the internal percentile candidate to its actual whole-method receipt.
+    /// Bind the internal whole-row candidate to its actual whole-method receipt.
     /// A checked recovery derivation and the complete executed row/replicate scope
     /// remain visible; this is not a public confidence-interval activation.
     #[cfg(feature = "calibration-internal")]
@@ -455,7 +549,7 @@ impl SampledRecoveryResult {
                 "tabular",
                 "Frequentist",
                 "sampled_observation_recovery",
-                "bootstrap_percentile",
+                self.receipt.config.interval_method.name(),
                 "",
                 "iid",
                 "",
@@ -696,6 +790,11 @@ impl Layout {
 
 fn validate_config(config: &SampledRecoveryConfig) -> Result<(), SampledRecoveryError> {
     let invalid = |message: &str| Err(refusal(SampledRecoveryDetail::InvalidInput, message));
+    if config.interval_method == SampledIntervalMethod::Bca
+        && (config.replicates != 2000 || config.max_failed_fraction != 0.0)
+    {
+        return invalid("BCa requires exactly 2000 replicates and zero allowed failed replicates");
+    }
     if config.replicates > SAMPLED_RECOVERY_MAX_REPLICATES {
         return Err(refusal(
             SampledRecoveryDetail::BoundsExceeded,
@@ -845,7 +944,7 @@ impl Run<'_> {
 
     /// Recover the whole law and the effect from one table of counts.
     fn recover(&self, counts: &[u64]) -> Result<(RecoveredLaw, f64), RecoveryError> {
-        let total = self.input.rows.len() as f64;
+        let total = counts.iter().sum::<u64>() as f64;
         let probabilities: Vec<f64> = counts.iter().map(|count| *count as f64 / total).collect();
         let query = self.derivation.query();
         let law = ExactDiscreteLaw::try_new(
@@ -973,6 +1072,39 @@ impl Run<'_> {
         }
     }
 
+    fn jackknife(
+        &self,
+        counts: &[u64],
+    ) -> Result<Vec<SampledJackknifeRecord>, SampledRecoveryError> {
+        let mut records = Vec::new();
+        let mut reduced = counts.to_vec();
+        for (cell, count) in counts.iter().copied().enumerate().filter(|(_, n)| *n > 0) {
+            if self.ctx.cancellation.is_cancelled() {
+                return Err(cancelled());
+            }
+            reduced[cell] -= 1;
+            let zero = self.layout.zero_complete_cells(&reduced);
+            if !zero.is_empty() {
+                return Err(unrecoverable(
+                    zero,
+                    "a delete-one-row table leaves a zero complete-case cell".into(),
+                ));
+            }
+            let (_, effect) = self.recover(&reduced).map_err(|e| from_recovery(&e))?;
+            if !effect.is_finite() {
+                return Err(unrecoverable(Vec::new(), "nonfinite delete-one-row effect".into()));
+            }
+            records.push(SampledJackknifeRecord {
+                pattern: self.layout.pattern(cell),
+                multiplicity: count,
+                effect,
+            });
+            reduced[cell] += 1;
+        }
+        records.sort_by_key(|r| r.pattern);
+        Ok(records)
+    }
+
     fn bootstrap(&self) -> Result<Bootstrap, SampledRecoveryError> {
         let mut out = Bootstrap {
             records: Vec::with_capacity(self.config.replicates),
@@ -1027,6 +1159,57 @@ fn covariance(samples: &[Vec<f64>]) -> Vec<f64> {
     out.iter().map(|value| value / divisor).collect()
 }
 
+/// Efron (1987) `BCa` transformation. This is an unmeasured candidate, not a
+/// finite-sample coverage guarantee. Failures and unresolved tails are refused.
+#[allow(
+    clippy::float_cmp,
+    reason = "the frozen bias correction uses exact floating-point ties, not a tolerance"
+)]
+fn bca_receipt(
+    point: f64,
+    samples: &[f64],
+    jackknife: Vec<SampledJackknifeRecord>,
+) -> Result<SampledBcaReceipt, SampledRecoveryError> {
+    let unsupported = |message| refusal(SampledRecoveryDetail::UnrecoverablePattern, message);
+    let n: u64 = jackknife.iter().map(|r| r.multiplicity).sum();
+    let mean = jackknife.iter().map(|r| r.effect * r.multiplicity as f64).sum::<f64>() / n as f64;
+    let squared =
+        jackknife.iter().map(|r| (mean - r.effect).powi(2) * r.multiplicity as f64).sum::<f64>();
+    let cubed =
+        jackknife.iter().map(|r| (mean - r.effect).powi(3) * r.multiplicity as f64).sum::<f64>();
+    if !squared.is_finite() || squared <= 0.0 {
+        return Err(unsupported("degenerate BCa jackknife"));
+    }
+    let acceleration = cubed / (6.0 * squared.powf(1.5));
+    let below = samples.iter().filter(|x| **x < point).count();
+    let ties = samples.iter().filter(|x| **x == point).count();
+    let rank = (below as f64 + 0.5 * ties as f64) / samples.len() as f64;
+    if !(0.0..1.0).contains(&rank) || rank == 0.0 {
+        return Err(unsupported("BCa bias rank is on a boundary"));
+    }
+    let bias_correction = norm_inv(rank);
+    let mut adjusted_probabilities = [0.0; 2];
+    for (index, tail) in [0.025, 0.975].into_iter().enumerate() {
+        let z = bias_correction + norm_inv(tail);
+        let denominator = 1.0 - acceleration * z;
+        if !denominator.is_finite() || denominator <= 0.0 {
+            return Err(unsupported("BCa transformation reaches a pole"));
+        }
+        let p = norm_cdf(bias_correction + z / denominator);
+        let resolution = 1.0 / (samples.len() + 1) as f64;
+        if !p.is_finite() || !(resolution..=1.0 - resolution).contains(&p) {
+            return Err(unsupported(
+                "BCa adjusted tail is unresolved by the frozen bootstrap budget",
+            ));
+        }
+        adjusted_probabilities[index] = p;
+    }
+    if !acceleration.is_finite() || adjusted_probabilities[0] >= adjusted_probabilities[1] {
+        return Err(unsupported("invalid BCa adjusted probabilities"));
+    }
+    Ok(SampledBcaReceipt { bias_correction, acceleration, adjusted_probabilities, jackknife })
+}
+
 fn too_many_failed(records: &[SampledReplicateRecord], failed: usize) -> SampledRecoveryError {
     let patterns: BTreeSet<ObservationPattern> =
         records.iter().flat_map(|r| r.zero_patterns.iter().copied()).collect();
@@ -1043,7 +1226,7 @@ fn too_many_failed(records: &[SampledReplicateRecord], failed: usize) -> Sampled
 }
 
 /// Estimate the whole recovered law and effect from observation-pattern rows and
-/// form the whole-method percentile interval.
+/// form the requested whole-method interval.
 ///
 /// # Errors
 ///
@@ -1079,6 +1262,12 @@ pub fn estimate_sampled_recovery(
         return Err(unrecoverable(Vec::new(), "the recovered effect is not finite".to_string()));
     }
     let diagnostics = run.diagnostics(&counts, &recovered_law);
+    // Validate every delete-one domain before spending the bootstrap budget.
+    let jackknife = if config.interval_method == SampledIntervalMethod::Bca {
+        Some(run.jackknife(&counts)?)
+    } else {
+        None
+    };
     let boot = run.bootstrap()?;
     let failed = boot.records.len() - boot.effects.len();
     if boot.effects.len() < 2
@@ -1089,10 +1278,12 @@ pub fn estimate_sampled_recovery(
     let mut sorted = boot.effects.clone();
     sorted.sort_by(f64::total_cmp);
     let tail = (1.0 - SAMPLED_RECOVERY_INTERVAL_LEVEL) / 2.0;
+    let bca = jackknife.map(|rows| bca_receipt(effect, &boot.effects, rows)).transpose()?;
+    let probabilities = bca.as_ref().map_or([tail, 1.0 - tail], |b| b.adjusted_probabilities);
     let interval = SampledEffectInterval {
         level: SAMPLED_RECOVERY_INTERVAL_LEVEL,
-        lower: percentile(&sorted, tail),
-        upper: percentile(&sorted, 1.0 - tail),
+        lower: percentile(&sorted, probabilities[0]),
+        upper: percentile(&sorted, probabilities[1]),
         calibration: SAMPLED_RECOVERY_CALIBRATION,
     };
     let used = boot.effects.len() as f64;
@@ -1107,6 +1298,7 @@ pub fn estimate_sampled_recovery(
         point_effect: effect,
         interval,
         replicates: boot.records,
+        bca,
         receipt_digest: String::new(),
     };
     receipt.receipt_digest = receipt.recompute_digest();
@@ -1138,6 +1330,12 @@ pub fn replay_sampled_recovery(
     expected: &SampledRecoveryReceipt,
     ctx: &ExecutionContext,
 ) -> Result<SampledRecoveryResult, SampledRecoveryError> {
+    if (expected.config.interval_method == SampledIntervalMethod::Bca) != expected.bca.is_some() {
+        return Err(refusal(
+            SampledRecoveryDetail::ReceiptMismatch,
+            "interval method and BCa receipt disagree",
+        ));
+    }
     if !expected.verify_digest() {
         return Err(refusal(
             SampledRecoveryDetail::ReceiptMismatch,
@@ -1145,7 +1343,9 @@ pub fn replay_sampled_recovery(
         ));
     }
     let result = estimate_sampled_recovery(derivation, input, &expected.config, ctx)?;
-    if result.receipt.receipt_digest != expected.receipt_digest {
+    // Legacy v1 receipt fingerprints did not include failure text. Preserve their
+    // digest format, but compare every replayed field as well.
+    if result.receipt != *expected {
         return Err(refusal(
             SampledRecoveryDetail::ReceiptMismatch,
             "the rerun does not reproduce the stored receipt (changed pattern, snapshot, \
@@ -1153,4 +1353,40 @@ pub fn replay_sampled_recovery(
         ));
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod bca_tests {
+    use super::*;
+
+    fn jack(values: &[f64]) -> Vec<SampledJackknifeRecord> {
+        values
+            .iter()
+            .enumerate()
+            .map(|(i, effect)| SampledJackknifeRecord {
+                pattern: ObservationPattern {
+                    responses: 0,
+                    proxies: 0,
+                    fully: u8::try_from(i).unwrap(),
+                },
+                multiplicity: 1,
+                effect: *effect,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn bca_midrank_ties_and_domain_refusals_are_explicit() {
+        let samples: Vec<f64> = (0..2000).map(|i| f64::from(i % 3) - 1.0).collect();
+        let bca = bca_receipt(0.0, &samples, jack(&[-1.0, 0.0, 1.0])).unwrap();
+        // 667 below + half of 667 tied; never silently strict-less z0.
+        assert!((bca.bias_correction - norm_inv((667.0 + 0.5 * 667.0) / 2000.0)).abs() < 1e-12);
+        assert!(bca.acceleration.abs() < f64::EPSILON);
+        assert!(bca_receipt(0.0, &samples, jack(&[1.0, 1.0])).is_err());
+        assert!(bca_receipt(-2.0, &samples, jack(&[-1.0, 0.0, 1.0])).is_err());
+        assert!(bca_receipt(2.0, &samples, jack(&[-1.0, 0.0, 1.0])).is_err());
+        // A resolvable bias rank alone does not ensure adjusted tails resolve.
+        let tail: Vec<f64> = (0..2000).map(f64::from).collect();
+        assert!(bca_receipt(1.5, &tail, jack(&[-1.0, 0.0, 1.0])).is_err());
+    }
 }

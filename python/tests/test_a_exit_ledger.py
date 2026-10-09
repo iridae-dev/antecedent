@@ -224,6 +224,7 @@ def _sampled_recovery() -> object:
         rows=rows,
         snapshot="snap-observed",
         replicates=100,
+        interval_method="bootstrap_percentile",
         seed=3,
     )
 

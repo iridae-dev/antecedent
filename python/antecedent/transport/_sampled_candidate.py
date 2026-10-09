@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, cast
 
 from .. import _native
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -57,6 +57,12 @@ class SampledRecoveryCandidate:
     @property
     def calibration(self) -> str:
         return "unmeasured"
+
+    @property
+    def interval_method(self) -> Literal["bootstrap_bca", "bootstrap_percentile"]:
+        """Actual executed method; legacy v2 percentile is never relabeled BCa."""
+        value = self._body["receipt"]["config"].get("interval_method", "bootstrap_percentile")
+        return cast(Literal["bootstrap_bca", "bootstrap_percentile"], value)
 
     @property
     def effect(self) -> float:
