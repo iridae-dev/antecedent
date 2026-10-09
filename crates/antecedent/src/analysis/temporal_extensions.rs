@@ -502,7 +502,13 @@ pub fn temporal_dependent_interval_candidate(
             &MarginalizedQuery::new(sequence, spec.clone())?,
         ),
     };
-    let (panel, estimator) = validated_interval(snapshot_id, units, sequence, estimand, config)?;
+    let (panel, mut estimator) =
+        validated_interval(snapshot_id, units, sequence, estimand, config)?;
+    if config.method
+        == antecedent_estimate::temporal_dependent_interval::IntervalMethod::Studentized
+    {
+        estimator = wire.to_estimator()?;
+    }
     let interval = antecedent_estimate::temporal_dependent_interval::dependent_unit_interval(
         &panel,
         &*estimator,

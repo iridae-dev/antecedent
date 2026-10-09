@@ -62,6 +62,7 @@ fn measure(test: &'static str, expected_id: &str, method: IntervalMethod) {
     let interval_name = match method {
         IntervalMethod::Percentile => "bootstrap_percentile",
         IntervalMethod::Basic => "bootstrap_basic",
+        IntervalMethod::Studentized => "bootstrap_studentized",
     };
     let mut tally = CoverageTally::for_record(
         RecordKey {
@@ -75,7 +76,7 @@ fn measure(test: &'static str, expected_id: &str, method: IntervalMethod) {
         let seed = grid_seed(0x45ab_0000 + rep);
         dependent_unit_interval(
             &panel(n, seed),
-            &query,
+            &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(query.clone()),
             &DependentIntervalConfig {
                 replicates: 500,
                 seed: seed + 100_000,
@@ -113,5 +114,15 @@ fn temporal_two_step_units_basic_l95() {
         "temporal_two_step_units_basic_l95",
         "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_two_step_units_basic_l95",
         IntervalMethod::Basic,
+    );
+}
+
+#[test]
+#[ignore = "calibration: final measurement only"]
+fn temporal_two_step_units_studentized_l95() {
+    measure(
+        "temporal_two_step_units_studentized_l95",
+        "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95",
+        IntervalMethod::Studentized,
     );
 }

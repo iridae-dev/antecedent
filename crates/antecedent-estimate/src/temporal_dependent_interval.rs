@@ -7,6 +7,19 @@
 //! fallback). Replicate ids and unit-selection digests are deterministic
 //! functions of the seed and the panel identity so a consumer can replay them.
 //!
+//! The separately named `bootstrap_studentized` candidate is restricted to
+//! original native response/effect estimators with an exact balanced-unit score
+//! derivation: identical positive binary history multiplicities make all fitted
+//! covariate weights and denominators invariant under unit resampling. Thus
+//! `theta = mean(z_i)`, and `SE² = sum((z_i - mean(z))²)/(n(n-1))`. Every bootstrap
+//! draw still refits the original estimator, checks its equality to the selected
+//! unit-score mean, and uses its own selected-score SE. Equal-tailed quantiles of
+//! `(theta* - theta)/SE*` are inverted as `theta - q_upper SE, theta - q_lower SE`.
+//! This follows the bootstrap-t construction discussed by Hall (1988),
+//! <https://doi.org/10.1214/aos/1176350933>. It is neither a symmetric-interval
+//! higher-order claim nor a finite-sample guarantee; lattice, degenerate,
+//! unbalanced and unsupported designs need their own methods/evidence.
+//!
 //! Calibration of this interval is **unmeasured**: it is implemented and
 //! reproducible but makes no coverage claim, and the public route stays closed
 //! (see [`route_frozen_refusal`]) until the whole-method grid has been measured.
@@ -28,6 +41,8 @@ pub const INTERVAL_MIN_REPLICATES: usize = 20;
 pub const INTERVAL_MAX_UNITS: usize = 100_000;
 /// Fewest repeated units an interval is attempted with by default.
 pub const DEFAULT_MIN_UNITS: usize = 20;
+/// Maximum units for the separately bounded original-score bootstrap-t candidate.
+pub const STUDENTIZED_MAX_UNITS: usize = 4096;
 /// Inference claim of this engine: dependence is preserved, coverage is not measured.
 pub const INTERVAL_CLAIM: &str = "dependence_preserving_calibration_unmeasured";
 /// Calibration status of this engine.
@@ -322,6 +337,18 @@ pub trait TemporalEstimator {
     /// # Errors
     /// A refusal when a history the estimator needs has no support.
     fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError>;
+
+    /// Checked estimator-specific exact unit scores for a balanced binary panel.
+    /// Arbitrary estimators have no studentization authority by default.
+    /// # Errors
+    /// A certified implementation refuses incompatible balance/support.
+    fn balanced_unit_scores(
+        &self,
+        _units: &[&UnitHistories],
+        _ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Option<Vec<f64>>, EstimationError> {
+        Ok(None)
+    }
 }
 
 /// The two-step response averaged over the panel's own observed initial-state law.
@@ -337,6 +364,14 @@ impl ObservedStateSequence {
 }
 
 impl TemporalEstimator for ObservedStateSequence {
+    fn balanced_unit_scores(
+        &self,
+        units: &[&UnitHistories],
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Option<Vec<f64>>, EstimationError> {
+        balanced_linear_unit_scores(self, units, ctx)
+    }
+
     fn label(&self) -> &'static str {
         Self::LABEL
     }
@@ -354,6 +389,83 @@ impl TemporalEstimator for ObservedStateSequence {
     }
 }
 
+/// Closed native estimator family with an exact balanced-unit score derivation.
+/// This wrapper accepts original checked query types, never arbitrary callbacks.
+#[derive(Clone, Debug)]
+pub enum BalancedTemporalEstimator {
+    /// Original observed-state response.
+    Observed(ObservedStateSequence),
+    /// Original fixed-state response.
+    Fixed(crate::temporal_initial_state::FixedStateQuery),
+    /// Original fixed-target marginalized response.
+    Marginalized(crate::temporal_initial_state::MarginalizedQuery),
+}
+impl TemporalEstimator for BalancedTemporalEstimator {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Observed(q) => q.label(),
+            Self::Fixed(q) => q.label(),
+            Self::Marginalized(q) => q.label(),
+        }
+    }
+    fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
+        match self {
+            Self::Observed(q) => q.estimate(units),
+            Self::Fixed(q) => q.estimate(units),
+            Self::Marginalized(q) => q.estimate(units),
+        }
+    }
+    fn balanced_unit_scores(
+        &self,
+        units: &[&UnitHistories],
+        ctx: &ExecutionContext,
+    ) -> Result<Option<Vec<f64>>, EstimationError> {
+        balanced_linear_unit_scores(self, units, ctx)
+    }
+}
+
+/// Exact linear scores for the original finite-history estimators only.
+/// Every unit must contain the same positive multiplicity of all sixteen binary
+/// histories. Then fixed target weights, covariate probabilities and denominators
+/// are invariant to unit resampling, and the estimator is the mean of unit scores.
+/// This helper does not confer a capability on an arbitrary callback.
+/// # Errors
+/// Unequal/nonbinary/incomplete histories, or unsupported unit fits.
+pub fn balanced_linear_unit_scores<E: TemporalEstimator + ?Sized>(
+    estimator: &E,
+    units: &[&UnitHistories],
+    ctx: &ExecutionContext,
+) -> Result<Option<Vec<f64>>, EstimationError> {
+    let histogram = |unit: &UnitHistories| {
+        let mut cells = BTreeMap::new();
+        for h in &unit.histories {
+            *cells.entry([h.s0, h.a1, h.l2, h.a2]).or_insert(0_usize) += 1;
+        }
+        cells
+    };
+    let Some(first) = units.first() else {
+        return Err(unsupported_history("empty unit-score panel"));
+    };
+    let expected = histogram(first);
+    if expected.len() != 16
+        || expected.keys().flatten().any(|&level| level > 1)
+        || units.iter().any(|unit| histogram(unit) != expected)
+    {
+        return Err(EstimationError::refused(
+            reason_code!("route_not_supported"),
+            "temporal_interval.studentized_unbalanced: exact unit scores require identical complete binary history multiplicities",
+        ));
+    }
+    units
+        .iter()
+        .map(|unit| {
+            crate::transport::refuse_cancelled(ctx, "temporal original unit score")?;
+            estimator.estimate(&[*unit])
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+}
+
 /// How the interval is read off the replicate points.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IntervalMethod {
@@ -361,6 +473,9 @@ pub enum IntervalMethod {
     Percentile,
     /// Basic (reverse percentile) interval: `2 * point - upper, 2 * point - lower`.
     Basic,
+    /// Equal-tailed bootstrap-t with exact balanced-unit scores and per-draw SE.
+    /// This distinct candidate has no finite-sample or calibrated guarantee.
+    Studentized,
 }
 
 /// Resampling design and bounds of one dependent interval.
@@ -406,6 +521,19 @@ pub struct ReplicateRecord {
     pub point: Option<f64>,
 }
 
+/// Complete studentization receipt, separate from original replicate points.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StudentizationReceipt {
+    /// Original whole-unit mean standard error, unbiased sample variance / n.
+    pub standard_error: f64,
+    /// Exact original unit scores, in original panel order.
+    pub unit_scores: Vec<f64>,
+    /// Each resample's own standard error; None for invalid/zero-variance draws.
+    pub replicate_standard_errors: Vec<Option<f64>>,
+    /// Each centered and studentized pivot, aligned with original draws.
+    pub pivots: Vec<Option<f64>>,
+}
+
 /// A dependence-preserving interval with its replay receipt.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DependentInterval {
@@ -421,6 +549,8 @@ pub struct DependentInterval {
     pub level: f64,
     /// Construction.
     pub method: IntervalMethod,
+    /// Present only for the distinct exact balanced-unit bootstrap-t method.
+    pub studentization: Option<StudentizationReceipt>,
     /// Every replicate, in order.
     pub replicates: Vec<ReplicateRecord>,
     /// Replicates dropped as failed.
@@ -450,6 +580,7 @@ impl DependentInterval {
         let interval = match self.method {
             IntervalMethod::Percentile => "bootstrap_percentile",
             IntervalMethod::Basic => "bootstrap_basic",
+            IntervalMethod::Studentized => "bootstrap_studentized",
         };
         antecedent_core::CalibrationBasis::new(
             [
@@ -576,6 +707,83 @@ fn run_replicates<E: TemporalEstimator + ?Sized>(
     Ok(records)
 }
 
+fn mean_se(values: &[f64]) -> Option<(f64, f64)> {
+    let n = values.len() as f64;
+    if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
+        return None;
+    }
+    let mean = values.iter().sum::<f64>() / n;
+    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
+    let se = (variance / n).sqrt();
+    (se.is_finite() && se > 0.0).then_some((mean, se))
+}
+
+fn prepare_studentization<E: TemporalEstimator + ?Sized>(
+    panel: &TemporalUnitPanel,
+    estimator: &E,
+    point: f64,
+    ctx: &ExecutionContext,
+) -> Result<StudentizationReceipt, EstimationError> {
+    let all = panel.units.iter().collect::<Vec<_>>();
+    let scores = estimator.balanced_unit_scores(&all, ctx)?.ok_or_else(|| {
+        EstimationError::refused(
+            reason_code!("route_not_supported"),
+            "temporal_interval.studentized_estimator_not_certified",
+        )
+    })?;
+    let (mean, standard_error) = mean_se(&scores).ok_or_else(|| unsupported_history(
+        "temporal_interval.studentized_zero_variance: unit scores need positive finite variance"))?;
+    let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
+    if scores.len() != all.len() || !close(mean, point) {
+        return Err(unsupported_history("temporal_interval.studentized_score_mismatch"));
+    }
+    Ok(StudentizationReceipt {
+        standard_error,
+        unit_scores: scores,
+        replicate_standard_errors: Vec::new(),
+        pivots: Vec::new(),
+    })
+}
+
+fn studentize_replicates(
+    panel: &TemporalUnitPanel,
+    point: f64,
+    records: &[ReplicateRecord],
+    mut receipt: StudentizationReceipt,
+    ctx: &ExecutionContext,
+) -> Result<StudentizationReceipt, EstimationError> {
+    let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
+    let lookup = panel
+        .units
+        .iter()
+        .zip(&receipt.unit_scores)
+        .map(|(unit, &score)| (unit.unit_id, score))
+        .collect::<BTreeMap<_, _>>();
+    let mut errors = Vec::with_capacity(records.len());
+    let mut pivots = Vec::with_capacity(records.len());
+    for record in records {
+        crate::transport::refuse_cancelled(ctx, "temporal studentization replicate")?;
+        let (selected, _) = draw_units(panel, record.replicate_id);
+        let selected_scores = selected.iter().map(|unit| lookup[&unit.unit_id]).collect::<Vec<_>>();
+        let variance = mean_se(&selected_scores);
+        if let (Some(estimate), Some((mean, _))) = (record.point, variance) {
+            if !close(mean, estimate) {
+                return Err(unsupported_history("temporal_interval.studentized_score_mismatch"));
+            }
+        }
+        let pair = record
+            .point
+            .zip(variance)
+            .map(|(estimate, (_, se))| (se, (estimate - point) / se))
+            .filter(|(_, pivot)| pivot.is_finite());
+        errors.push(pair.map(|(se, _)| se));
+        pivots.push(pair.map(|(_, pivot)| pivot));
+    }
+    receipt.replicate_standard_errors = errors;
+    receipt.pivots = pivots;
+    Ok(receipt)
+}
+
 /// Resample whole units, re-run the whole estimator per replicate and read a
 /// percentile (or basic) interval off the replicate points.
 ///
@@ -595,6 +803,12 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     ctx: &ExecutionContext,
 ) -> Result<DependentInterval, EstimationError> {
     validate_config(config)?;
+    if config.method == IntervalMethod::Studentized && panel.units.len() > STUDENTIZED_MAX_UNITS {
+        return Err(EstimationError::refused(
+            reason_code!("route_not_supported"),
+            "temporal_interval.studentized_bounds_exceeded: at most 4096 original unit scores",
+        ));
+    }
     if panel.units.len() < config.min_units.max(2) {
         return Err(EstimationError::refused(
             reason_code!("too_few_clusters"),
@@ -610,8 +824,19 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     let point = estimator
         .estimate(&all)
         .map_err(|error| unsupported_history(format!("the original panel: {error}")))?;
+    let prepared = if config.method == IntervalMethod::Studentized {
+        Some(prepare_studentization(panel, estimator, point, ctx)?)
+    } else {
+        None
+    };
     let replicates = run_replicates(panel, estimator, config, ctx)?;
     let mut points = replicates.iter().filter_map(|record| record.point).collect::<Vec<_>>();
+    let studentization = prepared
+        .map(|receipt| studentize_replicates(panel, point, &replicates, receipt, ctx))
+        .transpose()?;
+    if let Some(receipt) = &studentization {
+        points = receipt.pivots.iter().flatten().copied().collect();
+    }
     let failed = replicates.len() - points.len();
     #[allow(clippy::cast_precision_loss, reason = "replicate counts are at most 2000")]
     let fraction = failed as f64 / replicates.len() as f64;
@@ -629,6 +854,10 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     let (lower, upper) = match config.method {
         IntervalMethod::Percentile => (low, high),
         IntervalMethod::Basic => (2.0_f64.mul_add(point, -high), 2.0_f64.mul_add(point, -low)),
+        IntervalMethod::Studentized => {
+            let se = studentization.as_ref().expect("checked studentized receipt").standard_error;
+            (point - high * se, point - low * se)
+        }
     };
     Ok(DependentInterval {
         estimand: estimator.label(),
@@ -637,6 +866,7 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
         upper,
         level: config.level,
         method: config.method,
+        studentization,
         replicates,
         failed,
         units: panel.units.len(),

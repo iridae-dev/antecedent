@@ -78,6 +78,7 @@ fn measure(
             interval: match method {
                 IntervalMethod::Percentile => "bootstrap_percentile",
                 IntervalMethod::Basic => "bootstrap_basic",
+                IntervalMethod::Studentized => "bootstrap_studentized",
             },
         },
         0.95,
@@ -219,4 +220,76 @@ fn checked_temporal_calibration_oracle_matches_enumerated_scm() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+#[test]
+#[ignore = "calibration: final measurement only"]
+fn temporal_checked_response_studentized_l95() {
+    measure(
+        "temporal_checked_response_studentized_l95",
+        "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_response_studentized_l95",
+        &TemporalFunctional::Response { sequence: [0, 0] },
+        IntervalMethod::Studentized,
+        0.49,
+    );
+}
+#[test]
+#[ignore = "calibration: final measurement only"]
+fn temporal_checked_effect_studentized_l95() {
+    measure(
+        "temporal_checked_effect_studentized_l95",
+        "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_checked_effect_studentized_l95",
+        &TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+        IntervalMethod::Studentized,
+        0.1,
+    );
+}
+
+#[test]
+fn checked_temporal_studentized_unit_scores_match_independent_paired_scm_algebra() {
+    let ctx = ExecutionContext::for_tests(179);
+    for functional in [
+        TemporalFunctional::Response { sequence: [0, 0] },
+        TemporalFunctional::Effect { active: [1, 1], control: [0, 0] },
+    ] {
+        let input = request(24, 179, functional.clone());
+        let sequence_score = |unit: &TemporalUnitWire, seq: [u32; 2]| {
+            unit.histories
+                .iter()
+                .filter(|h| h.a1 == seq[0] && h.a2 == seq[1])
+                .map(|h| h.y * if h.s0 == 0 { 0.15 } else { 0.35 })
+                .sum::<f64>()
+        };
+        let scores = input
+            .units
+            .iter()
+            .map(|u| match functional {
+                TemporalFunctional::Response { sequence } => sequence_score(u, sequence),
+                TemporalFunctional::Effect { active, control } => {
+                    sequence_score(u, active) - sequence_score(u, control)
+                }
+            })
+            .collect::<Vec<_>>();
+        let mean = scores.iter().sum::<f64>() / 24.0;
+        let se = (scores.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (23.0 * 24.0)).sqrt();
+        let mut session = TemporalSession::new();
+        execute_temporal_with_receipt(&mut session, &input, &ctx).unwrap();
+        let result = session
+            .candidate_interval_internal(
+                &DependentIntervalConfig {
+                    method: IntervalMethod::Studentized,
+                    replicates: 100,
+                    seed: 137,
+                    ..DependentIntervalConfig::default()
+                },
+                &ctx,
+            )
+            .unwrap();
+        let receipt = result.studentization.as_ref().unwrap();
+        assert!((result.point - mean).abs() < 1e-12);
+        assert!((receipt.standard_error - se).abs() < 1e-12);
+        for (actual, expected) in receipt.unit_scores.iter().zip(scores) {
+            assert!((actual - expected).abs() < 1e-12);
+        }
+    }
 }

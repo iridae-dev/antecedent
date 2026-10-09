@@ -368,3 +368,48 @@ fn x5_dependent_interval_artifact_refuses_an_interval_of_another_panel() {
     );
     assert!(message.contains("temporal_interval_artifact.foreign_interval"), "{message}");
 }
+
+#[test]
+fn studentized_artifact_replays_original_variance_and_rejects_resealed_pivot_mutation() {
+    let original = panel();
+    let units = original
+        .units()
+        .iter()
+        .map(|u| {
+            let mut histories = u.histories.clone();
+            for h in &u.histories {
+                let mut second = *h;
+                second.time_id += 8;
+                second.a1 = 1;
+                histories.push(second);
+            }
+            UnitHistories { unit_id: u.unit_id, histories }
+        })
+        .collect();
+    let panel = TemporalUnitPanel::new(SNAPSHOT, Some(units)).unwrap();
+    let config = DependentIntervalConfig { method: IntervalMethod::Studentized, ..config() };
+    let estimator = marginalized();
+    let result = dependent_unit_interval(
+        &panel,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            estimator.clone(),
+        ),
+        &config,
+        &ctx(),
+    )
+    .unwrap();
+    let mut wire = TemporalIntervalArtifactWire::checked(
+        &panel,
+        IntervalEstimatorWire::marginalized(SEQUENCE, &estimator),
+        &config,
+        &result,
+        None,
+        &ctx(),
+    )
+    .unwrap();
+    let (_, consumed) =
+        TemporalIntervalArtifactWire::consume(&wire.export().unwrap(), &limits(), &ctx()).unwrap();
+    assert_eq!(consumed, result);
+    wire.result.studentization.as_mut().unwrap().pivots[0] = Some(123.0);
+    assert!(TemporalIntervalArtifactWire::consume(&reseal(wire), &limits(), &ctx()).is_err());
+}

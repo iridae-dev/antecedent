@@ -199,10 +199,10 @@ impl IntervalEstimatorWire {
     pub fn to_estimator(&self) -> Result<Box<dyn TemporalEstimator>, IoError> {
         match (self.kind.as_str(), self.state, &self.law) {
             (ObservedStateSequence::LABEL, None, None) => {
-                Ok(Box::new(ObservedStateSequence { sequence: self.sequence }))
+                Ok(Box::new(antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(ObservedStateSequence { sequence: self.sequence })))
             }
             (FixedStateEffect::LABEL, Some(s0), None) => {
-                Ok(Box::new(FixedStateQuery { sequence: self.sequence, s0 }))
+                Ok(Box::new(antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Fixed(FixedStateQuery { sequence: self.sequence, s0 })))
             }
             (MarginalizedEffect::LABEL, None, Some(law)) => {
                 let query = MarginalizedQuery::new(
@@ -210,7 +210,7 @@ impl IntervalEstimatorWire {
                     InitialStateSpec::Law(law.to_law_unchecked()?),
                 )?;
                 law.check_digest(query.law())?;
-                Ok(Box::new(query))
+                Ok(Box::new(antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(query)))
             }
             _ => Err(mismatch(PREFIX, "estimator")),
         }
@@ -239,6 +239,7 @@ fn method_label(method: IntervalMethod) -> &'static str {
     match method {
         IntervalMethod::Percentile => "percentile",
         IntervalMethod::Basic => "basic",
+        IntervalMethod::Studentized => "studentized",
     }
 }
 
@@ -264,6 +265,7 @@ impl IntervalConfigWire {
         let method = match self.method.as_str() {
             "percentile" => IntervalMethod::Percentile,
             "basic" => IntervalMethod::Basic,
+            "studentized" => IntervalMethod::Studentized,
             _ => return Err(mismatch(PREFIX, "config")),
         };
         let (Ok(replicates), Ok(min_units)) =
@@ -296,6 +298,20 @@ pub struct ReplicateWire {
     pub point: Option<f64>,
 }
 
+/// Original and per-resample variance receipt of the balanced bootstrap-t method.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StudentizationWire {
+    /// Original standard error.
+    pub standard_error: f64,
+    /// Original unit scores.
+    pub unit_scores: Vec<f64>,
+    /// Aligned resample standard errors.
+    pub replicate_standard_errors: Vec<Option<f64>>,
+    /// Aligned centered studentized pivots.
+    pub pivots: Vec<Option<f64>>,
+}
+
 /// The stored interval.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -312,6 +328,9 @@ pub struct IntervalResultWire {
     pub level: f64,
     /// Construction.
     pub method: String,
+    /// Absent for historical percentile/basic artifacts, preserving their encoding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub studentization: Option<StudentizationWire>,
     /// Every replicate, in order.
     pub replicates: Vec<ReplicateWire>,
     /// Replicates dropped as failed.
@@ -343,6 +362,12 @@ impl IntervalResultWire {
             upper: interval.upper,
             level: interval.level,
             method: method_label(interval.method).into(),
+            studentization: interval.studentization.as_ref().map(|receipt| StudentizationWire {
+                standard_error: receipt.standard_error,
+                unit_scores: receipt.unit_scores.clone(),
+                replicate_standard_errors: receipt.replicate_standard_errors.clone(),
+                pivots: receipt.pivots.clone(),
+            }),
             replicates: interval
                 .replicates
                 .iter()

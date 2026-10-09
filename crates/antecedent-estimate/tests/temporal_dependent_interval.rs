@@ -333,3 +333,99 @@ fn x5_unknown_unit_dependence_public_route_stays_closed() {
     assert_eq!(code, "cell_not_licensed");
     assert!(message.contains("temporal_interval.route_frozen"), "{message}");
 }
+
+#[test]
+fn studentized_balanced_unit_variance_and_pivots_match_independent_two_point_algebra() {
+    let p = panel(30, false);
+    let result = dependent_unit_interval(
+        &p,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &DependentIntervalConfig { method: IntervalMethod::Studentized, ..config(719) },
+        &ctx(),
+    )
+    .unwrap();
+    let receipt = result.studentization.as_ref().unwrap();
+    let truth = target_truth();
+    assert!((result.point - truth).abs() < 1e-12);
+    assert!((receipt.standard_error - 0.2 / (29_f64).sqrt()).abs() < 1e-12);
+    let mut pivots = Vec::new();
+    for ((record, se), pivot) in
+        result.replicates.iter().zip(&receipt.replicate_standard_errors).zip(&receipt.pivots)
+    {
+        let point = record.point.unwrap();
+        // For scores theta +/- .2, unbiased resample variance uses the actual
+        // selected sign frequency, not the original variance or bootstrap SE.
+        let expected_se = ((0.04 - (point - truth).powi(2)) / 29.0).sqrt();
+        assert!((se.unwrap() - expected_se).abs() < 1e-12);
+        let expected_pivot = (point - truth) / expected_se;
+        assert!((pivot.unwrap() - expected_pivot).abs() < 1e-11);
+        pivots.push(expected_pivot);
+    }
+    pivots.sort_by(f64::total_cmp);
+    let interpolate = |probability: f64| {
+        let h = probability * (pivots.len() - 1) as f64;
+        let index = h.floor() as usize;
+        pivots[index]
+            + (h - index as f64) * (pivots[(index + 1).min(pivots.len() - 1)] - pivots[index])
+    };
+    assert!((result.lower - (truth - interpolate(0.975) * receipt.standard_error)).abs() < 1e-12);
+    assert!((result.upper - (truth - interpolate(0.025) * receipt.standard_error)).abs() < 1e-12);
+}
+
+#[test]
+fn studentized_refuses_unbalanced_units_and_uncertified_estimator() {
+    let p = panel(30, false);
+    let mut units = p.units().to_vec();
+    units[0].histories.pop();
+    let changed = TemporalUnitPanel::new("unbalanced", Some(units)).unwrap();
+    let config = DependentIntervalConfig { method: IntervalMethod::Studentized, ..config(91) };
+    assert!(
+        dependent_unit_interval(&changed, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &config, &ctx())
+            .unwrap_err()
+            .to_string()
+            .contains("studentized_unbalanced")
+    );
+    struct Arbitrary(std::cell::Cell<usize>);
+    impl antecedent_estimate::temporal_dependent_interval::TemporalEstimator for Arbitrary {
+        fn label(&self) -> &'static str {
+            "arbitrary"
+        }
+        fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
+            self.0.set(self.0.get() + 1);
+            Ok(units.iter().map(|u| u.histories[0].y).sum::<f64>() / units.len() as f64)
+        }
+    }
+    let arbitrary = Arbitrary(std::cell::Cell::new(0));
+    assert!(
+        dependent_unit_interval(&p, &arbitrary, &config, &ctx())
+            .unwrap_err()
+            .to_string()
+            .contains("studentized_estimator_not_certified")
+    );
+    assert_eq!(arbitrary.0.get(), 1, "uncertified callback must refuse before any resample");
+}
+
+#[test]
+fn studentized_refuses_zero_original_unit_variance() {
+    let original = panel(30, false);
+    let mut units = original.units().to_vec();
+    for unit in &mut units {
+        for history in &mut unit.histories {
+            history.y = 1.0;
+        }
+    }
+    let constant = TemporalUnitPanel::new("constant_unit_scores", Some(units)).unwrap();
+    let estimator =
+        antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        );
+    let config = DependentIntervalConfig { method: IntervalMethod::Studentized, ..config(91) };
+    assert!(
+        dependent_unit_interval(&constant, &estimator, &config, &ctx())
+            .unwrap_err()
+            .to_string()
+            .contains("studentized_zero_variance")
+    );
+}

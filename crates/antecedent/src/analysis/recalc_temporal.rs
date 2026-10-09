@@ -1,6 +1,10 @@
 //! Shared-plan point execution of checked binary two-step whole-history functionals.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+#[cfg(feature = "calibration-internal")]
+#[path = "recalc_temporal_studentized.rs"]
+mod studentized;
+
 use super::{
     recalc_receipt::{
         Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
@@ -471,6 +475,16 @@ impl TemporalSession {
         let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
         if live.seed != ctx.rng.master_seed() {
             return Err(RecalcRunError::Request("recalc.temporal_artifact_seed_mismatch").into());
+        }
+        if config.method
+            == antecedent_estimate::temporal_dependent_interval::IntervalMethod::Studentized
+        {
+            return Ok(antecedent_estimate::temporal_dependent_interval::dependent_unit_interval(
+                &live.panel,
+                &studentized::CheckedStudentizedUnitDraw(CheckedUnitDraw { live, ctx }),
+                config,
+                ctx,
+            )?);
         }
         Ok(antecedent_estimate::temporal_dependent_interval::dependent_unit_interval(
             &live.panel,

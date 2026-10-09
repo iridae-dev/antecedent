@@ -365,10 +365,11 @@ fn temporal_dependent_interval_closed(
     let method = match method {
         "percentile" => IntervalMethod::Percentile,
         "basic" => IntervalMethod::Basic,
+        "studentized" => IntervalMethod::Studentized,
         other => {
             return Err(crate::with_reason_code(
                 crate::value_err(format!(
-                    "interval method must be percentile or basic, not {other}"
+                    "interval method must be percentile, basic or studentized, not {other}"
                 )),
                 reason_code!("invalid_argument"),
             ));
@@ -474,6 +475,7 @@ fn temporal_dependent_interval_candidate(
     let method = match method {
         "percentile" => IntervalMethod::Percentile,
         "basic" => IntervalMethod::Basic,
+        "studentized" => IntervalMethod::Studentized,
         _ => return Err(crate::value_err("invalid interval method")),
     };
     let estimand = match (estimand, fixed_state) {
