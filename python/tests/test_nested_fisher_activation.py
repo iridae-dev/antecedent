@@ -99,7 +99,7 @@ def test_nested_fisher_actual_public_candidate_has_independent_full_covariance_a
         (
             Path(__file__).resolve().parents[2]
             / "conformance/transport/nested_fisher/expected.json"
-        ).read_text()
+        ).read_text(encoding="utf-8")
     )
     covariance = np.array(oracle["covariance_times_n"]) / oracle["sample_size"]
     np.testing.assert_allclose(result.covariance, covariance, atol=1e-12, rtol=0)

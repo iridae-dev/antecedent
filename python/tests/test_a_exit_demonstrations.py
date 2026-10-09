@@ -238,11 +238,10 @@ VERMA_DIRECTED = [("X1", "X2"), ("X2", "X3"), ("X3", "X4")]
 def test_a_exit_demo_calibrated_joint_bayesian_row_records_failed_gate_and_typed_refusal() -> None:
     """The gate item is satisfiable here only as its "otherwise" branch.
 
-    The joint Bayesian candidate remains UNMEASURED. The nested-Markov pilot supplies only
-    point output; its Bayesian posterior method is unimplemented and has no allocated coverage
-    record. This test asserts those distinct boundaries and typed refusals. The exact posterior
-    moments (closed-form dense Gaussian conjugate oracle) are asserted only in Rust, because the
-    engine is internal and its public Python route is closed: no moment can be read here.
+    Both posterior candidates remain unmeasured and normal public routes stay closed.
+    The continuous nested posterior has its own implemented method and frozen, unrun
+    measurement suite. Allocated coverage identities are not measured records and
+    cannot promote either the point fit or its separate Bayesian posterior.
     """
     registry = _registry()
     with (ROOT / "parity" / "coverage_records.toml").open("rb") as handle:
@@ -251,12 +250,17 @@ def test_a_exit_demo_calibrated_joint_bayesian_row_records_failed_gate_and_typed
     nested_record = registry["2.3A.X4.binary_nested_markov_pilot"]
     assert nested_record["inference_claim"] == "point_only"
     assert not nested_record.get("coverage_records", [])
-    prerequisites = [
+    posterior = next(
         row
         for row in nested_record["inference_outputs"]
-        if row["implementation_status"] == "unimplemented_closed"
-    ]
-    assert prerequisites and all(row["measurement_suite"] == "unallocated" for row in prerequisites)
+        if row["id"] == "binary_nested_markov_pilot.posterior"
+    )
+    assert posterior["implementation_status"] == "implemented_unmeasured"
+    assert posterior["allocation_status"] == "frozen_harness_compiled_measurement_pending"
+    assert (ROOT / posterior["measurement_suite"]).is_file()
+    allocated = set(posterior["allocated_coverage_records"])
+    assert allocated and allocated <= set(nested_record["candidate_coverage_records"])
+    assert not allocated & collected
     for record in (joint_record,):
         assert record["inference_claim"] == "calibrated"
         if set(record["coverage_records"]) <= collected:

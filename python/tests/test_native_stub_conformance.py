@@ -25,6 +25,7 @@ import inspect
 from pathlib import Path
 from typing import Any
 
+import pytest
 from antecedent import _native
 
 from _repo_text import read_text
@@ -73,8 +74,71 @@ def test_every_extension_name_is_declared_in_the_stub():
     )
 
 
+# One atomic optional compile-time family. Normal wheels omit ALL of these and
+# the stage method; internal acceptance builds must expose ALL of them. None is
+# an ordinary public name waived individually, and partial registration is a bug.
+_INTERNAL_CANDIDATE_NAMES = {
+    "NativeNestedFisherCandidate",
+    "NativeNestedMarkovPosteriorCandidate",
+    "NativeTemporalIntervalCandidate",
+    "consume_joint_transport_candidate",
+    "consume_nested_markov_fisher_candidate",
+    "consume_nested_markov_posterior_candidate",
+    "consume_sampled_recovery_candidate",
+    "consume_temporal_interval_candidate",
+    "joint_transport_candidate",
+    "nested_markov_fisher_candidate",
+    "nested_markov_posterior_candidate",
+    "temporal_dependent_interval_candidate",
+}
+_INTERNAL_STAGE_METHOD = ("ObservationRecoveryStage", "sampled_candidate")
+
+
+def _validate_internal_family(present: set[str], stage_method: bool) -> bool:
+    assert present in (set(), _INTERNAL_CANDIDATE_NAMES), (
+        "calibration-internal registration must be all-or-none; "
+        f"missing={sorted(_INTERNAL_CANDIDATE_NAMES - present)}"
+    )
+    assert stage_method == bool(present), (
+        "ObservationRecoveryStage.sampled_candidate must be present exactly when "
+        "the complete calibration-internal candidate family is present"
+    )
+    return bool(present)
+
+
+def _internal_family_enabled() -> bool:
+    stage = getattr(_native, _INTERNAL_STAGE_METHOD[0])
+    return _validate_internal_family(
+        _extension_public_names() & _INTERNAL_CANDIDATE_NAMES,
+        hasattr(stage, _INTERNAL_STAGE_METHOD[1]),
+    )
+
+
+def test_optional_internal_family_has_complete_build_contract():
+    assert _stub_toplevel_names() >= _INTERNAL_CANDIDATE_NAMES
+    stage = _stub_classes()[_INTERNAL_STAGE_METHOD[0]]
+    assert _INTERNAL_STAGE_METHOD[1] in _declared_members(stage)
+    _internal_family_enabled()
+
+
+@pytest.mark.parametrize("method", [False, True])
+def test_partial_internal_registration_is_rejected(method):
+    with pytest.raises(AssertionError, match="all-or-none"):
+        _validate_internal_family({"joint_transport_candidate"}, method)
+
+
+def test_internal_stage_method_cannot_drift_from_optional_family():
+    with pytest.raises(AssertionError, match="present exactly when"):
+        _validate_internal_family(set(), True)
+    with pytest.raises(AssertionError, match="present exactly when"):
+        _validate_internal_family(_INTERNAL_CANDIDATE_NAMES, False)
+
+
 def test_stub_declares_nothing_the_extension_lacks():
-    extra = sorted(_stub_toplevel_names() - _extension_public_names() - _STUB_ONLY)
+    optional_absent = set() if _internal_family_enabled() else _INTERNAL_CANDIDATE_NAMES
+    extra = sorted(
+        _stub_toplevel_names() - _extension_public_names() - _STUB_ONLY - optional_absent
+    )
     assert not extra, (
         "_native.pyi declares names the extension does not define — stale stub "
         f"entries, or additions to _STUB_ONLY if genuinely stub-only: {extra}"
@@ -356,6 +420,7 @@ def test_stub_declares_no_method_the_extension_lacks():
             if isinstance(item, ast.FunctionDef)
             and not item.name.startswith("__")
             and not hasattr(cls, item.name)
+            and not ((name, item.name) == _INTERNAL_STAGE_METHOD and not _internal_family_enabled())
         )
     assert not extra, f"stub methods the extension does not define: {extra}"
 

@@ -342,11 +342,5 @@ mod enabled {
     }
 }
 pub(crate) fn register(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {
-    #[cfg(feature = "calibration-internal")]
-    return enabled::register(m);
-    #[cfg(not(feature = "calibration-internal"))]
-    {
-        let _ = m;
-        Ok(())
-    }
+    enabled::register(m)
 }

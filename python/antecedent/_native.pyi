@@ -6677,7 +6677,7 @@ def nested_markov_fisher_candidate(
     tolerance: float,
 ) -> NativeNestedFisherCandidate: ...
 def consume_nested_markov_fisher_candidate(
-    artifact: bytes,
+    bytes: bytes,
     expected_identity: str,
 ) -> NativeNestedFisherCandidate: ...
 
@@ -6706,7 +6706,7 @@ def nested_markov_posterior_candidate(
     seed: int,
 ) -> NativeNestedMarkovPosteriorCandidate: ...
 def consume_nested_markov_posterior_candidate(
-    artifact: bytes,
+    bytes: bytes,
     expected_identity: str,
 ) -> NativeNestedMarkovPosteriorCandidate: ...
 
