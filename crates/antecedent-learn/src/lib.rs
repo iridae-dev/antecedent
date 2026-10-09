@@ -14,6 +14,8 @@ pub mod bayesian_basis;
 pub mod bayesian_basis_regression;
 pub mod categorical;
 pub mod crossfit;
+#[cfg(feature = "calibration-internal")]
+pub mod nested_markov_bayesian;
 pub use categorical::FiniteJoint;
 mod dense;
 pub mod design;

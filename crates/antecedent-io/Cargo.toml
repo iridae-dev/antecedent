@@ -22,7 +22,7 @@ default = []
 # recompute, for the calibration harness and lifecycle tests only. Enabled only by
 # the facade's dev-dependencies (resolver 2 keeps it out of normal builds); no
 # released build carries it, so no public route yields or accepts an interval.
-calibration-internal = ["antecedent-estimate/calibration-internal"]
+calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-learn/calibration-internal"]
 
 [dependencies]
 antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
@@ -33,6 +33,7 @@ antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
 antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
 antecedent-identify = { version = "2.2.0", path = "../antecedent-identify" }
 antecedent-kernels = { version = "2.2.0", path = "../antecedent-kernels" }
+antecedent-learn = { version = "2.2.0", path = "../antecedent-learn" }
 antecedent-model = { version = "2.2.0", path = "../antecedent-model" }
 antecedent-prob = { version = "2.2.0", path = "../antecedent-prob" }
 antecedent-stats = { version = "2.2.0", path = "../antecedent-stats" }

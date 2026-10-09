@@ -625,6 +625,7 @@ allow design crates/antecedent/src/analysis/recalc_design.rs Utility antecedent_
 # Separately owned selected nested-Markov likelihood/information method.
 estimator.nested_markov crates/antecedent-estimate/src/nested_markov_binary.rs
 estimator.nested_markov crates/antecedent-estimate/src/nested_markov_uncertainty.rs
+estimator.nested_markov crates/antecedent-learn/src/nested_markov_bayesian.rs
 key estimator.nested_markov estimator nested_markov.*
 
 # Selective facades use existing checked engines; these references describe input, utility and artifact identities.

@@ -244,6 +244,7 @@ dependencies = [
  "antecedent-identify",
  "antecedent-io",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-model",
  "antecedent-prob",
  "antecedent-stats",
@@ -272,6 +273,7 @@ version = "2.3.0"
 dependencies = [
  "antecedent-core",
  "antecedent-kernels",
+ "antecedent-learn",
  "antecedent-learn-burn",
  "antecedent-prob",
  "antecedent-stats",
