@@ -72,6 +72,9 @@ mod smoothed_dose;
 mod statistical;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
+#[doc(hidden)]
+#[cfg(feature = "calibration-internal")]
+pub use temporal_extensions::temporal_dependent_interval_candidate;
 mod temporal_transport;
 mod tier_diagnostics;
 mod transport_grid;

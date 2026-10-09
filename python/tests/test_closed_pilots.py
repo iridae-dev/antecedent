@@ -128,12 +128,21 @@ def test_x4_nested_markov_route_is_closed_with_cell_not_licensed():
 
 
 def test_nested_fisher_public_interval_remains_closed_and_validates_level():
-    error = refusal_of(
-        lambda: transport.binary_nested_markov_fisher_interval(
+    from antecedent import _native
+
+    if hasattr(_native, "nested_markov_fisher_candidate"):
+        result = transport.binary_nested_markov_fisher_interval(
             graph=verma(), regimes=[observational()], nominal_level=0.95
         )
-    )
-    assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
+        assert result.calibration == "unmeasured"
+        assert result.inference == "interval_withheld_calibration_unmeasured"
+    else:
+        error = refusal_of(
+            lambda: transport.binary_nested_markov_fisher_interval(
+                graph=verma(), regimes=[observational()], nominal_level=0.95
+            )
+        )
+        assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
     for level in [0.0, 1.0, float("nan")]:
         error = refusal_of(
             lambda level=level: transport.binary_nested_markov_fisher_interval(

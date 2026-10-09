@@ -82,6 +82,9 @@ pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
+#[doc(hidden)]
+#[cfg(feature = "calibration-internal")]
+pub use analysis::temporal_dependent_interval_candidate;
 pub use analysis::{
     ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
     ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,

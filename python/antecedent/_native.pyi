@@ -4694,6 +4694,23 @@ def temporal_dependent_interval_closed(
     min_units: int,
     max_failed_fraction: float,
 ) -> str: ...
+# Available only in calibration-internal acceptance builds; no released license.
+class NativeTemporalIntervalCandidate:
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def temporal_dependent_interval_candidate(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int], estimand: str, fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None, point: int | None,
+    replicates: int, seed: int, level: float, method: str,
+    min_units: int, max_failed_fraction: float,
+) -> tuple[NativeTemporalIntervalCandidate | None, str | None]: ...
+def consume_temporal_interval_candidate(
+    artifact: bytes, expected_identity: str,
+) -> tuple[NativeTemporalIntervalCandidate | None, str | None]: ...
+
 def evaluate_cross_world_edge_contrast(
     names: list[str],
     columns: Sequence[Any],
@@ -5907,7 +5924,7 @@ def identified_utility_interval(
     declaration_json: str, action_id: str, intervals: list[tuple[float, float]]
 ) -> tuple[tuple[float, float] | None, str | None]: ...
 def evaluate_effect_constancy(
-    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
+    request_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_effect_constancy_artifact(
     artifact: bytes, expected_identity_json: str | None = None
@@ -6172,7 +6189,7 @@ def transported_path_specific_refusal(
     supplied_factors: list[tuple[str, str, str]],
 ) -> str: ...
 def evaluate_transported_counterfactual(
-    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
+    request_json: str, artifact_id: str
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_transported_counterfactual_artifact(
     artifact: bytes, expected_identity_json: str | None = None
@@ -6620,3 +6637,28 @@ class CheckedPriorSignal:
     def diagnostics_json(self) -> str: ...
 
 def adapt_prior_signal(sources: list[dict[str, Any]], request_json: str) -> tuple[CheckedPriorSignal | None, str | None]: ...
+
+# Feature-only nested Fisher candidate lifecycle; absent from normal wheels.
+class NativeNestedFisherCandidate:
+    @property
+    def identity(self) -> str: ...
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def nested_markov_fisher_candidate(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    nominal_level: float,
+    max_iterations: int,
+    tolerance: float,
+) -> NativeNestedFisherCandidate: ...
+
+def consume_nested_markov_fisher_candidate(
+    artifact: bytes, expected_identity: str,
+) -> NativeNestedFisherCandidate: ...
+
+# Present only on internal candidate feature builds, never a release activation switch.
+def joint_transport_candidate(proof: TransportIdentificationResult, request_json: str, learned: bool) -> tuple[str, bytes]: ...
+def consume_joint_transport_candidate(data: bytes, expectation_json: str, learned: bool) -> str: ...

@@ -20,6 +20,7 @@ workspace = true
 
 [features]
 default = ["ml-full", "ml-neural"]
+calibration-internal = ["antecedent/calibration-internal", "antecedent-io/calibration-internal", "antecedent-estimate/calibration-internal"]
 ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]

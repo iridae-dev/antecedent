@@ -112,7 +112,7 @@ fn nested_fisher_refuses_pseudocounts_sparse_cells_invalid_scope_and_cancellatio
     let mut sparse = input(16_000.);
     sparse.regimes[0].cells[0] = 0.;
     assert!(nested_markov_fisher_internal(&sparse, &FitOptions::default(), 0.95, &ctx).is_err());
-    for level in [0., 1., f64::NAN] {
+    for level in [0., 1., 0.80, 0.99, f64::NAN] {
         assert!(
             nested_markov_fisher_internal(&input(16_000.), &FitOptions::default(), level, &ctx)
                 .unwrap_err()

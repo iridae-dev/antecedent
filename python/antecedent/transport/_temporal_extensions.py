@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, NoReturn, cast
+from typing import Any, cast
 
 from .._native import (
     consume_temporal_initial_state_artifact as _consume_initial_state,
@@ -523,6 +523,68 @@ def temporal_new_period_refresh(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class TemporalIntervalCandidate:
+    """Original whole-unit candidate, available only in internal acceptance builds.
+
+    Calibration is unmeasured; this object is not a released interval license.
+    The native artifact retains the entire panel, estimator and replicate identities.
+    """
+
+    point: float
+    lower: float
+    upper: float
+    level: float
+    method: str
+    calibration: str
+    claim: str
+    identity: str
+    snapshot_id: str
+    panel_digest: str
+    seed: int
+    replicate_digest: str
+    _native: Any
+
+    @classmethod
+    def _from_native(cls, native: Any) -> TemporalIntervalCandidate:
+        payload = json.loads(native.payload())
+        row = payload["result"]
+        return cls(
+            point=row["point"], lower=row["lower"], upper=row["upper"],
+            level=row["level"], method=row["method"], calibration=row["calibration"],
+            claim=row["claim"], identity=payload["seal"], snapshot_id=row["snapshot_id"],
+            panel_digest=row["panel_digest"], seed=row["seed"],
+            replicate_digest=row["replicate_digest"], _native=native,
+        )
+
+    def export(self) -> bytes:
+        """Export the original full-panel replay artifact, still unmeasured."""
+        return bytes(self._native.export())
+
+    def to_dict(self) -> dict[str, Any]:
+        """Inspect original estimator, panel, design and replicate identities."""
+        return cast(dict[str, Any], json.loads(self._native.payload()))
+
+    @classmethod
+    def load(cls, artifact: bytes, *, expected_identity: str) -> TemporalIntervalCandidate:
+        """Recompute every original replicate in a fresh internal consumer."""
+        from .. import _native
+
+        consumer = getattr(_native, "consume_temporal_interval_candidate", None)
+        if consumer is None:
+            raise TemporalExtensionRefusal({
+                "code": "cell_not_licensed", "stage": "temporal_extension",
+                "detail": "temporal_interval.route_frozen",
+                "message": "the interval consumer remains closed pending calibration",
+            })
+        if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):
+            raise CausalTypeError("artifact must be bytes and expected_identity must be str")
+        native, refusal = consumer(artifact, expected_identity)
+        if refusal is not None:
+            raise TemporalExtensionRefusal(json.loads(refusal))
+        return cls._from_native(native)
+
+
 def temporal_dependent_interval(
     panel: TemporalUnitPanel,
     *,
@@ -536,7 +598,7 @@ def temporal_dependent_interval(
     method: str = "percentile",
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
-) -> NoReturn:
+) -> TemporalIntervalCandidate:
     """A dependence-preserving sampling interval: **closed** until its calibration is measured.
 
     The arguments are validated through the Rust core first, so a panel without a unit
@@ -545,12 +607,17 @@ def temporal_dependent_interval(
     (``temporal_interval.too_many_replicates``) or an unsupported history
     (``temporal_interval.unsupported_history``) raise their own refusals. A well-formed
     request then raises ``cell_not_licensed`` with ``temporal_interval.route_frozen``;
-    no interval is ever returned, and a point estimate is never relabeled as one.
+    the normal released build returns no interval. Internal acceptance builds expose
+    the original typed candidate and full-panel replay, explicitly unmeasured;
+    these fixtures do not activate or license the released route.
     """
     if not isinstance(panel, TemporalUnitPanel):
         raise CausalTypeError("panel must be a TemporalUnitPanel")
     law, point = (None, None) if target_law is None else _law_args(target_law)
-    refusal = _dependent_interval_closed(
+    from .. import _native
+
+    candidate = getattr(_native, "temporal_dependent_interval_candidate", None)
+    arguments = (
         panel.snapshot_id,
         panel._wire(),
         _sequence(sequence),
@@ -565,6 +632,12 @@ def temporal_dependent_interval(
         _index("min_units", min_units, limit=_U64),
         float(max_failed_fraction),
     )
+    if candidate is not None:
+        native, refusal = candidate(*arguments)
+        if refusal is not None:
+            raise TemporalExtensionRefusal(json.loads(refusal))
+        return TemporalIntervalCandidate._from_native(native)
+    refusal = _dependent_interval_closed(*arguments)
     raise TemporalExtensionRefusal(json.loads(refusal))
 
 
@@ -697,6 +770,7 @@ __all__ = [
     "TemporalPremises",
     "TemporalRefreshResult",
     "TemporalUnitPanel",
+    "TemporalIntervalCandidate",
     "TemporalWindow",
     "UnitHistories",
     "consume_temporal_initial_state_artifact",

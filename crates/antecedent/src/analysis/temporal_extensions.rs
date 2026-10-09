@@ -449,6 +449,17 @@ pub fn temporal_dependent_interval(
     estimand: IntervalEstimand,
     config: &DependentIntervalConfig,
 ) -> Result<Infallible, IoError> {
+    validated_interval(snapshot_id, units, sequence, estimand, config)?;
+    Err(route_frozen_refusal().into())
+}
+
+fn validated_interval(
+    snapshot_id: &str,
+    units: Option<Vec<UnitHistories>>,
+    sequence: [u32; 2],
+    estimand: IntervalEstimand,
+    config: &DependentIntervalConfig,
+) -> Result<(TemporalUnitPanel, Box<dyn TemporalEstimator>), IoError> {
     let panel = TemporalUnitPanel::new(snapshot_id, units)?;
     validate_interval_design(config, panel.unit_count())?;
     let estimator = interval_estimator(sequence, estimand)?;
@@ -460,5 +471,43 @@ pub fn temporal_dependent_interval(
             &format!("the original panel: {error}"),
         )
     })?;
-    Err(route_frozen_refusal().into())
+    Ok((panel, estimator))
+}
+
+/// Prepare the original whole-unit candidate and independently replay its artifact.
+/// Internal acceptance preparation only: no measured or released interval license.
+///
+/// # Errors
+/// Original panel/design/history refusals or failed original engine/artifact replay.
+#[doc(hidden)]
+#[cfg(feature = "calibration-internal")]
+pub fn temporal_dependent_interval_candidate(
+    snapshot_id: &str,
+    units: Option<Vec<UnitHistories>>,
+    sequence: [u32; 2],
+    estimand: IntervalEstimand,
+    config: &DependentIntervalConfig,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire, IoError> {
+    use antecedent_io::temporal_interval_artifact::{
+        IntervalEstimatorWire, TemporalIntervalArtifactWire,
+    };
+    let wire = match &estimand {
+        IntervalEstimand::Observed => IntervalEstimatorWire::observed(sequence),
+        IntervalEstimand::FixedState(s0) => {
+            IntervalEstimatorWire::fixed(&FixedStateQuery { sequence, s0: *s0 })
+        }
+        IntervalEstimand::Marginalized(spec) => IntervalEstimatorWire::marginalized(
+            sequence,
+            &MarginalizedQuery::new(sequence, spec.clone())?,
+        ),
+    };
+    let (panel, estimator) = validated_interval(snapshot_id, units, sequence, estimand, config)?;
+    let interval = antecedent_estimate::temporal_dependent_interval::dependent_unit_interval(
+        &panel,
+        &*estimator,
+        config,
+        ctx,
+    )?;
+    TemporalIntervalArtifactWire::checked(&panel, wire, config, &interval, None, ctx)
 }

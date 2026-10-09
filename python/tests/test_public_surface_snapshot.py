@@ -27,6 +27,8 @@ from antecedent import AnalysisResult
 from antecedent._workflow import LoadedResult
 from antecedent.estimation import PreparedAnalysis
 from antecedent import estimators
+from antecedent import design
+from antecedent.transport import advanced as transport
 
 def members(obj):
     names = {n for n in dir(obj) if not n.startswith("_")}
@@ -42,6 +44,18 @@ def members(obj):
 
 json.dump(
     {
+        "transport.JointTransportIdentity": members(transport.JointTransportIdentity),
+        "transport.GaussianTransportPrior": members(transport.GaussianTransportPrior),
+        "transport.JointTransportPriors": members(transport.JointTransportPriors),
+        "transport.JointTransportSource": members(transport.JointTransportSource),
+        "transport.JointTransportTarget": members(transport.JointTransportTarget),
+        "transport.JointTransportPosterior": members(transport.JointTransportPosterior),
+        "transport.TemporalIntervalCandidate": members(transport.TemporalIntervalCandidate),
+        "transport.NestedFisherCandidate": members(transport.NestedFisherCandidate),
+        "transport.SampledRecoveryCandidate": members(transport.SampledRecoveryCandidate),
+        "transport.SampledRecoveryIdentity": members(transport.SampledRecoveryIdentity),
+        "design.CheckedPriorSignal": members(design.CheckedPriorSignal),
+        "design.PriorSignalSource": members(design.PriorSignalSource),
         "antecedent": members(antecedent),
         "AnalysisResult": members(AnalysisResult),
         "PreparedAnalysis": members(PreparedAnalysis),
@@ -93,6 +107,83 @@ _PYDANTIC_SURFACE = {
 }
 
 SNAPSHOT: dict[str, set[str]] = {
+    "transport.JointTransportIdentity": {"datum_ids", "snapshot_digest"},
+    "transport.GaussianTransportPrior": {"bank_id", "consumed", "covariance", "mean"},
+    "transport.JointTransportPriors": {"invariant", "varying"},
+    "transport.JointTransportSource": {"data", "id", "identity", "noise_variance", "population"},
+    "transport.JointTransportTarget": {"data", "identity", "population"},
+    "transport.JointTransportPosterior": {
+        "calibration",
+        "diagnostics",
+        "draw_names",
+        "draws",
+        "expectation",
+        "export",
+        "kind",
+        "parameter_names",
+        "posterior_covariance",
+        "posterior_mean",
+        "release_status",
+        "target_effect_mean",
+        "target_effect_variance",
+        "to_dict",
+    },
+    "transport.TemporalIntervalCandidate": {
+        "calibration",
+        "claim",
+        "export",
+        "identity",
+        "level",
+        "load",
+        "lower",
+        "method",
+        "panel_digest",
+        "point",
+        "replicate_digest",
+        "seed",
+        "snapshot_id",
+        "to_dict",
+        "upper",
+    },
+    "transport.NestedFisherCandidate": {
+        "calibration",
+        "covariance",
+        "export",
+        "identification",
+        "identity",
+        "inference",
+        "intervals",
+        "load",
+        "method",
+        "nominal_level",
+        "to_dict",
+        "values",
+    },
+    "transport.SampledRecoveryCandidate": {
+        "calibration",
+        "effect",
+        "effect_standard_error",
+        "expected_identity",
+        "export",
+        "inspect",
+        "interval",
+        "level",
+        "load",
+    },
+    "transport.SampledRecoveryIdentity": {"data_digest", "premises_digest"},
+    "design.CheckedPriorSignal": {"diagnostics", "prior", "prior_id", "signal"},
+    "design.PriorSignalSource": {
+        "artifact_id",
+        "conflict_shrinkage",
+        "intercept",
+        "lineage",
+        "observation_ids",
+        "prior_strength",
+        "quantity",
+        "slope",
+        "source_population",
+        "weight",
+    },
     "antecedent": {
         # Verbs
         "analyze",

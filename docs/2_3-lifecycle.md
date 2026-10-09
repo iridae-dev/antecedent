@@ -298,3 +298,58 @@ Next: [sensitivity and robustness](2_3-sensitivity-and-robustness.md),
 [transport and counterfactuals](2_3-transport-counterfactuals.md),
 [design ranking](2_3-design-ranking.md) and
 [recalculation](2_3-recalculation-capabilities.md).
+
+### Candidate joint Gaussian and learned joint transport
+
+The normal wheel keeps `transport.advanced.joint_bayesian_transport` and
+`learned_joint_transport` frozen after their real scope checks. An internal
+`calibration-internal` build supplies a success lifecycle to prepare later release
+verification; it does not measure calibration or activate either interval route.
+The same public functions accept an original native `TransportIdentification`
+from `transport.advanced.identify`, complete `JointTransportPriors`, and typed
+`JointTransportSource`/`JointTransportTarget` declarations. The returned
+`JointTransportPosterior.release_status` is `candidate_only`; calibration stays
+`unmeasured`.
+
+A `GaussianTransportPrior` declares its mean and complete square covariance,
+including off-diagonal dependence. An invariant block and one varying block are
+required; no prior is fabricated from posterior moments. A bank prior additionally
+names its bank and every consumed `JointTransportIdentity`. Sources declare named
+strict numeric data, a source population, known positive observation noise variance,
+a snapshot identity and one unique observation identity per row. Targets similarly
+retain their population, snapshot and every row identity. Treatment uses original
+binary levels zero and one. The certified graph/query, source and target populations
+and standardizers come from the retained native identification, rather than its
+mutable Python display fields. A redundant `graph` argument is refused in the
+candidate path because the original proof already binds it.
+
+Both frozen Gaussian configurations and their learned polynomial counterparts
+support the four combinations of varying block (`intercept`,
+`intercept_and_covariates`) and source sharing (`independent_varying_blocks`,
+`shared_varying_block`). The learned route retains the actual polynomial degree
+and `antecedent-learn` provider record. Parameter and effect covariance are full
+joint covariance; each draw row is a single aligned realization of the parameters,
+source effects and target effect. Independent marginal samples are never paired.
+The target mean/variance condition on the supplied target covariate sample; no
+sampling uncertainty or calibrated coverage is added by these wrappers.
+
+`posterior.export()` preserves the existing engine artifact's model, original
+identification record, priors/bank provenance, basis, source and target observations,
+identities, numerical posterior and diagnostics. Retain `posterior.expectation()`
+independently, then pass it to `consume_joint_transport_posterior(...,
+kind=posterior.kind, expected_identity=...)` in a fresh internal-feature process.
+That consumer independently re-fits from the stored inputs and checks both premises
+and data digests. Numerical replay does not independently re-run graphical
+identification or authenticate the truth of declared historical observation IDs;
+it is not a new causal identification or interval license.
+
+The candidate producer and consumer enforce bounds before materializing an
+unbounded model/draw request. They refuse mismatched scientific schema/populations,
+missing or repeated row identities, unsupported graph/formula, inconsistent prior
+dimensions, non-positive covariance, undeclared dependence, shared source/target
+units, prior-bank/likelihood reuse and target mass outside declared source support.
+`python/tests/test_joint_transport_candidate_lifecycle.py` contains separate
+independent dense Gaussian precision/mean/covariance oracles for all four plus four
+configurations, exact aligned-effect-row assertions and fresh-process consumption.
+These feature-build tests must be repeated through the activated ordinary final
+wheel before they can count as released positive evidence.

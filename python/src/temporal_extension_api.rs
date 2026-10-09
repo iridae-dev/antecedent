@@ -406,7 +406,146 @@ fn temporal_dependent_interval_closed(
     }
 }
 
+/// Internal acceptance carrier; never labels an unmeasured candidate licensed.
+#[cfg(feature = "calibration-internal")]
+#[pyclass]
+#[doc(hidden)]
+struct NativeTemporalIntervalCandidate {
+    wire: antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire,
+}
+
+#[cfg(feature = "calibration-internal")]
+#[pymethods]
+impl NativeTemporalIntervalCandidate {
+    fn payload(&self) -> PyResult<String> {
+        serde_json::to_string(&self.wire).map_err(|e| crate::value_err(e.to_string()))
+    }
+    fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        self.wire
+            .export()
+            .map(|b| PyBytes::new(py, &b))
+            .map_err(|e| CausalSerializationError::new_err(e.to_string()))
+    }
+}
+
+/// Actual public-route preparation, available only in internal acceptance builds.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+#[pyfunction]
+#[pyo3(signature = (snapshot_id, units, sequence, estimand, fixed_state, law, point, replicates, seed, level, method, min_units, max_failed_fraction))]
+#[allow(clippy::too_many_arguments)]
+fn temporal_dependent_interval_candidate(
+    py: Python<'_>,
+    snapshot_id: &str,
+    units: Option<Vec<UnitTuple>>,
+    sequence: (u32, u32),
+    estimand: &str,
+    fixed_state: Option<u32>,
+    law: Option<LawTuple>,
+    point: Option<u32>,
+    replicates: usize,
+    seed: u64,
+    level: f64,
+    method: &str,
+    min_units: usize,
+    max_failed_fraction: f64,
+) -> Outcome<NativeTemporalIntervalCandidate> {
+    // Preserve the released entry's complete argument validation and refusals.
+    let refusal = temporal_dependent_interval_closed(
+        snapshot_id,
+        units.clone(),
+        sequence,
+        estimand,
+        fixed_state,
+        law.clone(),
+        point,
+        replicates,
+        seed,
+        level,
+        method,
+        min_units,
+        max_failed_fraction,
+    )?;
+    let detail = serde_json::from_str::<serde_json::Value>(&refusal)
+        .map_err(|e| crate::value_err(e.to_string()))?;
+    if detail["detail"] != "temporal_interval.route_frozen" {
+        return Ok((None, Some(refusal)));
+    }
+    let method = match method {
+        "percentile" => IntervalMethod::Percentile,
+        "basic" => IntervalMethod::Basic,
+        _ => return Err(crate::value_err("invalid interval method")),
+    };
+    let estimand = match (estimand, fixed_state) {
+        ("observed_initial_state", None) => IntervalEstimand::Observed,
+        ("fixed_initial_state", Some(s0)) => IntervalEstimand::FixedState(s0),
+        ("marginalized_initial_state", None) => IntervalEstimand::Marginalized(
+            spec_of(law, point).map_err(|e| crate::value_err(e.to_string()))?,
+        ),
+        _ => return Err(crate::value_err("invalid interval estimand")),
+    };
+    let config =
+        DependentIntervalConfig { replicates, seed, level, method, min_units, max_failed_fraction };
+    let ctx = crate::py_execution_context(seed, 1);
+    let snapshot_id = snapshot_id.to_owned();
+    crate::detach_catch(py, move || {
+        produce(
+            antecedent::temporal_dependent_interval_candidate(
+                &snapshot_id,
+                units_of(units),
+                [sequence.0, sequence.1],
+                estimand,
+                &config,
+                &ctx,
+            )
+            .map(|wire| NativeTemporalIntervalCandidate { wire }),
+        )
+    })
+}
+
+/// Fresh internal consumer reruns the original whole-unit estimator/resampling.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+#[pyfunction]
+fn consume_temporal_interval_candidate(
+    py: Python<'_>,
+    artifact: &[u8],
+    expected_identity: &str,
+) -> Outcome<NativeTemporalIntervalCandidate> {
+    use antecedent_io::temporal_interval_artifact::{
+        TemporalIntervalArtifactWire, TemporalIntervalConsumeLimits,
+    };
+    let artifact = artifact.to_vec();
+    let expected_identity = expected_identity.to_owned();
+    crate::detach_catch(py, move || {
+        let outcome = (|| {
+            let wire = TemporalIntervalArtifactWire::decode(&artifact)?;
+            if wire.seal != expected_identity {
+                return Err(IoError::Refused {
+                code: reason_code!("invalid_argument"),
+                message: "temporal_interval_artifact.expected_identity_mismatch: retained identity differs".into(),
+            });
+            }
+            let config = wire.config.to_config()?;
+            let ctx = crate::py_execution_context(config.seed, 1);
+            let (wire, _) = TemporalIntervalArtifactWire::consume(
+                &artifact,
+                &TemporalIntervalConsumeLimits::default(),
+                &ctx,
+            )?;
+            Ok(NativeTemporalIntervalCandidate { wire })
+        })();
+        consume(outcome)
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    #[cfg(feature = "calibration-internal")]
+    {
+        module.add_class::<NativeTemporalIntervalCandidate>()?;
+        module.add_function(wrap_pyfunction!(temporal_dependent_interval_candidate, module)?)?;
+        module.add_function(wrap_pyfunction!(consume_temporal_interval_candidate, module)?)?;
+    }
     module.add_class::<NativeTemporalInitialState>()?;
     module.add_function(wrap_pyfunction!(temporal_initial_state_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(consume_temporal_initial_state_artifact, module)?)?;

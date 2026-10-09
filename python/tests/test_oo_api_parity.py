@@ -482,3 +482,76 @@ def test_path_specific_and_distribution_queries():
 
 def test_extensibility_exported():
     assert hasattr(antecedent.extensibility, "CiBatchTest")
+
+
+@pytest.mark.parametrize(
+    "name,parameters,result",
+    [
+        (
+            "joint_bayesian_transport",
+            "sources target features graph graph_class dependence varying sharing draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold",
+            "JointTransportPosterior",
+        ),
+        (
+            "learned_joint_transport",
+            "sources target features graph graph_class dependence varying sharing basis_degree draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold",
+            "JointTransportPosterior",
+        ),
+        (
+            "temporal_dependent_interval",
+            "panel sequence estimand fixed_state target_law replicates seed level method min_units max_failed_fraction",
+            "TemporalIntervalCandidate",
+        ),
+        (
+            "binary_nested_markov_fisher_interval",
+            "graph regimes nominal_level max_iterations tolerance",
+            "NestedFisherCandidate",
+        ),
+        (
+            "sampled_observation_recovery",
+            "stage query rows snapshot replicates seed",
+            "SampledRecoveryCandidate",
+        ),
+        (
+            "consume_joint_transport_posterior",
+            "data kind expected_identity",
+            "JointTransportPosterior",
+        ),
+    ],
+)
+def test_candidate_public_signature_contract(name, parameters, result):
+    """Default and internal builds expose the same typed interface, without activation flags."""
+    import inspect
+
+    from antecedent.transport import advanced
+
+    signature = inspect.signature(getattr(advanced, name))
+    assert tuple(signature.parameters) == tuple(parameters.split())
+    assert signature.return_annotation == result
+    assert all(
+        p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD) for p in signature.parameters.values()
+    )
+
+
+def test_checked_prior_bridge_signature_and_identity_defaults():
+    import inspect
+
+    signature = inspect.signature(design.adapt_prior_to_signal)
+    assert tuple(signature.parameters) == (
+        "catalog",
+        "query",
+        "sources",
+        "signal",
+        "state",
+        "target_population",
+        "prior_id",
+        "variables",
+        "transport_policy_id",
+        "candidate_observation_ids",
+        "resolution",
+    )
+    assert signature.return_annotation == "CheckedPriorSignal"
+    assert signature.parameters["transport_policy_id"].default is None
+    assert signature.parameters["candidate_observation_ids"].default == ()
+    for required in ("sources", "state", "target_population", "prior_id"):
+        assert signature.parameters[required].default is inspect.Parameter.empty

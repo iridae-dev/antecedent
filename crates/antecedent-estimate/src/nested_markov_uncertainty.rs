@@ -222,10 +222,12 @@ mod internal {
         nominal_level: f64,
         ctx: &ExecutionContext,
     ) -> Result<NestedMarkovUncertainty, EstimationError> {
-        if !(nominal_level.is_finite() && 0. < nominal_level && nominal_level < 1.) {
+        if nominal_level.to_bits() != 0.90_f64.to_bits()
+            && nominal_level.to_bits() != 0.95_f64.to_bits()
+        {
             return Err(refusal(
                 "nested_markov.fisher_invalid_level",
-                "nominal level must lie strictly between zero and one",
+                "the frozen pilot accepts only nominal levels 0.90 and 0.95",
             ));
         }
         let counts = binary_cells(input)?;

@@ -16,18 +16,28 @@ or overlapping source dependence, ``transport_missing_evidence`` for no source a
 ``joint_law_required`` for no target law), so a caller learns the real obstruction. Otherwise
 the call raises :class:`~antecedent.errors.CausalUnsupportedError` with ``reason_code ==
 "cell_not_licensed"`` and ``learned_joint_transport.route_frozen`` in the message. The function
-never returns.
+returns no posterior on a default release wheel. Internal candidate feature builds
+can return a numerically replayable, unmeasured posterior when an original native
+identification and the complete typed data/prior declarations are supplied.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal
 
+from .. import _native
 from .._native import learned_joint_transport_closed as _learned_joint_transport_closed
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg
-from ._impl import _non_negative
+from ._impl import TransportIdentification, _non_negative
+from ._joint_posterior import (
+    JointTransportPosterior,
+    JointTransportPriors,
+    JointTransportSource,
+    JointTransportTarget,
+    _candidate,
+)
 
 __all__ = ["learned_joint_transport"]
 
@@ -77,8 +87,8 @@ def _has_bidirected_edge(graph: Admg) -> bool:
 
 def learned_joint_transport(
     *,
-    sources: Sequence[Mapping[str, Any]],
-    target: Mapping[str, Any] | None,
+    sources: Sequence[Mapping[str, Any] | JointTransportSource],
+    target: Mapping[str, Any] | JointTransportTarget | None,
     features: Sequence[str],
     graph: Admg | None = None,
     graph_class: GraphClass = "fixed_dag",
@@ -88,7 +98,13 @@ def learned_joint_transport(
     basis_degree: int = 2,
     draws: int = 4000,
     seed: int = 0,
-) -> NoReturn:
+    identification: TransportIdentification | None = None,
+    priors: JointTransportPriors | None = None,
+    treatment: str = "a",
+    outcome: str = "y",
+    max_unsupported_mass: float = 0.0,
+    conflict_z_threshold: float = 3.0,
+) -> JointTransportPosterior:
     """Learn-fitted joint transport posterior of the target average effect: closed.
 
     ``sources`` are source trials (mappings), ``target`` the target covariate sample and
@@ -103,13 +119,16 @@ def learned_joint_transport(
     (``learned_joint_transport.too_many_parameters``) raise ``invalid_argument``; undeclared or
     overlapping source dependence, no source and no target law raise their own typed refusals.
     Every other request raises ``cell_not_licensed`` / ``learned_joint_transport.route_frozen``:
-    the interval claims calibration, which is unmeasured.
+    the interval claims calibration, which is unmeasured. An internal candidate
+    feature build additionally accepts an original ``identification`` and complete
+    ``JointTransportSource``, ``JointTransportTarget`` and ``JointTransportPriors``
+    declarations, returning a candidate-only posterior without an interval license.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of source trials")
-    if any(not isinstance(source, Mapping) for source in sources):
+    if any(not isinstance(source, (Mapping, JointTransportSource)) for source in sources):
         raise CausalTypeError("every source must be a mapping")
-    if target is not None and not isinstance(target, Mapping):
+    if target is not None and not isinstance(target, (Mapping, JointTransportTarget)):
         raise CausalTypeError("target must be a mapping or None")
     feature_names = _names("features", features)
     if graph is not None and not isinstance(graph, Admg):
@@ -123,6 +142,38 @@ def learned_joint_transport(
     _non_negative("basis_degree", basis_degree)
     _non_negative("draws", draws)
     _non_negative("seed", seed)
+    if (
+        getattr(_native, "joint_transport_candidate", None) is not None
+        and identification is not None
+    ):
+        if declared != "fixed_dag":
+            raise CausalUnsupportedError(
+                "learned_joint_transport.unsupported_graph", reason_code="route_not_supported"
+            )
+        if graph is not None:
+            raise CausalValueError(
+                "candidate graph is bound by identification; omit the redundant graph argument"
+            )
+        if priors is None:
+            raise CausalTypeError("candidate transport needs explicit complete priors")
+        return _candidate(
+            sources=sources,
+            target=target,
+            features=feature_names,
+            identification=identification,
+            priors=priors,
+            treatment=treatment,
+            outcome=outcome,
+            varying=varying,
+            sharing=sharing,
+            dependence=dependence,
+            basis_degree=basis_degree,
+            draws=draws,
+            seed=seed,
+            learned=True,
+            max_unsupported_mass=max_unsupported_mass,
+            conflict_z_threshold=conflict_z_threshold,
+        )
     try:
         _learned_joint_transport_closed(
             declared,
@@ -132,7 +183,7 @@ def learned_joint_transport(
             len(feature_names),
             basis_degree,
             len(sources),
-            target is not None and len(target) > 0,
+            target is not None and (isinstance(target, JointTransportTarget) or len(target) > 0),
             draws,
         )
     except CausalUnsupportedError as error:

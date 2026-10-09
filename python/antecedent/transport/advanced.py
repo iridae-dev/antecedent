@@ -14,6 +14,7 @@ from ._admg_conditional import (
     identify_admg_conditional_transport,
 )
 from ._closed_pilots import (
+    NestedFisherCandidate,
     binary_nested_markov,
     binary_nested_markov_fisher_interval,
     joint_bayesian_transport,
@@ -140,6 +141,7 @@ from ._recovery import (
     consume_observation_recovery_artifact,
     identify_observation_recovery,
 )
+from ._sampled_candidate import SampledRecoveryCandidate, SampledRecoveryIdentity
 from ._scenarios import (
     TransportScenario,
     TransportScenarioSet,
@@ -173,6 +175,7 @@ from ._temporal_extensions import (
     InitialStateLaw,
     TemporalExtensionRefusal,
     TemporalInitialStateResult,
+    TemporalIntervalCandidate,
     TemporalPremises,
     TemporalRefreshResult,
     TemporalUnitPanel,
@@ -185,6 +188,8 @@ from ._temporal_extensions import (
 )
 
 __all__ = [
+    "SampledRecoveryCandidate",
+    "SampledRecoveryIdentity",
     "AdjustedContrast",
     "CompletionCounts",
     "CompletionEvidence",
@@ -212,6 +217,7 @@ __all__ = [
     "JointDeviation",
     "binary_nested_markov",
     "binary_nested_markov_fisher_interval",
+    "NestedFisherCandidate",
     "joint_bayesian_transport",
     "sampled_observation_recovery",
     "consume_joint_mechanism_sensitivity_artifact",
@@ -227,6 +233,13 @@ __all__ = [
     "estimator_menu",
     "prepare_learned_continuous",
     "learned_joint_transport",
+    "GaussianTransportPrior",
+    "JointTransportIdentity",
+    "JointTransportPriors",
+    "JointTransportSource",
+    "JointTransportTarget",
+    "JointTransportPosterior",
+    "consume_joint_transport_posterior",
     "DoseBasis",
     "PreparedSmoothedDose",
     "SmoothedDoseData",
@@ -325,6 +338,7 @@ __all__ = [
     "TemporalPremises",
     "TemporalRefreshResult",
     "TemporalUnitPanel",
+    "TemporalIntervalCandidate",
     "TemporalWindow",
     "consume_temporal_initial_state_artifact",
     "consume_temporal_refresh_artifact",
@@ -336,3 +350,13 @@ __all__ = [
     "reload_lowered_program",
     "restore_lowered_program",
 ]
+
+from ._joint_posterior import (
+    GaussianTransportPrior,
+    JointTransportIdentity,
+    JointTransportPosterior,
+    JointTransportPriors,
+    JointTransportSource,
+    JointTransportTarget,
+    consume_joint_transport_posterior,
+)
