@@ -10,6 +10,9 @@ use antecedent::analysis::recalc_temporal::{
 use antecedent_io::recalc_receipt_artifact::{CapabilitiesWire, identities_to_wire, plan_to_wire};
 use pyo3::prelude::*;
 
+#[cfg(feature = "calibration-internal")]
+mod candidate;
+
 fn request(text: &str) -> PyResult<TemporalRequest> {
     let request: TemporalRequest = parse_json(text, "temporal histories")?;
     if request.units.len() > 4096
@@ -361,6 +364,17 @@ impl PyTemporalSession {
             Err(cause) => Ok((None, None, None, Some(error(&cause)))),
         })
     }
+    #[cfg(feature = "calibration-internal")]
+    #[pyo3(signature=(config_json,*,memory_limit_bytes=None,cancel=None))]
+    fn interval_candidate(
+        &self,
+        py: Python<'_>,
+        config_json: &str,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<candidate::NativeCheckedTemporalIntervalCandidate>, Option<String>)> {
+        candidate::produce(self, py, config_json, memory_limit_bytes, cancel)
+    }
     fn dependent_interval(&self) -> String {
         match self.inner.dependent_interval(
             &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig::default(),
@@ -371,5 +385,7 @@ impl PyTemporalSession {
     }
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    #[cfg(feature = "calibration-internal")]
+    candidate::register(module)?;
     module.add_class::<PyTemporalSession>()
 }

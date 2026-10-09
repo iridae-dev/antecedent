@@ -6539,6 +6539,14 @@ class TemporalSessionHandle:
     def consume(
         artifact: bytes, *, seed: int = 1, threads: int | None = None
     ) -> tuple[TemporalSessionHandle | None, str | None, bytes | None, str | None]: ...
+    # Optional calibration-internal checked-source lifecycle only.
+    def interval_candidate(
+        self,
+        config_json: str,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[NativeCheckedTemporalIntervalCandidate | None, str | None]: ...
     def dependent_interval(self) -> str: ...
 
 # Finite source-state terminal decision and study-ranking artifact.
@@ -6722,3 +6730,19 @@ def consume_sampled_recovery_candidate(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
+
+# Optional calibration-internal original checked TemporalSession source/proof route.
+class NativeCheckedTemporalIntervalCandidate:
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def consume_checked_temporal_interval_candidate(
+    artifact: bytes,
+    expected_identity_json: str,
+    *,
+    max_units: int = 4096,
+    max_histories: int = 100_000,
+    max_replicates: int = 2000,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[NativeCheckedTemporalIntervalCandidate | None, str | None]: ...

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +79,8 @@ def test_every_extension_name_is_declared_in_the_stub():
 # the stage method; internal acceptance builds must expose ALL of them. None is
 # an ordinary public name waived individually, and partial registration is a bug.
 _INTERNAL_CANDIDATE_NAMES = {
+    "NativeCheckedTemporalIntervalCandidate",
+    "consume_checked_temporal_interval_candidate",
     "NativeNestedFisherCandidate",
     "NativeNestedMarkovPosteriorCandidate",
     "NativeTemporalIntervalCandidate",
@@ -92,6 +95,7 @@ _INTERNAL_CANDIDATE_NAMES = {
     "temporal_dependent_interval_candidate",
 }
 _INTERNAL_STAGE_METHOD = ("ObservationRecoveryStage", "sampled_candidate")
+_INTERNAL_STAGE_METHODS = (_INTERNAL_STAGE_METHOD, ("TemporalSessionHandle", "interval_candidate"))
 
 
 def _validate_internal_family(present: set[str], stage_method: bool) -> bool:
@@ -108,16 +112,21 @@ def _validate_internal_family(present: set[str], stage_method: bool) -> bool:
 
 def _internal_family_enabled() -> bool:
     stage = getattr(_native, _INTERNAL_STAGE_METHOD[0])
-    return _validate_internal_family(
+    enabled = _validate_internal_family(
         _extension_public_names() & _INTERNAL_CANDIDATE_NAMES,
         hasattr(stage, _INTERNAL_STAGE_METHOD[1]),
     )
+    for class_name, method in _INTERNAL_STAGE_METHODS:
+        assert hasattr(getattr(_native, class_name), method) == enabled, (
+            f"{class_name}.{method} must be present exactly when the complete internal family is present"
+        )
+    return enabled
 
 
 def test_optional_internal_family_has_complete_build_contract():
     assert _stub_toplevel_names() >= _INTERNAL_CANDIDATE_NAMES
-    stage = _stub_classes()[_INTERNAL_STAGE_METHOD[0]]
-    assert _INTERNAL_STAGE_METHOD[1] in _declared_members(stage)
+    for class_name, method in _INTERNAL_STAGE_METHODS:
+        assert method in _declared_members(_stub_classes()[class_name])
     _internal_family_enabled()
 
 
@@ -420,7 +429,9 @@ def test_stub_declares_no_method_the_extension_lacks():
             if isinstance(item, ast.FunctionDef)
             and not item.name.startswith("__")
             and not hasattr(cls, item.name)
-            and not ((name, item.name) == _INTERNAL_STAGE_METHOD and not _internal_family_enabled())
+            and not (
+                (name, item.name) in _INTERNAL_STAGE_METHODS and not _internal_family_enabled()
+            )
         )
     assert not extra, f"stub methods the extension does not define: {extra}"
 
@@ -463,3 +474,23 @@ def test_stub_method_signatures_match_the_extension():
                 )
     assert checked, "no class method signature was introspectable; the sweep is not running"
     assert not mismatches, "stub/extension method drift:\n" + "\n".join(mismatches)
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_checked_temporal_stage_cannot_drift_from_complete_internal_family(monkeypatch, enabled):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_extension_public_names",
+        lambda: _INTERNAL_CANDIDATE_NAMES if enabled else set(),
+    )
+    recovery = SimpleNamespace(**({"sampled_candidate": object()} if enabled else {}))
+    temporal = SimpleNamespace(**({} if enabled else {"interval_candidate": object()}))
+    monkeypatch.setattr(_native, "ObservationRecoveryStage", recovery)
+    monkeypatch.setattr(_native, "TemporalSessionHandle", temporal)
+    with pytest.raises(
+        AssertionError,
+        match="TemporalSessionHandle.interval_candidate must be present exactly when",
+    ):
+        _internal_family_enabled()
