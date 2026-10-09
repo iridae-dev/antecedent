@@ -545,3 +545,33 @@ fn c2_recalc_recorder_counts_only_fits_a_scope_actually_ran() {
     assert_eq!(recorder.counts(Stage::ScoreArtifact).fold_fits, 0);
     assert_eq!(recorder.counts(Stage::Law).total(), 0);
 }
+
+#[test]
+fn c2_recalc_failed_refresh_law_and_decision_preserve_successful_state() {
+    let base = request();
+    let mut session = RecalcSession::new();
+    let first = go(&mut session, &base, SEED);
+    let identities = session.identities().clone();
+    let score_pointer = std::ptr::from_ref(session.score_table().unwrap());
+    let mut bad_refresh = base.clone();
+    bad_refresh.columns[T as usize].1.fill(0.);
+    let mut bad_law = base.clone();
+    bad_law.target =
+        Some(TargetWeights { weights: vec![0.; N], depends_on: vec![VariableId::from_raw(Z)] });
+    let mut bad_decision = base.clone();
+    bad_decision.utility.benefit_per_unit = f64::MAX;
+    for bad in [bad_refresh, bad_law, bad_decision] {
+        assert!(execute_with_receipt(&mut session, &bad, &ctx(SEED)).is_err());
+        assert!(session.is_live());
+        assert_eq!(session.identities(), &identities);
+        assert_eq!(
+            std::ptr::from_ref(session.score_table().unwrap()),
+            score_pointer,
+            "failed execution preserves the original prepared artifact"
+        );
+        let again = go(&mut session, &base, SEED);
+        assert_no_work(&counts(&again), 0);
+        assert_eq!(again.law.ate.to_bits(), first.law.ate.to_bits());
+        assert_eq!(again.decision.net_benefit.to_bits(), first.decision.net_benefit.to_bits());
+    }
+}

@@ -4,22 +4,15 @@
 //! Rust's. A fallible call returns `(value, refusal_json)` so the Python layer
 //! can raise the refusal as its own exception type.
 //!
-//! A Python response view keeps no private native payload, so a native claim is
-//! built from the view's public projection (treatment, outcome, grid, means,
-//! support labels and identification status). That projection retains no draws,
-//! so a claim built here supplies a mean source and never a joint law.
+//! Native trust is issued only from opaque checked execution state, never caller projections.
 
 use std::fmt::Display;
-use std::sync::Arc;
 
 use antecedent::analysis::native_claims::{
     NativeDecisionInput, NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
 use antecedent_core::{
-    AssumptionSet, CausalResponse, CausalSchema, CausalSchemaBuilder, ContinuousDomain,
-    ExternalProgramClaim, ExternalRefusal, GridSpec, IdentificationStatus, ProgramBinding,
-    ResponseFunctional, ResponseIdentification, ResponseUncertainty, ResponseValue,
-    ScientificQuantity, SupportRegion, SupportReport, SupportStatus,
+    ExternalProgramClaim, ExternalRefusal, ProgramBinding, ResponseUncertainty, ScientificQuantity,
     check_external_against_program,
 };
 use antecedent_design::decision_artifact::contract_from_json_refusal;
@@ -108,7 +101,7 @@ impl From<BindingWire> for ProgramBinding {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ClaimWire {
+pub(crate) struct ClaimWire {
     contract_id: String,
     graph_id: String,
     declared_identity: String,
@@ -120,13 +113,13 @@ struct ClaimWire {
     quantities: Vec<ScientificQuantityWire>,
 }
 
-fn parse_binding(json: &str) -> PyResult<ProgramBinding> {
+pub(crate) fn parse_binding(json: &str) -> PyResult<ProgramBinding> {
     serde_json::from_str::<BindingWire>(json).map(ProgramBinding::from).map_err(malformed)
 }
 
 // The refusal is the cold path of a once-per-claim check; boxing would not pay.
 #[allow(clippy::result_large_err)]
-fn claim_from(wire: ClaimWire) -> Result<ExternalProgramClaim, ExternalRefusal> {
+pub(crate) fn claim_from(wire: ClaimWire) -> Result<ExternalProgramClaim, ExternalRefusal> {
     let quantities = wire
         .quantities
         .into_iter()
@@ -215,117 +208,6 @@ fn bind_external_to_program(
     }
 }
 
-/// The public projection of a Python response view that a native claim is built from.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ProjectionWire {
-    treatment: String,
-    outcome: String,
-    grid: Vec<f64>,
-    means: Vec<f64>,
-    identification: String,
-    has_envelope: bool,
-    support_status: String,
-    point_status: Option<Vec<String>>,
-    provenance_id: String,
-}
-
-fn projection_refusal(detail: &str, supplied: &str) -> ExternalRefusal {
-    declared_refusal(
-        "bind",
-        detail,
-        None,
-        None,
-        Some(supplied.to_owned()),
-        "project a response result that this library produced",
-    )
-}
-
-// The refusal is the cold path of a once-per-claim check; boxing would not pay.
-#[allow(clippy::result_large_err)]
-fn support_label(name: &str) -> Result<SupportStatus, ExternalRefusal> {
-    SupportStatus::from_name(name)
-        .ok_or_else(|| projection_refusal("native_claims.unknown_support_label", name))
-}
-
-// The refusal is the cold path of a once-per-claim check; boxing would not pay.
-#[allow(clippy::result_large_err)]
-fn response_from(
-    projection: ProjectionWire,
-) -> Result<(CausalResponse, CausalSchema), ExternalRefusal> {
-    let schema = CausalSchemaBuilder::new()
-        .continuous(projection.treatment.as_str())
-        .treatment()
-        .continuous(projection.outcome.as_str())
-        .outcome()
-        .build()
-        .map_err(|error| {
-            projection_refusal("native_claims.invalid_variables", &error.to_string())
-        })?;
-    let id_of = |name: &str| {
-        schema.id_of(name).map_err(|error| {
-            projection_refusal("native_claims.invalid_variables", &error.to_string())
-        })
-    };
-    let (treatment, outcome) = (id_of(&projection.treatment)?, id_of(&projection.outcome)?);
-    let status = IdentificationStatus::from_name(&projection.identification).ok_or_else(|| {
-        projection_refusal("native_claims.unknown_identification", &projection.identification)
-    })?;
-    let summary = support_label(&projection.support_status)?;
-    let labels = projection
-        .point_status
-        .as_deref()
-        .map(|names| names.iter().map(|name| support_label(name)).collect::<Result<Vec<_>, _>>())
-        .transpose()?;
-    let low = projection.grid.first().copied().unwrap_or(0.0);
-    let high = projection.grid.last().copied().unwrap_or(0.0);
-    let value = ResponseValue::Surface {
-        grid: Arc::from(projection.grid.clone()),
-        dimension: 1,
-        mean: Arc::from(projection.means),
-    };
-    let estimate = match status {
-        _ if projection.has_envelope => ResponseIdentification::PartiallyIdentified(value),
-        IdentificationStatus::PartiallyIdentified => {
-            ResponseIdentification::PartiallyIdentified(value)
-        }
-        IdentificationStatus::GraphDependent => {
-            ResponseIdentification::GraphDependent(vec![(0, value)])
-        }
-        IdentificationStatus::NotIdentified => {
-            ResponseIdentification::Unidentified { certificate: Arc::from("not_identified") }
-        }
-        _ => ResponseIdentification::PointIdentified(value),
-    };
-    let response = CausalResponse {
-        estimand: ResponseFunctional::MeanCurve {
-            outcome,
-            treatment: ContinuousDomain::new(
-                treatment,
-                GridSpec::Values(Arc::from(projection.grid)),
-            ),
-        },
-        identification_status: status,
-        estimate,
-        uncertainty: ResponseUncertainty::None,
-        support: SupportReport {
-            status: summary,
-            query_region: SupportRegion {
-                minima: Arc::from(vec![low]),
-                maxima: Arc::from(vec![high]),
-            },
-            diagnostics: vec![],
-            warnings: vec![],
-            point_status: labels.map(Arc::from),
-        },
-        assumptions: AssumptionSet::new(),
-        provenance_id: Arc::from(projection.provenance_id),
-        horizon_identification: None,
-        interaction_structurally_zero: false,
-    };
-    Ok((response, schema))
-}
-
 // The refusal is the cold path of a once-per-claim check; boxing would not pay.
 #[allow(clippy::result_large_err)]
 fn calibration_from(name: &str) -> Result<DistributionCalibration, ExternalRefusal> {
@@ -398,7 +280,7 @@ fn describe(input: &NativeDecisionInput) -> PyResult<serde_json::Value> {
             }
         }),
         NativeDecisionSource::JointLaw(artifact) => serde_json::json!({
-            "joint_law": { "shape": artifact.shape(), "draws": artifact.draws() }
+            "joint_law": { "shape": artifact.shape() }
         }),
     };
     if let (Some(target), serde_json::Value::Object(extra)) = (body.as_object_mut(), source) {
@@ -409,12 +291,27 @@ fn describe(input: &NativeDecisionInput) -> PyResult<serde_json::Value> {
 
 /// A native response with its scientific coordinates, support and provenance.
 #[pyclass(name = "NativeResponseClaim", skip_from_py_object)]
+#[derive(Clone)]
 pub(crate) struct PyNativeResponseClaim {
-    claim: NativeResponseClaim,
+    pub(crate) claim: NativeResponseClaim,
+    pub(crate) authority: std::sync::Arc<crate::response_api::NativeResponseAuthority>,
 }
 
 #[pymethods]
 impl PyNativeResponseClaim {
+    #[getter]
+    fn source_evidence(&self) -> PyResult<crate::source_evidence_api::PySourceEvidence> {
+        crate::source_evidence_api::PySourceEvidence::from_claim(self)
+    }
+    #[getter]
+    fn execution_program_id(&self) -> Option<String> {
+        self.authority
+            .result
+            .executed_contract
+            .as_ref()
+            .and_then(|contract| contract.identities.program)
+            .map(|id| id.to_hex())
+    }
     #[getter]
     fn coordinates_json(&self) -> PyResult<String> {
         serde_json::to_string(&quantity_wires(self.claim.coordinates())).map_err(malformed)
@@ -460,6 +357,48 @@ impl PyNativeResponseClaim {
         self.claim.has_joint_law()
     }
 
+    fn joint_artifact(
+        &self,
+        contract_json: &str,
+    ) -> PyResult<(Option<crate::distribution_api::PyJointDistributionArtifact>, Option<String>)>
+    {
+        check_size(&[contract_json])?;
+        let contract = match contract_from_json_refusal(contract_json) {
+            Ok(contract) => contract,
+            Err(refusal) => return Ok((None, Some(refusal_json(refusal)?))),
+        };
+        let requirement = match contract.source_requirement() {
+            Ok(Some(requirement)) => requirement,
+            Ok(None) => {
+                return Ok((
+                    None,
+                    Some(refusal_json(declared_refusal(
+                        "evaluate",
+                        "native_claims.no_source_requirement",
+                        None,
+                        None,
+                        None,
+                        "declare a source requirement",
+                    ))?),
+                ));
+            }
+            Err(error) => return Ok((None, Some(refusal_json(error.to_refusal())?))),
+        };
+        match self.claim.decision_source(&requirement) {
+            Ok(input) => match input.source {
+                NativeDecisionSource::JointLaw(artifact) => Ok((
+                    Some(crate::distribution_api::PyJointDistributionArtifact {
+                        artifact: *artifact,
+                        source_claim: Some(self.clone()),
+                    }),
+                    None,
+                )),
+                NativeDecisionSource::Mean(_) => Ok((None, None)),
+            },
+            Err(refusal) => Ok((None, Some(refusal_json(refusal)?))),
+        }
+    }
+
     /// The decision source a contract needs, or the refusal when the claim does
     /// not supply the law it asks for (a mean never becomes an outcome law).
     fn decision_source(&self, contract_json: &str) -> PyResult<(Option<String>, Option<String>)> {
@@ -490,30 +429,89 @@ impl PyNativeResponseClaim {
     }
 }
 
-/// Build a native response claim from a response view's projection and a program.
+fn native_contract_id(graph: &str, status: &str, premises: Option<&str>) -> PyResult<String> {
+    antecedent_io::external_binding_wire::native_contract_identity(graph, status, premises)
+        .map_err(|error| malformed(format!("{error:?}")))
+}
+
+/// Build a claim from producer-issued native state and verify its public projection.
 #[pyfunction]
+#[pyo3(signature=(raw,projection_json,binding_json,snapshot_id=None,rng_id=None,calibration=None,premises_json=None))]
 fn native_response_claim(
+    raw: Option<PyRef<'_, crate::response_api::ResponseAnalysisResult>>,
     projection_json: &str,
     binding_json: &str,
-    snapshot_id: &str,
-    rng_id: &str,
-    calibration: &str,
+    snapshot_id: Option<&str>,
+    rng_id: Option<&str>,
+    calibration: Option<&str>,
+    premises_json: Option<&str>,
 ) -> PyResult<(Option<PyNativeResponseClaim>, Option<String>)> {
     check_size(&[projection_json, binding_json])?;
-    let projection: ProjectionWire = serde_json::from_str(projection_json).map_err(malformed)?;
+    let supplied: serde_json::Value = serde_json::from_str(projection_json).map_err(malformed)?;
     let program = parse_binding(binding_json)?;
-    let built = calibration_from(calibration).and_then(|calibration| {
-        let (response, schema) = response_from(projection)?;
-        let context = NativeResponseContext {
-            program,
-            snapshot_id: snapshot_id.to_owned(),
-            rng_id: rng_id.to_owned(),
-            calibration,
-        };
-        NativeResponseClaim::from_response(&response, &schema, &context)
-    });
-    match built {
-        Ok(claim) => Ok((Some(PyNativeResponseClaim { claim }), None)),
+    let refusal = |detail: &str| {
+        declared_refusal(
+            "bind",
+            detail,
+            None,
+            None,
+            None,
+            "use the unchanged response and provenance issued by an actual native execution",
+        )
+    };
+    let Some(raw) = raw else {
+        return Ok((None, Some(refusal_json(refusal("native_claims.native_state_unavailable"))?)));
+    };
+    let Some(authority) = &raw.authority else {
+        return Ok((None, Some(refusal_json(refusal("native_claims.native_state_unavailable"))?)));
+    };
+    if supplied != raw.claim_projection() {
+        return Ok((None, Some(refusal_json(refusal("native_claims.projection_mismatch"))?)));
+    }
+    let Some(executed) = &authority.result.executed_contract else {
+        return Ok((None, Some(refusal_json(refusal("native_claims.native_state_unavailable"))?)));
+    };
+    let actual_snapshot = executed.identities.data_snapshot.to_hex();
+    let actual_rng = format!("native:seed:{}", authority.context.rng.master_seed());
+    let actual_graph = format!("graph:{}", executed.identities.identification);
+    if snapshot_id.is_some_and(|id| id != actual_snapshot)
+        || rng_id.is_some_and(|id| id != actual_rng)
+    {
+        return Ok((None, Some(refusal_json(refusal("native_claims.provenance_mismatch"))?)));
+    }
+    if program.graph_id != actual_graph {
+        return Ok((None, Some(refusal_json(refusal("native_claims.program_mismatch"))?)));
+    }
+    if program.contract_id
+        != native_contract_id(
+            &actual_graph,
+            authority.response.identification_status.as_str(),
+            premises_json,
+        )?
+    {
+        return Ok((None, Some(refusal_json(refusal("native_claims.contract_mismatch"))?)));
+    }
+    let actual_calibration = if matches!(authority.response.uncertainty, ResponseUncertainty::None)
+    {
+        "point_only"
+    } else {
+        "unmeasured"
+    };
+    if calibration.is_some_and(|value| value != actual_calibration) {
+        return Ok((None, Some(refusal_json(refusal("native_claims.calibration_not_licensed"))?)));
+    }
+    let context = NativeResponseContext {
+        program,
+        snapshot_id: actual_snapshot,
+        rng_id: actual_rng,
+        calibration: calibration_from(actual_calibration)
+            .map_err(|_| malformed("invalid native calibration"))?,
+    };
+    match NativeResponseClaim::from_response(&authority.response, &authority.schema, &context) {
+        Ok(claim) => Ok((
+            Some(PyNativeResponseClaim { claim, authority: std::sync::Arc::clone(authority) }),
+            None,
+        )),
         Err(refusal) => Ok((None, Some(refusal_json(refusal)?))),
     }
 }

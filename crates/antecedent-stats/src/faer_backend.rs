@@ -21,84 +21,93 @@ impl DenseLinearAlgebra for FaerBackend {
         y: &[f64],
         workspace: &mut LeastSquaresWorkspace,
     ) -> Result<LeastSquaresFit, StatsError> {
-        if y.len() != nrows {
-            return Err(StatsError::Shape { message: "y length != nrows" });
-        }
-        if x_colmajor.len() < nrows.saturating_mul(ncols) {
-            return Err(StatsError::Shape { message: "X buffer too short" });
-        }
-        if nrows < ncols {
-            return Err(StatsError::Shape { message: "nrows < ncols" });
-        }
-        workspace.prepare(nrows, ncols);
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
+            || {
+                if y.len() != nrows {
+                    return Err(StatsError::Shape { message: "y length != nrows" });
+                }
+                if x_colmajor.len() < nrows.saturating_mul(ncols) {
+                    return Err(StatsError::Shape { message: "X buffer too short" });
+                }
+                if nrows < ncols {
+                    return Err(StatsError::Shape { message: "nrows < ncols" });
+                }
+                workspace.prepare(nrows, ncols);
 
-        // Equilibrate columns before QR so predictor units do not determine
-        // numerical rank. Solve in these coordinates, then restore coefficients.
-        let scales: Vec<_> = (0..ncols)
-            .map(|c| {
-                let scale = x_colmajor[c * nrows..(c + 1) * nrows]
-                    .iter()
-                    .copied()
-                    .map(f64::abs)
-                    .fold(0.0_f64, f64::max);
-                if scale == 0.0 { 1.0 } else { scale }
-            })
-            .collect();
-        let a = Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r] / scales[c]);
-        let qr = ColPivQr::new(a.as_ref());
+                // Equilibrate columns before QR so predictor units do not determine
+                // numerical rank. Solve in these coordinates, then restore coefficients.
+                let scales: Vec<_> = (0..ncols)
+                    .map(|c| {
+                        let scale = x_colmajor[c * nrows..(c + 1) * nrows]
+                            .iter()
+                            .copied()
+                            .map(f64::abs)
+                            .fold(0.0_f64, f64::max);
+                        if scale == 0.0 { 1.0 } else { scale }
+                    })
+                    .collect();
+                let a =
+                    Mat::<f64>::from_fn(nrows, ncols, |r, c| x_colmajor[c * nrows + r] / scales[c]);
+                let qr = ColPivQr::new(a.as_ref());
 
-        // Rank from |R_ii| relative to the largest pivot.
-        let r_factor = qr.thin_R();
-        let size = r_factor.nrows().min(r_factor.ncols());
-        let mut max_diag = 0.0_f64;
-        let mut min_diag = f64::INFINITY;
-        for i in 0..size {
-            let d = r_factor[(i, i)].abs();
-            max_diag = max_diag.max(d);
-            if d > 0.0 {
-                min_diag = min_diag.min(d);
-            }
-        }
-        let tol = (nrows as f64).sqrt() * f64::EPSILON * max_diag;
-        let mut rank = 0usize;
-        for i in 0..size {
-            if r_factor[(i, i)].abs() > tol {
-                rank += 1;
-            }
-        }
-        if rank < ncols {
-            return Err(StatsError::RankDeficient { rank, ncols });
-        }
-        let rcond =
-            if max_diag > 0.0 && min_diag.is_finite() { Some(min_diag / max_diag) } else { None };
+                // Rank from |R_ii| relative to the largest pivot.
+                let r_factor = qr.thin_R();
+                let size = r_factor.nrows().min(r_factor.ncols());
+                let mut max_diag = 0.0_f64;
+                let mut min_diag = f64::INFINITY;
+                for i in 0..size {
+                    let d = r_factor[(i, i)].abs();
+                    max_diag = max_diag.max(d);
+                    if d > 0.0 {
+                        min_diag = min_diag.min(d);
+                    }
+                }
+                let tol = (nrows as f64).sqrt() * f64::EPSILON * max_diag;
+                let mut rank = 0usize;
+                for i in 0..size {
+                    if r_factor[(i, i)].abs() > tol {
+                        rank += 1;
+                    }
+                }
+                if rank < ncols {
+                    return Err(StatsError::RankDeficient { rank, ncols });
+                }
+                let rcond = if max_diag > 0.0 && min_diag.is_finite() {
+                    Some(min_diag / max_diag)
+                } else {
+                    None
+                };
 
-        // solve_lstsq writes β into the leading ncols entries of the RHS.
-        let mut rhs = Mat::<f64>::from_fn(nrows, 1, |r, _| y[r]);
-        qr.solve_lstsq_in_place_with_conj(Conj::No, rhs.as_mut());
+                // solve_lstsq writes β into the leading ncols entries of the RHS.
+                let mut rhs = Mat::<f64>::from_fn(nrows, 1, |r, _| y[r]);
+                qr.solve_lstsq_in_place_with_conj(Conj::No, rhs.as_mut());
 
-        let mut coefficients = vec![0.0; ncols];
-        for i in 0..ncols {
-            coefficients[i] = rhs[(i, 0)] / scales[i];
-        }
+                let mut coefficients = vec![0.0; ncols];
+                for i in 0..ncols {
+                    coefficients[i] = rhs[(i, 0)] / scales[i];
+                }
 
-        let residuals = &mut workspace.residuals[..nrows];
-        for r in 0..nrows {
-            let mut pred = 0.0;
-            for c in 0..ncols {
-                pred += x_colmajor[c * nrows + r] * coefficients[c];
-            }
-            residuals[r] = y[r] - pred;
-        }
-        let rss: f64 = residuals.iter().map(|e| e * e).sum();
+                let residuals = &mut workspace.residuals[..nrows];
+                for r in 0..nrows {
+                    let mut pred = 0.0;
+                    for c in 0..ncols {
+                        pred += x_colmajor[c * nrows + r] * coefficients[c];
+                    }
+                    residuals[r] = y[r] - pred;
+                }
+                let rss: f64 = residuals.iter().map(|e| e * e).sum();
 
-        crate::fit_counts::completed_solve();
-        Ok(LeastSquaresFit {
-            coefficients,
-            residuals: residuals.to_vec(),
-            rank,
-            rss,
-            diagnostics: FitDiagnostics::new(rank, rcond, "faer", workspace.grow_count),
-        })
+                crate::fit_counts::completed_solve();
+                Ok(LeastSquaresFit {
+                    coefficients,
+                    residuals: residuals.to_vec(),
+                    rank,
+                    rss,
+                    diagnostics: FitDiagnostics::new(rank, rcond, "faer", workspace.grow_count),
+                })
+            },
+        )
     }
 }
 

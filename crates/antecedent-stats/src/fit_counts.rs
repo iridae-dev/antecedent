@@ -26,6 +26,30 @@ mod tests {
     use crate::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
     #[test]
+    fn attempt_observer_keeps_actual_rank_failure_separate_from_successful_solves() {
+        use antecedent_core::execution_attempt::{Operation, observe_execution};
+        let x = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
+        let y = [1.0, 3.0, 5.0, 7.0];
+        let (attempt, successes) = count_least_squares_solves(|| {
+            observe_execution(|| {
+                FaerBackend.least_squares(&x, 4, 2, &y, &mut LeastSquaresWorkspace::default())?;
+                FaerBackend.least_squares(
+                    &[1.0; 8],
+                    4,
+                    2,
+                    &y,
+                    &mut LeastSquaresWorkspace::default(),
+                )
+            })
+        });
+        assert!(attempt.result.is_err());
+        assert_eq!(successes, 1);
+        let counts = attempt.report.counts(Operation::LeastSquaresSolve);
+        assert_eq!((counts.attempted, counts.completed, counts.failed), (2, 1, 1));
+        assert!(attempt.report.is_complete());
+    }
+
+    #[test]
     fn observer_counts_real_successes_nested_scopes_and_excludes_rank_failure() {
         let x = [1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 2.0, 3.0];
         let y = [1.0, 3.0, 5.0, 7.0];

@@ -435,6 +435,45 @@ pub struct SampledRecoveryResult {
 }
 
 impl SampledRecoveryResult {
+    /// Bind the internal percentile candidate to its actual whole-method receipt.
+    /// A checked recovery derivation and the complete executed row/replicate scope
+    /// remain visible; this is not a public confidence-interval activation.
+    #[cfg(feature = "calibration-internal")]
+    #[must_use]
+    pub fn calibration_basis(&self) -> antecedent_core::CalibrationBasis {
+        let functional = format!(
+            "recovered_effect:{}:treated={:016x}:control={:016x}",
+            self.receipt.derivation_identity,
+            self.receipt.config.treated_level.to_bits(),
+            self.receipt.config.control_level.to_bits()
+        );
+        antecedent_core::CalibrationBasis::new(
+            [
+                "RecoveredEffect",
+                "MGraph",
+                "fixed",
+                "tabular",
+                "Frequentist",
+                "sampled_observation_recovery",
+                "bootstrap_percentile",
+                "",
+                "iid",
+                "",
+                &functional,
+            ]
+            .map(Arc::from),
+            self.interval.level,
+            Arc::from("point"),
+            u64::try_from(self.receipt.rows).expect("validated bounded row count"),
+            Some(
+                u32::try_from(self.replicate_effects.len())
+                    .expect("validated bounded replicate count"),
+            ),
+            None,
+            0.,
+        )
+    }
+
     /// Covariance of recovered-law cells `i` and `j`.
     #[must_use]
     pub fn cell_covariance(&self, i: usize, j: usize) -> Option<f64> {

@@ -56,7 +56,7 @@ fn target_law_missing(message: &str) -> EstimationError {
     )
 }
 
-fn support_gap(s0: u32, gap: ResponseGap) -> EstimationError {
+pub(crate) fn support_gap(s0: u32, gap: ResponseGap) -> EstimationError {
     let what = match gap {
         ResponseGap::NoState => "no history starts in it under the first action".to_owned(),
         ResponseGap::NoCell { l2 } => {
@@ -313,16 +313,8 @@ impl MarginalizedQuery {
         &self,
         units: &[&UnitHistories],
     ) -> Result<Vec<StateContribution>, EstimationError> {
-        let tallies = SequenceTallies::of(units, self.sequence);
-        let mut out = Vec::with_capacity(self.law.states.len());
-        for &(s0, mass) in &self.law.states {
-            if mass <= 0.0 {
-                continue;
-            }
-            let response = tallies.response(s0).map_err(|gap| support_gap(s0, gap))?;
-            out.push(StateContribution { s0, mass, response });
-        }
-        Ok(out)
+        crate::temporal_history_fit::FittedSequenceHistory::fit(units, self.sequence)
+            .contributions(&self.law)
     }
 
     /// Evaluate the sum over the target law on a panel.

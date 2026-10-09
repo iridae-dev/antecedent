@@ -15,7 +15,7 @@ papers = []
 
 implementation_deviations = [
   "Claim policy: point-only. The acceptance composes licensed routes and checks their hand-derived values and refusals; it adds no source, no estimator and no interval or coverage claim. Every standard error, p-value, interval and Monte Carlo error inside a composed artifact is a diagnostic with calibration unmeasured.",
-  "A Python native claim cannot state a native execution record, so it enters composition as unverified; the acceptance records this limit and does not work around it.",
+  "The Python native input is obtained through an actual checked fit and opaque producer-issued claim. The direct composition adapter uses the retained execution record; reconstructed metadata and manually copied means cannot issue native authority.",
   "A native response retains no draws, so only an external aligned joint law answers a probability or quantile; a mean never stands in for the law.",
   "The recalculation stage model binds provider requests and priors to graph, query, regime, evidence, source and target populations and treatment grid. These external branches remain planning-only; the acceptance does not execute or count external provider refreshes. An external-study change preserves unrelated branches.",
   "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",

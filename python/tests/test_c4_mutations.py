@@ -193,7 +193,7 @@ def test_c4_mutation_quantity_is_refused_at_the_program_and_recomputes_the_nativ
     assert grid.value.offending == "dose_units"
     with pytest.raises(external.ExternalRefusal) as native:
         fx.native_claim(fx.native_view(grid=(0.0, 1.0, 3.0)))
-    assert native.value.detail == "program_binding.dose_grid_changed"
+    assert native.value.detail == "native_claims.program_mismatch"
 
     wrong = tuple(replace(q, units="kPa") if i == 1 else q for i, q in enumerate(spec.quantities))
     provider = fx.provider_object("lab-1", "snap-e1", "req-e1")
@@ -445,7 +445,7 @@ def test_c4_mutation_support_withdrawn_from_a_study_excludes_only_the_affected_a
     )
     with pytest.raises(external.ExternalRefusal) as summary:
         fx.native_claim(hidden)
-    assert summary.value.detail == "coordinate_support.summary_not_worst_label"
+    assert summary.value.detail == "native_claims.projection_mismatch"
 
     # The changed study invalidates its own branch and the decision; the rest stays valid.
     plan, unchanged = _plan(**{"external_study.0": _claim_identity(claim)})

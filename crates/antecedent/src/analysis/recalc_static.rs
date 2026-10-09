@@ -17,7 +17,7 @@ use antecedent_core::{
     ContinuousDomain, EvidenceCatalog, ExecutionContext, GridSpec, ResponseFunctional,
     ResponseIdentification, ResponseQuery, ResponseValue, SearchLimits, VariableId,
 };
-use antecedent_data::TabularData;
+use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::functional_distribution::EmpiricalFactorCache;
 use antecedent_expr::execution_counts::{StaticWorkCounts, count_static_work};
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
@@ -375,6 +375,7 @@ impl StaticResponseRequest {
             .build()?)
     }
 }
+#[derive(Clone)]
 struct StaticLive {
     prepared: Arc<PreparedStudy>,
     result: Arc<StudyResult>,
@@ -383,8 +384,10 @@ struct StaticLive {
     contrast: f64,
     decision: DecisionValue,
     context: ExecutionContext,
+    producing_receipt: Arc<RecalcReceipt>,
 }
 /// Retains checked programs and exact empirical factors; flags cannot create state.
+#[derive(Clone)]
 pub struct StaticResponseSession {
     previous: StageIdentities,
     live: Option<StaticLive>,
@@ -441,6 +444,35 @@ impl StaticResponseSession {
     #[must_use]
     pub fn plan(&self, request: &StaticResponseRequest, _ctx: &ExecutionContext) -> RecalcPlan {
         scope_plan(&self.previous, &request.identities(), self.boundary, request.supported())
+    }
+    /// Original native-issued full-support scientific result.
+    #[must_use]
+    pub fn result(&self) -> Option<&StudyResult> {
+        self.live.as_ref().map(|live| live.result.as_ref())
+    }
+    /// Original retained checked preparation; borrowing it performs no identification or fit.
+    #[must_use]
+    pub fn prepared(&self) -> Option<&PreparedStudy> {
+        self.live.as_ref().map(|live| live.prepared.as_ref())
+    }
+    /// Receipt of the actual retained factor/result production, preserved across projection reuse.
+    #[must_use]
+    pub fn producing_receipt(&self) -> Option<&RecalcReceipt> {
+        self.live.as_ref().map(|live| live.producing_receipt.as_ref())
+    }
+    /// Exact retained graph-order schema used by checked execution.
+    #[must_use]
+    pub fn schema(&self) -> Option<&antecedent_core::CausalSchema> {
+        let live = self.live.as_ref()?;
+        let super::builder::DataInput::Tabular(data) = &live.prepared.study().data else {
+            return None;
+        };
+        Some(data.schema())
+    }
+    /// Actual original producing context; projection changes do not rewrite it.
+    #[must_use]
+    pub fn producing_context(&self) -> Option<&ExecutionContext> {
+        self.live.as_ref().map(|live| &live.context)
     }
     /// Export the original checked response result under its producing context.
     /// # Errors
@@ -567,6 +599,11 @@ pub fn execute_static_response_with_receipt(
         old.ok_or(RecalcRunError::NoLiveState(Stage::Decision))?.decision
     };
     let receipt = recorder.finish(&plan)?;
+    let producing_receipt = if changed(&plan, Stage::ScoreArtifact) {
+        Arc::new(receipt.clone())
+    } else {
+        Arc::clone(&old.ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?.producing_receipt)
+    };
     session.live = Some(StaticLive {
         prepared,
         result,
@@ -575,6 +612,7 @@ pub fn execute_static_response_with_receipt(
         contrast: value,
         decision,
         context,
+        producing_receipt,
     });
     session.previous = ids;
     session.boundary = Boundary::InProcess;
@@ -790,7 +828,7 @@ pub fn execute_mz_with_receipt(
                             code: decision.reason_code().unwrap_or("transport_not_certified"),
                             message: decision
                                 .detail_code()
-                                .unwrap_or("mz_transport.not_certified")
+                                .unwrap_or("mz_transport.search_incomplete")
                                 .to_owned(),
                         }));
                     };

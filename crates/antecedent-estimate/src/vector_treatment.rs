@@ -544,33 +544,39 @@ fn row_of(design: &Design, r: usize) -> Vec<f64> {
 }
 
 fn fit_ols(design: &Design, y: &[f64]) -> Result<Ols, EstimationError> {
-    let p = design.cols.len();
-    let mut gram = vec![0.0; p * p];
-    for i in 0..p {
-        for j in 0..=i {
-            let value = dot(&design.cols[i], &design.cols[j]);
-            gram[i * p + j] = value;
-            gram[j * p + i] = value;
-        }
-    }
-    let Some(ginv) = invert(&gram, p) else {
-        return Err(refuse(
-            reason_code!("design_rank_deficient"),
-            "vector_treatment.rank_deficient_adjustment",
-            "the normal-equation matrix is singular",
-        ));
-    };
-    let xty: Vec<f64> = design.cols.iter().map(|col| dot(col, y)).collect();
-    let beta: Vec<f64> = (0..p).map(|i| dot(&ginv[i * p..(i + 1) * p], &xty)).collect();
-    let residuals: Vec<f64> = (0..y.len()).map(|r| y[r] - dot(&row_of(design, r), &beta)).collect();
-    if beta.iter().chain(&residuals).any(|v| !v.is_finite()) {
-        return Err(refuse(
-            reason_code!("invalid_argument"),
-            "vector_treatment.non_finite_value",
-            "the fit overflowed finite precision",
-        ));
-    }
-    Ok(Ols { beta, ginv, residuals })
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::LeastSquaresSolve,
+        || {
+            let p = design.cols.len();
+            let mut gram = vec![0.0; p * p];
+            for i in 0..p {
+                for j in 0..=i {
+                    let value = dot(&design.cols[i], &design.cols[j]);
+                    gram[i * p + j] = value;
+                    gram[j * p + i] = value;
+                }
+            }
+            let Some(ginv) = invert(&gram, p) else {
+                return Err(refuse(
+                    reason_code!("design_rank_deficient"),
+                    "vector_treatment.rank_deficient_adjustment",
+                    "the normal-equation matrix is singular",
+                ));
+            };
+            let xty: Vec<f64> = design.cols.iter().map(|col| dot(col, y)).collect();
+            let beta: Vec<f64> = (0..p).map(|i| dot(&ginv[i * p..(i + 1) * p], &xty)).collect();
+            let residuals: Vec<f64> =
+                (0..y.len()).map(|r| y[r] - dot(&row_of(design, r), &beta)).collect();
+            if beta.iter().chain(&residuals).any(|v| !v.is_finite()) {
+                return Err(refuse(
+                    reason_code!("invalid_argument"),
+                    "vector_treatment.non_finite_value",
+                    "the fit overflowed finite precision",
+                ));
+            }
+            Ok(Ols { beta, ginv, residuals })
+        },
+    )
 }
 
 fn full_covariance(
@@ -820,25 +826,30 @@ pub(crate) fn fit_joint_retained(
     options: &VectorTreatmentOptions,
     min_treatments: usize,
 ) -> Result<(VectorTreatmentFit, Vec<f64>, Vec<f64>), EstimationError> {
-    validate_input(input, min_treatments)?;
-    let design = build_design(input);
-    check_design(&design, input)?;
-    let ols = fit_ols(&design, &input.outcome)?;
-    crate::adjustment_resume::record_model_fit();
-    let full = full_covariance(&design, &ols, options.covariance)?;
-    let n = input.outcome.len();
-    let p = design.cols.len();
-    let solved = Solved {
-        names: input.treatments.iter().map(|t| t.name.clone()).collect(),
-        beta: &ols.beta,
-        full: &full,
-        first_treatment: design.first_treatment,
-        n,
-        p,
-        residual_variance: dot(&ols.residuals, &ols.residuals) / count(n - p),
-    };
-    let fit = assemble(solved, options)?;
-    Ok((fit, ols.beta, full))
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::AdjustedFit,
+        || {
+            validate_input(input, min_treatments)?;
+            let design = build_design(input);
+            check_design(&design, input)?;
+            let ols = fit_ols(&design, &input.outcome)?;
+            crate::adjustment_resume::record_model_fit();
+            let full = full_covariance(&design, &ols, options.covariance)?;
+            let n = input.outcome.len();
+            let p = design.cols.len();
+            let solved = Solved {
+                names: input.treatments.iter().map(|t| t.name.clone()).collect(),
+                beta: &ols.beta,
+                full: &full,
+                first_treatment: design.first_treatment,
+                n,
+                p,
+                residual_variance: dot(&ols.residuals, &ols.residuals) / count(n - p),
+            };
+            let fit = assemble(solved, options)?;
+            Ok((fit, ols.beta, full))
+        },
+    )
 }
 
 /// A solved joint fit awaiting its coefficient table, Wald test and contrasts.

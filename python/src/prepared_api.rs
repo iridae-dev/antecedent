@@ -10,7 +10,7 @@ use antecedent::discovery::{
 use antecedent::{CausalContract, EstimatorId, IdentifierId, PreparedStudy, Study};
 use antecedent_core::{
     AnomalyAttributionQuery, AverageEffectQuery, CausalQuery, CausalSchema, ChangeAttributionQuery,
-    ConditionalEffectQuery, ContinuousDomain, GridSpec, Intervention,
+    ConditionalEffectQuery, ContinuousDomain, ExecutionContext, GridSpec, Intervention,
     InterventionalDistributionQuery, MediationContrast, MediationQuery, PathSpecificEffectQuery,
     PopulationSelector, ResponseFunctional, ResponseQuery, TemporalResponseSpec, Value,
 };
@@ -90,7 +90,12 @@ impl ClickControls {
     }
 }
 
-fn map_ate(names: &[String], result: &antecedent::StudyResult) -> PyResult<AteAnalysisResult> {
+fn map_ate(
+    names: &[String],
+    result: &antecedent::StudyResult,
+    _prepared: &PreparedStudy,
+    _ctx: &ExecutionContext,
+) -> PyResult<AteAnalysisResult> {
     ate_result_from_analysis(names, result.clone(), false)
 }
 
@@ -914,7 +919,12 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         controls: ClickControls,
-        map: fn(&[String], &antecedent::StudyResult) -> PyResult<T>,
+        map: fn(
+            &[String],
+            &antecedent::StudyResult,
+            &PreparedStudy,
+            &ExecutionContext,
+        ) -> PyResult<T>,
     ) -> PyResult<T> {
         let mut study = controls.owned_study(&self.inner)?;
         let out_names = self.names.clone();
@@ -927,7 +937,7 @@ impl PyPreparedAnalysis {
                 FrameInput::Series(data) if !series => study.refresh(data, &ctx).map_err(py_err)?,
                 frame => frame.materialize()?.bind_and_run(&mut study, &ctx)?,
             };
-            let mapped = map(&out_names, &result)?;
+            let mapped = map(&out_names, &result, &study, &ctx)?;
             Ok((mapped, result, Arc::new(unstaged(study))))
         })?;
         if refresh {
@@ -948,7 +958,12 @@ impl PyPreparedAnalysis {
         seed: u64,
         threads: Option<u32>,
         controls: ClickControls,
-        map: fn(&[String], &antecedent::StudyResult) -> PyResult<T>,
+        map: fn(
+            &[String],
+            &antecedent::StudyResult,
+            &PreparedStudy,
+            &ExecutionContext,
+        ) -> PyResult<T>,
     ) -> PyResult<T> {
         let borrowed_bytes = self.borrowed_bytes;
         let study = controls.study(&self.inner)?;
@@ -957,7 +972,7 @@ impl PyPreparedAnalysis {
             let ctx = controls.ctx(seed, threads);
             let mut result = study.estimate_retained(&ctx).map_err(py_err)?;
             result.performance.bytes_borrowed = borrowed_bytes;
-            let mapped = map(&names, &result)?;
+            let mapped = map(&names, &result, &study, &ctx)?;
             Ok((mapped, result))
         })?;
         self.last_study = Some(Arc::clone(&self.inner));
@@ -4866,6 +4881,17 @@ impl PyPreparedAnalysis {
 pub(crate) fn response_from_study(
     names: &[String],
     result: &antecedent::StudyResult,
+    prepared: &PreparedStudy,
+    ctx: &ExecutionContext,
+) -> PyResult<ResponseAnalysisResult> {
+    response_from_retained(names, result, prepared, ctx)
+}
+
+pub(crate) fn response_from_retained(
+    names: &[String],
+    result: &antecedent::StudyResult,
+    prepared: &antecedent::PreparedStudy,
+    ctx: &ExecutionContext,
 ) -> PyResult<ResponseAnalysisResult> {
     let response = result.response.clone().ok_or_else(|| {
         PyValueError::new_err("prepared response estimate did not carry a response payload")
@@ -4889,7 +4915,8 @@ pub(crate) fn response_from_study(
         crate::identification_details::analysis_to_json(result, names)?,
         result.logical_plan.identifier.as_deref().map(str::to_owned),
         result.diagnostics.iter().map(|d| format!("{}: {}", d.code, d.message)).collect(),
-    ))
+    )
+    .with_authority(prepared, prepared.schema(), result, ctx))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

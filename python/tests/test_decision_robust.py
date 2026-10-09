@@ -603,3 +603,34 @@ def test_f6_robust_result_exports_replays_and_refuses_changed_inputs() -> None:
     assert stored.replayed
     # The native artifact never loads as an external one and vice versa.
     assert json.loads(json.dumps(stored.receipts[0].attested_value)) == 4.25
+
+
+def test_unmapped_scalar_receipt_does_not_inherit_verified_bound_response_trust() -> None:
+    from antecedent import external
+    from antecedent.extensibility import ProviderTrust
+
+    from test_external_binding import _response, _spec
+
+    probes = tuple(
+        external.VerificationProbe(kind, 1.0, 1.0, 0.0)
+        for kind in ("shape", "support", "moments", "known_truth")
+    )
+    original = _spec().bind(_response(attested_by=None, probes=probes))
+    assert original.trust is ProviderTrust.VERIFIED_EXTENSION
+    scalar = 99.0
+    assert scalar not in original.values
+    receipt = decision_robust.ExternalReceipt.from_claim(original, "s1", scalar)
+    assert receipt.trust == "externally_attested"
+    assert receipt.attestor == "caller"
+    assert receipt.attested_value == scalar
+    assert receipt.provider_id == original.identity["provider_id"]
+    assert receipt.snapshot_id == original.identity["snapshot_id"]
+    assert receipt.request_fingerprint == original.identity["provider_fingerprint"]
+    contract = _contract(rules=_require_supported())
+    claims = _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
+    result = decision_robust.robust(contract, claims, receipts=[receipt])
+    imported = decision_robust.replay(result.export(), contract=contract, claims=claims)
+    assert imported.receipts == (receipt,)
+    assert not imported.native_verified
+    assert imported.receipts[0].trust == "externally_attested"
+    assert original.trust is ProviderTrust.VERIFIED_EXTENSION

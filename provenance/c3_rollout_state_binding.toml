@@ -1,0 +1,10 @@
+feature_id = "c3_rollout_state_binding"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Semantic binding over the original distribution and study-ranking consumers, not a new inference method. A bounded unweighted aligned source explicitly interpreted as a parameter/causal-functional posterior state, or an interventional predictive scalar explicitly named state, projects to exactly the ordered finite prior used by the original terminal decision. Full terminal actions, utilities, admissibility and units and the original ranking identity are retained. Fresh consumption reads the original source and ranking artifacts and recomputes the scalar projection and full binding; no mean-only, weighted-law, marginal pairing or independent ordering can substitute. The rollout bundle node checks the complete source identity upstream and full terminal decision on its ranking edge. Structural identification, native execution and inferential calibration are never upgraded by binding.", "Original engineering of identity/scientific-state binding; numerical integration and its citations belong to the original study-ranking engine. No posterior/sampling, regret or ranking guarantee is inferred from exact conditional finite arithmetic."]
+upstream_implementations_observed = []
+test_sources = ["conformance/composition/rollout/expected.json", "crates/antecedent/tests/rollout_artifact.rs", "python/tests/test_rollout.py", "python/tests/test_composition_source_lineage.py"]

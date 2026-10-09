@@ -228,7 +228,7 @@ def _flipped_byte() -> None:
 
 
 def _unknown_kind() -> None:
-    cb.Bundle.builder().add_artifact("causal_contract", b"bytes")
+    cb.Bundle.builder().add_artifact("execution_or_fit", b"bytes")
 
 
 def _wrong_artifact_kind() -> None:

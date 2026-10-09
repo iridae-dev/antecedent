@@ -368,16 +368,21 @@ fn summarize_checked_result(
     result: &StudyResult,
     recorder: &mut ReceiptRecorder,
 ) -> Result<LawValue, RecalcRunError> {
-    let effect = result
-        .estimate
-        .as_effect()
-        .ok_or(RecalcRunError::Request("recalc.design_effect_unavailable"))?;
-    if !effect.ate.is_finite() {
-        return Err(RecalcRunError::Request("recalc.design_point_unavailable"));
-    }
-    let law = LawValue { ate: effect.ate, std_error: effect.se_analytic };
-    recorder.record(Counter::LawSummary, 1);
-    Ok(law)
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::LawSummary,
+        || {
+            let effect = result
+                .estimate
+                .as_effect()
+                .ok_or(RecalcRunError::Request("recalc.design_effect_unavailable"))?;
+            if !effect.ate.is_finite() {
+                return Err(RecalcRunError::Request("recalc.design_point_unavailable"));
+            }
+            let law = LawValue { ate: effect.ate, std_error: effect.se_analytic };
+            recorder.record(Counter::LawSummary, 1);
+            Ok(law)
+        },
+    )
 }
 
 /// A newly executed, source-bound consumer result. Counts describe this execution,

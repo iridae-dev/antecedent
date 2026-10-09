@@ -272,7 +272,7 @@ pub struct SourceMode {
 }
 
 /// Which side of a threshold a probability or tail refers to.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Tail {
     /// At or below.
     Lower,
@@ -281,7 +281,7 @@ pub enum Tail {
 }
 
 /// A typed functional of an action's utility expression.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum DecisionFunctional {
     /// `E[expr]`.
     Expectation,

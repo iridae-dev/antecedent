@@ -105,8 +105,22 @@ fn x4_nested_likelihood_truth_exact_counts_recover_scm() {
     let law = scm_law(0.4, 0.0);
     // Sixteen cells of an exact (infinite-sample) table scaled to counts.
     let input = input_for(scaled(&law, 1.0e6));
-    let report =
-        evaluate_nested_markov_pilot(&input, &FitOptions::default(), &ctx).expect("pilot fit");
+    let (report, identification_checks) =
+        antecedent_identify::execution_counts::count_checked_identifications(|| {
+            evaluate_nested_markov_pilot(&input, &FitOptions::default(), &ctx)
+        });
+    let report = report.expect("pilot fit");
+    let mut equivalent = input.clone();
+    equivalent.graph.directed.reverse();
+    equivalent.graph.directed.push((0, 1));
+    equivalent.graph.bidirected.push((3, 1));
+    let replay = evaluate_nested_markov_pilot(&equivalent, &FitOptions::default(), &ctx)
+        .expect("canonical-equivalent graph");
+    assert_eq!(replay, report);
+    assert!(
+        identification_checks > 0,
+        "pilot standing must come from executing the checked ID engine"
+    );
     let fit = &report.fit;
 
     // The oracle law is itself normalized, and so is the model likelihood.

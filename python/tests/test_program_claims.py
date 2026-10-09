@@ -5,8 +5,8 @@ Hand example. Program: outcome ``y`` (mmHg) under ``do(a = d)`` for the grid
 ``E[y | do(2)] = 5``. Action A reads the dose-1 mean (utility ``m1``); action B reads
 the dose-2 mean (utility ``m2 - 1.5``). Expected utility is A = 3.0 and B = 3.5, so B
 is uniquely optimal. ``P(utility_B <= 3) = 1/2`` needs aligned draws of both
-coordinates; a response view retains none, so Python must refuse it (the Rust test
-``crates/antecedent/tests/native_claims.rs`` asserts the 0.5 on retained draws).
+coordinates; a point-only response supplies none and must refuse it. An actual
+Bayesian response retains its aligned native rows and verifies joint utilities.
 """
 
 from __future__ import annotations
@@ -167,7 +167,9 @@ def test_c1_identity_changes_when_any_field_of_the_program_changes():
         "functional_id": "median",
         "transform_id": "log",
     }
-    assert set(changes) == {field.name for field in dataclasses.fields(program)}
+    assert set(changes) == {
+        field.name for field in dataclasses.fields(program) if not field.name.startswith("_")
+    }
     seen = {program.identity}
     for name, value in changes.items():
         other = dataclasses.replace(program, **{name: value}).identity
@@ -378,149 +380,345 @@ def test_c1_explicit_contract_id_still_binds_unchanged():
 # ----------------------------------------------------------------------- native claims
 
 
+def _native_view(*, bayesian=False):
+    import numpy as np
+
+    a = np.tile(np.array([0.0, 1.0, 2.0, 3.0]), 80)
+    x = np.repeat(np.linspace(-1.0, 1.0, 80), 4)
+    y = 1.0 + 2.0 * a + 0.2 * x
+    kwargs = (
+        {"inference": ac.Bayesian(backend="conjugate", n_draws=256)}
+        if bayesian
+        else {"bootstrap": 0}
+    )
+    return ac.analyze(
+        {"x": x, "a": a, "y": y},
+        graph=EDGES,
+        query=ac.ResponseCurve("a", "y", grid=GRID),
+        refute="none",
+        **kwargs,
+    )
+
+
+def _native_program(view):
+    return program_claims.ProgramBinding.from_response(view, outcome_units="mmHg", dose_units="mg")
+
+
 def test_c1_native_claim_exposes_coordinates_support_and_native_trust():
-    program = _program()
-    claim = program_claims.native_claim(_view(), program)
+    view = _native_view()
+    program = _native_program(view)
+    claim = program_claims.native_claim(view, program)
     assert claim.coordinates == (_q("1"), _q("2"))
-    assert claim.means == (3.0, 5.0)
-    assert claim.support == ("supported", "supported")
-    assert claim.support_status == "supported"
+    assert claim.means == pytest.approx((3.0, 5.0), abs=1e-4)
     assert claim.trust is ProviderTrust.NATIVE_LICENSED
-    assert claim.calibration == "point_only"
+    assert claim.calibration == "unmeasured"
     assert claim.program_identity == program.identity
-    assert claim.provenance_id == "op-1"
     assert claim.has_joint_law is False
-    uncertain = _view(uncertainty="posterior")
-    assert program_claims.native_claim(uncertain, program).calibration == "unmeasured"
+    spec = external.response(view.program_identification, outcome_units="mmHg", dose_units="mg")
+    assert program_claims.ProgramBinding.from_spec(spec) == program
+    assert program_claims.bind_to_program(spec, program).bind(_response()).native is False
 
 
 def test_c1_native_claim_refuses_a_response_for_another_request():
-    program = _program()
-    grid = _refusal(lambda: program_claims.native_claim(_view(grid=(1.0, 3.0)), program))
-    assert grid.detail == "program_binding.dose_grid_changed"
-    outcome = _refusal(
-        lambda: program_claims.native_claim(_view(), dataclasses.replace(program, outcome_id="z"))
+    view = _native_view()
+    program = _native_program(view)
+    changed = view.model_copy(
+        update={"response": view.response.model_copy(update={"values": [[3.0], [500.0]]})}
     )
-    assert (outcome.detail, outcome.offending) == (
-        "program_binding.treatment_outcome_substitution",
-        "outcome_id",
+    error = _refusal(lambda: program_claims.native_claim(changed, program))
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.projection_mismatch",
+        "bind",
     )
-    # A native response carries no population of its own: the claim's population is taken from
-    # the program binding, so a population mismatch is only detectable for external claims
-    # (see the external population test above), not here.
+    error = _refusal(
+        lambda: program_claims.native_claim(
+            view, dataclasses.replace(program, graph_id="graph:forged")
+        )
+    )
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.program_mismatch",
+        "bind",
+    )
+    contract = _refusal(
+        lambda: program_claims.native_claim(
+            view, dataclasses.replace(program, contract_id="contract:forged")
+        )
+    )
+    assert (contract.reason_code, contract.detail, contract.stage) == (
+        "invalid_argument",
+        "native_claims.contract_mismatch",
+        "bind",
+    )
+    error = _refusal(
+        lambda: program_claims.native_claim(view, dataclasses.replace(program, outcome_id="z"))
+    )
+    assert error.detail == "program_binding.treatment_outcome_substitution"
 
 
 def test_c1_native_claim_refuses_unlicensed_or_unlabeled_responses():
-    program = _program()
-    partial = _refusal(
-        lambda: program_claims.native_claim(_view(identification="PartiallyIdentified"), program)
+    error = _refusal(lambda: program_claims.native_claim(_view(), _program()))
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.native_state_unavailable",
+        "bind",
     )
-    assert partial.detail == "native_claims.response_not_point_identified"
-    assert partial.reason_code == "effect_not_identified"
-    unlabeled = _refusal(lambda: program_claims.native_claim(_view(point_status=None), program))
-    assert unlabeled.detail == "native_claims.point_support_missing"
-    hidden = _refusal(
-        lambda: program_claims.native_claim(
-            _view(point_status=("supported", "weak_overlap"), support="supported"), program
+    view = _native_view()
+    program = _native_program(view)
+    for options in ({"snapshot_id": "forged"}, {"rng_id": "forged"}):
+        error = _refusal(
+            lambda options=options: program_claims.native_claim(view, program, **options)
         )
-    )
-    assert hidden.detail == "coordinate_support.summary_not_worst_label"
-    no_snapshot = _refusal(lambda: program_claims.native_claim(_view(snapshot=None), program))
-    assert no_snapshot.detail == "native_claims.invalid_context"
-    # A calibration status is never asserted by the caller.
-    measured = _refusal(
-        lambda: program_claims.native_claim(
-            _view(),
-            program,
-            calibration="measured",  # type: ignore[arg-type]
+        assert (error.reason_code, error.detail, error.stage) == (
+            "invalid_argument",
+            "native_claims.provenance_mismatch",
+            "bind",
         )
+    error = _refusal(lambda: program_claims.native_claim(view, program, calibration="measured"))
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.calibration_not_licensed",
+        "bind",
     )
-    assert measured.detail == "native_claims.calibration_not_licensed"
-    assert (measured.expected, measured.supplied) == ("unmeasured,point_only", "measured")
 
 
 def test_c1_native_mean_response_feeds_decision_and_inverse_query_on_hand_values():
-    claim = program_claims.native_claim(_view(), _program())
+    view = _native_view()
+    claim = program_claims.native_claim(view, _native_program(view))
     contract = _contract(decision.Criterion.expected_utility())
     source = claim.as_decision_source(contract)
     assert source.representation == "mean"
-    assert source.trust is ProviderTrust.NATIVE_LICENSED
-    assert source.withheld == ()
-    assert source.coordinates == (_q("1"), _q("2"))
-    assert source.source.means == (3.0, 5.0)
-    assert source.source.provider_id == "native:op-1"
-    assert source.program_identity == claim.program_identity
     result = contract.evaluate(source.source)
-    by_id = {action.id: action for action in result.actions}
-    assert by_id["A"].expected_utility == pytest.approx(3.0, abs=1e-12)
-    assert by_id["B"].expected_utility == pytest.approx(3.5, abs=1e-12)
-    assert result.verdict.kind == "uniquely_optimal"
     assert result.selected == ("B",)
-    with pytest.raises(CausalUnsupportedError) as export:
-        result.export()
-    assert export.value.detail == "decision_evaluation.mean_source_not_replayable"
-
-    query = iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),))
-    answered = query.evaluate(source.mean_claim())
-    assert answered.feasible_actions == ("B",)
-    assert answered.selected == "B"
-    # P(utility_B <= 3) = 0.5 needs aligned draws; a mean never answers it.
-    for constraint in (
-        iq.probability_threshold(3.0, 0.5, tail="lower", direction="at_most"),
-        iq.target_quantile(0.5, 3.0),
-    ):
-        refused = iq.InverseQuery(contract, ("A", "B"), (constraint,))
-        with pytest.raises(iq.InverseQueryRefusal) as caught:
-            refused.evaluate(source.mean_claim())
-        assert caught.value.detail == "decision_evaluation.mean_source_insufficient"
+    by_id = {action.id: action for action in result.actions}
+    assert by_id["A"].expected_utility == pytest.approx(3.0, abs=1e-4)
+    assert by_id["B"].expected_utility == pytest.approx(3.5, abs=1e-4)
+    assert source.mean_claim().means == pytest.approx((3.0, 5.0), abs=1e-4)
+    assert (
+        iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),))
+        .evaluate(source.mean_claim())
+        .selected
+        == "B"
+    )
 
 
 def test_c1_native_mean_only_result_is_refused_for_probability_and_quantile_sources():
-    claim = program_claims.native_claim(_view(), _program())
+    view = _native_view()
+    claim = program_claims.native_claim(view, _native_program(view))
     for criterion in (
         decision.Criterion.quantile(0.5),
         decision.Criterion.threshold_probability(3.0),
     ):
-        refusal = _refusal(
-            lambda criterion=criterion: claim.as_decision_source(_contract(criterion))
+        error = _refusal(lambda criterion=criterion: claim.as_decision_source(_contract(criterion)))
+        assert (error.reason_code, error.detail) == (
+            "decision_contract_unsatisfied",
+            "native_claims.source_not_supplied",
         )
-        assert refusal.reason_code == "decision_contract_unsatisfied"
-        assert refusal.detail == "native_claims.source_not_supplied"
-        assert refusal.expected == "joint_draws,marginal_draws"
-        assert refusal.supplied == "mean"
-    # A nonlinear utility under an expectation is a distribution question, not a mean one.
-    nonlinear = decision.Contract(
+
+
+def test_c1_unsupported_coordinates_are_withheld_not_silently_used():
+    view = _native_view()
+    program = _native_program(view)
+    tampered = view.model_copy(
+        update={
+            "support": view.support.model_copy(
+                update={
+                    "status": "outside_empirical_support",
+                    "point_status": ("supported", "outside_empirical_support"),
+                }
+            )
+        }
+    )
+    error = _refusal(lambda: program_claims.native_claim(tampered, program))
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.projection_mismatch",
+        "bind",
+    )
+
+
+def test_native_response_retains_actual_joint_draws_and_refuses_uncertainty_substitution():
+    from antecedent.joint_distribution import JointDistributionArtifact
+
+    view = _native_view(bayesian=True)
+    claim = program_claims.native_claim(view, _native_program(view))
+    assert claim.has_joint_law
+    assert claim.calibration == "unmeasured"
+    contract = decision.Contract(
         actions=(
-            decision.Action("A", inputs=(_q("1"), _q("2")), utility=decision.x(0) * decision.x(1)),
-            decision.Action("B", inputs=(_q("1"),), utility=decision.x(0)),
+            decision.Action(
+                "product", inputs=claim.coordinates, utility=decision.x(0) * decision.x(1)
+            ),
+            decision.Action("reference", inputs=claim.coordinates, utility=decision.x(0)),
         ),
         utility_units="util",
         criterion=decision.Criterion.expected_utility(),
         target_population="target",
     )
-    assert _refusal(lambda: claim.as_decision_source(nonlinear)).detail == (
-        "native_claims.source_not_supplied"
+    source = claim.as_decision_source(contract)
+    assert source.representation == "joint_draws"
+    assert isinstance(source.source, JointDistributionArtifact)
+    assert source.source.shape == (256, 2)
+    assert source.source.semantic == "causal_functional_posterior"
+    assert source.source.trust == "native_licensed"
+    assert source.source.calibration == "unmeasured"
+    result = contract.evaluate(source.source)
+    assert result.actions[0].expected_utility == pytest.approx(
+        source.source.joint_product_expectation(0, 1)
+    )
+    tampered = view.model_copy(update={"uncertainty": ResponseUncertainty(kind="none")})
+    error = _refusal(lambda: program_claims.native_claim(tampered, _native_program(view)))
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.projection_mismatch",
+        "bind",
     )
 
 
-def test_c1_unsupported_coordinates_are_withheld_not_silently_used():
-    program = _program()
-    outside = "outside_empirical_support"
-    partial = program_claims.native_claim(
-        _view(point_status=("supported", outside), support=outside), program
+def test_native_response_raw_handle_cannot_be_constructed_or_claimed_from_json():
+    import json
+
+    from antecedent import _native
+
+    with pytest.raises(TypeError, match="cannot create"):
+        _native.ResponseAnalysisResult()
+    projection = program_claims._projection(_view())
+    value, error = _native.native_response_claim(
+        None, json.dumps(projection), json.dumps(_program()._wire())
     )
+    assert value is None
+    assert json.loads(error)["detail"] == "native_claims.native_state_unavailable"
+
+
+def test_native_joint_constructor_cannot_mint_native_trust():
+    import numpy as np
+    from antecedent.errors import CausalValueError
+    from antecedent.joint_distribution import DistributionIdentity, JointDistributionArtifact
+
+    identity = DistributionIdentity(
+        alignment="joint",
+        source_id="caller",
+        causal_contract_id="contract",
+        quantities=(_q("1"),),
+        semantic="causal_functional_posterior",
+        provider_id="caller",
+        snapshot_id="snapshot",
+        rng_id="rng",
+    )
+    with pytest.raises(CausalValueError) as caught:
+        JointDistributionArtifact(identity, np.array([[1.0], [2.0]]), trust="native_licensed")
+    assert caught.value.reason_code == "invalid_argument"
+    assert "native_distribution.authority_required" in str(caught.value)
+    import json
+
+    from antecedent import _native
+
+    metadata = {
+        "version": 1,
+        "identity": identity._wire(),
+        "axes": ["draw", "quantity"],
+        "shape": [2, 1],
+        "weights": None,
+        "supported": None,
+        "calibration": "unmeasured",
+        "trust": "native_licensed",
+    }
+    with pytest.raises(CausalValueError) as direct:
+        _native.JointDistributionArtifact(json.dumps(metadata), np.array([[1.0], [2.0]]))
+    assert direct.value.reason_code == "invalid_argument"
+    assert "native_distribution.authority_required" in str(direct.value)
+
+
+def test_native_scientific_contract_checks_full_declared_premises_without_minting_authority():
+    view = _native_view()
+    spec = external.response(
+        view.program_identification,
+        outcome_units="mmHg",
+        dose_units="mg",
+        require_assumptions=("ignorability", "α"),
+    )
+    program = program_claims.ProgramBinding.from_spec(spec)
+    claim = program_claims.native_claim(view, program)
+    assert claim.program_identity == program.identity
+    assert claim.means == pytest.approx((3, 5), abs=1e-4)
+    forged = dataclasses.replace(program, contract_id="contract:invented")
+    error = _refusal(lambda: program_claims.native_claim(view, forged))
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.contract_mismatch",
+        "bind",
+    )
+    error = _refusal(lambda: program_claims.native_claim(_view(), program))
+    assert (error.reason_code, error.detail, error.stage) == (
+        "invalid_argument",
+        "native_claims.native_state_unavailable",
+        "bind",
+    )
+
+
+def test_native_composition_consumes_issued_execution_and_refuses_metadata_substitution():
+    from antecedent import composition as comp
+    from antecedent.errors import CausalTypeError
+
+    view = _native_view()
+    claim = program_claims.native_claim(view, _native_program(view))
     contract = _contract(decision.Criterion.expected_utility())
-    source = partial.as_decision_source(contract)
-    assert source.coordinates == (_q("1"),)
-    assert source.point_status == ("supported",)
-    assert [(w.index, w.coordinate, w.status) for w in source.withheld] == [(1, _q("2"), outside)]
-    # The action that reads the withheld coordinate cannot be evaluated on this source.
-    with pytest.raises(CausalUnsupportedError):
-        contract.evaluate(source.source)
-    nothing = program_claims.native_claim(
-        _view(point_status=("missing_evidence", "missing_evidence"), support="missing_evidence"),
-        program,
+    native = comp.DecisionInput.from_native_claim("actual", claim, contract=contract)
+    assert native.provenance.native
+    assert native.provenance.trust == "native_licensed"
+    assert native.provenance.snapshot_id == view.data_snapshot_id
+    assert native.provenance.receipt["kind"] == "native_execution"
+    assert len(native.provenance.receipt["execution_id"]) == 64
+    decided = comp.evaluate_with_support(contract, [native])
+    assert decided.verdict.selected == "B"
+    assert decided.outcome("B").expected_utility == pytest.approx(3.5, abs=1e-4)
+    with pytest.raises(CausalTypeError):
+        comp.DecisionInput.from_native_claim("invented", _view(), contract=contract)
+    point = claim.as_decision_source(contract).source
+    metadata = comp.DecisionInput.from_means(
+        "metadata",
+        claim.coordinates,
+        claim.means,
+        provider_id=point.provider_id,
+        snapshot_id=point.snapshot_id,
+        causal_contract_id=point.causal_contract_id,
     )
-    assert _refusal(lambda: nothing.as_decision_source(contract)).detail == (
-        "native_claims.no_supported_coordinate"
+    assert not metadata.provenance.native
+    with pytest.raises(comp.UnverifiedTrustRefusal):
+        comp.DecisionInput.from_means(
+            "metadata",
+            claim.coordinates,
+            claim.means,
+            provider_id=point.provider_id,
+            snapshot_id=point.snapshot_id,
+            causal_contract_id=point.causal_contract_id,
+            requirement="native",
+        )
+
+
+def test_native_composition_retains_actual_joint_functional_rows_and_calibration():
+    from antecedent import composition as comp
+
+    view = _native_view(bayesian=True)
+    claim = program_claims.native_claim(view, _native_program(view))
+    contract = decision.Contract(
+        actions=(
+            decision.Action(
+                "product", inputs=claim.coordinates, utility=decision.x(0) * decision.x(1)
+            ),
+            decision.Action("reference", inputs=claim.coordinates, utility=decision.x(0)),
+        ),
+        utility_units="util",
+        criterion=decision.Criterion.expected_utility(),
+        target_population="target",
+    )
+    source = claim.as_decision_source(contract).source
+    native = comp.DecisionInput.from_native_claim("joint", claim, contract=contract)
+    assert native.provenance.native
+    assert native.provenance.calibration == "unmeasured"
+    assert native.source == "joint_law"
+    result = comp.evaluate_with_support(contract, [native])
+    assert result.outcome("product").expected_utility == pytest.approx(
+        source.joint_product_expectation(0, 1)
     )

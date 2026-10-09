@@ -29,6 +29,7 @@ mod mz_transport;
 pub mod scenario_invariance;
 pub mod scenarios;
 mod study_planning;
+pub mod temporal_initial_shift;
 pub mod temporal_sequence;
 mod z_transport;
 pub use conditional::{

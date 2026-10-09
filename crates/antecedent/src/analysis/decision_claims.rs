@@ -957,7 +957,8 @@ pub fn report_identified_utilities(
 pub enum IntervalReading {
     /// The estimated identified set `[bound_lower, bound_upper]`.
     EstimatedBounds,
-    /// The interval covering the true effect at its nominal level.
+    /// Read supplied uncertainty endpoints for one shared scientific quantity.
+    /// This consumer does not authenticate their source or calibration.
     CoverageInterval,
 }
 
@@ -966,7 +967,9 @@ pub enum IntervalReading {
 ///
 /// # Errors
 /// An interval over a truncated completion enumeration
-/// (`unresolved_scenarios`), an input with no interval (`missing_scenario_utility`),
+/// (`unresolved_scenarios`), duplicate coordinates, uncertainty endpoints for
+/// distinct input quantities without a joint coverage contract, an input with
+/// no interval (`missing_scenario_utility`),
 /// a contract with hard constraints, and any refusal of `utility_interval`.
 pub fn interval_identified_utilities(
     contract: &AdmissibleDecisionContract,
@@ -974,6 +977,24 @@ pub fn interval_identified_utilities(
     reading: IntervalReading,
     support: &AtomSupport,
 ) -> Result<Vec<IdentifiedUtility>, ClaimError> {
+    if reading == IntervalReading::CoverageInterval {
+        let mut quantities = contract.contract.actions.iter().flat_map(|action| &action.inputs);
+        if let Some(first) = quantities.next() {
+            if quantities.any(|quantity| first.require_same_coordinate(quantity).is_err()) {
+                return Err(ClaimError::UnsupportedClaimShape(
+                    "separate input intervals supply no joint coverage contract",
+                ));
+            }
+        }
+    }
+    for (index, (quantity, _)) in intervals.iter().enumerate() {
+        if intervals[..index]
+            .iter()
+            .any(|(previous, _)| previous.require_same_coordinate(quantity).is_ok())
+        {
+            return Err(ClaimError::UnsupportedClaimShape("duplicate interval quantity"));
+        }
+    }
     let truncated = intervals.iter().filter(|(_, i)| i.truncated).count();
     if truncated > 0 {
         return Err(ClaimError::UnresolvedScenarios(truncated));

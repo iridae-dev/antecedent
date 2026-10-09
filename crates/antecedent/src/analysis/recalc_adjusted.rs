@@ -2,10 +2,6 @@
 //! The model-support query is distinct from the requested contrast: changing causal roles
 //! invalidates identification and fit; selecting another finite contrast reuses coefficients.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
-#![allow(
-    clippy::float_cmp,
-    reason = "binary and categorical support checks require exact coded levels"
-)]
 use super::recalc_receipt::{
     Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
     TargetWeights, UtilitySpec, decide,
@@ -222,6 +218,10 @@ impl AdjustedRequest {
         }
         Ok(graph)
     }
+    #[allow(
+        clippy::float_cmp,
+        reason = "binary and categorical support checks require exact coded levels"
+    )]
     fn validate(&self) -> Result<(), RecalcRunError> {
         self.utility.validate()?;
         let n = self.columns.first().map_or(0, |(_, v)| v.len());

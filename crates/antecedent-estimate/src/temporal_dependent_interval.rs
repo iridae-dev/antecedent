@@ -244,17 +244,34 @@ impl SequenceTallies {
     pub(crate) fn of(units: &[&UnitHistories], sequence: [u32; 2]) -> Self {
         let mut tallies = Self::default();
         for history in units.iter().flat_map(|u| u.histories.iter()) {
-            tallies.total += 1;
-            *tallies.state_all.entry(history.s0).or_insert(0) += 1;
-            if history.a1 != sequence[0] {
-                continue;
-            }
-            *tallies.state_first.entry(history.s0).or_insert(0) += 1;
-            *tallies.covariate.entry((history.s0, history.l2)).or_insert(0) += 1;
-            if history.a2 == sequence[1] {
-                let entry = tallies.cell.entry((history.s0, history.l2)).or_insert((0, 0.0));
-                entry.0 += 1;
-                entry.1 += history.y;
+            tallies.observe(history, sequence);
+        }
+        tallies
+    }
+
+    fn observe(&mut self, history: &SequenceHistory, sequence: [u32; 2]) {
+        self.total += 1;
+        *self.state_all.entry(history.s0).or_insert(0) += 1;
+        if history.a1 != sequence[0] {
+            return;
+        }
+        *self.state_first.entry(history.s0).or_insert(0) += 1;
+        *self.covariate.entry((history.s0, history.l2)).or_insert(0) += 1;
+        if history.a2 == sequence[1] {
+            let entry = self.cell.entry((history.s0, history.l2)).or_insert((0, 0.));
+            entry.0 += 1;
+            entry.1 += history.y;
+        }
+    }
+
+    pub(crate) fn of_many(units: &[&UnitHistories], sequences: &[[u32; 2]]) -> Vec<Self> {
+        if sequences.is_empty() {
+            return Vec::new();
+        }
+        let mut tallies = sequences.iter().map(|_| Self::default()).collect::<Vec<_>>();
+        for history in units.iter().flat_map(|u| &u.histories) {
+            for (tally, &sequence) in tallies.iter_mut().zip(sequences) {
+                tally.observe(history, sequence);
             }
         }
         tallies
@@ -423,6 +440,44 @@ pub struct DependentInterval {
 }
 
 impl DependentInterval {
+    /// Actual construction and observed work of this internal measurement candidate.
+    /// Units, successful replicates and the nominal level are those of the executed
+    /// whole-unit procedure; this neither authenticates a sampling design nor activates it.
+    #[cfg(feature = "calibration-internal")]
+    #[must_use]
+    pub fn calibration_basis(&self) -> antecedent_core::CalibrationBasis {
+        use std::sync::Arc;
+        let interval = match self.method {
+            IntervalMethod::Percentile => "bootstrap_percentile",
+            IntervalMethod::Basic => "bootstrap_basic",
+        };
+        antecedent_core::CalibrationBasis::new(
+            [
+                "TemporalTransport",
+                "SelectionAdmg",
+                "fixed",
+                "panel",
+                "Frequentist",
+                "dependent_temporal_interval",
+                interval,
+                "",
+                "whole_unit",
+                "",
+                self.estimand,
+            ]
+            .map(Arc::from),
+            self.level,
+            Arc::from("point"),
+            u64::try_from(self.units).expect("validated bounded unit count"),
+            Some(
+                u32::try_from(self.replicates.len() - self.failed)
+                    .expect("validated bounded replicate count"),
+            ),
+            None,
+            0.,
+        )
+    }
+
     /// Upper minus lower.
     #[must_use]
     pub fn width(&self) -> f64 {

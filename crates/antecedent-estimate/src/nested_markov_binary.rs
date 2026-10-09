@@ -1072,6 +1072,42 @@ pub struct PilotReport {
     pub status: PilotStatus,
 }
 
+/// Bind the pilot estimand to the existing general-ID checker rather than
+/// inferring identification standing from the selected likelihood model.
+fn checked_pilot_identification(input: &NestedMarkovInput) -> Result<(), EstimationError> {
+    use antecedent_core::{AverageEffectQuery, IdentificationStatus, VariableId};
+    use antecedent_graph::{Admg, DenseNodeId};
+    use antecedent_identify::{IdIdentifier, IdentificationWorkspace};
+    let unavailable = || {
+        EstimationError::refused(
+            antecedent_core::reason_code!("effect_not_identified"),
+            "nested_markov.identification_unavailable: the checked general-ID engine did not identify the selected pilot contrast",
+        )
+    };
+    let (_, directed, bidirected) = input.graph.canonical();
+    let mut graph = Admg::with_variables(4);
+    let node =
+        |raw: usize| u32::try_from(raw).map(DenseNodeId::from_raw).map_err(|_| unavailable());
+    for &(from, to) in &directed {
+        graph.insert_directed(node(from)?, node(to)?).map_err(|_| unavailable())?;
+    }
+    for &(left, right) in &bidirected {
+        graph.insert_bidirected(node(left)?, node(right)?).map_err(|_| unavailable())?;
+    }
+    let identifier = IdIdentifier::new();
+    let prepared = identifier.prepare(&graph).map_err(|_| unavailable())?;
+    let query = AverageEffectQuery::binary_ate(VariableId::from_raw(1), VariableId::from_raw(3));
+    let identified = identifier
+        .identify_ate(&prepared, &query, &mut IdentificationWorkspace::default())
+        .map_err(|_| unavailable())?;
+    if identified.status != IdentificationStatus::NonparametricallyIdentified
+        || identified.estimands.is_empty()
+    {
+        return Err(unavailable());
+    }
+    Ok(())
+}
+
 /// Scope check, fit and comparison in one call.
 ///
 /// # Errors
@@ -1082,6 +1118,7 @@ pub fn evaluate_nested_markov_pilot(
     ctx: &ExecutionContext,
 ) -> Result<PilotReport, Refusal> {
     let counts = binary_cells(input).map_err(plain)?;
+    checked_pilot_identification(input).map_err(plain)?;
     let fit = fit_nested_markov(&counts, options, ctx)?;
     let comparison = compare_target_contrast(&counts, &fit).map_err(plain)?;
     let likelihood_fit = match fit.diagnostics.constraint_status {
@@ -1099,4 +1136,31 @@ pub fn evaluate_nested_markov_pilot(
             inference: InferenceStanding::IntervalWithheldCalibrationUnmeasured,
         },
     })
+}
+
+#[cfg(test)]
+mod checked_identification_tests {
+    #[test]
+    fn checked_binding_refuses_an_unidentified_adjacent_bow() {
+        let input = super::NestedMarkovInput {
+            graph: super::AdmgDeclaration {
+                variables: super::AdmgDeclaration::selected().variables,
+                directed: vec![(1, 3)],
+                bidirected: vec![(1, 3)],
+            },
+            regimes: Vec::new(),
+        };
+        let (error, checks) =
+            antecedent_identify::execution_counts::count_checked_identifications(|| {
+                super::checked_pilot_identification(&input).unwrap_err()
+            });
+        assert_eq!(checks, 1);
+        match error {
+            crate::EstimationError::Refused { code, message, .. } => {
+                assert_eq!(code, "effect_not_identified");
+                assert!(message.starts_with("nested_markov.identification_unavailable:"));
+            }
+            other => panic!("unexpected checked binding refusal: {other}"),
+        }
+    }
 }

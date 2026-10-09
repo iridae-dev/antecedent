@@ -90,6 +90,7 @@ pub mod synthetic_control;
 pub mod temporal_adjustment;
 pub mod temporal_block;
 pub mod temporal_dependent_interval;
+pub mod temporal_history_fit;
 pub mod temporal_initial_state;
 pub mod temporal_mediation;
 pub mod temporal_observed_bayes;

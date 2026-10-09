@@ -29,6 +29,7 @@ import hashlib
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -66,12 +67,8 @@ from antecedent.joint_distribution import (
     ScientificQuantity,
 )
 from antecedent.recalc import RecalcRequest, RecalcSession, Stage, TargetWeights, Utility
-from antecedent.results._views import IdentificationView
 from antecedent.results.response import (
     CausalResponseView,
-    ResponseUncertainty,
-    ResponseView,
-    SupportReport,
 )
 from antecedent.transport import advanced as transport
 
@@ -132,41 +129,35 @@ def _status(producer: str, consumer: str) -> str:
 
 
 def _native_program() -> program_claims.ProgramBinding:
-    ident = ac.identify(
-        graph=gen.EDGES, names=gen.NAMES, query=ac.ResponseCurve("a", "y", grid=[1.0, 2.0])
+    return program_claims.ProgramBinding.from_response(
+        _native_view(), outcome_units="mmHg", dose_units="mg"
     )
-    return program_claims.ProgramBinding.from_identification(
-        ident, outcome_units="mmHg", dose_units="mg"
+
+
+@lru_cache(maxsize=1)
+def _executed_native_view() -> CausalResponseView:
+    # Y=1+2A+X/2 with crossed symmetric X, so the causal means are 3 and 5.
+    levels = np.linspace(1.0, 2.0, 101)
+    treatment = np.repeat(levels, 21)
+    covariate = np.tile(np.linspace(-1.0, 1.0, 21), len(levels))
+    return ac.analyze(
+        {"x": covariate, "a": treatment, "y": 1 + 2 * treatment + covariate / 2},
+        graph=gen.EDGES,
+        query=ac.ResponseCurve("a", "y", grid=[1.0, 2.0]),
+        estimator_config={
+            "bandwidth": 2.1,
+            "nuisance_lambda": 0.0,
+            "nuisance_basis": 4,
+            "folds": 2,
+        },
+        bootstrap=0,
+        refute="none",
     )
 
 
 def _native_view(estimand: Any = None) -> CausalResponseView:
-    grid = (1.0, 2.0)
-    return CausalResponseView(
-        estimand=estimand or ac.ResponseCurve("a", "y", grid=list(grid)),
-        response=ResponseView(
-            treatments=["a"],
-            outcomes=["y"],
-            points=[[g] for g in grid],
-            values=[[3.0], [5.0]],
-        ),
-        estimate=None,
-        uncertainty=ResponseUncertainty(kind="none"),
-        support=SupportReport(
-            status="supported",
-            query_region={"a": (1.0, 2.0)},
-            point_status=("supported", "supported"),
-        ),
-        identification=IdentificationView(
-            status="NonparametricallyIdentified",
-            method="response.backdoor",
-            adjustment_set=["x"],
-            assumption_count=0,
-            derivation_step_count=0,
-        ),
-        provenance={"operation_id": "op-1"},
-        data_snapshot_id="snap-1",
-    )
+    view = _executed_native_view()
+    return view if estimand is None else view.model_copy(update={"estimand": estimand})
 
 
 def _native_q(dose: str) -> ScientificQuantity:
@@ -861,9 +852,10 @@ def _check_native_inverse(o: Objs) -> None:
         assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
         assert refused.value.reason_code == "decision_contract_unsatisfied"
         assert_registered_refusal(refused.value)
-    # The native claim is not itself a forward claim: only its mean grid is.
-    with pytest.raises(CausalTypeError):
-        iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(o.native)  # type: ignore[arg-type]
+    retained = iq.InverseQuery(contract, ("A", "B"), (iq.target_mean(3.2),)).evaluate(o.native)
+    assert retained.selected == "B"
+    assert retained.source_evidence[0].coordinates == o.native.coordinates
+    assert retained.source_evidence[0].diagnostics == o.native.source_evidence.diagnostics
 
 
 def _check_claim_decision(o: Objs) -> None:

@@ -509,6 +509,8 @@ class StageCounts:
     decisions: int = 0
     #: Successful full-model fits; distinct from nuisance fold fits.
     model_fits: int = 0
+    posterior_draws: int = 0
+    external_invocations: int = 0
     law_summaries: int = 0
     factor_builds: int = 0
     program_compilations: int = 0
@@ -527,6 +529,8 @@ class StageCounts:
             + self.reweights
             + self.decisions
             + self.model_fits
+            + self.posterior_draws
+            + self.external_invocations
             + self.law_summaries
             + self.factor_builds
             + self.program_compilations
@@ -676,6 +680,8 @@ class RecalcReceipt:
             )
             for name in (
                 "model_fits",
+                "posterior_draws",
+                "external_invocations",
                 "law_summaries",
                 "factor_builds",
                 "program_compilations",

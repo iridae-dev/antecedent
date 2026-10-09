@@ -245,6 +245,62 @@ pub struct DoseGridRow {
     pub numerical: NumericalReport,
 }
 
+impl DoseGridRow {
+    /// Bind one actual pointwise internal candidate under the exact-quadratic premise.
+    /// Returns `None` for absent points or the unrestricted bias-uncorrected row.
+    /// This records the declared model/design, not proof of randomization or coverage.
+    #[cfg(feature = "calibration-internal")]
+    #[must_use]
+    pub fn quadratic_calibration_basis(
+        &self,
+        index: usize,
+    ) -> Option<antecedent_core::CalibrationBasis> {
+        use std::sync::Arc;
+        let (interval, coordinate) = match self.functional {
+            DoseFunctional::Level => {
+                let point = self.levels.get(index)?;
+                (point.interval, format!("level:{:016x}", point.dose.to_bits()))
+            }
+            DoseFunctional::Derivative => {
+                let point = self.derivatives.get(index)?;
+                (point.interval, format!("derivative:{:016x}", point.dose.to_bits()))
+            }
+            DoseFunctional::Contrast { from, to } if index == 0 => (
+                self.contrast.as_ref()?.interval,
+                format!("contrast:{:016x}:{:016x}", from.to_bits(), to.to_bits()),
+            ),
+            DoseFunctional::Contrast { .. } => return None,
+        };
+        if self.design != DoseDesign::RandomizedDose || !interval.smoothing_bias_included {
+            return None;
+        }
+        let functional =
+            format!("{coordinate}.bandwidth:{:016x}.exact_quadratic", self.bandwidth.to_bits());
+        Some(antecedent_core::CalibrationBasis::new(
+            [
+                "DoseResponse",
+                "Dag",
+                "fixed",
+                "tabular",
+                "Frequentist",
+                "dose_grid_quadratic",
+                "analytic_se",
+                "local_quadratic_HC0",
+                "iid",
+                "",
+                &functional,
+            ]
+            .map(Arc::from),
+            interval.nominal_level,
+            Arc::from("point"),
+            u64::try_from(self.n_rows).expect("bounded row count"),
+            None,
+            None,
+            0.,
+        ))
+    }
+}
+
 fn refuse(code: &'static str, detail: &'static str, message: &str) -> EstimationError {
     EstimationError::refused_with_fields(
         code,

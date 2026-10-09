@@ -87,6 +87,7 @@ use crate::repair_artifact::{
     REPAIR_ARTIFACT_KIND, RepairArtifactError, RepairConsumeLimits, RepairReportArtifact,
 };
 use crate::signal::SignalTrustLabel;
+use crate::source_projection_artifact::SourceProjectionArtifact;
 
 /// Fact key: the coordinates a node reads or carries, as a sorted comma-joined
 /// list of per-coordinate digests.
@@ -114,13 +115,18 @@ pub const TRUST_NATIVE: &str = "native_licensed";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 11] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 16] = [
+    NodeKind::CausalContract,
+    NodeKind::Attestation,
+    NodeKind::QuantityCoordinates,
+    NodeKind::Transformation,
     NodeKind::Distribution,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
     NodeKind::DecisionResult,
     NodeKind::Sensitivity,
     NodeKind::StudyRanking,
+    NodeKind::Rollout,
     NodeKind::InverseQuery,
     NodeKind::RepairReport,
     NodeKind::EvidenceRelationship,
@@ -701,6 +707,14 @@ fn inspect_ranking(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         failure(stage, e.to_string())
     })?;
     let mut facts = BTreeMap::new();
+    let wire = crate::design_ranking_artifact::DesignRankingArtifactWire::from_bytes(bytes)
+        .map_err(|e| failure(BundleStage::TamperedQuantity, e.to_string()))?;
+    publish(
+        &mut facts,
+        "rollout_terminal_decision",
+        crate::rollout_artifact::decision_digest(&wire.decision)
+            .map_err(|e| io_failure(NodeKind::StudyRanking, &e))?,
+    );
     let trust =
         if consumed.candidates.iter().any(|c| c.trust == SignalTrustLabel::ExternallyAttested) {
             TRUST_ATTESTED
@@ -724,6 +738,35 @@ fn inspect_ranking(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         values,
         contract: consumed.ranking.decision_contract_identity.clone(),
         sources: consumed.ranking.source_digests.clone(),
+        ..Inspected::default()
+    })
+}
+
+fn inspect_rollout(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
+    let artifact = crate::rollout_artifact::RolloutArtifact::from_bytes(bytes)
+        .map_err(|e| io_failure(NodeKind::Rollout, &e))?;
+    artifact.verify(&artifact.binding).map_err(|e| io_failure(NodeKind::Rollout, &e))?;
+    let source = inspect_distribution(&artifact.source_artifact)?;
+    let mut facts = BTreeMap::new();
+    publish(&mut facts, FACT_TRUST, trust_label(artifact.binding.source.trust));
+    publish(&mut facts, FACT_REQUIRES_LAW, LAW_JOINT);
+    publish(&mut facts, "rollout_source_identity", source.identity);
+    publish(&mut facts, "rollout_ranking_identity", artifact.binding.ranking_identity.clone());
+    publish(
+        &mut facts,
+        "rollout_terminal_decision",
+        artifact.decision_digest().map_err(|e| io_failure(NodeKind::Rollout, &e))?,
+    );
+    publish_coordinates(
+        &mut facts,
+        &coordinate_ids(std::slice::from_ref(&artifact.binding.state)),
+        false,
+    );
+    Ok(Inspected {
+        identity: artifact.digest,
+        facts,
+        contract: Some(artifact.binding.decision.contract_identity),
+        sources: vec![artifact.binding.source_digest],
         ..Inspected::default()
     })
 }
@@ -868,12 +911,27 @@ fn inspect_frozen_scores(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
 
 fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     match kind {
+        NodeKind::CausalContract
+        | NodeKind::Attestation
+        | NodeKind::QuantityCoordinates
+        | NodeKind::Transformation => {
+            let artifact = SourceProjectionArtifact::inspect(bytes)
+                .map_err(|error| io_failure(kind, &error))?;
+            let described = projection_node_description(kind, &artifact, &[])?;
+            Ok(Inspected {
+                identity: described.identity,
+                facts: described.facts,
+                values: described.values,
+                ..Inspected::default()
+            })
+        }
         NodeKind::Distribution => inspect_distribution(bytes),
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
         NodeKind::DecisionResult => inspect_result(bytes),
         NodeKind::Sensitivity => inspect_sensitivity(bytes),
         NodeKind::StudyRanking => inspect_ranking(bytes),
+        NodeKind::Rollout => inspect_rollout(bytes),
         NodeKind::InverseQuery => inspect_inverse(bytes),
         NodeKind::RepairReport => inspect_repair(bytes),
         NodeKind::EvidenceRelationship => inspect_relationship(bytes),
@@ -883,6 +941,87 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             BundleStage::UnknownNodeKind,
             format!("no verifier is registered for kind `{}`", other.as_str()),
         )),
+    }
+}
+
+/// Reconstruct a projection's portable binding facts and cross-check its original source.
+/// This semantic inspection does not resolve missing native operations or issue authority.
+#[doc(hidden)]
+pub fn projection_node_description(
+    kind: NodeKind,
+    artifact: &SourceProjectionArtifact,
+    upstream: &[UpstreamNode<'_>],
+) -> Result<VerifiedNode, NodeFailure> {
+    if artifact.node_kind() != kind {
+        return Err(failure(BundleStage::SwappedEvidence, "composition_bundle.swapped_evidence"));
+    }
+    let report = artifact.report();
+    for parent in upstream {
+        if parent
+            .facts
+            .get("source_projection_source")
+            .is_some_and(|source| source != &report.source_digest)
+        {
+            return Err(failure(
+                BundleStage::SwappedEvidence,
+                "composition_bundle.swapped_evidence",
+            ));
+        }
+        if parent.kind == NodeKind::ExternalClaim {
+            let original = inspect_external_claim(artifact.original_bytes())?;
+            if parent.identity != original.identity {
+                return Err(failure(
+                    BundleStage::SwappedEvidence,
+                    "composition_bundle.swapped_evidence",
+                ));
+            }
+        }
+    }
+    let mut facts = BTreeMap::from([
+        ("source_projection_source".into(), report.source_digest.clone()),
+        (FACT_SNAPSHOT.into(), report.snapshot.clone()),
+        (FACT_LAW.into(), LAW_MEAN_ONLY.into()),
+        (
+            FACT_TRUST.into(),
+            if artifact.is_native() { TRUST_UNVERIFIED.into() } else { report.trust.clone() },
+        ),
+        ("source_authentication_issued".into(), "false".into()),
+        ("calibration_license_issued".into(), "false".into()),
+    ]);
+    publish_coordinates(&mut facts, &coordinate_ids(&report.quantities), true);
+    let mut values = Vec::new();
+    if let Some(actions) = report.output["actions"].as_array() {
+        for action in actions {
+            if let (Some(id), Some(value)) =
+                (action["id"].as_str(), action["expected_utility"].as_f64())
+            {
+                push_value(&mut values, format!("{id}.expected_utility"), value);
+            }
+        }
+    }
+    Ok(VerifiedNode { identity: artifact.identity().into(), facts, values })
+}
+
+struct SourceProjectionVerifier(NodeKind);
+impl NodeVerifier for SourceProjectionVerifier {
+    fn kind(&self) -> NodeKind {
+        self.0
+    }
+    fn verify(
+        &self,
+        _: &str,
+        bytes: &[u8],
+        upstream: &[UpstreamNode<'_>],
+    ) -> Result<VerifiedNode, NodeFailure> {
+        let artifact =
+            SourceProjectionArtifact::inspect(bytes).map_err(|error| io_failure(self.0, &error))?;
+        if artifact.is_native() {
+            return Err(failure(
+                BundleStage::CallbackUnavailable,
+                "composition_bundle.callback_unavailable",
+            ));
+        }
+        projection_node_description(self.0, &artifact, upstream)
     }
 }
 
@@ -976,6 +1115,7 @@ fn cross_check(
     inspected: &mut Inspected,
     upstream: &[UpstreamNode<'_>],
 ) -> Result<(), NodeFailure> {
+    check_rollout_binding(inspected, upstream)?;
     if let Some(expected) = inspected.facts.get("recalc_score_identity") {
         for source in upstream {
             if let Some(actual) = source.facts.get("recalc_score_identity") {
@@ -1070,6 +1210,36 @@ fn cross_check(
     Ok(())
 }
 
+fn check_rollout_binding(
+    inspected: &Inspected,
+    upstream: &[UpstreamNode<'_>],
+) -> Result<(), NodeFailure> {
+    if let Some(identity) = inspected.facts.get("rollout_source_identity") {
+        if !upstream
+            .iter()
+            .any(|node| node.kind == NodeKind::Distribution && node.identity == identity)
+        {
+            return Err(failure(
+                BundleStage::SwappedEvidence,
+                "rollout requires its original full source law upstream",
+            ));
+        }
+    }
+    for rollout in upstream.iter().filter(|node| node.kind == NodeKind::Rollout) {
+        let expected = rollout.facts.get("rollout_terminal_decision");
+        if expected != inspected.facts.get("rollout_terminal_decision")
+            || rollout.facts.get("rollout_ranking_identity").map(String::as_str)
+                != Some(inspected.identity.as_str())
+        {
+            return Err(failure(
+                BundleStage::TamperedQuantity,
+                "study ranking differs from rollout terminal decision or original ranking identity",
+            ));
+        }
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Public surface
 // ---------------------------------------------------------------------------
@@ -1107,6 +1277,9 @@ pub fn describe_artifact(kind: NodeKind, bytes: &[u8]) -> Result<ArtifactDescrip
 /// The node kind a container's artifact fills, read from its manifest kind label.
 #[must_use]
 pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
+    if bytes.starts_with(b"ANTE-SOURCE-PROJECTION-1\0") {
+        return SourceProjectionArtifact::inspect(bytes).ok().map(|artifact| artifact.node_kind());
+    }
     // A relationship is a short text record, not a sectioned container.
     if bytes.starts_with(RELATIONSHIP_MAGIC.as_bytes()) {
         return Some(NodeKind::EvidenceRelationship);
@@ -1119,6 +1292,7 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
         KIND_RESULT | KIND_ROBUST | KIND_STRUCTURAL => Some(NodeKind::DecisionResult),
         KIND_SENSITIVITY => Some(NodeKind::Sensitivity),
         DESIGN_RANKING_ARTIFACT_KIND => Some(NodeKind::StudyRanking),
+        crate::rollout_artifact::ROLLOUT_KIND => Some(NodeKind::Rollout),
         INVERSE_QUERY_ARTIFACT_FEATURE => Some(NodeKind::InverseQuery),
         REPAIR_ARTIFACT_KIND => Some(NodeKind::RepairReport),
         antecedent_io::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE => {
@@ -1205,6 +1379,11 @@ kind_verifier!(
     NodeKind::StudyRanking
 );
 kind_verifier!(
+    /// Verifies source-state projection, terminal actions and study ranking together.
+    RolloutVerifier,
+    NodeKind::Rollout
+);
+kind_verifier!(
     /// Verifies an inverse functional query by re-evaluating it.
     InverseQueryVerifier,
     NodeKind::InverseQuery
@@ -1235,12 +1414,17 @@ kind_verifier!(
 #[must_use]
 pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
     let verifier: Box<dyn NodeVerifier> = match kind {
+        NodeKind::CausalContract
+        | NodeKind::Attestation
+        | NodeKind::QuantityCoordinates
+        | NodeKind::Transformation => Box::new(SourceProjectionVerifier(kind)),
         NodeKind::Distribution => Box::new(DistributionVerifier),
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),
         NodeKind::Sensitivity => Box::new(SensitivityVerifier),
         NodeKind::StudyRanking => Box::new(StudyRankingVerifier),
+        NodeKind::Rollout => Box::new(RolloutVerifier),
         NodeKind::InverseQuery => Box::new(InverseQueryVerifier),
         NodeKind::RepairReport => Box::new(RepairReportVerifier),
         NodeKind::EvidenceRelationship => Box::new(EvidenceRelationshipVerifier),
@@ -1252,13 +1436,16 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
 }
 
 /// A consumer with a verifier registered for every kind in [`VERIFIABLE_KINDS`].
-/// A kind without one (a causal contract, an attestation, quantity coordinates, a
-/// transformation) fails as `unknown_node_kind` when embedded; it is carried as a
-/// reference node instead.
+/// Native source projections retain their original unresolved operation until
+/// a facade consumer supplies an opaque actual-execution resolution receipt.
 #[must_use]
 pub fn standard_consumer() -> BundleConsumer {
-    VERIFIABLE_KINDS
-        .into_iter()
-        .filter_map(verifier_for)
-        .fold(BundleConsumer::new(), BundleConsumer::register)
+    register_standard_verifiers(BundleConsumer::new())
+}
+
+/// Register original consumers without replacing a host's existing source resolver.
+#[doc(hidden)]
+#[must_use]
+pub fn register_standard_verifiers(consumer: BundleConsumer) -> BundleConsumer {
+    VERIFIABLE_KINDS.into_iter().filter_map(verifier_for).fold(consumer, BundleConsumer::register)
 }

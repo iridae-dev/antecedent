@@ -42,6 +42,7 @@ ciborium = { workspace = true }
 memmap2 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10.9"
 thiserror = { workspace = true }
 zstd = { workspace = true }
 

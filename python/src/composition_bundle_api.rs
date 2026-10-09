@@ -42,7 +42,7 @@ fn refusal_json(value: &ExternalRefusal) -> String {
     .to_string()
 }
 
-fn error_refusal(error: &BundleError) -> String {
+pub(crate) fn error_refusal(error: &BundleError) -> String {
     if let Some(refusal) = error.to_refusal() {
         return refusal_json(&refusal);
     }
@@ -126,7 +126,7 @@ fn consumed_node_json(node: &ConsumedNode) -> Value {
     })
 }
 
-fn consumed_json(consumed: &ConsumedBundle) -> String {
+pub(crate) fn consumed_json(consumed: &ConsumedBundle) -> String {
     json!({
         "identity": consumed.identity(),
         "all_verified": consumed.all_verified(),
@@ -162,7 +162,7 @@ struct SuppliedIn {
     data: Vec<DataIn>,
 }
 
-fn supplied_from(text: Option<&str>) -> PyResult<SuppliedSources> {
+pub(crate) fn supplied_from(text: Option<&str>) -> PyResult<SuppliedSources> {
     let Some(text) = text else {
         return Ok(SuppliedSources::default());
     };

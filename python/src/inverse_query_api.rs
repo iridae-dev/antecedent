@@ -106,6 +106,38 @@ struct MeansIn {
 
 /// A native law, or a JSON mean grid.
 fn claim_from(object: &Bound<'_, PyAny>) -> PyResult<ForwardClaim> {
+    if let Ok(mean) =
+        object.extract::<PyRef<'_, crate::source_evidence_api::PySourceBackedMeanClaim>>()
+    {
+        return Ok(ForwardClaim::Means(mean.means.clone()));
+    }
+    if let Ok(claim) = object.extract::<PyRef<'_, crate::external_api::PyExternalClaimArtifact>>() {
+        return antecedent_design::composition_verifiers::mean_source_of(&claim.artifact)
+            .map(ForwardClaim::Means)
+            .map_err(serialization);
+    }
+    if let Ok(claim) =
+        object.extract::<PyRef<'_, crate::program_claims_api::PyNativeResponseClaim>>()
+    {
+        use antecedent::analysis::native_claims::NativeDecisionSource;
+        use antecedent_design::decision_contract::{SourceRepresentation, SourceRequirement};
+        let mode = if claim.claim.has_joint_law() {
+            SourceRepresentation::JointDraws
+        } else {
+            SourceRepresentation::Mean
+        };
+        let source = claim
+            .claim
+            .decision_source(&SourceRequirement {
+                any_of: vec![mode],
+                sampled_needs_error_receipt: false,
+            })
+            .map_err(|cause| PyValueError::new_err(format!("{}: {}", cause.code, cause.detail)))?;
+        return Ok(match source.source {
+            NativeDecisionSource::Mean(source) => ForwardClaim::Means(source),
+            NativeDecisionSource::JointLaw(law) => ForwardClaim::Law(law),
+        });
+    }
     if let Ok(law) = object.extract::<PyRef<'_, PyJointDistributionArtifact>>() {
         return Ok(ForwardClaim::Law(Box::new(law.inner().clone())));
     }
@@ -160,12 +192,58 @@ fn atoms_from(objects: &[Bound<'_, PyAny>]) -> PyResult<Vec<StructuralAtom>> {
 #[pyclass(name = "InverseQueryArtifact", skip_from_py_object)]
 pub(crate) struct PyInverseQueryArtifact {
     artifact: InverseQueryArtifact,
+    source_claims: Vec<crate::program_claims_api::PyNativeResponseClaim>,
+    external_sources: Vec<antecedent_design::source_evidence::SourceEvidence>,
+}
+
+impl PyInverseQueryArtifact {
+    fn with_sources(&self) -> PyResult<InverseQueryArtifact> {
+        if self.source_claims.is_empty() && self.external_sources.is_empty() {
+            return Ok(self.artifact.clone());
+        }
+        if self.source_claims.len() + self.external_sources.len() > 8 {
+            return Err(crate::with_reason_code(
+                crate::value_err(
+                    "functional_inverse_query.bounds_exceeded: too many original source artifacts",
+                ),
+                antecedent_core::reason_code!("inverse_functional_unsupported"),
+            ));
+        }
+        let contract = contract_to_json(&self.artifact.query().contract).map_err(serialization)?;
+        let mut sources = self
+            .source_claims
+            .iter()
+            .map(|claim| {
+                crate::source_evidence_api::PySourceEvidence::from_claim(claim)?
+                    .inner
+                    .project(&contract, &self.artifact.query().grid_order)
+                    .map_err(|cause| crate::recalc_api::invalid(cause.detail, cause.to_string()))
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        sources.extend(
+            self.external_sources
+                .iter()
+                .map(|source| source.project(&contract, &self.artifact.query().grid_order))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|cause| crate::recalc_api::invalid(cause.detail, cause.to_string()))?,
+        );
+        self.artifact.clone().with_source_evidence(sources).map_err(serialization)
+    }
 }
 
 type Built = (Option<PyInverseQueryArtifact>, Option<String>);
-
 #[pymethods]
 impl PyInverseQueryArtifact {
+    #[getter]
+    fn source_evidence(&self) -> PyResult<Vec<crate::source_evidence_api::PySourceEvidence>> {
+        Ok(self
+            .with_sources()?
+            .source_evidence()
+            .iter()
+            .cloned()
+            .map(|inner| crate::source_evidence_api::PySourceEvidence { inner, resolution: None })
+            .collect())
+    }
     /// Evaluate a query on forward evidence through the shared functional engine and
     /// seal it. Returns the artifact or a structured refusal.
     #[staticmethod]
@@ -188,6 +266,70 @@ impl PyInverseQueryArtifact {
             Ok(wire) => wire,
             Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
         };
+        let mut source_claims = Vec::new();
+        let mut external_sources = Vec::new();
+        let mut retain = |value: &Bound<'_, PyAny>| -> PyResult<()> {
+            if let Ok(claim) =
+                value.extract::<PyRef<'_, crate::external_api::PyExternalClaimArtifact>>()
+            {
+                let evidence =
+                    crate::source_evidence_api::PySourceEvidence::from_external(&claim)?.inner;
+                if !external_sources.iter().any(
+                    |held: &antecedent_design::source_evidence::SourceEvidence| {
+                        held.original_bytes() == evidence.original_bytes()
+                    },
+                ) {
+                    external_sources.push(evidence);
+                }
+            }
+            let claim = value
+                .extract::<PyRef<'_, crate::program_claims_api::PyNativeResponseClaim>>()
+                .ok()
+                .map(|claim| (*claim).clone())
+                .or_else(|| {
+                    value
+                        .extract::<PyRef<'_, crate::source_evidence_api::PySourceBackedMeanClaim>>()
+                        .ok()
+                        .map(|mean| mean.original.clone())
+                })
+                .or_else(|| {
+                    value
+                        .extract::<PyRef<'_, PyJointDistributionArtifact>>()
+                        .ok()
+                        .and_then(|law| law.source_claim.clone())
+                });
+            if let Some(claim) = claim {
+                if !source_claims.iter().any(
+                    |held: &crate::program_claims_api::PyNativeResponseClaim| {
+                        std::sync::Arc::ptr_eq(&held.authority, &claim.authority)
+                    },
+                ) {
+                    source_claims.push(claim);
+                }
+            }
+            Ok(())
+        };
+        if let Some(point) = &point {
+            retain(point)?;
+        }
+        if let Some((lower, upper, _)) = &interval_region {
+            retain(lower)?;
+            retain(upper)?;
+        }
+        for atom in identified_set
+            .as_ref()
+            .into_iter()
+            .flat_map(|(atoms, _)| atoms)
+            .chain(scenarios.as_ref().into_iter().flatten())
+        {
+            let (_, _, kind, payload): (String, Option<f64>, String, Option<Bound<'_, PyAny>>) =
+                atom.extract()?;
+            if kind == "evaluated" {
+                if let Some(payload) = payload {
+                    retain(&payload)?;
+                }
+            }
+        }
         let evidence = ForwardEvidence {
             point: point.as_ref().map(claim_from).transpose()?,
             interval_region: interval_region
@@ -207,7 +349,7 @@ impl PyInverseQueryArtifact {
             scenarios: scenarios.map(|atoms| atoms_from(&atoms)).transpose()?,
         };
         match InverseQueryArtifact::new(wire.into_query(contract), evidence) {
-            Ok(artifact) => Ok((Some(Self { artifact }), None)),
+            Ok(artifact) => Ok((Some(Self { artifact, source_claims, external_sources }), None)),
             Err(error) => Ok((None, Some(query_refusal(&error)))),
         }
     }
@@ -230,7 +372,10 @@ impl PyInverseQueryArtifact {
             None => None,
         };
         match InverseQueryArtifact::from_bytes(data, expected.as_ref()) {
-            Ok(artifact) => Ok((Some(Self { artifact }), None)),
+            Ok(artifact) => Ok((
+                Some(Self { artifact, source_claims: Vec::new(), external_sources: Vec::new() }),
+                None,
+            )),
             Err(error) => Ok((None, Some(io_refusal(&error)))),
         }
     }
@@ -245,7 +390,7 @@ impl PyInverseQueryArtifact {
     /// The identity digests (premises and data kept apart), as JSON.
     #[getter]
     fn identity_json(&self) -> PyResult<String> {
-        serde_json::to_string(self.artifact.identity()).map_err(serialization)
+        serde_json::to_string(self.with_sources()?.identity()).map_err(serialization)
     }
 
     /// The declared query (grid, scope, constraints, selection, tolerance), as JSON.
@@ -263,7 +408,7 @@ impl PyInverseQueryArtifact {
 
     /// Serialize through the bounded sectioned container.
     fn export<'py>(&self, py: Python<'py>, artifact_id: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let bytes = self.artifact.to_bytes(artifact_id).map_err(serialization)?;
+        let bytes = self.with_sources()?.to_bytes(artifact_id).map_err(serialization)?;
         Ok(PyBytes::new(py, &bytes))
     }
 }

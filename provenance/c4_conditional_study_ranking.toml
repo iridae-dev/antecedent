@@ -1,0 +1,10 @@
+feature_id = "c4_conditional_study_ranking"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Reuses original rank_structural over unchanged explicit sufficiency/cost/budget declarations. Actual unique source decision selects the table; no new causal proof or joint uncertainty.", "Independent projection consumption requires actual opaque scientific replay, full original outputs/request/order/conditional rule and validated historical receipt."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/recalc_composite.rs", "python/tests/test_recalc_composite.py", "python/tests/test_recalc_composite.py"]

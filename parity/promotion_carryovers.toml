@@ -43,3 +43,9 @@ id = "2.3A.X4.learned_joint_transport"
 failed_gates = ["whole_learned_posterior_calibration"]
 detail = "The polynomial-basis known-variance conjugate Gaussian fit and replay exist; the allocated learned source-target credible-interval coverage is unmeasured. This is not a non-conjugate sampler."
 corrective_action = "Measure the declared basis, prior and independent-sample coordinates after stabilization; execute the public producer and independent consumer before licensing."
+
+[[cell]]
+id = "2.3A.X4.binary_nested_markov_fisher"
+failed_gates = ["whole_nested_fisher_interval_calibration", "public_interval_activation"]
+detail = "The original constrained likelihood fit, expected multinomial Fisher information, delta covariance and independent artifact replay are implemented at the strictly interior IID count-table coordinate. The six actual interval candidates have frozen measurement harnesses but no measured whole-method coverage."
+corrective_action = "After implementation stabilizes, measure the exact latent-Verma and Markov-submodel mean/contrast coordinates, retaining failed fits in the coverage denominator; activate and execute the matching public producer and independent consumer only for passing coordinates."

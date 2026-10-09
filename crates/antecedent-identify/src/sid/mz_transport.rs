@@ -669,8 +669,13 @@ pub fn decide_mz_transport(
     limits: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportDecision, IdentificationError> {
-    crate::execution_counts::note_check();
-    decide_bounded(graph, query, catalog, limits, MZ_TRANSPORT_MEMORY_BYTES, ctx)
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            crate::execution_counts::note_check();
+            decide_bounded(graph, query, catalog, limits, MZ_TRANSPORT_MEMORY_BYTES, ctx)
+        },
+    )
 }
 
 /// [`decide_mz_transport`] under an explicit memory cap (at most
@@ -1219,39 +1224,47 @@ pub fn bind_mz_transport_catalog(
     derivation: &MzTransportDerivation,
     catalog: &EvidenceCatalog,
 ) -> Result<BoundMzTransportFunctional, IdentificationError> {
-    crate::execution_counts::note_check();
-    let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
-        .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
-    if super::graph_signature(&shared) != derivation.graph_signature {
-        return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
-    }
-    catalog.validate().map_err(invalid_catalog)?;
-    let query = &derivation.query;
-    let (arena, root, cited) = if let Some(single) = &derivation.single {
-        let MzTransportRoute::SingleSource { population } = &derivation.route else {
-            return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
-        };
-        let source = query
-            .sources
-            .iter()
-            .find(|s| s.population == *population)
-            .ok_or_else(|| IdentificationError::invalid_derivation(INVALID_DERIVATION))?;
-        let diagram =
-            SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            crate::execution_counts::note_check();
+            let shared = SelectionDiagram::try_new(graph.clone(), Arc::<[VariableId]>::from([]))
                 .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
-        let bound =
-            bind_z_transport_catalog(&diagram, &query.source_query(source), single, catalog)?;
-        (bound.arena().clone(), bound.root(), Arc::from(bound.cited_regimes()))
-    } else {
-        bind_recursive(derivation, catalog, query)?
-    };
-    Ok(BoundMzTransportFunctional {
-        derivation: derivation.clone(),
-        arena,
-        root,
-        catalog: catalog.clone(),
-        cited,
-    })
+            if super::graph_signature(&shared) != derivation.graph_signature {
+                return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
+            }
+            catalog.validate().map_err(invalid_catalog)?;
+            let query = &derivation.query;
+            let (arena, root, cited) = if let Some(single) = &derivation.single {
+                let MzTransportRoute::SingleSource { population } = &derivation.route else {
+                    return Err(IdentificationError::invalid_derivation(INVALID_DERIVATION));
+                };
+                let source =
+                    query.sources.iter().find(|s| s.population == *population).ok_or_else(
+                        || IdentificationError::invalid_derivation(INVALID_DERIVATION),
+                    )?;
+                let diagram =
+                    SelectionDiagram::try_new(graph.clone(), Arc::clone(&source.selection_targets))
+                        .map_err(|error| IdentificationError::invalid_input(error.to_string()))?;
+                let bound = bind_z_transport_catalog(
+                    &diagram,
+                    &query.source_query(source),
+                    single,
+                    catalog,
+                )?;
+                (bound.arena().clone(), bound.root(), Arc::from(bound.cited_regimes()))
+            } else {
+                bind_recursive(derivation, catalog, query)?
+            };
+            Ok(BoundMzTransportFunctional {
+                derivation: derivation.clone(),
+                arena,
+                root,
+                catalog: catalog.clone(),
+                cited,
+            })
+        },
+    )
 }
 
 /// A terminal reached with no active experiment is forced on every search

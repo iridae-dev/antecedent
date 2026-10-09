@@ -316,9 +316,8 @@ def test_declared_native_response_coordinates_feed_public_decision_composition()
         quantity_population="clinic",
         quantity_transform="log",
     )
-    identification = antecedent.identify(graph=[("a", "y")], names=["a", "y"], query=query)
-    program = program_claims.ProgramBinding.from_identification(
-        identification, outcome_units="kg", dose_units="mg", population="clinic", transform="log"
+    program = program_claims.ProgramBinding.from_response(
+        result, outcome_units="kg", dose_units="mg", population="clinic", transform="log"
     )
     claim = program_claims.native_claim(result, program)
     assert claim.coordinates == result.quantities

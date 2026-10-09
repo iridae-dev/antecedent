@@ -369,47 +369,52 @@ pub(crate) fn aipw_score_table(
     learners: [LearnerSpec; 2],
     route: &str,
 ) -> Result<ScoreTable, EstimationError> {
-    let (mu0, mu1, raw_e, treat) = nuisance;
-    let n = problem.nrows;
-    let clip = clip_of(problem.overlap);
-    let mut ehat = raw_e.clone();
-    clip_propensity(&mut ehat, clip);
-    let mut scores = vec![0.0; 2 * n];
-    let mut propensities = vec![0.0; 2 * n];
-    for i in 0..n {
-        let (t, y, e) = (problem.treatment[i], problem.outcome[i], ehat[i]);
-        scores[i] = mu0[i] + ((1.0 - t) / (1.0 - e)) * (y - mu0[i]);
-        scores[n + i] = mu1[i] + (t / e) * (y - mu1[i]);
-        propensities[i] = 1.0 - raw_e[i];
-        propensities[n + i] = raw_e[i];
-    }
-    if scores.iter().any(|v| !v.is_finite()) {
-        return Err(EstimationError::data_msg("AIPW score table requires finite scores"));
-    }
-    AIPW_SCORE_BUILDS.with(|count| count.set(count.get().saturating_add(1)));
-    Ok(ScoreTable {
-        observed_arm: problem.treatment.iter().map(|t| u32::from(*t > 0.5)).collect(),
-        propensities: propensities.into(),
-        observed_outcome: Arc::clone(&problem.outcome),
-        n_rows: n,
-        row_index: Arc::clone(&problem.row_index),
-        fold_ids: treat.fold_assignment.iter().map(|&f| u32::from(f)).collect(),
-        n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
-        scores: scores.into(),
-        columns: Arc::from([
-            ScoreColumn { arm: 0, threshold: None },
-            ScoreColumn { arm: 1, threshold: None },
-        ]),
-        adjustment_set: Arc::clone(&problem.adjustment_set),
-        nuisance_provenance: Arc::from(format!(
-            "{DML_CROSSFIT_PROVENANCE};route={route};outcome={};treatment={}",
-            learners[0].identity(),
-            learners[1].identity()
-        )),
-        propensity_clip: clip,
-        treatment: problem.treatment_id,
-        intervened: Arc::from([]),
-    })
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::ScoreConstruction,
+        || {
+            let (mu0, mu1, raw_e, treat) = nuisance;
+            let n = problem.nrows;
+            let clip = clip_of(problem.overlap);
+            let mut ehat = raw_e.clone();
+            clip_propensity(&mut ehat, clip);
+            let mut scores = vec![0.0; 2 * n];
+            let mut propensities = vec![0.0; 2 * n];
+            for i in 0..n {
+                let (t, y, e) = (problem.treatment[i], problem.outcome[i], ehat[i]);
+                scores[i] = mu0[i] + ((1.0 - t) / (1.0 - e)) * (y - mu0[i]);
+                scores[n + i] = mu1[i] + (t / e) * (y - mu1[i]);
+                propensities[i] = 1.0 - raw_e[i];
+                propensities[n + i] = raw_e[i];
+            }
+            if scores.iter().any(|v| !v.is_finite()) {
+                return Err(EstimationError::data_msg("AIPW score table requires finite scores"));
+            }
+            AIPW_SCORE_BUILDS.with(|count| count.set(count.get().saturating_add(1)));
+            Ok(ScoreTable {
+                observed_arm: problem.treatment.iter().map(|t| u32::from(*t > 0.5)).collect(),
+                propensities: propensities.into(),
+                observed_outcome: Arc::clone(&problem.outcome),
+                n_rows: n,
+                row_index: Arc::clone(&problem.row_index),
+                fold_ids: treat.fold_assignment.iter().map(|&f| u32::from(f)).collect(),
+                n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
+                scores: scores.into(),
+                columns: Arc::from([
+                    ScoreColumn { arm: 0, threshold: None },
+                    ScoreColumn { arm: 1, threshold: None },
+                ]),
+                adjustment_set: Arc::clone(&problem.adjustment_set),
+                nuisance_provenance: Arc::from(format!(
+                    "{DML_CROSSFIT_PROVENANCE};route={route};outcome={};treatment={}",
+                    learners[0].identity(),
+                    learners[1].identity()
+                )),
+                propensity_clip: clip,
+                treatment: problem.treatment_id,
+                intervened: Arc::from([]),
+            })
+        },
+    )
 }
 
 fn require_binary_treatment(problem: &PreparedPropensityProblem) -> Result<(), EstimationError> {

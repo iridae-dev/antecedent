@@ -259,5 +259,6 @@ fn rank_structural_designs(candidates_json: &str) -> PyResult<ConsumePayload> {
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(evaluate_design_ranking, m)?)?;
     m.add_function(wrap_pyfunction!(consume_design_ranking, m)?)?;
+    crate::rollout_api::register(m)?;
     m.add_function(wrap_pyfunction!(rank_structural_designs, m)?)
 }

@@ -741,3 +741,94 @@ fn b_claims_a_policy_other_than_the_contracts_is_refused() {
     .unwrap_err();
     assert_eq!(refusal.detail, "decision_adapters.policy_mismatch");
 }
+
+#[test]
+fn supplied_interval_endpoints_map_to_exact_utilities_without_inventing_joint_coverage() {
+    use antecedent::analysis::decision_claims::{IntervalReading, interval_identified_utilities};
+    use antecedent_estimate::{IdentifiedSetInterval, IdentifiedSetIntervalMethod};
+    // A caller-supplied interval is input evidence; this adapter measures no coverage.
+    let interval = IdentifiedSetInterval {
+        level: 0.95,
+        lower: -0.1,
+        upper: 0.8,
+        bound_lower: 0.2,
+        bound_upper: 0.6,
+        lower_se: 0.15,
+        upper_se: 0.1,
+        critical_value: 2.0,
+        width_retained: true,
+        completions: 2,
+        replicates: 100,
+        method: IdentifiedSetIntervalMethod::ImbensManskiSharedBlock,
+        truncated: false,
+    };
+    let contract = decision(0.2, StructuralPolicy::ReportOnly);
+    let input = vec![(y_quantity("y"), interval)];
+    let support = AtomSupport::supported();
+    let ranges = interval_identified_utilities(
+        &contract,
+        &input,
+        IntervalReading::CoverageInterval,
+        &support,
+    )
+    .unwrap();
+    // Exact affine arithmetic: treat=[-.1-.2,.8-.2], hold=.5*[-.1,.8].
+    assert!(near(ranges[0].utility.lower, -0.3) && near(ranges[0].utility.upper, 0.6));
+    assert!(near(ranges[1].utility.lower, -0.05) && near(ranges[1].utility.upper, 0.4));
+    let bounds = interval_identified_utilities(
+        &contract,
+        &input,
+        IntervalReading::EstimatedBounds,
+        &support,
+    )
+    .unwrap();
+    assert!(near(bounds[0].utility.lower, 0.0) && near(bounds[0].utility.upper, 0.4));
+    assert!(near(bounds[1].utility.lower, 0.1) && near(bounds[1].utility.upper, 0.3));
+    let mut distinct = contract;
+    distinct.contract.actions[1].inputs = vec![y_quantity("other")];
+    let mut inputs = input.clone();
+    inputs.push((y_quantity("other"), interval));
+    let error = interval_identified_utilities(
+        &distinct,
+        &inputs,
+        IntervalReading::CoverageInterval,
+        &support,
+    )
+    .unwrap_err();
+    assert_eq!(error.to_refusal().detail, "decision_claims.unsupported_claim_shape");
+    assert!(matches!(
+        error,
+        ClaimError::UnsupportedClaimShape(
+            "separate input intervals supply no joint coverage contract"
+        )
+    ));
+    assert!(
+        interval_identified_utilities(
+            &distinct,
+            &inputs,
+            IntervalReading::EstimatedBounds,
+            &support
+        )
+        .is_ok()
+    );
+    inputs = vec![input[0].clone(), input[0].clone()];
+    assert!(matches!(
+        interval_identified_utilities(
+            &distinct,
+            &inputs,
+            IntervalReading::EstimatedBounds,
+            &support
+        ),
+        Err(ClaimError::UnsupportedClaimShape("duplicate interval quantity"))
+    ));
+    inputs = vec![(y_quantity("y"), interval.with_truncated(true))];
+    assert!(matches!(
+        interval_identified_utilities(
+            &decision(0.2, StructuralPolicy::ReportOnly),
+            &inputs,
+            IntervalReading::CoverageInterval,
+            &support
+        ),
+        Err(ClaimError::UnresolvedScenarios(1))
+    ));
+}

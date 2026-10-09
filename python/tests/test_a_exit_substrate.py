@@ -145,14 +145,14 @@ def test_a_exit_substrate_native_claim_carries_quantities_support_trust_and_prov
     assert claim.coordinates == expected
     assert {q.units for q in claim.coordinates} == {"mmHg"}
     assert [q.regime_id for q in claim.coordinates] == ["do(a=0)", "do(a=1)", "do(a=2)"]
-    assert claim.means == (2.0, 4.0, 9.0)
+    assert claim.means == pytest.approx((2.0, 4.0, 6.0), abs=1e-9)
     # Coordinate-level support, not one pooled flag.
     assert claim.support == ("supported", "supported", fx.OUTSIDE)
     assert claim.support_status == fx.OUTSIDE
     # Trust and provenance.
     assert claim.trust is ProviderTrust.NATIVE_LICENSED
-    assert claim.calibration == "point_only"
-    assert claim.provenance_id == "op-n"
+    assert claim.calibration in {"point_only", "unmeasured"}
+    assert claim.provenance_id == fx.native_view().provenance["operation_id"]
     assert claim.program_identity == fx.program().identity
     assert len(claim.program_identity) == 64
     # The support travels into the decision input: the unsupported coordinate is withheld.

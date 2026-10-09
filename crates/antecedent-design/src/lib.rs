@@ -37,6 +37,7 @@ pub mod decision_structural_artifact;
 pub mod design_ranking_artifact;
 pub mod error;
 pub mod evsi;
+pub mod functional_source;
 pub mod inverse_query;
 pub mod inverse_query_artifact;
 pub mod objective;
@@ -50,6 +51,7 @@ pub mod ranking;
 pub mod repair;
 pub mod repair_artifact;
 pub mod result;
+pub mod rollout_artifact;
 pub mod sensitivity_decision;
 pub mod signal;
 pub mod study_candidate;
@@ -124,3 +126,7 @@ pub use z_transport_planner::{
     ZTransportProposalWire, ZTransportQueryWire, plan_z_transport_evidence,
     propose_z_transport_evidence, snapshot_z_transport_failure, validate_z_transport_candidate,
 };
+
+/// Independently consumed original source diagnostics and semantic mappings.
+pub mod source_evidence;
+pub mod source_projection_artifact;

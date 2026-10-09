@@ -1,0 +1,38 @@
+{
+  "oracle": {
+    "kind": "closed_form",
+    "provenance": "Variance of a difference using the declared covariance, two-sided standard normal tail, absolute-distance ordering and affine point utilities.",
+    "generation": "Compute variance=.25+.25-2*.125=.25; z=-1/sqrt(.25)=-2; p=erfc(abs(z)/sqrt(2)); scores=-abs(source_effect-2.1); baseline utility=0, treatment utility=effect. No Antecedent output is an input."
+  },
+  "transport": {
+    "effects": [1.0, 2.0],
+    "standard_errors": [0.5, 0.5],
+    "covariance": [0.25, 0.125, 0.125, 0.25],
+    "difference": -1.0,
+    "difference_standard_error": 0.5,
+    "holm_p_single_contrast": 0.04550026389635842
+  },
+  "prior": {
+    "target_effect": 2.1,
+    "source_effects": [1.0, 2.0],
+    "scores": [-1.1, -0.1],
+    "compatible_rank": ["near", "far"],
+    "incompatible_source": "wrong"
+  },
+  "policy": {
+    "disagreement_effects": [-1.0, 2.0],
+    "disagreement_common_leaders": [],
+    "tie_effects": [0.0, 0.0],
+    "tie_common_leaders": ["baseline", "treat"],
+    "same_effects": [1.0, 2.0],
+    "same_common_leaders": ["treat"]
+  },
+  "standing": {
+    "inference": "point_only",
+    "calibration": "unmeasured",
+    "transport_identification_required": true,
+    "data_dependent_prior_selection": true,
+    "posterior_transfer_licensed": false,
+    "policy_generalization_guarantee": false
+  }
+}

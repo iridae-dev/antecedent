@@ -44,7 +44,7 @@ def test_matrix_covers_all_families_operations_and_complete_identity_categories(
     assert {(r.family, r.operation) for r in rows} == {
         (family, operation) for family in Family for operation in Operation
     }
-    assert len(rows) == 60
+    assert len(rows) == len(Family) * len(Operation)
     for row in rows:
         assert row.retained_objects
         assert row.compatible_operation
@@ -129,9 +129,10 @@ def test_missing_adapters_and_inference_never_inherit_adjacent_routes():
     assert not capability(Family.DOUBLY_ROBUST, Operation.INFERENCE).adapters
     for family in (Family.STATIC, Family.DESIGN):
         assert not capability(family, Operation.INFERENCE).adapters
-    for family in Family:
-        if family in (Family.BAYESIAN, Family.TEMPORAL):
-            assert all(not capability(family, op).adapters for op in Operation)
+    assert not capability(Family.BAYESIAN, Operation.ACTION_GRID).adapters
+    assert not capability(Family.BAYESIAN, Operation.TARGET).adapters
+    assert not capability(Family.TEMPORAL, Operation.INFERENCE).adapters
+    assert not capability(Family.TEMPORAL, Operation.PROVIDER).adapters
 
 
 def test_verified_predictor_supports_point_prediction_without_becoming_score_state():

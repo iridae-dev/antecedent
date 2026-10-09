@@ -323,6 +323,19 @@ NO_SURFACE = [
     ("record.toml", 'surface_internal = [{ name = "hidden_helper", why = "self-test hidden helper" }]\n', ""),
 ]
 INTERNAL = 'surface_internal = [{ name = "hidden_helper", why = "self-test hidden helper" }]'
+QUALIFIED_PLUMBING = """\
+#[doc(hidden)]
+pub struct HiddenToken;
+impl HiddenToken {
+    #[doc(hidden)]
+    pub fn inspect(&self) {}
+}
+impl SelfTestValue {
+    pub fn inspect(&self) {}
+}
+"""
+QUALIFIED_INTERNAL = 'surface_internal = [{ name = "hidden_helper", why = "self-test hidden helper" }, { name = "HiddenToken", why = "hidden token" }, { name = "HiddenToken.inspect", why = "hidden own method, not another public same-name accessor" }]'
+
 
 
 def rec(old, new):
@@ -683,6 +696,14 @@ cases = [
     ("surface_internal_visible", "surface_internal names a visible pub item",
      [rec(INTERNAL, 'surface_internal = [{ name = "hidden_helper", why = "r" }, { name = "identify_route", why = "r" }]')],
      "surface_internal entry identify_route is a public item that is not #[doc(hidden)]", None),
+    ("surface_internal_visible", "qualified internal method does not hide another public same-name accessor",
+     [("surface_api.rs", None, QUALIFIED_PLUMBING),
+      rec(INTERNAL, QUALIFIED_INTERNAL.replace("HiddenToken.inspect", "SelfTestValue.inspect"))],
+     "surface_internal entry SelfTestValue.inspect is a public item that is not #[doc(hidden)]", None),
+    ("surface_internal_stale", "qualified internal wrong owner cannot borrow a same-name hidden method",
+     [("surface_api.rs", None, QUALIFIED_PLUMBING),
+      rec(INTERNAL, QUALIFIED_INTERNAL.replace("HiddenToken.inspect", "MissingToken.inspect"))],
+     "surface_internal entry MissingToken.inspect names no Rust/pyo3 item", None),
     ("surface_owned_orphan", "surface_exports without owned_exports", [rec('owned_exports = ["point_route", "SelfTestValue"]\n', '')],
      "surface_exports and owned_exports go together", None),
     ("surface_export_stale", "owned export not in __all__",
@@ -692,6 +713,8 @@ cases = [
 
 # Constructs the checker must ACCEPT: (label, edits).
 positives = [
+    ("qualified hidden method leaves public same-name accessor visible",
+     [("surface_api.rs", None, QUALIFIED_PLUMBING), rec(INTERNAL, QUALIFIED_INTERNAL)]),
     ("shared evidence on every fixture that shares the test",
      [rec(POS, fx("xt.point_a.positive", "positive", PY_TEST, PY_POS, ", shared_evidence = true")),
       rec(NEG, fx("xt.refusal_a.negative", "negative", PY_TEST, PY_POS, ", shared_evidence = true"))]),

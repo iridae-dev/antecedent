@@ -442,3 +442,59 @@ def test_static_factor_domain_budget_refuses_before_cartesian_allocation():
         "score_artifact",
     )
     assert not session.is_live
+
+
+def test_static_retained_response_issues_native_authority_without_new_execution():
+    from antecedent import external, program_claims
+
+    session = StaticResponseSession()
+    assert session.response is None
+    request = response_request()
+    first = session.execute(request, seed=3)
+    response = session.response
+    program = program_claims.ProgramBinding.from_response(
+        response, outcome_units="probability", dose_units="binary"
+    )
+    claim = program_claims.native_claim(response, program)
+    assert claim.means == pytest.approx(first.means, abs=1e-12)
+    assert claim.trust.value == "native_licensed"
+    spec = external.response(
+        response.program_identification, outcome_units="probability", dose_units="binary"
+    )
+    assert program_claims.ProgramBinding.from_spec(spec) == program
+    assert session.execute(request, seed=3).receipt.totals.total == 0
+    utility = session.execute(replace(request, utility=Utility(3, 0.1)), seed=3)
+    assert utility.receipt.totals.total == utility.receipt.totals.decisions == 1
+    assert program_claims.native_claim(session.response, program).means == claim.means
+
+
+def test_static_retained_response_snapshot_substitution_and_stale_projection_refuse():
+    from antecedent import program_claims
+
+    request = response_request()
+    session = StaticResponseSession()
+    session.execute(request, seed=3)
+    previous = session.response
+    program = program_claims.ProgramBinding.from_response(
+        previous, outcome_units="probability", dose_units="binary"
+    )
+    changed = replace(request, data={**request.data, "y": 1 - request.data["y"]})
+    session.execute(changed, seed=3)
+    current = session.response
+    assert current.data_snapshot_id != previous.data_snapshot_id
+    assert (
+        program_claims.ProgramBinding.from_response(
+            current, outcome_units="probability", dose_units="binary"
+        )
+        == program
+    )
+    swapped = previous.model_copy()
+    object.__setattr__(swapped, "_raw", current._raw)
+    with pytest.raises(ac.external.ExternalRefusal) as error:
+        program_claims.native_claim(swapped, program)
+    assert (error.value.reason_code, error.value.detail, error.value.stage) == (
+        "invalid_argument",
+        "native_claims.projection_mismatch",
+        "bind",
+    )
+    assert session.execute(changed, seed=3).receipt.totals.total == 0

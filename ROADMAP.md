@@ -27,6 +27,26 @@ covariance (F19). That transfer has a point-only license for its tested scope.
 The wider external, decision, temporal, and study-design paths below remain
 separately gated.
 
+## Recalculation expansion ownership
+
+The selected 2.3 recalculation adapters retain checked native analysis state and
+execute bounded attested finite mean callbacks under declared provider policies.
+This release scope requires actual selective work receipts and independent result
+replay for those selected rows.
+
+The broader packages belong to the 2.4 composition program below. Their ownership
+and missing gates are explicit:
+
+| Expansion | Target | Module owners | Required implementation gate |
+| --- | --- | --- | --- |
+| Static and temporal discovery reuse | 2.4 | Discovery/search in `antecedent-identify`, analysis facade | Actual selective CI/score/search receipts, graph uncertainty propagation, full-run oracle comparison and portable evidence replay |
+| Arbitrary law, posterior and nested callbacks | 2.4 | Analysis provider executor, `antecedent-io`, composition | Typed law authority, nested evidence overlap and independent compatible provider replay; the bounded 2.3 mean callback does not complete this package |
+| Adaptive and sequential policy estimation | 2.4 | Temporal identification/estimation, `antecedent-design` | Represented assignment/history/stopping contracts and an independently validated whole sequential estimator |
+| General cross-world selective execution | 2.4 | Counterfactual identification/estimation, analysis facade | Actual abduction/shared-noise/per-world work, declared coupling and full portable replay |
+
+These remain implementation requirements for 2.4. Existing theorem-scoped 2.3
+counterfactual calculations retain their own support and uncertainty boundaries.
+
 ## Milestone A — Compose scientific claims and expand uncertainty
 
 ### Scientific objects that keep their meaning (F1, F15, F16, F19)

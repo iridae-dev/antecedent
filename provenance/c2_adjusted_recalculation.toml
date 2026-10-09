@@ -23,4 +23,5 @@ test_sources = [
   "crates/antecedent-estimate/src/adjustment_resume.rs",
   "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
   "python/tests/test_recalc_adjusted.py",
+  "crates/antecedent/tests/adjusted_recalc_precision.rs",
 ]

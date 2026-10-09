@@ -337,6 +337,13 @@ pub(crate) fn bayesian_binding(cfg: &BayesianConfig) -> BayesianBindingWire {
             .prior_artifact
             .as_deref()
             .map(|bytes| PayloadDigestWire::bytes("prior.artifact", bytes)),
+        prior_source_snapshot: cfg.prior_artifact.as_deref().and_then(|bytes| {
+            let artifact = antecedent_io::read_and_migrate(bytes).ok()?;
+            let meta = antecedent_io::extract_prior_source_meta(&artifact).ok()??;
+            let snapshot = meta.provenance.get("bayesian.verified_source_snapshot.v1")?;
+            (snapshot.len() == 64 && snapshot.bytes().all(|byte| byte.is_ascii_hexdigit()))
+                .then(|| snapshot.clone())
+        }),
         prior_mapping: cfg.prior_mapping.as_ref().map(PriorMappingIdentityWire::from_mapping),
         external_compose: cfg.external_compose.as_deref().map(|compose| {
             external_compose_identity(

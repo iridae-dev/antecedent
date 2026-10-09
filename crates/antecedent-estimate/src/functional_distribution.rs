@@ -1957,6 +1957,19 @@ fn cpt_entries_uncached(
     cond: &[VariableId],
     weights: Option<&[f64]>,
 ) -> Result<Vec<(Assignment, f64)>, EstimationError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::FactorConstruction,
+        || construct_cpt_entries(columns, n, vars, cond, weights),
+    )
+}
+
+fn construct_cpt_entries(
+    columns: &EncodedColumns,
+    n: usize,
+    vars: &[VariableId],
+    cond: &[VariableId],
+    weights: Option<&[f64]>,
+) -> Result<Vec<(Assignment, f64)>, EstimationError> {
     let var_cols: Vec<&EncodedColumn> =
         vars.iter().map(|&v| columns.column(v)).collect::<Result<_, _>>()?;
     let cond_cols: Vec<&EncodedColumn> =

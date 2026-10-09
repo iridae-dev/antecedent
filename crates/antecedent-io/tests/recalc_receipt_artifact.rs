@@ -8,8 +8,8 @@
 use std::collections::BTreeMap;
 
 use antecedent_core::recalc::{
-    Boundary, MissingDependency, RecalcCapabilities, RefusalReason, RequestSupport, ResumeContext,
-    RetargetSupport, Stage, StageIdentities, StageIdentity,
+    Boundary, Branch, MissingDependency, RecalcCapabilities, RefusalReason, RequestSupport,
+    ResumeContext, RetargetSupport, Stage, StageIdentities, StageIdentity,
 };
 use antecedent_io::recalc_receipt_artifact::{
     CountsWire, RECALC_RECEIPT_ARTIFACT_VERSION, RecalcReceiptArtifact, RecalcReceiptArtifactError,
@@ -92,8 +92,10 @@ fn oracle_identity(meta: &RecalcReceiptMeta) -> String {
             entry.counts.integrations,
             entry.counts.provider_calls,
             entry.counts.law_summaries,
+            entry.counts.posterior_draws,
+            entry.counts.external_invocations,
         ];
-        for (tag, n) in (1_u8..=7).zip(extras) {
+        for (tag, n) in (1_u8..=9).zip(extras) {
             if n > 0 {
                 counted.push(tag);
                 counted.extend_from_slice(&n.to_le_bytes());
@@ -123,6 +125,8 @@ fn reseal(mut meta: RecalcReceiptMeta) -> RecalcReceiptMeta {
         totals.integrations += entry.counts.integrations;
         totals.provider_calls += entry.counts.provider_calls;
         totals.law_summaries += entry.counts.law_summaries;
+        totals.posterior_draws += entry.counts.posterior_draws;
+        totals.external_invocations += entry.counts.external_invocations;
     }
     meta.totals = totals;
     meta.receipt_identity = oracle_identity(&meta);
@@ -684,4 +688,162 @@ fn c2_factor_work_counts_bind_identity_and_refuse_incomplete_or_mixed_families()
         )
         .is_ok()
     );
+}
+
+#[test]
+fn c2_posterior_draw_counts_preserve_legacy_identity_and_enforce_stage_family() {
+    assert!(!serde_json::to_string(utility_only().meta()).unwrap().contains("posterior_draws"));
+    let artifact = RecalcReceiptArtifact::seal(
+        &workflow("u1", "seed1"),
+        &workflow("u1", "seed2"),
+        &in_process(),
+        &counts(&[
+            (
+                Stage::ScoreArtifact,
+                CountsWire { model_fits: 1, posterior_draws: 5, ..CountsWire::default() },
+            ),
+            (Stage::Law, CountsWire { law_summaries: 1, ..CountsWire::default() }),
+            (Stage::Decision, decided()),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(artifact.meta().totals.total(), 8);
+    assert_eq!(artifact.receipt_identity(), oracle_identity(artifact.meta()));
+    assert_eq!(
+        RecalcReceiptArtifact::from_bytes(
+            &artifact.to_bytes(ID).unwrap(),
+            Some(artifact.receipt_identity())
+        )
+        .unwrap(),
+        artifact
+    );
+    for mutation in ["missing_fit", "mixed_factor", "mixed_score", "wrong_stage"] {
+        let mut changed = artifact.meta().clone();
+        let score =
+            changed.entries.iter_mut().find(|entry| entry.stage == "score_artifact").unwrap();
+        match mutation {
+            "missing_fit" => score.counts.model_fits = 0,
+            "mixed_factor" => score.counts.factor_builds = 1,
+            "mixed_score" => score.counts.score_computations = 1,
+            "wrong_stage" => score.counts.posterior_draws = 0,
+            _ => unreachable!(),
+        }
+        if mutation == "wrong_stage" {
+            changed
+                .entries
+                .iter_mut()
+                .find(|entry| entry.stage == "law")
+                .unwrap()
+                .counts
+                .posterior_draws = 5;
+        }
+        assert!(
+            matches!(
+                consume(&reseal(changed)),
+                Err(RecalcReceiptArtifactError::CountsInconsistent { .. })
+            ),
+            "{mutation}"
+        );
+    }
+    let mut changed = artifact.meta().clone();
+    changed
+        .entries
+        .iter_mut()
+        .find(|entry| entry.stage == "score_artifact")
+        .unwrap()
+        .counts
+        .posterior_draws += 1;
+    let changed = reseal(changed);
+    assert!(consume(&changed).is_ok());
+    assert_ne!(changed.receipt_identity, artifact.receipt_identity());
+}
+
+#[test]
+fn c2_external_invocations_bind_branch_work_and_preserve_zero_extension_identity() {
+    assert!(
+        !serde_json::to_string(utility_only().meta()).unwrap().contains("external_invocations")
+    );
+    let b0 = Branch::new(0).unwrap();
+    let b1 = Branch::new(1).unwrap();
+    let mut previous = workflow("u1", "seed1");
+    for branch in [b0, b1] {
+        previous.set(
+            Stage::ExternalStudy(branch),
+            digest("external", &format!("source{}", branch.index())),
+        );
+        previous.set(Stage::ProviderRequest(branch), digest("provider", "checked_request"));
+    }
+    let mut requested = previous.clone();
+    requested.set(Stage::ExternalStudy(b0), digest("external", "updated_source0"));
+    let artifact = RecalcReceiptArtifact::seal(
+        &previous,
+        &requested,
+        &in_process(),
+        &counts(&[
+            (
+                Stage::ProviderRequest(b0),
+                CountsWire { external_invocations: 1, ..CountsWire::default() },
+            ),
+            (Stage::Decision, decided()),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(artifact.meta().totals.total(), 2);
+    assert_eq!(artifact.meta().totals.external_invocations, 1);
+    assert_eq!(artifact.receipt_identity(), oracle_identity(artifact.meta()));
+    assert_eq!(
+        RecalcReceiptArtifact::from_bytes(
+            &artifact.to_bytes(ID).unwrap(),
+            Some(artifact.receipt_identity())
+        )
+        .unwrap(),
+        artifact
+    );
+    for mutation in
+        ["missing_invocation", "wrong_law_stage", "mixed_native_fit", "reused_branch", "input_work"]
+    {
+        let mut changed = artifact.meta().clone();
+        let provider =
+            changed.entries.iter_mut().find(|e| e.stage == "provider_request.0").unwrap();
+        match mutation {
+            "missing_invocation" | "wrong_law_stage" => provider.counts.external_invocations = 0,
+            "mixed_native_fit" => provider.counts.model_fits = 1,
+            _ => {}
+        }
+        let target = match mutation {
+            "wrong_law_stage" => Some("law"),
+            "reused_branch" => Some("provider_request.1"),
+            "input_work" => Some("external_study.0"),
+            _ => None,
+        };
+        if let Some(target) = target {
+            changed
+                .entries
+                .iter_mut()
+                .find(|e| e.stage == target)
+                .unwrap()
+                .counts
+                .external_invocations = 1;
+        }
+        assert!(
+            matches!(
+                consume(&reseal(changed)),
+                Err(RecalcReceiptArtifactError::CountsInconsistent { .. })
+            ),
+            "{mutation}"
+        );
+    }
+    // A resealed historical record can assert different branch counts; that
+    // changes identity but does not authenticate an actual provider invocation.
+    let mut changed = artifact.meta().clone();
+    changed
+        .entries
+        .iter_mut()
+        .find(|e| e.stage == "provider_request.0")
+        .unwrap()
+        .counts
+        .external_invocations = 2;
+    let changed = reseal(changed);
+    assert!(consume(&changed).is_ok());
+    assert_ne!(changed.receipt_identity, artifact.receipt_identity());
 }

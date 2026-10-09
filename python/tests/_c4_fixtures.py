@@ -6,7 +6,7 @@ expected value: the numbers below are the inputs the header derives its answers 
 
 * program: outcome ``y`` (mmHg) under ``do(a = d)`` for the dose grid ``d in {0, 1, 2}`` mg in
   the ``target`` population, identified on the graph ``x -> a``, ``x -> y``, ``a -> y``;
-* native analysis ``N`` (mean response): ``E[y | do(a)] = 2, 4, 9``, the dose-2 coordinate outside
+* native analysis ``N`` (mean response): ``E[y | do(a)] = 2, 4, 6``, the dose-2 coordinate outside
   empirical support;
 * external study ``E1`` (attested point means, ``lab-1`` / ``snap-e1``): ``1, 3, 5.5``;
 * external study ``E2`` (``lab-2`` / ``snap-e2``): point means ``2, 3.5, 5`` and two equally likely
@@ -15,6 +15,7 @@ expected value: the numbers below are the inputs the header derives its answers 
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 import antecedent as ac
@@ -28,12 +29,8 @@ from antecedent.joint_distribution import (
     JointDistributionArtifact,
     ScientificQuantity,
 )
-from antecedent.results._views import IdentificationView
 from antecedent.results.response import (
     CausalResponseView,
-    ResponseUncertainty,
-    ResponseView,
-    SupportReport,
 )
 
 GRID = [0.0, 1.0, 2.0]
@@ -44,16 +41,13 @@ ASSUMPTION = "ignorability"
 SUPPORTED = ("supported", "supported", "supported")
 OUTSIDE = "outside_empirical_support"
 
-NATIVE_MEANS = (2.0, 4.0, 9.0)
+NATIVE_MEANS = (2.0, 4.0, 6.0)
 E1_MEANS = (1.0, 3.0, 5.5)
 E2_MEANS = (2.0, 3.5, 5.0)
 #: Rows of the E2 joint law: ``(y(do(a=0)), y(do(a=1)), y(do(a=2)), response rate)``.
 LAW_ROWS = ((2.0, 6.0, 3.0, 0.25), (2.0, 1.0, 7.0, 0.75))
 #: The ranking decision's prior draws: the law's own state column.
 STATE_DRAWS = [0.25, 0.75]
-#: The native snapshot and the content digest a reference to it must match.
-SNAPSHOT = "snap-n"
-NATIVE_DIGEST = "digest-snap-n"
 #: The node the declared independence of ``e1`` and ``e2claim`` becomes in a bundle.
 RELATION = "relation:e1:e2claim"
 
@@ -79,7 +73,7 @@ def identification(
 
 def spec(ident: Any = None, **kwargs: Any) -> external.ExternalSpec:
     return external.response(
-        identification() if ident is None else ident,
+        native_view().program_identification if ident is None else ident,
         outcome_units=UNITS,
         dose_units="mg",
         population="target",
@@ -90,7 +84,7 @@ def spec(ident: Any = None, **kwargs: Any) -> external.ExternalSpec:
 
 def program(ident: Any = None) -> program_claims.ProgramBinding:
     return program_claims.ProgramBinding.from_identification(
-        identification() if ident is None else ident,
+        native_view().program_identification if ident is None else ident,
         outcome_units=UNITS,
         dose_units="mg",
         require_assumptions=(ASSUMPTION,),
@@ -165,40 +159,68 @@ def e2_claim(
 # ------------------------------------------------------------------------- native response
 
 
+@lru_cache(maxsize=8)
+def _executed_native(grid: tuple[float, ...]) -> CausalResponseView:
+    """Fit the original checked response engine to a full-rank additive SCM.
+
+    Cross each treatment level with the same symmetric covariate population:
+    Y = 2 + 2 A + X/2, E[X]=0, hence E[Y|do(a)]=2+2a.
+    Fixed bandwidth 2.1 permits evaluating the full query while the original
+    producer still labels doses beyond [0,1] outside empirical support.
+    """
+    levels = np.linspace(0.0, 1.0, 101)
+    treatment = np.repeat(levels, 21)
+    covariate = np.tile(np.linspace(-1.0, 1.0, 21), len(levels))
+    return ac.analyze(
+        {"x": covariate, "a": treatment, "y": 2 + 2 * treatment + covariate / 2},
+        graph=EDGES,
+        query=ac.ResponseCurve("a", "y", grid=list(grid)),
+        estimator_config={
+            "bandwidth": 2.1,
+            "nuisance_lambda": 0.0,
+            "nuisance_basis": 4,
+            "folds": 2,
+        },
+        bootstrap=0,
+        refute="none",
+    )
+
+
 def native_view(
     *,
     grid: tuple[float, ...] = (0.0, 1.0, 2.0),
-    means: tuple[float, ...] = NATIVE_MEANS,
-    point_status: tuple[str, ...] = ("supported", "supported", OUTSIDE),
-    support: str = OUTSIDE,
-    snapshot: str | None = "snap-n",
+    means: tuple[float, ...] | None = None,
+    point_status: tuple[str, ...] | None = None,
+    support: str | None = None,
+    snapshot: str | None = None,
 ) -> CausalResponseView:
-    """A native mean response curve as the library's own result type carries it."""
-    return CausalResponseView(
-        estimand=ac.ResponseCurve("a", "y", grid=list(grid)),
-        response=ResponseView(
-            treatments=["a"],
-            outcomes=["y"],
-            points=[[g] for g in grid],
-            values=[[m] for m in means],
-        ),
-        estimate=None,
-        uncertainty=ResponseUncertainty(kind="none"),
-        support=SupportReport(
-            status=support,
-            query_region={"a": (min(grid), max(grid))},
-            point_status=point_status,
-        ),
-        identification=IdentificationView(
-            status="NonparametricallyIdentified",
-            method="response.backdoor",
-            adjustment_set=["x"],
-            assumption_count=0,
-            derivation_step_count=0,
-        ),
-        provenance={"operation_id": "op-n"},
-        data_snapshot_id=snapshot,
-    )
+    """An actual issued response; optional substitutions are negative fixtures."""
+    view = _executed_native(grid)
+    if means is not None:
+        view = view.model_copy(
+            update={"response": view.response.model_copy(update={"values": [[m] for m in means]})}
+        )
+    if support is not None or point_status is not None:
+        view = view.model_copy(
+            update={
+                "support": view.support.model_copy(
+                    update={
+                        "status": view.support.status if support is None else support,
+                        "point_status": view.support.point_status
+                        if point_status is None
+                        else point_status,
+                    }
+                )
+            }
+        )
+    if snapshot is not None:
+        view = view.model_copy(update={"data_snapshot_id": snapshot})
+    return view
+
+
+#: These are supplied-source assertions in historical bundles, not replay authority.
+SNAPSHOT = str(_executed_native((0.0, 1.0, 2.0)).data_snapshot_id)
+NATIVE_DIGEST = SNAPSHOT
 
 
 def native_claim(
@@ -344,21 +366,9 @@ def rollout_contract() -> decision.Contract:
 def native_input(
     the_claim: program_claims.NativeClaim | None = None, input_id: str = "native"
 ) -> comp.DecisionInput:
-    """The native claim as a composition input: its supported coordinates only.
-
-    Python can state no native execution record, so the input is stored ``unverified``.
-    """
+    """The actual issued native claim, retaining its supported coordinates and authority."""
     claim = native_claim() if the_claim is None else the_claim
-    source = claim.as_decision_source(mean_contract())
-    return comp.DecisionInput.from_means(
-        input_id,
-        source.coordinates,
-        source.source.means,
-        provider_id=source.source.provider_id,
-        snapshot_id=source.source.snapshot_id,
-        causal_contract_id=source.source.causal_contract_id,
-        support=list(source.point_status),  # type: ignore[arg-type]
-    )
+    return comp.DecisionInput.from_native_claim(input_id, claim, contract=mean_contract())
 
 
 def e1_input(

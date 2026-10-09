@@ -83,7 +83,10 @@ impl CausalExprArena {
     /// Continuous [`ExprNode::IntegralOut`] compiles successfully; evaluation uses
     /// [`DistributionProvider::quadrature`] or discrete [`DistributionProvider::support`].
     pub fn compile(&self, root: ExprId) -> Result<CompiledEvaluator, EvalError> {
-        CompiledEvaluator::compile(self, root)
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::ProgramCompilation,
+            || CompiledEvaluator::compile(self, root),
+        )
     }
 }
 

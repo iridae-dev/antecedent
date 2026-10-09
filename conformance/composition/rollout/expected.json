@@ -1,0 +1,11 @@
+{
+  "state_draws": [0.25, 0.75],
+  "terminal_actions": ["wait", "bet"],
+  "utilities": [[0.0, 0.0], [-0.25, 0.25]],
+  "prior_expected_utility": 0.0,
+  "evpi": 0.125,
+  "sample_size": 2,
+  "evsi": 0.0625,
+  "rank": 0,
+  "calibration": "unmeasured"
+}

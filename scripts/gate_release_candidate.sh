@@ -171,6 +171,7 @@ bash scripts/gate_b_exit.sh --release
 
 echo "== release candidate: strict bounds and final claims =="
 python3 scripts/check_limits_agreement.py --strict
+python3 scripts/check_limits_agreement.py --release 2.3 --strict
 python3 scripts/check_release_claims.py --final
 
 echo "== release candidate: Python lint / types =="

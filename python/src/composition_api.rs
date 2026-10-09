@@ -208,10 +208,54 @@ impl PyTrustEvidence {
 #[pyclass(name = "DecisionInput", skip_from_py_object)]
 pub(crate) struct PyDecisionInput {
     inner: DecisionInput,
+    pub(crate) source_claim: Option<crate::program_claims_api::PyNativeResponseClaim>,
+    external_source: Option<antecedent_design::source_evidence::SourceEvidence>,
+}
+
+impl PyDecisionInput {
+    pub(crate) fn inner(&self) -> &DecisionInput {
+        &self.inner
+    }
 }
 
 #[pymethods]
 impl PyDecisionInput {
+    fn _retain_external_source(
+        &mut self,
+        claim: &crate::external_api::PyExternalClaimArtifact,
+    ) -> PyResult<()> {
+        let source = crate::source_evidence_api::PySourceEvidence::from_external(claim)?;
+        let antecedent_design::composition_boundary::InputSource::Mean(means) = self.inner.source()
+        else {
+            return Err(crate::recalc_api::invalid(
+                "source_evidence.point_binding_mismatch",
+                "external original requires a mean input",
+            ));
+        };
+        source
+            .inner
+            .require_mean_source(means)
+            .map_err(|cause| crate::recalc_api::invalid(cause.detail, cause.to_string()))?;
+        self.external_source = Some(source.inner);
+        Ok(())
+    }
+    #[getter]
+    fn source_evidence(&self) -> PyResult<Option<crate::source_evidence_api::PySourceEvidence>> {
+        if let Some(inner) = &self.external_source {
+            return Ok(Some(crate::source_evidence_api::PySourceEvidence {
+                inner: inner.clone(),
+                resolution: None,
+            }));
+        }
+        self.source_claim
+            .as_ref()
+            .map(crate::source_evidence_api::PySourceEvidence::from_claim)
+            .transpose()
+    }
+    #[getter]
+    fn has_source_evidence(&self) -> bool {
+        self.source_claim.is_some() || self.external_source.is_some()
+    }
     #[getter]
     fn id(&self) -> &str {
         self.inner.id()
@@ -329,9 +373,81 @@ fn input_pair(
     result: Result<DecisionInput, BoundaryError>,
 ) -> (Option<PyDecisionInput>, Option<String>) {
     match result {
-        Ok(inner) => (Some(PyDecisionInput { inner }), None),
+        Ok(inner) => {
+            (Some(PyDecisionInput { inner, source_claim: None, external_source: None }), None)
+        }
         Err(error) => (None, Some(boundary_refusal(&error))),
     }
+}
+
+/// Build native composition evidence only from retained checked execution authority.
+#[pyfunction]
+fn composition_input_from_native_claim(
+    input_id: &str,
+    claim: &crate::program_claims_api::PyNativeResponseClaim,
+    contract_json: &str,
+) -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
+    use antecedent::analysis::native_claims::NativeDecisionSource;
+    use antecedent_io::external_binding_wire::RefusalWire;
+    if contract_json.len() > MAX_DECISION_ARTIFACT_BYTES {
+        return Err(PyValueError::new_err("native composition contract exceeds bounds"));
+    }
+    let refused = |refusal| -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
+        Ok((None, Some(serde_json::to_string(&RefusalWire::from(refusal)).map_err(serialization)?)))
+    };
+    let contract = match contract_from_json_refusal(contract_json) {
+        Ok(contract) => contract,
+        Err(error) => return refused(error),
+    };
+    let requirement = match contract.source_requirement() {
+        Ok(Some(requirement)) => requirement,
+        Ok(None) => {
+            return Err(PyValueError::new_err("native composition requires a source criterion"));
+        }
+        Err(error) => return refused(error.to_refusal()),
+    };
+    let input = match claim.claim.decision_source(&requirement) {
+        Ok(input) => input,
+        Err(error) => return refused(error),
+    };
+    let execution_id = antecedent_io::execution_digest(
+        &antecedent_io::execution_identity_from_context(&claim.authority.context),
+    )
+    .map_err(serialization)?;
+    let (provider_id, snapshot_id) = match &input.source {
+        NativeDecisionSource::Mean(source) => {
+            (source.provider_id.clone(), source.snapshot_id.clone())
+        }
+        NativeDecisionSource::JointLaw(artifact) => (
+            artifact.metadata().identity.provider_id.clone(),
+            artifact.metadata().identity.snapshot_id.clone(),
+        ),
+    };
+    let evidence = DesignTrust::NativeExecution(NativeExecutionRecord {
+        execution_id: execution_id.to_hex(),
+        provider_id,
+        snapshot_id,
+    });
+    let result = match input.source {
+        NativeDecisionSource::Mean(source) => DecisionInput::from_mean_source(
+            input_id,
+            source,
+            &input.point_status,
+            &evidence,
+            TrustRequirement::Native,
+        ),
+        NativeDecisionSource::JointLaw(artifact) => DecisionInput::from_distribution_artifact(
+            input_id,
+            &artifact,
+            &evidence,
+            TrustRequirement::Native,
+        ),
+    };
+    let (mut input, refusal) = input_pair(result);
+    if let Some(input) = &mut input {
+        input.source_claim = Some(claim.clone());
+    }
+    Ok((input, refusal))
 }
 
 /// An input from an aligned joint-law artifact. The artifact's own `trust` and
@@ -344,12 +460,35 @@ fn composition_input_from_distribution(
     requirement: &str,
 ) -> PyResult<(Option<PyDecisionInput>, Option<String>)> {
     let requirement = parse_requirement(requirement)?;
-    Ok(input_pair(DecisionInput::from_distribution_artifact(
+    let native_evidence = if matches!(evidence.inner, DesignTrust::None) {
+        artifact
+            .source_claim
+            .as_ref()
+            .map(|claim| {
+                let execution = antecedent_io::execution_digest(
+                    &antecedent_io::execution_identity_from_context(&claim.authority.context),
+                )
+                .map_err(serialization)?;
+                Ok::<_, PyErr>(DesignTrust::NativeExecution(NativeExecutionRecord {
+                    execution_id: execution.to_hex(),
+                    provider_id: artifact.inner().metadata().identity.provider_id.clone(),
+                    snapshot_id: artifact.inner().metadata().identity.snapshot_id.clone(),
+                }))
+            })
+            .transpose()?
+    } else {
+        None
+    };
+    let (mut result, refusal) = input_pair(DecisionInput::from_distribution_artifact(
         input_id,
         artifact.inner(),
-        &evidence.inner,
+        native_evidence.as_ref().unwrap_or(&evidence.inner),
         requirement,
-    )))
+    ));
+    if let Some(result) = &mut result {
+        result.source_claim.clone_from(&artifact.source_claim);
+    }
+    Ok((result, refusal))
 }
 
 /// An input from a mean source: one mean per coordinate, one support status each.
@@ -498,7 +637,7 @@ fn verdict_json(verdict: &SupportedVerdict) -> Value {
     }
 }
 
-fn supported_json(decision: &SupportedDecision) -> Value {
+pub(crate) fn supported_json(decision: &SupportedDecision) -> Value {
     json!({
         "contract_identity": decision.contract_identity,
         "dispositions": decision.dispositions.iter().map(disposition_json).collect::<Vec<_>>(),
@@ -580,6 +719,13 @@ fn functional_from(wire: &FunctionalWire) -> Option<DecisionFunctional> {
         }),
         _ => None,
     }
+}
+
+pub(crate) fn parsed_functional(json: &str) -> PyResult<DecisionFunctional> {
+    check_size(json)?;
+    let wire: FunctionalWire =
+        serde_json::from_str(json).map_err(|error| PyValueError::new_err(error.to_string()))?;
+    functional_from(&wire).ok_or_else(|| PyValueError::new_err("unknown functional"))
 }
 
 /// One functional of one action's utility from one input. A mean or scalar
@@ -1691,11 +1837,13 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyTrustEvidence>()?;
     m.add_class::<PyDecisionInput>()?;
     m.add_class::<PyProposalBundle>()?;
+    m.add_function(wrap_pyfunction!(composition_input_from_native_claim, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_means, m)?)?;
     m.add_function(wrap_pyfunction!(composition_input_from_scalar, m)?)?;
     m.add_function(wrap_pyfunction!(composition_evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(composition_functional, m)?)?;
+    crate::functional_source_api::register(m)?;
     m.add_function(wrap_pyfunction!(composition_check, m)?)?;
     m.add_function(wrap_pyfunction!(composition_check_paired_draws, m)?)?;
     m.add_function(wrap_pyfunction!(composition_check_atoms, m)?)?;

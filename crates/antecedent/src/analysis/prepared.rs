@@ -602,6 +602,7 @@ impl CheckedAdmgResponseCurveOperation {
             });
         }
         let mut means = Vec::with_capacity(self.members.len());
+        let mut point_status = Vec::with_capacity(self.members.len());
         let mut member_posteriors = Vec::new();
         let mut support_status = antecedent_core::SupportStatus::Supported;
         let mut support_warnings = Vec::new();
@@ -670,6 +671,11 @@ impl CheckedAdmgResponseCurveOperation {
                     mean
                 }
             };
+            point_status.push(if value.is_finite() {
+                antecedent_core::SupportStatus::Supported
+            } else {
+                antecedent_core::SupportStatus::OutsideEmpiricalSupport
+            });
             means.push(value);
             if matches!(self.inference, InferenceMode::Frequentist)
                 && value.is_finite()
@@ -745,6 +751,7 @@ impl CheckedAdmgResponseCurveOperation {
                 CausalError::from(antecedent_estimate::EstimationError::data_msg(error.to_string()))
             })?;
         support.status = support_status;
+        support.point_status = Some(Arc::from(point_status));
         support.query_region = antecedent_core::SupportRegion {
             minima: Arc::from([self.grid.iter().copied().fold(f64::INFINITY, f64::min)]),
             maxima: Arc::from([self.grid.iter().copied().fold(f64::NEG_INFINITY, f64::max)]),
@@ -3138,6 +3145,31 @@ impl std::ops::DerefMut for PreparedStudy {
 }
 
 impl PreparedStudy {
+    pub(crate) fn rebind_checked_bayesian_inference(
+        &self,
+        config: crate::BayesianConfig,
+    ) -> Result<Self, CausalError> {
+        let execution = match &self.execution {
+            PreparedExecution::BayesianGcomp(operation) => {
+                PreparedExecution::BayesianGcomp(operation.with_inference_config(config.clone())?)
+            }
+            PreparedExecution::BayesianBasisAte(operation) => PreparedExecution::BayesianBasisAte(
+                operation.with_inference_config(config.clone())?,
+            ),
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "retained Bayesian inference rebind requires its checked Gaussian operation",
+                });
+            }
+        };
+        let mut next = self.clone();
+        next.execution = execution;
+        let mut analysis = next.analysis.clone();
+        analysis.inference = InferenceMode::Bayesian(config);
+        next.replace_study(analysis);
+        Ok(next)
+    }
+
     pub(crate) fn checked_program_binding(&self) -> CheckedProgramBinding<'_> {
         self.execution.program_binding()
     }

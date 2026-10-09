@@ -44,6 +44,62 @@ mod internal {
         pub inverse_residual: f64,
     }
 
+    /// One of the three actual candidate functionals, in covariance/interval order.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub enum NestedFisherFunctional {
+        /// Mean of X4 under do(X2=0).
+        Mean0,
+        /// Mean of X4 under do(X2=1).
+        Mean1,
+        /// Difference of the two means.
+        Contrast,
+    }
+
+    impl NestedMarkovUncertainty {
+        /// Measurement binding for this actual candidate; never activates a public route.
+        #[must_use]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "successful candidate validated a bounded positive integer count total"
+        )]
+        pub fn calibration_basis(
+            &self,
+            functional: NestedFisherFunctional,
+        ) -> antecedent_core::CalibrationBasis {
+            use std::sync::Arc;
+            let (query, target) = match functional {
+                NestedFisherFunctional::Mean0 => ("InterventionResponse", "verma.do_x2_0.mean_x4"),
+                NestedFisherFunctional::Mean1 => ("InterventionResponse", "verma.do_x2_1.mean_x4"),
+                NestedFisherFunctional::Contrast => {
+                    ("AverageEffect", "verma.do_x2_1_minus_0.mean_x4")
+                }
+            };
+            antecedent_core::CalibrationBasis::new(
+                [
+                    query,
+                    "Admg",
+                    "fixed",
+                    "tabular",
+                    "Frequentist",
+                    "nested_markov_fisher",
+                    "analytic_se",
+                    "expected_fisher_delta",
+                    "iid_multinomial",
+                    "",
+                    target,
+                ]
+                .map(Arc::from),
+                self.nominal_level,
+                Arc::from("point"),
+                self.sample_count as u64,
+                None,
+                None,
+                0.,
+            )
+        }
+    }
+
     fn refusal(detail: &str, message: &str) -> EstimationError {
         EstimationError::refused(
             antecedent_core::reason_code!("invalid_argument"),
@@ -221,4 +277,6 @@ mod internal {
 }
 
 #[cfg(feature = "calibration-internal")]
-pub use internal::{NestedMarkovUncertainty, PARAMETER_COUNT, nested_markov_fisher_internal};
+pub use internal::{
+    NestedFisherFunctional, NestedMarkovUncertainty, PARAMETER_COUNT, nested_markov_fisher_internal,
+};

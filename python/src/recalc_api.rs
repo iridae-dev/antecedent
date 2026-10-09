@@ -331,6 +331,8 @@ pub(crate) fn counts_wire(
         fold_fits: counts.fold_fits,
         model_fits: counts.model_fits,
         law_summaries: counts.law_summaries,
+        posterior_draws: counts.posterior_draws,
+        external_invocations: counts.external_invocations,
         factor_builds: counts.factor_builds,
         program_compilations: counts.program_compilations,
         provider_bindings: counts.provider_bindings,

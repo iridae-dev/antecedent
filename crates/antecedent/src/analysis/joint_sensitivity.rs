@@ -564,6 +564,27 @@ impl JointSensitivityArtifactWire {
         Ok(wire)
     }
 
+    /// Execute the original numerical sensitivity engine on the retained baseline.
+    /// The caller must independently consume this artifact before publishing derived claims.
+    pub(crate) fn replay_result(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<JointMechanismSensitivityResult, IoError> {
+        let baseline = ZTransportArtifactWire::consume_with_limits(
+            &self.baseline_artifact,
+            ZTransportConsumeLimits::default(),
+            ctx,
+        )?;
+        z_transport_joint_mechanism_sensitivity(
+            &baseline.diagram,
+            &baseline.functional,
+            &baseline.data,
+            &self.replay_spec()?,
+            ctx,
+        )
+        .map_err(|error| joint_error(&error))
+    }
+
     /// The declared spec the replay runs under: stored factors, threshold,
     /// tolerance, grid and limits, with the stored effective memory cap.
     fn replay_spec(&self) -> Result<JointDeviationSpec, IoError> {

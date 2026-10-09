@@ -24,6 +24,7 @@ use crate::{
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
+    pub(crate) authority: Option<Arc<NativeResponseAuthority>>,
     #[pyo3(get)]
     certificate_json: Option<String>,
     #[pyo3(get)]
@@ -135,11 +136,87 @@ pub(crate) struct ResponseAnalysisResult {
     coordinates: CoordinateSkeleton,
 }
 
+pub(crate) struct NativeResponseAuthority {
+    pub(crate) response: antecedent_core::CausalResponse,
+    pub(crate) prepared: Arc<antecedent::PreparedStudy>,
+    pub(crate) schema: antecedent_core::CausalSchema,
+    pub(crate) result: Arc<antecedent::StudyResult>,
+    pub(crate) context: antecedent_core::ExecutionContext,
+}
+
+impl ResponseAnalysisResult {
+    pub(crate) fn claim_projection(&self) -> serde_json::Value {
+        serde_json::json!({
+            "treatment": self.treatments.first(), "outcome": self.outcomes.first(),
+            "grid": self.points.iter().filter_map(|p| p.first()).collect::<Vec<_>>(),
+            "means": self.values.iter().filter_map(|v| v.first()).collect::<Vec<_>>(),
+            "identification": self.authority.as_ref().map(|a| a.response.identification_status.as_str()),
+            "has_envelope": self.identified_mass.is_some(), "support_status": self.support_status,
+            "point_status": if self.support_point_status.is_empty() {None} else {Some(&self.support_point_status)},
+            "provenance_id": self.provenance_id,
+            "data_snapshot_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).map(|c| c.identities.data_snapshot.to_hex()),
+            "program_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).and_then(|c| c.identities.program).map(|id| id.to_hex()),
+            "uncertainty": {"kind": self.uncertainty_kind, "lower": self.lower, "upper": self.upper,
+                "level": self.level, "standard_error": self.standard_error, "replicates": self.replicates,
+                "artifact_id": self.artifact_id, "interpretation": self.interval_interpretation},
+        })
+    }
+
+    pub(crate) fn with_authority(
+        mut self,
+        prepared: &antecedent::PreparedStudy,
+        schema: &antecedent_core::CausalSchema,
+        result: &antecedent::StudyResult,
+        context: &antecedent_core::ExecutionContext,
+    ) -> Self {
+        if let (Some(response), Some(_)) = (&result.response, &result.executed_contract) {
+            self.authority = Some(Arc::new(NativeResponseAuthority {
+                response: response.clone(),
+                prepared: Arc::new(prepared.clone()),
+                schema: schema.clone(),
+                result: Arc::new(result.clone()),
+                context: context.clone(),
+            }));
+        }
+        self
+    }
+}
+
 type CoordinateSkeleton =
     Result<Vec<antecedent_core::ResponseCoordinateSkeleton>, antecedent_core::ExternalRefusal>;
 
 #[pymethods]
 impl ResponseAnalysisResult {
+    fn program_basis_json(&self) -> PyResult<Option<String>> {
+        let Some(authority) = &self.authority else {
+            return Ok(None);
+        };
+        let Some(contract) = &authority.result.executed_contract else {
+            return Ok(None);
+        };
+        let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
+            &authority.response.estimand
+        else {
+            return Ok(None);
+        };
+        let grid =
+            treatment.grid.values().map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let named =
+            |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
+        Ok(Some(
+            serde_json::json!({
+                "graph_id": format!("graph:{}", contract.identities.identification),
+                "status": authority.response.identification_status.as_str(),
+                "treatment": named(treatment.variable)?, "outcome": named(*outcome)?, "grid": grid,
+                "snapshot_id": contract.identities.data_snapshot.to_hex(),
+                "program_id": contract.identities.program.map(|id| id.to_hex()),
+                "rng_id": format!("native:seed:{}", authority.context.rng.master_seed()),
+                "statement": "checked native response identification",
+            })
+            .to_string(),
+        ))
+    }
+
     /// The scientific coordinates of the response values, derived natively.
     ///
     /// Returns `(quantities_json, refusal_json)`: exactly one is `None`. The
@@ -273,7 +350,7 @@ fn analyze_response(
         let ctx = py_execution_context(seed, crate::resolve_user_threads(None));
         let prepared = study.prepare(&ctx).map_err(py_err)?;
         let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
-        crate::prepared_api::response_from_study(&names, &result)
+        crate::prepared_api::response_from_study(&names, &result, &prepared, &ctx)
     })
 }
 
@@ -427,6 +504,7 @@ fn analyze_response_pag(
         let upper_rows = upper.iter().map(|value| vec![*value]).collect();
         let support_status = support_status_name(worst_support).to_owned();
         Ok(ResponseAnalysisResult {
+            authority: None,
             certificate_json: None,
             treatments: vec![treatment],
             outcomes: vec![outcome],
@@ -814,6 +892,7 @@ pub(crate) fn response_result(
         }
     }
     Ok(ResponseAnalysisResult {
+        authority: None,
         certificate_json: None,
         treatments: unique_treatments,
         outcomes,

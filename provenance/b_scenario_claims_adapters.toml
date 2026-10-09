@@ -23,6 +23,7 @@ implementation_deviations = [
   "An identified set covers identified scenarios only; unidentified or unevaluated scenarios, a truncated enumeration and a weighted report whose outcome domain is unbounded with unaccounted mass refuse to give an interval, and each interval is plain interval arithmetic over the action's inputs, with no probabilistic reading. Scenario support and every utility input must be bound by the caller; an action input bound to no outcome the scenarios evaluate refuses.",
   "The conversion records the source identity it read (scenario ids, a content digest of each scenario's status, weight and law, and the premises and data digests the caller retained) and a conversion given an expected source refuses when any of them changed. The policy must be the contract's declared one. The conversion does not verify that the 2.2 report itself is correct.",
   "Python delegates the conversion, identity and every refusal to the Rust core; the adapters introduce no calibrated, interval-coverage or probability claim. All standard errors and diagnostics, where a downstream report carries them, remain unmeasured.",
+  "Supplied uncertainty endpoint propagation requires the same scientific quantity across all actions: separate marginal intervals have no joint coverage contract and refuse. Duplicate interval coordinates also refuse. Estimated identified bounds remain descriptive interval arithmetic over multiple inputs; independent affine-endpoint fixtures verify both readings without collecting coverage.",
 ]
 
 upstream_implementations_observed = []

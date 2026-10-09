@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
 from . import _native
@@ -296,6 +296,22 @@ class DecisionInput:
         return cls._built(native, refusal)
 
     @classmethod
+    def from_native_claim(cls, input_id: str, claim: Any, *, contract: Contract) -> DecisionInput:
+        """Consume an actual issued native response and its execution record.
+
+        Point summaries and retained aligned posterior rows preserve their own
+        support and calibration. Projection metadata cannot supply this authority.
+        """
+        from .program_claims import NativeClaim
+
+        if not isinstance(claim, NativeClaim):
+            raise CausalTypeError("claim must be an issued NativeClaim")
+        native, refusal = _native.composition_input_from_native_claim(
+            _text("input_id", input_id), claim._native, json.dumps(contract._wire())
+        )
+        return cls._built(native, refusal)
+
+    @classmethod
     def from_means(
         cls,
         input_id: str,
@@ -379,7 +395,7 @@ class DecisionInput:
         if not isinstance(claim, BoundExternalClaim):
             raise CausalTypeError("claim must be a BoundExternalClaim")
         identity = claim.identity
-        return cls.from_means(
+        result = cls.from_means(
             input_id,
             claim.quantities,
             [float(v) for v in claim.values],
@@ -390,6 +406,9 @@ class DecisionInput:
             evidence=TrustEvidence.attested(str(identity["provider_id"])),
             requirement=requirement,
         )
+
+        result._native_value._retain_external_source(claim._native)
+        return result
 
     @classmethod
     def _built(cls, native: Any, refusal: str | None) -> DecisionInput:
@@ -406,6 +425,15 @@ class DecisionInput:
     def source(self) -> Literal["mean", "joint_law", "scalar"]:
         """What the input supplies."""
         return self._source
+
+    @property
+    def source_evidence(self):
+        """Original native diagnostics; absent for metadata-only sources."""
+        from .source_evidence import SourceEvidence
+
+        if not self._native_value.has_source_evidence:
+            return None
+        return SourceEvidence._deferred(lambda: self._native_value.source_evidence)
 
     @property
     def provenance(self) -> InputProvenance:
@@ -567,6 +595,7 @@ class SupportedDecision:
     evpi: float | None
     sources: int
     assumptions: tuple[str, ...]
+    source_evidence: tuple[Any, ...] = ()
 
     def disposition(self, action_id: str) -> ActionDisposition:
         """The disposition of one action."""
@@ -658,6 +687,22 @@ def evaluate_with_support(
     _raise(refusal)
     assert result is not None
     wire = json.loads(result)
+    return _supported_from_wire(
+        wire,
+        source_evidence=tuple(
+            evidence.project(
+                contract,
+                [row["id"] for row in wire["dispositions"] if row["input_id"] == source.id],
+            )
+            for source in inputs
+            if (evidence := source.source_evidence) is not None
+        ),
+    )
+
+
+def _supported_from_wire(
+    wire: Mapping[str, Any], *, source_evidence: Sequence[Any] = ()
+) -> SupportedDecision:
     verdict = wire["verdict"]
     return SupportedDecision(
         contract_identity=wire["contract_identity"],
@@ -667,6 +712,7 @@ def evaluate_with_support(
         evpi=wire["evpi"],
         sources=int(wire["sources"]),
         assumptions=tuple(wire["assumptions"]),
+        source_evidence=tuple(source_evidence),
     )
 
 
@@ -728,6 +774,13 @@ class FunctionalValue:
     value: float
     standard_error: float | None
     source_mode: str
+    source_evidence: tuple[Any, ...] = ()
+    _artifact_factory: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def source_artifact(self) -> Any:
+        """Independently consumed original-law or affine-source transformation artifact."""
+        return None if self._artifact_factory is None else self._artifact_factory()
 
 
 def evaluate_functional(
@@ -753,7 +806,28 @@ def evaluate_functional(
     _raise(refusal)
     assert result is not None
     wire = json.loads(result)
-    return FunctionalValue(wire["value"], wire["standard_error"], wire["source_mode"])
+    evidence = source.source_evidence
+
+    def build_artifact() -> Any:
+        if source.source == "joint_law":
+            from .functional_source import LawFunctionalArtifact
+
+            return LawFunctionalArtifact._produce(contract, action_id, functional, source)
+        if evidence is not None:
+            from .source_projection import SourceProjectionArtifact
+
+            return SourceProjectionArtifact.produce(
+                evidence, "transformation", contract=contract, action_id=action_id
+            )
+        return None
+
+    return FunctionalValue(
+        wire["value"],
+        wire["standard_error"],
+        wire["source_mode"],
+        () if evidence is None else (evidence.project(contract, [action_id]),),
+        build_artifact if source.source == "joint_law" or evidence is not None else None,
+    )
 
 
 # --------------------------------------------------------------------------- dependence

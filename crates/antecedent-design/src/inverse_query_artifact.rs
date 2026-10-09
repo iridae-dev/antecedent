@@ -1062,6 +1062,9 @@ pub struct InverseQueryMeta {
     pub identity: InverseQueryIdentity,
     /// The stored per-action status table and selection.
     pub result: InverseResultWire,
+    /// Independently consumed original source evidence; no executable-state authority.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_evidence: Vec<Vec<u8>>,
 }
 
 /// Encode the metadata, the nested contract artifact and the numbers as a
@@ -1171,6 +1174,7 @@ pub struct InverseQueryArtifact {
     evidence: ForwardEvidence,
     result: InverseResult,
     identity: InverseQueryIdentity,
+    source_evidence: Vec<crate::source_evidence::SourceEvidence>,
 }
 
 impl InverseQueryArtifact {
@@ -1191,7 +1195,119 @@ impl InverseQueryArtifact {
         let identity =
             identity_of(&result.contract_identity, &InverseQueryWire::from_query(&query), &encoded)
                 .map_err(|_| InverseQueryError::InvalidParameter("artifact_encoding"))?;
-        Ok(Self { query, evidence, result, identity })
+        Ok(Self { query, evidence, result, identity, source_evidence: Vec::new() })
+    }
+
+    /// Original diagnostic evidence retained alongside the actual inverse source.
+    #[must_use]
+    pub fn source_evidence(&self) -> &[crate::source_evidence::SourceEvidence] {
+        &self.source_evidence
+    }
+
+    /// Attach original source evidence, rechecking semantic/numerical mean bindings and mappings.
+    /// This never promotes imported evidence to executable state or native trust.
+    pub fn with_source_evidence(
+        mut self,
+        sources: Vec<crate::source_evidence::SourceEvidence>,
+    ) -> Result<Self, IoError> {
+        if sources.len() > 8 {
+            return Err(refused(BOUNDS, "too many original source artifacts"));
+        }
+        let text = crate::decision_artifact::contract_to_json(&self.query.contract)?;
+        for source in &sources {
+            let projected =
+                source.project(&text, &self.query.grid_order).map_err(source_refusal)?;
+            if source.summary()["action_contributors"] != projected.summary()["action_contributors"]
+                || source.summary()["contract_identity"] != projected.summary()["contract_identity"]
+            {
+                return Err(source_refusal(crate::source_evidence::SourceEvidenceError {
+                    code: antecedent_core::reason_code!("invalid_argument"),
+                    detail: "source_evidence.action_mismatch",
+                }));
+            }
+            let matches_claim = |claim: &ForwardClaim| match claim {
+                ForwardClaim::Means(means) => source.require_mean_source(means).is_ok(),
+                ForwardClaim::Law(law) => {
+                    let quantities = law
+                        .quantities()
+                        .iter()
+                        .cloned()
+                        .map(ScientificQuantity::try_from)
+                        .collect::<Result<Vec<_>, _>>();
+                    quantities.is_ok_and(|quantities| {
+                        source
+                            .require_quantity_binding(
+                                &quantities,
+                                &law.metadata().identity.snapshot_id,
+                            )
+                            .is_ok()
+                    })
+                }
+            };
+            let mut matched = self.evidence.point.as_ref().is_some_and(matches_claim);
+            if let Some(region) = &self.evidence.interval_region {
+                matched |= matches_claim(&region.lower) || matches_claim(&region.upper);
+            }
+            let atoms = self
+                .evidence
+                .identified_set
+                .as_ref()
+                .into_iter()
+                .flat_map(|set| &set.members)
+                .chain(self.evidence.scenarios.as_ref().into_iter().flatten());
+            for atom in atoms {
+                if let AtomEvidence::Evaluated(law) = &atom.evidence {
+                    let quantities = law
+                        .quantities()
+                        .iter()
+                        .cloned()
+                        .map(ScientificQuantity::try_from)
+                        .collect::<Result<Vec<_>, _>>();
+                    matched |= quantities.is_ok_and(|quantities| {
+                        source
+                            .require_quantity_binding(
+                                &quantities,
+                                &law.metadata().identity.snapshot_id,
+                            )
+                            .is_ok()
+                    });
+                }
+            }
+            if !matched {
+                return Err(source_refusal(crate::source_evidence::SourceEvidenceError {
+                    code: antecedent_core::reason_code!("invalid_argument"),
+                    detail: "source_evidence.forward_binding_mismatch",
+                }));
+            }
+        }
+        self.identity = identity_of(
+            &self.result.contract_identity,
+            &InverseQueryWire::from_query(&self.query),
+            &encode_evidence(&self.evidence),
+        )?;
+        if !sources.is_empty() {
+            let original = identity_of(
+                &self.result.contract_identity,
+                &InverseQueryWire::from_query(&self.query),
+                &encode_evidence(&self.evidence),
+            )?;
+            let bytes = sources
+                .iter()
+                .map(crate::source_evidence::SourceEvidence::export)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(source_refusal)?;
+            self.identity.premises_digest = tagged_digest(
+                "antecedent.inverse_query.source_evidence.v1",
+                &to_cbor(&(original.premises_digest, bytes))?,
+            );
+            let mut whole = blake3::Hasher::new();
+            whole.update(b"antecedent.inverse_query.identity.v1");
+            whole.update(self.identity.premises_digest.as_bytes());
+            whole.update(self.identity.data_digest.as_bytes());
+            self.identity.digest = whole.finalize().to_hex().to_string();
+        }
+        self.source_evidence = sources;
+        Ok(self)
     }
 
     /// The query.
@@ -1242,6 +1358,12 @@ impl InverseQueryArtifact {
             evidence: encoded.evidence,
             identity: self.identity.clone(),
             result: InverseResultWire::from(&self.result),
+            source_evidence: self
+                .source_evidence
+                .iter()
+                .map(crate::source_evidence::SourceEvidence::export)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|cause| IoError::Convert(cause.to_string()))?,
         };
         encode_parts(&meta, &contract, &encoded.data, artifact_id)
     }
@@ -1290,7 +1412,15 @@ impl InverseQueryArtifact {
                 "a sample of a continuous domain cannot claim global feasibility or infeasibility",
             ));
         }
-        let artifact = Self::new(query, evidence).map_err(|error| query_refusal(&error))?;
+        let sources = meta
+            .source_evidence
+            .iter()
+            .map(|bytes| crate::source_evidence::SourceEvidence::consume(bytes))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(source_refusal)?;
+        let artifact = Self::new(query, evidence)
+            .map_err(|error| query_refusal(&error))?
+            .with_source_evidence(sources)?;
         if let Some(field) = identity_diff(&meta.identity, &artifact.identity) {
             return Err(wrong_contract(&format!("stored {field} differs from the recomputed one")));
         }
@@ -1315,4 +1445,11 @@ impl InverseQueryArtifact {
 pub fn result_to_json(result: &InverseResult) -> Result<String, IoError> {
     serde_json::to_string(&InverseResultWire::from(result))
         .map_err(|error| IoError::Convert(error.to_string()))
+}
+
+fn source_refusal(cause: crate::source_evidence::SourceEvidenceError) -> IoError {
+    IoError::Refused {
+        code: cause.code,
+        message: format!("{}: original source evidence failed validation", cause.detail),
+    }
 }

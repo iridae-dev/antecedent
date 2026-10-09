@@ -315,6 +315,8 @@ pub enum NodeKind {
     Sensitivity,
     /// A study ranking.
     StudyRanking,
+    /// A source-law binding to terminal decision state and study ranking.
+    Rollout,
     /// An inverse functional query with its forward evidence and result table.
     InverseQuery,
     /// An identification-repair search report.
@@ -327,7 +329,7 @@ pub enum NodeKind {
 
 impl NodeKind {
     /// Every kind.
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::CausalContract,
         Self::ExecutionOrFit,
         Self::ExternalClaim,
@@ -341,6 +343,7 @@ impl NodeKind {
         Self::DecisionResult,
         Self::Sensitivity,
         Self::StudyRanking,
+        Self::Rollout,
         Self::InverseQuery,
         Self::RepairReport,
         Self::RecalculationReceipt,
@@ -364,6 +367,7 @@ impl NodeKind {
             Self::DecisionResult => "decision_result",
             Self::Sensitivity => "sensitivity",
             Self::StudyRanking => "study_ranking",
+            Self::Rollout => "rollout",
             Self::InverseQuery => "inverse_query",
             Self::RepairReport => "repair_report",
             Self::RecalculationReceipt => "recalculation_receipt",
@@ -391,7 +395,7 @@ impl NodeKind {
             | Self::SupportTrustCalibration
             | Self::RepairReport
             | Self::RecalculationReceipt => CompositionStage::Evidence,
-            Self::Transformation => CompositionStage::Transformation,
+            Self::Transformation | Self::Rollout => CompositionStage::Transformation,
             Self::DecisionContract => CompositionStage::DecisionContract,
             Self::DecisionResult | Self::InverseQuery => CompositionStage::Claim,
             Self::Sensitivity => CompositionStage::SensitivityInput,
@@ -407,6 +411,7 @@ impl NodeKind {
             | Self::DecisionResult
             | Self::Sensitivity
             | Self::StudyRanking
+            | Self::Rollout
             | Self::InverseQuery => BundleStage::TamperedQuantity,
             _ => BundleStage::SwappedEvidence,
         }

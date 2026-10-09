@@ -383,7 +383,11 @@ fn decision_json(result: &SensitivityDecisionResult) -> Value {
 
 #[pyclass(name = "SensitivityArtifact", skip_from_py_object)]
 pub(crate) struct PySensitivityArtifact {
-    artifact: SensitivityArtifact,
+    pub(crate) artifact: SensitivityArtifact,
+    pub(crate) source: std::sync::Mutex<
+        Option<std::sync::Arc<antecedent::analysis::sensitivity_source::SourceBackedSensitivity>>,
+    >,
+    pub(crate) recipe: Option<crate::sensitivity_source_api::SourceRecipe>,
 }
 
 #[pymethods]
@@ -422,7 +426,10 @@ impl PySensitivityArtifact {
             None => None,
         };
         match SensitivityArtifact::from_bytes(data, expected.as_ref()) {
-            Ok(artifact) => Ok((Some(Self { artifact }), None)),
+            Ok(artifact) => Ok((
+                Some(Self { artifact, source: std::sync::Mutex::new(None), recipe: None }),
+                None,
+            )),
             Err(error) => Ok((None, Some(io_refusal(&error)))),
         }
     }
@@ -449,7 +456,14 @@ fn sensitivity_artifact_from_surface(
         Err(error) => return Ok((None, Some(declaration_refusal(&error.to_string())))),
     };
     match SensitivityArtifact::new(surface.into_parts()) {
-        Ok(artifact) => Ok((Some(PySensitivityArtifact { artifact }), None)),
+        Ok(artifact) => Ok((
+            Some(PySensitivityArtifact {
+                artifact,
+                source: std::sync::Mutex::new(None),
+                recipe: None,
+            }),
+            None,
+        )),
         Err(error) => Ok((None, Some(io_refusal(&error)))),
     }
 }
@@ -521,11 +535,23 @@ fn sensitivity_artifact_from_z_joint(
     let ctx = stage.ctx(memory_bytes, cancel);
     let prepared = stage.prepared().clone();
     drop(stage);
+    let recipe = crate::sensitivity_source_api::SourceRecipe {
+        prepared: prepared.clone(),
+        spec: spec.clone(),
+        context: ctx.clone(),
+    };
     let outcome = crate::detach_catch(py, move || {
         Ok(prepared.sensitivity_artifact(&spec, &effect, grid_points, actions, &contract_id, &ctx))
     })?;
     match outcome {
-        Ok(artifact) => Ok((Some(PySensitivityArtifact { artifact }), None)),
+        Ok(artifact) => Ok((
+            Some(PySensitivityArtifact {
+                artifact,
+                source: std::sync::Mutex::new(None),
+                recipe: Some(recipe),
+            }),
+            None,
+        )),
         Err(error) => Ok((None, Some(io_refusal(&error)))),
     }
 }

@@ -1,4 +1,4 @@
-"""Operation-level inventory of the six prepared recalculation families.
+"""Operation-level inventory of prepared and attested callback recalculation families.
 
 This contract selects an existing adapter, not an execution license. The adapter
 must still check the request's complete identities, support and inference status.
@@ -16,10 +16,13 @@ from .errors import CausalValueError
 from .prediction import FittedEffectModel
 from .recalc import RecalcSession, RecalcUnavailable, Stage
 from .recalc_adjusted import AdjustedSession
+from .recalc_bayesian import BayesianSession
 from .recalc_cell import CellSession, CrossfitSession, ScoreResumeSession
 from .recalc_design import DesignSession
 from .recalc_dr import DrSession
+from .recalc_external import ExternalCallbackSession
 from .recalc_static import MultiSourceSession, StaticResponseSession
+from .recalc_temporal import TemporalSession
 
 
 class Family(StrEnum):
@@ -29,6 +32,7 @@ class Family(StrEnum):
     BAYESIAN = "bayesian_analysis"
     TEMPORAL = "temporal_analysis"
     DESIGN = "design_specific_effects"
+    EXTERNAL = "external_callback"
 
 
 class Operation(StrEnum):
@@ -50,6 +54,9 @@ class RetainedKind(StrEnum):
     LIVE_FIT = "live_adjusted_fit"
     LIVE_PROGRAM = "live_static_program"
     LIVE_DESIGN = "live_checked_design"
+    LIVE_POSTERIOR = "live_native_posterior"
+    LIVE_HISTORY = "live_checked_history"
+    LIVE_EXTERNAL_OUTPUT = "live_attested_callback_output"
     SCORES = "verified_portable_scores"
     PREDICTOR = "verified_portable_predictor"
     DRAWS = "aligned_posterior_draws"
@@ -168,6 +175,12 @@ _EXTERNAL = tuple(
 )
 
 _FAMILY_FIELDS = {
+    Family.EXTERNAL: (
+        "complete request payload",
+        "provider implementation/version/environment",
+        "declared replay policy and idempotency",
+        "seed and exact scientific response coordinates",
+    ),
     Family.ADJUSTED: (
         "linear/GLM link",
         "feature/basis specification",
@@ -216,6 +229,10 @@ _FAMILY_FIELDS = {
 }
 
 _OBJECTS = {
+    Family.EXTERNAL: (
+        "ExternalCallbackSession actual issued attested output",
+        "portable callback output pending actual provider replay",
+    ),
     Family.ADJUSTED: (
         "AdjustedSession checked joint fit and coefficient covariance",
         "PreparedAnalysis compiled plan; not a persistent fit",
@@ -406,9 +423,55 @@ _DESIGN_REPLAY = replace(
 )
 
 
+_BAYESIAN = Adapter(
+    RetainedKind.LIVE_POSTERIOR,
+    BayesianSession,
+    "antecedent.recalc_bayesian.BayesianSession.execute",
+    "antecedent::analysis::recalc_bayesian::execute_bayesian_with_receipt",
+    "native-issued ordinary posterior projection",
+    "Checked conjugate Gaussian identity effect model, linear or quadratic basis. Summary/utility reuse actual aligned native rows; model/data/prior/RNG/draw-budget changes refit. Posterior quantiles are model projections with unmeasured calibration. Caller draws and joint transport publication are unsupported.",
+)
+_BAYESIAN_RESUME = replace(
+    _BAYESIAN,
+    python_path="antecedent.recalc_bayesian.BayesianSession.resume",
+    rust_path="antecedent::analysis::recalc_bayesian::BayesianSession::resume",
+    operation="fresh raw-data posterior refit",
+)
+_TEMPORAL = Adapter(
+    RetainedKind.LIVE_HISTORY,
+    TemporalSession,
+    "antecedent.recalc_temporal.TemporalSession.execute",
+    "antecedent::analysis::recalc_temporal::execute_temporal_with_receipt",
+    "checked empirical whole-history point functional",
+    "Binary two-step directed root-state selection proof, raw repeated-unit histories and finite target initial-state law. Utility and compatible functional/target changes reuse held mechanisms; changed source histories/proof/RNG refit. Dependent intervals remain frozen; no arbitrary horizon or callback.",
+)
+_TEMPORAL_RESUME = replace(
+    _TEMPORAL,
+    python_path="antecedent.recalc_temporal.TemporalSession.resume",
+    rust_path="antecedent::analysis::recalc_temporal::TemporalSession::resume",
+    operation="fresh supplied-history refit",
+)
+_TEMPORAL_REPLAY = replace(
+    _TEMPORAL,
+    python_path="antecedent.recalc_temporal.consume_temporal_result",
+    rust_path="antecedent::analysis::recalc_temporal::consume_temporal_recalc_artifact",
+    operation="independent source-bound checked history replay",
+)
+
+
+_CALLBACK = Adapter(
+    RetainedKind.LIVE_EXTERNAL_OUTPUT,
+    ExternalCallbackSession,
+    "antecedent.recalc_external.ExternalCallbackSession.execute",
+    "antecedent::analysis::recalc_external::ExternalCallbackSession::execute",
+    "bounded attested foreign mean callback",
+    "Actual callable under exact program/request/payload/provider/environment/seed dependencies. Deterministic or seeded policies may reuse; stateful calls run anew. Side-effect failures require supported idempotency for automatic retry. Outputs stay externally attested with no native causal authority or uncertainty license.",
+)
+
+
 @cache
 def capability_matrix() -> tuple[Capability, ...]:
-    """Return all sixty immutable cells, including explicit unavailable adapters.
+    """Return all immutable family/operation cells, including explicit unavailable adapters.
 
     Identity requirements specify what the operation must preserve or invalidate,
     not proof that the current adapter supports every variation of those fields.
@@ -435,6 +498,16 @@ def capability_matrix() -> tuple[Capability, ...]:
                     Operation.INFERENCE: "Declared model covariance changes invalidate the joint fit. No calibrated intervals or additional resampling/inference settings are licensed.",
                     Operation.RESUME: "No adjusted fitted-state artifact loader: supplied compatible raw data refit at the fresh-process boundary; receipt-only/flag-only resume refuses.",
                 }[operation]
+            if family == Family.EXTERNAL and operation in (
+                Operation.DATA,
+                Operation.PROVIDER,
+                Operation.ACTION_GRID,
+                Operation.STRUCTURE,
+                Operation.LEARNER,
+                Operation.RESUME,
+            ):
+                adapters = (_CALLBACK,)
+                compatible = "Complete changed dependencies require actual callback execution; portable output requires actual matching provider replay before it becomes usable. Planning never invokes a callback."
             if family == Family.STATIC:
                 if operation in (
                     Operation.UTILITY,
@@ -452,6 +525,36 @@ def capability_matrix() -> tuple[Capability, ...]:
                 elif operation == Operation.RESUME:
                     adapters = (_STATIC_RESUME, _MZ_RESUME)
                     compatible = "Fresh supplied raw inputs require preparation; independent artifact consumers replay result proof/points without supplying executable session state."
+            if family == Family.BAYESIAN:
+                if operation in (
+                    Operation.UTILITY,
+                    Operation.FUNCTIONAL,
+                    Operation.DATA,
+                    Operation.STRUCTURE,
+                    Operation.PROVIDER,
+                    Operation.LEARNER,
+                    Operation.INFERENCE,
+                ):
+                    adapters = (_BAYESIAN,)
+                    compatible = _BAYESIAN.scope
+                elif operation == Operation.RESUME:
+                    adapters = (_BAYESIAN_RESUME,)
+                    compatible = "Actual supplied raw data and checked prior configuration refit; historical posterior/result/receipt flags grant no executable session authority."
+            if family == Family.TEMPORAL:
+                if operation in (
+                    Operation.UTILITY,
+                    Operation.FUNCTIONAL,
+                    Operation.TARGET,
+                    Operation.ACTION_GRID,
+                    Operation.DATA,
+                    Operation.STRUCTURE,
+                    Operation.LEARNER,
+                ):
+                    adapters = (_TEMPORAL,)
+                    compatible = _TEMPORAL.scope
+                elif operation == Operation.RESUME:
+                    adapters = (_TEMPORAL_RESUME, _TEMPORAL_REPLAY)
+                    compatible = "Receipt identities alone supply no state; raw history inputs or an independently checked source-bound empirical artifact require actual reconstruction."
             if family == Family.DESIGN:
                 if operation in (
                     Operation.UTILITY,
@@ -514,6 +617,18 @@ def retained_kind(state: object) -> RetainedKind:
             and state._handle.is_live()
         ):
             return RetainedKind.LIVE_PROGRAM
+    elif isinstance(state, BayesianSession):
+        if isinstance(state._handle, _native.BayesianSessionHandle) and state._handle.is_live():
+            return RetainedKind.LIVE_POSTERIOR
+    elif isinstance(state, TemporalSession):
+        if isinstance(state._handle, _native.TemporalSessionHandle) and state._handle.is_live():
+            return RetainedKind.LIVE_HISTORY
+    elif isinstance(state, ExternalCallbackSession):
+        if (
+            isinstance(state._handle, _native.ExternalCallbackSessionHandle)
+            and state._handle.is_live()
+        ):
+            return RetainedKind.LIVE_EXTERNAL_OUTPUT
     elif isinstance(state, DesignSession):
         if isinstance(state._handle, _native.DesignSessionHandle) and state._handle.is_live():
             return RetainedKind.LIVE_DESIGN

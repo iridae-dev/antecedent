@@ -6,7 +6,7 @@
 //! response `N`, an attested point-mean study `E1` and a second study `E2` that is bound as
 //! point means and carries two equally likely aligned joint draws.
 //!
-//! Mean grids `(m0, m1, m2)`: `N = (2, 4, 9)` with dose 2 outside empirical support (withheld),
+//! Mean grids `(m0, m1, m2)`: `N = (2, 4, 6)` with dose 2 outside empirical support (withheld),
 //! `E1 = (1, 3, 5.5)`, `E2 = (2, 3.5, 5)` (the means of its two joint rows). Actions: `wait` is
 //! worth `m0`, `treat` is `m1 - 1` and `extend` is `m2 - 3`.
 //!
@@ -29,8 +29,9 @@
 //! attested posterior share it; with study costs 0.02 and 0.05 the net values are `0.0425` and
 //! `0.0125`.
 //!
-//! The native claim enters composition with a native execution record here (Rust can state
-//! one); the Python half cannot, which is why it carries no native label.
+//! This component-level Rust fixture exercises semantic binding of a supplied native response.
+//! The Python half additionally executes the original checked fit and retains its actual issued
+//! authority. Combined recalculation acceptance separately counts real native and provider work.
 
 use std::sync::Arc;
 
@@ -224,7 +225,7 @@ fn native_response() -> CausalResponse {
         estimate: ResponseIdentification::PointIdentified(ResponseValue::Surface {
             grid: Arc::from(grid.to_vec()),
             dimension: 1,
-            mean: Arc::from(vec![2.0, 4.0, 9.0]),
+            mean: Arc::from(vec![2.0, 4.0, 6.0]),
         }),
         uncertainty: ResponseUncertainty::None,
         support: SupportReport {
@@ -381,7 +382,7 @@ fn c4_acceptance_native_claim_is_native_and_withholds_the_unsupported_dose() {
     let claim =
         NativeResponseClaim::from_response(&native_response(), &schema(), &native_context())
             .unwrap();
-    assert_eq!(claim.means(), &[2.0, 4.0, 9.0][..]);
+    assert_eq!(claim.means(), &[2.0, 4.0, 6.0][..]);
     assert_eq!(claim.support_status(), SupportStatus::OutsideEmpiricalSupport);
     assert_eq!(claim.trust(), DistributionTrust::NativeLicensed);
     assert_eq!(claim.program_identity(), program().identity());

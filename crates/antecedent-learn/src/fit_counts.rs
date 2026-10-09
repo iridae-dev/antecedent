@@ -66,11 +66,17 @@ pub(crate) fn instrument(factory: Box<dyn LearnerFactory>) -> Box<dyn LearnerFac
     if let Some(count) = ACTIVE.with(|slot| slot.borrow().clone()) {
         counts.push(count);
     }
-    if counts.is_empty() { factory } else { Box::new(CountedFactory { factory, counts }) }
+    let attempt_observer = antecedent_core::execution_attempt::ObservationToken::capture();
+    if counts.is_empty() && attempt_observer.is_empty() {
+        factory
+    } else {
+        Box::new(CountedFactory { factory, counts, attempt_observer })
+    }
 }
 struct CountedFactory {
     factory: Box<dyn LearnerFactory>,
     counts: Vec<Arc<AtomicU64>>,
+    attempt_observer: antecedent_core::execution_attempt::ObservationToken,
 }
 
 impl LearnerFactory for CountedFactory {
@@ -87,11 +93,18 @@ impl LearnerFactory for CountedFactory {
         weights: Option<&[f64]>,
         ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
-        let result = self.factory.fit(x, y, weights, ctx)?;
-        for count in &self.counts {
-            count.fetch_add(1, Ordering::Relaxed);
-        }
-        Ok(result)
+        self.attempt_observer.execute(|| {
+            antecedent_core::execution_attempt::run_operation(
+                antecedent_core::execution_attempt::Operation::LearnerFit,
+                || {
+                    let result = self.factory.fit(x, y, weights, ctx)?;
+                    for count in &self.counts {
+                        count.fetch_add(1, Ordering::Relaxed);
+                    }
+                    Ok(result)
+                },
+            )
+        })
     }
 }
 
@@ -99,6 +112,47 @@ impl LearnerFactory for CountedFactory {
 mod tests {
     use super::*;
     use crate::{LearnerSpec, LinearSpec, resolve};
+
+    #[test]
+    fn attempt_observer_alone_tracks_real_resolved_worker_success_and_failure() {
+        use antecedent_core::execution_attempt::{Operation, observe_execution};
+        let attempted = observe_execution(|| {
+            // No legacy fit-count scope is installed: the attempt token alone
+            // must force the original resolved factory to carry observation.
+            let factory = resolve(LearnerSpec::Linear(LinearSpec::default())).unwrap();
+            std::thread::spawn(move || {
+                let ctx = ExecutionContext::for_tests(11);
+                let y = [1.0, 3.0, 5.0];
+                factory
+                    .fit(
+                        DesignView::from_column_major(&[1.0, 1.0, 1.0, 0.0, 1.0, 2.0], 3, 2)
+                            .unwrap(),
+                        TargetView::new(&y),
+                        None,
+                        &ctx,
+                    )
+                    .unwrap();
+                assert!(
+                    factory
+                        .fit(
+                            DesignView::from_column_major(&[1.0; 6], 3, 2).unwrap(),
+                            TargetView::new(&y),
+                            None,
+                            &ctx,
+                        )
+                        .is_err()
+                );
+            })
+            .join()
+            .unwrap();
+            Ok::<_, ()>(())
+        });
+        let fits = attempted.report.counts(Operation::LearnerFit);
+        assert_eq!((fits.attempted, fits.completed, fits.failed), (2, 1, 1));
+        let solves = attempted.report.counts(Operation::LeastSquaresSolve);
+        assert_eq!((solves.attempted, solves.completed, solves.failed), (2, 1, 1));
+        assert!(attempted.report.is_complete());
+    }
 
     fn fit() {
         let x = [1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
@@ -116,27 +170,27 @@ mod tests {
 
     #[test]
     fn nested_and_unwinding_scopes_restore_the_parent_counter() {
-        let (_, outer) = count_resolved_fits(|| {
+        let ((), outer) = count_resolved_fits(|| {
             fit();
-            let (_, inner) = count_resolved_fits(fit);
+            let ((), inner) = count_resolved_fits(fit);
             assert_eq!(inner, 1);
             let failed = std::panic::catch_unwind(|| count_resolved_fits(|| panic!("test")));
             assert!(failed.is_err());
             fit();
         });
         assert_eq!(outer, 2);
-        let (_, clean) = count_resolved_fits(|| {});
+        let ((), clean) = count_resolved_fits(|| {});
         assert_eq!(clean, 0);
     }
 
     #[test]
     fn cumulative_observers_include_nested_independent_scopes_and_restore_after_unwind() {
-        let (_, observed) = observe_resolved_fits(|| {
-            let (_, outer) = count_resolved_fits(|| {
+        let ((), observed) = observe_resolved_fits(|| {
+            let ((), outer) = count_resolved_fits(|| {
                 fit();
-                let (_, inner) = count_resolved_fits(fit);
+                let ((), inner) = count_resolved_fits(fit);
                 assert_eq!(inner, 1);
-                let (_, nested) = observe_resolved_fits(fit);
+                let ((), nested) = observe_resolved_fits(fit);
                 assert_eq!(nested, 1);
                 let failed = std::panic::catch_unwind(|| observe_resolved_fits(|| panic!("test")));
                 assert!(failed.is_err());
@@ -145,13 +199,13 @@ mod tests {
             assert_eq!(outer, 3);
         });
         assert_eq!(observed, 4);
-        let (_, clean) = observe_resolved_fits(|| {});
+        let ((), clean) = observe_resolved_fits(|| {});
         assert_eq!(clean, 0);
     }
 
     #[test]
     fn resolved_factory_carries_successful_fit_counter_to_a_worker() {
-        let (_, fits) = count_resolved_fits(|| {
+        let ((), fits) = count_resolved_fits(|| {
             let factory = resolve(LearnerSpec::Linear(LinearSpec::default())).unwrap();
             std::thread::spawn(move || {
                 let x = [1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
@@ -172,7 +226,7 @@ mod tests {
 
     #[test]
     fn failed_fit_does_not_count_as_a_completed_model() {
-        let (_, fits) = count_resolved_fits(|| {
+        let ((), fits) = count_resolved_fits(|| {
             let factory = resolve(LearnerSpec::Linear(LinearSpec::default())).unwrap();
             let design = [1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
             assert!(

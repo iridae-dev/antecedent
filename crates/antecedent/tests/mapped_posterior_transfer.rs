@@ -260,3 +260,92 @@ fn fresh_process_replays_mapped_prior() {
     std::fs::remove_file(path).unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
+
+/// Pure finite algebra at varied scales and named/permuted heterogeneous designs.
+/// This verifies exact conditional means/covariance, not draw approximation or coverage.
+#[test]
+fn named_gaussian_transfer_matches_independent_dense_precision_grid() {
+    for source_scale in [0.25_f64, 1., 4.] {
+        for residual_variance in [0.5_f64, 1., 2.] {
+            for n in [8_usize, 32, 128] {
+                let covariance = [2. * source_scale, -0.5 * source_scale, source_scale];
+                let mean = [0.3, -0.4];
+                let a = (2. * covariance[0]).sqrt();
+                let b = 2. * covariance[1] / a;
+                let c = (2. * covariance[2] - b * b).sqrt();
+                let draws = vec![
+                    mean[0] + a,
+                    mean[1] + b,
+                    residual_variance,
+                    mean[0] - a,
+                    mean[1] - b,
+                    residual_variance,
+                    mean[0],
+                    mean[1] + c,
+                    residual_variance,
+                    mean[0],
+                    mean[1] - c,
+                    residual_variance,
+                ];
+                let source =
+                    DistributionArtifact::new(exact_source().metadata().clone(), draws).unwrap();
+                let prior = mapped(
+                    &source.to_bytes("finite-exact-source").unwrap(),
+                    &identity(),
+                    &baseline(residual_variance),
+                )
+                .unwrap();
+                // Target columns are named y,x; source covariance and mean must permute.
+                let det = covariance[0] * covariance[2] - covariance[1] * covariance[1];
+                let mut precision =
+                    [covariance[0] / det, -covariance[1] / det, covariance[2] / det];
+                let mut rhs = [
+                    precision[0] * mean[1] + precision[1] * mean[0],
+                    precision[1] * mean[1] + precision[2] * mean[0],
+                ];
+                let mut x0 = Vec::new();
+                let mut x1 = Vec::new();
+                let mut y = Vec::new();
+                for i in 0..n {
+                    let u = if i % 2 == 0 { -1. } else { 1. };
+                    let v = if (i / 2) % 2 == 0 { -0.5 } else { 1.5 };
+                    let outcome = 0.7 * u - 0.2 * v;
+                    x0.push(u);
+                    x1.push(v);
+                    y.push(outcome);
+                    precision[0] += u * u / residual_variance;
+                    precision[1] += u * v / residual_variance;
+                    precision[2] += v * v / residual_variance;
+                    rhs[0] += u * outcome / residual_variance;
+                    rhs[1] += v * outcome / residual_variance;
+                }
+                let d = precision[0] * precision[2] - precision[1] * precision[1];
+                let cov =
+                    [precision[2] / d, -precision[1] / d, -precision[1] / d, precision[0] / d];
+                let expected =
+                    [cov[0] * rhs[0] + cov[1] * rhs[1], cov[2] * rhs[0] + cov[3] * rhs[1]];
+                x0.extend(x1);
+                let fit = fit_conjugate_gaussian(
+                    BayesDesignRef {
+                        x_colmajor: &x0,
+                        nrows: n,
+                        ncols: 2,
+                        y: &y,
+                        weights: None,
+                        offsets: None,
+                    },
+                    &prior,
+                    &BayesFitOptions { n_draws: 32, ..BayesFitOptions::default() },
+                    &mut LaplaceWorkspace::default(),
+                )
+                .unwrap();
+                for (actual, truth) in fit.map.iter().zip(expected) {
+                    assert!((actual - truth).abs() < 1e-11);
+                }
+                for (actual, truth) in fit.cov.as_ref().unwrap().iter().zip(cov) {
+                    assert!((actual - truth).abs() < 1e-11);
+                }
+            }
+        }
+    }
+}

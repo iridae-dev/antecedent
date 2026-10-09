@@ -114,7 +114,8 @@ executed by `test_c1_matrix_<row>_row[<consumer>]`.
 - **Recalc adapters are declarations.** The plan compares caller-supplied digests and never
   reads the producer, so it cannot notice a different object that reuses the same identity
   string.
-- **Native Python claims are mean-only.** The response view keeps no draws, so a joint law from a
+- **Mean-only native producers remain mean-only.** Actual producer-issued aligned credible
+  rows are retained when present; handcrafted views cannot create them. A joint law from a
   native Python response needs draws retained there; Rust supplies one from credible draws.
 
 ## Tests that cite this page
@@ -130,3 +131,5 @@ executed by `test_c1_matrix_<row>_row[<consumer>]`.
 `test_c1_matrix_every_boundary_rejects_neighbours_with_typed_errors` and
 `test_c1_matrix_a_mean_never_answers_a_probability_a_quantile_or_a_law`, all in
 `python/tests/test_c1_matrix.py`.
+
+Original diagnostic carry-through preserves source scopes and semantic coordinates; a transformed value does not acquire a new local effective sample size or overlap diagnostic. External bound-response artifacts retain original support and exact request identity, but their original format contains no numerical diagnostic vectors. That absence remains explicit. `decision_robust.ExternalReceipt.from_claim` takes a caller-supplied scalar without an original response-coordinate mapping: it preserves provider, snapshot and request references while recording caller attestation, including when the original response had verified-extension standing. Those references supply no numerical verification or source diagnostic license for the scalar.

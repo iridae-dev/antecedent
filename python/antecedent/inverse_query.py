@@ -47,8 +47,8 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any, Literal, cast
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
 from ._native import inverse_query_baseline as _baseline
@@ -56,6 +56,9 @@ from .decision import Contract
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .external import BoundExternalClaim
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+
+if TYPE_CHECKING:
+    from .program_claims import NativeClaim
 
 Direction = Literal["at_least", "at_most"]
 Tail = Literal["lower", "upper"]
@@ -230,6 +233,8 @@ class MeanClaim:
     snapshot_id: str
     causal_contract_id: str
     rng_id: str = "none:mean_grid"
+    _original_external: BoundExternalClaim | None = field(default=None, repr=False, compare=False)
+    _original_native: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "coordinates", tuple(self.coordinates))
@@ -245,6 +250,7 @@ class MeanClaim:
             provider_id=str(identity["provider_id"]),
             snapshot_id=str(identity["snapshot_id"]),
             causal_contract_id=str(identity["causal_contract_id"]),
+            _original_external=claim,
         )
 
     def _wire(self) -> dict[str, Any]:
@@ -258,15 +264,32 @@ class MeanClaim:
         }
 
 
-ForwardClaim = JointDistributionArtifact | MeanClaim | BoundExternalClaim
+ForwardClaim: TypeAlias = "JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim"
 
 
 def _claim(claim: ForwardClaim) -> Any:
+    from .program_claims import NativeClaim
+
+    if isinstance(claim, NativeClaim):
+        return claim._native
     if isinstance(claim, JointDistributionArtifact):
         return claim._native
     if isinstance(claim, BoundExternalClaim):
-        claim = MeanClaim.from_external(claim)
+        return claim._native
     if isinstance(claim, MeanClaim):
+        if claim._original_native is not None:
+            from . import _native
+
+            return _native.source_backed_native_mean(
+                claim._original_native._native, json.dumps(claim._wire())
+            )
+        if claim._original_external is not None:
+            if claim._wire() != MeanClaim.from_external(claim._original_external)._wire():
+                raise CausalValueError(
+                    "source_evidence.point_binding_mismatch: changed mean declaration differs from original external claim",
+                    reason_code="invalid_argument",
+                )
+            return claim._original_external._native
         return json.dumps(claim._wire())
     raise CausalTypeError(
         "a forward claim is a JointDistributionArtifact, a MeanClaim or a bound external claim"
@@ -436,6 +459,13 @@ class InverseResult:
         self._query = query
         self._native = native
         self._body: dict[str, Any] = json.loads(native.result_json)
+
+    @property
+    def source_evidence(self):
+        """Original diagnostics and source bytes retained through native inverse evaluation."""
+        from .source_evidence import SourceEvidence
+
+        return tuple(SourceEvidence(handle) for handle in self._native.source_evidence)
 
     @property
     def query(self) -> InverseQuery:

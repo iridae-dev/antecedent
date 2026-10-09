@@ -238,9 +238,9 @@ VERMA_DIRECTED = [("X1", "X2"), ("X2", "X3"), ("X3", "X4")]
 def test_a_exit_demo_calibrated_joint_bayesian_row_records_failed_gate_and_typed_refusal() -> None:
     """The gate item is satisfiable here only as its "otherwise" branch.
 
-    Calibration is UNMEASURED for the joint Bayesian row and the nested-Markov pilot: neither
-    allocated coverage record is collected in ``parity/coverage_records.toml``. This test therefore
-    asserts the failed gate and the typed refusal, not a calibrated interval. The exact posterior
+    The joint Bayesian candidate remains UNMEASURED. The nested-Markov pilot supplies only
+    point output; its Bayesian posterior method is unimplemented and has no allocated coverage
+    record. This test asserts those distinct boundaries and typed refusals. The exact posterior
     moments (closed-form dense Gaussian conjugate oracle) are asserted only in Rust, because the
     engine is internal and its public Python route is closed: no moment can be read here.
     """
@@ -249,7 +249,15 @@ def test_a_exit_demo_calibrated_joint_bayesian_row_records_failed_gate_and_typed
         collected = {r["id"] for r in tomllib.load(handle).get("record", [])}
     joint_record = registry["2.3A.X4.joint_bayesian_transport"]
     nested_record = registry["2.3A.X4.binary_nested_markov_pilot"]
-    for record in (joint_record, nested_record):
+    assert nested_record["inference_claim"] == "point_only"
+    assert not nested_record.get("coverage_records", [])
+    prerequisites = [
+        row
+        for row in nested_record["inference_outputs"]
+        if row["implementation_status"] == "unimplemented_closed"
+    ]
+    assert prerequisites and all(row["measurement_suite"] == "unallocated" for row in prerequisites)
+    for record in (joint_record,):
         assert record["inference_claim"] == "calibrated"
         if set(record["coverage_records"]) <= collected:
             # Measured: the record may legitimately be promoted; this demonstration then moves to

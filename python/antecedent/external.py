@@ -512,6 +512,13 @@ class BoundExternalClaim:
             uncertainty_method=self.uncertainty_method,
         )
 
+    @property
+    def source_evidence(self):
+        """Independently consumed original attestation; no native authority is issued."""
+        from .source_evidence import SourceEvidence
+
+        return SourceEvidence._deferred(lambda: self._native.source_evidence)
+
     def export(self, *, artifact_id: str = "external-claim") -> bytes:
         return self._native.export(artifact_id)
 
@@ -560,6 +567,13 @@ def _status_name(status: str) -> str:
 
 
 def _graph_identity(identification: Any) -> str:
+    from ._native import ResponseAnalysisResult
+
+    raw = getattr(identification, "_native_response", None)
+    if isinstance(raw, ResponseAnalysisResult):
+        basis = raw.program_basis_json()
+        if basis is not None:
+            return str(json.loads(basis)["graph_id"])
     graph = identification.graph
     if not isinstance(graph, (list, tuple)):
         raise CausalValueError(

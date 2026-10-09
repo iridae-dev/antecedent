@@ -187,6 +187,8 @@ pub struct LearnedJointDiagnostics {
 /// Learn-fitted joint posterior of the transport row.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LearnedJointFit {
+    #[cfg(feature = "calibration-internal")]
+    calibration_rows: u64,
     /// Parameter names in order: invariant, then every varying block.
     pub parameter_names: Vec<String>,
     /// Exact posterior mean of the parameters.
@@ -216,6 +218,56 @@ pub struct LearnedJointFit {
 }
 
 impl LearnedJointFit {
+    /// Bind a closed measurement to the actual learn-fitted polynomial posterior.
+    /// Actual source rows were captured during fitting; the full executed model
+    /// identity includes basis, priors, source variances and sharing declaration.
+    /// This supplies no public uncertainty activation or sampling-design authority.
+    #[cfg(feature = "calibration-internal")]
+    #[allow(clippy::result_large_err)]
+    pub fn target_calibration_basis(
+        &self,
+        level: f64,
+    ) -> Result<antecedent_core::CalibrationBasis, JointTransportRefusal> {
+        use std::sync::Arc;
+        if !level.is_finite()
+            || level <= 0.
+            || level >= 1.
+            || self.diagnostics.sampler != LEARNED_JOINT_SAMPLER
+            || self.draws.n_draws != self.diagnostics.draw_count
+            || self.identification.status != "identified"
+        {
+            return Err(invalid(
+                DETAIL_INVALID_INPUT,
+                "candidate differs from actual learned posterior",
+            ));
+        }
+        let draws = u32::try_from(self.draws.n_draws)
+            .map_err(|_| invalid(DETAIL_INVALID_INPUT, "candidate draw count overflow"))?;
+        let posterior = format!("{LEARNED_JOINT_SAMPLER}.{}", self.model_identity);
+        Ok(antecedent_core::CalibrationBasis::new(
+            [
+                "ClassicalTransport",
+                "Dag",
+                "fixed",
+                "multi_env",
+                "Bayesian",
+                "learned_joint_transport",
+                "posterior_quantile",
+                "",
+                "iid",
+                &posterior,
+                "target_average_effect",
+            ]
+            .map(Arc::from),
+            level,
+            Arc::from("point"),
+            self.calibration_rows,
+            None,
+            Some(draws),
+            0.,
+        ))
+    }
+
     /// Effect columns (source effects then target effect) of the joint draws, draw-major.
     #[must_use]
     pub fn effect_draws(&self) -> (Vec<String>, Vec<f64>) {
@@ -1079,6 +1131,11 @@ fn assemble(
         }
     }
     LearnedJointFit {
+        #[cfg(feature = "calibration-internal")]
+        calibration_rows: sources
+            .iter()
+            .map(|s| u64::try_from(s.outcome.len()).expect("validated bounded source rows"))
+            .sum(),
         target_effect_mean: effect_means[count - 1],
         target_effect_variance: effect_covariance[count * count - 1],
         model_identity: model_identity(model, layout, sources),

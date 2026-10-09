@@ -1027,7 +1027,7 @@ for rec in records:
     value_types = {v for v in values if declared.get(v, ("", ""))[0] == "type"}
     for src, sym in checked:
         if sym.name in components or sym.name in values or sym.name in internal or sym.name in covers or (
-            sym.owner and f"{sym.owner}.{sym.name}" in covers
+            sym.owner and (f"{sym.owner}.{sym.name}" in covers or f"{sym.owner}.{sym.name}" in internal)
         ):
             continue
         state = value_method_state(sym, value_types)
@@ -1065,7 +1065,11 @@ for rec in records:
                 f"not a class/struct/enum; an entry point must be a route",
             )
     for name in internal:
-        matches = [s for _, s in checked if s.name == name and s.where in ("top", "method", "pyo3")]
+        matches = [
+            s for _, s in checked
+            if (s.name == name or (s.owner and f"{s.owner}.{s.name}" == name))
+            and s.where in ("top", "method", "pyo3")
+        ]
         rust_scanned = [src for src in surface_files if src.endswith(".rs")]
         if not matches:
             fail(

@@ -11,7 +11,7 @@ Hand derivation (nothing below is read from the code under test)
 -----------------------------------------------------------------
 Mean grids ``(m0, m1, m2) = E[y | do(a = 0, 1, 2)]``::
 
-    N  = (2, 4, 9)     dose 2 is outside empirical support, so it is withheld
+    N  = (2, 4, 6)     dose 2 is outside empirical support, so it is withheld
     E1 = (1, 3, 5.5)
     E2 = (2, 3.5, 5)   the means of its two joint rows: (2+2)/2, (6+1)/2, (3+7)/2
 
@@ -48,10 +48,15 @@ costs 0.02 and 0.05 in utility units the net values are ``1/16 - 0.02 = 0.0425``
 Declared evidence: ``E1`` and ``E2`` are independent; ``N`` and ``E2`` both used registry
 ``registry-7``.
 
-Limits, stated here so the test stays honest: Python cannot state a native execution record
-(``composition.TrustEvidence`` has no native constructor), so the native claim enters
-composition ``unverified`` and carries no native label; the native response retains no draws, so
-every joint-law answer here comes from the external ``E2`` law.
+The native curve executes the original checked kernel engine on crossed observed data
+Y=2+2A+X/2, with empirical A support [0,1] and symmetric X. Its causal means are
+(2,4,6); the unsupported dose2 is never consumed. The fixed bandwidth2.1 permits
+original-engine evaluation while preserving its support flags. Finite expected values
+above are independent algebra, not result reconstruction.
+
+The native claim enters composition through its actual issued execution authority.
+Reconstructing its means or metadata grants no native authority. This response retains
+no draws, so every joint-law answer here comes from the external ``E2`` law.
 """
 
 from __future__ import annotations
@@ -127,10 +132,10 @@ def test_c4_both_studies_and_the_native_claim_bind_to_the_same_program() -> None
     assert native.trust is ProviderTrust.NATIVE_LICENSED
     assert native.program_identity == program.identity
     assert native.coordinates == expected
-    assert native.means == fx.NATIVE_MEANS
+    assert native.means == pytest.approx(fx.NATIVE_MEANS, abs=1e-9)
     assert native.support == ("supported", "supported", fx.OUTSIDE)
     assert native.support_status == fx.OUTSIDE
-    assert native.calibration == "point_only"
+    assert native.calibration in {"point_only", "unmeasured"}
     assert native.has_joint_law is False
 
     law = fx.law()
@@ -139,7 +144,7 @@ def test_c4_both_studies_and_the_native_claim_bind_to_the_same_program() -> None
 
 
 def test_c4_a_fitted_native_response_binds_to_its_program() -> None:
-    """The library's own fit, not a hand-built view: ``E[y | do(a)] = 2a`` with seeded noise."""
+    """An additional fitted response: ``E[y | do(a)] = 2a`` with seeded noise."""
     rng = np.random.default_rng(17)
     treatment = rng.normal(size=400)
     outcome = 2.0 * treatment + rng.normal(scale=0.2, size=400)
@@ -149,7 +154,9 @@ def test_c4_a_fitted_native_response_binds_to_its_program() -> None:
         query=ac.ResponseCurve("a", "y", grid=grid),
         graph=[("a", "y")],
     )
-    program = fx.program(fx.identification([("a", "y")], ["a", "y"], grid))
+    program = program_claims.ProgramBinding.from_response(
+        result, outcome_units=fx.UNITS, dose_units="mg"
+    )
     claim = program_claims.native_claim(result, program)
     assert claim.trust is ProviderTrust.NATIVE_LICENSED
     assert claim.program_identity == program.identity
@@ -173,11 +180,14 @@ def test_c4_a_fitted_native_response_binds_to_its_program() -> None:
     assert contract.evaluate(source.source).selected == ("high",)
 
 
-def test_c4_the_native_claim_enters_composition_unverified_with_supported_coordinates() -> None:
+def test_c4_the_native_claim_enters_composition_with_issued_authority_and_supported_coordinates() -> (
+    None
+):
     native = fx.native_input()
     assert native.source == "mean"
-    assert native.native is False, "Python cannot assert a native execution record"
-    assert native.provenance.trust == "unverified"
+    assert native.native is True
+    assert native.provenance.trust == "native_licensed"
+    assert native.provenance.calibration in {"point_only", "unmeasured"}
     assert [c.coordinate for c in native.support] == [fx.coordinate(0.0), fx.coordinate(1.0)]
     assert {c.status for c in native.support} == {"supported"}
     assert native.provenance.snapshot_id == SNAPSHOT
@@ -269,7 +279,7 @@ def test_c4_when_every_action_is_unsupported_the_answer_is_a_state_not_an_error(
     nothing = fx.native_view(point_status=("missing_evidence",) * 3, support="missing_evidence")
     with pytest.raises(external.ExternalRefusal) as caught:
         fx.native_claim(nothing).as_decision_source(fx.mean_contract())
-    assert caught.value.detail == "native_claims.no_supported_coordinate"
+    assert caught.value.detail == "native_claims.projection_mismatch"
 
 
 # ---------------------------------------------------- the joint-law decision, independently

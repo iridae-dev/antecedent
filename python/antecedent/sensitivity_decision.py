@@ -43,6 +43,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from . import _native
 from ._native import SensitivityArtifact as _NativeSensitivityArtifact
 from ._native import composition_lineage as _composition_lineage
 from ._native import sensitivity_artifact_from_surface as _from_surface
@@ -623,6 +624,25 @@ class SensitivityArtifact:
         assert native is not None
         return cls(native)
 
+    @property
+    def source_evidence(self) -> Mapping[str, Any] | None:
+        """Original v3 replay standing; supplied surfaces have no checked source evidence."""
+        text = _native.sensitivity_source_summary(self._native)
+        return None if text is None else json.loads(text)
+
+    def original_source(self) -> bytes | None:
+        value = _native.original_sensitivity_source(self._native)
+        return None if value is None else bytes(value)
+
+    def export_with_source(self) -> bytes:
+        """Export the original checked joint source and derived surface for full replay."""
+        return bytes(_native.export_sensitivity_source(self._native))
+
+    @classmethod
+    def consume_with_source(cls, data: bytes) -> SensitivityArtifact:
+        """Replay the original numerical source and verify the complete derived surface."""
+        return cls(_native.consume_sensitivity_source(data))
+
     def export(self, *, artifact_id: str = "sensitivity-decision") -> bytes:
         """Serialize through the bounded, checksummed container."""
         return bytes(self._native.export(artifact_id))
@@ -682,6 +702,18 @@ class SensitivityArtifact:
         (``SensitivityArtifact::provenance_chain``); the digests come from the same native
         chain function.
         """
+        source = self.source_evidence
+        if source is not None:
+            return tuple(
+                LineageLink(
+                    item["id"],
+                    item["stage"],
+                    tuple(item["parents"]),
+                    item["digest"],
+                    tuple(item["parent_digests"]),
+                )
+                for item in source["lineage"]
+            )
         provenance = self.provenance
         contract = f"causal_contract:{provenance.causal_contract_id}"
         snapshot = f"snapshot:{provenance.provider_snapshot}"

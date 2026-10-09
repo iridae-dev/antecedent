@@ -35,6 +35,27 @@ impl std::fmt::Debug for CheckedBayesianDagAteExecution {
 }
 
 impl CheckedBayesianDagAteExecution {
+    pub(crate) fn with_inference_config(
+        &self,
+        config: BayesianConfig,
+    ) -> Result<Self, CausalError> {
+        if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+            || config.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
+            || config.n_draws < 2
+            || !config.prior_scale.is_finite()
+            || config.prior_scale <= 0.0
+        {
+            return Err(CausalError::Unsupported {
+                message: "retained Bayesian recalculation requires conjugate Gaussian inference",
+            });
+        }
+        let mut next = self.clone();
+        next.operation.inference = InferenceMode::Bayesian(config.clone());
+        next.context.inference = InferenceMode::Bayesian(config.clone());
+        next.config = config;
+        Ok(next)
+    }
+
     pub(crate) fn set_stage_sink(
         &mut self,
         sink: Option<Arc<dyn super::super::stage::StageResultSink>>,

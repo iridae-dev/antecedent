@@ -1040,7 +1040,7 @@ fn c3_verifiers_registry_covers_every_artifact_kind_and_refuses_the_rest() {
     for kind in VERIFIABLE_KINDS {
         assert!(verifier_for(kind).is_some_and(|v| v.kind() == kind), "{kind:?}");
     }
-    assert!(verifier_for(NodeKind::CausalContract).is_none());
+    assert!(verifier_for(NodeKind::ExecutionOrFit).is_none());
     assert_eq!(detect_node_kind(&j.contract), Some(NodeKind::DecisionContract));
     assert_eq!(detect_node_kind(&j.distribution), Some(NodeKind::Distribution));
     assert_eq!(detect_node_kind(&j.result), Some(NodeKind::DecisionResult));
@@ -1064,7 +1064,7 @@ fn c3_verifiers_registry_covers_every_artifact_kind_and_refuses_the_rest() {
     let consumed = run(
         vec![BundleNode::embedded(
             "causal",
-            NodeKind::CausalContract,
+            NodeKind::ExecutionOrFit,
             "program",
             b"bytes".to_vec(),
         )],

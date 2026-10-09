@@ -196,65 +196,71 @@ impl ExactDiscreteLaw {
         snapshot_identity: impl Into<Arc<str>>,
         tolerance: LawTolerance,
     ) -> Result<Self, ExactLawError> {
-        let mut law = Self {
-            population: population.into(),
-            regime,
-            interventions: interventions.into(),
-            axes: axes.into(),
-            probabilities: probabilities.into(),
-            strides: Arc::from([]),
-            axis_index: Arc::new(BTreeMap::new()),
-            level_index: Arc::from([]),
-            snapshot_identity: snapshot_identity.into(),
-            tolerance,
-            origin: LawOrigin::SuppliedExact,
-            empirical_counts: None,
-            marginals: Arc::default(),
-        };
-        if law.population.is_empty() || law.snapshot_identity.is_empty() || !tolerance.valid() {
-            return Err(law.error("invalid_law_metadata"));
-        }
-        let mut intervened = HashSet::new();
-        for assignment in law.interventions.iter() {
-            if !finite(&assignment.value) || !intervened.insert(assignment.variable) {
-                return Err(law.error("invalid_law_intervention"));
-            }
-        }
-        let mut size = 1usize;
-        let mut strides = vec![0; law.axes.len()];
-        let mut axis_index = BTreeMap::new();
-        let mut level_index = vec![HashMap::new(); law.axes.len()];
-        for (i, axis) in law.axes.iter().enumerate().rev() {
-            let levels = &mut level_index[i];
-            if axis.values.is_empty()
-                || axis_index.insert(axis.variable, i).is_some()
-                || axis
-                    .values
-                    .iter()
-                    .enumerate()
-                    .any(|(index, v)| !finite(v) || levels.insert(value_key(v), index).is_some())
-                || intervened.contains(&axis.variable)
-            {
-                return Err(law.error("invalid_law_axis"));
-            }
-            strides[i] = size;
-            size = size
-                .checked_mul(axis.values.len())
-                .ok_or_else(|| law.error("law_size_overflow"))?;
-        }
-        if size != law.probabilities.len() {
-            return Err(law.error("incomplete_law_domain"));
-        }
-        if law.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0 || *p > 1.0) {
-            return Err(law.error("invalid_law_probability"));
-        }
-        if !tolerance.unit_mass(sum(law.probabilities.iter().copied())) {
-            return Err(law.error("unnormalized_law"));
-        }
-        law.strides = strides.into();
-        law.axis_index = Arc::new(axis_index);
-        law.level_index = level_index.into();
-        Ok(law)
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::ProviderBinding,
+            || {
+                let mut law = Self {
+                    population: population.into(),
+                    regime,
+                    interventions: interventions.into(),
+                    axes: axes.into(),
+                    probabilities: probabilities.into(),
+                    strides: Arc::from([]),
+                    axis_index: Arc::new(BTreeMap::new()),
+                    level_index: Arc::from([]),
+                    snapshot_identity: snapshot_identity.into(),
+                    tolerance,
+                    origin: LawOrigin::SuppliedExact,
+                    empirical_counts: None,
+                    marginals: Arc::default(),
+                };
+                if law.population.is_empty()
+                    || law.snapshot_identity.is_empty()
+                    || !tolerance.valid()
+                {
+                    return Err(law.error("invalid_law_metadata"));
+                }
+                let mut intervened = HashSet::new();
+                for assignment in law.interventions.iter() {
+                    if !finite(&assignment.value) || !intervened.insert(assignment.variable) {
+                        return Err(law.error("invalid_law_intervention"));
+                    }
+                }
+                let mut size = 1usize;
+                let mut strides = vec![0; law.axes.len()];
+                let mut axis_index = BTreeMap::new();
+                let mut level_index = vec![HashMap::new(); law.axes.len()];
+                for (i, axis) in law.axes.iter().enumerate().rev() {
+                    let levels = &mut level_index[i];
+                    if axis.values.is_empty()
+                        || axis_index.insert(axis.variable, i).is_some()
+                        || axis.values.iter().enumerate().any(|(index, v)| {
+                            !finite(v) || levels.insert(value_key(v), index).is_some()
+                        })
+                        || intervened.contains(&axis.variable)
+                    {
+                        return Err(law.error("invalid_law_axis"));
+                    }
+                    strides[i] = size;
+                    size = size
+                        .checked_mul(axis.values.len())
+                        .ok_or_else(|| law.error("law_size_overflow"))?;
+                }
+                if size != law.probabilities.len() {
+                    return Err(law.error("incomplete_law_domain"));
+                }
+                if law.probabilities.iter().any(|p| !p.is_finite() || *p < 0.0 || *p > 1.0) {
+                    return Err(law.error("invalid_law_probability"));
+                }
+                if !tolerance.unit_mass(sum(law.probabilities.iter().copied())) {
+                    return Err(law.error("unnormalized_law"));
+                }
+                law.strides = strides.into();
+                law.axis_index = Arc::new(axis_index);
+                law.level_index = level_index.into();
+                Ok(law)
+            },
+        )
     }
 
     /// Frequency plug-in joint. Empty cells are sampling zeros, not structural zeros.
@@ -801,64 +807,78 @@ impl ExactTransportData {
         spec: &FactorSpec<'_>,
         assignment: &Assignment,
     ) -> Result<f64, ExactLawError> {
-        crate::execution_counts::note_static_work(
-            crate::execution_counts::StaticWork::ProviderCall,
-        );
-        let law = self.require_factor(spec)?;
-        let locate = |mut error: ExactLawError| {
-            error.variables = Arc::from(spec.variables);
-            error.conditioning = spec
-                .conditioned_on
-                .iter()
-                .filter_map(|v| assignment.get(*v).map(|x| (*v, x.clone())))
-                .collect();
-            error
-        };
-        let mut conditions = law.positions(spec.conditioned_on, assignment).map_err(locate)?;
-        let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
-        let key = self.factor_cache.as_ref().map(|_| {
-            let index = self.index[spec.population][&law.regime]
-                [lookup_world_key(spec.intervention).as_ref()];
-            (self.law_identities[index], outputs.clone(), conditions.clone())
-        });
-        if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
-            if let Some(value) =
-                cache.values.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(key)
-            {
-                return Ok(*value);
-            }
-        }
-        crate::execution_counts::note_static_work(
-            crate::execution_counts::StaticWork::FactorEvaluation,
-        );
-        if let Some(counts) = &law.empirical_counts {
-            let observed = counts.iter().enumerate().any(|(i, count)| {
-                *count > 0
-                    && conditions.iter().all(|(axis, level)| {
-                        (i / law.strides[*axis]) % law.axes[*axis].values.len() == *level
-                    })
-            });
-            if !observed {
-                return Err(locate(law.error("sampling_zero")));
-            }
-        }
-        let denominator = if conditions.is_empty() { 1.0 } else { law.mass(&conditions) };
-        if denominator == 0.0 {
-            return Err(locate(law.error(if law.origin == LawOrigin::SuppliedExact {
-                ZERO_CONDITIONING_MASS
-            } else {
-                "sampling_zero"
-            })));
-        }
-        conditions.extend(outputs);
-        let value = law.mass(&conditions) / denominator;
-        if let (Some(cache), Some(key)) = (&self.factor_cache, key) {
-            let mut values = cache.values.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            if values.len() < cache.capacity {
-                values.insert(key, value);
-            }
-        }
-        Ok(value)
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::ProviderInvocation,
+            || {
+                crate::execution_counts::note_static_work(
+                    crate::execution_counts::StaticWork::ProviderCall,
+                );
+                let law = self.require_factor(spec)?;
+                let locate = |mut error: ExactLawError| {
+                    error.variables = Arc::from(spec.variables);
+                    error.conditioning = spec
+                        .conditioned_on
+                        .iter()
+                        .filter_map(|v| assignment.get(*v).map(|x| (*v, x.clone())))
+                        .collect();
+                    error
+                };
+                let mut conditions =
+                    law.positions(spec.conditioned_on, assignment).map_err(locate)?;
+                let outputs = law.positions(spec.variables, assignment).map_err(locate)?;
+                let key = self.factor_cache.as_ref().map(|_| {
+                    let index = self.index[spec.population][&law.regime]
+                        [lookup_world_key(spec.intervention).as_ref()];
+                    (self.law_identities[index], outputs.clone(), conditions.clone())
+                });
+                if let (Some(cache), Some(key)) = (&self.factor_cache, &key) {
+                    if let Some(value) = cache
+                        .values
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .get(key)
+                    {
+                        return Ok(*value);
+                    }
+                }
+                let factor_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
+                    antecedent_core::execution_attempt::Operation::FactorEvaluation,
+                );
+                crate::execution_counts::note_static_work(
+                    crate::execution_counts::StaticWork::FactorEvaluation,
+                );
+                if let Some(counts) = &law.empirical_counts {
+                    let observed = counts.iter().enumerate().any(|(i, count)| {
+                        *count > 0
+                            && conditions.iter().all(|(axis, level)| {
+                                (i / law.strides[*axis]) % law.axes[*axis].values.len() == *level
+                            })
+                    });
+                    if !observed {
+                        return Err(locate(law.error("sampling_zero")));
+                    }
+                }
+                let denominator = if conditions.is_empty() { 1.0 } else { law.mass(&conditions) };
+                if denominator == 0.0 {
+                    return Err(locate(law.error(if law.origin == LawOrigin::SuppliedExact {
+                        ZERO_CONDITIONING_MASS
+                    } else {
+                        "sampling_zero"
+                    })));
+                }
+                conditions.extend(outputs);
+                let value = law.mass(&conditions) / denominator;
+                if let (Some(cache), Some(key)) = (&self.factor_cache, key) {
+                    let mut values =
+                        cache.values.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if values.len() < cache.capacity {
+                        values.insert(key, value);
+                    }
+                }
+                factor_attempt.complete();
+                Ok(value)
+            },
+        )
     }
 }
 

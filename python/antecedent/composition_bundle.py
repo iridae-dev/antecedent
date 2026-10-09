@@ -77,6 +77,7 @@ NodeKind = Literal[
     "decision_result",
     "sensitivity",
     "study_ranking",
+    "rollout",
     "inverse_query",
     "repair_report",
     "recalculation_receipt",
@@ -101,6 +102,7 @@ NODE_KINDS: tuple[str, ...] = (
     "decision_result",
     "sensitivity",
     "study_ranking",
+    "rollout",
     "inverse_query",
     "repair_report",
     "recalculation_receipt",
@@ -108,6 +110,10 @@ NODE_KINDS: tuple[str, ...] = (
 )
 #: Kinds whose artifacts can be embedded (the rest are carried as references).
 EMBEDDABLE_KINDS: tuple[str, ...] = (
+    "causal_contract",
+    "attestation",
+    "quantity_coordinates",
+    "transformation",
     "external_claim",
     "evidence_relationship",
     "distribution",
@@ -115,6 +121,7 @@ EMBEDDABLE_KINDS: tuple[str, ...] = (
     "decision_result",
     "sensitivity",
     "study_ranking",
+    "rollout",
     "inverse_query",
     "repair_report",
     "recalculation_receipt",
@@ -701,7 +708,11 @@ class ConsumedBundle:
 
 
 def consume_bundle(
-    data: bytes, *, expected_identity: str, supplied: SuppliedSources | None = None
+    data: bytes,
+    *,
+    expected_identity: str,
+    supplied: SuppliedSources | None = None,
+    actual_claims: Mapping[str, object] | None = None,
 ) -> ConsumedBundle:
     """Consume exported bundle bytes under the identity the consumer retained.
 
@@ -709,13 +720,29 @@ def consume_bundle(
     identity are checked first and refuse as a typed
     :class:`CompositionBundleRefusal`; each embedded artifact is then verified
     through its own consumer, and a node-level failure is reported on that node
-    without hiding the rest of the bundle.
+    without hiding the rest of the bundle. ``actual_claims`` binds original source
+    digests to opaque claims from actual executions; each source's original engine
+    executes once to resolve its native operation. Serialized metadata is insufficient.
     """
-    wire, refusal = _native.consume_composition_bundle(
-        bytes(data),
-        expected_identity,
-        None if supplied is None else supplied._json(),
-    )
+    if actual_claims is None:
+        wire, refusal = _native.consume_composition_bundle(
+            bytes(data), expected_identity, None if supplied is None else supplied._json()
+        )
+    else:
+        from .program_claims import NativeClaim
+
+        if len(actual_claims) > 64:
+            raise ValueError("source resolver count exceeds its bound")
+        handles: dict[str, _native.NativeResponseClaim] = {}
+        for digest, claim in actual_claims.items():
+            if not isinstance(digest, str) or not isinstance(claim, NativeClaim):
+                raise TypeError(
+                    "source resolution requires source digest to issued NativeClaim mapping"
+                )
+            handles[digest] = claim._native
+        wire, refusal = _native.consume_source_projection_bundle(
+            bytes(data), expected_identity, None if supplied is None else supplied._json(), handles
+        )
     _raise(refusal)
     assert wire is not None
     return ConsumedBundle(json.loads(wire))

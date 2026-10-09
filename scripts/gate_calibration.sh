@@ -61,6 +61,7 @@ grid_group() {
     # weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
+    bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
     # 2.2B X4 smoothed dose-response: the two *_psi_h coverage records only.
     smoothed_dose_calibration:*_psi_h) return 0 ;;
@@ -247,6 +248,157 @@ run_ignored() {
 check "effect_constancy_calibration: known_gaussian_null_power_and_holm" \
   cargo test --release -p antecedent-estimate --test effect_constancy_calibration \
   f18_known_gaussian_null_power_and_holm_grid -- --exact --nocapture
+
+# Actual checked temporal adapter, paired effects share whole-unit resampling.
+run_temporal_recalc() {
+  local name="$1"
+  check "temporal_recalc_calibration: ${name}" cargo test --release -p antecedent --test temporal_recalc_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 C2 checked temporal response and paired effect candidates =="
+run_temporal_recalc temporal_checked_response_percentile_l95
+run_temporal_recalc temporal_checked_response_basic_l95
+run_temporal_recalc temporal_checked_effect_percentile_l95
+run_temporal_recalc temporal_checked_effect_basic_l95
+
+# Checked Gaussian adapter summary precision against independent conjugate algebra.
+run_bayesian_recalc() {
+  local name="$1"
+  check "bayesian_recalc_calibration: ${name}" cargo test --release -p antecedent --test bayesian_recalc_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 C2 checked Gaussian posterior summary precision =="
+run_bayesian_recalc gaussian_adapter_posterior_summary_precision
+
+# Actual basis NIG and replayed mapped source-prior conditional summary precision.
+run_bayesian_basis_prior_precision() {
+  local name="$1"
+  check "bayesian_basis_prior_precision: ${name}" cargo test --release -p antecedent --test bayesian_basis_prior_precision "$name" -- --ignored --exact --nocapture
+}
+run_bayesian_basis_prior_precision quadratic_basis_nig_adapter_summary_precision
+run_bayesian_basis_prior_precision mapped_native_source_prior_adapter_summary_precision
+
+# Posterior draw quantile precision; no frequentist coverage claim.
+run_posterior_summary() {
+  local name="$1"
+  check "posterior_summary_calibration: ${name}" cargo test --release -p antecedent-io --test posterior_summary_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 F1 F16 posterior quantile numerical precision =="
+run_posterior_summary posterior_type7_quantile_precision
+
+# Precision of shared-row bootstrap covariance; no interval or error-control license.
+run_scenario_covariance() {
+  local name="$1"
+  check "scenario_covariance_calibration: ${name}" cargo test --release -p antecedent-estimate --test scenario_covariance_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 X2 shared-row covariance numerical precision =="
+run_scenario_covariance shared_row_mean_covariance_precision
+
+# Conditional numerical diagnostics only; no coverage emitter or new inference license.
+run_evsi_precision() {
+  local name="$1"
+  check "evsi_precision_calibration: ${name}" cargo test --release -p antecedent-design --test evsi_precision_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 conditional EVSI and ranking numerical precision =="
+run_evsi_precision evsi_finite_and_conjugate_exact_precision
+run_evsi_precision evsi_monte_carlo_score_error_and_net_value_precision
+run_evsi_precision evsi_fixed_rank_selection_and_tie_precision
+run_evsi_precision paired_crn_adaptive_rank_selection_precision
+
+run_design_ar_precision() {
+  local name="$1"
+  check "design_ar_precision_calibration: ${name}" cargo test --release -p antecedent --test design_ar_precision_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 original checked IV AR all-run numerical diagnostics =="
+run_design_ar_precision checked_design_iv_ar_full_method_error_rate_and_weak_boundaries
+
+run_generic_aipw_precision() {
+  local name="$1"
+  check "generic_aipw_precision: ${name}" cargo test --release -p antecedent --test generic_aipw_precision "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 public five-fold AIPW known-target score SE diagnostics =="
+run_generic_aipw_precision generic_aipw_five_fold_known_target_score_precision
+
+# Closed 2.3 X4 candidates: whole-method measurements, final step only.
+run_nested_fisher() {
+  local name="$1"
+  check "nested_markov_fisher_calibration: ${name}" cargo test --release -p antecedent-estimate --test nested_markov_fisher_calibration "$name" -- --ignored --exact --nocapture
+}
+run_joint_gaussian() {
+  local name="$1"
+  check "joint_bayesian_transport_calibration: ${name}" cargo test --release -p antecedent-estimate --test joint_bayesian_transport_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 X4 closed Fisher and joint Gaussian candidates =="
+run_nested_fisher nested_fisher_iid_latent_verma_l95
+run_nested_fisher nested_fisher_iid_markov_submodel_l95
+run_joint_gaussian joint_gaussian_one_source_intercept_l95
+run_joint_gaussian joint_gaussian_two_independent_intercepts_l95
+run_joint_gaussian joint_gaussian_two_shared_intercepts_l95
+run_joint_gaussian joint_gaussian_two_varying_covariates_l95
+
+run_temporal_unit() {
+  local name="$1"
+  check "temporal_unit_calibration: ${name}" cargo test --release -p antecedent-estimate --test temporal_unit_calibration "$name" -- --ignored --exact --nocapture
+}
+run_recovery_whole_method() {
+  local name="$1"
+  check "recovery_whole_method_calibration: ${name}" cargo test --release -p antecedent-estimate --test recovery_whole_method_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 closed temporal and recovery whole-method candidates =="
+run_temporal_unit temporal_two_step_units_percentile_l95
+run_temporal_unit temporal_two_step_units_basic_l95
+run_recovery_whole_method binary_missingness_whole_row_recovery_l95
+
+run_learned_joint() {
+  local name="$1"
+  check "learned_joint_calibration: ${name}" cargo test --release -p antecedent-estimate --test learned_joint_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 closed degree-2 learned joint posterior candidate =="
+run_learned_joint learned_degree2_gaussian_one_source_intercept_l95
+run_learned_joint learned_degree2_gaussian_two_independent_intercepts_l95
+run_learned_joint learned_degree2_gaussian_two_shared_intercepts_l95
+run_learned_joint learned_degree2_gaussian_two_varying_covariates_l95
+
+run_quadratic_dose() {
+  local name="$1"
+  check "quadratic_dose_calibration: ${name}" cargo test --release -p antecedent-estimate --test quadratic_dose_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 closed exact-quadratic dose pointwise candidates =="
+run_quadratic_dose randomized_exact_quadratic_level_l95
+run_quadratic_dose randomized_exact_quadratic_derivative_l95
+run_quadratic_dose randomized_exact_quadratic_contrast_l95
+
+run_treatment_inference() {
+  local name="$1"
+  check "treatment_inference_calibration: ${name}" cargo test --release -p antecedent-estimate --test treatment_inference_calibration "$name" -- --ignored --exact --nocapture
+}
+echo "== 2.3 full-fit treatment covariance and error-rate diagnostics =="
+run_bootstrap_effect_precision() {
+  local name="$1"
+  check "bootstrap_effect_precision: ${name}" cargo test --release -p antecedent-estimate --test bootstrap_effect_precision "$name" -- --ignored --exact --nocapture
+}
+run_mechanism_discrepancy_calibration() {
+  local name="$1"
+  check "mechanism_discrepancy_calibration: ${name}" cargo test --release -p antecedent-estimate --test mechanism_discrepancy_calibration "$name" -- --ignored --exact --nocapture
+}
+run_retained_score_precision() {
+  local name="$1"
+  check "retained_score_precision: ${name}" cargo test --release -p antecedent --test retained_score_precision "$name" -- --ignored --exact --nocapture
+}
+run_retained_score_precision retained_dml_weighted_score_precision
+run_retained_score_precision retained_dr_weighted_score_precision
+run_retained_score_precision retained_cell_weighted_score_precision
+
+run_mechanism_discrepancy_calibration independent_mechanism_full_coefficient_diagnostic
+run_mechanism_discrepancy_calibration independent_mechanism_slope_mdd_diagnostic
+
+run_bootstrap_effect_precision nonlinear_mediation_whole_method_bootstrap_se
+run_bootstrap_effect_precision latent_class_whole_method_bootstrap_se
+
+run_treatment_inference vector_full_fit_homoskedastic
+run_treatment_inference vector_full_fit_heteroskedastic
+run_treatment_inference categorical_full_fit_homoskedastic
+run_treatment_inference categorical_full_fit_heteroskedastic
+run_treatment_inference categorical_monotonicity_homoskedastic
+run_treatment_inference categorical_monotonicity_heteroskedastic
 
 echo "== SE analytic / bootstrap CI coverage (antecedent-estimate) =="
 # Two-sided 0.95 ± 3·MCSE band (calibration_coverage.rs), plus symmetric
@@ -854,6 +1006,14 @@ if [ -n "$RECHECKED" ]; then
   echo "gate_calibration: group(s) rechecked at ${RECHECK_NSIM} replicates:"
   printf '%s' "$RECHECKED"
 fi
+# Retained adjusted source-fit and fixed-target variance diagnostics (2.3).
+run_adjusted_recalc_precision() {
+  local name="$1"
+  check "adjusted_recalc_precision: ${name}" cargo test --release -p antecedent --test adjusted_recalc_precision "$name" -- --ignored --exact --nocapture
+}
+run_adjusted_recalc_precision adjusted_ols_retained_covariance_precision
+run_adjusted_recalc_precision adjusted_logit_fixed_target_delta_precision
+
 if [ "$FAILED_COUNT" -gt 0 ]; then
   echo "gate_calibration: ${FAILED_COUNT} group(s) failed:"
   printf '%s' "$FAILED"

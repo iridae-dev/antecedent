@@ -213,6 +213,12 @@ pub struct CountsWire {
     /// Successful projection of a checked fitted result into its retained point law.
     #[serde(default, skip_serializing_if = "is_zero_count")]
     pub law_summaries: u64,
+    /// Actual aligned posterior rows emitted by an executing numerical engine.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub posterior_draws: u64,
+    /// Actual declared external callback invocations.
+    #[serde(default, skip_serializing_if = "is_zero_count")]
+    pub external_invocations: u64,
 }
 
 #[allow(clippy::trivially_copy_pass_by_ref, reason = "serde skip predicate requires a reference")]
@@ -246,7 +252,7 @@ impl CountsWire {
 
     /// Additive factor-work counts, in their stable tagged identity order.
     #[must_use]
-    pub const fn extended_array(&self) -> [u64; 7] {
+    pub const fn extended_array(&self) -> [u64; 9] {
         [
             self.factor_builds,
             self.program_compilations,
@@ -255,6 +261,8 @@ impl CountsWire {
             self.integrations,
             self.provider_calls,
             self.law_summaries,
+            self.posterior_draws,
+            self.external_invocations,
         ]
     }
 
@@ -275,6 +283,10 @@ impl CountsWire {
             integrations: self.integrations.saturating_add(other.integrations),
             provider_calls: self.provider_calls.saturating_add(other.provider_calls),
             law_summaries: self.law_summaries.saturating_add(other.law_summaries),
+            posterior_draws: self.posterior_draws.saturating_add(other.posterior_draws),
+            external_invocations: self
+                .external_invocations
+                .saturating_add(other.external_invocations),
         }
     }
 }
@@ -609,7 +621,7 @@ pub fn plan_from_wire(
 /// Whether `counts` are what `stage` may have counted under its status: nothing unless it was
 /// recomputed, only work it owns, and every kind of work a recomputed computation requires.
 fn counts_consistent(stage: Stage, recomputed: bool, counts: &CountsWire) -> bool {
-    let owned: [(u64, Stage); 13] = [
+    let owned: [(u64, Stage); 14] = [
         (counts.identifications, Stage::Identification),
         (counts.fold_fits, Stage::ScoreArtifact),
         (counts.model_fits, Stage::ScoreArtifact),
@@ -623,12 +635,29 @@ fn counts_consistent(stage: Stage, recomputed: bool, counts: &CountsWire) -> boo
         (counts.integrations, Stage::Law),
         (counts.provider_calls, Stage::Law),
         (counts.law_summaries, Stage::Law),
+        (counts.posterior_draws, Stage::ScoreArtifact),
     ];
     if owned.iter().any(|(n, owner)| *n > 0 && !(recomputed && *owner == stage)) {
         return false;
     }
+    if counts.external_invocations > 0
+        && !(recomputed && matches!(stage, Stage::ProviderRequest(_)))
+    {
+        return false;
+    }
     if !recomputed {
         return true;
+    }
+    if matches!(stage, Stage::ProviderRequest(_)) {
+        return counts.external_invocations > 0;
+    }
+    if stage == Stage::ScoreArtifact && counts.posterior_draws > 0 {
+        return counts.model_fits > 0
+            && counts.fold_fits == 0
+            && counts.score_computations == 0
+            && counts.provider_bindings == 0
+            && counts.factor_builds == 0
+            && counts.program_compilations == 0;
     }
     if stage == Stage::ScoreArtifact && counts.extended_array()[..3].iter().any(|n| *n > 0) {
         return counts.provider_bindings > 0
@@ -676,7 +705,7 @@ fn compute_receipt_identity(
         if entry.counts.model_fits > 0 {
             counts.extend_from_slice(&entry.counts.model_fits.to_le_bytes());
         }
-        for (tag, n) in (1_u8..=7).zip(entry.counts.extended_array()) {
+        for (tag, n) in (1_u8..=9).zip(entry.counts.extended_array()) {
             if n > 0 {
                 counts.push(tag);
                 counts.extend_from_slice(&n.to_le_bytes());

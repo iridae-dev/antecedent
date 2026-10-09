@@ -111,6 +111,13 @@ fn frontdoor_actual_components_and_coordinate_reuse() {
     assert_eq!(out.receipt.totals().factor_evaluations, work.factor_evaluations);
     assert_eq!(out.receipt.totals().integrations, work.integrations);
     assert!(work.factor_builds > 0 && work.program_compilations > 0 && work.integrations > 0);
+    assert_eq!(
+        session.result().unwrap().response.as_ref().unwrap().support.point_status.as_deref(),
+        Some(
+            &[antecedent_core::SupportStatus::Supported, antecedent_core::SupportStatus::Supported]
+                [..]
+        )
+    );
     consume_analysis_result(&session.export_result(&ctx).unwrap()).unwrap();
     let ids = session.factor_identities();
     let same = execute_static_response_with_receipt(&mut session, &request, &ctx).unwrap();

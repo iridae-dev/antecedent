@@ -1178,56 +1178,65 @@ pub fn evaluate_with_support(
     inputs: &[DecisionInput],
     policy: &SupportPolicy,
 ) -> Result<SupportedDecision, BoundaryError> {
-    let contract_identity = contract
-        .identity()
-        .map_err(|error| BoundaryError::Eval(DecisionEvalError::Contract(error)))?;
-    if inputs.is_empty() {
-        return Err(BoundaryError::InvalidInput("at least one input"));
-    }
-    for (position, input) in inputs.iter().enumerate() {
-        if inputs[..position].iter().any(|earlier| earlier.id == input.id) {
-            return Err(BoundaryError::InvalidInput("duplicate input id"));
-        }
-    }
-    let (dispositions, groups) = plan_actions(contract, inputs, policy.weakest_support);
-    let skipped: Vec<String> = dispositions
-        .iter()
-        .filter(|d| d.status != ActionStatus::Evaluated)
-        .map(|d| d.id.clone())
-        .collect();
-    if !skipped.is_empty() && policy.unsupported == UnsupportedActionPolicy::RequireAllActions {
-        return Err(BoundaryError::UnsupportedActions { actions: skipped });
-    }
-    let used = groups.iter().filter(|g| !g.is_empty()).count();
-    if used > 1 && contract.criterion.needs_state_alignment() {
-        return Err(BoundaryError::PairedDrawsAcrossSources);
-    }
-    let (indexed, results) = run_groups(contract, inputs, &groups)?;
-    let mut outcomes: Vec<ActionOutcome> = indexed.into_iter().map(|(_, o)| o).collect();
-    let evpi = match results.as_slice() {
-        [only] if used == 1 && outcomes.len() == only.actions.len() => only.evpi,
-        _ => None,
-    };
-    if used > 1 {
-        for outcome in &mut outcomes {
-            outcome.expected_regret = None;
-            outcome.max_regret = None;
-        }
-    }
-    let verdict = derive_verdict(contract.criterion, &outcomes);
-    Ok(SupportedDecision {
-        contract_identity,
-        dispositions,
-        outcomes,
-        verdict,
-        evpi,
-        results,
-        assumptions: vec![
-            "support is decided per action from each input's per-coordinate support map".into(),
-            "unsupported and unevaluated actions are reported and never scored".into(),
-            "actions answered by different sources are compared by criterion value only".into(),
-        ],
-    })
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Decision,
+        || {
+            let contract_identity = contract
+                .identity()
+                .map_err(|error| BoundaryError::Eval(DecisionEvalError::Contract(error)))?;
+            if inputs.is_empty() {
+                return Err(BoundaryError::InvalidInput("at least one input"));
+            }
+            for (position, input) in inputs.iter().enumerate() {
+                if inputs[..position].iter().any(|earlier| earlier.id == input.id) {
+                    return Err(BoundaryError::InvalidInput("duplicate input id"));
+                }
+            }
+            let (dispositions, groups) = plan_actions(contract, inputs, policy.weakest_support);
+            let skipped: Vec<String> = dispositions
+                .iter()
+                .filter(|d| d.status != ActionStatus::Evaluated)
+                .map(|d| d.id.clone())
+                .collect();
+            if !skipped.is_empty()
+                && policy.unsupported == UnsupportedActionPolicy::RequireAllActions
+            {
+                return Err(BoundaryError::UnsupportedActions { actions: skipped });
+            }
+            let used = groups.iter().filter(|g| !g.is_empty()).count();
+            if used > 1 && contract.criterion.needs_state_alignment() {
+                return Err(BoundaryError::PairedDrawsAcrossSources);
+            }
+            let (indexed, results) = run_groups(contract, inputs, &groups)?;
+            let mut outcomes: Vec<ActionOutcome> = indexed.into_iter().map(|(_, o)| o).collect();
+            let evpi = match results.as_slice() {
+                [only] if used == 1 && outcomes.len() == only.actions.len() => only.evpi,
+                _ => None,
+            };
+            if used > 1 {
+                for outcome in &mut outcomes {
+                    outcome.expected_regret = None;
+                    outcome.max_regret = None;
+                }
+            }
+            let verdict = derive_verdict(contract.criterion, &outcomes);
+            Ok(SupportedDecision {
+                contract_identity,
+                dispositions,
+                outcomes,
+                verdict,
+                evpi,
+                results,
+                assumptions: vec![
+                    "support is decided per action from each input's per-coordinate support map"
+                        .into(),
+                    "unsupported and unevaluated actions are reported and never scored".into(),
+                    "actions answered by different sources are compared by criterion value only"
+                        .into(),
+                ],
+            })
+        },
+    )
 }
 
 /// Compute `functional` of one action's utility from one input.

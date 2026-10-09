@@ -35,7 +35,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 from ._native import NativeResponseClaim as _NativeResponseClaim
@@ -55,13 +55,13 @@ from .external import (
 )
 from .external import response as _external_response
 from .inverse_query import MeanClaim
-from .joint_distribution import DistributionMeaning, ScientificQuantity
+from .joint_distribution import DistributionMeaning, JointDistributionArtifact, ScientificQuantity
 
 if TYPE_CHECKING:
     from .results.response import CausalResponseView
 
 Calibration = Literal["unmeasured", "point_only"]
-SourceKind = Literal["mean"]
+SourceKind = Literal["mean", "joint_draws"]
 
 
 def _raise(refusal: str | None) -> None:
@@ -103,6 +103,7 @@ class ProgramBinding:
     horizon: int = 0
     functional_id: str = "mean"
     transform_id: str = "identity"
+    _contract_premises_json: str | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         grid = tuple(float(dose) for dose in self.dose_grid)
@@ -142,6 +143,8 @@ class ProgramBinding:
         a caller's coordinate override cannot change the program it is checked against.
         """
         request = spec._require_request()
+        premises = spec._contract_wire()
+        del premises["estimand"]
         return cls(
             graph_id=spec.graph_id,
             contract_id=spec._content_id(),
@@ -152,6 +155,32 @@ class ProgramBinding:
             dose_units=request.dose_units,
             outcome_units=request.outcome_units,
             transform_id=request.transform,
+            _contract_premises_json=json.dumps(premises, sort_keys=True),
+        )
+
+    @classmethod
+    def from_response(
+        cls,
+        response: CausalResponseView,
+        *,
+        outcome_units: str,
+        dose_units: str,
+        population: str = "target",
+        transform: str = "identity",
+    ) -> ProgramBinding:
+        """Derive the identified scientific binding from an actual native response.
+
+        The complete executed contract remains native execution authority. This
+        scientific contract also binds external results for the same identified query.
+        """
+        return cls.from_spec(
+            _external_response(
+                _identification_from_response(response),
+                outcome_units=outcome_units,
+                dose_units=dose_units,
+                population=population,
+                transform=transform,
+            )
         )
 
     @classmethod
@@ -246,9 +275,9 @@ class WithheldCoordinate:
 class NativeDecisionSource:
     """What the decision engine receives from a native claim, with its provenance.
 
-    ``source`` is the :class:`~antecedent.decision.MeanSource` for
-    ``Contract.evaluate``; ``mean_claim()`` is the same means as an inverse-query
-    forward claim. Coordinates whose support is outside the empirical region or
+    ``source`` is a :class:`~antecedent.decision.MeanSource` or an actual retained
+    joint posterior artifact for ``Contract.evaluate``. ``mean_claim()`` supplies
+    point means as an inverse-query forward claim. Coordinates outside the empirical region or
     lacks evidence are in ``withheld``, never silently used.
     """
 
@@ -259,10 +288,14 @@ class NativeDecisionSource:
     trust: ProviderTrust
     calibration: str
     program_identity: str
-    source: MeanSource
+    source: MeanSource | JointDistributionArtifact
 
     def mean_claim(self) -> MeanClaim:
         """The same means as an :class:`~antecedent.inverse_query.MeanClaim`."""
+        if not isinstance(self.source, MeanSource):
+            raise CausalUnsupportedError(
+                "a joint law requires a distribution consumer", reason_code="route_not_supported"
+            )
         return MeanClaim(
             coordinates=self.source.coordinates,
             means=self.source.means,
@@ -270,20 +303,25 @@ class NativeDecisionSource:
             snapshot_id=self.source.snapshot_id,
             causal_contract_id=self.source.causal_contract_id,
             rng_id=self.source.rng_id,
+            _original_native=self.source._original_native,
         )
 
     @classmethod
-    def _from_wire(cls, body: Mapping[str, Any]) -> NativeDecisionSource:
-        if "mean_source" not in body:
-            # A response view retains no draws, so Rust never offers a joint law here.
+    def _from_wire(
+        cls,
+        body: Mapping[str, Any],
+        joint: JointDistributionArtifact | None = None,
+        original: Any = None,
+    ) -> NativeDecisionSource:
+        mean = body.get("mean_source")
+        if mean is None and joint is None:
             raise CausalUnsupportedError(
-                "a joint law is not exposed through this surface",
-                reason_code="route_not_supported",
+                "native joint state is unavailable", reason_code="route_not_supported"
             )
-        mean = body["mean_source"]
+        mean = {} if mean is None else mean
         coordinates = tuple(ScientificQuantity._from_wire(q) for q in body["coordinates"])
         return cls(
-            representation="mean",
+            representation="joint_draws" if joint is not None else "mean",
             coordinates=coordinates,
             point_status=tuple(body["point_status"]),
             withheld=tuple(
@@ -295,13 +333,16 @@ class NativeDecisionSource:
             trust=ProviderTrust(body["trust"]),
             calibration=str(body["calibration"]),
             program_identity=str(body["program_identity"]),
-            source=MeanSource(
+            source=joint
+            if joint is not None
+            else MeanSource(
                 coordinates=coordinates,
                 means=tuple(mean["means"]),
                 provider_id=str(mean["provider_id"]),
                 snapshot_id=str(mean["snapshot_id"]),
                 causal_contract_id=str(mean["causal_contract_id"]),
                 rng_id=str(mean["rng_id"]),
+                _original_native=original,
             ),
         )
 
@@ -352,6 +393,26 @@ class NativeClaim:
         return self._native.program_identity
 
     @property
+    def lineage(self):
+        """Original typed source ancestry; querying it consumes the original source artifact."""
+        return self.source_evidence.lineage
+
+    def stages_behind(self, link: str = "claim") -> frozenset[str]:
+        return self.source_evidence.stages_behind(link)
+
+    @property
+    def source_evidence(self):
+        """Actual original scoped diagnostics and independently consumable source."""
+        from .source_evidence import SourceEvidence
+
+        return SourceEvidence._deferred(lambda: self._native.source_evidence)
+
+    @property
+    def execution_program_id(self) -> str | None:
+        """Actual checked executed program, separate from scientific declarations."""
+        return self._native.execution_program_id
+
+    @property
     def provenance_id(self) -> str:
         return self._native.provenance_id
 
@@ -372,7 +433,14 @@ class NativeClaim:
         body, refusal = self._native.decision_source(json.dumps(requirement._wire()))
         _raise(refusal)
         assert body is not None
-        return NativeDecisionSource._from_wire(json.loads(body))
+        decoded = json.loads(body)
+        joint = None
+        if "joint_law" in decoded:
+            artifact, refusal = self._native.joint_artifact(json.dumps(requirement._wire()))
+            _raise(refusal)
+            assert artifact is not None
+            joint = JointDistributionArtifact._from_native(artifact)
+        return NativeDecisionSource._from_wire(decoded, joint, self)
 
     def __repr__(self) -> str:
         return (
@@ -392,6 +460,42 @@ def _unsupported_estimand(supplied: str) -> ExternalRefusal:
             "supplied": supplied,
             "remedy": "only a static mean response curve carries one coordinate per dose",
         }
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _NativeProgramIdentification:
+    query: Any
+    status: str
+    statement: str
+    _native_response: Any
+    graph: tuple[()] = ()
+    names: tuple[()] = ()
+    identifier: str = "checked.native"
+    method: str = "checked.native"
+    adjustment_set: tuple[()] = ()
+
+
+def _identification_from_response(response: CausalResponseView) -> _NativeProgramIdentification:
+    from .query import ResponseCurve
+
+    raw = response._raw
+    value = None if raw is None else raw.program_basis_json()
+    if value is None:
+        raise ExternalRefusal(
+            {
+                "code": "invalid_argument",
+                "stage": "bind",
+                "detail": "native_claims.native_state_unavailable",
+                "remedy": "use a response issued by actual checked native execution",
+            }
+        )
+    basis = json.loads(value)
+    return _NativeProgramIdentification(
+        ResponseCurve(basis["treatment"], basis["outcome"], grid=basis["grid"]),
+        basis["status"],
+        basis["statement"],
+        raw,
     )
 
 
@@ -423,6 +527,9 @@ def _projection(response: CausalResponseView) -> dict[str, Any]:
         if response.support.point_status is None
         else list(response.support.point_status),
         "provenance_id": str(response.provenance.get("operation_id") or ""),
+        "uncertainty": response.uncertainty.model_dump(mode="json"),
+        "data_snapshot_id": response.data_snapshot_id,
+        "program_id": response.program_id,
     }
 
 
@@ -431,7 +538,7 @@ def native_claim(
     program: ProgramBinding,
     *,
     snapshot_id: str | None = None,
-    rng_id: str = "none:point_estimate",
+    rng_id: str | None = None,
     calibration: Calibration | None = None,
 ) -> NativeClaim:
     """The typed claim a native response makes about the program it answers.
@@ -467,11 +574,13 @@ def native_claim(
         _, refusal = _check_external_program(binding_json, json.dumps(declared))
         _raise(refusal)
     claim, refusal = _native_response_claim(
+        response._raw,
         json.dumps(projection),
         binding_json,
-        snapshot_id if snapshot_id is not None else (response.data_snapshot_id or ""),
+        snapshot_id,
         rng_id,
-        calibration or ("point_only" if response.uncertainty.kind == "none" else "unmeasured"),
+        calibration,
+        program._contract_premises_json,
     )
     _raise(refusal)
     assert claim is not None

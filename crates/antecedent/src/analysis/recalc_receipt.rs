@@ -87,6 +87,10 @@ pub enum Counter {
     ProviderCall,
     /// Checked fit or retained law was reduced to a scalar summary.
     LawSummary,
+    /// Actual aligned posterior rows emitted by a numerical inference engine.
+    PosteriorDraw,
+    /// Actual external callback invocations on one declared branch.
+    ExternalInvocation(antecedent_core::recalc::Branch),
 }
 
 impl Counter {
@@ -98,7 +102,7 @@ impl Counter {
         Self::Decision,
     ];
 
-    const EXTENDED: [Self; 7] = [
+    const EXTENDED: [Self; 9] = [
         Self::FactorBuild,
         Self::ProgramCompilation,
         Self::ProviderBinding,
@@ -106,15 +110,21 @@ impl Counter {
         Self::Integration,
         Self::ProviderCall,
         Self::LawSummary,
+        Self::PosteriorDraw,
+        Self::ExternalInvocation(
+            antecedent_core::recalc::Branch::new(0).expect("branch zero is valid"),
+        ),
     ];
 
     /// The one stage this work belongs to.
     #[must_use]
     pub const fn stage(self) -> Stage {
         match self {
+            Self::ExternalInvocation(branch) => Stage::ProviderRequest(branch),
             Self::Identification => Stage::Identification,
             Self::FoldFit
             | Self::ModelFit
+            | Self::PosteriorDraw
             | Self::ScoreComputation
             | Self::FactorBuild
             | Self::ProgramCompilation
@@ -158,6 +168,10 @@ pub struct StageCounts {
     pub provider_calls: u64,
     /// Checked scalar summary reductions.
     pub law_summaries: u64,
+    /// Actual emitted aligned posterior rows.
+    pub posterior_draws: u64,
+    /// Actual external callback invocations, summed across branches.
+    pub external_invocations: u64,
 }
 
 impl StageCounts {
@@ -178,6 +192,8 @@ impl StageCounts {
             Counter::Integration => self.integrations,
             Counter::ProviderCall => self.provider_calls,
             Counter::LawSummary => self.law_summaries,
+            Counter::PosteriorDraw => self.posterior_draws,
+            Counter::ExternalInvocation(_) => self.external_invocations,
         }
     }
 
@@ -197,6 +213,8 @@ impl StageCounts {
             .saturating_add(self.integrations)
             .saturating_add(self.provider_calls)
             .saturating_add(self.law_summaries)
+            .saturating_add(self.posterior_draws)
+            .saturating_add(self.external_invocations)
     }
 
     fn add(&mut self, counter: Counter, n: u64) {
@@ -214,6 +232,8 @@ impl StageCounts {
             Counter::Integration => &mut self.integrations,
             Counter::ProviderCall => &mut self.provider_calls,
             Counter::LawSummary => &mut self.law_summaries,
+            Counter::PosteriorDraw => &mut self.posterior_draws,
+            Counter::ExternalInvocation(_) => &mut self.external_invocations,
         };
         *slot = slot.saturating_add(n);
     }
@@ -449,16 +469,38 @@ fn verify_entry(entry: &ReceiptEntry) -> Result<(), ReceiptError> {
     };
     for counter in Counter::ALL.into_iter().chain([Counter::ModelFit]).chain(Counter::EXTENDED) {
         let n = entry.counts.get(counter);
-        let allowed =
-            matches!(entry.status, StageStatus::Recomputed { .. }) && counter.stage() == stage;
+        let allowed = matches!(entry.status, StageStatus::Recomputed { .. })
+            && (counter.stage() == stage
+                || matches!(
+                    (counter, stage),
+                    (Counter::ExternalInvocation(_), Stage::ProviderRequest(_))
+                ));
         if n > 0 && !allowed {
             return Err(ReceiptError::UnexpectedWork { stage });
         }
     }
-    let required = if stage == Stage::ScoreArtifact
+    let callback_required = [Counter::ExternalInvocation(match stage {
+        Stage::ProviderRequest(branch) => branch,
+        _ => antecedent_core::recalc::Branch::new(0).expect("branch zero is valid"),
+    })];
+    let required = if matches!(stage, Stage::ProviderRequest(_))
         && matches!(entry.status, StageStatus::Recomputed { .. })
     {
-        if entry.counts.provider_bindings > 0 {
+        &callback_required[..]
+    } else if stage == Stage::ScoreArtifact
+        && matches!(entry.status, StageStatus::Recomputed { .. })
+    {
+        if entry.counts.posterior_draws > 0 {
+            if entry.counts.fold_fits > 0
+                || entry.counts.score_computations > 0
+                || entry.counts.provider_bindings > 0
+                || entry.counts.factor_builds > 0
+                || entry.counts.program_compilations > 0
+            {
+                return Err(ReceiptError::UnexpectedWork { stage });
+            }
+            &[Counter::ModelFit, Counter::PosteriorDraw][..]
+        } else if entry.counts.provider_bindings > 0 {
             if entry.counts.fold_fits > 0
                 || entry.counts.model_fits > 0
                 || entry.counts.score_computations > 0
@@ -739,7 +781,7 @@ impl From<ReceiptError> for RecalcRunError {
 }
 
 struct Live {
-    prepared: PreparedStudy,
+    prepared: Arc<PreparedStudy>,
     law: LawValue,
     decision: DecisionValue,
 }
@@ -842,31 +884,33 @@ fn is_recomputed(plan: &RecalcPlan, stage: Stage) -> bool {
 /// Identification and score table: `Study::prepare` when identification must be redone,
 /// `refresh` (retained plan, new score table) when only the scores must be rebuilt, nothing
 /// when both are reused.
+type RetainedScoreStage = (Arc<PreparedStudy>, Option<(LawValue, DecisionValue)>);
+
 fn score_stages(
-    live: Option<Live>,
+    live: Option<&Live>,
     plan: &RecalcPlan,
     request: &RecalcRequest,
     recorder: &mut ReceiptRecorder,
     ctx: &ExecutionContext,
-) -> Result<(PreparedStudy, Option<(LawValue, DecisionValue)>), RecalcRunError> {
+) -> Result<RetainedScoreStage, RecalcRunError> {
     if is_recomputed(plan, Stage::Identification) {
         let study = request.study(request.data()?)?;
         recorder.record(Counter::Identification, 1);
         recorder.record(Counter::ScoreComputation, 1);
         let prepared = recorder.measured(|| study.prepare(ctx))?;
-        return Ok((prepared, None));
+        return Ok((Arc::new(prepared), None));
     }
     let Some(live) = live else {
         return Err(RecalcRunError::NoLiveState(Stage::Identification));
     };
-    let Live { mut prepared, law, decision } = live;
     if is_recomputed(plan, Stage::ScoreArtifact) {
+        let mut prepared = live.prepared.as_ref().clone();
         let data = request.data()?;
         recorder.record(Counter::ScoreComputation, 1);
         recorder.measured(|| prepared.refresh(data, ctx))?;
-        return Ok((prepared, None));
+        return Ok((Arc::new(prepared), None));
     }
-    Ok((prepared, Some((law, decision))))
+    Ok((Arc::clone(&live.prepared), Some((live.law, live.decision))))
 }
 
 fn law_stage(
@@ -894,17 +938,22 @@ pub(crate) fn decide(
     utility: UtilitySpec,
     recorder: &mut ReceiptRecorder,
 ) -> Result<DecisionValue, RecalcRunError> {
-    utility.validate()?;
-    let net_benefit = utility.benefit_per_unit.mul_add(law.ate, -utility.cost);
-    if !net_benefit.is_finite() {
-        return Err(RecalcRunError::Request("recalc.invalid_request"));
-    }
-    recorder.record(Counter::Decision, 1);
-    Ok(DecisionValue { net_benefit, treat: net_benefit > 0.0 })
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Decision,
+        || {
+            utility.validate()?;
+            let net_benefit = utility.benefit_per_unit.mul_add(law.ate, -utility.cost);
+            if !net_benefit.is_finite() {
+                return Err(RecalcRunError::Request("recalc.invalid_request"));
+            }
+            recorder.record(Counter::Decision, 1);
+            Ok(DecisionValue { net_benefit, treat: net_benefit > 0.0 })
+        },
+    )
 }
 
 fn run_stages(
-    live: Option<Live>,
+    live: Option<&Live>,
     plan: &RecalcPlan,
     request: &RecalcRequest,
     recorder: &mut ReceiptRecorder,
@@ -929,8 +978,8 @@ fn run_stages(
 ///
 /// A refused plan (off-grid or unsupported request, incompatible target, an unavailable
 /// dependency in a fresh process) returns [`RecalcRunError::Refused`] before any work, and
-/// leaves the session unchanged. A failure while running clears the session's identities, so
-/// the next call recomputes every stage.
+/// leaves the session unchanged. Running and receipt validation are transactional: a failed
+/// refresh, law or decision retains the last successful prepared study and identities.
 ///
 /// # Errors
 ///
@@ -959,22 +1008,8 @@ pub fn execute_with_receipt(
         }
     }
     let mut recorder = ReceiptRecorder::new();
-    let live = session.live.take();
-    let result = run_stages(live, &plan, request, &mut recorder, ctx);
-    let live = match result {
-        Ok(live) => live,
-        Err(error) => {
-            session.previous = StageIdentities::new();
-            return Err(error);
-        }
-    };
-    let receipt = match recorder.finish(&plan) {
-        Ok(receipt) => receipt,
-        Err(error) => {
-            session.previous = StageIdentities::new();
-            return Err(error.into());
-        }
-    };
+    let live = run_stages(session.live.as_ref(), &plan, request, &mut recorder, ctx)?;
+    let receipt = recorder.finish(&plan)?;
     let (law, decision) = (live.law, live.decision);
     session.previous = request.identities(ctx);
     session.live = Some(live);

@@ -400,13 +400,21 @@ def _replay(repair_artifact: bytes, ranking_artifact: bytes) -> None:
 class ProposalBundle:
     """Every proposal of one repair report and one ranking, in canonical order."""
 
-    __slots__ = ("_contract", "_native_value", "_proposals")
+    __slots__ = (
+        "_contract",
+        "_native_value",
+        "_proposals",
+        "_repair_artifact",
+        "_ranking_artifact",
+    )
 
     def __init__(self, native: _native.ProposalBundle, contract: Any = None) -> None:
         if not isinstance(native, _native.ProposalBundle):
             raise CausalTypeError("use ProposalBundle.build or ProposalBundle.from_dict")
         self._native_value = native
         self._contract = contract
+        self._repair_artifact: bytes | None = None
+        self._ranking_artifact: bytes | None = None
         wire = json.loads(native.to_json())
         self._proposals = tuple(ProposalReceipt._from_wire(p) for p in wire["proposals"])
 
@@ -437,7 +445,10 @@ class ProposalBundle:
         native, refusal = _build(repair_artifact, ranking_artifact)
         _raise(refusal)
         assert native is not None
-        return cls(native, contract)
+        value = cls(native, contract)
+        value._repair_artifact = repair_artifact
+        value._ranking_artifact = ranking_artifact
+        return value
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProposalBundle:
@@ -528,6 +539,37 @@ class ProposalBundle:
         _raise(refusal)
         assert result is not None
         return _verdict(json.loads(result))
+
+    def estimate_arrival(
+        self,
+        candidate_id: str,
+        study: Any,
+        *,
+        seed: int = 3,
+        repair_artifact: bytes | None = None,
+        ranking_artifact: bytes | None = None,
+    ) -> Any:
+        """Evaluate actual finite arrived counts through the checked transport formula.
+
+        Structural ``on_arrival`` remains available separately. This route requires
+        original producer artifacts, supplied explicitly when the bundle was loaded
+        from a dictionary. Unrepresented sampling designs refuse; point uncertainty
+        remains unmeasured.
+        """
+        from .proposal_arrival import _estimate
+
+        self.proposal(candidate_id)
+        original_repair = repair_artifact if repair_artifact is not None else self._repair_artifact
+        original_ranking = (
+            ranking_artifact if ranking_artifact is not None else self._ranking_artifact
+        )
+        if original_repair is None or original_ranking is None:
+            raise CausalValueError(
+                "proposal_arrival.original_artifacts_required", reason_code="invalid_argument"
+            )
+        return _estimate(
+            original_repair, original_ranking, candidate_id, study, self.identity, seed
+        )
 
     def __repr__(self) -> str:
         return f"<ProposalBundle {len(self._proposals)} proposals identity={self.identity[:12]}>"

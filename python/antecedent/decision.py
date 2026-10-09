@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from ._native import composition_lineage as _composition_lineage
@@ -303,10 +303,30 @@ class MeanSource:
     snapshot_id: str
     causal_contract_id: str
     rng_id: str = "none:mean_grid"
+    _original_native: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "coordinates", tuple(self.coordinates))
         object.__setattr__(self, "means", tuple(float(m) for m in self.means))
+
+    def _validated_original(self):
+        if self._original_native is None:
+            return None
+        from . import _native
+
+        return _native.source_backed_native_mean(
+            self._original_native._native,
+            json.dumps(
+                {
+                    "coordinates": [q._wire() for q in self.coordinates],
+                    "means": list(self.means),
+                    "provider_id": self.provider_id,
+                    "snapshot_id": self.snapshot_id,
+                    "causal_contract_id": self.causal_contract_id,
+                    "rng_id": self.rng_id,
+                }
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -376,6 +396,7 @@ class Contract:
             assert result is not None
             return Decision(self, source, json.loads(result))
         if isinstance(source, MeanSource):
+            source._validated_original()
             result, refusal = _evaluate_means(
                 json.dumps(self._wire()),
                 json.dumps([q._wire() for q in source.coordinates]),
@@ -511,6 +532,33 @@ class Decision:
     @property
     def assumptions(self) -> tuple[str, ...]:
         return tuple(self._body["assumptions"])
+
+    @property
+    def source_evidence(self):
+        """Original external support/request ancestry; no inferred numeric diagnostic or native authority."""
+        if isinstance(self._source, BoundExternalClaim):
+            return (
+                self._source.source_evidence.project(
+                    self._contract, [action.id for action in self.actions]
+                ),
+            )
+        if isinstance(self._source, MeanSource) and self._source._original_native is not None:
+            self._source._validated_original()
+            return (
+                self._source._original_native.source_evidence.project(
+                    self._contract, [action.id for action in self.actions]
+                ),
+            )
+        if (
+            isinstance(self._source, JointDistributionArtifact)
+            and self._source.source_evidence is not None
+        ):
+            return (
+                self._source.source_evidence.project(
+                    self._contract, [action.id for action in self.actions]
+                ),
+            )
+        return ()
 
     @property
     def lineage(self) -> tuple[LineageLink, ...]:

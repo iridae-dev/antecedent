@@ -259,6 +259,9 @@ try:s.execute(r,seed=3)
 except RecalcRefusal as e:detail=e.detail
 else:raise AssertionError('historical receipt recreated executable state')
 s=DrSession.resume(a,ResumeContext(supplied_data=True));ran=s.execute(r,seed=3)
+checked=RecalcReceipt.consume(ran.receipt.export(),expected_identity=ran.receipt.identity)
+assert checked.loaded and checked.totals==ran.receipt.totals
+assert not ran.receipt.loaded
 print(json.dumps({'detail':detail,'folds':ran.receipt.totals.fold_fits,'models':ran.receipt.totals.model_fits,'ate':ran.law.ate}))
 """
     ran = subprocess.run(
@@ -440,7 +443,7 @@ import json,sys
 from pathlib import Path
 from antecedent.composition_bundle import consume_bundle
 from antecedent.recalc_cell import resume_from_scores
-from antecedent.recalc import Utility
+from antecedent.recalc import Utility,Stage
 p=Path(sys.argv[1])
 checked=consume_bundle((p/'bundle.bin').read_bytes(),expected_identity=sys.argv[2])
 checked.require_verified()
@@ -448,8 +451,14 @@ resumed=resume_from_scores((p/'scores.bin').read_bytes(), variables=['z','w','t'
     edges=[('z','t'),('w','t'),('z','y'),('w','y'),('t','y')],
     utility=Utility(1),quantity='average_effect',expected_identity=sys.argv[3])
 result=resumed.retarget()
+assert not result.receipt.loaded
+assert result.receipt.entry(Stage.SCORE_ARTIFACT).status.reused
+assert result.receipt.counts(Stage.SCORE_ARTIFACT).total==0
+assert result.receipt.totals.identifications==1
+assert result.receipt.totals.model_fits==0
+assert result.receipt.totals.decisions==1
 print(json.dumps({'ate':result.law.ate,'fits':result.receipt.totals.fold_fits,
-    'reweights':result.receipt.totals.reweights,'past':checked.node('receipt').facts['execution_status']}))
+    'reweights':result.receipt.totals.reweights,'new_identity':result.receipt.identity,'past':checked.node('receipt').facts['execution_status']}))
 """
     wire = json.loads(
         subprocess.check_output(
@@ -457,9 +466,37 @@ print(json.dumps({'ate':result.law.ate,'fits':result.receipt.totals.fold_fits,
             text=True,
         )
     )
+    assert wire.pop("new_identity") != result.receipt.identity
+    assert result.receipt.totals.fold_fits == 9
+    assert result.receipt.totals.model_fits == 1
     assert wire == {
         "ate": pytest.approx(2.0, abs=1e-8),
         "fits": 0,
         "reweights": 1,
         "past": "historical_receipt",
     }
+
+
+@pytest.mark.parametrize("mutation", ["model", "snapshot"])
+def test_dr_bundle_refuses_semantically_changed_resume_state(mutation):
+    from antecedent.composition_bundle import Bundle, Failed, consume_bundle
+
+    original = request(cate=True)
+    first = DrSession().execute(original, seed=3)
+    if mutation == "model":
+        changed = replace(original, estimator=replace(original.estimator, folds=4))
+    else:
+        changed = replace(original, data={**original.data, "y": original.data["y"] + 0.5})
+    other = DrSession()
+    other.execute(changed, seed=3)
+    builder = Bundle.builder()
+    builder.add_artifact("recalculation_receipt", first.receipt.export(), node_id="receipt")
+    builder.add_artifact("frozen_scores", other.export_scores().export(), node_id="scores")
+    builder.connect("receipt", "scores")
+    bundle = builder.build()
+    checked = consume_bundle(bundle.export(), expected_identity=bundle.identity)
+    status = checked.node("scores").status
+    assert isinstance(status, Failed)
+    assert status.stage == "swapped_evidence"
+    assert status.detail == "composition_bundle.swapped_evidence"
+    assert status.code == "external_binding_mismatch"

@@ -77,7 +77,7 @@ struct TransportWire {
     evaluation_operations: usize,
     evaluation_depth: usize,
 }
-fn response_request(
+pub(crate) fn response_request(
     names: Vec<String>,
     columns: &[PyReadonlyArray1<'_, f64>],
     graph: &Admg,
@@ -252,7 +252,7 @@ fn resume(previous: &str, resume: &str) -> PyResult<(StageIdentities, ResumeCont
         },
     ))
 }
-fn static_error(error: &RecalcRunError) -> String {
+pub(crate) fn static_error(error: &RecalcRunError) -> String {
     match error {
         RecalcRunError::Refused(plan) => plan_refusal_json(plan),
         RecalcRunError::NoLiveState(stage) => refusal_json(
@@ -473,8 +473,13 @@ fn payload(
 }
 
 #[pyclass(name = "StaticResponseSessionHandle")]
-struct PyStaticSession {
+pub(crate) struct PyStaticSession {
     inner: StaticResponseSession,
+}
+impl PyStaticSession {
+    pub(crate) fn clone_native(&self) -> StaticResponseSession {
+        self.inner.clone()
+    }
 }
 #[pymethods]
 impl PyStaticSession {
@@ -490,6 +495,21 @@ impl PyStaticSession {
     fn is_live(&self) -> bool {
         self.inner.is_live()
     }
+    fn response(&self) -> PyResult<Option<crate::response_api::ResponseAnalysisResult>> {
+        let (Some(result), Some(prepared), Some(ctx)) =
+            (self.inner.result(), self.inner.prepared(), self.inner.producing_context())
+        else {
+            return Ok(None);
+        };
+        let names = prepared
+            .schema()
+            .variables()
+            .iter()
+            .map(|variable| variable.name.to_string())
+            .collect::<Vec<_>>();
+        crate::prepared_api::response_from_retained(&names, result, prepared, ctx).map(Some)
+    }
+
     fn identities_json(&self) -> PyResult<String> {
         serde_json::to_string(&identities_to_wire(self.inner.identities())).map_err(py_msg)
     }

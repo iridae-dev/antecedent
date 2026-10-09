@@ -16,6 +16,8 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
+  "External callback invocations use zero-omitted tag9. Only a recomputed matching ProviderRequest branch may carry invocation counts; raw ExternalStudy inputs and native-law stages cannot. Independent manual-digest and resealed-mutation fixtures retain historical identities and distinguish stored assertions from live callback execution.",
+  "Additive posterior_draws uses zero-omitted tag8 and is licensed only in the model-fit family. Recorded work counts are historical assertions; only the live executing adapter authenticates its instrumented execution. The independent manual digest oracle checks old identities, resealed family and stage boundaries.",
   "Claim policy: the artifact is a record of a decision, not a computation. It carries no estimate, no interval and no coverage or calibration claim; a consumer decides and checks counts and identities only.",
   "A consumer trusts none of the stored table. It recomputes the plan from the stored previous and requested digests and capabilities and refuses any stored status, determining dependency, identity, per-stage count, total or identity that differs, even when the container is resealed with recomputed section checksums.",
   "A loaded receipt never claims reuse in a fresh process: ANY derived stage stored as reused under a fresh-process boundary is refused before the plan is compared, even in a configuration where the planner would allow portable scores to be reused, because a loaded result recreates no prepared study, score table or fit. The artifact therefore cannot be used to certify cache reuse across processes; it records what was decided and counted in the producing run.",

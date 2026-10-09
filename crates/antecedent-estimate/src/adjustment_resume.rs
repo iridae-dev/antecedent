@@ -2,7 +2,6 @@
 //! compatible contrasts and predictions perform no fitting.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss)]
-#![allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
 
 use crate::EstimationError;
 use crate::categorical_treatment::{
@@ -93,66 +92,74 @@ impl AdjustedFit {
         Ok(Self::from_linear(&vector, beta, cov, Some((order, spec.reference.clone()))))
     }
     /// Fit an unpenalized GLM and retain its full Fisher covariance.
+    #[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
     pub fn glm(
         input: &VectorTreatmentInput,
         family: GlmFamily,
         options: &GlmOptions,
     ) -> Result<Self, EstimationError> {
-        crate::vector_treatment::validate_input(input, 1)?;
-        let n = input.outcome.len();
-        if input.outcome.iter().any(|&y| match family {
-            GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => y != 0. && y != 1.,
-            GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => y < 0.,
-            GlmFamily::GaussianIdentity => false,
-        }) {
-            return Err(EstimationError::data_msg("outcome incompatible with adjusted GLM family"));
-        }
-        let p = 1 + input.adjustment.len() + input.treatments.len();
-        let mut x = vec![1.; n];
-        for z in &input.adjustment {
-            x.extend(&z.values);
-        }
-        for t in &input.treatments {
-            x.extend(&t.values);
-        }
-        let mut ws = LeastSquaresWorkspace::default();
-        let fit = crate::glm_adjustment::solve_adjustment_glm(
-            family,
-            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &input.outcome },
-            FaerBackend,
-            &mut ws,
-            options,
-        )?;
-        let alpha = crate::glm_adjustment::resolve_nb_alpha(
-            family,
-            fit.nb_alpha,
-            &x,
-            n,
-            p,
-            &fit.coefficients,
-            &input.outcome,
-        );
-        let covariance = crate::glm_adjustment::adjustment_glm_covariance(
-            family,
-            &x,
-            n,
-            p,
-            &fit.coefficients,
-            fit.deviance,
-            alpha,
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::AdjustedFit,
+            || {
+                crate::vector_treatment::validate_input(input, 1)?;
+                let n = input.outcome.len();
+                if input.outcome.iter().any(|&y| match family {
+                    GlmFamily::BinomialLogit | GlmFamily::BinomialProbit => y != 0. && y != 1.,
+                    GlmFamily::PoissonLog | GlmFamily::NegativeBinomial => y < 0.,
+                    GlmFamily::GaussianIdentity => false,
+                }) {
+                    return Err(EstimationError::data_msg(
+                        "outcome incompatible with adjusted GLM family",
+                    ));
+                }
+                let p = 1 + input.adjustment.len() + input.treatments.len();
+                let mut x = vec![1.; n];
+                for z in &input.adjustment {
+                    x.extend(&z.values);
+                }
+                for t in &input.treatments {
+                    x.extend(&t.values);
+                }
+                let mut ws = LeastSquaresWorkspace::default();
+                let fit = crate::glm_adjustment::solve_adjustment_glm(
+                    family,
+                    GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &input.outcome },
+                    FaerBackend,
+                    &mut ws,
+                    options,
+                )?;
+                let alpha = crate::glm_adjustment::resolve_nb_alpha(
+                    family,
+                    fit.nb_alpha,
+                    &x,
+                    n,
+                    p,
+                    &fit.coefficients,
+                    &input.outcome,
+                );
+                let covariance = crate::glm_adjustment::adjustment_glm_covariance(
+                    family,
+                    &x,
+                    n,
+                    p,
+                    &fit.coefficients,
+                    fit.deviance,
+                    alpha,
+                )
+                .ok_or_else(|| EstimationError::stats_msg("singular adjusted GLM information"))?;
+                Ok(Self {
+                    coefficients: fit.coefficients,
+                    covariance,
+                    family,
+                    matrix: x,
+                    nrows: n,
+                    ncols: p,
+                    first_treatment: 1 + input.adjustment.len(),
+                    support: input.treatments.iter().map(|t| support(&t.values)).collect(),
+                    levels: None,
+                })
+            },
         )
-        .ok_or_else(|| EstimationError::stats_msg("singular adjusted GLM information"))?;
-        Ok(Self {
-            coefficients: fit.coefficients,
-            covariance,
-            family,
-            matrix: x,
-            nrows: n,
-            ncols: p,
-            first_treatment: 1 + input.adjustment.len(),
-            support: input.treatments.iter().map(|t| support(&t.values)).collect(),
-            levels: None,
-        })
     }
     /// Full coefficient covariance, in retained design order.
     #[must_use]
@@ -166,6 +173,7 @@ impl AdjustedFit {
     }
     /// Validate prediction feature shape and declared treatment support without fitting.
     #[must_use]
+    #[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
     pub fn prediction_refusal(&self, rows: &[Vec<f64>]) -> Option<&'static str> {
         for row in rows {
             if row.len() != self.ncols - 1 || row.iter().any(|x| !x.is_finite()) {
@@ -183,6 +191,7 @@ impl AdjustedFit {
         None
     }
     /// Mean predictions for rows in adjustment-then-treatment design order. No fitting.
+    #[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
     pub fn predict(&self, rows: &[Vec<f64>]) -> Result<Vec<f64>, EstimationError> {
         rows.iter()
             .map(|row| {
@@ -228,83 +237,91 @@ impl AdjustedFit {
         control: &[f64],
         weights: Option<&[f64]>,
     ) -> Result<(f64, f64), EstimationError> {
-        let k = self.ncols - self.first_treatment;
-        if active.len() != k
-            || control.len() != k
-            || active.iter().chain(control).any(|v| !v.is_finite())
-        {
-            return Err(EstimationError::data_msg("adjusted contrast dimension mismatch"));
-        }
-        if self.levels.is_none()
-            && !active
-                .iter()
-                .chain(control)
-                .zip(self.support.iter().chain(&self.support))
-                .all(|(value, bounds)| in_support(*value, bounds))
-        {
-            return Err(EstimationError::data_msg(
-                "adjusted contrast outside observed treatment support",
-            ));
-        }
-        if let Some(w) = weights {
-            if w.len() != self.nrows || w.iter().any(|v| !v.is_finite() || *v < 0.) {
-                return Err(EstimationError::data_msg("invalid adjusted target weights"));
-            }
-        }
-        let mass = weights.map_or(self.nrows as f64, |w| w.iter().sum());
-        if !mass.is_finite() || mass <= 0. {
-            return Err(EstimationError::data_msg("empty adjusted target law"));
-        }
-        let mut effect = 0.;
-        let mut gradient = vec![0.; self.ncols];
-        if self.family == GlmFamily::GaussianIdentity {
-            // Identity-link contrasts cancel the intercept and adjustment block exactly.
-            // Subtract coefficients directly rather than large predicted outcome levels.
-            for (i, (a, c)) in active.iter().zip(control).enumerate() {
-                let delta = a - c;
-                gradient[self.first_treatment + i] = delta;
-                effect += delta * self.coefficients[self.first_treatment + i];
-            }
-        } else {
-            for r in 0..self.nrows {
-                let weight = weights.map_or(1., |w| w[r]) / mass;
-                let base = (0..self.first_treatment)
-                    .map(|c| self.matrix[c * self.nrows + r] * self.coefficients[c])
-                    .sum::<f64>();
-                let eta_a = base
-                    + active
-                        .iter()
-                        .zip(&self.coefficients[self.first_treatment..])
-                        .map(|(x, b)| x * b)
-                        .sum::<f64>();
-                let eta_c = base
-                    + control
-                        .iter()
-                        .zip(&self.coefficients[self.first_treatment..])
-                        .map(|(x, b)| x * b)
-                        .sum::<f64>();
-                effect += weight * (mean(self.family, eta_a) - mean(self.family, eta_c));
-                let da = crate::glm_adjustment::mean_derivative(self.family, eta_a);
-                let dc = crate::glm_adjustment::mean_derivative(self.family, eta_c);
-                for (c, g) in gradient.iter_mut().enumerate() {
-                    let (a, b) = if c < self.first_treatment {
-                        let x = self.matrix[c * self.nrows + r];
-                        (x, x)
-                    } else {
-                        (active[c - self.first_treatment], control[c - self.first_treatment])
-                    };
-                    *g += weight * (da * a - dc * b);
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::LawSummary,
+            || {
+                let k = self.ncols - self.first_treatment;
+                if active.len() != k
+                    || control.len() != k
+                    || active.iter().chain(control).any(|v| !v.is_finite())
+                {
+                    return Err(EstimationError::data_msg("adjusted contrast dimension mismatch"));
                 }
-            }
-        }
-        let variance = (0..self.ncols)
-            .flat_map(|i| (0..self.ncols).map(move |j| (i, j)))
-            .map(|(i, j)| gradient[i] * self.covariance[i * self.ncols + j] * gradient[j])
-            .sum::<f64>();
-        if !effect.is_finite() || !variance.is_finite() || variance < -1e-12 {
-            return Err(EstimationError::stats_msg("invalid adjusted contrast"));
-        }
-        Ok((effect, variance.max(0.).sqrt()))
+                if self.levels.is_none()
+                    && !active
+                        .iter()
+                        .chain(control)
+                        .zip(self.support.iter().chain(&self.support))
+                        .all(|(value, bounds)| in_support(*value, bounds))
+                {
+                    return Err(EstimationError::data_msg(
+                        "adjusted contrast outside observed treatment support",
+                    ));
+                }
+                if let Some(w) = weights {
+                    if w.len() != self.nrows || w.iter().any(|v| !v.is_finite() || *v < 0.) {
+                        return Err(EstimationError::data_msg("invalid adjusted target weights"));
+                    }
+                }
+                let mass = weights.map_or(self.nrows as f64, |w| w.iter().sum());
+                if !mass.is_finite() || mass <= 0. {
+                    return Err(EstimationError::data_msg("empty adjusted target law"));
+                }
+                let mut effect = 0.;
+                let mut gradient = vec![0.; self.ncols];
+                if self.family == GlmFamily::GaussianIdentity {
+                    // Identity-link contrasts cancel the intercept and adjustment block exactly.
+                    // Subtract coefficients directly rather than large predicted outcome levels.
+                    for (i, (a, c)) in active.iter().zip(control).enumerate() {
+                        let delta = a - c;
+                        gradient[self.first_treatment + i] = delta;
+                        effect += delta * self.coefficients[self.first_treatment + i];
+                    }
+                } else {
+                    for r in 0..self.nrows {
+                        let weight = weights.map_or(1., |w| w[r]) / mass;
+                        let base = (0..self.first_treatment)
+                            .map(|c| self.matrix[c * self.nrows + r] * self.coefficients[c])
+                            .sum::<f64>();
+                        let eta_a = base
+                            + active
+                                .iter()
+                                .zip(&self.coefficients[self.first_treatment..])
+                                .map(|(x, b)| x * b)
+                                .sum::<f64>();
+                        let eta_c = base
+                            + control
+                                .iter()
+                                .zip(&self.coefficients[self.first_treatment..])
+                                .map(|(x, b)| x * b)
+                                .sum::<f64>();
+                        effect += weight * (mean(self.family, eta_a) - mean(self.family, eta_c));
+                        let da = crate::glm_adjustment::mean_derivative(self.family, eta_a);
+                        let dc = crate::glm_adjustment::mean_derivative(self.family, eta_c);
+                        for (c, g) in gradient.iter_mut().enumerate() {
+                            let (a, b) = if c < self.first_treatment {
+                                let x = self.matrix[c * self.nrows + r];
+                                (x, x)
+                            } else {
+                                (
+                                    active[c - self.first_treatment],
+                                    control[c - self.first_treatment],
+                                )
+                            };
+                            *g += weight * (da * a - dc * b);
+                        }
+                    }
+                }
+                let variance = (0..self.ncols)
+                    .flat_map(|i| (0..self.ncols).map(move |j| (i, j)))
+                    .map(|(i, j)| gradient[i] * self.covariance[i * self.ncols + j] * gradient[j])
+                    .sum::<f64>();
+                if !effect.is_finite() || !variance.is_finite() || variance < -1e-12 {
+                    return Err(EstimationError::stats_msg("invalid adjusted contrast"));
+                }
+                Ok((effect, variance.max(0.).sqrt()))
+            },
+        )
     }
     /// Encode declared categorical levels, refusing unknown levels.
     pub fn categorical_arms(
@@ -347,6 +364,7 @@ fn mean(family: GlmFamily, eta: f64) -> f64 {
     }
 }
 
+#[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
 fn support(values: &[f64]) -> Vec<f64> {
     if values.iter().all(|v| *v == 0. || *v == 1.) {
         vec![0., 1., 1.]
@@ -357,6 +375,7 @@ fn support(values: &[f64]) -> Vec<f64> {
         ]
     }
 }
+#[allow(clippy::float_cmp, reason = "binary and dummy variables require exact coded levels")]
 fn in_support(value: f64, bounds: &[f64]) -> bool {
     if bounds.len() == 3 {
         value == 0. || value == 1.

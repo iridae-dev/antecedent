@@ -1,7 +1,7 @@
 //! Bounded Python bridge for the 2.3 aligned distribution artifact.
 
 use antecedent_io::distribution_artifact::{
-    DistributionArtifact, DistributionIdentity, DistributionMetadata,
+    DistributionArtifact, DistributionIdentity, DistributionMetadata, DistributionTrust,
     MAX_DISTRIBUTION_ARTIFACT_BYTES, MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
 };
 use numpy::ndarray::Array2;
@@ -18,7 +18,8 @@ fn artifact_error(error: impl std::fmt::Display) -> PyErr {
 
 #[pyclass(name = "JointDistributionArtifact", skip_from_py_object)]
 pub(crate) struct PyJointDistributionArtifact {
-    artifact: DistributionArtifact,
+    pub(crate) artifact: DistributionArtifact,
+    pub(crate) source_claim: Option<crate::program_claims_api::PyNativeResponseClaim>,
 }
 
 impl PyJointDistributionArtifact {
@@ -37,6 +38,12 @@ impl PyJointDistributionArtifact {
         }
         let metadata: DistributionMetadata =
             serde_json::from_str(metadata_json).map_err(artifact_error)?;
+        if metadata.trust == DistributionTrust::NativeLicensed {
+            return Err(crate::recalc_api::invalid(
+                "native_distribution.authority_required",
+                "native trust requires retained producer-issued execution state",
+            ));
+        }
         let shape = draws.shape();
         if shape[0] == 0
             || shape[0] > MAX_DISTRIBUTION_DRAWS
@@ -51,7 +58,7 @@ impl PyJointDistributionArtifact {
         }
         let values = draws.as_array().iter().copied().collect();
         let artifact = DistributionArtifact::new(metadata, values).map_err(artifact_error)?;
-        Ok(Self { artifact })
+        Ok(Self { artifact, source_claim: None })
     }
 
     #[staticmethod]
@@ -64,13 +71,21 @@ impl PyJointDistributionArtifact {
         let expected: DistributionIdentity =
             serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
         let artifact = DistributionArtifact::from_bytes(data, &expected).map_err(artifact_error)?;
-        Ok(Self { artifact })
+        Ok(Self { artifact, source_claim: None })
     }
 
     #[getter]
     fn semantic(&self) -> PyResult<String> {
         let value = serde_json::to_value(self.artifact.semantic()).map_err(artifact_error)?;
         Ok(value.as_str().expect("distribution meaning serializes as a string").into())
+    }
+
+    #[getter]
+    fn source_evidence(&self) -> PyResult<Option<crate::source_evidence_api::PySourceEvidence>> {
+        self.source_claim
+            .as_ref()
+            .map(crate::source_evidence_api::PySourceEvidence::from_claim)
+            .transpose()
     }
 
     #[getter]

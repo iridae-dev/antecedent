@@ -2031,6 +2031,10 @@ pub struct BayesianBindingWire {
     pub prior: Option<PriorSetIdentityWire>,
     /// Posterior-artifact bytes used for a deferred mapped hydrate.
     pub prior_artifact: Option<PayloadDigestWire>,
+    /// Concrete source snapshot recorded by a checked prior-source producer.
+    /// This records ownership; distinct full snapshots do not prove absence of partial overlap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prior_source_snapshot: Option<String>,
     /// Mapping for the prior artifact.
     pub prior_mapping: Option<PriorMappingIdentityWire>,
     /// External prior-bank composition.
@@ -2939,6 +2943,7 @@ mod tests {
                 prior_scale_bits: Some(1.0f64.to_bits()),
                 prior: None,
                 prior_artifact: None,
+                prior_source_snapshot: None,
                 prior_mapping: None,
                 external_compose: None,
             }),

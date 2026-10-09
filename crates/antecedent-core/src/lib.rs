@@ -41,6 +41,7 @@ pub mod diagnostic;
 pub mod error;
 pub mod evidence_obligation;
 pub mod execution;
+pub mod execution_attempt;
 pub mod external;
 pub mod external_binding;
 pub mod external_refusal;

@@ -109,6 +109,13 @@ class JointDistributionArtifact:
             "native_licensed", "external_attested", "verified_extension", "unverified"
         ] = "unverified",
     ) -> None:
+        if trust == "native_licensed":
+            from .errors import CausalValueError
+
+            raise CausalValueError(
+                "native_distribution.authority_required: native trust requires retained producer-issued execution state",
+                reason_code="invalid_argument",
+            )
         if not isinstance(draws, np.ndarray) or draws.dtype != np.float64 or draws.ndim != 2:
             raise ValueError("draws must be a two-dimensional float64 NumPy array")
         if draws.shape[0] > 100_000 or draws.shape[1] > 1_024 or draws.size * 8 > 16 * 1024 * 1024:
@@ -125,6 +132,23 @@ class JointDistributionArtifact:
         }
         self._native = _NativeJointDistributionArtifact(json.dumps(metadata), draws)
         self._identity = identity
+
+    @property
+    def source_evidence(self):
+        """Original issuer diagnostics; historical or caller-created laws have no issued source."""
+        from .source_evidence import SourceEvidence
+
+        handle = self._native.source_evidence
+        return None if handle is None else SourceEvidence(handle)
+
+    @classmethod
+    def _from_native(cls, native: _NativeJointDistributionArtifact) -> JointDistributionArtifact:
+        obj = cls.__new__(cls)
+        obj._native = native
+        obj._identity = DistributionIdentity._from_wire(
+            json.loads(native.metadata_json)["identity"]
+        )
+        return obj
 
     @classmethod
     def load(

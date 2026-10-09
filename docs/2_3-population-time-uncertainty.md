@@ -246,3 +246,26 @@ correlated errors), checking null Type I error, power and both Holm families.
 This measures the test composition under known covariance. It does not certify
 an arbitrary supplied effect estimator or estimated covariance; those results
 retain their `unmeasured` calibration label.
+
+## Effect constancy in downstream reviews
+
+`antecedent.effect_constancy_review` consumes the original portable F18 artifact
+against its independently retained identity before invoking downstream engines.
+`transport_diagnostic` returns an original oriented, covariance-aware Holm contrast;
+it always requires a separate transport identification check.
+
+`rank_prior_sources` calls the original prior-bank compatibility filter and ranks
+usable entries by explicitly declared partition-effect proximity. This preference
+is data dependent. It does not synthesize a posterior from sampling standard errors,
+pool observations or authorize transfer of a selected prior.
+
+`policy_review` calls the original affine mean decision engine on every fully
+supported original partition. It preserves exactly tied leaders and reports an
+empty common-leader set when partitions disagree. Each decision retains its own
+original partition coordinate and source identity, even when two point effects
+are equal. Nonlinear utilities, unavailable distribution requirements and semantic
+coordinate mismatches are refused.
+
+These consumers retain the original point-only, unmeasured status and original
+non-rejection/power caveats. Agreement among point decisions supplies no statistical
+optimality or policy-generalization guarantee.

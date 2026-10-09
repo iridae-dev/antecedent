@@ -448,6 +448,13 @@ class CausalResponseView(ResultModel, ResultAPI):
     #: The native response payload this view was projected from, when there is one.
     _raw: Any = PrivateAttr(default=None)
 
+    @property
+    def program_identification(self) -> Any:
+        """Actual native identification for matching external scientific contracts."""
+        from ..program_claims import _identification_from_response
+
+        return _identification_from_response(self)
+
     def response_coordinates(
         self, *, outcome_units: str, population: str = "target", transform: str = "identity"
     ) -> tuple[ScientificQuantity, ...]:

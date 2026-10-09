@@ -223,13 +223,16 @@ pub fn fit_glm(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<GlmFit, StatsError> {
-    match family {
-        GlmFamily::BinomialLogit => fit_logistic(design, backend, workspace, options),
-        GlmFamily::BinomialProbit => fit_probit(design, backend, workspace, options),
-        GlmFamily::GaussianIdentity => fit_gaussian(design, backend, workspace),
-        GlmFamily::PoissonLog => fit_poisson(design, backend, workspace, options),
-        GlmFamily::NegativeBinomial => fit_negbin(design, backend, workspace, options),
-    }
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::GlmFit,
+        || match family {
+            GlmFamily::BinomialLogit => fit_logistic(design, backend, workspace, options),
+            GlmFamily::BinomialProbit => fit_probit(design, backend, workspace, options),
+            GlmFamily::GaussianIdentity => fit_gaussian(design, backend, workspace),
+            GlmFamily::PoissonLog => fit_poisson(design, backend, workspace, options),
+            GlmFamily::NegativeBinomial => fit_negbin(design, backend, workspace, options),
+        },
+    )
 }
 
 /// Linear predictor `X β` for one row of a column-major design.
@@ -864,19 +867,26 @@ pub fn fit_glm_ridge(
     options: &GlmOptions,
     lambda: f64,
 ) -> Result<GlmFit, StatsError> {
-    if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
-        return Err(StatsError::Shape {
-            message: "ridge GLM currently requires a binomial family",
-        });
-    }
-    validate_glm_shape(design)?;
-    if !lambda.is_finite() || lambda <= 0.0 {
-        return Err(StatsError::Shape { message: "ridge lambda must be finite and positive" });
-    }
-    if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
-        return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
-    }
-    fit_binomial_ridge(family, design, workspace, options, lambda, None)
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::GlmFit,
+        || {
+            if !matches!(family, GlmFamily::BinomialLogit | GlmFamily::BinomialProbit) {
+                return Err(StatsError::Shape {
+                    message: "ridge GLM currently requires a binomial family",
+                });
+            }
+            validate_glm_shape(design)?;
+            if !lambda.is_finite() || lambda <= 0.0 {
+                return Err(StatsError::Shape {
+                    message: "ridge lambda must be finite and positive",
+                });
+            }
+            if design.y.iter().any(|&yi| yi != 0.0 && yi != 1.0) {
+                return Err(StatsError::Shape { message: "binomial GLM requires 0/1 outcomes" });
+            }
+            fit_binomial_ridge(family, design, workspace, options, lambda, None)
+        },
+    )
 }
 
 /// Multinomial logit design: column-major `X` and integer category codes.
@@ -977,49 +987,57 @@ pub fn fit_multinomial_logit_weighted(
     workspace: &mut LeastSquaresWorkspace,
     options: &GlmOptions,
 ) -> Result<MultinomialFit, StatsError> {
-    if let Some(w) = weights {
-        let sum: f64 = w.iter().sum();
-        if w.len() != design.nrows
-            || w.iter().any(|v| !v.is_finite() || *v < 0.0)
-            || !sum.is_finite()
-            || sum <= 0.0
-        {
-            return Err(StatsError::Shape { message: "invalid multinomial observation weights" });
-        }
-    }
-    let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } = design;
-    if k == 0 {
-        return Err(StatsError::Shape { message: "multinomial requires K ≥ 1" });
-    }
-    if y_category.len() != nrows {
-        return Err(StatsError::Shape { message: "y_category length != nrows" });
-    }
-    if x_colmajor.len() < nrows.saturating_mul(ncols) {
-        return Err(StatsError::Shape { message: "X buffer too short" });
-    }
-    for &yi in y_category {
-        if (yi as usize) >= k {
-            return Err(StatsError::Shape { message: "y_category out of range" });
-        }
-    }
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::GlmFit,
+        || {
+            if let Some(w) = weights {
+                let sum: f64 = w.iter().sum();
+                if w.len() != design.nrows
+                    || w.iter().any(|v| !v.is_finite() || *v < 0.0)
+                    || !sum.is_finite()
+                    || sum <= 0.0
+                {
+                    return Err(StatsError::Shape {
+                        message: "invalid multinomial observation weights",
+                    });
+                }
+            }
+            let MultinomialDesignRef { x_colmajor, nrows, ncols, y_category, n_categories: k } =
+                design;
+            if k == 0 {
+                return Err(StatsError::Shape { message: "multinomial requires K ≥ 1" });
+            }
+            if y_category.len() != nrows {
+                return Err(StatsError::Shape { message: "y_category length != nrows" });
+            }
+            if x_colmajor.len() < nrows.saturating_mul(ncols) {
+                return Err(StatsError::Shape { message: "X buffer too short" });
+            }
+            for &yi in y_category {
+                if (yi as usize) >= k {
+                    return Err(StatsError::Shape { message: "y_category out of range" });
+                }
+            }
 
-    if k == 1 {
-        return Ok(MultinomialFit {
-            coefficients: vec![0.0; ncols],
-            iterations: 0,
-            converged: true,
-            separated: false,
-            deviance: 0.0,
-            n_categories: 1,
-            ncols,
-        });
-    }
+            if k == 1 {
+                return Ok(MultinomialFit {
+                    coefficients: vec![0.0; ncols],
+                    iterations: 0,
+                    converged: true,
+                    separated: false,
+                    deviance: 0.0,
+                    n_categories: 1,
+                    ncols,
+                });
+            }
 
-    if k == 2 && weights.is_none() {
-        return fit_multinomial_binary(design, backend, workspace, options);
-    }
+            if k == 2 && weights.is_none() {
+                return fit_multinomial_binary(design, backend, workspace, options);
+            }
 
-    fit_multinomial_fisher(design, options, weights)
+            fit_multinomial_fisher(design, options, weights)
+        },
+    )
 }
 
 fn fit_multinomial_binary(

@@ -85,15 +85,20 @@ impl InstrumentalVariableIdentifier {
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let CausalQuery::AverageEffect(ate) = query else {
-            return Err(IdentificationError::UnsupportedQuery {
-                message: "IV identification only supports AverageEffect",
-            });
-        };
-        ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
-            message: "invalid average-effect query",
-        })?;
-        self.identify_ate(prepared, ate, query.clone(), workspace)
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::Identification,
+            || {
+                let CausalQuery::AverageEffect(ate) = query else {
+                    return Err(IdentificationError::UnsupportedQuery {
+                        message: "IV identification only supports AverageEffect",
+                    });
+                };
+                ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
+                    message: "invalid average-effect query",
+                })?;
+                self.identify_ate(prepared, ate, query.clone(), workspace)
+            },
+        )
     }
 
     fn identify_ate(

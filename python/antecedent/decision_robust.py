@@ -348,17 +348,21 @@ class ExternalReceipt:
     def from_claim(
         cls, claim: BoundExternalClaim, atom_id: str, attested_value: float
     ) -> ExternalReceipt:
-        """The receipt of a bound external claim: its provider, snapshot and request."""
+        """A caller-attested scalar referencing a bound claim's original request.
+
+        The supplied value has no original quantity mapping. Provider, snapshot and
+        request references therefore establish no numerical verification or source
+        diagnostic license, even when the original bound response was verified.
+        """
         identity = claim.identity
-        trust = str(identity["trust"])
         return cls(
             atom_id=atom_id,
             provider_id=str(identity["provider_id"]),
             snapshot_id=str(identity["snapshot_id"]),
             request_fingerprint=str(identity["provider_fingerprint"]),
             attested_value=float(attested_value),
-            trust=trust,  # type: ignore[arg-type]
-            attestor=str(identity["provider_id"]) if trust == "externally_attested" else None,
+            trust="externally_attested",
+            attestor="caller",
         )
 
     def _wire(self) -> dict[str, Any]:

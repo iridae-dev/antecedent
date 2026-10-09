@@ -222,6 +222,23 @@ class StaticResponseSession(_Session):
     def _native_type() -> Any:
         return _native.StaticResponseSessionHandle
 
+    @property
+    def response(self) -> Any:
+        """Original full-support response from retained native execution, with zero work."""
+        from .estimation import _wrap_prepared_response
+        from .query import ResponseCurve
+
+        raw = self._handle.response()
+        if raw is None:
+            return None
+        basis = json.loads(raw.program_basis_json())
+        view = _wrap_prepared_response(
+            raw, ResponseCurve(basis["treatment"], basis["outcome"], grid=basis["grid"])
+        )
+        return view.model_copy(
+            update={"data_snapshot_id": basis["snapshot_id"], "program_id": basis["program_id"]}
+        )
+
     def plan(
         self, request: StaticResponseRequest, *, seed: int = 1, threads: int | None = None
     ) -> RecalcPlan:

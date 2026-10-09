@@ -15,6 +15,8 @@ attested, and a ``native`` requirement refuses a label that has no execution rec
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -65,6 +67,16 @@ def joint(
     x0 = [1.0, 2.0, 3.0, 2.0]
     x1 = [4.0, 0.0, 2.0, 6.0]
     draws = np.array([[a, b, 0.0] for a, b in zip(x0, x1, strict=True)], dtype=np.float64)
+    if trust == "native_licensed":
+        # Negative compatibility case: a historical caller-labelled artifact.
+        # The public constructor now refuses such labels before copying rows.
+        assert provider == "engine" and snapshot == "snap-n"
+        assert calibration == "exact" and supported is None
+        path = (
+            Path(__file__).resolve().parents[2]
+            / "conformance/composition/metadata_only_native/legacy.art"
+        )
+        return JointDistributionArtifact.load(path.read_bytes(), expected_identity=identity)
     return JointDistributionArtifact(
         identity, draws, supported=supported, calibration=calibration, trust=trust
     )
@@ -149,8 +161,33 @@ def near(value: float | None, expected: float) -> bool:
 # ---------------------------------------------------------------- trust carriage
 
 
+def test_c1_boundary_caller_native_constructor_refuses_before_coercion() -> None:
+    from antecedent.errors import CausalValueError
+
+    # A poison object proves refusal precedes NumPy coercion or data access.
+    class UnreadableDraws:
+        def __array__(self, *args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("native claim refusal must precede array coercion")
+
+    identity = joint().identity
+    with pytest.raises(CausalValueError) as refused:
+        JointDistributionArtifact(identity, UnreadableDraws(), trust="native_licensed")  # type: ignore[arg-type]
+    assert refused.value.reason_code == "invalid_argument"
+    assert "native_distribution.authority_required" in str(refused.value)
+
+
 def test_c1_boundary_metadata_only_exact_artifact_is_refused_as_native() -> None:
-    artifact = joint(**LABELLED_NATIVE)
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "conformance/composition/metadata_only_native/legacy.art"
+    )
+    artifact = JointDistributionArtifact.load(path.read_bytes(), expected_identity=joint().identity)
+    metadata = json.loads(artifact._native.metadata_json)
+    assert metadata["trust"] == "native_licensed"
+    assert metadata["calibration"] == "exact"
+    np.testing.assert_array_equal(
+        np.asarray(artifact), [[1.0, 4.0, 0.0], [2.0, 0.0, 0.0], [3.0, 2.0, 0.0], [2.0, 6.0, 0.0]]
+    )
     assert artifact.trust == "native_licensed" and artifact.calibration == "exact"
     with pytest.raises(comp.UnverifiedTrustRefusal) as refused:
         comp.DecisionInput.from_distribution("native", artifact, requirement="native")

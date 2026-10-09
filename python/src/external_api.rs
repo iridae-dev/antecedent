@@ -30,6 +30,10 @@ pub(crate) struct PyExternalClaimArtifact {
 
 #[pymethods]
 impl PyExternalClaimArtifact {
+    #[getter]
+    fn source_evidence(&self) -> PyResult<crate::source_evidence_api::PySourceEvidence> {
+        crate::source_evidence_api::PySourceEvidence::from_external(self)
+    }
     #[staticmethod]
     fn load(data: &[u8], expected_identity_json: &str) -> PyResult<Self> {
         if data.len() > MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES

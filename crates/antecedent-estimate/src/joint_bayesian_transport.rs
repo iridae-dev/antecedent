@@ -497,9 +497,20 @@ impl JointDraws {
     }
 }
 
+#[cfg(feature = "calibration-internal")]
+#[derive(Clone, Debug, PartialEq)]
+struct JointCalibrationScope {
+    rows: u64,
+    varying: VaryingBlock,
+    sharing: SourceSharing,
+    sources: usize,
+}
+
 /// Exact conjugate fit of the joint model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JointTransportFit {
+    #[cfg(feature = "calibration-internal")]
+    calibration_scope: JointCalibrationScope,
     /// Parameter names in order: invariant, then every varying block.
     pub parameter_names: Vec<String>,
     /// Exact posterior mean of the parameters.
@@ -527,6 +538,62 @@ pub struct JointTransportFit {
 }
 
 impl JointTransportFit {
+    /// Bind an internal measurement to the actual producing posterior construction.
+    /// The private source scope was captured by the successful fit. This supplies
+    /// no public interval, independently authenticated sampling design or activation.
+    #[cfg(feature = "calibration-internal")]
+    #[allow(clippy::result_large_err)]
+    pub fn target_calibration_basis(
+        &self,
+        level: f64,
+    ) -> Result<antecedent_core::CalibrationBasis, JointTransportRefusal> {
+        use std::sync::Arc;
+        if !level.is_finite() || level <= 0. || level >= 1. {
+            return Err(invalid(DETAIL_INVALID_INPUT, "candidate nominal level is invalid"));
+        }
+        if self.diagnostics.sampler != JOINT_TRANSPORT_SAMPLER
+            || self.draws.n_draws != self.diagnostics.draw_count
+            || self.identification.status != "identified"
+        {
+            return Err(invalid(
+                DETAIL_INVALID_INPUT,
+                "candidate measurement differs from executed posterior",
+            ));
+        }
+        let draws = u32::try_from(self.draws.n_draws)
+            .map_err(|_| invalid(DETAIL_INVALID_INPUT, "candidate draw count overflow"))?;
+        let scope = &self.calibration_scope;
+        let functional = format!(
+            "target_average_effect.{:?}.{:?}.sources{}",
+            scope.varying, scope.sharing, scope.sources
+        );
+        // The full executed model identity includes the known variances and every
+        // Gaussian prior hyperparameter. Measurement cannot silently cover a new prior.
+        let posterior = format!("{JOINT_TRANSPORT_SAMPLER}.{}", self.model_identity);
+        Ok(antecedent_core::CalibrationBasis::new(
+            [
+                "ClassicalTransport",
+                "Dag",
+                "fixed",
+                "multi_env",
+                "Bayesian",
+                "joint_bayesian_transport",
+                "posterior_quantile",
+                "",
+                "iid",
+                &posterior,
+                &functional,
+            ]
+            .map(Arc::from),
+            level,
+            Arc::from("point"),
+            scope.rows,
+            None,
+            Some(draws),
+            0.,
+        ))
+    }
+
     /// Effect columns (source effects then target effect) of the joint draws, draw-major.
     #[must_use]
     pub fn effect_draws(&self) -> (Vec<String>, Vec<f64>) {
@@ -851,6 +918,7 @@ fn assemble_posterior(
         .map_err(|(index, ratio)| singular(asm.names, index, ratio, "the posterior precision"))?;
     let mean = chol_solve(&factor, dim, &moment);
     let covariance = chol_inverse(&factor, dim);
+    antecedent_prob::fit_counts::note_posterior_fit();
     Ok(Posterior { mean, covariance, precision_factor: factor, min_pivot_ratio: data_pivot })
 }
 
@@ -1274,6 +1342,7 @@ fn draw_joint(
         for c in &effects.vectors {
             values.push(c.iter().zip(&parameters).map(|(a, b)| a * b).sum());
         }
+        antecedent_prob::fit_counts::note_posterior_draw();
     }
     let mut names = parameter_names.to_vec();
     names.extend(effects.names.iter().cloned());
@@ -1370,6 +1439,20 @@ fn fit_inner(
         }
     }
     Ok(JointTransportFit {
+        #[cfg(feature = "calibration-internal")]
+        calibration_scope: JointCalibrationScope {
+            rows: sources
+                .iter()
+                .try_fold(0_u64, |n, source| {
+                    n.checked_add(u64::try_from(source.outcome.len()).ok()?)
+                })
+                .ok_or_else(|| {
+                    invalid(DETAIL_INVALID_INPUT, "candidate source row count overflow")
+                })?,
+            varying: model.varying,
+            sharing: model.sharing,
+            sources: sources.len(),
+        },
         target_effect_mean: effect_means[count - 1],
         target_effect_variance: effect_covariance[count * count - 1],
         model_identity: model_identity(model, &layout, sources),

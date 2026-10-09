@@ -2623,6 +2623,8 @@ def _wrap_prepared_response(
             unevaluable_mass=float(getattr(raw, "unevaluable_mass", None) or 0.0),
             subsampled_out_mass=float(getattr(raw, "subsampled_out_mass", None) or 0.0),
         )
+    basis_json = raw.program_basis_json()
+    native_basis = {} if basis_json is None else json.loads(basis_json)
     # ResultModel accepts private retained handles outside its public Pydantic fields.
     return CausalResponseView(  # type: ignore[call-arg]
         certificate=json.loads(certificate_json) if certificate_json else None,
@@ -2680,9 +2682,11 @@ def _wrap_prepared_response(
         _execution=execution,
         _raw=raw,
         reasoning=slots,
-        program_id=None if slots is None else slots.program_id,
+        program_id=native_basis.get("program_id") if slots is None else slots.program_id,
         claim_id=None if slots is None else slots.claim_id,
-        data_snapshot_id=None if slots is None else slots.data_snapshot_id,
+        data_snapshot_id=native_basis.get("snapshot_id")
+        if slots is None
+        else slots.data_snapshot_id,
     )
 
 

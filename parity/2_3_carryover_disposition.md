@@ -16,6 +16,7 @@ The legacy `b_exit_report.py` defaults to the retained 2.2 B stories. `--promoti
 | --- | --- | --- |
 | `2.3A.X4.joint_bayesian_transport` | Whole conjugate-Gaussian source-target posterior calibration is unmeasured. | `cell_not_licensed` / `bayesian_transport.route_frozen` |
 | `2.3A.X4.binary_nested_markov_pilot` | Separate licensed identification binding, posterior/interval implementation, and whole-posterior calibration. The existing MLE point fit does not implement the frozen posterior claim. | `cell_not_licensed` / `nested_markov.route_frozen` |
+| `2.3A.X4.binary_nested_markov_fisher` | The separate interior IID expected-Fisher/delta interval candidate and replay are implemented; whole-method coverage and public activation remain pending. It supplies no Bayesian posterior. | `cell_not_licensed` / `nested_markov.route_frozen` |
 | `2.3A.X5.dependent_temporal_interval` | Whole dependence-preserving temporal interval calibration is unmeasured. | `cell_not_licensed` / `temporal_interval.route_frozen` |
 | `2.3A.X8.transported_path_specific_counterfactual` | General joint cross-world transport theorem and matching provider/artifact evidence. The separate affine-additive row does not license this route. | `cell_not_licensed` / `transported_counterfactual.route_frozen` |
 | `2.3A.X10.sampled_observation_recovery` | Whole recovery-path interval calibration, including overlapping-margin dependence, is unmeasured. | `cell_not_licensed` / `sampled_recovery.route_frozen`; component-only variance also refuses with `sampled_recovery.component_variance_only` |

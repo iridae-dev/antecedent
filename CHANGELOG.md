@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.3.0 — unreleased
+
+The [draft release notes](docs/release-notes/v2.3.0.md) list exact scientific scopes and refused adjacent requests. Implementation and release review continue; final calibration has not run.
+
+### Added
+
+- Scientifically named, aligned distribution objects support declared probability, quantile, nonlinear-utility, decision and inverse-query operations. Native composition uses authority issued by actual original execution; caller metadata cannot issue native trust.
+- Shared selective recalculation retains checked adjusted models, doubly robust scores/predictors, finite response and transport factors, Bayesian posterior rows, temporal mechanisms and design-specific fits. Receipts report actual work, compatible reuse and typed refusals; fresh execution requires compatible supplied state or data.
+- Native execution observations separately report actual attempted, completed and failed component work, including cancellations and cached failures. They preserve the original value or exception and grant no scientific authority or successful-work receipt.
+- Bounded external mean callbacks declare provider/environment/seed identities and deterministic, seeded, stateful or side-effect policies. Native/two-provider mean decisions execute through one shared receipt, with selective provider invalidation and transactional scientific state.
+- Original source evidence retains diagnostic scopes, semantic coordinates and action contributors through native and external decisions, functional projections and inverse artifacts. External artifacts that omit numerical diagnostics explicitly disclose that absence. Imported evidence preserves original unresolved dependencies; native source resolution requires actual checked analysis.
+- Effect-constancy artifacts feed covariance-aware transport review, advisory prior-source ranking and per-partition affine policy comparisons. These consumers preserve the original inference status and expose their separate identification and selection limits.
+- Rollout artifacts bind complete source laws, priors and terminal contracts to rankings. Proposal arrivals evaluate delivered finite count tables through original transport and z-transport engines, with raw evidence and original artifact replay.
+- Conditional study ranking follows the selected action of an actually executed native/two-provider decision. Fresh consumers reexecute the full source and rerun the original structural ranking; declared candidate sufficiency remains caller-owned and supplies no EVSI or ranking confidence.
+
+### Fixed
+
+- Static response support records reflect successful original finite evaluation and preserve explicit failed-cell causes.
+- Nested-Markov likelihood evaluation checks the actual identification graph before fitting; unsupported graph classes retain scientific refusals.
+- Side-effect idempotency keys bind the complete original callback request, preventing a changed payload from reusing a prior attempt's key.
+- Recalculation receipts bind actual per-provider invocation counts while preserving historical receipt digests when extensions are absent.
+- Failed refreshes, law projections and decisions preserve the last successful retained analysis state; compatible reuse avoids copying prepared data.
+- Unmapped caller-supplied scalar receipts retain caller attestation rather than inheriting verified response trust or numerical diagnostics.
+
+### Release boundary
+
+New diagnostic standard errors, tests and posterior summaries remain unmeasured at their declared coordinates. Candidate joint Bayesian transport, dependent temporal and recovery inference retain their closed public inference routes until exact measurement and activation pass. The selected callback workflow is limited to attested means. Discovery, adaptive policies and broader arbitrary callback/cross-world execution retain separate targets and open gates in [ROADMAP.md](ROADMAP.md). Package metadata remains at the existing version until the release cut.
+
 ## 2.2.0
 
 Changes since 2.1.1. The [release notes](docs/release-notes/v2.2.0.md) explain the user workflows, claim scopes, and refusals; this section records the software delta.

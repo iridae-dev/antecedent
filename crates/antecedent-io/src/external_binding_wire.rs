@@ -189,7 +189,10 @@ fn quantities(wire: &[ScientificQuantityWire]) -> Result<Vec<ScientificQuantity>
         .collect()
 }
 
-fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWire> {
+/// Convert the original contract declaration without performing new identification.
+/// # Errors
+/// Original identification, equivalence or quantity declaration refusal.
+pub fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWire> {
     Ok(CheckedCausalContract {
         graph_id: wire.graph_id.clone(),
         identification: IdentificationStatus::from_name(&wire.identification).ok_or_else(|| {
@@ -229,11 +232,24 @@ fn core_contract(wire: &ContractWire) -> Result<CheckedCausalContract, RefusalWi
 }
 
 /// Build the checked contract and the typed external result from their wires.
-fn prepare(
+/// Convert existing binding wire declarations for an executing callback bridge.
+/// The resulting values retain their original declared trust; the callback executor
+/// separately restricts them to attested mean outputs.
+/// # Errors
+/// Original typed declaration, trust, capability or quantity refusal.
+pub fn prepare(
     contract: &ContractWire,
     response: &ResponseWire,
 ) -> Result<(CheckedCausalContract, ExternalResult), RefusalWire> {
     let contract_core = core_contract(contract)?;
+    Ok((contract_core, ExternalResult::Response(response_from_wire(response)?)))
+}
+
+/// Convert the original external response declaration using the existing typed parser.
+/// This preserves declared trust; executing mean callbacks separately force attestation.
+/// # Errors
+/// Original quantity, capability, trust or support declaration refusal.
+pub fn response_from_wire(response: &ResponseWire) -> Result<ExternalResponse, RefusalWire> {
     let coordinates = quantities(&response.quantities)?;
     let capabilities = response
         .provider
@@ -298,7 +314,7 @@ fn prepare(
                 .collect::<Result<Vec<_>, _>>()
         })
         .transpose()?;
-    let result = ExternalResult::Response(ExternalResponse {
+    Ok(ExternalResponse {
         header: ExternalResultHeader {
             object,
             graph_id: response.graph_id.clone(),
@@ -315,8 +331,7 @@ fn prepare(
                 ExternalUncertaintyMeaning::ProviderDeclared { method_id }
             }),
         point_support,
-    });
-    Ok((contract_core, result))
+    })
 }
 
 fn artifact_of(
@@ -366,4 +381,102 @@ pub fn bind_response_to_program(
     let bound = bind_external_result_to_program(binding, declared, &contract_core, &result)
         .map_err(RefusalWire::from)?;
     artifact_of(bound.claim(), causal_contract_id)
+}
+
+/// Original native scientific contract identity, shared with producer-issued Python claims.
+/// This does not establish native execution authority.
+/// # Errors
+/// Malformed or oversized premise declarations.
+// Match the existing external scientific-contract canonical JSON (sorted keys,
+// Python's default comma/colon spaces and UTF-16 escapes for non-ASCII strings).
+struct ContractFormatter;
+impl serde_json::ser::Formatter for ContractFormatter {
+    fn write_string_fragment<W: ?Sized + std::io::Write>(
+        &mut self,
+        writer: &mut W,
+        fragment: &str,
+    ) -> std::io::Result<()> {
+        for ch in fragment.chars() {
+            if ch.is_ascii() {
+                writer.write_all(&[u8::try_from(u32::from(ch)).expect("ASCII character")])?;
+            } else {
+                let mut units = [0u16; 2];
+                for unit in ch.encode_utf16(&mut units) {
+                    write!(writer, "\\u{unit:04x}")?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn begin_array_value<W: ?Sized + std::io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> std::io::Result<()> {
+        if !first {
+            writer.write_all(b", ")?;
+        }
+        Ok(())
+    }
+    fn begin_object_key<W: ?Sized + std::io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> std::io::Result<()> {
+        if !first {
+            writer.write_all(b", ")?;
+        }
+        Ok(())
+    }
+    fn begin_object_value<W: ?Sized + std::io::Write>(
+        &mut self,
+        writer: &mut W,
+    ) -> std::io::Result<()> {
+        writer.write_all(b": ")
+    }
+}
+/// Match the original native scientific contract canonical JSON identity.
+/// # Errors
+/// Oversized or malformed premise declarations.
+pub fn native_contract_identity(
+    graph: &str,
+    status: &str,
+    premises: Option<&str>,
+) -> Result<String, RefusalWire> {
+    use serde::Serialize;
+    use sha2::{Digest, Sha256};
+    let default = std::collections::BTreeMap::from([
+        ("graph_id", serde_json::json!(graph)),
+        ("identification", serde_json::json!(status)),
+        ("accepted_meanings", serde_json::json!(["interventional_predictive"])),
+        ("required_evidence_ids", serde_json::json!([])),
+        ("required_assumption_ids", serde_json::json!([])),
+        ("equivalences", serde_json::json!([])),
+    ]);
+    let wire: serde_json::Value = if let Some(text) = premises {
+        if text.len() > 1_000_000 {
+            return Err(malformed("native_claims.contract_mismatch", "premises exceed bound"));
+        }
+        serde_json::from_str(text)
+            .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?
+    } else {
+        serde_json::to_value(default)
+            .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?
+    };
+    if wire.get("graph_id").and_then(serde_json::Value::as_str) != Some(graph)
+        || wire.get("identification").and_then(serde_json::Value::as_str) != Some(status)
+    {
+        return Ok("invalid:premise_substitution".into());
+    }
+    let mut typed = wire.clone();
+    typed["estimand"] = serde_json::json!([]);
+    let _: ContractWire = serde_json::from_value(typed)
+        .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?;
+    if wire.as_object().is_none_or(|object| object.len() != 6) {
+        return Ok("invalid:premise_fields".into());
+    }
+    let mut bytes = Vec::new();
+    wire.serialize(&mut serde_json::Serializer::with_formatter(&mut bytes, ContractFormatter))
+        .map_err(|error| malformed("native_claims.contract_mismatch", &error.to_string()))?;
+    Ok(format!("contract:{:x}", Sha256::digest(bytes)))
 }

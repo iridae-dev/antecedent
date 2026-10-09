@@ -28,6 +28,7 @@ mod checked_temporal_response;
 pub mod closed_pilots;
 pub mod compact_export;
 pub mod composition;
+pub mod conditional_study_ranking;
 mod contract;
 mod contract_identity;
 mod cost;
@@ -38,6 +39,7 @@ mod derived_treatment;
 pub mod design_ranking;
 pub mod dose_grid_functional;
 pub mod effect_constancy;
+pub mod effect_constancy_consumers;
 mod exact;
 mod execute;
 mod inverse_outcome;
@@ -61,6 +63,7 @@ pub mod recalc_cell;
 pub mod recalc_design;
 pub mod recalc_dr;
 pub mod recalc_receipt;
+pub mod recalc_temporal;
 mod recovery;
 pub mod recovery_chain;
 pub mod repair;
@@ -244,5 +247,19 @@ pub(crate) use checked_temporal_response::{
 pub use execute::{CheckedBayesianSpecialistInfo, CheckedTransportTrialInfo};
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};
 
+pub mod proposal_arrival;
+pub mod recalc_attempt;
+pub mod recalc_bayesian;
+pub mod recalc_external;
+#[cfg(feature = "calibration-internal")]
+pub mod recalc_joint_bayesian;
 /// Shared finite static response and multi-source transport recalculation.
 pub mod recalc_static;
+
+/// Shared native response and two executing attested callback branches.
+pub mod recalc_composite;
+
+pub mod sensitivity_source;
+/// Independently retained original source diagnostics and contributor mappings.
+pub mod source_evidence;
+pub mod source_projection;

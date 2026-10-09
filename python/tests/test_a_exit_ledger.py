@@ -242,6 +242,17 @@ def _dependent_interval() -> object:
     return temporal_dependent_interval(panel, sequence=(0, 0), replicates=40)
 
 
+def _retained_temporal_interval() -> object:
+    from antecedent.recalc_temporal import TemporalSession
+
+    from test_recalc_temporal import request
+
+    session = TemporalSession()
+    result = session.execute(request(), seed=41)
+    assert result.law.ate == pytest.approx(0.5675, abs=1e-12)
+    return session.dependent_interval()
+
+
 def _transported_path_specific() -> object:
     return transported_path_specific(required_factors=["source:rct", "target:field"])
 
@@ -253,6 +264,7 @@ CLOSED_PRODUCERS: dict[str, Callable[[], object]] = {
     "antecedent.transport.binary_nested_markov_fisher_interval": _nested_markov_fisher,
     "antecedent.transport.sampled_observation_recovery": _sampled_recovery,
     "antecedent.transport.temporal_dependent_interval": _dependent_interval,
+    "antecedent.recalc_temporal.TemporalSession.dependent_interval": _retained_temporal_interval,
     "antecedent.cross_world.transported_path_specific": _transported_path_specific,
 }
 

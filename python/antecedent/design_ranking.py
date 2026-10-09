@@ -53,7 +53,7 @@ from ._native import rank_structural_designs as _rank_structural
 from .decision import Contract
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .external import LineageLink
-from .joint_distribution import ScientificQuantity
+from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
 CALIBRATION: Literal["unmeasured"] = "unmeasured"
 #: Identity of the reported ranking within :attr:`DesignRankingResult.lineage`.
@@ -211,6 +211,153 @@ class Decision:
             "slopes": [float(a.slope) for a in self.actions],
             "prior": self.prior._wire(),
         }
+
+    def export_rollout(
+        self,
+        source: JointDistributionArtifact,
+        state: ScientificQuantity,
+        ranking: DesignRankingResult,
+        *,
+        interpretation: Literal["posterior_state", "interventional_state"] = "posterior_state",
+        artifact_id: str = "rollout",
+    ) -> RolloutResult:
+        """Bind a finite source state law to this full decision and its study ranking.
+
+        Posterior state uses actual posterior draws. Interventional state requires an
+        explicitly named ``state`` functional. The source's standing and calibration
+        remain descriptive; replay issues no native execution authority.
+        """
+        from ._native import export_rollout as _export_rollout
+        from .decision import source_digest
+
+        if not isinstance(source, JointDistributionArtifact) or not isinstance(
+            state, ScientificQuantity
+        ):
+            raise CausalTypeError("rollout needs a joint distribution and named ScientificQuantity")
+        if not isinstance(ranking, DesignRankingResult):
+            raise CausalTypeError("rollout needs an independently consumed DesignRankingResult")
+        if self.prior.kind != "draws":
+            raise CausalValueError(
+                "rollout.finite_draw_state_required", reason_code="route_not_supported"
+            )
+        states = list(self.prior.states)
+        if len(states) > 65_536 or len(self.actions) * len(states) > 4 * 1024 * 1024:
+            raise CausalValueError("rollout decision table exceeds its finite bound")
+        declared = self._wire()
+        decision = {
+            "contract_identity": declared["contract_identity"],
+            "utility_unit": declared["utility_unit"],
+            "action_ids": declared["action_ids"],
+            "prior": {"draws": {"states": states}},
+            "utility": {
+                "table": {
+                    "rows": [
+                        [float(a.intercept) + float(a.slope) * float(value) for value in states]
+                        for a in self.actions
+                    ]
+                }
+            },
+            "admissible": [True] * len(self.actions),
+        }
+        binding = {
+            "source": {
+                "identity": source.identity._wire(),
+                "trust": source.trust,
+                "calibration": source.calibration,
+            },
+            "state": state._wire(),
+            "interpretation": interpretation,
+            "source_digest": source_digest(source),
+            "decision": decision,
+            "ranking_identity": ranking.identity,
+        }
+        report, data = _export_rollout(
+            source.export("rollout-source"),
+            ranking.export(),
+            json.dumps(binding, allow_nan=False),
+            artifact_id,
+            source.source_evidence.export() if source.source_evidence is not None else None,
+        )
+        return _rollout_result(report, bytes(data))
+
+
+@dataclass(frozen=True, slots=True)
+class RolloutResult:
+    """Independently checked finite source-state/decision/ranking binding."""
+
+    identity: str
+    source_trust: str
+    calibration: str
+    state: ScientificQuantity
+    decision_contract_identity: str
+    ranking_identity: str
+    _bytes: bytes = field(repr=False)
+    _expectation_json: str = field(repr=False)
+    _source_evidence: Mapping[str, Any] = field(repr=False)
+
+    @property
+    def source_evidence(self) -> dict[str, Any]:
+        """Original resolved source, standing and typed ancestry; other leaves remain explicit."""
+        return json.loads(json.dumps(self._source_evidence))
+
+    @property
+    def lineage(self) -> tuple[LineageLink, ...]:
+        return tuple(
+            LineageLink(
+                item["id"],
+                item["stage"],
+                tuple(item["parents"]),
+                item["digest"],
+                tuple(item["parent_digests"]),
+            )
+            for item in self._source_evidence["lineage"]
+        )
+
+    @property
+    def ranking(self) -> ConsumedRanking:
+        """Independently consumed original ranking behind this verified source handoff."""
+        from ._native import rollout_ranking
+
+        return consume(bytes(rollout_ranking(self._bytes, self._expectation_json)))
+
+    @property
+    def native_execution_authority(self) -> Literal[False]:
+        """Historical numerical replay does not issue native producing authority."""
+        return False
+
+    def export(self) -> bytes:
+        """The bounded ``rollout_state_v1`` artifact."""
+        return self._bytes
+
+    def expectation(self) -> dict[str, Any]:
+        """Copy of the full scientific and terminal inputs to retain independently."""
+        return dict(json.loads(self._expectation_json))
+
+
+def _rollout_result(report: str, data: bytes) -> RolloutResult:
+    value = json.loads(report)
+    binding = value["expectation"]
+    return RolloutResult(
+        value["identity"],
+        binding["source"]["trust"],
+        binding["source"]["calibration"],
+        ScientificQuantity._from_wire(binding["state"]),
+        binding["decision"]["contract_identity"],
+        binding["ranking_identity"],
+        data,
+        json.dumps(binding, allow_nan=False),
+        value["source_evidence"],
+    )
+
+
+def consume_rollout(data: bytes, *, expected: Mapping[str, Any]) -> RolloutResult:
+    """Replay the original source/ranking under independently retained full inputs."""
+    from ._native import consume_rollout as _consume_rollout
+
+    if len(data) > 32 * 1024 * 1024:
+        raise CausalValueError("rollout artifact exceeds its byte bound")
+    report = _consume_rollout(data, json.dumps(dict(expected), allow_nan=False))
+    return _rollout_result(report, data)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1032,6 +1179,8 @@ def rank_structural(candidates: Sequence[StructuralCandidate]) -> StructuralRank
 
 
 __all__ = [
+    "RolloutResult",
+    "consume_rollout",
     "ARTIFACT_KIND",
     "CALIBRATION",
     "RESULT_LINK_ID",
