@@ -1,6 +1,6 @@
 # Continuous binary Verma Bayesian pilot: frozen acceptance design
 
-Implementation and acceptance wiring are **unmeasured**. This directory records the
+Implementation and acceptance wiring are **unmeasured**. This document records the
 scientific design; it contains no measured coverage result, waiver, or public license.
 The normal `antecedent.transport.binary_nested_markov` route remains frozen.
 

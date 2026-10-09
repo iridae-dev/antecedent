@@ -24,7 +24,7 @@ test_sources = [
  "crates/antecedent-learn/tests/nested_markov_bayesian_refusals.rs",
  "crates/antecedent-io/tests/nested_markov_bayesian_artifact.rs",
  "crates/antecedent-io/tests/nested_markov_bayesian_calibration.rs",
- "conformance/transport/nested_bayesian/README.md",
+ "docs/nested-markov-bayesian-calibration.md",
  "python/src/nested_bayesian_api.rs",
  "python/antecedent/transport/_nested_posterior.py",
  "python/tests/test_nested_bayesian_activation.py",

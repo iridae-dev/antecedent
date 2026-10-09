@@ -398,7 +398,7 @@ artifact binds the original graph, counts, raw prior, fit and sampler settings,
 seed, aligned receipt and separate identification/fit/inference standing.
 `load` independently reruns identification, fitting and posterior computation.
 
-The [frozen Bayesian acceptance design](../conformance/transport/nested_bayesian/README.md)
+The [frozen Bayesian acceptance design](nested-markov-bayesian-calibration.md)
 documents the independent deterministic integration reference and the separate,
 ignored repeated-sampling harness. That harness keeps all fit, chain, numerical,
 budget, replay and endpoint-precision failures in the coverage denominator. Its

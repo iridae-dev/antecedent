@@ -1,6 +1,6 @@
 //! Frozen measurement design for the ORIGINAL continuous eleven-dimensional
 //! posterior, separate from MLE/Fisher. Ordinary tests never run measurement.
-//! See `conformance/transport/nested_bayesian/README.md` for scope and acceptance.
+//! See `docs/nested-markov-bayesian-calibration.md` for scope and acceptance.
 #![allow(
     clippy::needless_range_loop,
     clippy::too_many_lines,
