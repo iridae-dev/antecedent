@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from antecedent import composition_bundle as cb
 from antecedent import decision
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent.errors import CausalSerializationError, CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
@@ -53,21 +53,21 @@ def law(**kwargs: object) -> JointDistributionArtifact:
     )  # type: ignore[arg-type]
 
 
-def terminal(*, slope: float = 1.0) -> dr.Decision:
-    return dr.Decision(
+def terminal(*, slope: float = 1.0) -> dr.DesignDecision:
+    return dr.DesignDecision(
         "bet-terminal",
         (dr.ActionUtility("wait", 0.0, 0.0), dr.ActionUtility("bet", -0.5, slope)),
-        dr.Prior.draws(PIN["state_draws"]),
+        dr.StatePrior.draws(PIN["state_draws"]),
         "utility",
     )
 
 
 def ranking(
-    source: JointDistributionArtifact, problem: dr.Decision | None = None
+    source: JointDistributionArtifact, problem: dr.DesignDecision | None = None
 ) -> dr.DesignRankingResult:
     return dr.rank_designs(
-        terminal() if problem is None else problem,
         [dr.Candidate("sample", 2, dr.BinomialSignal(), 0.0, "utility")],
+        decision=terminal() if problem is None else problem,
         signal=dr.SignalSpec("law-1", quantity(), quantity("signal"), ("law-1",), rng_seed=3),
         source_digests=(decision.source_digest(source),),
         rng_seed=3,
@@ -96,7 +96,7 @@ def test_rollout_public_source_prior_terminal_and_ranking_match_independent_trut
     assert expected["decision"]["prior"]["draws"]["states"] == PIN["state_draws"]
     assert expected["decision"]["utility"]["table"]["rows"] == PIN["utilities"]
     assert expected["decision"]["action_ids"] == PIN["terminal_actions"]
-    consumed = dr.consume_rollout(rollout.export(), expected=expected)
+    consumed = dr.consume_rollout(rollout.export(), expected_identity=expected)
     assert consumed.identity == rollout.identity
     assert consumed.ranking_identity == ranked.identity
     assert consumed.native_execution_authority is False
@@ -112,8 +112,8 @@ def test_rollout_refuses_changed_prior_action_utility_and_original_ranking() -> 
         terminal().export_rollout(
             source, quantity(), new_ranking, interpretation="interventional_state"
         )
-    reversed_prior = dr.Decision(
-        "bet-terminal", terminal().actions, dr.Prior.draws([0.75, 0.25]), "utility"
+    reversed_prior = dr.DesignDecision(
+        "bet-terminal", terminal().actions, dr.StatePrior.draws([0.75, 0.25]), "utility"
     )
     with pytest.raises(CausalValueError, match="ordered_prior_mismatch"):
         reversed_prior.export_rollout(
@@ -140,7 +140,7 @@ def test_rollout_consumer_requires_full_independent_scientific_expectation(field
     else:
         expected["ranking_identity"] = "another-ranking"
     with pytest.raises(CausalValueError, match="expected_binding_mismatch"):
-        dr.consume_rollout(rollout.export(), expected=expected)
+        dr.consume_rollout(rollout.export(), expected_identity=expected)
 
 
 def test_rollout_unsupported_state_meaning_support_weighting_and_missing_source_refuse() -> None:
@@ -182,8 +182,8 @@ def test_rollout_fresh_process_independently_reads_original_source_and_full_expe
     script = """
 import json, sys
 from pathlib import Path
-from antecedent import design_ranking as dr
-value = dr.consume_rollout(Path(sys.argv[1]).read_bytes(), expected=json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
+from antecedent import design as dr
+value = dr.consume_rollout(Path(sys.argv[1]).read_bytes(), expected_identity=json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
 assert value.native_execution_authority is False
 print(json.dumps({'identity':value.identity, 'trust':value.source_trust, 'calibration':value.calibration}))
 """
@@ -205,9 +205,9 @@ print(json.dumps({'identity':value.identity, 'trust':value.source_trust, 'calibr
 def test_rollout_truncated_and_oversized_artifacts_refuse_before_replay() -> None:
     _, _, rollout = fixture()
     with pytest.raises(CausalSerializationError):
-        dr.consume_rollout(rollout.export()[:100], expected=rollout.expectation())
+        dr.consume_rollout(rollout.export()[:100], expected_identity=rollout.expectation())
     with pytest.raises(CausalValueError):
-        dr.consume_rollout(bytes(32 * 1024 * 1024 + 1), expected=rollout.expectation())
+        dr.consume_rollout(bytes(32 * 1024 * 1024 + 1), expected_identity=rollout.expectation())
 
 
 def test_rollout_bundle_refuses_new_valid_ranking_with_changed_terminal_utilities() -> None:

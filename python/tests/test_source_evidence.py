@@ -66,7 +66,9 @@ def test_source_evidence_rejects_changed_native_source_and_corrupted_envelope():
     evidence = claim.source_evidence
     changed = _native_view(bayesian=True)
     changed_claim = program_claims.native_claim(changed, _native_program(changed))
-    with pytest.raises(ValueError, match="source_evidence.source_binding_mismatch") as changed_error:
+    with pytest.raises(
+        ValueError, match="source_evidence.source_binding_mismatch"
+    ) as changed_error:
         evidence.resolve_with(changed_claim)
     assert changed_error.value.reason_code == "invalid_argument"
     with pytest.raises(ValueError, match="source_evidence.invalid_artifact") as invalid_error:

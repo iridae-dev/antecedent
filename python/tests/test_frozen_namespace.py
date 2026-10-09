@@ -177,6 +177,8 @@ _EXPECTED_STAGE_ALL = {
         "to_f64",
     },
     "design": {
+        "RolloutResult",
+        "consume_rollout",
         "ARTIFACT_KIND",
         "CALIBRATION",
         "RESULT_LINK_ID",

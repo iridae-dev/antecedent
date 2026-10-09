@@ -145,7 +145,7 @@ import json, sys
 from pathlib import Path
 from antecedent.temporal import consume_effect_constancy_artifact
 from antecedent.effect_constancy_review import transport_diagnostic
-s = consume_effect_constancy_artifact(Path(sys.argv[1]).read_bytes(), expected=json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
+s = consume_effect_constancy_artifact(Path(sys.argv[1]).read_bytes(), expected_identity=json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")))
 o = transport_diagnostic(s, left="p0", right="p1")
 print(json.dumps({"difference": o.contrast.difference, "se": o.contrast.se, "calibration": o.calibration, "separate": o.separate_transport_identification_required}))
 """

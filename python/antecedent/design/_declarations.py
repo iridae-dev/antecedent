@@ -43,8 +43,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from typing import Any, Literal
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
@@ -55,6 +55,9 @@ from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 from ..external import LineageLink
 from ..joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .plans import PLAN_TYPES, DesignPlan
+
+if TYPE_CHECKING:
+    from .ranking import DesignRankingResult
 
 #: Distribution meanings that are a belief about a quantity (usable as a state prior).
 _BELIEF_MEANINGS = frozenset(
@@ -403,6 +406,8 @@ class DesignDecision:
             state, ScientificQuantity
         ):
             raise CausalTypeError("rollout needs a joint distribution and named ScientificQuantity")
+        from .ranking import DesignRankingResult
+
         if not isinstance(ranking, DesignRankingResult):
             raise CausalTypeError("rollout needs an independently consumed DesignRankingResult")
         if self.prior.kind != "draws":
@@ -487,7 +492,10 @@ class RolloutResult:
         """Independently consumed original ranking behind this verified source handoff."""
         from .._native import rollout_ranking
 
-        return consume(bytes(rollout_ranking(self._bytes, self._expectation_json)))
+        return consume(
+            bytes(rollout_ranking(self._bytes, self._expectation_json)),
+            skip_expectation_check=True,
+        )
 
     @property
     def native_execution_authority(self) -> Literal[False]:
@@ -519,13 +527,13 @@ def _rollout_result(report: str, data: bytes) -> RolloutResult:
     )
 
 
-def consume_rollout(data: bytes, *, expected: Mapping[str, Any]) -> RolloutResult:
+def consume_rollout(data: bytes, *, expected_identity: Mapping[str, Any]) -> RolloutResult:
     """Replay the original source/ranking under independently retained full inputs."""
     from .._native import consume_rollout as _consume_rollout
 
     if len(data) > 32 * 1024 * 1024:
         raise CausalValueError("rollout artifact exceeds its byte bound")
-    report = _consume_rollout(data, json.dumps(dict(expected), allow_nan=False))
+    report = _consume_rollout(data, json.dumps(dict(expected_identity), allow_nan=False))
     return _rollout_result(report, data)
 
 

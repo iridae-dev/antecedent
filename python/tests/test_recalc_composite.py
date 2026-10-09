@@ -9,7 +9,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import decision, external
-from antecedent.design_ranking import StructuralCandidate, rank_structural
+from antecedent.design import StructuralCandidate, rank_structural
 from antecedent.program_claims import ProgramBinding
 from antecedent.recalc import RecalcReceipt, Utility
 from antecedent.recalc_composite import (

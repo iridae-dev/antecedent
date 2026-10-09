@@ -401,7 +401,7 @@ def _result_mean_source(
     outcome_units: str | None,
     dose_units: str | None,
     population: str,
-) -> MeanSource | None:
+) -> MeanSource | JointDistributionArtifact | None:
     """The mean source an analysis result makes for ``contract``, or ``None`` for other sources.
 
     Reuses the native-claim path (``program_claims.native_claim`` then

@@ -623,9 +623,9 @@ def test_unmapped_scalar_receipt_does_not_inherit_verified_bound_response_trust(
     assert receipt.trust == "externally_attested"
     assert receipt.attestor == "caller"
     assert receipt.attested_value == scalar
-    assert receipt.provider_id == original.identity["provider_id"]
-    assert receipt.snapshot_id == original.identity["snapshot_id"]
-    assert receipt.request_fingerprint == original.identity["provider_fingerprint"]
+    assert receipt.provider_id == original.identity_fields["provider_id"]
+    assert receipt.snapshot_id == original.identity_fields["snapshot_id"]
+    assert receipt.request_fingerprint == original.identity_fields["provider_fingerprint"]
     contract = _contract(rules=_require_supported())
     claims = _claims((5.0, 3.0), (6.0, 2.0), support=(SUPPORTED, SUPPORTED))
     result = decision_robust.robust(contract, claims, receipts=[receipt])

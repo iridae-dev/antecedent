@@ -67,7 +67,7 @@ def test_callback_actual_invocation_cache_branch_receipt_and_full_rerun():
     assert first.receipt.totals.external_invocations == 1
     np.testing.assert_allclose(first.claim.values, [3.0, 5.0], atol=1e-12)
     assert first.claim.trust.value == "externally_attested" and not first.claim.native
-    assert first.claim.identity["causal_contract_id"] == request.program.contract_id
+    assert first.claim.identity_fields["causal_contract_id"] == request.program.contract_id
     assert first.claim.support == ("supported", "supported")
     same = session.execute(request)
     assert same.receipt.totals.external_invocations == 0 and len(calls) == 1

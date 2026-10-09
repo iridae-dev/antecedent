@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from antecedent import composition as comp
 from antecedent import decision, program_claims
-from antecedent import design_ranking as dr
+from antecedent import design as dr
 from antecedent import sensitivity_decision as sd
 from antecedent.functional_source import LawFunctionalArtifact
 from antecedent.source_projection import consume_source_projection
@@ -103,8 +103,8 @@ def _sensitivity():
         transport.JointDeviation({"outcome_kernel": 0.2}),
         effect=_quantity("effect", "outcome_units"),
         actions=[
-            sd.Action("adopt", sd.quantity("effect")),
-            sd.Action("status_quo", sd.const(0.45)),
+            sd.SensitivityAction("adopt", sd.quantity("effect")),
+            sd.SensitivityAction("status_quo", sd.const(0.45)),
         ],
         causal_contract_id="checked-contract",
     )
@@ -137,7 +137,7 @@ def test_sensitivity_full_original_v3_source_replays_surface_and_preserves_withh
 
 def test_rollout_ranking_handoff_consumes_original_source_and_retains_named_state_standing():
     source, ranked, rollout = rollout_fixture()
-    loaded = dr.consume_rollout(rollout.export(), expected=rollout.expectation())
+    loaded = dr.consume_rollout(rollout.export(), expected_identity=rollout.expectation())
     assert loaded.source_evidence["source_verified"] is True
     assert loaded.source_evidence["unresolved_source_digests"] == []
     assert loaded.source_trust == source.trust == "external_attested"
@@ -319,15 +319,15 @@ def test_native_rollout_retains_original_semantic_diagnostics_in_independent_ran
     claim, _, law = _issued_joint()
     state = claim.coordinates[0]
     states = np.asarray(law)[:, 0].tolist()
-    problem = dr.Decision(
+    problem = dr.DesignDecision(
         "native-state-ranking",
         (dr.ActionUtility("wait", 0.0, 0.0), dr.ActionUtility("act", -2.0, 1.0)),
-        dr.Prior.draws(states),
+        dr.StatePrior.draws(states),
         "utility",
     )
     ranked = dr.rank_designs(
-        problem,
         [dr.Candidate("sample", 1, dr.GaussianMeanSignal(1.0), 0.0, "utility")],
+        decision=problem,
         signal=dr.SignalSpec(
             law.identity.source_id, state, state, (law.identity.source_id,), rng_seed=3
         ),
@@ -335,7 +335,7 @@ def test_native_rollout_retains_original_semantic_diagnostics_in_independent_ran
         rng_seed=3,
     )
     rollout = problem.export_rollout(law, state, ranked, interpretation="posterior_state")
-    loaded = dr.consume_rollout(rollout.export(), expected=rollout.expectation())
+    loaded = dr.consume_rollout(rollout.export(), expected_identity=rollout.expectation())
     assert (
         loaded.source_evidence["original_diagnostics"]["diagnostics"]
         == rollout.source_evidence["original_diagnostics"]["diagnostics"]
@@ -468,15 +468,15 @@ def test_issued_native_aligned_law_functionals_and_evsi_match_independent_finite
     center = float(states.mean())
     scale = float(states.std())
     standardized = (states - center) / scale
-    problem = dr.Decision(
+    problem = dr.DesignDecision(
         "issued-law-conditional-study",
         (dr.ActionUtility("wait", 0.0, 0.0), dr.ActionUtility("act", -center / scale, 1.0 / scale)),
-        dr.Prior.draws(states.tolist()),
+        dr.StatePrior.draws(states.tolist()),
         "utility",
     )
     ranked = dr.rank_designs(
-        problem,
         [dr.Candidate("one-observation", 1, dr.GaussianMeanSignal(scale * scale), 0.0, "utility")],
+        decision=problem,
         signal=dr.SignalSpec(
             law.identity.source_id,
             claim.coordinates[0],
@@ -519,7 +519,7 @@ def test_issued_native_aligned_law_functionals_and_evsi_match_independent_finite
     rollout = problem.export_rollout(
         law, claim.coordinates[0], ranked, interpretation="posterior_state"
     )
-    consumed = dr.consume_rollout(rollout.export(), expected=rollout.expectation())
+    consumed = dr.consume_rollout(rollout.export(), expected_identity=rollout.expectation())
     assert consumed.ranking.entries[0].evsi == pytest.approx(
         oracle, abs=5.0 * candidate.integration.stderr + 2e-4
     )
@@ -546,7 +546,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     source = comp.DecisionInput.from_claim("foreign", claim)
     evidence = source.source_evidence
     assert evidence is not None
-    assert evidence.identities == claim.identity
+    assert evidence.identities == claim.identity_fields
     assert evidence.diagnostics == ()
     assert (
         evidence._summary["diagnostic_availability"]
@@ -555,7 +555,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     assert evidence._summary["point_status"] == ["supported", "weak_overlap"]
     assert evidence._summary["trust"] == "externally_attested"
     imported = SourceEvidence.consume(evidence.export())
-    assert imported.identities == claim.identity
+    assert imported.identities == claim.identity_fields
     assert imported.lineage == evidence.lineage
     assert imported._summary["native_authority_issued"] is False
     value = comp.evaluate_functional(declaration, "A", comp.Functional.expectation(), source)
@@ -570,7 +570,7 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     )
     assert original.report["trust"] == "externally_attested"
     result = comp.evaluate_with_support(declaration, [source])
-    assert result.source_evidence[0].identities == claim.identity
+    assert result.source_evidence[0].identities == claim.identity_fields
     query = iq.InverseQuery(
         declaration,
         grid=("A", "B"),
@@ -581,14 +581,14 @@ def test_external_original_source_survives_functional_supported_decision_and_inv
     inverse = query.evaluate(point=point)
     assert inverse.selected == "A"
     loaded = iq.InverseResult.consume(inverse.export(), expected_identity=inverse.identity)
-    assert loaded.source_evidence[0].identities == claim.identity
+    assert loaded.source_evidence[0].identities == claim.identity_fields
     assert loaded.source_evidence[0].diagnostics == ()
     assert loaded.source_evidence[0]._summary["native_authority_issued"] is False
     if forward == "mean_adapter":
         with pytest.raises(ValueError, match="source_evidence.point_binding_mismatch"):
             query.evaluate(point=replace(point, means=(30.0, 50.0)))
     decision_result = declaration.evaluate(claim)
-    assert decision_result.source_evidence[0].identities == claim.identity
+    assert decision_result.source_evidence[0].identities == claim.identity_fields
     (tmp_path / "external_evidence").write_bytes(value.source_evidence[0].export())
     (tmp_path / "inverse").write_bytes(inverse.export())
     script = """
@@ -607,15 +607,17 @@ print(json.dumps({'selected':result.selected,'identity':evidence.identities,
     )
     assert wire == {
         "selected": "A",
-        "identity": claim.identity,
+        "identity": claim.identity_fields,
         "authority": False,
-        "inverse_identity": claim.identity,
+        "inverse_identity": claim.identity_fields,
         "diagnostics": [],
     }
 
 
 @pytest.mark.parametrize("bayesian", [False, True])
-def test_named_native_mean_adapters_preserve_original_source_and_remain_mean_only(bayesian, tmp_path):
+def test_named_native_mean_adapters_preserve_original_source_and_remain_mean_only(
+    bayesian, tmp_path
+):
     from dataclasses import replace
 
     from antecedent import inverse_query as iq

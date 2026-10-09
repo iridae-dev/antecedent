@@ -268,8 +268,6 @@ class JointDistributionArtifact:
         ] = "unverified",
     ) -> None:
         if trust == "native_licensed":
-            from .errors import CausalValueError
-
             raise CausalValueError(
                 "native_distribution.authority_required: native trust requires retained producer-issued execution state",
                 reason_code="invalid_argument",

@@ -11,7 +11,7 @@ from . import _native
 from ._recalc_bounds import _columns
 from .composition import SupportedDecision, _supported_from_wire
 from .decision import Contract
-from .design_ranking import StructuralCandidate, StructuralEntry
+from .design import StructuralCandidate, StructuralEntry
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .program_claims import ProgramBinding
 from .recalc import RecalcPlan, RecalcReceipt, _seed

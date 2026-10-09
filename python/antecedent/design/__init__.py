@@ -46,6 +46,7 @@ from ._declarations import (
     IntegrationReport,
     MonteCarlo,
     ProviderIdentity,
+    RolloutResult,
     SignalProvider,
     SignalProviderRefusal,
     SignalSpec,
@@ -53,6 +54,7 @@ from ._declarations import (
     SourceOverlapRefusal,
     StatePrior,
     consume,
+    consume_rollout,
 )
 from .plans import (
     DesignPlan,
@@ -124,6 +126,8 @@ __all__ = [
     "StructuralRanking",
     "StructurePrior",
     "consume",
+    "consume_rollout",
+    "RolloutResult",
     "evaluate_decision",
     "evsi",
     "rank_designs",
