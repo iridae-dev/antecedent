@@ -147,6 +147,9 @@ __all__ = [
     "SourceOverlapDiagnostics",
     "SourceOverlapRefusal",
     "StatePrior",
+    "CheckedPriorSignal",
+    "PriorSignalSource",
+    "adapt_prior_to_signal",
     "StructuralCandidate",
     "StructuralEntry",
     "StructuralRanking",
@@ -159,3 +162,5 @@ __all__ = [
     "rank_designs",
     "rank_structural",
 ]
+
+from .prior_signal import CheckedPriorSignal, PriorSignalSource, adapt_prior_to_signal

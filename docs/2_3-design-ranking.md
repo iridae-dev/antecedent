@@ -364,3 +364,60 @@ that would supply it. A ranking exported here is a `study_ranking` bundle node (
 [composition](2_3-composition.md)), and the full path from analysis to ranking is the
 [2.3 lifecycle](2_3-lifecycle.md). The route-by-route scope table is in
 [decisions, design, repair and estimator breadth](2_3-decisions-breadth.md#signals-evsi-and-design-ranking).
+
+## Original posterior sources and future studies
+
+`design.adapt_prior_to_signal` pairs compatible retained posterior rows with an
+explicit `GaussianMeanSignal` or `BinomialSignal`. It invokes Rust's checked
+`prior_signal::adapt_prior_to_signal`; it does not approximate a posterior by a
+normal fitted to its moments. A historical posterior describes the decision state,
+while the signal provider describes what the future study will observe.
+
+```python
+checked = design.adapt_prior_to_signal(
+    catalog,
+    query=query,
+    sources=[design.PriorSignalSource(
+        artifact_id="earlier-study", quantity="ate", source_population="target",
+        lineage=("earlier-study",), observation_ids=training_observation_ids,
+    )],
+    signal=design.GaussianMeanSignal(noise_variance=1.0),
+    state=state_quantity, target_population="target", prior_id="effect-prior",
+)
+problem = design.DesignDecision(
+    contract=contract, actions=action_utilities, prior=checked.prior,
+)
+ranked = design.rank_designs(
+    [design.Candidate("future", 100, checked.signal)],
+    decision=problem,
+    signal=design.SignalSpec(
+        prior_id=checked.prior_id, state=state_quantity,
+        observation=observation_quantity, evidence_lineage=("future-study",),
+    ),
+)
+```
+
+The source quantity must name one retained scalar/effect column in the original
+catalog artifact. Draws are decoded natively. Summary-only and coefficient-only
+priors refuse, as do incomplete or nonconverged posteriors. Weights, strength,
+conflict shrinkage and affine source-to-target maps are checked by the existing
+adapter. A population change needs an explicit `transport_policy_id`. The mapped
+state's scientific quantity and population, prior identity and signal family are
+bound and checked again by ranking. Original observation identities are retained;
+a candidate that reuses those observations refuses even when it was not named
+in the original adaptation request.
+
+`checked.diagnostics` retains the original posterior metadata, effective weights,
+allocated draws, transfer policy, observation checks and source digest. The adapter
+uses deterministic resampling of the original sampled posterior. Exact finite-law
+integration is exact conditional on that discrete prior, not an exact computation
+under an unknown continuous posterior. Calibration remains `unmeasured`.
+
+Population, physical units, affine transfer and historical observation/lineage
+identities are explicit scientific declarations: legacy posterior artifacts do not
+carry enough information to independently authenticate those declarations. Catalog
+compatibility does not issue a new causal identification license. The ranking's
+source digests bind original artifact bytes and transfer declarations, and retained
+expectations detect a changed source binding. Export/consume independently replays
+the embedded numerical prior and signal law; it does not independently reauthenticate
+the posterior's producing analysis or the truth of declared observation identities.

@@ -336,6 +336,7 @@ dependencies = [
  "antecedent-validate",
  "arrow-array",
  "arrow-schema",
+ "blake3",
  "numpy",
  "pyo3",
  "pyo3-build-config",

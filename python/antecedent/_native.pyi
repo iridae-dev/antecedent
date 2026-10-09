@@ -5907,7 +5907,7 @@ def identified_utility_interval(
     declaration_json: str, action_id: str, intervals: list[tuple[float, float]]
 ) -> tuple[tuple[float, float] | None, str | None]: ...
 def evaluate_effect_constancy(
-    request_json: str, artifact_id: str
+    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_effect_constancy_artifact(
     artifact: bytes, expected_identity_json: str | None = None
@@ -6068,7 +6068,7 @@ class ScoreResumeHandle:
     ) -> tuple[str | None, str | None]: ...
 
 def evaluate_design_ranking(
-    request_json: str, artifact_id: str
+    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_design_ranking(
     artifact: bytes, expectation_json: str | None = None
@@ -6172,7 +6172,7 @@ def transported_path_specific_refusal(
     supplied_factors: list[tuple[str, str, str]],
 ) -> str: ...
 def evaluate_transported_counterfactual(
-    request_json: str, artifact_id: str
+    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def consume_transported_counterfactual_artifact(
     artifact: bytes, expected_identity_json: str | None = None
@@ -6614,3 +6614,9 @@ def observe_native_attempts(
     operation: Callable[[], Any],
 ) -> tuple[Any | None, BaseException | None, str]:
     """Execute once and separately observe original synchronous native component work."""
+
+class CheckedPriorSignal:
+    @property
+    def diagnostics_json(self) -> str: ...
+
+def adapt_prior_signal(sources: list[dict[str, Any]], request_json: str) -> tuple[CheckedPriorSignal | None, str | None]: ...

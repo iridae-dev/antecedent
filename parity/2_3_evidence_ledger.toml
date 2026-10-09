@@ -687,6 +687,24 @@ provider_trust = "native_adapter_only; a supplied provider keeps its own trust l
 exact_request_verification = "not_applicable_to_the_adapter; the paired provider answers the exact signal request at EVSI time"
 
 [[cell]]
+id = "2.3B.X6.prior_signal_decision_planning"
+route = "antecedent.design.adapt_prior_to_signal"
+work_package = "B0"
+algorithm_provenance = ["provenance/x6_prior_signal.toml"]
+parity_registry = "parity/promotion_2_3.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "x6.python.original_producer.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Actual native Bayesian producer with32draws, original artifact bytes, compatible catalog and Gaussian Monte Carlo candidate. Separate independent two-state prior{1/4,3/4}, binomialn2, bet(theta-.5), resolution2."
+expected_values = "Original sampled posterior and source/transport/overlap diagnostics reach canonical ranker without moment substitution; MC remains unmeasured. Independent finite-binomial EVSI1/16 and EVPI1/8 replay; changed original draws produce EVSI1/4 and retained expectations refuse."
+tolerance = "exact semantic equality for identities/refusals; absolute 1e-12 for enumerated values"
+calibration = "point_only_no_interval; pooling is a declared deterministic rule with no coverage or interval claim"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "x6.python.finite_oracle.artifact"
+provider_trust = "native_adapter_only; Python decodes original complete converged identified effect/scalar posterior bytes and retains full source digests. Missing scientific population/observation lineage remains caller-declared. Rust primitive caller draws remain explicit; no causal-origin authentication or Bayesian-pooling theorem is granted."
+exact_request_verification = "not_applicable_to_the_adapter; the paired provider answers the exact signal request at EVSI time"
+
+[[cell]]
 id = "2.3B.F17.sensitivity_decision_composition"
 route = "antecedent.decision.sensitivity_surface"
 work_package = "B3"

@@ -4385,6 +4385,19 @@ evidence_assertion = "x6_equal_weight_sources_pool_into_the_enumerated_draws_and
 notes = "2.3 B0 X6 prior-to-candidate-signal adapter feeding ReduceDecisionRegret/EVSI; retains the 2.2 structural sufficiency-and-cost order when no probabilistic model is licensed."
 
 [[routes]]
+route = "antecedent.design.adapt_prior_to_signal"
+stage = "prepare"
+status = "licensed"
+graph = "independently_identified_fixed_graph_contract_this_cell_identifies_no_graph"
+evidence = "original_complete_converged_identified_native_posterior_bytes_compatible_catalog_and_declared_population_observation_lineage"
+functional = "checked_adapter_from_compatible_prior_sources_to_prior_draws_and_a_candidate_signal_provider"
+guarantee = "checked_prior_to_candidate_signal_adaptation_with_declared_pooling_and_observation_reuse_refusal_point_only"
+limits = "Point-only: sources pool into the enumerated draws 0.2, 0.4, 0.6, 0.8 with pooled mean 1/2 by a deterministic weight-times-strength quota rule with declared conflict shrinkage, not a Bayesian combination with a proven estimand; a coefficient prior or unlock list alone, an incompatible artifact, a changed population without a transport policy, and observation reuse refuse; reuse is excluded only through declared observation identities; no causal or interval claim."
+evidence_test = "python/tests/test_prior_signal_bridge.py"
+evidence_assertion = "test_actual_native_bayesian_producer_catalog_adapter_ranking_handoff"
+notes = "2.3 B0 X6 prior-to-candidate-signal adapter feeding ReduceDecisionRegret/EVSI; retains the 2.2 structural sufficiency-and-cost order when no probabilistic model is licensed."
+
+[[routes]]
 route = "antecedent.decision.sensitivity_surface"
 stage = "evaluate"
 status = "licensed"

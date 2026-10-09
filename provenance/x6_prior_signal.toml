@@ -25,7 +25,7 @@ papers = []
 implementation_deviations = [
   "Not a Bayesian combination with a proven estimand. Sources are pooled by a fixed quota rule over their supplied posterior draws; 'prior strength' is named after the power-prior exponent but here only scales the pooling weight (weight times strength), it is not the power-prior likelihood a0 exponent and no power-prior theorem is inherited.",
   "Conflict shrinkage moves each source's mapped draws linearly toward the pooled weighted mean; it is a declared tuning input, not an estimated between-source heterogeneity, and no heterogeneity or conflict statistic is produced.",
-  "Draws are supplied by the caller and never rehydrated from the catalog artifact; the catalog only decides compatibility (a Partial report whose single gap is the unnamed coefficient list is accepted, every other gap or rejection refuses). Source-to-target maps are identity or affine with a nonzero finite slope.",
+  "The Rust primitive accepts explicit caller draws with catalog compatibility. The typed Python bridge instead decodes original catalog posterior bytes, requires complete converged identified effect/scalar draws, checks any original population tag and retains original source digests. Legacy posterior population/observation lineage absent from the artifact remains an explicit caller declaration, not authenticated provenance. Source-to-target maps are identity or affine with a nonzero finite slope.",
   "The result is a prior of at most 1,000,000 equally weighted draws, not the source posteriors themselves; the integration error of the later EVSI is reported there, and nothing here is a coverage or interval claim. Observation reuse is detected only by the declared observation identities: undeclared reuse cannot be seen, and a source with no observation identities is refused.",
   "A transport policy is a declared identity that permits a source population different from the target; the adapter does not check the policy's scientific validity or identify any transport.",
 ]
@@ -33,6 +33,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "python/tests/test_prior_signal_bridge.py",
   "crates/antecedent-design/tests/prior_signal.rs",
   "crates/antecedent-design/tests/design_ranking.rs",
   "crates/antecedent-design/tests/evsi.rs",

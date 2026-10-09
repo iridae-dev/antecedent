@@ -76,7 +76,7 @@ pub(crate) fn mapping_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorMapping>
     }
 }
 
-fn meta_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSourceMeta> {
+pub(crate) fn meta_from_dict(d: &Bound<'_, PyDict>) -> PyResult<PriorSourceMeta> {
     let artifact_id: String = d
         .get_item("artifact_id")?
         .ok_or_else(|| PyValueError::new_err("meta.artifact_id required"))?

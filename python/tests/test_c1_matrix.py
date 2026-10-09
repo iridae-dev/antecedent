@@ -1015,9 +1015,9 @@ def _check_prior_design(o: Objs) -> None:
     assert ranked.candidates[0].evsi == pytest.approx(0.0, abs=1e-12)
     assert ranked.candidates[0].provider_trust == "externally_attested"
     assert ranked.candidates[0].claim == "point_only"
-    # There is no checked prior-to-signal adapter on the Python surface: the Rust
-    # `prior_signal::adapt_prior_to_signal` is not exported, so the step above is the caller's.
-    assert not hasattr(dr, "adapt_prior_to_signal")
+    # This independent caller-declared oracle remains valid; original producer-byte
+    # adaptation and reuse/transport refusals are exercised in test_prior_signal_bridge.py.
+    assert callable(dr.adapt_prior_to_signal)
     assert not hasattr(ac, "adapt_prior_to_signal")
 
 

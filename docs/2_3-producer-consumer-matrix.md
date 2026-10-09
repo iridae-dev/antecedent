@@ -16,7 +16,7 @@ parametrized over the eight consumers.
 
 - **DIRECT**: a licensed entry point takes the producer (Python and Rust entry named).
 - **ADAPTER**: a named step takes it: a different entry point, or a declaration the caller
-  writes. An adapter is a caller assertion, not a verification of the producer.
+  writes. An adapter can check original producer bytes and compatibility while still requiring explicit scientific declarations; its documented trust boundary applies.
 - **REFUSED**: the consumer must not take it. The refusal code, detail and exception type are the ones the code emits.
   An incompatible input type is rejected as `CausalTypeError` before native evaluation.
 
@@ -67,7 +67,7 @@ column has a DIRECT route. "External bound claim" is read as a bound external cl
 | `retargeted_batch` | REFUSED: `CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support`; no law or population is inferred from retargeted points | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`) | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | REFUSED: no export; `CausalTypeError` | DIRECT: `RecalcSession.execute` with `TargetWeights` is the retargeting route itself (scores reused, 0 fold fits, 1 reweight, 1 decision); a `BatchRetarget` object is not an input there |
 | `external_claim` | DIRECT: `Contract.evaluate(claim)` (wait 1, treat 9; no EVPI; `export` REFUSED `decision_evaluation.mean_source_not_replayable`), `DecisionInput.from_claim`; Rust `evaluate_contract_on_means`; probability or quantile REFUSED `composition_boundary.mean_is_not_a_distribution` | DIRECT: `InverseQuery.evaluate(claim)` (target mean 5 keeps `treat`); quantile REFUSED `decision_evaluation.mean_source_insufficient` | REFUSED: `CausalTypeError` (not a `design.StatePrior`) | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | DIRECT: `add_artifact("external_claim", claim)` with `composition_bundle.mean_decision`, labelled `point_only_attested`; a nonlinear utility REFUSED `composition_bundle.unsupported_law` | ADAPTER: `stage_identity(Stage.external_study(0), provider_fingerprint)` declared by the caller |
 | `joint_draws` | DIRECT: `Contract.evaluate(law)` (risky 2, safe 3, EVPI 1/2), `DecisionInput.from_distribution`; Rust `evaluate_contract`; the only producer that answers `P(utility >= t)` here (1/2) | DIRECT: `InverseQuery.evaluate(law)` (means 2 and 3; target 2.5 keeps `safe`) | REFUSED: `CausalTypeError` (not a `design.StatePrior`) (a joint law is not a scalar-state prior) | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | DIRECT: `add_artifact("distribution", law)` beneath a contract and result, labelled `joint_draw`; Rust `composition_verifiers` | ADAPTER: `stage_identity(Stage.LAW, source_digest)` declared by the caller |
-| `bayesian_prior` | REFUSED: `CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `DecisionInput.from_distribution` and `evaluate_with_support` | REFUSED: `CausalTypeError` | ADAPTER: the caller summarises the posterior into `design.StatePrior.draws(...)` (prior EU 0.05, EVPI 1/60); the checked Rust `prior_signal::adapt_prior_to_signal` is not exported to Python; the artifact as a prior raises `CausalTypeError` | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | REFUSED: not a bundle kind; `CompositionBundleRefusal` (shared priors are declared with `relate(..., "shared_prior")`, not embedded) | ADAPTER: `stage_identity(Stage.prior(0), ...)` declared by the caller |
+| `bayesian_prior` | REFUSED: `CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `DecisionInput.from_distribution` and `evaluate_with_support` | REFUSED: `CausalTypeError` | ADAPTER: `design.adapt_prior_to_signal` decodes original catalog state draws and invokes checked Rust `prior_signal::adapt_prior_to_signal`; its bound prior/provider feed canonical `design.rank_designs`, preserving source digests, transfer and overlap checks. Summary/coefficient-only inputs refuse; the raw artifact as a prior raises `CausalTypeError` | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | REFUSED: not a bundle kind; `CompositionBundleRefusal` (shared priors are declared with `relate(..., "shared_prior")`, not embedded) | ADAPTER: `stage_identity(Stage.prior(0), ...)` declared by the caller |
 | `identified_scenarios` | ADAPTER: `decision_robust.finite_scenarios` over per-structure laws and `identified_sets` over intervals (invariant best A; `bayes_over_structures` over a set REFUSED `decision_adapters.bayes_over_identified_set`); the stage itself is not a source | ADAPTER: `IdentifiedSet` and `Scenario.evaluated` built by the caller from each structure's law (exhaustive set: `safe` feasible; not exhaustive: unevaluated) | REFUSED: `CausalTypeError` (not a `design.StatePrior`) | REFUSED: `CausalTypeError` | DIRECT: `decide_from_scenarios(contract, stage, policy, outcomes=...)` (direct leader `treat`, standardize leader `hold`); Bayes without declared weights REFUSED `decision_claims.probabilities_not_declared` | REFUSED: `CausalTypeError` | REFUSED: the stage export is not a bundle kind; `CompositionBundleRefusal` | ADAPTER: `stage_identity(Stage.GRAPH, digest of the stage export)` declared by the caller |
 | `sensitivity_artifact` | REFUSED: `CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support` | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`) | DIRECT: `sensitivity_decision.decide(artifact.contract(), artifact)` (assumption-dependent switch, exact tie at 1); a composed sampling interval REFUSED `cell_not_licensed` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | DIRECT: `add_artifact("sensitivity", artifact.export())`; node identity is the artifact digest | ADAPTER: `stage_identity(Stage.EVIDENCE, identity digest)` declared by the caller |
 | `decision` | REFUSED: a result is not a source; `CausalTypeError` from `Contract.evaluate`, `CausalTypeError` from `evaluate_with_support` | REFUSED: `CausalTypeError` | ADAPTER: the contract (a `Contract`, whose action set is checked, or its identity string, which binds only the identity) frames `design.DesignDecision`; EVSI 1/4, net 3/20 | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | REFUSED: `CausalTypeError` | DIRECT: `result.export()` as a `decision_result` node beneath its law and contract (risky 2, safe 3); a mean-source result is exported only by `composition_bundle.mean_decision` | ADAPTER: `stage_identity(Stage.DECISION, contract_identity + source_digest)` declared by the caller |
@@ -108,9 +108,7 @@ executed by `test_c1_matrix_<row>_row[<consumer>]`.
 - **Identity-only binding.** `design.DesignDecision(contract="<identity>", actions=...)`
   binds a contract by identity string only and does not check the action set against it; a
   `Contract` object does check it.
-- **No checked prior adapter in Python.** `prior_signal::adapt_prior_to_signal` (shared-source
-  overlap and transport-policy checks) exists only in Rust; the Python prior-to-EVSI step is the
-  caller's.
+- **Checked original prior adapter.** `design.adapt_prior_to_signal` invokes the Rust adapter over original catalog posterior bytes; canonical ranking retains its sampled prior, source digests, transport declaration and observation-overlap checks. Numerical artifact replay does not independently authenticate source origin or caller-declared historical observation identities. See `test_prior_signal_bridge.py`.
 - **Recalc adapters are declarations.** The plan compares caller-supplied digests and never
   reads the producer, so it cannot notice a different object that reuses the same identity
   string.
@@ -133,3 +131,30 @@ executed by `test_c1_matrix_<row>_row[<consumer>]`.
 `python/tests/test_c1_matrix.py`.
 
 Original diagnostic carry-through preserves source scopes and semantic coordinates; a transformed value does not acquire a new local effective sample size or overlap diagnostic. External bound-response artifacts retain original support and exact request identity, but their original format contains no numerical diagnostic vectors. That absence remains explicit. `decision_robust.ExternalReceipt.from_claim` takes a caller-supplied scalar without an original response-coordinate mapping: it preserves provider, snapshot and request references while recording caller attestation, including when the original response had verified-extension standing. Those references supply no numerical verification or source diagnostic license for the scalar.
+
+## Fitted prediction boundary and the next delivery package
+
+The matrix's `fitted_effect_model` row is the `CompactExport` representation (including
+its support/mask declarations). The separate public `prediction.FittedEffectModel`
+loads and verifies an executed parent analysis claim, then predicts CATE points from
+its immutable fitted payload. Its `EffectPrediction` currently retains only point
+values and the parent claim identity. It does not retain a cohort snapshot, row
+identities, declared outcome units/contrast quantity or target-row support. Neither
+representation currently supplies a direct native `Contract.evaluate` source in 2.3.
+Prediction verification authenticates the parent model; it does not certify a new
+cohort's support or create absolute potential-outcome means or a joint law.
+
+The bounded 2.4 delivery package is a native cohort-mean contrast adapter: retain
+the verified fitted payload and original query/contrast; bind strict named feature
+schema, finite cohort rows, row count, cohort snapshot/digest and target population;
+check target-row support using the original fitted model's support contract; require
+explicit outcome units; and emit one source-bound `mean_difference` quantity for
+the declared cohort's weighted mean CATE. Preserve original diagnostics and exact
+conditioning/cohort identity, with no inherited utility standard error or confidence
+interval. Provide typed missing/outside-support, population/schema/unit/contrast
+mismatch and changed-cohort refusals; original evidence metadata and retained
+expectation checks; and producer-to-adapter-to-affine-contract tests with independent
+hand-computed cohort oracles. Nonlinear utility, probability, quantile and joint-law
+consumers must continue to refuse unless a separate native producer actually
+supplies aligned outcome draws. This package requires a real native authority and
+support route before exposing a convenience Python prediction-to-decision method.

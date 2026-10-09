@@ -1055,7 +1055,7 @@ def _rank_value(
         text = json.dumps(request, allow_nan=False)
     except ValueError as error:
         raise CausalValueError("a declaration contains a non-finite number") from error
-    body, artifact, refusal = _evaluate(text, artifact_id)
+    body, artifact, refusal = _evaluate(text, artifact_id, decision.prior._checked)
     _raise(refusal)
     assert body is not None and artifact is not None
     wire = json.loads(body)

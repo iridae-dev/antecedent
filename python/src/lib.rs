@@ -80,6 +80,7 @@ mod preflight_api;
 mod prepared_api;
 mod prepared_options;
 mod prior_bank;
+mod prior_signal_api;
 mod program_claims_api;
 mod proposal_arrival_api;
 mod provider_api;
@@ -2725,6 +2726,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     bayesian::register(m)?;
     stability::register(m)?;
     prior_bank::register(m)?;
+    prior_signal_api::register(m)?;
     response_api::register(m)?;
     temporal_license::register(m)?;
     transport_interference_api::register(m)?;

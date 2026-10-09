@@ -57,6 +57,7 @@ from ..joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .plans import PLAN_TYPES, DesignPlan
 
 if TYPE_CHECKING:
+    from .._native import CheckedPriorSignal as _CheckedPriorSignal
     from .ranking import DesignRankingResult
 
 #: Distribution meanings that are a belief about a quantity (usable as a state prior).
@@ -164,6 +165,7 @@ class StatePrior:
     states: tuple[float, ...] = ()
     mean: float | None = None
     variance: float | None = None
+    _checked: _CheckedPriorSignal | None = field(default=None, repr=False)
 
     @classmethod
     def draws(cls, states: Sequence[float]) -> StatePrior:

@@ -109,14 +109,21 @@ fn payload_error(error: &DesignRankingError) -> Result<String, PyErr> {
 /// Evaluate every declared candidate's EVSI and seal the ranking:
 /// `(artifact body json, artifact bytes, refusal json)`.
 #[pyfunction]
+#[pyo3(signature = (request_json, artifact_id, checked_prior=None))]
 fn evaluate_design_ranking(
     py: Python<'_>,
     request_json: &str,
     artifact_id: &str,
+    checked_prior: Option<PyRef<'_, crate::prior_signal_api::CheckedPriorSignal>>,
 ) -> PyResult<EvaluatePayload> {
     check_size(request_json)?;
-    let request: DesignRankingRequestWire =
+    let mut request: DesignRankingRequestWire =
         serde_json::from_str(request_json).map_err(|e| invalid_declaration(&e))?;
+    if let Some(prior) = checked_prior {
+        if let Err(refusal) = prior.bind(&mut request) {
+            return Ok((None, None, Some(refusal)));
+        }
+    }
     let artifact_id = artifact_id.to_owned();
     detach_catch(py, move || match evaluate(&request) {
         Ok(done) => {

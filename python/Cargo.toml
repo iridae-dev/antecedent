@@ -26,6 +26,7 @@ ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent/ml-neural", "antecedent-estimate/ml-neural"]
 
 [dependencies]
+blake3.workspace = true
 antecedent-core = { path = "../crates/antecedent-core" }
 antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }
 antecedent = { path = "../crates/antecedent" }
