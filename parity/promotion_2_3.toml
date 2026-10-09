@@ -2870,6 +2870,20 @@ compatibility = "Existing 2.2 routes keep their exact scope, and the 2.2 verifie
 search = false
 bounds = { cancellation = true }
 refusals = [
+  { code = "design_signal_invalid", detail = "prior_signal.incomplete_posterior", when = "Typed Python checked bridge rejects incomplete posterior." },
+  { code = "invalid_argument", detail = "prior_signal.invalid_request", when = "Typed Python checked bridge rejects invalid request." },
+  { code = "design_signal_invalid", detail = "prior_signal.named_state_draws_required", when = "Typed Python checked bridge rejects named state draws required." },
+  { code = "invalid_argument", detail = "prior_signal.nonfinite_mapped_prior", when = "Typed Python checked bridge rejects nonfinite mapped prior." },
+  { code = "design_signal_invalid", detail = "prior_signal.original_posterior_unidentified", when = "Typed Python checked bridge rejects original posterior unidentified." },
+  { code = "design_signal_invalid", detail = "prior_signal.posterior_draws_required", when = "Typed Python checked bridge rejects posterior draws required." },
+  { code = "invalid_argument", detail = "prior_signal.prior_identity_mismatch", when = "Typed Python checked bridge rejects prior identity mismatch." },
+  { code = "invalid_argument", detail = "prior_signal.prior_projection_mismatch", when = "Typed Python checked bridge rejects prior projection mismatch." },
+  { code = "design_signal_invalid", detail = "prior_signal.signal_family_mismatch", when = "Typed Python checked bridge rejects signal family mismatch." },
+  { code = "design_signal_invalid", detail = "prior_signal.source_not_in_catalog_or_duplicate", when = "Typed Python checked bridge rejects source not in catalog or duplicate." },
+  { code = "invalid_argument", detail = "prior_signal.source_population_mismatch", when = "Typed Python checked bridge rejects source population mismatch." },
+  { code = "invalid_argument", detail = "prior_signal.state_quantity_mismatch", when = "Typed Python checked bridge rejects state quantity mismatch." },
+  { code = "invalid_argument", detail = "prior_signal.target_population_mismatch", when = "Typed Python checked bridge rejects target population mismatch." },
+  { code = "route_not_supported", detail = "prior_signal.unsupported_signal_provider", when = "Typed Python checked bridge rejects unsupported signal provider." },
   { code = "design_signal_invalid", detail = "prior_signal.coefficient_prior_not_signal", when = "Only a coefficient prior was supplied for the candidate; it is not a distribution of what a future study will observe." },
   { code = "design_signal_invalid", detail = "prior_signal.unlock_list_not_signal", when = "Only a structural unlock list was supplied for the candidate; it is not a signal distribution." },
   { code = "design_signal_invalid", detail = "prior_signal.no_sources", when = "No prior source was supplied." },
