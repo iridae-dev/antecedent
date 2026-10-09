@@ -205,6 +205,26 @@ def registered_output_ids(gate_text: str) -> dict[tuple[str, str], set[str]]:
     return result
 
 
+def registration_owns_id(registration: dict, literals: set[str], coverage_id: str) -> bool:
+    """Match exact emitted IDs or CoverageTally's test[.label] suffix.
+
+    The original tally composes its bound construction with the test string and
+    optionally one sanitized effect label. The test string must occur in this
+    actual registered target/test; a substring or another target's name is not
+    evidence. Labels do not replace the emitting test's identity.
+    """
+    if coverage_id in literals:
+        return True
+    name = registration["name"]
+    if name not in literals:
+        return False
+    parts = coverage_id.split(".")
+    return parts[-1] == name or (
+        len(parts) >= 3 and re.fullmatch(r"l[0-9]+", parts[-3]) is not None
+        and parts[-2] == name and bool(re.fullmatch(r"[a-z_0-9]+", parts[-1]))
+    )
+
+
 def check() -> dict:
     errors: list[str] = []
     notes: list[str] = []
@@ -224,7 +244,6 @@ def check() -> dict:
     )
     groups = registered_groups(gate_text)
     registered_literals = registered_output_ids(gate_text)
-    registered_ids = set().union(*registered_literals.values()) if registered_literals else set()
     records = promotion.get("record", [])
     if not records:
         errors.append(f"no record found in {promotion_path}")
@@ -293,7 +312,10 @@ def check() -> dict:
             if (
                 record.get("status") != "carried_forward"
                 and cid.rsplit(".", 1)[-1] not in groups
-                and cid not in registered_ids
+                and not any(
+                    registration_owns_id(registration, registered_literals[(registration["target"], registration["name"])], cid)
+                    for registration in registrations(gate_text)
+                )
             ):
                 errors.append(
                     f"{rid}: coverage id {cid} is not a registered group name on a run_* line of "
@@ -495,25 +517,24 @@ def check() -> dict:
                     errors.append(
                         f"{rid}: coverage records present but not attested: {message}"
                     )
-    owned = {
-        cid.rsplit(".", 1)[-1]
-        for r in records
-        for cid in [*(r.get("coverage_records") or []), *(r.get("candidate_coverage_records") or [])]
+    allocated_ids = {
+        cid
+        for record in records
+        for cid in [*(record.get("coverage_records") or []), *(record.get("candidate_coverage_records") or [])]
     }
     for reg in registrations(gate_text):
         if (
             not reg["header"].startswith(RELEASE)
-            or reg["name"] in owned
             or (reg["target"], reg["name"]) in diagnostic_groups
             or any(
-                cid in registered_literals[(reg["target"], reg["name"])]
-                for record in records
-                for cid in [*(record.get("coverage_records") or []), *(record.get("candidate_coverage_records") or [])]
+                registration_owns_id(reg, registered_literals[(reg["target"], reg["name"])], cid)
+                for cid in allocated_ids
             )
         ):
             continue
         for p in ROOT.glob(f"crates/*/tests/**/{reg['target']}.rs"):
-            if reg["name"] in ignored_test_literals(p).get(reg["name"], []):
+            literals = ignored_test_literals(p).get(reg["name"], [])
+            if reg["name"] in literals or any(COV_ID.fullmatch(literal) for literal in literals):
                 errors.append(
                     f"scripts/gate_calibration.sh registers {reg['name']} (under '== {reg['header']}') "
                     f"and its test emits that coverage record, but no {RELEASE} record lists it in "
@@ -989,6 +1010,22 @@ def self_test_23() -> int:
             baseline = expect("scoped candidate allocation and typed status", None)
             if baseline["calibration"].get("2.3A.F1.synthetic", {}).get("status") != "PENDING_CALIBRATION":
                 failures.append("unmeasured diagnostic candidate lost its pending state")
+            multi_ids = [f"cov.synth.dag.frequentist.l95.whole_method.{label}" for label in ("mean0", "mean1", "contrast")]
+            multi_record = record.replace(f'candidate_coverage_records = ["{coverage_id}"]',
+                "candidate_coverage_records = " + json.dumps(multi_ids))
+            write("parity/promotion_2_3.toml", multi_record)
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+                  '    measure("whole_method", ["mean0", "mean1", "contrast"]);\n}\n')
+            expect("composed multi-effect candidate IDs retain exact test ownership", None)
+            write("parity/promotion_2_3.toml", multi_record.replace(json.dumps(multi_ids), "[]"))
+            expect("multi-effect emitter without allocations remains orphaned", "without an owner")
+            write("parity/promotion_2_3.toml", multi_record.replace("l95.whole_method.", "l95.other_whole_method."))
+            expect("similar test-name substring cannot own composed IDs", "without an owner")
+            write("parity/promotion_2_3.toml", record)
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+                  f'    emit("{coverage_id}");\n}}\n')
             write(surface, "class Result:\n    interval_status: float\n")
             expect("numeric output cannot masquerade as a descriptor", "not a string field")
             write(surface, "class Result:\n    interval_status: str\n    interval: tuple[float, float]\n")
