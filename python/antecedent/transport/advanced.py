@@ -15,6 +15,8 @@ from ._admg_conditional import (
 )
 from ._closed_pilots import (
     NestedFisherCandidate,
+    NestedMarkovPosteriorCandidate,
+    NestedMarkovPrior,
     binary_nested_markov,
     binary_nested_markov_fisher_interval,
     joint_bayesian_transport,
@@ -218,6 +220,8 @@ __all__ = [
     "binary_nested_markov",
     "binary_nested_markov_fisher_interval",
     "NestedFisherCandidate",
+    "NestedMarkovPrior",
+    "NestedMarkovPosteriorCandidate",
     "joint_bayesian_transport",
     "sampled_observation_recovery",
     "consume_joint_mechanism_sensitivity_artifact",

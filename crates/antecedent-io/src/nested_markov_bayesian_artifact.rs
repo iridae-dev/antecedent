@@ -145,7 +145,77 @@ fn integer_counts(point: &NestedMarkovArtifactWire) -> Result<[u64; 16], IoError
     }
     Ok(out)
 }
+/// Actual identified effect to bind to later measurement; no public activation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BayesianFunctional {
+    /// Mean of X4 under do(X2=0).
+    Mean0,
+    /// Mean of X4 under do(X2=1).
+    Mean1,
+    /// Difference mean1 minus mean0.
+    Contrast,
+}
+
 impl Artifact {
+    /// Actual candidate construction for its own later calibration suite.
+    /// Prior families and frozen numerical settings are read from this receipt;
+    /// unmeasured variants cannot borrow a different prior/settings record.
+    #[must_use]
+    pub fn calibration_basis(
+        &self,
+        functional: BayesianFunctional,
+    ) -> antecedent_core::CalibrationBasis {
+        use std::sync::Arc;
+        let (query, target) = match functional {
+            BayesianFunctional::Mean0 => ("InterventionResponse", "verma.do_x2_0.mean_x4"),
+            BayesianFunctional::Mean1 => ("InterventionResponse", "verma.do_x2_1.mean_x4"),
+            BayesianFunctional::Contrast => ("AverageEffect", "verma.do_x2_1_minus_0.mean_x4"),
+        };
+        let fixed = self.options.chains == 4
+            && self.options.warmup == 2048
+            && self.options.draws == 4096
+            && self.options.max_proposals == 5_000_000
+            && self.options.credible_mass.to_bits() == 0.95_f64.to_bits();
+        let all_shapes = |shape: f64| {
+            self.prior.alpha.iter().chain(&self.prior.beta).all(|v| v.to_bits() == shape.to_bits())
+        };
+        let posterior = if fixed && all_shapes(1.0) {
+            "continuous_truncated_beta_mobius_beta1"
+        } else if fixed && all_shapes(2.0) {
+            "continuous_truncated_beta_mobius_beta2"
+        } else {
+            "continuous_truncated_beta_mobius_declared_unmeasured"
+        };
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "actual producer/consumer validated positive integer counts <=1e9 each"
+        )]
+        let count = self.point.regimes.iter().flat_map(|r| &r.cells).sum::<f64>() as u64;
+        antecedent_core::CalibrationBasis::new(
+            [
+                query,
+                "Admg",
+                "fixed",
+                "tabular",
+                "Bayesian",
+                "nested_markov_bayesian",
+                "posterior_eti",
+                "coordinate_slice",
+                "iid_multinomial",
+                posterior,
+                target,
+            ]
+            .map(Arc::from),
+            0.95,
+            Arc::from("point"),
+            count,
+            None,
+            u32::try_from(self.posterior.samples.len()).ok(),
+            0.0,
+        )
+    }
+
     /// Bind a checked point pilot and fit the independent continuous posterior.
     /// # Errors
     /// Original graph/ID/fit refusal or Bayesian declaration/budget/diagnostic refusal.

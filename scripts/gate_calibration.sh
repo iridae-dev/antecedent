@@ -61,7 +61,7 @@ grid_group() {
     # weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
-    bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
+    bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
     # 2.2B X4 smoothed dose-response: the two *_psi_h coverage records only.
     smoothed_dose_calibration:*_psi_h) return 0 ;;
@@ -322,6 +322,10 @@ run_nested_fisher() {
   local name="$1"
   check "nested_markov_fisher_calibration: ${name}" cargo test --release -p antecedent-estimate --test nested_markov_fisher_calibration "$name" -- --ignored --exact --nocapture
 }
+run_nested_bayesian() {
+  local name="$1"
+  check "nested_markov_bayesian_calibration: ${name}" cargo test --release -p antecedent-io --test nested_markov_bayesian_calibration "$name" -- --ignored --exact --nocapture
+}
 run_joint_gaussian() {
   local name="$1"
   check "joint_bayesian_transport_calibration: ${name}" cargo test --release -p antecedent-estimate --test joint_bayesian_transport_calibration "$name" -- --ignored --exact --nocapture
@@ -329,6 +333,8 @@ run_joint_gaussian() {
 echo "== 2.3 X4 closed Fisher and joint Gaussian candidates =="
 run_nested_fisher nested_fisher_iid_latent_verma_l95
 run_nested_fisher nested_fisher_iid_markov_submodel_l95
+run_nested_bayesian nested_bayesian_full11d_uniform_l95
+run_nested_bayesian nested_bayesian_full11d_beta2_l95
 run_joint_gaussian joint_gaussian_one_source_intercept_l95
 run_joint_gaussian joint_gaussian_two_independent_intercepts_l95
 run_joint_gaussian joint_gaussian_two_shared_intercepts_l95

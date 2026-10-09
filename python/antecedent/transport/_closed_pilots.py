@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from typing import Any, NoReturn
+from typing import Any
 
 from .. import _native
 from .._native import binary_nested_markov_closed as _binary_nested_markov_closed
@@ -48,11 +48,14 @@ from ._joint_posterior import (
     _candidate,
 )
 from ._nested_fisher import NestedFisherCandidate
+from ._nested_posterior import NestedMarkovPosteriorCandidate, NestedMarkovPrior
 from ._recovery import ObservationRecoveryQuery
 from ._sampled_candidate import SampledRecoveryCandidate
 
 __all__ = [
     "NestedFisherCandidate",
+    "NestedMarkovPrior",
+    "NestedMarkovPosteriorCandidate",
     "binary_nested_markov",
     "binary_nested_markov_fisher_interval",
     "joint_bayesian_transport",
@@ -191,6 +194,11 @@ def _regime_table(
     counts = regime.get("counts")
     if isinstance(counts, (str, bytes)) or not isinstance(counts, Sequence):
         raise CausalTypeError("a regime needs counts, a sequence of cell counts")
+    if len(counts) != 16:
+        raise CausalUnsupportedError(
+            "nested_markov.outside_binary_pilot: the table is not the 2x2x2x2 binary cell table",
+            reason_code="route_not_supported",
+        )
     cells: list[float] = []
     for count in counts:
         if isinstance(count, bool) or not isinstance(count, (int, float)):
@@ -198,13 +206,24 @@ def _regime_table(
         try:
             numeric = float(count)
         except OverflowError as error:
-            raise CausalValueError("cell counts must be finite", reason_code="invalid_argument") from error
+            raise CausalValueError(
+                "cell counts must be finite", reason_code="invalid_argument"
+            ) from error
         if not math.isfinite(numeric):
             raise CausalValueError("cell counts must be finite", reason_code="invalid_argument")
         cells.append(numeric)
     levels = regime.get("levels")
-    if levels is not None and (isinstance(levels, (str, bytes)) or not isinstance(levels, Sequence)):
-        raise CausalTypeError("levels must be a sequence of integer domain sizes", reason_code="invalid_argument")
+    if levels is not None and (
+        isinstance(levels, (str, bytes)) or not isinstance(levels, Sequence)
+    ):
+        raise CausalTypeError(
+            "levels must be a sequence of integer domain sizes", reason_code="invalid_argument"
+        )
+    if levels is not None and len(levels) != 4:
+        raise CausalUnsupportedError(
+            "nested_markov.outside_binary_pilot: a variable domain is not binary",
+            reason_code="route_not_supported",
+        )
     level_list = [2] * len(names) if levels is None else [_non_negative("level", v) for v in levels]
     intervened = regime.get("intervened")
     fixed: list[int] | None = None
@@ -238,10 +257,24 @@ def _nested_arguments(
     try:
         finite_tolerance = math.isfinite(tolerance)
     except OverflowError as error:
-        raise CausalValueError("tolerance must be finite and positive", reason_code="invalid_argument") from error
+        raise CausalValueError(
+            "tolerance must be finite and positive", reason_code="invalid_argument"
+        ) from error
     if not finite_tolerance or tolerance <= 0:
-        raise CausalValueError("tolerance must be finite and positive", reason_code="invalid_argument")
+        raise CausalValueError(
+            "tolerance must be finite and positive", reason_code="invalid_argument"
+        )
+    if len(regimes) != 1:
+        raise CausalUnsupportedError(
+            "nested_markov.outside_binary_pilot: the pilot needs exactly the observational regime",
+            reason_code="route_not_supported",
+        )
     names = list(graph.nodes())
+    if len(names) > 6:
+        raise CausalUnsupportedError(
+            "nested_markov.outside_binary_pilot: more than 6 observed variables",
+            reason_code="route_not_supported",
+        )
     index = {name: position for position, name in enumerate(names)}
     directed = [
         (index[parent], index[child]) for parent in names for child in graph.children(parent)
@@ -263,8 +296,10 @@ def binary_nested_markov(
     regimes: Sequence[Mapping[str, Any]],
     max_iterations: int = 50_000,
     tolerance: float = 1e-11,
-) -> NoReturn:
-    """Binary nested-Markov likelihood pilot with a calibrated target interval: closed.
+    prior: NestedMarkovPrior | None = None,
+    seed: int = 0,
+) -> NestedMarkovPosteriorCandidate:
+    """Continuous eleven-dimensional binary nested-Markov posterior pilot: closed.
 
     ``graph`` is the declared ADMG over binary observed variables and ``regimes`` are
     regime-specific count tables, each a mapping with ``counts`` (cells, first variable
@@ -276,12 +311,38 @@ def binary_nested_markov(
     ``nested_markov.outside_binary_pilot`` (never a nonidentification claim); invalid counts
     raise ``invalid_argument``. Every other request raises ``cell_not_licensed`` /
     ``nested_markov.route_frozen``: calibration is unmeasured and no interval or posterior is
-    published.
+    published by normal released builds. Internal acceptance builds expose the
+    original continuous raw-coordinate posterior as an explicitly unmeasured candidate.
+    ``prior`` uses named Beta kernels; its product density is truncated to the positive
+    feasible polytope. The fixed sampler has four chains, 2048 warmup, 4096 retained
+    draws per chain, 5M proposal bound and 95% credible quantiles; ``seed`` is bound
+    into the artifact. Successful original checked-ID/interior point fitting is an
+    explicit pilot eligibility prerequisite, not a condition for posterior existence.
     """
-    names, directed, bidirected, tables = _nested_arguments(
-        graph, regimes, max_iterations, tolerance
-    )
-    _binary_nested_markov_closed(names, directed, bidirected, tables)
+    arguments = _nested_arguments(graph, regimes, max_iterations, tolerance)
+    if prior is None:
+        prior = NestedMarkovPrior()
+    if not isinstance(prior, NestedMarkovPrior):
+        raise CausalTypeError("prior must be a NestedMarkovPrior", reason_code="invalid_argument")
+    _non_negative("seed", seed)
+    if seed > (1 << 64) - 1:
+        raise CausalValueError(
+            "seed must fit an unsigned 64-bit integer", reason_code="invalid_argument"
+        )
+    if not 1 <= max_iterations <= 200_000:
+        raise CausalValueError(
+            "nested_markov.bayesian_invalid_options: max_iterations must lie in 1..=200000",
+            reason_code="invalid_argument",
+        )
+    from .. import _native
+
+    candidate = getattr(_native, "nested_markov_posterior_candidate", None)
+    if candidate is not None:
+        alpha, beta = prior._wire()
+        return NestedMarkovPosteriorCandidate._from_native(
+            candidate(*arguments, max_iterations, tolerance, alpha, beta, seed)
+        )
+    _binary_nested_markov_closed(*arguments)
     raise _frozen("antecedent.transport.binary_nested_markov", "nested_markov.route_frozen")
 
 
@@ -411,7 +472,9 @@ def sampled_observation_recovery(
         ):
             raise
         if not isinstance(stage, _native.ObservationRecoveryStage):
-            raise CausalTypeError("sampled candidate requires an original native recovery stage") from None
+            raise CausalTypeError(
+                "sampled candidate requires an original native recovery stage"
+            ) from None
         payload, artifact = candidate(
             query.population,
             query.observed_regime,

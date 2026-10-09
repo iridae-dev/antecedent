@@ -570,6 +570,8 @@ _EXPECTED_STAGE_ALL = {
         "MixedSourceQuery",
         "MultiSourceZTransportQuery",
         "NestedFisherCandidate",
+        "NestedMarkovPrior",
+        "NestedMarkovPosteriorCandidate",
         "NonTransportableCertificate",
         "NotCertifiedCertificate",
         "ObservationRecoveryQuery",

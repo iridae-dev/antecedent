@@ -4694,6 +4694,7 @@ def temporal_dependent_interval_closed(
     min_units: int,
     max_failed_fraction: float,
 ) -> str: ...
+
 # Available only in calibration-internal acceptance builds; no released license.
 class NativeTemporalIntervalCandidate:
     def payload(self) -> str: ...
@@ -4702,15 +4703,22 @@ class NativeTemporalIntervalCandidate:
 def temporal_dependent_interval_candidate(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
-    sequence: tuple[int, int], estimand: str, fixed_state: int | None,
-    law: tuple[str, str, list[tuple[int, float]]] | None, point: int | None,
-    replicates: int, seed: int, level: float, method: str,
-    min_units: int, max_failed_fraction: float,
+    sequence: tuple[int, int],
+    estimand: str,
+    fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    replicates: int,
+    seed: int,
+    level: float,
+    method: str,
+    min_units: int,
+    max_failed_fraction: float,
 ) -> tuple[NativeTemporalIntervalCandidate | None, str | None]: ...
 def consume_temporal_interval_candidate(
-    artifact: bytes, expected_identity: str,
+    artifact: bytes,
+    expected_identity: str,
 ) -> tuple[NativeTemporalIntervalCandidate | None, str | None]: ...
-
 def evaluate_cross_world_edge_contrast(
     names: list[str],
     columns: Sequence[Any],
@@ -5143,6 +5151,18 @@ def mechanism_discrepancy_consume(
 ) -> tuple[str | None, str | None]: ...
 
 class ObservationRecoveryStage:
+    # Optional: calibration-internal acceptance builds only.
+    def sampled_candidate(
+        self,
+        population: str,
+        observed_regime: str,
+        partial: list[tuple[str, str, str]],
+        fully: list[str],
+        rows: list[tuple[int, int, int, int]],
+        snapshot: str,
+        replicates: int,
+        seed: int,
+    ) -> tuple[str, list[int]]: ...
     @property
     def outcome(self) -> str: ...
     def decision(self) -> dict[str, Any]: ...
@@ -6636,7 +6656,9 @@ class CheckedPriorSignal:
     @property
     def diagnostics_json(self) -> str: ...
 
-def adapt_prior_signal(sources: list[dict[str, Any]], request_json: str) -> tuple[CheckedPriorSignal | None, str | None]: ...
+def adapt_prior_signal(
+    sources: list[dict[str, Any]], request_json: str
+) -> tuple[CheckedPriorSignal | None, str | None]: ...
 
 # Feature-only nested Fisher candidate lifecycle; absent from normal wheels.
 class NativeNestedFisherCandidate:
@@ -6654,11 +6676,48 @@ def nested_markov_fisher_candidate(
     max_iterations: int,
     tolerance: float,
 ) -> NativeNestedFisherCandidate: ...
-
 def consume_nested_markov_fisher_candidate(
-    artifact: bytes, expected_identity: str,
+    artifact: bytes,
+    expected_identity: str,
 ) -> NativeNestedFisherCandidate: ...
 
 # Present only on internal candidate feature builds, never a release activation switch.
-def joint_transport_candidate(proof: TransportIdentificationResult, request_json: str, learned: bool) -> tuple[str, bytes]: ...
+def joint_transport_candidate(
+    proof: TransportIdentificationResult, request_json: str, learned: bool
+) -> tuple[str, bytes]: ...
 def consume_joint_transport_candidate(data: bytes, expectation_json: str, learned: bool) -> str: ...
+
+# Feature-only original continuous Verma posterior; absent from normal wheels.
+class NativeNestedMarkovPosteriorCandidate:
+    @property
+    def identity(self) -> str: ...
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def nested_markov_posterior_candidate(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    max_iterations: int,
+    tolerance: float,
+    alpha: list[float],
+    beta: list[float],
+    seed: int,
+) -> NativeNestedMarkovPosteriorCandidate: ...
+def consume_nested_markov_posterior_candidate(
+    artifact: bytes,
+    expected_identity: str,
+) -> NativeNestedMarkovPosteriorCandidate: ...
+
+# Optional: calibration-internal acceptance builds only.
+def consume_sampled_recovery_candidate(
+    artifact: bytes,
+    premises_digest: str,
+    data_digest: str,
+    *,
+    max_rows: int = 100_000,
+    max_replicates: int = 2000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...

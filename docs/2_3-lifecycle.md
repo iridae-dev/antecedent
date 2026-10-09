@@ -353,3 +353,74 @@ independent dense Gaussian precision/mean/covariance oracles for all four plus f
 configurations, exact aligned-effect-row assertions and fresh-process consumption.
 These feature-build tests must be repeated through the activated ordinary final
 wheel before they can count as released positive evidence.
+
+### Candidate nested-Markov posterior and sampling intervals
+
+The internal acceptance build also exercises the following original producers and
+bounded artifact consumers. Every normal released route remains closed pending
+its own measurement and coordinated public activation. Candidate artifacts retain
+`unmeasured` standing; their successful replay does not establish coverage.
+
+| Producer in `transport.advanced` | Candidate | Fresh-process consumer |
+| --- | --- | --- |
+| `binary_nested_markov(..., prior=NestedMarkovPrior(...), seed=...)` | `NestedMarkovPosteriorCandidate` | `NestedMarkovPosteriorCandidate.load(bytes, expected_identity=...)` |
+| `binary_nested_markov_fisher_interval(...)` | `NestedFisherCandidate` | `NestedFisherCandidate.load(bytes, expected_identity=...)` |
+| `temporal_dependent_interval(...)` | `TemporalIntervalCandidate` | `TemporalIntervalCandidate.load(bytes, expected_identity=...)` |
+| `sampled_observation_recovery(...)` | `SampledRecoveryCandidate` | `SampledRecoveryCandidate.load(bytes, expected_identity=...)` |
+
+Each candidate supplies `export()`. Retain its expected identity independently of
+the exported artifact: `identity` for the nested and temporal objects,
+`expected_identity` for sampled recovery. The consumers reconstruct the original
+inputs and method, replay their numerical outputs and reject incompatible retained
+expectations. These are separate artifact lifecycles, not a conversion into an
+outcome distribution or a decision source. The [decision-side producer/consumer
+matrix](2_3-producer-consumer-matrix.md) does not grant them an additional route.
+
+`binary_nested_markov` selects the four-variable binary observational Verma ADMG
+`X1 -> X2 -> X3 -> X4`, `X2 <-> X4`. Its continuous posterior uses the original
+eleven raw Möbius coordinates `a,c0,c1,q20,q21,q40,q41,g00,g01,g10,g11`.
+`NestedMarkovPrior` names a Beta kernel for every coordinate; each shape lies in
+`[1,1000000]`. Their product density is restricted to the positive feasible
+c-factor polytope. It is not divided by conditional association-interval widths,
+and no finite parameter grid substitutes for this continuous posterior. The
+default kernels are uniform. Counts must be positive integers from the declared
+IID multinomial design. Successful original checked identification and interior
+point fitting are pilot eligibility requirements, rather than prerequisites for
+the mathematical existence of a posterior.
+
+The frozen sampler retains four aligned chains of 4096 draws after 2048 warmup
+sweeps, with a five-million-proposal bound and fixed 95% equal-tailed credible
+quantiles. Its read-only `samples` array has shape `(4,4096,14)`: eleven parameters,
+the two intervention means and their difference. Full covariance and diagnostics
+retain their joint dependence. Rank-normalized/folded Rhat and bulk/tail ESS are
+convergence diagnostics, not proofs of convergence or endpoint precision. The
+artifact binds the original graph, counts, raw prior, fit and sampler settings,
+seed, aligned receipt and separate identification/fit/inference standing.
+`load` independently reruns identification, fitting and posterior computation.
+
+The [frozen Bayesian acceptance design](../conformance/transport/nested_bayesian/README.md)
+documents the independent deterministic integration reference and the separate,
+ignored repeated-sampling harness. That harness keeps all fit, chain, numerical,
+budget, replay and endpoint-precision failures in the coverage denominator. Its
+ESS-based endpoint Monte Carlo precision bracket is an estimated check under
+mixed stationary chains, not a rigorous endpoint confidence guarantee. Neither
+the harness's allocation nor deterministic posterior agreement is measurement.
+
+The Fisher candidate is a distinct expected-information/full-delta frequentist
+method for the same interior IID model, at frozen nominal levels 90% and 95%.
+Temporal intervals instead resample complete independent unit histories, retaining
+panel, unit, time, estimator and seed identities; percentile and basic methods
+have separate frozen coordinates. Sampled recovery resamples complete raw rows
+through the original recovery estimator, retaining query-role mapping, recovered
+law covariance and original data/premise identities. Its preparation interface
+bounds six binary roles, 100000 rows and 2000 replicates; this is narrower than
+the engine's broader resource scope. None of these sampling distributions is a
+Bayesian posterior or a predictive outcome law.
+
+The public candidate acceptance fixtures are
+`test_nested_bayesian_activation.py`, `test_nested_fisher_activation.py`,
+`test_temporal_interval_activation.py` and `test_sampled_recovery_activation.py`.
+They prepare successful producer/export/fresh-consumer and adjacent refusal
+evidence. Final activation must rerun these through the ordinary final wheel and
+update support/stage rows, promotion records, labels and consumers together after
+the exact method's calibration passes.

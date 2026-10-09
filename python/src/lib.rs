@@ -74,6 +74,8 @@ mod matched_case_control_api;
 mod mechanism_discrepancy_api;
 mod msm_sensitivity_api;
 #[cfg(feature = "calibration-internal")]
+mod nested_bayesian_api;
+#[cfg(feature = "calibration-internal")]
 mod nested_fisher_api;
 mod nonlinear_mediation_api;
 mod observation_api;
@@ -2745,6 +2747,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     closed_pilot_api::register(m)?;
     #[cfg(feature = "calibration-internal")]
     nested_fisher_api::register(m)?;
+    #[cfg(feature = "calibration-internal")]
+    nested_bayesian_api::register(m)?;
     learned_joint_api::register(m)?;
     joint_transport_api::register(m)?;
     msm_sensitivity_api::register(m)?;

@@ -503,6 +503,11 @@ def test_extensibility_exported():
             "TemporalIntervalCandidate",
         ),
         (
+            "binary_nested_markov",
+            "graph regimes max_iterations tolerance prior seed",
+            "NestedMarkovPosteriorCandidate",
+        ),
+        (
             "binary_nested_markov_fisher_interval",
             "graph regimes nominal_level max_iterations tolerance",
             "NestedFisherCandidate",

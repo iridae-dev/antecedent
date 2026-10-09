@@ -16,9 +16,9 @@ corrective_action = "After implementation stabilizes, measure the declared sourc
 
 [[cell]]
 id = "2.3A.X4.binary_nested_markov_pilot"
-failed_gates = ["whole_posterior_measurement_design", "whole_posterior_calibration", "public_posterior_activation"]
-detail = "The selected pilot executes the separately licensed general-ID binding before fitting. A continuous full11D raw-coordinate truncated Beta-kernel posterior, bounded SplitMix64 coordinate-slice sampler,95% joint credible summaries and independent replay now exist under calibration-internal. Independent lowcount quadrature validates means, full covariance, credible quantiles and prior sensitivity. Whole-method calibration and public posterior lifecycle/activation remain pending; neither MLE nor Fisher evidence supplies a Bayesian license."
-corrective_action = "Freeze and execute the actual continuous-posterior precision/coverage design including failed fits/chains in its denominator after stabilization. Complete public posterior producer and retained-identity fresh consumer, then activate only passing exact model/prior/count coordinates."
+failed_gates = ["whole_posterior_calibration", "public_posterior_activation"]
+detail = "The selected pilot executes the separately licensed general-ID binding before fitting. A continuous full11D raw-coordinate truncated Beta-kernel posterior, bounded SplitMix64 coordinate-slice sampler,95% joint credible summaries and independent replay now exist under calibration-internal. Independent lowcount quadrature validates means, full covariance, credible quantiles and prior sensitivity. The named-prior Python producer and fresh expected-identity consumer are implemented for internal acceptance builds, and the full11D coverage/precision harness is frozen and compiled. Whole-method calibration and normal public activation remain pending; neither MLE nor Fisher evidence supplies a Bayesian license."
+corrective_action = "After stabilization execute the frozen continuous-posterior precision/coverage design including failed fits/chains and endpoint-precision failures in its denominator. Activate only passing exact model/prior/count/sampler coordinates, then verify the released producer and retained-identity fresh consumer."
 
 [[cell]]
 id = "2.3A.X5.dependent_temporal_interval"

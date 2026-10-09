@@ -121,10 +121,17 @@ def test_x4_joint_bayesian_validates_its_arguments_as_typed_errors():
 
 
 def test_x4_nested_markov_route_is_closed_with_cell_not_licensed():
-    error = refusal_of(
-        lambda: transport.binary_nested_markov(graph=verma(), regimes=[observational()])
-    )
-    assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
+    from antecedent import _native
+
+    if hasattr(_native, "nested_markov_posterior_candidate"):
+        result = transport.binary_nested_markov(graph=verma(), regimes=[observational()])
+        assert result.calibration == "unmeasured"
+        assert result.inference == "posterior_candidate_withheld_calibration_unmeasured"
+    else:
+        error = refusal_of(
+            lambda: transport.binary_nested_markov(graph=verma(), regimes=[observational()])
+        )
+        assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
 
 
 def test_nested_fisher_public_interval_remains_closed_and_validates_level():
