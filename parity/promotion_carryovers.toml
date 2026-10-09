@@ -28,9 +28,9 @@ corrective_action = "Measure the complete estimator at its unit/time dependence 
 
 [[cell]]
 id = "2.3A.X8.transported_path_specific_counterfactual"
-failed_gates = ["joint_cross_world_transport_theorem", "general_provider_and_artifact_evidence"]
-detail = "The general transported cross-world theorem is not derived. The separately promoted affine-additive row does not license this general path-specific route."
-corrective_action = "Derive the joint theorem and factor/evidence map, implement the matching provider and replay consumer, and execute positive and obstruction witnesses at that exact row."
+failed_gates = ["bounded_ctftr_derivation_and_implementation", "general_provider_and_artifact_evidence"]
+detail = "The published CTFTR counterfactual transportability theorem exists, but its bounded nested/conditional query reduction, selection-aware district transport, factor/evidence provider and replay are not implemented in this repository. The separately promoted affine-additive row does not license this general path-specific route."
+corrective_action = "Complete the dependency-ordered 2.4 general finite counterfactual transport package in ROADMAP.md: antecedent-identify leads typed query/evidence prerequisites, bounded CTFTR and district identification, exact provider and antecedent-io independent replay with Python public routes. Execute independent finite-SCM positive and two-model obstruction witnesses plus installed producer/fresh-process consumer gates; retain this route closed until its exact scope passes."
 
 [[cell]]
 id = "2.3A.X10.sampled_observation_recovery"

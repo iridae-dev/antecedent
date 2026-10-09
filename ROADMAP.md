@@ -242,6 +242,23 @@ conditioning information of another. It preserves the proposed scope and
 acceptance boundary for that later release; a 2.3 bundle does not imply these
 capabilities.
 
+Two explicit handoff packages below are committed implementation requirements for
+2.4, rather than unnamed future work. In 2.3, `FittedEffectModel` verifies its
+parent analysis and predicts CATE points; neither it nor a compact prediction
+export is a native decision source. The separately supported unchanged scalar
+mean-contrast decision bridge does not certify a new prediction cohort. The
+transported counterfactual row supports a fully specified affine-additive
+Markovian model with shared noise, covariate/treatment selection and target-source
+support inclusion. It does not implement general transported nested or
+path-specific identification. Both broader obligations stay open until their own
+public producer and independent consumer pass.
+
+These are named minimum delivery packages for 2.4. Review their open obligations
+at each prerequisite milestone, retaining the original obligation until successful
+public-producer and fresh-consumer evidence exists. A further deferral requires an
+explicit release-scope decision with owners and acceptance gates; silent carryover
+does not satisfy a milestone.
+
 ### Milestone A — Make scientific composition executable
 
 #### 1. Uncertain measurements and latent-variable inputs
@@ -293,6 +310,56 @@ Propagate uncertainty through the resulting composition rather than treating sep
 Start with explicitly mapped acyclic compositions and bounded model families. Preserve structured refusal when the available components do not establish a coherent joint law.
 
 The existence of individually valid mechanisms must not imply that their composition is scientifically valid.
+
+**Delivery package: general finite counterfactual transport.** Lead owner:
+counterfactual identification in `antecedent-identify`; dependencies are typed
+queries in `antecedent-core`, finite evidence evaluation in `antecedent-expr`,
+replay in `antecedent-io`, and the Python transport facade. General cross-world
+selective execution remains a separate package: identifying a counterfactual
+functional does not provide retained abduction or per-world work receipts.
+
+The foundational theorem already exists: [Correa, Lee and Bareinboim (2022)](https://proceedings.mlr.press/v162/correa22a.html)
+give counterfactual transportability with conditional-query reduction and nested
+counterfactual unnesting. The repository still needs its bounded adaptation and
+implementation. The existing observational effect-on-the-treated identifier and
+conservative direct/standardized transport rules do not implement CTFTR or its
+selection-aware district transport subroutine.
+
+Deliver these prerequisites in dependency order:
+
+1. Freeze a static finite-discrete acyclic semi-Markovian contract, with checked
+   limits on variables, levels, events, evidence regimes, search and allocation.
+   Represent nested/conditional counterfactual events, canonical world assignments,
+   selection diagrams and population-labelled observational/interventional joint
+   evidence. Continuous, cyclic, temporal and sampled inference require separate
+   rows. Freeze the theorem premises and executable positive/obstruction fixtures
+   before implementing its planner.
+2. Implement and independently validate query simplification and unnesting,
+   ancestral components, counterfactual-factor consistency and conditional reduction;
+   implement the matching selection-aware district transport/IDENTIFY recursion.
+   Reuse metered ID and expression/table primitives only where their premises
+   match. Distinguish a theorem obstruction from absent evidence, unsupported scope
+   and an inconclusive budget/cancellation stop.
+3. Add typed `transport.identify_counterfactual(...)` and a derivation's
+   `evaluate(evidence=...)` operation, with exact population/regime factor bindings,
+   support/zero-denominator guards, original evidence identities and a finite
+   result. These are proposed interface names to freeze with the contract; no
+   independent marginal pairing may create a cross-world law.
+4. Add a versioned `CounterfactualTransportArtifact` export/load boundary retaining
+   query, graph, selection, complete evidence, derivation and result. A fresh
+   consumer holding an expected identity must rerun identification and evaluation.
+   Register the real public routes, support rows and refusal boundaries together.
+
+Acceptance requires installed Rust/Python producers and independent finite-SCM
+enumeration for nonlinear mediation/natural effects, multiple source regimes,
+conditional factual evidence and transportable latent districts. Negative gates
+include recanting/inconsistent factors, selection obstructions with two models
+agreeing on all supplied evidence but differing on the target, missing factors,
+zero support/conditioning mass, wrong population/regime, budget/cancellation and
+resealed query/selection/table mutations. Exported results must pass a fresh-process
+consumer against the independent oracle. Exact finite-law evaluation supplies no
+sample interval, posterior or calibration license. These gates close the carried
+general route; the existing additive row cannot close them.
 
 #### 3. Evidence-aware synthesis and revision
 
@@ -350,6 +417,39 @@ Antecedent should specifically prevent common semantic substitutions such as:
 - predictive importance → causal effect;
 - model score → probability;
 - scientific endpoint → utility.
+
+**Delivery package: fitted effect model to a cohort decision.** Lead owner:
+fitted prediction in `antecedent-estimate` and the analysis facade; dependencies
+are scientific quantity/support contracts in `antecedent-core`, native decision
+binding in `antecedent-design`, portable replay in `antecedent-io`, and Python
+`prediction`/`decision`. The first supported operation is an affine expectation
+of one declared cohort-mean treatment contrast. Predicting CATE points alone does
+not create two absolute potential-outcome means or a joint outcome law.
+
+Deliver in dependency order: retain the verified immutable fitted payload and
+original query/contrast; bind strict named feature rows, row count/identities,
+cohort snapshot/digest, target population and finite normalized weights; implement
+target-row support checks using the original model's support contract and require
+explicit outcome units. If the retained model lacks an executable support
+contract, add that producer/replay prerequisite first and refuse its absence.
+Then issue one native source-bound `mean_difference` quantity for the cohort's
+weighted mean CATE, preserving original diagnostics, conditioning, evidence and
+support without inherited utility standard errors or intervals.
+
+Expose a typed cohort binding and `FittedEffectModel.decision_source(cohort=...,
+outcome_units=...)` feeding `Contract.evaluate`, with versioned export and load
+under a retained expected identity. Freeze final names alongside the native
+contract. Python convenience must follow real native authority and support
+verification, rather than attest caller-supplied prediction floats as native.
+
+Acceptance requires an actual fitted producer → cohort adapter → affine contract,
+with independent hand-calculated weighted-cohort means and decision utilities,
+then an installed-wheel fresh-process replay. Executable negative gates must
+cover missing/outside support, schema/unit/population/contrast mismatch, changed
+rows/weights/cohort, wrong parent identity and resealed artifacts. Probability,
+quantile, nonlinear utility and joint-law requests remain refused until a separate
+producer supplies the required aligned law. This package remains open; its exact
+2.3 refusal boundary is documented in `docs/2_3-producer-consumer-matrix.md`.
 
 #### 5. Observation-conditioned scientific queries
 
