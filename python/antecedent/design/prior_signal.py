@@ -118,6 +118,9 @@ def adapt_prior_to_signal(
         raise CausalTypeError("catalog must be a priors.PriorCatalog")
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of PriorSignalSource")
+    # Bound counts before type iteration, metadata conversion, or catalog tuple copies.
+    if len(sources) > 64 or len(catalog._sources) > 64:
+        raise CausalValueError("prior signal adaptation supports at most 64 sources")
     if not all(isinstance(s, PriorSignalSource) for s in sources):
         raise CausalTypeError("sources must contain PriorSignalSource declarations")
     if not isinstance(signal, (GaussianMeanSignal, BinomialSignal)):

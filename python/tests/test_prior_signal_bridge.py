@@ -6,7 +6,7 @@ from dataclasses import replace
 import antecedent as ac
 import pytest
 from antecedent import design as dr
-from antecedent.errors import CausalTypeError
+from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.priors import (
     DesignVariable,
@@ -292,3 +292,22 @@ def test_two_original_sources_cannot_double_count_observations():
     with pytest.raises(dr.DesignRankingRefusal) as error:
         adapt(catalog=PriorCatalog([original, second]), sources=sources)
     assert error.value.detail == "prior_signal.prior_sources_overlap"
+
+
+def test_source_count_bound_precedes_source_iteration_and_catalog_metadata_conversion():
+    from collections.abc import Sequence
+
+    class OversizedSources(Sequence):
+        def __len__(self):
+            return 65
+
+        def __getitem__(self, index):
+            raise AssertionError("oversized source declarations must not be iterated")
+
+    with pytest.raises(CausalValueError, match="at most 64 sources"):
+        adapt(sources=OversizedSources())
+
+    # Sentinel objects would fail metadata conversion if payload materialization ran.
+    oversized_catalog = PriorCatalog([object()] * 65)
+    with pytest.raises(CausalValueError, match="at most 64 sources"):
+        adapt(catalog=oversized_catalog)
