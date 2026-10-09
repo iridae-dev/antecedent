@@ -10,9 +10,9 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from math import isfinite, isnan
-from typing import Any, ClassVar, Literal, Self, get_args
+from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
-from pydantic import Field, PrivateAttr, model_validator
+from pydantic import BeforeValidator, Field, PrivateAttr, model_validator
 
 from .._verdict import describe_status
 from ..errors import CausalValueError
@@ -34,6 +34,17 @@ UncertaintyKind = Literal["none", "pointwise", "simultaneous", "identified_set",
 #: ``"credible"``. A credible interval's ``standard_error`` is a posterior standard
 #: deviation, and neither reading transfers to the other.
 IntervalInterpretation = Literal["confidence", "credible"]
+
+
+def _support_status(value: Any) -> Any:
+    # Validate before Literal's schema so malformed native and user inputs keep
+    # the same public causal exception as the other semantic result checks.
+    if not isinstance(value, str) or value not in get_args(SupportStatus):
+        raise CausalValueError(f"unknown support status {value!r}")
+    return value
+
+
+_SupportStatus = Annotated[SupportStatus, BeforeValidator(_support_status)]
 
 
 class ResponseView(ResultModel):
@@ -232,21 +243,14 @@ class SupportReport(ResultModel):
     labels share the mean-surface layout (dose-major).
     """
 
-    status: str
+    status: _SupportStatus
     query_region: Mapping[str, tuple[float, float]]
     diagnostics: Sequence[SupportDiagnostic] = ()
     warnings: Sequence[str] = ()
-    point_status: Sequence[str] | None = None
+    point_status: Sequence[_SupportStatus] | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        allowed = set(get_args(SupportStatus))
-        if self.status not in allowed:
-            raise CausalValueError(f"unknown support status {self.status!r}")
-        if self.point_status is not None:
-            for status in self.point_status:
-                if status not in allowed:
-                    raise CausalValueError(f"unknown support status {status!r}")
         for variable, bounds in self.query_region.items():
             if (
                 not variable.strip()
@@ -448,6 +452,9 @@ class CausalResponseView(ResultModel, ResultAPI):
     #: Identify a value by its descriptor, never by grid position or label.
     #: See ``antecedent.results.coordinates.response_coordinates``.
     quantities: tuple[ScientificQuantity, ...] | None = None
+    #: Declared scientific binding retained by analyze(outcome_units=..., dose_units=...).
+    #: This is metadata checked against original native execution, never execution authority.
+    program_binding: Any = Field(default=None, exclude=True)
     _prepared: Any = PrivateAttr(default=None)
     _execution: Any = PrivateAttr(default=None)
     #: The native response payload this view was projected from, when there is one.

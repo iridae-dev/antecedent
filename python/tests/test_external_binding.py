@@ -11,7 +11,7 @@ import antecedent as ac
 import numpy as np
 import pytest
 from antecedent import external
-from antecedent.errors import CausalUnsupportedError, CausalValueError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.extensibility import ProviderTrust
 
 GRID = [0.0, 1.0, 2.0]
@@ -85,6 +85,79 @@ def test_bound_claim_is_inspectable_exportable_and_never_native():
     for link in inspection.lineage:
         assert link.parent_digests == tuple(by_id[parent].digest for parent in link.parents)
     assert "trust: externally_attested" in str(inspection)
+
+
+def test_identity_fields_are_detached_from_original_claim_metadata():
+    claim = _spec_with_premises().bind(_response())
+    identity = claim.identity
+    quantities = claim.quantities
+    lineage = claim.lineage
+    fields = claim.identity_fields
+    fields["quantities"][0]["units"] = "substituted-units"
+    fields["lineage"].clear()
+    fields["point_status"][0] = "supported"
+    assert claim.identity == identity
+    assert claim.quantities == quantities
+    assert claim.lineage == lineage
+    assert claim.support == ("missing_evidence",) * 3
+    restored = _spec_with_premises().load(claim.export(), expected_identity=identity)
+    assert restored.identity == identity
+    assert restored.quantities == quantities
+
+
+@pytest.mark.parametrize("invalid", [True, np.bool_(False), 1 + 2j, np.complex128(1 + 2j)])
+def test_foreign_numeric_inputs_do_not_turn_booleans_or_complex_values_into_reals(invalid):
+    with pytest.raises(CausalTypeError):
+        _response(values=[invalid, 3.0, 5.0])
+    with pytest.raises(CausalTypeError):
+        external.VerificationProbe("known_truth", invalid, 1.0, 0.0)
+
+
+def test_foreign_numeric_overflow_raises_causal_value_error():
+    too_large = 10**1000
+    with pytest.raises(CausalValueError, match="too large"):
+        _response(values=[too_large, 3.0, 5.0])
+    with pytest.raises(CausalValueError, match="too large"):
+        external.VerificationProbe("known_truth", too_large, 1.0, 0.0)
+
+
+def test_foreign_real_numbers_are_normalized_without_changing_verified_semantics():
+    probe = external.VerificationProbe("known_truth", np.float32(1.0), np.int64(1), 0)
+    assert type(probe.observed) is type(probe.expected) is type(probe.tolerance) is float
+    probes = (
+        *(
+            external.VerificationProbe(kind, 1.0, 1.0, 0.0)
+            for kind in ("shape", "support", "moments")
+        ),
+        probe,
+    )
+    response = _response(
+        values=np.array([1.0, 3.0, 5.0]),
+        attested_by=None,
+        probes=probes,
+        support=["supported"] * 3,
+        quantities=list(_spec().quantities),
+    )
+    assert isinstance(response.support, tuple)
+    assert isinstance(response.quantities, tuple)
+    claim = _spec().bind(response)
+    assert claim.trust is ProviderTrust.VERIFIED_EXTENSION
+    assert np.allclose(claim.values, [1.0, 3.0, 5.0])
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("probes", None),
+        ("support", "supported"),
+        ("quantities", ["y"]),
+        ("graph_id", 7),
+        ("uncertainty_method", 7),
+    ],
+)
+def test_malformed_optional_response_inputs_raise_causal_type_errors(field, value):
+    with pytest.raises(CausalTypeError):
+        _response(**{field: value})
 
 
 def test_verified_trust_is_recomputed_from_independent_probes():

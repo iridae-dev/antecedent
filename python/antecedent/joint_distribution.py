@@ -11,7 +11,7 @@ import json
 import math
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 import numpy as np
 from numpy.typing import NDArray
@@ -29,6 +29,7 @@ DistributionMeaning = Literal[
     "empirical_outcome",
 ]
 DrawAlignment = Literal["joint", "independent_marginals"]
+QuantityRole = Literal["treatment", "outcome", "covariate", "mediator", "selection", "utility"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +42,7 @@ class QuantityCondition:
 class ScientificQuantity:
     variable_id: str
     variable_name: str
-    role: Literal["treatment", "outcome", "covariate", "mediator", "selection", "utility"]
+    role: QuantityRole
     units: str
     population_id: str
     regime_id: str
@@ -53,7 +54,7 @@ class ScientificQuantity:
     @classmethod
     def of(
         cls,
-        role: Literal["treatment", "outcome", "covariate", "mediator", "selection", "utility"],
+        role: QuantityRole,
         variable: str,
         *,
         units: str,
@@ -79,6 +80,8 @@ class ScientificQuantity:
             CausalValueError: a required text field is blank, or ``horizon`` is not a
                 non-negative integer.
         """
+        if role not in get_args(QuantityRole):
+            raise CausalValueError(f"role must be one of {get_args(QuantityRole)}, got {role!r}")
         for name, value in (
             ("variable", variable),
             ("units", units),
@@ -93,6 +96,17 @@ class ScientificQuantity:
             raise CausalValueError("variable_id= must be a non-empty string when given")
         if isinstance(horizon, bool) or not isinstance(horizon, int) or horizon < 0:
             raise CausalValueError("horizon= must be a non-negative integer")
+        if isinstance(conditioning, (str, bytes)) or not isinstance(conditioning, Iterable):
+            raise CausalTypeError("conditioning= must contain QuantityCondition values")
+        conditions = tuple(conditioning)
+        if any(not isinstance(condition, QuantityCondition) for condition in conditions):
+            raise CausalTypeError("conditioning= must contain QuantityCondition values")
+        for condition in conditions:
+            if any(
+                not isinstance(value, str) or not value.strip()
+                for value in (condition.variable_id, condition.value_id)
+            ):
+                raise CausalValueError("conditioning identities must be non-empty strings")
         return cls(
             variable_id=variable_id or variable,
             variable_name=variable,
@@ -102,7 +116,7 @@ class ScientificQuantity:
             regime_id=regime,
             horizon=horizon,
             functional_id=functional,
-            conditioning=tuple(conditioning),
+            conditioning=conditions,
             transform_id=transform,
         )
 
@@ -130,6 +144,38 @@ class ScientificQuantity:
     def utility(cls, variable: str, **kwargs: Any) -> ScientificQuantity:
         """A utility quantity; keywords as :meth:`of`."""
         return cls.of("utility", variable, **kwargs)
+
+    @classmethod
+    def from_effect(
+        cls, result: Any, *, outcome_units: str, population: str = "target"
+    ) -> ScientificQuantity:
+        """The original checked ATE contrast, not an absolute outcome mean.
+
+        Units label the original outcome scale; this performs no conversion.
+        Only an unchanged, point-identified static mean ATE is supported. The
+        native producer supplies the actual variable, intervention levels and
+        ``mean_difference`` semantics. Aggregate results supply no outcome law.
+        """
+        from .errors import CausalUnsupportedError
+        from .external import ExternalRefusal
+        from .results import AnalysisResult
+
+        if not isinstance(result, AnalysisResult):
+            raise CausalTypeError("from_effect needs an AnalysisResult")
+        native = getattr(getattr(result, "_raw", None), "effect_source_json", None)
+        if native is None:
+            raise CausalUnsupportedError(
+                "the result has no original checked static ATE source",
+                reason_code="route_not_supported",
+            )
+        if not isinstance(outcome_units, str) or not outcome_units.strip():
+            raise CausalValueError("outcome_units must be a non-empty string")
+        wire, refusal = native(outcome_units, population, result.as_point())
+        if refusal is not None:
+            raise ExternalRefusal(json.loads(refusal))
+        if wire is None:
+            raise CausalValueError("the native effect source returned no result")
+        return cls._from_wire(json.loads(wire)["coordinates"][0])
 
     @classmethod
     def from_response(
@@ -163,6 +209,15 @@ class ScientificQuantity:
             raise CausalValueError("outcome_units= is required: units are never inferred")
         if response.quantities is not None:
             coordinates = tuple(response.quantities)
+            if any(
+                coordinate.units != outcome_units
+                or coordinate.population_id != population
+                or coordinate.transform_id != transform
+                for coordinate in coordinates
+            ):
+                raise CausalValueError(
+                    "requested units, population or transform conflict with retained coordinates"
+                )
         elif getattr(response, "_raw", None) is not None:
             coordinates = tuple(
                 response.response_coordinates(
@@ -200,9 +255,28 @@ class ScientificQuantity:
         )
         view = response.response
         points = [] if view is None else [point[0] for point in view.points]
-        for point, coordinate in zip(points, coordinates, strict=False):
-            if math.isclose(point, float(dose), rel_tol=1e-12, abs_tol=1e-12):
-                return coordinate
+        if isinstance(dose, bool) or not isinstance(dose, (int, float)):
+            raise CausalTypeError("dose must be a number")
+        if not math.isfinite(dose):
+            raise CausalValueError("dose must be finite")
+        if len(points) != len(coordinates):
+            raise CausalValueError("response coordinates do not match its grid")
+        exact = [
+            coordinate
+            for point, coordinate in zip(points, coordinates, strict=True)
+            if point == dose
+        ]
+        if len(exact) == 1:
+            return exact[0]
+        nearby = [
+            coordinate
+            for point, coordinate in zip(points, coordinates, strict=True)
+            if math.isclose(point, dose, rel_tol=1e-12, abs_tol=1e-12)
+        ]
+        if len(nearby) == 1:
+            return nearby[0]
+        if nearby:
+            raise CausalValueError(f"dose {dose!r} ambiguously matches multiple grid points")
         raise CausalValueError(f"dose {dose!r} is not a grid point of this response: {points}")
 
     def _wire(self) -> dict[str, Any]:

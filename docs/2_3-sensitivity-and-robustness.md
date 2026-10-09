@@ -89,6 +89,30 @@ of 0 or 1), `stratum_mass`, `outcome_law`, `invalid_threshold`, `invalid_toleran
 and `bounds_exceeded` (`lambda_max` above 1000). All raise `MsmSensitivityRefusal`,
 a `StructuredRefusal`.
 
+For an analysis result, supply a sample explicitly rather than rebuilding laws
+from an aggregate ATE:
+
+```python
+sample_bounds = ate_result.msm_sensitivity(data=sample, lambda_max=3.0)
+assert sample_bounds.input_basis == "empirical_plugin"
+```
+
+This route requires a checked static binary-treatment `AverageEffect` and the
+same finite adjustment set. At Lambda = 1 the new MSM model declares
+conditional ignorability within those strata; the original analysis query or
+identification premises do not certify that added assumption. In particular,
+a front-door or general-ID estimator need not equal this empirical stratified
+ATE even when both address the same query. The supplemental sample supplies empirical stratum
+masses, propensities and discrete outcome laws. Its bounds are sharp for the
+empirical distribution and estimate population bounds; sampling uncertainty is
+unmeasured and withheld. The sample gets its own content digest and is explicitly
+labelled supplemental, so it is never represented as the original analysis
+snapshot. `to_sensitivity_artifact` carries this distinction, the original
+program identity and the sampling limitation into a decision. Every stratum
+needs both treatment arms; the route permits at most 1,000,000 rows, 4096 strata
+and 256 distinct outcomes per arm and stratum. Continuous covariates/outcomes
+need declared finite strata/support; no automatic binning changes the estimand.
+
 ## Carrying a range into a decision: `sensitivity_decision`
 
 `MsmResult.to_sensitivity_artifact` turns the Lambda surface into a

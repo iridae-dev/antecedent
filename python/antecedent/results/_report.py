@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer
+from pydantic.config import ExtraValues
 
 _HANDLE_ATTRS = ("_raw", "_prepared", "_execution")
 
@@ -91,6 +94,18 @@ def _unwrap_causal(error: ValidationError) -> BaseException | None:
     return None
 
 
+@contextmanager
+def _causal_validation() -> Iterator[None]:
+    """Preserve domain errors at every public result construction entry point."""
+    try:
+        yield
+    except ValidationError as error:
+        causal = _unwrap_causal(error)
+        if causal is not None:
+            raise causal from error
+        raise
+
+
 class ResultModel(BaseModel):
     """Frozen analyze/response view. ``to_dict()`` is a JSON-safe walk."""
 
@@ -108,13 +123,73 @@ class ResultModel(BaseModel):
                 if name in kwargs:
                     raise TypeError(f"{type(self).__name__}() got multiple values for {name!r}")
                 kwargs[name] = value
-        try:
+        with _causal_validation():
             super().__init__(**kwargs)
-        except ValidationError as error:
-            causal = _unwrap_causal(error)
-            if causal is not None:
-                raise causal from error
-            raise
+
+    @classmethod
+    def model_validate(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        from_attributes: bool | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> Self:
+        with _causal_validation():
+            return super().model_validate(
+                obj,
+                strict=strict,
+                extra=extra,
+                from_attributes=from_attributes,
+                context=context,
+                by_alias=by_alias,
+                by_name=by_name,
+            )
+
+    @classmethod
+    def model_validate_json(
+        cls,
+        json_data: str | bytes | bytearray,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> Self:
+        with _causal_validation():
+            return super().model_validate_json(
+                json_data,
+                strict=strict,
+                extra=extra,
+                context=context,
+                by_alias=by_alias,
+                by_name=by_name,
+            )
+
+    @classmethod
+    def model_validate_strings(
+        cls,
+        obj: Any,
+        *,
+        strict: bool | None = None,
+        extra: ExtraValues | None = None,
+        context: Any | None = None,
+        by_alias: bool | None = None,
+        by_name: bool | None = None,
+    ) -> Self:
+        with _causal_validation():
+            return super().model_validate_strings(
+                obj,
+                strict=strict,
+                extra=extra,
+                context=context,
+                by_alias=by_alias,
+                by_name=by_name,
+            )
 
     def model_post_init(self, __context: Any) -> None:
         extra = dict(self.model_extra or {})

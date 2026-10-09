@@ -18,7 +18,7 @@ The day-1 workflow has five verbs:
   `Identification.estimate`, for callers that already hold a staged
   `Identification`.
 
-The root namespace (`import antecedent`) is **frozen at 64 names as of 2.1** (the specialized 2.1 families live on their stage modules, not at the root).
+The root namespace (`import antecedent`) has an explicit `__all__` contract. Specialized families live on their stage modules; the namespace tests check the exported names directly.
 Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
@@ -72,7 +72,7 @@ design query (`InterferenceQuery`); the five graph classes (`Dag`, `Cpdag`, `Pag
 `TemporalDag`); the inference / identifier / estimator / latency / refute selectors
 (`Frequentist`, `Bayesian`, `Identifier`, `Estimator`, `Latency`, `Refute`);
 the structural mass type `ClassPrior`; the two
-error names most callers catch (`CausalError`, `ReviewRequired`); the eighteen stage
+error names most callers catch (`CausalError`, `ReviewRequired`); the root-exported stage
 modules themselves; and `__version__`.
 
 **The rule for where a name lives**: if it's part of the day-1 workflow — run an
@@ -84,14 +84,14 @@ the module path rather than importing it flat:
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.experiment``,
 ``antecedent.estimation``, ``antecedent.extensibility``, ``antecedent.factorial``,
 ``antecedent.gcm``, ``antecedent.graph``, ``antecedent.policy``,
-``antecedent.priors``, ``antecedent.quasi``, ``antecedent.state``, ``antecedent.survival``, and
+``antecedent.priors``, ``antecedent.quasi``, ``antecedent.regimes``, ``antecedent.state``, ``antecedent.survival``, and
 ``antecedent.validation``.
 
-Each of those seventeen modules has an explicit, separately frozen `__all__`
-surface. The 64-name count is only the package-root contract; it does not add
-the stage-module names a second time.
+Each root-exported stage module has an explicit, separately checked `__all__`
+surface. These contracts describe the actual names, rather than counts copied
+into documentation.
 
-**21** further modules are reachable as ``antecedent.<name>`` (nothing stops
+Further modules are reachable as ``antecedent.<name>`` (nothing stops
 `import antecedent; antecedent.population.AllRows` from working) but are deliberately
 left off the frozen `__all__` list. Five are left off because their public content is
 already re-exported above:
@@ -105,12 +105,10 @@ already re-exported above:
   re-exported at root already.
 - ``antecedent.results`` — `AnalysisResult` is re-exported at root.
 
-The other sixteen are left off because they're a narrower surface than the stage
+The other modules are left off because they're a narrower surface than the stage
 modules — each one owns a single specialized concern that most callers never touch
 directly:
 
-- ``antecedent.regimes`` — point-only evaluation of caller-specified
-  longitudinal treatment regimes, outside the licensed support matrix.
 - ``antecedent.artifacts`` — durable format-0.5 artifact encode/decode, an advanced
   serialization surface, not part of the day-1 workflow.
 - ``antecedent.counterfactual`` — GCM counterfactual helpers (`fit_gcm`,

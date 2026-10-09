@@ -580,7 +580,7 @@ scope_fixture = { path = "crates/antecedent-estimate/tests/mechanism_discrepancy
 [[bound]]
 record = "2.3B.B3.msm_sensitivity"
 key = "max_strata"
-implementation = [{ path = "crates/antecedent-validate/src/msm_sensitivity.rs", constant = "MSM_MAX_STRATA" }]
+implementation = [{ path = "crates/antecedent-validate/src/msm_sensitivity.rs", constant = "MSM_MAX_STRATA" }, { path = "python/antecedent/msm_sensitivity.py", pattern = "len\\(groups\\) == (4096)" }]
 documentation = [{ path = "docs/2_3-supported-bounds.md", pattern = "\\| 2\\.3B\\.B3\\.msm_sensitivity \\| max_strata \\| ([\\d,]+) \\|" }]
 guard = { path = "crates/antecedent-validate/src/msm_sensitivity.rs", pattern = "if\\ strata\\.is_empty\\(\\)\\ \\|\\|\\ strata\\.len\\(\\)\\ >\\ MSM_MAX_STRATA\\ \\{" }
 refusal = { path = "crates/antecedent-validate/src/msm_sensitivity.rs", pattern = "if\\ strata\\.is_empty\\(\\)\\ \\|\\|\\ strata\\.len\\(\\)\\ >\\ MSM_MAX_STRATA\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
@@ -1441,3 +1441,30 @@ documentation = [{ path = "docs/2_3-supported-bounds.md", pattern = '\| 2\.3C\.C
 guard = { path = "crates/antecedent-design/src/source_projection_artifact.rs", pattern = 'selected.is_some_and\(\|action\| action.len\(\) > 256\)' }
 refusal = { path = "crates/antecedent-design/src/source_projection_artifact.rs", pattern = 'selected.is_some_and\(\|action\| action.len\(\) > 256\)[\s\S]{0,1800}?(?:\bErr\s*\(|\.map_err\s*\(|\.ok_or\s*\()' }
 scope_fixture = { path = "crates/antecedent/tests/source_projection.rs", pattern = '\bselected_affine_functional_replays_full_original_request_and_refuses_unsupported_action\b' }
+
+[[bound]]
+record = "2.3B.B3.msm_sensitivity"
+key = "max_sample_rows"
+implementation = [{ path = "python/antecedent/msm_sensitivity.py", pattern = "sample_size > (1_000_000)" }]
+documentation = [{ path = "docs/2_3-supported-bounds.md", pattern = "\\| 2\\.3B\\.B3\\.msm_sensitivity \\| max_sample_rows \\| ([\\d,]+) \\|" }]
+guard = { path = "python/antecedent/msm_sensitivity.py", pattern = "if sample_size > 1_000_000:" }
+refusal = { path = "python/antecedent/msm_sensitivity.py", pattern = "if sample_size > 1_000_000:[\\s\\S]{0,200}?raise CausalValueError" }
+scope_fixture = { path = "python/tests/test_decision_flow_bridge.py", pattern = "\\btest_empirical_msm_result_handoff_keeps_sample_bounds_distinct\\b" }
+
+[[bound]]
+record = "2.3B.B3.msm_sensitivity"
+key = "max_outcomes_per_arm"
+implementation = [{ path = "python/antecedent/msm_sensitivity.py", pattern = "len\\(counts\\) == (256)" }]
+documentation = [{ path = "docs/2_3-supported-bounds.md", pattern = "\\| 2\\.3B\\.B3\\.msm_sensitivity \\| max_outcomes_per_arm \\| ([\\d,]+) \\|" }]
+guard = { path = "python/antecedent/msm_sensitivity.py", pattern = "if value not in counts and len\\(counts\\) == 256:" }
+refusal = { path = "python/antecedent/msm_sensitivity.py", pattern = "if value not in counts and len\\(counts\\) == 256:[\\s\\S]{0,250}?raise CausalValueError" }
+scope_fixture = { path = "python/tests/test_decision_flow_bridge.py", pattern = "\\btest_empirical_msm_support_limit_rejects_new_distinct_outcome\\b" }
+
+[[bound]]
+record = "2.3B.F4.decision_contract"
+key = "max_effect_unit_bytes"
+implementation = [{ path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > (256)" }]
+documentation = [{ path = "docs/2_3-supported-bounds.md", pattern = "\\| 2\\.3B\\.F4\\.decision_contract \\| max_effect_unit_bytes \\| ([\\d,]+) \\|" }]
+guard = { path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > 256" }
+refusal = { path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > 256[\\s\\S]{0,220}?return Err" }
+scope_fixture = { path = "python/tests/test_decision_flow_bridge.py", pattern = "\\btest_scalar_effect_evaluates_only_its_original_contrast_coordinate\\b" }

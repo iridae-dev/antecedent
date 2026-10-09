@@ -55,6 +55,7 @@ __all__ = [
     "MsmUncertainty",
     "OutcomeLaw",
     "msm_ate_sensitivity",
+    "from_analysis",
 ]
 
 _DEFAULT_GRID_POINTS = 17
@@ -338,6 +339,9 @@ class MsmResult:
     inference_claim: str
     uncertainty: MsmUncertainty
     _request: _Request = field(repr=False, compare=False)
+    input_basis: str = "exact_population"
+    sample_id: str | None = None
+    source_program_id: str | None = None
 
     @property
     def lambdas(self) -> tuple[float, ...]:
@@ -363,6 +367,8 @@ class MsmResult:
         )
         if self.tipping is not None:
             text += f" Tipping point: {self.tipping}."
+        if self.input_basis == "empirical_plugin":
+            text = "Empirical plug-in estimate. " + text.replace("Identified ATE", "Sample ATE")
         return text + f" {self.uncertainty.sampling_interval}."
 
     def to_sensitivity_artifact(
@@ -406,6 +412,38 @@ class MsmResult:
         declared = list(actions)
         if any(not isinstance(action, SensitivityAction) for action in declared):
             raise CausalTypeError("actions must be sensitivity_decision.SensitivityAction values")
+        if self.input_basis == "empirical_plugin":
+            from .sensitivity_decision import (
+                AssumptionCoordinate,
+                SamplingWithheld,
+                SurfaceProvenance,
+                SurfaceQuantity,
+            )
+
+            return SensitivityArtifact.from_surface(
+                coordinate=AssumptionCoordinate(
+                    "Lambda", "odds_ratio_bound", "dimensionless", 1.0, self.lambda_max
+                ),
+                grid=self.lambdas,
+                quantities=[
+                    SurfaceQuantity(
+                        effect, tuple(p.lower for p in self.grid), tuple(p.upper for p in self.grid)
+                    ),
+                    *(SurfaceQuantity(q, tuple(values)) for q, values in point_quantities),
+                ],
+                actions=declared,
+                provenance=SurfaceProvenance(
+                    source_kind="empirical_msm_plugin",
+                    query_binding=f"source_program:{self.source_program_id or 'unavailable'}",
+                    provider_snapshot=self.sample_id or "unavailable",
+                    source_regime="supplemental_empirical_sample",
+                    method=self.method,
+                    causal_contract_id=causal_contract_id,
+                    decision_threshold=self.decision_threshold,
+                ),
+                sampling=SamplingWithheld(self.uncertainty.reason_code, self.uncertainty.detail),
+                interpretation="empirical plug-in assumption range; not a population confidence interval",
+            )
         request = self._request
         data, refusal = _artifact_run(
             [stratum._wire() for stratum in request.strata],
@@ -531,3 +569,152 @@ def msm_ate_sensitivity(
     if text is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native MSM bounds returned neither a result nor a refusal")
     return _result(json.loads(text), request)
+
+
+def from_analysis(
+    result: Any,
+    *,
+    data: Any,
+    lambda_max: float,
+    adjustment: Sequence[str] | None = None,
+    grid_points: int = _DEFAULT_GRID_POINTS,
+    decision_threshold: float | None = None,
+    tolerance: float = _DEFAULT_TOLERANCE,
+) -> MsmResult:
+    """Empirical plug-in sensitivity for a binary-treatment AverageEffect result.
+
+    ``data`` is an explicit supplemental sample, not reconstructed from an aggregate
+    estimate. The sample's finite adjustment strata supply empirical masses,
+    propensities and outcome laws. Bounds are sharp for that empirical distribution;
+    they are estimates of population bounds, with sampling uncertainty withheld.
+    The original result selects the query and checked adjustment set; it does not
+    certify that supplemental data equal its original snapshot. The new sample gets
+    its own digest. Continuous covariates require explicitly declared finite strata.
+    """
+    import hashlib
+
+    from ._data import as_columns
+    from .query import AverageEffect
+    from .results import AnalysisResult
+
+    if not isinstance(result, AnalysisResult) or not isinstance(result.query, AverageEffect):
+        raise CausalTypeError("MSM from_analysis requires an AverageEffect analysis result")
+    if not result.identification:
+        raise CausalValueError("MSM from_analysis requires a point-identified adjustment query")
+    query = result.query
+    if query.target_population is not None or query.outcome_functional is not None:
+        raise CausalValueError("empirical MSM requires the ordinary untransformed sample ATE")
+    native = getattr(result._raw, "effect_source_json", None)
+    if native is None:
+        raise CausalTypeError("MSM from_analysis requires an original native static ATE")
+    source_json, refusal = native("outcome_numeric_scale", "target", result.as_point())
+    if refusal is not None:
+        from .external import ExternalRefusal
+
+        raise ExternalRefusal(json.loads(refusal))
+    original = json.loads(source_json)
+    basis = original["query"]
+    if (
+        query.treatment != basis["treatment"]
+        or query.outcome != basis["outcome"]
+        or query.control_level != basis["control"]
+        or query.active_level != basis["active"]
+        or result.identification.adjustment_set != basis["adjustment"]
+    ):
+        raise CausalValueError("MSM query and adjustment must retain the original native source")
+    names, columns = as_columns(data)
+    table = dict(zip(names, columns, strict=True))
+    if adjustment is not None and (
+        isinstance(adjustment, (str, bytes)) or not isinstance(adjustment, Sequence)
+    ):
+        raise CausalTypeError("adjustment must be a sequence of distinct column names")
+    declared = tuple(result.identification.adjustment_set if adjustment is None else adjustment)
+    if any(not isinstance(x, str) or not x.strip() for x in declared):
+        raise CausalTypeError("adjustment must contain non-empty column names")
+    if len(set(declared)) != len(declared):
+        raise CausalTypeError("adjustment must contain distinct column names")
+    if declared != tuple(result.identification.adjustment_set):
+        raise CausalValueError("adjustment must match the analysis's checked adjustment set")
+    required = (query.treatment, query.outcome, *declared)
+    if any(name not in table for name in required):
+        raise CausalValueError(f"supplemental data require columns {required!r}")
+    sample_size = len(table[query.treatment])
+    if sample_size > 1_000_000:
+        raise CausalValueError("empirical MSM sample is limited to 1,000,000 rows")
+    if not sample_size:
+        raise CausalValueError("supplemental MSM sample must be nonempty and finite")
+    from collections import Counter
+
+    sample_hash = hashlib.sha256()
+    # Stream exactly the canonical JSON [required_columns, ordered_rows] used by
+    # the original handoff, without retaining a second copy of the sample.
+    sample_hash.update(b"[")
+    sample_hash.update(json.dumps(required, sort_keys=True).encode())
+    sample_hash.update(b", [")
+    groups: dict[tuple[float, ...], tuple[Counter[float], Counter[float]]] = {}
+    for index, row in enumerate(zip(*(table[name] for name in required), strict=True)):
+        if not all(math.isfinite(float(v)) for v in row):
+            raise CausalValueError("supplemental MSM sample must be nonempty and finite")
+        treatment, outcome, *covariates = row
+        if treatment not in (query.control_level, query.active_level):
+            raise CausalValueError("MSM sample treatment must have only the declared two levels")
+        key = tuple(float(v) for v in covariates)
+        if key not in groups:
+            if len(groups) == 4096:
+                raise CausalValueError(
+                    "MSM needs at most 4096 finite strata; declare finite covariates"
+                )
+            groups[key] = (Counter(), Counter())
+        control, treated = groups[key]
+        counts = treated if treatment == query.active_level else control
+        value = float(outcome)
+        if value not in counts and len(counts) == 256:
+            raise CausalValueError(
+                "empirical MSM permits at most 256 distinct outcomes per arm/stratum"
+            )
+        counts[value] += 1
+        if index:
+            sample_hash.update(b", ")
+        sample_hash.update(json.dumps(row, sort_keys=True).encode())
+    sample_hash.update(b"]]")
+
+    def empirical_law(counts: Counter[float]) -> OutcomeLaw:
+        support = tuple(sorted(counts))
+        total = counts.total()
+        return OutcomeLaw(support, tuple(counts[y] / total for y in support))
+
+    strata: list[MsmStratum] = []
+    for control, treated in groups.values():
+        if not control or not treated:
+            raise CausalValueError("every empirical stratum needs both treatment arms")
+        count = control.total() + treated.total()
+        strata.append(
+            MsmStratum(
+                count / sample_size,
+                treated.total() / count,
+                empirical_law(treated),
+                empirical_law(control),
+            )
+        )
+    calculated = msm_ate_sensitivity(
+        strata,
+        lambda_max,
+        grid_points=grid_points,
+        decision_threshold=decision_threshold,
+        tolerance=tolerance,
+    )
+    from dataclasses import replace
+
+    digest = sample_hash.hexdigest()
+    return replace(
+        calculated,
+        input_basis="empirical_plugin",
+        sample_id=f"sha256:{digest}",
+        source_program_id=original["causal_contract_id"],
+        interpretation="sharp bounds for the empirical distribution; population bounds estimated",
+        uncertainty=MsmUncertainty(
+            sampling_interval="sampling interval: not reported",
+            reason_code="cell_not_licensed",
+            detail="empirical plug-in bounds have unmeasured sampling uncertainty",
+        ),
+    )

@@ -713,6 +713,8 @@ cases = [
 
 # Constructs the checker must ACCEPT: (label, edits).
 positives = [
+    ("python namespace words in docstrings are not emitted refusals",
+     [("code.py", "NOTHING = 1\n", '"""Document the self_test_cell."""\nNOTHING = 1\nclass Documentation:\n    """Describe the self_test_cell."""\n    def describe(self):\n        """Evaluate the decided self_test_cell."""\n        return "ordinary prose"\n')]),
     ("qualified hidden method leaves public same-name accessor visible",
      [("surface_api.rs", None, QUALIFIED_PLUMBING), rec(INTERNAL, QUALIFIED_INTERNAL)]),
     ("shared evidence on every fixture that shares the test",
@@ -863,7 +865,7 @@ SELECT_23 = [
     ("refusal_dynamic", "rust format! builds a detail"),
     ("refusal_dead_const", "a detail held in a const nothing uses"),
 ]
-SELECT_23_POSITIVE = ["shared evidence on every fixture that shares the test"]
+SELECT_23_POSITIVE = ["shared evidence on every fixture that shares the test", "python namespace words in docstrings are not emitted refusals"]
 
 IDENT_LICENSED = '  { name = "self_test_cell.identify_route", stage = "identify", status = "licensed", claim = "none" },\n'
 IDENT_CLOSED = (
@@ -1010,7 +1012,7 @@ TMP = None
 
 def run(reg: Path, env: dict[str, str]) -> tuple[int, str]:
     proc = subprocess.run(
-        [sys.executable, str(CHECKER), str(reg)], capture_output=True, text=True, env={**os.environ, **env}
+        [sys.executable, str(CHECKER), str(reg)], capture_output=True, text=True, env={**os.environ, **env}, check=False
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -1103,7 +1105,7 @@ def committed() -> tuple[bool, str]:
 
 
 def rule_ids() -> tuple[list[str], set[str]]:
-    listed = subprocess.run([sys.executable, str(CHECKER), "--list-rules"], capture_output=True, text=True).stdout.split()
+    listed = subprocess.run([sys.executable, str(CHECKER), "--list-rules"], capture_output=True, text=True, check=True).stdout.split()
     used = set(re.findall(r'\bfail\(\s*"([a-z_]+)"', CHECKER.read_text()))
     # rules the source analysers hand back as (rule, message) pairs
     used |= {r for r in listed if f'("{r}",' in (ROOT / "scripts/promotion_source.py").read_text()}

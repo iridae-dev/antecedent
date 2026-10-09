@@ -146,6 +146,7 @@ def analyze(
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
     outcome_units: str | None = None,
+    dose_units: str | None = None,
     quantity_population: str = "target",
     quantity_transform: str = "identity",
 ) -> Analysis:
@@ -255,6 +256,11 @@ def analyze(
         horizon and functional, using ``quantity_population`` and
         ``quantity_transform``. Unsupported response shapes refuse; units are
         never inferred or converted.
+    dose_units:
+        Optional physical dose-unit declaration, requiring ``outcome_units``.
+        Retains a checked ``result.program_binding`` for later ``Contract.evaluate``.
+        Without it, direct decision evaluation uses the original numeric intervention
+        scale and makes no claim about physical dose units.
     return_posterior_artifact:
         When ``True`` and inference is Bayesian, attach full posterior draw
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
@@ -332,6 +338,18 @@ def analyze(
                 "transferable prior",
                 reason_code="option_not_applicable",
             )
+
+    if dose_units is not None:
+        from .errors import CausalTypeError, CausalValueError
+
+        if not isinstance(dose_units, str):
+            raise CausalTypeError("dose_units must be a string")
+        if not dose_units.strip() or len(dose_units.encode()) > 256 or outcome_units is None:
+            raise CausalValueError(
+                "dose_units must be non-empty, at most 256 bytes and requires outcome_units"
+            )
+        if not isinstance(query, ResponseCurve):
+            raise CausalValueError("dose_units requires a static ResponseCurve query")
 
     if outcome_units is None and (
         quantity_population != "target" or quantity_transform != "identity"
@@ -436,6 +454,22 @@ def analyze(
                 calibration=result.calibration,
             )
             result = copy_model(result, reasoning=slots, claim_id=slots.claim_id)
+    if dose_units is not None:
+        assert isinstance(result, CausalResponseView)
+        assert outcome_units is not None
+        from .program_claims import ProgramBinding
+        from .results._report import copy_model
+
+        result = copy_model(
+            result,
+            program_binding=ProgramBinding.from_response(
+                result,
+                outcome_units=outcome_units,
+                dose_units=dose_units,
+                population=quantity_population,
+                transform=quantity_transform,
+            ),
+        )
     # This facade accepts only the legacy analysis query family.
     from typing import cast
 

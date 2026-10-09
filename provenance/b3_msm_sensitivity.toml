@@ -19,6 +19,10 @@ papers = [
 ]
 
 implementation_deviations = [
+  "Original query/adjustment ancestry does not validate supplemental-sample ignorability, consistency or MSM assumptions, and Lambda1 empirical contrasts need not equal the original fitted estimate (including original front-door analyses). The caller must justify the sensitivity model for the new sample; no original causal identification guarantee is transferred.",
+ "The additive from_analysis / ResultAPI.msm_sensitivity workflow accepts an explicit supplemental sample, checks the unchanged original static ATE query/adjustment identity, and supplies empirical finite-stratum masses/propensities/outcome laws to the existing exact finite-law optimizer. It labels input_basis empirical_plugin and sample ATE; bounds are sharp for this empirical distribution and estimate population bounds with sampling uncertainty withheld. No exact population guarantee or sampling coverage above transfers to this workflow.",
+ "The supplemental sample has its own digest, while original source_program_id is retained only as query ancestry. Original aggregate results do not retain strata and cannot certify that the supplemental sample equals their original snapshot. Empirical F17 artifact provenance remains empirical_msm_plugin with the supplemental sample id and SamplingWithheld. Bounds are1,000,000sample rows,4096finite strata and 256 distinct outcomes per arm/stratum; both treatment arms must occur in every stratum.",
+
   "Claim policy: the licensed claim is the exact population-level assumption range and the identified value at Lambda = 1; nothing is estimated, so no standard error, p-value, power or coverage is produced and calibration is unmeasured. The range is never a confidence interval.",
   "The sampling interval is WITHHELD. The percentile bootstrap of Zhao, Small and Bhattacharya is not implemented: inputs are exact strata masses, propensities and outcome laws, and any request to compose a sampling interval with the assumption range is refused (cell_not_licensed / msm_sensitivity.composition_not_licensed); every result and artifact carries the withheld descriptor (msm_sensitivity.interval_withheld).",
   "The normalization is the EXACT population constraint E[rho] = 1 per stratum and arm, which gives the sharp bound for the declared set; it is not the Hajek (ratio) renormalization of the sample program, which drops the constraint and gives weakly wider, non-sharp population bounds. A reader must not transfer the sample-version guarantees of the papers to these exact bounds.",
@@ -30,6 +34,8 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+ "python/tests/test_decision_flow_bridge.py (test_empirical_msm_result_handoff_keeps_sample_bounds_distinct, test_empirical_msm_refuses_missing_arm_and_changed_adjustment, test_empirical_msm_adjustment_errors_are_domain_errors, test_empirical_msm_support_limit_rejects_new_distinct_outcome)",
+
   "hand-derived two-stratum binary-outcome example (identified 0.3; bounds [0.04375, 0.4875] at Lambda 2; tipping (2 + sqrt(193))/7) and a three-atom fractional-split example",
   "crates/antecedent-validate/tests/msm_sensitivity.rs",
   "crates/antecedent-io/tests/msm_sensitivity_adapter.rs",

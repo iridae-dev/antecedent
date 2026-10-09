@@ -100,7 +100,7 @@ _LIT = re.compile(
     r"""'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|.)|[^\\'\n])'"""
     r"""|(?<![\w])b?r(?P<hash>#*)\""""
     r"""|(?<![\w])b?"(?P<str>(?:\\.|[^"\\])*)\"""",
-    re.S,
+    re.DOTALL,
 )
 
 
@@ -201,6 +201,16 @@ def python_literals(path: Path) -> list[Lit]:
         tree = ast.parse(path.read_text(errors="ignore"))
     except SyntaxError:
         return []
+    # Documentation is not an emitted runtime string. In particular, a sentence
+    # ending in a namespace word such as "scenarios." is not a dynamic refusal.
+    # Keep ordinary constants and actual f-strings/concatenations fully scanned.
+    docstrings: set[int] = set()
+    for scope in ast.walk(tree):
+        if isinstance(scope, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            first = scope.body[0] if scope.body else None
+            if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)):
+                docstrings.add(id(first.value))
     consts: dict[int, str] = {}
     for node in ast.walk(tree):
         targets = node.targets if isinstance(node, ast.Assign) else [node.target] if isinstance(node, ast.AnnAssign) else []
@@ -212,7 +222,7 @@ def python_literals(path: Path) -> list[Lit]:
     seen: set[tuple[int, str]] = set()
     out: list[Lit] = []
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Constant, ast.JoinedStr, ast.BinOp)):
+        if isinstance(node, (ast.Constant, ast.JoinedStr, ast.BinOp)) and id(node) not in docstrings:
             value = _py_str(node)
             if value is not None and (node.lineno, value) not in seen:
                 seen.add((node.lineno, value))
@@ -505,7 +515,7 @@ def rust_assertion_problems(path: Path, name: str) -> list[tuple[str, str]]:
         problems.append(
             ("evidence_should_panic", f"test {name} is #[should_panic]; any panic passes it, so it observes no value")
         )
-    code, skel = rust_closure_parts(path, name)
+    _code, skel = rust_closure_parts(path, name)
     real = [m for m in _RS_ASSERT.finditer(skel) if not _RS_TRIVIAL.match(skel, m.start())]
     if not real:
         problems.append(

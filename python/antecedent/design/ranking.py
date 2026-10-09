@@ -1,6 +1,6 @@
 """One ranking surface: :func:`rank_designs` and its result, with an explicit basis.
 
-Candidate studies are ranked on one of two bases, named on the result as ``basis``:
+Candidate studies are ranked on an explicit basis, named on the result as ``basis``:
 
 ``"identification"``
     No decision is declared. Plans (:class:`~antecedent.design.Measurement`,
@@ -17,8 +17,14 @@ Candidate studies are ranked on one of two bases, named on the result as ``basis
     (:attr:`DesignRankingResult.gate`) and candidates below ``min_identification`` are not
     valued.
 
-The basis is part of the result's repr and :meth:`DesignRankingResult.explain`; the two
-orderings answer different questions and are never mixed in one result.
+Structural candidate declarations use ``"structural_sufficiency_cost"`` and have no
+numeric score. Typed ``objective=`` declarations expose the native graph entropy,
+linear-model effect-width, model-distinction and callable decision-regret functionals.
+Their names, evaluation methods and unmeasured precision diagnostics are retained on
+:class:`ObjectiveCandidate` entries.
+
+The basis is part of the result's repr and :meth:`DesignRankingResult.explain`; different
+orderings are never mixed in one result.
 """
 
 from __future__ import annotations
@@ -53,9 +59,32 @@ from ._declarations import (
     _search,
     consume,
 )
+from .objectives import (
+    OBJECTIVE_TYPES,
+    DecisionRegret,
+    DesignObjective,
+    EffectWidth,
+    GraphEntropy,
+    _sequence,
+)
 from .plans import PLAN_TYPES, DesignPlan, StructurePrior, _count, plan_id
+from .structural import (
+    StructuralCandidate,
+    StructuralEntry,
+    StructuralRanking,
+    _rank_structural_result,
+)
 
-Basis = Literal["identification", "evsi", "net_value"]
+Basis = Literal[
+    "identification",
+    "evsi",
+    "net_value",
+    "structural_sufficiency_cost",
+    "graph_entropy",
+    "effect_width",
+    "model_distinction",
+    "decision_regret",
+]
 
 
 # -- identification results ------------------------------------------------------------
@@ -79,11 +108,33 @@ class IdentificationCandidate:
     rank_uncertain: bool
     evaluation: str
     plan: DesignPlan
+    identification_probability: float
 
     @property
     def probability(self) -> float:
-        """Alias of :attr:`score`."""
-        return self.score
+        """Probability after the plan; ``score`` is its gain over the current prior."""
+        return self.identification_probability
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectiveCandidate:
+    """A native objective score with its actual implemented functional and evaluation.
+
+    ``stderr`` describes Monte Carlo estimation precision where applicable, without a
+    calibrated coverage or ranking guarantee. It is not an identification probability.
+    """
+
+    id: str
+    index: int
+    rank: int
+    kind: str
+    tag: int
+    score: float
+    stderr: float
+    rank_uncertain: bool
+    evaluation: str
+    implemented_functional: str
+    plan: DesignPlan
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,7 +187,7 @@ class _ValueBody:
 
 
 @dataclass(frozen=True, slots=True)
-class _IdentificationBody:
+class _PlanBody:
     query_id: int
     mc_samples: int
     early_stopped: bool
@@ -158,11 +209,13 @@ def _plain(value: Any) -> Any:
 class DesignRankingResult:
     """Candidates ranked on an explicit ``basis``, best first.
 
-    ``basis`` is ``"identification"`` (plans ranked by identification probability),
+    ``basis`` is ``"identification"`` (plans ranked by identification probability gain),
     ``"net_value"`` (studies ranked by EVSI net of cost under a cost map) or ``"evsi"``
     (studies ranked by EVSI, costs reported separately). ``candidates`` holds
     :class:`IdentificationCandidate` or :class:`~antecedent.design.CandidateValue` entries
-    accordingly; both expose ``id``, ``rank``, ``score`` and ``rank_uncertain``.
+    accordingly. Native objectives return :class:`ObjectiveCandidate`; these entries expose
+    ``id``, ``rank``, ``score`` and ``rank_uncertain``. Structural declarations return
+    :class:`StructuralEntry` with sufficiency and costs, without a numerical score.
 
     A value ranking carries a durable artifact (:meth:`export`, :attr:`identity`,
     :meth:`expectation`, :attr:`lineage`) and was independently recomputed by the consumer
@@ -172,17 +225,22 @@ class DesignRankingResult:
     """
 
     basis: Basis
-    candidates: tuple[CandidateValue | IdentificationCandidate, ...]
+    candidates: tuple[
+        CandidateValue | IdentificationCandidate | ObjectiveCandidate | StructuralEntry, ...
+    ]
     search: DesignSearchReceipt
     calibration: Literal["unmeasured"]
     gate: IdentificationGate | None = None
     _value: _ValueBody | None = field(default=None, repr=False)
-    _ident: _IdentificationBody | None = field(default=None, repr=False)
+    _ident: _PlanBody | None = field(default=None, repr=False)
     _bytes: bytes | None = field(default=None, repr=False)
+    _structural: StructuralRanking | None = field(default=None, repr=False)
 
     # -- views ---------------------------------------------------------------------
 
-    def candidate(self, candidate_id: str) -> CandidateValue | IdentificationCandidate:
+    def candidate(
+        self, candidate_id: str
+    ) -> CandidateValue | IdentificationCandidate | ObjectiveCandidate | StructuralEntry:
         """The candidate with this semantic id."""
         for item in self.candidates:
             if item.id == candidate_id:
@@ -190,7 +248,9 @@ class DesignRankingResult:
         raise CausalValueError(f"no candidate {candidate_id!r} in this ranking")
 
     @property
-    def best(self) -> CandidateValue | IdentificationCandidate | None:
+    def best(
+        self,
+    ) -> CandidateValue | IdentificationCandidate | ObjectiveCandidate | StructuralEntry | None:
         """The top-ranked candidate, or ``None`` when nothing could be ranked."""
         return self.candidates[0] if self.candidates else None
 
@@ -202,7 +262,7 @@ class DesignRankingResult:
             )
         return self._value
 
-    def _need_ident(self, what: str) -> _IdentificationBody:
+    def _need_ident(self, what: str) -> _PlanBody:
         if self._ident is None:
             raise CausalValueError(
                 f"{what} exists only for an identification ranking; this ranking's basis is "
@@ -219,7 +279,7 @@ class DesignRankingResult:
 
     @property
     def mc_samples(self) -> int:
-        """Monte Carlo samples spent on the identification ranking."""
+        """Monte Carlo samples spent on a native plan ranking."""
         return self._need_ident("mc_samples").mc_samples
 
     @property
@@ -273,7 +333,12 @@ class DesignRankingResult:
 
     @property
     def identity(self) -> str:
-        """Artifact identity, invariant to the order candidates were supplied in."""
+        """Value artifact or structural ordering identity, invariant to candidate order.
+
+        Native objective and identification plan scores have no portable identity.
+        """
+        if self._structural is not None:
+            return self._structural.identity
         return self._need_value("identity").identity
 
     @property
@@ -376,7 +441,8 @@ class DesignRankingResult:
         parts = [f"basis={self.basis!r}", f"candidates={len(self.candidates)}"]
         if best is not None:
             parts.append(f"best={best.id!r}")
-            parts.append(f"score={best.score:.6g}")
+            if not isinstance(best, StructuralEntry):
+                parts.append(f"score={best.score:.6g}")
         if self._value is not None:
             parts.append(f"identity={self._value.identity[:12]!r}")
         if self.gate is not None and self.gate.rejected:
@@ -386,7 +452,36 @@ class DesignRankingResult:
     def explain(self) -> str:
         """A short plain-language account of what was ranked and on what basis."""
         lines: list[str] = []
-        if self.basis == "identification":
+        if self._structural is not None:
+            lines.append(
+                "Basis: structural_sufficiency_cost. Order by caller-declared verified "
+                "sufficiency, then cost units, sample budget and id; no identification "
+                "probability or value of information is inferred."
+            )
+            lines.extend(
+                f"  {c.rank + 1}. {c.id}: sufficient={c.verified_sufficient}, "
+                f"cost={c.cost_units}, budget={c.sample_budget}"
+                for c in self._structural.entries
+            )
+        elif self.basis in {
+            "graph_entropy",
+            "effect_width",
+            "model_distinction",
+            "decision_regret",
+        }:
+            lines.append(
+                f"Basis: {self.basis}. Native objective scores; no identification probability."
+            )
+            lines.extend(
+                f"  {c.rank + 1}. {c.id}: {c.score:.6g} "
+                f"({c.implemented_functional}, {c.evaluation}, stderr {c.stderr:.4g})"
+                + (" rank uncertain" if c.rank_uncertain else "")
+                for c in self.candidates
+                if isinstance(c, ObjectiveCandidate)
+            )
+            for v in self.violations:
+                lines.append(f"  excluded {v.id}: {v.constraint} ({v.detail})")
+        elif self.basis == "identification":
             ident = self._need_ident("explain")
             lines.append(
                 "Basis: identification. Plans are ranked by the gain in the probability that "
@@ -460,7 +555,11 @@ class DesignRankingResult:
         if self._value is not None:
             out["value"] = _plain(self._value)
         if self._ident is not None:
-            out["identification"] = _plain(self._ident)
+            out["identification" if self.basis == "identification" else "objective"] = _plain(
+                self._ident
+            )
+        if self._structural is not None:
+            out["structural_identity"] = self._structural.identity
         return out
 
 
@@ -475,12 +574,15 @@ def _unlocks(
     if not isinstance(raw, Mapping):
         raise CausalTypeError(f"{what} must map a query id to a sequence of ids")
     return [
-        (_count(q, f"{what} query id"), [_count(i, f"{what} id") for i in ids])
+        (
+            _count(q, f"{what} query id"),
+            [_count(i, f"{what} id") for i in _sequence(ids, f"{what} ids")],
+        )
         for q, ids in raw.items()
     ]
 
 
-def _identification(
+def _native_plan_ranking(
     plans: Sequence[DesignPlan],
     prior: StructurePrior,
     *,
@@ -492,6 +594,7 @@ def _identification(
     monte_carlo: MonteCarlo | None,
     rng_seed: int,
     threads: int | None,
+    objective: DesignObjective | None = None,
 ) -> Any:
     options: dict[str, Any] = {}
     if monte_carlo is not None:
@@ -501,13 +604,17 @@ def _identification(
             batch_size=monte_carlo.batch_size,
             rank_uncertainty_threshold=monte_carlo.rank_uncertainty_threshold,
         )
+    objective_options = (
+        {"objective": "increase_identification_probability", "query_id": query_id}
+        if objective is None
+        else objective._options()
+    )
     return _native.rank_designs(
         list(prior.weights),
         [int(v) for v in prior.identified],
         list(prior.keys),
         [plan._wire(i) for i, plan in enumerate(plans)],
-        "increase_identification_probability",
-        query_id=query_id,
+        **objective_options,
         query_id_unlock=_unlocks(variable_unlocks, "variable_unlocks"),
         env_id_unlock=_unlocks(environment_unlocks, "environment_unlocks"),
         identified_under_intervention=(
@@ -541,8 +648,9 @@ def _refuse_unused(mode: str, **given: object) -> None:
 
 
 def rank_designs(
-    candidates: Sequence[DesignPlan] | Sequence[Candidate],
+    candidates: Sequence[DesignPlan] | Sequence[Candidate] | Sequence[StructuralCandidate],
     *,
+    objective: DesignObjective | None = None,
     decision: DesignDecision | None = None,
     prior: StructurePrior | None = None,
     query_id: int = 0,
@@ -566,7 +674,16 @@ def rank_designs(
 ) -> DesignRankingResult:
     """Rank candidate studies; the result's ``basis`` says on what.
 
-    **Identification** (no ``decision``): ``candidates`` are plans and ``prior`` is the
+    **Structural**: :class:`StructuralCandidate` declarations need neither a model nor a
+    decision. Their caller-declared sufficiency/cost ordering has no numeric score.
+
+    **Native objectives**: pass ``objective=GraphEntropy()`` with a structure ``prior``,
+    or ``EffectWidth(...)``, ``ModelDistinction(...)`` or ``DecisionRegret(...)`` with its
+    own declared model. Plans are ranked by that model's original native functional,
+    retained on each entry. These scores are never relabeled as identification probability.
+    Callback-regret results do not have a portable artifact; callback costs are separate.
+
+    **Identification** (no ``decision`` or ``objective``): ``candidates`` are plans and ``prior`` is the
     :class:`~antecedent.design.StructurePrior` they are ranked against, by the probability
     that ``query_id`` is identified after the plan. ``variable_unlocks`` maps a query id to
     the variable ids whose measurement identifies it and ``environment_unlocks`` to the
@@ -594,27 +711,86 @@ def rank_designs(
         raise CausalTypeError("candidates must be a sequence")
     if not candidates:
         raise CausalValueError("rank_designs needs at least one candidate")
+    if monte_carlo is not None and not isinstance(monte_carlo, MonteCarlo):
+        raise CausalTypeError("monte_carlo must be design.MonteCarlo")
     rng_seed = _count(rng_seed, "rng_seed")
-    if decision is None:
-        if prior is None:
-            raise CausalValueError(
-                "rank_designs needs prior=StructurePrior(...) to rank plans by identification "
-                "probability, or decision=DesignDecision(...) to rank studies by value"
+    if objective is not None and not isinstance(objective, OBJECTIVE_TYPES):
+        raise CausalTypeError(
+            "objective must be GraphEntropy, EffectWidth, ModelDistinction or DecisionRegret"
+        )
+    if any(isinstance(c, StructuralCandidate) for c in candidates):
+        if not all(isinstance(c, StructuralCandidate) for c in candidates):
+            raise CausalTypeError(
+                "structural candidates cannot be mixed with study or plan candidates"
             )
         _refuse_unused(
-            "an identification",
-            signal=signal,
-            cost_map=cost_map,
+            "a structural",
+            objective=objective is not None,
+            decision=decision is not None,
+            prior=prior is not None,
+            query_id=query_id,
+            variable_unlocks=variable_unlocks is not None,
+            environment_unlocks=environment_unlocks is not None,
+            max_cost=max_cost is not None,
+            max_sample_budget=max_sample_budget is not None,
+            min_identification=min_identification,
+            signal=signal is not None,
+            cost_map=cost_map is not None,
             require_net_value=require_net_value,
             prior_observations=prior_observations,
             source_digests=source_digests,
-            mc_error_tolerance=mc_error_tolerance,
-            tie_tolerance=tie_tolerance,
-            max_candidates=max_candidates,
-            artifact_id=artifact_id,
+            mc_error_tolerance=mc_error_tolerance is not None,
+            tie_tolerance=tie_tolerance is not None,
+            max_candidates=max_candidates is not None,
+            artifact_id=artifact_id is not None,
+            monte_carlo=monte_carlo is not None,
+            rng_seed=rng_seed,
+            threads=threads is not None,
+        )
+        structural = _rank_structural_result(
+            [c for c in candidates if isinstance(c, StructuralCandidate)]
+        )
+        return DesignRankingResult(
+            basis="structural_sufficiency_cost",
+            candidates=structural.entries,
+            search=DesignSearchReceipt(len(candidates), len(candidates), False, ()),
+            calibration="unmeasured",
+            _structural=structural,
+        )
+    if decision is not None and objective is not None:
+        raise CausalValueError(
+            "objective= ranks native plans; decision= ranks signal-provider studies; choose one"
+        )
+    if decision is None:
+        if prior is None and objective is not None and not isinstance(objective, GraphEntropy):
+            prior = StructurePrior.uniform((True,))
+        if prior is None:
+            raise CausalValueError(
+                "rank_designs needs prior=StructurePrior(...) to rank plans by identification "
+                "probability or graph entropy, or an objective with its own model, "
+                "or decision=DesignDecision(...) to rank studies by value"
+            )
+        if objective is not None:
+            _refuse_unused(
+                "a native objective",
+                variable_unlocks=variable_unlocks is not None,
+                environment_unlocks=environment_unlocks is not None,
+                query_id=query_id,
+            )
+        _refuse_unused(
+            "an identification" if objective is None else "a native objective",
+            signal=signal is not None,
+            cost_map=cost_map is not None,
+            require_net_value=require_net_value,
+            prior_observations=prior_observations,
+            source_digests=source_digests,
+            mc_error_tolerance=mc_error_tolerance is not None,
+            tie_tolerance=tie_tolerance is not None,
+            max_candidates=max_candidates is not None,
+            artifact_id=artifact_id is not None,
             min_identification=min_identification,
         )
-        return _rank_identification(
+        return _rank_plans(
             _check_plans(candidates),
             prior,
             query_id=_count(query_id, "query_id"),
@@ -625,6 +801,7 @@ def rank_designs(
             monte_carlo=monte_carlo,
             rng_seed=rng_seed,
             threads=threads,
+            objective=objective,
         )
     if not isinstance(decision, DesignDecision):
         raise CausalTypeError("decision must be a design.DesignDecision")
@@ -633,12 +810,14 @@ def rank_designs(
             "prior must be a design.StructurePrior (the scalar state belief belongs in "
             "DesignDecision.prior as a design.StatePrior)"
         )
-    _refuse_unused("a value", max_cost=max_cost, max_sample_budget=max_sample_budget)
+    _refuse_unused(
+        "a value", max_cost=max_cost is not None, max_sample_budget=max_sample_budget is not None
+    )
     if prior is None:
         _refuse_unused(
             "a value (without prior=)",
-            variable_unlocks=variable_unlocks,
-            environment_unlocks=environment_unlocks,
+            variable_unlocks=variable_unlocks is not None,
+            environment_unlocks=environment_unlocks is not None,
             min_identification=min_identification,
         )
     studies = list(candidates)
@@ -667,7 +846,7 @@ def rank_designs(
     )
 
 
-def _rank_identification(
+def _rank_plans(
     plans: list[DesignPlan],
     prior: StructurePrior,
     *,
@@ -679,10 +858,11 @@ def _rank_identification(
     monte_carlo: MonteCarlo | None,
     rng_seed: int,
     threads: int | None,
+    objective: DesignObjective | None = None,
 ) -> DesignRankingResult:
     if not isinstance(prior, StructurePrior):
         raise CausalTypeError("prior must be a design.StructurePrior")
-    native = _identification(
+    native = _native_plan_ranking(
         plans,
         prior,
         query_id=query_id,
@@ -693,10 +873,13 @@ def _rank_identification(
         monte_carlo=monte_carlo,
         rng_seed=rng_seed,
         threads=threads,
+        objective=objective,
     )
     ids = [plan_id(p, i) for i, p in enumerate(plans)]
+    baseline = _identified_mass(prior)
+    entry_type = IdentificationCandidate if objective is None else ObjectiveCandidate
     ranked = tuple(
-        IdentificationCandidate(
+        entry_type(
             id=ids[r.candidate_index],
             index=int(r.candidate_index),
             rank=int(r.rank),
@@ -707,6 +890,19 @@ def _rank_identification(
             rank_uncertain=bool(r.rank_uncertain),
             evaluation=r.evaluation,
             plan=plans[r.candidate_index],
+            **(
+                {"implemented_functional": r.implemented_functional}
+                if objective is not None
+                else {
+                    "identification_probability": min(
+                        1.0,
+                        max(
+                            0.0,
+                            baseline + float(r.score),
+                        ),
+                    )
+                }
+            ),
         )
         for r in sorted(native.ranked, key=lambda row: int(row.rank))
     )
@@ -716,7 +912,17 @@ def _rank_identification(
     )
     excluded = sorted({v.index for v in violations})
     return DesignRankingResult(
-        basis="identification",
+        basis=(
+            "identification"
+            if objective is None
+            else "graph_entropy"
+            if isinstance(objective, GraphEntropy)
+            else "effect_width"
+            if isinstance(objective, EffectWidth)
+            else "decision_regret"
+            if isinstance(objective, DecisionRegret)
+            else "model_distinction"
+        ),
         candidates=ranked,
         search=DesignSearchReceipt(
             supplied=len(plans),
@@ -725,12 +931,18 @@ def _rank_identification(
             unevaluated_ids=tuple(ids[i] for i in excluded),
         ),
         calibration="unmeasured",
-        _ident=_IdentificationBody(
+        _ident=_PlanBody(
             query_id=query_id,
             mc_samples=int(native.mc_samples),
             early_stopped=bool(native.early_stopped),
             violations=violations,
         ),
+    )
+
+
+def _identified_mass(prior: StructurePrior) -> float:
+    return sum(w for w, flag in zip(prior.weights, prior.identified, strict=True) if flag) / sum(
+        prior.weights
     )
 
 
@@ -754,7 +966,7 @@ def _gate(
         raise CausalValueError(
             f"prior= gates on identification, so each candidate needs a plan; none for {missing}"
         )
-    native = _identification(
+    native = _native_plan_ranking(
         [p for p in plans if p is not None],
         prior,
         query_id=query_id,
@@ -766,7 +978,12 @@ def _gate(
         rng_seed=rng_seed,
         threads=threads,
     )
-    probability = {int(r.candidate_index): float(r.score) for r in native.ranked}
+    baseline = sum(
+        w for w, identified in zip(prior.weights, prior.identified, strict=True) if identified
+    ) / sum(prior.weights)
+    probability = {
+        int(r.candidate_index): min(1.0, max(0.0, baseline + float(r.score))) for r in native.ranked
+    }
     entries = tuple(
         GateEntry(
             c.id,

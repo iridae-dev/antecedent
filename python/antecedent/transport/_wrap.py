@@ -7,7 +7,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, cast
 
 from ..errors import CausalSerializationError, CausalUnsupportedError
 from ..results import (
@@ -22,6 +22,7 @@ from ..results import (
     SlotView,
     SupportDiagnostic,
     SupportReport,
+    SupportStatus,
     ValidationView,
 )
 from ._day1 import (
@@ -551,7 +552,7 @@ def _unavailable_result(
     *,
     shape: str,
     stage: Mapping[str, Any] | None,
-    support_status: str = "outside_empirical_support",
+    support_status: SupportStatus = "outside_empirical_support",
 ) -> AnalysisResult | CausalResponseView:
     identified = None if stage is None else stage.get("identified")
     section = TransportSection(
@@ -665,7 +666,7 @@ _SUPPORT_SEVERITY = {
 }
 
 
-def _surface_support(statuses: Sequence[str]) -> str:
+def _surface_support(statuses: Sequence[SupportStatus]) -> SupportStatus:
     """Worst label over the requested points; missing evidence ranks weakest."""
     return max(statuses, key=_SUPPORT_SEVERITY.__getitem__, default="supported")
 
@@ -684,14 +685,16 @@ def _grid_view(
     outcome = query.question.outcome  # type: ignore[union-attr]
     points: list[list[float]] = []
     values: list[list[float]] = []
-    statuses: list[str] = []
+    statuses: list[SupportStatus] = []
     diagnostics: list[SupportDiagnostic] = []
     warnings: list[str] = []
     for index, row in enumerate(rows):
         if row.mean is None:
             detail = row.detail or "unavailable"
             statuses.append(
-                row.support if row.support in _SUPPORT_SEVERITY else "outside_empirical_support"
+                cast(SupportStatus, row.support)
+                if row.support in _SUPPORT_SEVERITY
+                else "outside_empirical_support"
             )
             # Scoped to its own requested coordinate: ``values[j]`` is 1 at this record's
             # coordinate and 0 elsewhere, so no other coordinate reads it as its support.

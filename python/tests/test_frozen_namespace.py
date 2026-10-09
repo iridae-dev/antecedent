@@ -177,6 +177,15 @@ _EXPECTED_STAGE_ALL = {
         "to_f64",
     },
     "design": {
+        "DecisionRegret",
+        "DesignInformation",
+        "DesignObjective",
+        "EffectWidth",
+        "EnvironmentInformation",
+        "GraphEntropy",
+        "MeasurementColumn",
+        "ModelDistinction",
+        "ObjectiveCandidate",
         "RolloutResult",
         "consume_rollout",
         "ARTIFACT_KIND",
@@ -284,6 +293,7 @@ _EXPECTED_STAGE_ALL = {
         "two_regime_half_split",
     },
     "errors": {
+        "ExternalRefusal",
         "CausalAttributionError",
         "CausalCancelled",
         "CausalCancelledError",
@@ -523,15 +533,6 @@ def test_all_matches_the_documented_root_set():
 
 def test_all_has_no_duplicates():
     assert len(antecedent.__all__) == len(set(antecedent.__all__))
-
-
-def test_api_naming_counts_match_the_frozen_surfaces():
-    root = Path(__file__).resolve().parents[2]
-    text = read_text(root / "docs" / "api_naming.md")
-    assert f"frozen at {len(antecedent.__all__)} names" in text
-    assert f"**{len(_EXPECTED_UNLISTED_BUT_REACHABLE)}** further modules" in text
-    readme = read_text(root / "python" / "README.md")
-    assert f"contains {len(antecedent.__all__)} names" in readme
 
 
 @pytest.mark.parametrize("name", sorted(_EXPECTED_ALL))

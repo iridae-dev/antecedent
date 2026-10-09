@@ -24,7 +24,9 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, replace
+from numbers import Complex, Real
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -75,12 +77,16 @@ def _strings(what: str, values: object) -> tuple[str, ...]:
 
 
 def _real(what: str, value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        try:
-            return float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError) as error:
-            raise CausalTypeError(f"{what} must be a real number, got {value!r}") from error
-    return float(value)
+    if isinstance(value, (bool, np.bool_)) or (
+        isinstance(value, Complex) and not isinstance(value, Real)
+    ):
+        raise CausalTypeError(f"{what} must be a real number, got {value!r}")
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except OverflowError as error:
+        raise CausalValueError(f"{what} is too large for a real-valued response") from error
+    except (TypeError, ValueError) as error:
+        raise CausalTypeError(f"{what} must be a real number, got {value!r}") from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,7 +145,7 @@ class VerificationProbe:
         if not isinstance(self.kind, str):
             raise CausalTypeError("VerificationProbe.kind must be a string")
         for name in ("observed", "expected", "tolerance"):
-            _real(f"VerificationProbe.{name}", getattr(self, name))
+            object.__setattr__(self, name, _real(f"VerificationProbe.{name}", getattr(self, name)))
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -178,18 +184,37 @@ class Response:
         if isinstance(self.values, (str, bytes)):
             raise CausalTypeError("Response.values must be a sequence of numbers, not a string")
         try:
-            values = tuple(_real("Response.values entry", v) for v in self.values)
+            entries = iter(self.values)
         except TypeError as error:
             raise CausalTypeError("Response.values must be an iterable of numbers") from error
+        values = tuple(_real("Response.values entry", v) for v in entries)
         object.__setattr__(self, "values", values)
         object.__setattr__(self, "evidence", _strings("Response.evidence", self.evidence))
         object.__setattr__(self, "assumptions", _strings("Response.assumptions", self.assumptions))
-        probes = tuple(self.probes)
+        try:
+            probes = tuple(self.probes)
+        except TypeError as error:
+            raise CausalTypeError("Response.probes must be VerificationProbe values") from error
         if any(not isinstance(probe, VerificationProbe) for probe in probes):
             raise CausalTypeError("Response.probes must be VerificationProbe values")
         object.__setattr__(self, "probes", probes)
         if self.attested_by is not None and not isinstance(self.attested_by, str):
             raise CausalTypeError("Response.attested_by must be a string or None")
+        if self.support is not None:
+            object.__setattr__(self, "support", _strings("Response.support", self.support))
+        for name in ("uncertainty_method", "graph_id"):
+            if getattr(self, name) is not None and not isinstance(getattr(self, name), str):
+                raise CausalTypeError(f"Response.{name} must be a string or None")
+        if self.quantities is not None:
+            try:
+                quantities = tuple(self.quantities)
+            except TypeError as error:
+                raise CausalTypeError(
+                    "Response.quantities must be ScientificQuantity values"
+                ) from error
+            if any(not isinstance(quantity, ScientificQuantity) for quantity in quantities):
+                raise CausalTypeError("Response.quantities must be ScientificQuantity values")
+            object.__setattr__(self, "quantities", quantities)
 
 
 @dataclass(frozen=True, slots=True)
@@ -533,7 +558,7 @@ class BoundExternalClaim:
     @property
     def identity_fields(self) -> dict[str, Any]:
         """The structured identity (provider, snapshot, contract, trust, lineage, ...)."""
-        return dict(self._meta["identity"])
+        return deepcopy(self._meta["identity"])
 
     @property
     def native(self) -> bool:

@@ -16,8 +16,14 @@ One entry point, :func:`rank_designs`, and one result, :class:`DesignRankingResu
     print(ranked.explain())
     design.consume(ranked.export(), expected_identity=ranked.expectation())
 
-:func:`rank_structural` is the no-model fallback ordering and :func:`evaluate_decision` scores
-one decision with a Python utility callback.
+* ``"structural_sufficiency_cost"`` -- :class:`StructuralCandidate` declarations, ordered
+  by caller-declared sufficiency, cost units, budget and id. No score or probability is
+  inferred. ``rank_structural`` remains a compatibility view of the same ranking.
+* ``objective=`` -- :class:`GraphEntropy`, :class:`EffectWidth`, :class:`ModelDistinction`
+  or :class:`DecisionRegret` selects an existing native scoring model and names its basis.
+  Each entry retains the actual implemented functional and evaluation method.
+
+:func:`evaluate_decision` scores one decision with a Python utility callback.
 """
 
 from __future__ import annotations
@@ -56,6 +62,16 @@ from ._declarations import (
     consume,
     consume_rollout,
 )
+from .objectives import (
+    DecisionRegret,
+    DesignInformation,
+    DesignObjective,
+    EffectWidth,
+    EnvironmentInformation,
+    GraphEntropy,
+    MeasurementColumn,
+    ModelDistinction,
+)
 from .plans import (
     DesignPlan,
     Environment,
@@ -71,6 +87,7 @@ from .ranking import (
     GateEntry,
     IdentificationCandidate,
     IdentificationGate,
+    ObjectiveCandidate,
     evsi,
     rank_designs,
 )
@@ -96,6 +113,15 @@ __all__ = [
     "CostMap",
     "CostUnitsRefusal",
     "DecisionEvaluation",
+    "DecisionRegret",
+    "DesignInformation",
+    "DesignObjective",
+    "EffectWidth",
+    "EnvironmentInformation",
+    "GraphEntropy",
+    "MeasurementColumn",
+    "ModelDistinction",
+    "ObjectiveCandidate",
     "DesignDecision",
     "DesignPlan",
     "DesignRankingRefusal",

@@ -108,6 +108,9 @@ class ArrowLoadInfo:
     column_names: list[str]
 
 class AteAnalysisResult:
+    def effect_source_json(
+        self, units: str, population: str, supplied_value: float
+    ) -> tuple[str | None, str | None]: ...
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None

@@ -1,5 +1,50 @@
 # Security, licensing, unsafe-code, and dependency review
 
+Date: 2026-10-09
+Scope: workspace crates + `python` extension (package version **2.3.0**)
+ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
+
+Pre-calibration source review against the `v2.2.0` tag, including the Python API
+and result-to-decision changes. The Rust source diff adds no `unsafe` block and
+changes no workflow permissions or dependency-policy exceptions. The Rust lockfile
+adds `sha2` and its digest dependencies for the original external contract's
+canonical identity calculation in `antecedent-io`; these are new dependencies,
+not covered by the historical advisory results below. This review records
+source boundaries, not a fresh advisory refresh or a new CodeQL result.
+
+Retained Bayesian, temporal and other supported analyses reuse checked original
+execution state and preserve successful state when a replacement fails. Imported
+artifacts retain unresolved execution dependencies until original source
+execution resolves them; metadata alone grants no native authority. Bundle and
+law consumers retain bounded decoding, complete scientific coordinates and
+expected-identity checks. External callbacks execute caller-supplied code under
+declared provider, environment, RNG and side-effect contracts; these declarations
+do not sandbox that code or turn its output into native scientific evidence.
+Component observers carry counters through explicitly joined workers and supply
+no scientific authority or arbitrary-thread observation guarantee.
+
+The scalar decision handoff retains an opaque original native result. It accepts
+only an unchanged, nonparametrically identified static mean ATE for all observed
+units, without effect modifiers or a structural response. It checks the original
+contrast and exact scalar value, requires declared units of at most 256 bytes and
+the original `target` population, and exposes one `mean_difference` coordinate;
+it reconstructs neither outcome means nor an outcome law. Affine mean utility
+remains the consuming scope. Empirical MSM analysis requires separately supplied
+finite data and the original treatment, outcome, contrast and adjustment set.
+It is bounded to 1,000,000 rows, 4,096 strata and 256 distinct outcomes per arm
+and stratum, with both treatment arms required. Its sharp empirical assumption
+ranges grant no population confidence interval.
+
+Typed result labels retain causal domain exceptions across public validation
+entrypoints. Structured refusal copying preserves reason fields and concrete
+exception families. External response validation rejects boolean and complex
+numeric coercion, and detached identity mappings prevent caller mutation of the
+claim's exposed original coordinates. Caller-attested scalar mappings retain
+their external trust and cannot inherit a provider's verified response trust.
+Ordinary implementation, artifact and packaging checks precede calibration;
+calibration, inference activation and the final release-candidate gates remain
+required before publication.
+
 Date: 2026-10-05
 Scope: workspace crates + `python` extension (package version **2.2.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)

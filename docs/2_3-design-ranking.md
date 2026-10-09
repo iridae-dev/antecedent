@@ -2,11 +2,11 @@
 
 `antecedent.design` is one package with one entry point, `rank_designs`, and one
 result, `DesignRankingResult`. The result's `basis` says what its order means, and
-the two orderings answer different questions and are never mixed in one result.
+different objectives answer different questions and are never mixed in one result.
 
 ```python
 design.rank_designs(
-    candidates, *, decision=None, prior=None,
+    candidates, *, objective=None, decision=None, prior=None,
     signal=None, cost_map=None, ...
 )
 ```
@@ -16,6 +16,11 @@ design.rank_designs(
 | `"identification"` | `prior=StructurePrior(...)`, no `decision` | plans: `Measurement`, `Experiment`, `Environment`, `Sampling` | the gain in the probability that a query becomes identified |
 | `"evsi"` | `decision=DesignDecision(...)`, no cost map | `Candidate` studies | expected value of sample information, costs reported separately |
 | `"net_value"` | `decision=` and `cost_map=` | `Candidate` studies | EVSI net of study cost under the cost map |
+| `"structural_sufficiency_cost"` | `StructuralCandidate` declarations | structural declarations | caller-declared sufficiency, cost units, budget, id |
+| `"graph_entropy"` | `objective=GraphEntropy()`, `prior=` | plans | original heuristic graph-channel entropy reduction |
+| `"effect_width"` | `objective=EffectWidth(...)` | plans | signed linear-model treatment standard-error reduction |
+| `"model_distinction"` | `objective=ModelDistinction(...)` | plans | original reliability-scaled pairwise log-likelihood-gap heuristic |
+| `"decision_regret"` | `objective=DecisionRegret(...)` | plans | preposterior EVSI using a callable utility |
 
 Claim labels: every value is **point-only**. A Monte Carlo value (when a signal has
 no exact integral) is a `monte_carlo_estimate` with no coverage claim. The Monte
@@ -24,8 +29,8 @@ are diagnostics, not licensed intervals. A ranking recommends an action; it does
 not run it.
 
 The former `design_ranking` module is gone; there is no second ranking surface.
-`rank_structural` remains as a no-model fallback ordering (see the end of this
-page).
+`rank_structural` remains a compatibility view of `rank_designs` for structural
+declarations (see the end of this page).
 
 ## Ranking plans by identification
 
@@ -63,7 +68,10 @@ print(ranking.explain())
 `StructurePrior.uniform([True, False])` gives equal weight on each structure.
 `max_cost=` and `max_sample_budget=` exclude plans, reported as `ranking.violations`.
 The score is relative to the prior's current identified mass (0.75 moves 25 percent
-to 100 percent). An identification ranking has **no artifact**: `export`,
+to 100 percent). `candidate.probability` is the absolute identified mass after the
+plan, including the prior baseline; `candidate.score` is its gain. The
+`min_identification` gate also uses the absolute mass. An identification ranking
+has **no artifact**: `export`,
 `identity` and `expectation` raise `CausalValueError` naming the basis.
 
 ## Ranking studies by value of information
@@ -264,13 +272,84 @@ joint law only by its source digest (`source_digests=`).
 Catch `CausalUnsupportedError` to handle all of them; see
 [refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies).
 
-## No model licensed: `rank_structural`
+## Structural declarations through the shared ranker
 
-When neither a structure prior nor a decision exists, `design.rank_structural`
-orders `StructuralCandidate` values by verified structural sufficiency, then fewer
-cost units, then a smaller sample budget, then the semantic id, invariant to input
-order. It is neither an identification probability nor a value of information and
-never reports either (`basis == "structural_sufficiency_cost"`).
+When neither a structure prior nor a decision exists, pass `StructuralCandidate`
+values directly to `design.rank_designs`. It returns `DesignRankingResult` with
+`basis == "structural_sufficiency_cost"`, ordered by the caller-declared verified
+sufficiency flag, then cost units, sample budget and semantic id. The flag is not
+an identification proof produced by the ranker. Entries have no numeric `score`
+or `probability`; no identification probability or value of information is inferred.
+The structural ordering identity is invariant to input order. `rank_structural`
+delegates to the same implementation and returns the existing `StructuralRanking`
+compatibility view; composite structural consumers continue using that view.
+
+```python
+ranking = design.rank_designs([
+    design.StructuralCandidate("repair", True, 3, 100),
+    design.StructuralCandidate("cheap", True, 1, 100),
+])
+ranking.basis                 # "structural_sufficiency_cost"
+ranking.best.id               # "cheap"
+```
+
+## Other native objectives through the shared ranker
+
+Use typed objective declarations instead of calling `_native.rank_designs` with
+raw dictionaries. The candidates are the same four design plan types.
+
+```python
+ranking = design.rank_designs(
+    [design.Sampling(20), design.Sampling(100)],
+    objective=design.EffectWidth(
+        xtx=(4.0, 0.0, 0.0, 9.0), sigma2=4.0, treatment_col=1, n=20,
+    ),
+)
+ranking.basis                 # "effect_width"
+ranking.best.implemented_functional  # "ols_gram_se_reduction"
+```
+
+`GraphEntropy()` uses `prior=StructurePrior(...)` and its optional graph features.
+It exposes the existing soft-observation heuristic, not likelihood-based expected
+information gain. `EffectWidth` uses declared linear-model Gram information;
+`MeasurementColumn`, `DesignInformation` and `EnvironmentInformation` supply
+prospective covariate, intervention and environment information. Sampling and
+unspecified environments use the native isotropic sample-size scaling. The score
+is `se_before - se_after`, not a calibrated posterior or confidence interval width.
+
+`ModelDistinction(model_ids, log_likelihoods)` takes one aligned draw row per model
+and retains the native heuristic reliability-scaled log-score contrast. It is not
+a posterior model probability or a Bayes factor.
+
+For a callable utility, use the same ranker with a `DecisionRegret` objective:
+
+```python
+import numpy as np
+
+ranking = design.rank_designs(
+    [design.Sampling(1), design.Sampling(10)],
+    objective=design.DecisionRegret(
+        actions=(0.0, 1.0),
+        utility=lambda actions, outcomes: np.outer(actions, outcomes**2 - 0.25).ravel(),
+        prior=design.StatePrior.draws((0.25, 0.75)),
+        signal=design.BinomialSignal(),
+    ),
+)
+```
+
+The utility returns a contiguous flat `float64` action-by-outcome array and must be
+deterministic. Native callback refusals retain the original exception as their
+cause. Only native-licensed plans are scored; unsupported candidates appear in
+`violations`. `DecisionRegret` scores EVSI before cost, without subtracting or
+converting study costs. For affine utilities and portable signal-provider study
+artifacts, continue using `decision=DesignDecision(...)` and `cost_map=`.
+
+These native objective results expose `ObjectiveCandidate` entries, each retaining
+`implemented_functional`, `evaluation`, `stderr` and `rank_uncertain`. Their original
+native scoring semantics are unchanged. None has an identification probability or
+portable artifact. Bounds use `max_cost` and `max_sample_budget`; unrelated value
+or gate arguments refuse rather than being silently applied. Calibration remains
+`unmeasured` for every objective.
 
 Runnable examples: [`rank_designs.py`](../examples/python/rank_designs.py)
 (identification basis), [`rank_designs_evsi.py`](../examples/python/rank_designs_evsi.py)

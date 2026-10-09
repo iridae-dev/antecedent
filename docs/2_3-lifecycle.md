@@ -22,8 +22,11 @@ a bound external claim (step 2). Both are `Contract.evaluate` sources.
 
 ## 1. Analyze and decide directly
 
-`Contract.evaluate` takes an analysis result. It never infers units: you name the
-outcome and dose units, and a missing one is a `CausalValueError`.
+`Contract.evaluate` takes a supported analysis result. Declare outcome units once
+in its scientific coordinates or in `analyze(outcome_units=..., dose_units=...)`;
+the contract supplies an unambiguous matching outcome/unit/population when no
+binding was retained. Undeclared dose units mean `native_numeric_scale`: the
+original numeric intervention scale, without a physical unit claim or conversion.
 
 ```python
 import numpy as np
@@ -49,7 +52,7 @@ contract = decision.Contract(
     target_population="target",
 )
 
-decided = contract.evaluate(result, outcome_units="mmHg", dose_units="mg")
+decided = contract.evaluate(result)
 decided.selected                 # ("high",): E[Y | do(a=0.5)] is about +1, do(a=-0.5) about -1
 ```
 
@@ -63,9 +66,13 @@ What this decision is and is not:
   (`decision_contract_unsatisfied`, detail `native_claims.source_not_supplied`,
   expected `joint_draws,marginal_draws`, supplied `mean`). Supply aligned joint
   draws (a `JointDistributionArtifact`) to ask a distributional question.
-- A scalar result such as `AverageEffect` is a typed refusal
-  (`route_not_supported`), not an `AttributeError`: `Contract.evaluate(result,
-  ...)` needs a `ResponseCurve` result.
+- A checked static `AverageEffect` result supplies one contrast coordinate,
+  created with `ScientificQuantity.from_effect(result, outcome_units=...)`.
+  Its functional is `mean_difference`, and its regime names active minus
+  control. It cannot supply two absolute outcome means. Use that coordinate
+  in an affine utility and call `contract.evaluate(result)`; inspect
+  `decided.original_execution` for the immutable original native diagnostics
+  and effect uncertainty. That uncertainty is not an interval for utility.
 
 `ScientificQuantity.from_response(result, outcome_units=...)` returns every grid
 coordinate at once; `ScientificQuantity.outcome / treatment / utility` build a

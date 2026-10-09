@@ -94,13 +94,30 @@ def test_result_evaluate_matches_the_native_claim_path() -> None:
     ]
 
 
-def test_result_evaluate_needs_units_it_never_infers() -> None:
+def test_result_evaluate_uses_contract_declared_units_and_original_numeric_scale() -> None:
     result = _curve_result()
     contract = _mean_contract(result)
-    with pytest.raises(CausalValueError, match="outcome_units and dose_units"):
-        contract.evaluate(result)
-    with pytest.raises(CausalValueError, match="dose_units"):
-        contract.evaluate(result, outcome_units="mmHg")
+    automatic = contract.evaluate(result)
+    explicit = contract.evaluate(result, outcome_units="mmHg", dose_units="native_numeric_scale")
+    assert automatic.selected == explicit.selected == ("high",)
+    assert [a.expected_utility for a in automatic.actions] == [
+        a.expected_utility for a in explicit.actions
+    ]
+
+
+def test_analyze_retains_declared_program_for_decision() -> None:
+    result = analyze(
+        _curve_data(),
+        query=ResponseCurve("a", "y", grid=GRID),
+        graph=[("a", "y")],
+        outcome_units="mmHg",
+        dose_units="mg",
+    )
+    assert result.program_binding.dose_units == "mg"
+    assert _mean_contract(result).evaluate(result).selected == ("high",)
+    refreshed = result.refresh(_curve_data(seed=45))
+    assert refreshed.program_binding.dose_units == "mg"
+    assert _mean_contract(refreshed).evaluate(refreshed).selected == ("high",)
 
 
 def test_a_mean_response_refuses_a_distributional_criterion_by_name() -> None:
@@ -114,13 +131,55 @@ def test_a_mean_response_refuses_a_distributional_criterion_by_name() -> None:
     assert refused.value.supplied == "mean"
 
 
-def test_a_scalar_result_is_a_typed_refusal_not_an_attribute_error() -> None:
+def test_scalar_effect_evaluates_only_its_original_contrast_coordinate() -> None:
     scalar = analyze(_curve_data(), query=AverageEffect("a", "y"), graph=[("a", "y")])
-    contract = _mean_contract(_curve_result())
-    with pytest.raises(CausalUnsupportedError) as refused:
-        contract.evaluate(scalar, outcome_units="mmHg", dose_units="mg")
-    assert refused.value.reason_code == "route_not_supported"
-    assert "ResponseCurve" in str(refused.value)
+    effect = ScientificQuantity.from_effect(scalar, outcome_units="mmHg")
+    contract = decision.Contract(
+        actions=(
+            decision.Action("act", (effect,), decision.x(0)),
+            decision.Action("wait", (effect,), decision.x(0) * 0.0),
+        ),
+        utility_units="mmHg",
+        criterion=decision.Criterion.expected_utility(),
+        target_population="target",
+    )
+    decided = contract.evaluate(scalar)
+    assert decided.selected == ("act",)
+    assert decided.actions[0].expected_utility == pytest.approx(scalar.estimate.ate)
+    assert decided.original_execution is scalar._raw
+    assert decided.original_execution.estimate.se_analytic == scalar.estimate.se_analytic
+    assert decided.evpi is None
+    with pytest.raises(CausalUnsupportedError):
+        decided.export()
+    with pytest.raises(decision.DecisionRefusal):
+        _mean_contract(_curve_result()).evaluate(scalar)
+
+
+def test_scalar_effect_rejects_changed_value_and_joint_law_criteria() -> None:
+    from antecedent.results._report import copy_model
+
+    scalar = analyze(_curve_data(), query=AverageEffect("a", "y"), graph=[("a", "y")])
+    effect = ScientificQuantity.from_effect(scalar, outcome_units="mmHg")
+    action = decision.Action("act", (effect,), decision.x(0))
+    contract = decision.Contract(
+        (action, decision.Action("wait", (effect,), decision.x(0) * 0.0)),
+        "mmHg",
+        decision.Criterion.expected_utility(),
+        "target",
+    )
+    changed = copy_model(scalar, estimate=copy_model(scalar.estimate, ate=99.0))
+    with pytest.raises(ExternalRefusal) as refused:
+        contract.evaluate(changed)
+    assert refused.value.detail == "native_claims.projection_mismatch"
+    assert refused.value.reason_code == "invalid_argument"
+    distributional = decision.Contract(
+        (action, decision.Action("wait", (effect,), decision.x(0) * 0.0)),
+        "mmHg",
+        decision.Criterion.quantile(0.5),
+        "target",
+    )
+    with pytest.raises(decision.DecisionRefusal):
+        distributional.evaluate(scalar)
 
 
 def test_evaluate_argument_errors_name_the_accepted_sources() -> None:
@@ -375,3 +434,131 @@ def test_msm_strata_from_a_plain_table() -> None:
         )
     with pytest.raises(CausalTypeError, match="mapping of columns"):
         MsmStratum.table(3.0)
+
+
+def test_empirical_msm_result_handoff_keeps_sample_bounds_distinct() -> None:
+    data = {
+        "a": np.array([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0]),
+        "y": np.array([0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0]),
+    }
+    result = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
+    sensitivity = result.msm_sensitivity(data=data, lambda_max=2.0)
+    assert sensitivity.identified == pytest.approx(0.5)
+    assert sensitivity.input_basis == "empirical_plugin"
+    assert sensitivity.sample_id.startswith("sha256:")
+    assert sensitivity.uncertainty.sampling_interval == "sampling interval: not reported"
+    assert "Empirical plug-in" in sensitivity.explain()
+    effect = ScientificQuantity.from_effect(result, outcome_units="probability")
+    artifact = sensitivity.to_sensitivity_artifact(
+        effect=effect,
+        actions=(
+            sd.SensitivityAction("act", sd.quantity(effect.variable_id)),
+            sd.SensitivityAction("wait", sd.const(0.0)),
+        ),
+        causal_contract_id="declared-msm-assumptions",
+    )
+    assert artifact.provenance.source_kind == "empirical_msm_plugin"
+    assert artifact.provenance.provider_snapshot == sensitivity.sample_id
+    assert isinstance(artifact.uncertainty.sampling, sd.SamplingWithheld)
+    assert sd.decide(artifact.contract(), artifact).outcome.kind == "invariant_action"
+
+
+def test_empirical_msm_refuses_missing_arm_and_changed_adjustment() -> None:
+    data = {"a": np.array([0.0, 0.0, 1.0, 1.0]), "y": np.array([0.0, 1.0, 1.0, 1.0])}
+    result = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
+    with pytest.raises(CausalValueError, match="both treatment arms"):
+        result.msm_sensitivity(data={"a": [0.0, 0.0], "y": [0.0, 1.0]}, lambda_max=2.0)
+    with pytest.raises(CausalValueError, match="checked adjustment"):
+        result.msm_sensitivity(data=data, lambda_max=2.0, adjustment=["y"])
+
+
+@pytest.mark.parametrize("adjustment", ["a", b"a", [["a"]], [1], [""], 4])
+def test_empirical_msm_adjustment_errors_are_domain_errors(adjustment) -> None:
+    data = {"a": np.array([0.0, 0.0, 1.0, 1.0]), "y": np.array([0.0, 1.0, 1.0, 1.0])}
+    result = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
+    with pytest.raises(CausalTypeError, match="adjustment"):
+        result.msm_sensitivity(data=data, lambda_max=2.0, adjustment=adjustment)
+
+
+def test_empirical_msm_support_limit_rejects_new_distinct_outcome() -> None:
+    data = {"a": np.tile([0.0, 1.0], 300), "y": np.repeat(np.arange(300, dtype=float), 2)}
+    result = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
+    with pytest.raises(CausalValueError, match="256 distinct outcomes"):
+        result.msm_sensitivity(data=data, lambda_max=2.0)
+
+
+@pytest.mark.parametrize(
+    "units,population", [("", "target"), ("x" * 257, "target"), ("mmHg", "other")]
+)
+def test_original_scalar_source_rejects_invalid_unit_or_population_declarations(
+    units, population
+) -> None:
+    result = analyze(_curve_data(), query=AverageEffect("a", "y"), graph=[("a", "y")])
+    with pytest.raises(CausalValueError):
+        result._raw.effect_source_json(units, population, result.as_point())
+
+
+def test_scalar_decision_exposes_original_diagnostics_not_modified_wrapper() -> None:
+    from antecedent.results._report import copy_model
+
+    original = analyze(_curve_data(), query=AverageEffect("a", "y"), graph=[("a", "y")])
+    effect = ScientificQuantity.from_effect(original, outcome_units="mmHg")
+    changed = copy_model(
+        original,
+        estimate=copy_model(original.estimate, se_analytic=99.0),
+        diagnostics=["invented diagnostic"],
+    )
+    contract = decision.Contract(
+        (
+            decision.Action("act", (effect,), decision.x(0)),
+            decision.Action("wait", (effect,), decision.x(0) * 0.0),
+        ),
+        "mmHg",
+        decision.Criterion.expected_utility(),
+        "target",
+    )
+    decided = contract.evaluate(changed)
+    assert decided.original_execution is original._raw
+    assert decided.original_execution.estimate.se_analytic == original.estimate.se_analytic
+    assert decided.original_execution.estimate.se_analytic != 99.0
+    assert "invented diagnostic" not in decided.original_execution.diagnostics
+    nonlinear = decision.Contract(
+        (
+            decision.Action("act", (effect,), decision.x(0) * decision.x(0)),
+            decision.Action("wait", (effect,), decision.x(0) * 0.0),
+        ),
+        "mmHg",
+        decision.Criterion.expected_utility(),
+        "target",
+    )
+    with pytest.raises(decision.DecisionRefusal) as refused:
+        nonlinear.evaluate(original)
+    assert refused.value.reason_code == "decision_contract_unsatisfied"
+
+
+def test_empirical_msm_rejects_altered_query_even_with_same_numeric_estimate() -> None:
+    from antecedent.results._report import copy_model
+
+    data = {"a": [0.0, 0.0, 1.0, 1.0], "y": [0.0, 1.0, 1.0, 1.0]}
+    original = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
+    changed = copy_model(original, query=AverageEffect("different_treatment", "y"))
+    with pytest.raises(CausalValueError, match="original native source"):
+        changed.msm_sensitivity(data=data, lambda_max=2.0)
+
+
+def test_empirical_msm_digest_matches_canonical_sample_and_changes_with_data() -> None:
+    import hashlib
+    import json
+
+    data = {"a": [0.0, 0.0, 1.0, 1.0], "y": [0.0, 1.0, 1.0, 1.0]}
+    original = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
+    first = original.msm_sensitivity(data=data, lambda_max=2.0)
+    rows = list(zip(data["a"], data["y"], strict=True))
+    expected = hashlib.sha256(json.dumps([("a", "y"), rows], sort_keys=True).encode()).hexdigest()
+    assert first.sample_id == f"sha256:{expected}"
+    second = original.msm_sensitivity(
+        data={"a": data["a"], "y": [0.0, 0.0, 1.0, 1.0]}, lambda_max=2.0
+    )
+    assert second.sample_id != first.sample_id
+    assert first.identified == pytest.approx(0.5)
+    assert second.identified == pytest.approx(1.0)

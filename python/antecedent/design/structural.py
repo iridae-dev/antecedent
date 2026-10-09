@@ -13,12 +13,25 @@ from ._declarations import _raise
 
 @dataclass(frozen=True, slots=True)
 class StructuralCandidate:
-    """A candidate with a verified structural verdict, for the no-model ordering."""
+    """Caller-declared structural sufficiency and costs, without a probabilistic model."""
 
     id: str
     verified_sufficient: bool
     cost_units: int
     sample_budget: int = 0
+
+    def __post_init__(self) -> None:
+        from ..errors import CausalTypeError, CausalValueError
+        from .plans import _count
+
+        if not isinstance(self.id, str):
+            raise CausalTypeError("id must be a string")
+        if not self.id:
+            raise CausalValueError("id must be non-empty")
+        if not isinstance(self.verified_sufficient, bool):
+            raise CausalTypeError("verified_sufficient must be a bool")
+        _count(self.cost_units, "cost_units")
+        _count(self.sample_budget, "sample_budget")
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +54,7 @@ class StructuralRanking:
     basis: Literal["structural_sufficiency_cost"] = "structural_sufficiency_cost"
 
 
-def rank_structural(candidates: Sequence[StructuralCandidate]) -> StructuralRanking:
+def _rank_structural_result(candidates: Sequence[StructuralCandidate]) -> StructuralRanking:
     """Order candidates when no probabilistic model is licensed.
 
     Verified structural sufficiency first, then fewer cost units, then a smaller sample
@@ -52,9 +65,9 @@ def rank_structural(candidates: Sequence[StructuralCandidate]) -> StructuralRank
     wire = [
         {
             "semantic_id": c.id,
-            "verified_sufficient": bool(c.verified_sufficient),
-            "cost_units": int(c.cost_units),
-            "sample_budget": int(c.sample_budget),
+            "verified_sufficient": c.verified_sufficient,
+            "cost_units": c.cost_units,
+            "sample_budget": c.sample_budget,
         }
         for c in candidates
     ]
@@ -75,6 +88,19 @@ def rank_structural(candidates: Sequence[StructuralCandidate]) -> StructuralRank
         ),
         identity=parsed["identity"],
     )
+
+
+def rank_structural(candidates: Sequence[StructuralCandidate]) -> StructuralRanking:
+    """Compatibility view of ``rank_designs(candidates)``; no numeric score is inferred.
+
+    The sufficiency flag is declared by the caller. This ordering does not perform
+    identification or prove the declared verdict.
+    """
+    from .ranking import rank_designs
+
+    result = rank_designs(candidates)
+    assert result._structural is not None
+    return result._structural
 
 
 __all__ = ["StructuralCandidate", "StructuralEntry", "StructuralRanking", "rank_structural"]

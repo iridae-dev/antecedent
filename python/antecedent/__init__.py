@@ -73,9 +73,9 @@ Sensitivity and robustness:
 
 Recalculation (selective, with a visible receipt):
 
-* ``recalc`` is the receipt and the shared surface, ``recalc_adjusted``, ``recalc_cell`` (with
-  portable score resume) and ``recalc_dr`` cover the adjusted-regression, cell-AIPW and DML /
-  DR-Learner routes, and ``recalc_capabilities`` inventories what each family can recompute.
+* ``recalc`` provides receipts and the shared surface. Its adapters cover static, adjusted,
+  cell-AIPW (with portable score resume), DML / DR-Learner, Bayesian, temporal, external,
+  design and composite workflows. ``recalc_capabilities`` inventories what each can recompute.
 
 Specialized effect families: ``categorical_treatment``, ``vector_treatment``,
 ``nonlinear_mediation``, ``latent_class``, ``recovery_chain`` and ``compact_export`` (a compact
@@ -340,6 +340,9 @@ _LAZY_MODULES: tuple[str, ...] = (
     "decision_robust",
     "descriptive",
     "dose_grid",
+    "effect_constancy_review",
+    "execution_attempt",
+    "functional_source",
     "inverse",
     "inverse_query",
     "joint_distribution",
@@ -349,17 +352,26 @@ _LAZY_MODULES: tuple[str, ...] = (
     "nonlinear_mediation",
     "preflight",
     "program_claims",
+    "proposal_arrival",
     "proposals",
     "recalc",
     "recalc_adjusted",
+    "recalc_bayesian",
     "recalc_capabilities",
     "recalc_cell",
+    "recalc_composite",
+    "recalc_design",
     "recalc_dr",
+    "recalc_external",
+    "recalc_static",
+    "recalc_temporal",
     "recovery_chain",
     "repair",
     "scenario_decision",
     "scenario_invariance",
     "sensitivity_decision",
+    "source_evidence",
+    "source_projection",
     "temporal",
     "temporal_counterfactual",
     "transported_counterfactual",

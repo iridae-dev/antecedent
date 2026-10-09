@@ -212,6 +212,25 @@ class StructuredRefusal(CausalUnsupportedError):
         code: str | None = self.reason_code
         return code
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        # BaseException normally reconstructs from args, which here contains the
+        # rendered message rather than each subclass's constructor arguments.
+        # Dynamic invalid-argument subclasses also have no importable class name.
+        original = next(
+            (cls for cls, variant in _ARGUMENT_VARIANTS.items() if type(self) is variant),
+            type(self),
+        )
+        return _restore_structured_refusal, (original, self.args, self.__dict__)
+
+
+def _restore_structured_refusal(
+    cls: type[StructuredRefusal], args: tuple[Any, ...], state: dict[str, Any]
+) -> StructuredRefusal:
+    refusal = StructuredRefusal.__new__(cls, {"code": state.get("reason_code")})
+    BaseException.__init__(refusal, *args)
+    refusal.__dict__.update(state)
+    return refusal
+
 
 class EffectNotIdentified(CausalUnsupportedError, CausalCompileError):
     """The question has no identified estimand under the declared structure.
@@ -405,6 +424,7 @@ _LAZY_REFUSALS: dict[str, str] = {
     "DecisionRefusal": "decision",
     "EdgeDigestMismatchRefusal": "composition_bundle",
     "ExpectedIdentityMismatchRefusal": "composition_bundle",
+    "ExternalRefusal": "external",
     "GraphOrSnapshotMismatchRefusal": "composition_bundle",
     "IncompatibleVersionRefusal": "composition_bundle",
     "MechanismDiscrepancyRefusal": "mechanism_discrepancy",
@@ -448,6 +468,7 @@ if TYPE_CHECKING:
         UnsupportedLawRefusal,
     )
     from .decision import DecisionRefusal
+    from .external import ExternalRefusal
     from .mechanism_discrepancy import MechanismDiscrepancyRefusal
     from .msm_sensitivity import MsmSensitivityRefusal
     from .recalc import (
@@ -477,12 +498,17 @@ def __getattr__(name: str) -> Any:
     return value
 
 
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))
+
+
 __all__ = [
     "CallbackUnavailableRefusal",
     "CompositionBundleRefusal",
     "DecisionRefusal",
     "EdgeDigestMismatchRefusal",
     "ExpectedIdentityMismatchRefusal",
+    "ExternalRefusal",
     "GraphOrSnapshotMismatchRefusal",
     "IncompatibleVersionRefusal",
     "MechanismDiscrepancyRefusal",

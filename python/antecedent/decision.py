@@ -47,6 +47,7 @@ from .external import BoundExternalClaim, LineageLink
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
 if TYPE_CHECKING:
+    from ._native import AteAnalysisResult
     from .program_claims import ProgramBinding
 
 RESULT_LINK_ID = "decision_result"
@@ -368,12 +369,36 @@ class MeanSource:
     causal_contract_id: str
     rng_id: str = "none:mean_grid"
     _original_native: Any = field(default=None, repr=False, compare=False)
+    _original_effect: Any = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "coordinates", tuple(self.coordinates))
         object.__setattr__(self, "means", tuple(float(m) for m in self.means))
 
     def _validated_original(self):
+        if self._original_effect is not None:
+            original, value, units, population = self._original_effect
+            raw = original._raw
+            wire, refusal = raw.effect_source_json(units, population, value)
+            if refusal is not None:
+                from .external import ExternalRefusal
+
+                raise ExternalRefusal(json.loads(refusal))
+            actual = json.loads(wire)
+            actual.pop("query", None)
+            supplied = {
+                "coordinates": [q._wire() for q in self.coordinates],
+                "means": list(self.means),
+                "provider_id": self.provider_id,
+                "snapshot_id": self.snapshot_id,
+                "causal_contract_id": self.causal_contract_id,
+                "rng_id": self.rng_id,
+            }
+            if json.loads(json.dumps(supplied)) != actual:
+                raise CausalValueError(
+                    "a native effect mean source must retain its original fields"
+                )
+            return raw
         if self._original_native is None:
             return None
         from . import _native
@@ -417,6 +442,41 @@ def _result_mean_source(
                 f"analysis result, not {type(source).__name__}"
             )
         return None
+    from .results import AnalysisResult
+
+    if isinstance(source, AnalysisResult):
+        if program is not None or dose_units is not None:
+            raise CausalValueError(
+                "a scalar effect uses a contrast coordinate, not a response-grid program"
+            )
+        quantities = tuple(q for action in contract.actions for q in action.inputs)
+        declarations = {(q.units, q.population_id) for q in quantities}
+        if outcome_units is None:
+            if len(declarations) != 1:
+                raise CausalValueError("effect evaluation needs one declared unit/population")
+            outcome_units, population = next(iter(declarations))
+        native = getattr(source._raw, "effect_source_json", None)
+        if native is None:
+            raise CausalUnsupportedError(
+                "this result retains no original native static effect source",
+                reason_code="route_not_supported",
+            )
+        value = source.as_point()
+        wire, refusal = native(outcome_units, population, value)
+        if refusal is not None:
+            from .external import ExternalRefusal
+
+            raise ExternalRefusal(json.loads(refusal))
+        fields = json.loads(wire)
+        return MeanSource(
+            coordinates=tuple(ScientificQuantity._from_wire(q) for q in fields["coordinates"]),
+            means=tuple(fields["means"]),
+            provider_id=fields["provider_id"],
+            snapshot_id=fields["snapshot_id"],
+            causal_contract_id=fields["causal_contract_id"],
+            rng_id=fields["rng_id"],
+            _original_effect=(source, value, outcome_units, population),
+        )
     from .results.response import CausalResponseView
 
     if not isinstance(source, CausalResponseView):
@@ -429,18 +489,25 @@ def _result_mean_source(
         )
     from . import program_claims
 
+    retained = source.program_binding
+    if program is None and outcome_units is None and dose_units is None and retained is not None:
+        program = retained
     if program is None:
-        missing = [
-            name
-            for name, value in (("outcome_units", outcome_units), ("dose_units", dose_units))
-            if not isinstance(value, str) or not value.strip()
-        ]
-        if missing:
-            raise CausalValueError(
-                f"evaluating an analysis result needs {' and '.join(missing)}= (units are "
-                "never inferred or converted), or program=ProgramBinding(...)"
-            )
-        assert outcome_units is not None and dose_units is not None
+        # A contract declares units; it does not discover them from numbers. Require
+        # one outcome/population across its inputs, then let the original native
+        # claim compare the full descriptors, regimes and source projection.
+        quantities = tuple(q for action in contract.actions for q in action.inputs)
+        response_declarations = {(q.variable_id, q.units, q.population_id) for q in quantities}
+        if outcome_units is None:
+            if len(response_declarations) != 1:
+                raise CausalValueError(
+                    "analysis-result evaluation needs one declared outcome/unit/population "
+                    "in the contract, or an explicit program= binding"
+                )
+            _, outcome_units, population = next(iter(response_declarations))
+        if dose_units is None:
+            dose_units = "native_numeric_scale"
+        assert outcome_units is not None
         program = program_claims.ProgramBinding.from_response(
             source, outcome_units=outcome_units, dose_units=dose_units, population=population
         )
@@ -530,13 +597,17 @@ class Contract:
           every criterion, replayable);
         * a :class:`~antecedent.external.BoundExternalClaim` or a :class:`MeanSource` (one
           mean per coordinate: the expectation of an affine utility only);
+        * a checked static AverageEffect result: its single ``mean_difference`` contrast
+          coordinate is an affine mean input, never two reconstructed outcome means;
         * a response-curve analysis result (the :class:`~antecedent.results.CausalResponseView`
           that ``antecedent.analyze(..., query=ResponseCurve(...))`` returns). Its response
           values are turned into a native mean claim through
           :func:`antecedent.program_claims.native_claim` and evaluated as a mean source, so
-          the same restrictions hold and the result is not replayable. Units are never
-          inferred: pass ``program=`` (a
-          :class:`~antecedent.program_claims.ProgramBinding`) or both ``outcome_units=`` and
+          the same restrictions hold and the result is not replayable. Units are declared once: ``analyze`` can retain a program binding, or the
+          contract supplies an unambiguous outcome/unit/population declaration. Undeclared
+          dose units mean ``native_numeric_scale``: the original numeric intervention
+          scale, with no physical unit claim or conversion. Override with ``program=`` (a
+          :class:`~antecedent.program_claims.ProgramBinding`) or ``outcome_units=`` and
           ``dose_units=`` (``population=`` names the target population). A result that is not
           a point-identified response curve refuses with a typed
           :class:`~antecedent.external.ExternalRefusal` or
@@ -550,7 +621,7 @@ class Contract:
 
         Raises:
             CausalTypeError: ``source`` is none of the accepted types.
-            CausalValueError: ``source`` is an analysis result and units were not supplied.
+            CausalValueError: scientific declarations are ambiguous or conflict with a binding.
 
         A :class:`~antecedent.external.BoundExternalClaim` supplies one mean per
         coordinate, so it answers only the expectation of an affine utility: a
@@ -603,7 +674,7 @@ class Contract:
             )
             raise CausalTypeError(
                 "Contract.evaluate needs a JointDistributionArtifact (aligned draws), a "
-                "BoundExternalClaim or MeanSource (means), or a response-curve analysis "
+                "BoundExternalClaim or MeanSource (means), or a supported response/effect analysis "
                 f"result (antecedent.analyze(...)), not {type(source).__name__}{hint}"
             )
         result, refusal = _evaluate(json.dumps(self._wire()), source._native)
@@ -725,6 +796,19 @@ class Decision:
     @property
     def assumptions(self) -> tuple[str, ...]:
         return tuple(self._body["assumptions"])
+
+    @property
+    def original_execution(self) -> AteAnalysisResult | None:
+        """Original native scalar execution behind a contrast mean, or ``None``.
+
+        Keeps its checked identification, diagnostics, support and uncertainty
+        available for inspection. The decision is an affine point ranking, not an
+        interval for utility; the original effect interval is never transferred.
+        """
+        if isinstance(self._source, MeanSource) and self._source._original_effect is not None:
+            self._source._validated_original()
+            return self._source._original_effect[0]._raw
+        return None
 
     @property
     def source_evidence(self):

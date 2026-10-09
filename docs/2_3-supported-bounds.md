@@ -175,3 +175,24 @@ these statements; the original 2.2 check remains the default.
 | 2.3C.C4.conditional_study_ranking | max_name_bytes | 256 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
 | 2.3C.C4.conditional_study_ranking | max_artifact_bytes | 4,194,304 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
 | 2.3C.C4.conditional_study_ranking | max_policy_json_bytes | 262,144 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
+
+The typed native plan/objective ranker preserves its original native scoring scope.
+The F14 portable study-artifact `max_candidates` budget applies to signal-provider
+study rankings and artifact consumers; it is not a universal limit on original
+native plan scoring. No portable-artifact or calibrated EVSI guarantee transfers
+to graph-channel entropy, model-gap heuristics, Gram-SE reduction or callable
+utilities.
+
+Additional public adapter bounds:
+
+| Record | Bound | Value | Implementation |
+| --- | --- | ---: | --- |
+| 2.3B.B3.msm_sensitivity | max_sample_rows | 1000000 | `python/antecedent/msm_sensitivity.py` |
+| 2.3B.B3.msm_sensitivity | max_outcomes_per_arm | 256 | `python/antecedent/msm_sensitivity.py` |
+| 2.3B.F4.decision_contract | max_effect_unit_bytes | 256 | `python/src/scalar_decision_api.rs` |
+
+Empirical MSM requires an explicit supplemental sample, at most 4096 finite strata
+and 256 distinct outcomes per arm/stratum. Both treatment arms must appear in each
+stratum. These bounds do not validate sampling uncertainty or certify equality
+with the original analysis snapshot. Scalar effect units label the original
+outcome scale and do not perform a unit conversion.

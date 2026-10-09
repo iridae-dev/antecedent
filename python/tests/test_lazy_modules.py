@@ -68,3 +68,23 @@ def test_retired_name_signposts_survive_the_lazy_hook() -> None:
         _ = at.prior_bank
     with pytest.raises(AttributeError, match="discovery config dataclasses"):
         _ = at.discover_pc
+
+
+def test_merged_adapters_and_source_consumers_are_discoverable() -> None:
+    expected = {
+        "recalc_bayesian",
+        "recalc_temporal",
+        "recalc_external",
+        "recalc_composite",
+        "recalc_static",
+        "recalc_design",
+        "source_evidence",
+        "source_projection",
+        "execution_attempt",
+        "effect_constancy_review",
+        "functional_source",
+        "proposal_arrival",
+    }
+    assert expected <= set(dir(at))
+    for name in expected:
+        assert getattr(at, name) is importlib.import_module(f"antecedent.{name}")

@@ -102,6 +102,7 @@ mod regimes_api;
 mod repair_api;
 mod response_api;
 mod rollout_api;
+mod scalar_decision_api;
 mod scenario_invariance_api;
 mod sensitivity_decision_api;
 mod sensitivity_source_api;
@@ -952,6 +953,7 @@ pub(crate) fn evidence_status_parts(
 #[pyclass]
 #[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
 pub(crate) struct AteAnalysisResult {
+    pub(crate) effect_authority: Option<scalar_decision_api::NativeEffectAuthority>,
     /// Held-out doubly robust policy answer.
     #[pyo3(get)]
     pub(crate) policy_value: Option<policy_api::PolicyValueSection>,
