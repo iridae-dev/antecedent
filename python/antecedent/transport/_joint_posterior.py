@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from types import MappingProxyType
 from typing import Any, Literal
 
 import numpy as np
@@ -17,6 +16,7 @@ import numpy as np
 from .. import _native
 from .._data import to_f64
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ._candidate_data import detached, freeze
 from ._impl import TransportIdentification
 
 
@@ -53,8 +53,22 @@ class GaussianTransportPrior:
     consumed: tuple[JointTransportIdentity, ...] = ()
 
     def _wire(self) -> dict[str, Any]:
-        mean = tuple(float(v) for v in self.mean)
-        rows = tuple(tuple(float(v) for v in row) for row in self.covariance)
+        for name, value in (("mean", self.mean), ("covariance", self.covariance)):
+            if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+                raise CausalTypeError(f"prior {name} must be a sequence")
+        size = len(self.mean)
+        if not 1 <= size <= 256 or len(self.covariance) != size:
+            raise CausalValueError("prior covariance must be square and match 1..256 means")
+        for row in self.covariance:
+            if isinstance(row, (str, bytes)) or not isinstance(row, Sequence) or len(row) != size:
+                raise CausalValueError("prior covariance must be square and match 1..256 means")
+        try:
+            mean = tuple(float(v) for v in self.mean)
+            rows = tuple(tuple(float(v) for v in row) for row in self.covariance)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise CausalValueError(
+                "prior means and covariance must contain finite numbers"
+            ) from error
         if (
             not mean
             or len(mean) > 256
@@ -98,15 +112,7 @@ class JointTransportTarget:
     data: Mapping[str, Any]
 
 
-def _copy(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {key: _copy(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_copy(item) for item in value]
-    return value
-
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class JointTransportPosterior:
     """Numerically replayable candidate posterior; calibration is unmeasured.
 
@@ -119,16 +125,20 @@ class JointTransportPosterior:
     _bytes: bytes = field(repr=False)
     _body: Mapping[str, Any] = field(init=False, repr=False)
 
-    def __post_init__(self) -> None:
-        def freeze(value: Any) -> Any:
-            if isinstance(value, dict):
-                return MappingProxyType({key: freeze(item) for key, item in value.items()})
-            if isinstance(value, list):
-                return tuple(freeze(item) for item in value)
-            return value
+    def __init__(self) -> None:
+        raise CausalTypeError("use joint transport producers or consume_joint_transport_posterior")
 
-        object.__setattr__(self, "_body", freeze(json.loads(self._json)))
-        object.__setattr__(self, "_json", "")  # don't retain another complete draw payload
+    @classmethod
+    def _from_native(
+        cls, kind: Literal["gaussian", "learned_gaussian"], payload: str, artifact: bytes
+    ) -> JointTransportPosterior:
+        result = object.__new__(cls)
+
+        object.__setattr__(result, "kind", kind)
+        object.__setattr__(result, "_body", freeze(json.loads(payload)))
+        object.__setattr__(result, "_bytes", bytes(artifact))
+        object.__setattr__(result, "_json", "")
+        return result
 
     @property
     def calibration(self) -> Literal["unmeasured"]:
@@ -175,12 +185,12 @@ class JointTransportPosterior:
 
     @property
     def diagnostics(self) -> dict[str, Any]:
-        return dict(_copy(self._body["result"]["diagnostics"]))
+        return dict(detached(self._body["result"]["diagnostics"]))
 
     def to_dict(self) -> dict[str, Any]:
         """Copy of original full model, covariance, priors, identities and proof record."""
 
-        return dict(_copy(self._body))
+        return dict(detached(self._body))
 
     def export(self) -> bytes:
         return self._bytes
@@ -208,7 +218,7 @@ def consume_joint_transport_posterior(
     text = consumer(
         data, json.dumps(dict(expected_identity), allow_nan=False), kind == "learned_gaussian"
     )
-    return JointTransportPosterior(kind, text, bytes(data))
+    return JointTransportPosterior._from_native(kind, text, bytes(data))
 
 
 def _columns(data: Mapping[str, Any], names: Sequence[str]) -> list[list[float]]:
@@ -335,7 +345,7 @@ def _candidate(
     except (TypeError, ValueError) as error:
         raise CausalValueError("joint transport declarations must be finite JSON values") from error
     body, artifact = _native.joint_transport_candidate(identification._native, text, learned)
-    return JointTransportPosterior(
+    return JointTransportPosterior._from_native(
         "learned_gaussian" if learned else "gaussian", body, bytes(artifact)
     )
 

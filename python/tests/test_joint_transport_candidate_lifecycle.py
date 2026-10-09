@@ -135,6 +135,8 @@ def test_candidate_frozen_four_plus_four_coordinates_full_joint_oracle(learned, 
     assert result.target_effect_mean == pytest.approx(c @ mean, abs=2e-10)
     assert result.target_effect_variance == pytest.approx(c @ covariance @ c, abs=2e-10)
     assert result.calibration == "unmeasured" and result.release_status == "candidate_only"
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        replace(result, kind="learned_gaussian" if not learned else "gaussian")
     assert result.draws.shape == (256, len(result.draw_names))
     assert not result.draws.flags.writeable
     target_col = result.draw_names.index("effect.target")
@@ -241,3 +243,22 @@ def test_default_joint_transport_still_refuses_real_valid_scope():
     with pytest.raises(CausalUnsupportedError) as error:
         tr.joint_bayesian_transport(sources=[{"id": "source"}], target={"x": [0.1]}, features=["x"])
     assert error.value.reason_code == "cell_not_licensed"
+
+
+def test_candidate_result_constructor_and_prior_dimension_bound_do_not_accept_fabrication():
+    from collections.abc import Sequence
+
+    from antecedent.errors import CausalTypeError
+
+    with pytest.raises(CausalTypeError):
+        tr.JointTransportPosterior()
+
+    class Oversized(Sequence):
+        def __len__(self):
+            return 257
+
+        def __getitem__(self, index):
+            raise AssertionError("oversized prior must not be materialized")
+
+    with pytest.raises(CausalValueError, match="1..256"):
+        tr.GaussianTransportPrior(Oversized(), Oversized())._wire()

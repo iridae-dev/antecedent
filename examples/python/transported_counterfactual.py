@@ -71,9 +71,7 @@ assert direct.inference_claim == "point_only"
 assert "additive_noise" in direct.derivation.declared  # declared, never checked
 
 # The exported artifact is replayed against the identity the consumer retained.
-replayed = TransportedPathSpecificEffect.consume(
-    direct.export(), expected_identity=direct.identity
-)
+replayed = TransportedPathSpecificEffect.consume(direct.export(), expected_identity=direct.identity)
 assert replayed.target_contrast == direct.target_contrast
 
 # A selection node on the outcome's own mechanism is outside the class.

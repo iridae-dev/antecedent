@@ -523,7 +523,7 @@ def temporal_new_period_refresh(
     )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class TemporalIntervalCandidate:
     """Original whole-unit candidate, available only in internal acceptance builds.
 
@@ -545,17 +545,41 @@ class TemporalIntervalCandidate:
     replicate_digest: str
     _native: Any
 
+    def __init__(self) -> None:
+        raise CausalTypeError("use temporal_dependent_interval or load with retained identity")
+
     @classmethod
     def _from_native(cls, native: Any) -> TemporalIntervalCandidate:
+        from .. import _native
+
+        native_type = getattr(_native, "NativeTemporalIntervalCandidate", None)
+        if native_type is None or not isinstance(native, native_type):
+            raise CausalTypeError(
+                "temporal candidate requires an original native producer or consumer"
+            )
         payload = json.loads(native.payload())
         row = payload["result"]
-        return cls(
-            point=row["point"], lower=row["lower"], upper=row["upper"],
-            level=row["level"], method=row["method"], calibration=row["calibration"],
-            claim=row["claim"], identity=payload["seal"], snapshot_id=row["snapshot_id"],
-            panel_digest=row["panel_digest"], seed=row["seed"],
-            replicate_digest=row["replicate_digest"], _native=native,
+        if row["calibration"] != "unmeasured":
+            raise CausalValueError("temporal interval candidate must remain unmeasured")
+        result = object.__new__(cls)
+        fields = dict(
+            point=row["point"],
+            lower=row["lower"],
+            upper=row["upper"],
+            level=row["level"],
+            method=row["method"],
+            calibration=row["calibration"],
+            claim=row["claim"],
+            identity=payload["seal"],
+            snapshot_id=row["snapshot_id"],
+            panel_digest=row["panel_digest"],
+            seed=row["seed"],
+            replicate_digest=row["replicate_digest"],
+            _native=native,
         )
+        for name, value in fields.items():
+            object.__setattr__(result, name, value)
+        return result
 
     def export(self) -> bytes:
         """Export the original full-panel replay artifact, still unmeasured."""
@@ -572,11 +596,14 @@ class TemporalIntervalCandidate:
 
         consumer = getattr(_native, "consume_temporal_interval_candidate", None)
         if consumer is None:
-            raise TemporalExtensionRefusal({
-                "code": "cell_not_licensed", "stage": "temporal_extension",
-                "detail": "temporal_interval.route_frozen",
-                "message": "the interval consumer remains closed pending calibration",
-            })
+            raise TemporalExtensionRefusal(
+                {
+                    "code": "cell_not_licensed",
+                    "stage": "temporal_extension",
+                    "detail": "temporal_interval.route_frozen",
+                    "message": "the interval consumer remains closed pending calibration",
+                }
+            )
         if not isinstance(artifact, bytes) or not isinstance(expected_identity, str):
             raise CausalTypeError("artifact must be bytes and expected_identity must be str")
         native, refusal = consumer(artifact, expected_identity)

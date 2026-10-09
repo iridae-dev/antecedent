@@ -182,9 +182,10 @@ def test_query_and_fake_stage_do_not_gain_native_candidate_authority():
 
 def test_reordered_query_roles_and_bits_preserve_original_canonical_authority():
     original = produce()
-    swapped = [(row_id, ((r & 1) << 1) | ((r >> 1) & 1),
-                ((p & 1) << 1) | ((p >> 1) & 1), full)
-               for row_id, r, p, full in rows()]
+    swapped = [
+        (row_id, ((r & 1) << 1) | ((r >> 1) & 1), ((p & 1) << 1) | ((p >> 1) & 1), full)
+        for row_id, r, p, full in rows()
+    ]
     declaration = query(partially=list(reversed(query().partially_observed)))
     reordered = produce(sample=swapped, declaration=declaration)
     assert reordered.expected_identity == original.expected_identity
@@ -197,7 +198,12 @@ def test_fake_stage_callback_cannot_issue_candidate_authority():
     fake = SimpleNamespace(outcome="recovered", sampled_candidate=lambda *args: calls.append(args))
     with pytest.raises(CausalTypeError, match="original native recovery stage"):
         transport.sampled_observation_recovery(
-            stage=fake, query=query(), rows=rows(), snapshot="snap-1", replicates=500, seed=7,
+            stage=fake,
+            query=query(),
+            rows=rows(),
+            snapshot="snap-1",
+            replicates=500,
+            seed=7,
         )
     assert calls == []
 
@@ -252,7 +258,8 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
     expected = result.expected_identity
     with pytest.raises(CausalValueError, match="identity"):
         transport.SampledRecoveryCandidate.load(
-            result.export(), expected=transport.SampledRecoveryIdentity("0" * 64, "0" * 64),
+            result.export(),
+            expected=transport.SampledRecoveryIdentity("0" * 64, "0" * 64),
         )
     with pytest.raises(CausalSerializationError):
         transport.SampledRecoveryCandidate.load(b"not-cbor", expected=expected)
@@ -268,7 +275,46 @@ def test_original_recovery_consumer_enforces_identity_bytes_and_work_budgets():
     with pytest.raises(CausalError, match="budget") as caught:
         transport.SampledRecoveryCandidate.load(result.export(), expected=expected, cancel=token)
     assert caught.value.reason_code == "transport_budget_cancel"
-    for limits in ({"max_rows": True}, {"max_rows": 100001}, {"max_replicates": 2001},
-                   {"memory_bytes": True}, {"memory_bytes": 2**64}):
+    for limits in (
+        {"max_rows": True},
+        {"max_rows": 100001},
+        {"max_replicates": 2001},
+        {"memory_bytes": True},
+        {"memory_bytes": 2**64},
+    ):
         with pytest.raises(CausalValueError):
             transport.SampledRecoveryCandidate.load(result.export(), expected=expected, **limits)
+
+
+def test_candidate_scalar_reads_reuse_immutable_original_report(monkeypatch):
+    import antecedent.transport._sampled_candidate as candidate_module
+
+    result = produce()
+    artifact = result.export()
+    expected = (
+        result.effect,
+        result.effect_standard_error,
+        result.interval,
+        result.level,
+        result.expected_identity,
+    )
+    report = result.inspect()
+    report["result"]["effect"] = 999.0
+    report["result"]["interval"]["lower"] = 999.0
+    with pytest.raises(TypeError, match="does not support item assignment"):
+        result._body["result"]["effect"] = 999.0
+
+    def no_reparse(*args, **kwargs):
+        raise AssertionError("scalar reads must not reparse the full native report")
+
+    monkeypatch.setattr(candidate_module.json, "loads", no_reparse)
+    for _ in range(3):
+        assert (
+            result.effect,
+            result.effect_standard_error,
+            result.interval,
+            result.level,
+            result.expected_identity,
+        ) == expected
+        assert result.inspect()["result"]["effect"] == expected[0]
+    assert result.export() == artifact

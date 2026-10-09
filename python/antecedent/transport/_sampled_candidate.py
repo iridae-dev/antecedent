@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from .. import _native
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ._candidate_data import detached, freeze
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +38,7 @@ class SampledRecoveryCandidate:
     Export/load reruns original recovery and every replicate under retained identity.
     """
 
-    _json: str
+    _body: Mapping[str, Any]
     _artifact: bytes
 
     def __init__(self) -> None:
@@ -48,7 +50,7 @@ class SampledRecoveryCandidate:
         if decoded.get("calibration") != "unmeasured":
             raise CausalValueError("sampled recovery candidate must remain unmeasured")
         result = object.__new__(cls)
-        object.__setattr__(result, "_json", payload)
+        object.__setattr__(result, "_body", freeze(decoded))
         object.__setattr__(result, "_artifact", bytes(artifact))
         return result
 
@@ -58,29 +60,29 @@ class SampledRecoveryCandidate:
 
     @property
     def effect(self) -> float:
-        return float(json.loads(self._json)["result"]["effect"])
+        return float(self._body["result"]["effect"])
 
     @property
     def effect_standard_error(self) -> float:
-        return float(json.loads(self._json)["result"]["effect_standard_error"])
+        return float(self._body["result"]["effect_standard_error"])
 
     @property
     def interval(self) -> tuple[float, float]:
-        interval = json.loads(self._json)["result"]["interval"]
+        interval = self._body["result"]["interval"]
         return float(interval["lower"]), float(interval["upper"])
 
     @property
     def level(self) -> float:
-        return float(json.loads(self._json)["result"]["interval"]["level"])
+        return float(self._body["result"]["interval"]["level"])
 
     @property
     def expected_identity(self) -> SampledRecoveryIdentity:
-        payload = json.loads(self._json)
+        payload = self._body
         return SampledRecoveryIdentity(payload["premises_digest"], payload["data_digest"])
 
     def inspect(self) -> dict[str, Any]:
         """Detached original law, covariance, interval, diagnostics and work receipt."""
-        return dict(json.loads(self._json))
+        return dict(detached(self._body))
 
     def export(self) -> bytes:
         return self._artifact
@@ -102,7 +104,8 @@ class SampledRecoveryCandidate:
         if not isinstance(expected, SampledRecoveryIdentity):
             raise CausalTypeError("expected must be a retained SampledRecoveryIdentity")
         for name, value, ceiling in (
-            ("max_rows", max_rows, 100_000), ("max_replicates", max_replicates, 2000)
+            ("max_rows", max_rows, 100_000),
+            ("max_replicates", max_replicates, 2000),
         ):
             if isinstance(value, bool) or not isinstance(value, int) or not 0 < value <= ceiling:
                 raise CausalValueError(f"{name} must be an integer in 1..={ceiling}")

@@ -55,6 +55,7 @@ impl Candidate {
     reason = "existing graph/regime declaration converted at the binding boundary"
 )]
 fn nested_markov_fisher_candidate(
+    py: Python<'_>,
     variables: Vec<String>,
     directed: Vec<(usize, usize)>,
     bidirected: Vec<(usize, usize)>,
@@ -75,18 +76,21 @@ fn nested_markov_fisher_candidate(
             .collect(),
     };
     let options = FitOptions { max_iterations, tolerance, ..FitOptions::default() };
-    Candidate::from_artifact(
-        NestedFisherArtifact::build(
-            &input,
-            &options,
-            nominal_level,
-            &ExecutionContext::for_tests(0),
+    crate::detach_catch(py, move || {
+        Candidate::from_artifact(
+            NestedFisherArtifact::build(
+                &input,
+                &options,
+                nominal_level,
+                &ExecutionContext::for_tests(0),
+            )
+            .map_err(error)?,
         )
-        .map_err(error)?,
-    )
+    })
 }
 #[pyfunction]
 fn consume_nested_markov_fisher_candidate(
+    py: Python<'_>,
     bytes: &[u8],
     expected_identity: &str,
 ) -> PyResult<Candidate> {
@@ -101,15 +105,17 @@ fn consume_nested_markov_fisher_candidate(
             reason_code!("invalid_argument"),
         ));
     }
-    Candidate::from_artifact(
-        NestedFisherArtifact::consume(
-            bytes,
-            &NestedMarkovExpectation::default(),
-            NestedMarkovConsumeLimits::default(),
-            &ExecutionContext::for_tests(0),
+    crate::detach_catch(py, move || {
+        Candidate::from_artifact(
+            NestedFisherArtifact::consume(
+                bytes,
+                &NestedMarkovExpectation::default(),
+                NestedMarkovConsumeLimits::default(),
+                &ExecutionContext::for_tests(0),
+            )
+            .map_err(error)?,
         )
-        .map_err(error)?,
-    )
+    })
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<Candidate>()?;

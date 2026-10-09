@@ -4,16 +4,19 @@ Run on an installed calibration-internal wheel. Default wheels retain frozen
 refusals; positive cases must be rerun on the normal wheel after actual activation.
 The finite SCM uses the exact frozen target law and shared-unit-shock design.
 """
+
 from __future__ import annotations
 
 import json
 import subprocess
 import sys
+from dataclasses import FrozenInstanceError, replace
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from antecedent import _native
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError
 from antecedent.transport.advanced import (
     InitialStateLaw,
     TemporalIntervalCandidate,
@@ -22,7 +25,9 @@ from antecedent.transport.advanced import (
 )
 
 _INTERNAL = hasattr(_native, "temporal_dependent_interval_candidate")
-_CANDIDATE = pytest.mark.skipif(not _INTERNAL, reason="requires calibration-internal acceptance wheel")
+_CANDIDATE = pytest.mark.skipif(
+    not _INTERNAL, reason="requires calibration-internal acceptance wheel"
+)
 _MASK = (1 << 64) - 1
 _GAMMA = 0x9E3779B97F4A7C15
 
@@ -44,9 +49,15 @@ def panel(*, snapshot="activation-unit-panel", unit_offset=0, time_offset=0, lif
 
 def produce(method="percentile", **panel_args):
     return temporal_dependent_interval(
-        panel(**panel_args), sequence=(0, 0), estimand="marginalized_initial_state",
+        panel(**panel_args),
+        sequence=(0, 0),
+        estimand="marginalized_initial_state",
         target_law=InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
-        method=method, replicates=500, min_units=20, seed=901, level=0.95,
+        method=method,
+        replicates=500,
+        min_units=20,
+        seed=901,
+        level=0.95,
     )
 
 
@@ -86,6 +97,13 @@ def independent_replicates(payload):
     return points
 
 
+def test_temporal_candidate_requires_original_factory():
+    with pytest.raises(CausalTypeError, match="temporal_dependent_interval"):
+        TemporalIntervalCandidate()
+    with pytest.raises(CausalTypeError, match="original native"):
+        TemporalIntervalCandidate._from_native(SimpleNamespace(payload=lambda: "{}"))
+
+
 @pytest.mark.skipif(_INTERNAL, reason="normal released wheel refusal boundary")
 @pytest.mark.parametrize("method", ["percentile", "basic"])
 def test_temporal_default_route_remains_frozen(method):
@@ -97,12 +115,20 @@ def test_temporal_default_route_remains_frozen(method):
 
 @_CANDIDATE
 @pytest.mark.parametrize("method", ["percentile", "basic"])
-def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh_consumer(method, tmp_path):
+def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh_consumer(
+    method, tmp_path
+):
     result = produce(method)
     assert isinstance(result, TemporalIntervalCandidate)
     assert result.point == pytest.approx(0.49, abs=1e-12)
     assert result.calibration == "unmeasured"
     assert result.claim == "dependence_preserving_calibration_unmeasured"
+    with pytest.raises(FrozenInstanceError):
+        result.calibration = "calibrated"
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        replace(result, calibration="calibrated")
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        replace(result, point=9.0)
     payload = result.to_dict()
     assert payload["estimator"]["sequence"] == [0, 0]
     assert payload["config"]["seed"] == 901
@@ -123,16 +149,23 @@ print(json.dumps(r.to_dict()))
 """
     fresh = subprocess.run(
         [sys.executable, "-c", code, str(artifact), result.identity],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert json.loads(fresh.stdout) == payload
 
 
 @_CANDIDATE
-@pytest.mark.parametrize("change", [
-    {"snapshot": "another-snapshot"}, {"unit_offset": 10_000},
-    {"time_offset": 100}, {"lift": 0.01},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"snapshot": "another-snapshot"},
+        {"unit_offset": 10_000},
+        {"time_offset": 100},
+        {"lift": 0.01},
+    ],
+)
 def test_temporal_changed_panel_refuses_retained_identity(change):
     original = produce()
     changed = produce(**change)
