@@ -164,7 +164,7 @@ query_axis_aliases = {"NestedCounterfactual": "NestedCounterfactualEffect"}
 mapped_live_queries = [query_axis_aliases.get(q, q) for q in live_queries]
 # The root namespace is frozen (docs/api_naming.md). Geometric queries and the
 # companions that are actually re-exported there belong in the Queries block.
-# The 2.1 design families are public on their stage modules, not at the root.
+# The design families are public on their stage modules, not at the root.
 public_names = set(public)
 root_companions = [name for name in public_query_companions if name in public_names]
 expected_root_queries = root_queries + root_companions

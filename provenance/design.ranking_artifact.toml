@@ -18,7 +18,7 @@ copied_tests = false
 #
 # No primary paper is cited on purpose. This is a serialization, identity and replay
 # design, not an algorithm introduced by a publication; the quantities it carries (EVSI,
-# EVPI, net value) cite their sources in f12_evsi.toml and the signal contract in
+# EVPI, net value) cite their sources in design.evsi.toml and the signal contract in
 # f11_external_signal.toml.
 papers = []
 

@@ -752,7 +752,7 @@ evidence_assertion = "identified_scenarios_disagree_and_the_envelope_spans_them"
 route = "antecedent_identify.decide_conditional_transport_scenarios"
 stage = "prepare"
 status = "licensed"
-graph = "finite_supplied_latent_confounded_selection_admg_scenarios_within_the_b1_conditional_class"
+graph = "finite_supplied_latent_confounded_selection_admg_scenarios_within_the_conditional_transport_class"
 evidence = "one_catalog_bound_independently_per_scenario"
 functional = "per_scenario_target_conditional_interventional_distribution_decision"
 guarantee = "each_scenario_decided_once_by_the_b1_conditional_route_under_one_shared_budget"
@@ -776,7 +776,7 @@ evidence_assertion = "conditional_scenarios_enter_the_envelope_and_the_truth_lie
 route = "antecedent.StudyBuilder.conditional_transport_scenarios"
 stage = "prepare"
 status = "licensed"
-graph = "finite_supplied_latent_confounded_selection_admg_scenarios_within_the_b1_conditional_class"
+graph = "finite_supplied_latent_confounded_selection_admg_scenarios_within_the_conditional_transport_class"
 evidence = "catalog_bound_exact_laws_per_scenario"
 functional = "per_scenario_target_conditional_interventional_distribution"
 guarantee = "each_identified_scenario_compiled_once_through_the_b1_exact_prepared_path"
@@ -2241,9 +2241,9 @@ notes = "Counted laws have no sampling theory on the conditional route (no cover
 route = "antecedent_identify.plan_study_additions"
 stage = "identify"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -2255,9 +2255,9 @@ evidence_assertion = "complementary_sources_are_sufficient_only_as_a_pair"
 route = "antecedent_design.plan_studies"
 stage = "identify"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -2269,9 +2269,9 @@ evidence_assertion = "a_declared_margin_repairs_the_named_missing_joint"
 route = "antecedent_design.StudyPlanProposal.receive"
 stage = "prepare"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -2283,9 +2283,9 @@ evidence_assertion = "the_sufficient_pair_s_arriving_data_identify_and_match_the
 route = "antecedent_design.StudyPlanArtifactWire.consume_with_limits"
 stage = "consume"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -2297,9 +2297,9 @@ evidence_assertion = "the_exported_plan_is_replayed_by_an_independent_consumer"
 route = "antecedent.transport.advanced.plan_studies"
 stage = "identify"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -2311,9 +2311,9 @@ evidence_assertion = "test_the_cheapest_sufficient_study_arrives_and_executes_it
 route = "antecedent.transport.advanced.StudyPlanStage.receive"
 stage = "prepare"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -2325,9 +2325,9 @@ evidence_assertion = "test_arrival_of_another_shape_is_refused_and_the_right_sha
 route = "antecedent.transport.advanced.StudyPlanStage.export"
 stage = "representation"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -2339,9 +2339,9 @@ evidence_assertion = "test_export_binds_the_plan_and_a_consumer_refuses_what_it_
 route = "antecedent.transport.advanced.replay_study_plan"
 stage = "consume"
 status = "licensed"
-graph = "x1_mz_selection_admg_or_x9_mixed_source_admg"
+graph = "mz_selection_admg_or_mixed_source_admg"
 evidence = "declared_candidate_studies_compiled_to_hypothetical_catalog_deltas"
-functional = "identification_of_the_frozen_x1_or_x9_query_no_numeric_claim"
+functional = "identification_of_the_frozen_mz_or_mixed_source_query_no_numeric_claim"
 observation = "cost_ordered_subsets_of_at_most_three_re_decided_by_the_same_route"
 guarantee = "sound_incomplete"
 reference = "https://proceedings.mlr.press/v162/akbari22a.html"
@@ -4687,7 +4687,7 @@ notes = "Composition dependence boundary."
 route = "antecedent.claims.scenario_atoms"
 stage = "representation"
 status = "licensed"
-graph = "declared_structural_scenario_contract_each_scenario_keeps_the_status_the_2_2_report_gave_it"
+graph = "declared_structural_scenario_contract_each_scenario_keeps_the_status_the_classical_report_gave_it"
 evidence = "transport_scenarios_a_direct_p_y_1_0_56_and_b_standardize_0_35_with_unidentified_and_unevaluated_scenarios"
 functional = "one_structural_atom_per_scenario_keeping_status_weight_and_support_with_unresolved_mass_retained_and_never_renormalized"
 guarantee = "scenario_and_completion_reports_adapted_to_atoms_and_intervals_unrenormalized_counts_never_probabilities_point_only"
@@ -4909,8 +4909,8 @@ route = "antecedent.sensitivity.msm_sensitivity_artifact"
 stage = "representation"
 status = "licensed"
 graph = "no_graph_identified_the_surface_is_the_lambda_grid_of_the_sharp_ate_bounds"
-evidence = "two_strata_lambda_grid_1_to_3_adapted_into_the_f17_sensitivity_artifact_with_distinct_assumption_range_and_withheld_sampling"
-functional = "adapt_a_marginal_sensitivity_result_into_the_f17_sensitivity_artifact_over_the_lambda_coordinate_odds_ratio_bound"
+evidence = "two_strata_lambda_grid_1_to_3_adapted_into_the_sensitivity_artifact_with_distinct_assumption_range_and_withheld_sampling"
+functional = "adapt_a_marginal_sensitivity_result_into_the_sensitivity_artifact_over_the_lambda_coordinate_odds_ratio_bound"
 guarantee = "msm_sensitivity_artifact_lambda_surface_with_withheld_sampling_decision_replay_point_only"
 limits = "The artifact carries the assumption range of the ATE bounds per grid Lambda, no identified bound and a withheld sampling descriptor; the sensitivity decision composition classifies actions over the declared Lambda range only (invariant action, assumption-dependent switch or no robust action) and never as a probability. A composed sampling interval is refused; the artifact refusals belong to the sensitivity-artifact namespace."
 evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs"
@@ -4960,8 +4960,8 @@ notes = "Frozen_scores_v1 artifact; point-only."
 route = "antecedent.invariance.scenario_invariance_report"
 stage = "evaluate"
 status = "licensed"
-graph = "static_selection_diagrams_decided_by_the_2_2_classical_catalog_transport_route_non_static_nodes_refuse"
-evidence = "a_prepared_and_estimated_2_2_transport_scenario_stage_no_data_of_its_own"
+graph = "static_selection_diagrams_decided_by_the_classical_catalog_transport_route_non_static_nodes_refuse"
+evidence = "a_prepared_and_estimated_transport_scenario_stage_no_data_of_its_own"
 functional = "per_scenario_selection_differences_source_invariances_target_factors_obstruction_or_undecided_status_and_the_scenario_behind_each_envelope_extreme"
 guarantee = "report_read_from_the_verified_derivation_structural_no_new_decision_no_value_no_interval"
 limits = "Structural report only: it lists the assumptions an answer rests on and never says they hold. Invariances are read from the checked derivation's own proof steps and the S-admissibility already established is not re-decided; a source leaf no proof step produced is refused as derivation_inconsistent. Derived and recomputable from the scenario stage, so it has no artifact of its own and its inv.v1 identity is a recomputation check, not a seal. Scope is the classical catalog scenarios; no weighting, interval or coverage claim."
@@ -5225,7 +5225,6 @@ evidence_assertion = "test_composition_boundary_caller_native_constructor_refuse
 
 [[routes]]
 id = "composition.rollout_state"
-work_package = "C3.1"
 route = "antecedent.design.DesignDecision.export_rollout"
 stage = "representation"
 status = "licensed"
@@ -5240,7 +5239,6 @@ evidence_assertion = "test_rollout_public_source_prior_terminal_and_ranking_matc
 
 [[routes]]
 id = "composition.rollout_state"
-work_package = "C3.1"
 route = "antecedent.design.consume_rollout"
 stage = "consume"
 status = "licensed"
@@ -5255,7 +5253,6 @@ evidence_assertion = "test_rollout_fresh_process_independently_reads_original_so
 
 [[routes]]
 id = "composition.boundary"
-work_package = "C1"
 route = "antecedent.composition.DecisionInput.from_native_claim"
 stage = "consume"
 status = "licensed"
@@ -5270,7 +5267,6 @@ evidence_assertion = "test_native_composition_consumes_issued_execution_and_refu
 
 [[routes]]
 id = "recalculation.external_callback"
-work_package = "C2"
 route = "antecedent.recalc_external.ExternalCallbackSession.execute"
 stage = "evaluate"
 status = "licensed"
@@ -5285,7 +5281,6 @@ evidence_assertion = "test_callback_actual_invocation_cache_branch_receipt_and_f
 
 [[routes]]
 id = "temporal.effect_constancy_consumers"
-work_package = "F18"
 route = "antecedent.effect_constancy_review.transport_diagnostic"
 stage = "evaluate"
 status = "licensed"
@@ -5300,7 +5295,6 @@ evidence_assertion = "test_original_covariance_contrast_retains_adjustment_and_s
 
 [[routes]]
 id = "temporal.effect_constancy_consumers"
-work_package = "F18"
 route = "antecedent.effect_constancy_review.rank_prior_sources"
 stage = "evaluate"
 status = "licensed"
@@ -5315,7 +5309,6 @@ evidence_assertion = "test_original_catalog_filtering_does_not_turn_preference_i
 
 [[routes]]
 id = "temporal.effect_constancy_consumers"
-work_package = "F18"
 route = "antecedent.effect_constancy_review.policy_review"
 stage = "evaluate"
 status = "licensed"
@@ -5330,7 +5323,6 @@ evidence_assertion = "test_original_point_policy_handles_disagreement_ties_and_s
 
 [[routes]]
 id = "design.proposal_arrival"
-work_package = "B0"
 route = "antecedent.proposals.ProposalBundle.estimate_arrival"
 stage = "evaluate"
 status = "licensed"
@@ -5345,7 +5337,6 @@ evidence_assertion = "test_arrival_public_actual_count_truth_and_original_artifa
 
 [[routes]]
 id = "design.proposal_arrival"
-work_package = "B0"
 route = "antecedent.proposal_arrival.consume_arrival"
 stage = "consume"
 status = "licensed"
@@ -5360,7 +5351,6 @@ evidence_assertion = "test_arrival_fresh_process_replays_original_artifacts_and_
 
 [[routes]]
 id = "recalculation.composite"
-work_package = "C4"
 route = "antecedent.recalc_composite.CompositeSession.execute"
 stage = "evaluate"
 status = "licensed"
@@ -5375,7 +5365,6 @@ evidence_assertion = "test_shared_receipt_native_truth_utility_and_one_foreign_b
 
 [[routes]]
 id = "composition.source_evidence"
-work_package = "A0"
 route = "antecedent.program_claims.NativeClaim.source_evidence"
 stage = "representation"
 status = "licensed"
@@ -5390,7 +5379,6 @@ evidence_assertion = "test_source_evidence_equal_global_values_remain_distinct_s
 
 [[routes]]
 id = "composition.source_evidence"
-work_package = "A0"
 route = "antecedent.source_evidence.SourceEvidence.project"
 stage = "representation"
 status = "licensed"
@@ -5405,7 +5393,6 @@ evidence_assertion = "test_source_evidence_projection_preserves_contributors_and
 
 [[routes]]
 id = "composition.source_evidence"
-work_package = "A0"
 route = "antecedent.source_evidence.SourceEvidence.consume"
 stage = "consume"
 status = "licensed"
@@ -5420,7 +5407,6 @@ evidence_assertion = "test_source_evidence_preserves_original_scopes_and_semanti
 
 [[routes]]
 id = "composition.source_evidence"
-work_package = "A0"
 route = "antecedent.source_evidence.SourceEvidence.resolve_with"
 stage = "consume"
 status = "licensed"
@@ -5435,7 +5421,6 @@ evidence_assertion = "test_source_evidence_fresh_process_requires_actual_reanaly
 
 [[routes]]
 id = "composition.source_projection"
-work_package = "C3.1"
 route = "antecedent.source_projection.SourceProjectionArtifact.produce"
 stage = "evaluate"
 status = "licensed"
@@ -5450,7 +5435,6 @@ evidence_assertion = "source_projection_original_native_mean_and_affine_utility_
 
 [[routes]]
 id = "composition.source_projection"
-work_package = "C3.1"
 route = "antecedent.source_projection.consume_source_projection"
 stage = "consume"
 status = "licensed"
@@ -5465,7 +5449,6 @@ evidence_assertion = "test_source_projection_native_original_engine_affine_truth
 
 [[routes]]
 id = "composition.source_projection"
-work_package = "C3.1"
 route = "antecedent.composition_bundle.consume_bundle.source_projection"
 stage = "consume"
 status = "licensed"
@@ -5480,7 +5463,6 @@ evidence_assertion = "test_source_projection_external_attestation_coordinates_an
 
 [[routes]]
 id = "composition.source_lineage"
-work_package = "A0"
 route = "antecedent.composition.FunctionalValue.source_artifact"
 stage = "evaluate"
 status = "licensed"
@@ -5495,7 +5477,6 @@ evidence_assertion = "test_native_functional_keeps_original_semantic_diagnostics
 
 [[routes]]
 id = "composition.source_lineage"
-work_package = "A0"
 route = "antecedent.functional_source.LawFunctionalArtifact.consume"
 stage = "consume"
 status = "licensed"
@@ -5510,7 +5491,6 @@ evidence_assertion = "test_law_functional_full_original_request_replays_truth_wi
 
 [[routes]]
 id = "sensitivity.source_lineage"
-work_package = "A0"
 route = "antecedent.sensitivity_decision.SensitivityArtifact.export_with_source"
 stage = "representation"
 status = "licensed"
@@ -5525,7 +5505,6 @@ evidence_assertion = "source_backed_sensitivity_replays_full_original_source_and
 
 [[routes]]
 id = "sensitivity.source_lineage"
-work_package = "A0"
 route = "antecedent.sensitivity_decision.SensitivityArtifact.consume_with_source"
 stage = "consume"
 status = "licensed"
@@ -5540,7 +5519,6 @@ evidence_assertion = "test_sensitivity_full_original_v3_source_replays_surface_a
 
 [[routes]]
 id = "composition.rollout_state"
-work_package = "C3.1"
 route = "antecedent.design.RolloutResult.ranking"
 stage = "consume"
 status = "licensed"
@@ -5555,7 +5533,6 @@ evidence_assertion = "test_native_rollout_retains_original_semantic_diagnostics_
 
 [[routes]]
 id = "composition.source_lineage"
-work_package = "A0"
 route = "antecedent.functional_source.LawFunctionalArtifact.resolve_with"
 stage = "consume"
 status = "licensed"
@@ -5570,7 +5547,6 @@ evidence_assertion = "test_native_law_functional_portable_diagnostics_require_ac
 
 [[routes]]
 id = "design.conditional_study_ranking"
-work_package = "C4"
 route = "antecedent.recalc_composite.CompositeSession.rank_studies"
 stage = "evaluate"
 status = "licensed"
@@ -5585,7 +5561,6 @@ evidence_assertion = "test_actual_selected_decision_routes_original_structural_r
 
 [[routes]]
 id = "design.conditional_study_ranking"
-work_package = "C4"
 route = "antecedent.recalc_composite.ConditionalStudyRanking.consume"
 stage = "consume"
 status = "licensed"
@@ -5600,7 +5575,6 @@ evidence_assertion = "test_conditional_ranking_fresh_child_reexecutes_science_be
 
 [[routes]]
 id = "composition.source_evidence"
-work_package = "A0"
 route = "antecedent.external.BoundExternalClaim.source_evidence"
 stage = "representation"
 status = "licensed"
@@ -5615,7 +5589,6 @@ evidence_assertion = "test_external_original_source_survives_functional_supporte
 
 [[routes]]
 id = "composition.source_evidence"
-work_package = "A0"
 route = "antecedent.program_claims.NativeDecisionSource.mean_claim"
 stage = "representation"
 status = "licensed"
@@ -5630,7 +5603,6 @@ evidence_assertion = "test_named_native_mean_adapters_preserve_original_source_a
 
 [[routes]]
 id = "recalculation.native_execution_attempts"
-work_package = "C2.1"
 route = "antecedent.execution_attempt.observe_native_attempts"
 stage = "evaluate"
 status = "licensed"

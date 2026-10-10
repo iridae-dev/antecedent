@@ -1,11 +1,11 @@
-feature_id = "support.coordinate_remainder"
+feature_id = "support.native_response_coordinates"
 implementation_crate = "antecedent-core"
 source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
 
-# The remainder for scientific response coordinates: a native getter that reads, from a
+# Scientific response coordinates: a native getter that reads, from a
 # CausalResponse alone, the outcome, intervention regime, horizon and functional of each value
 # coordinate (crates/antecedent-core/src/response_coordinates.rs), and the per-point support label
 # now set on the frequentist intervention_response route and the cell-AIPW multi-treatment route.
@@ -32,5 +32,5 @@ test_sources = [
   "crates/antecedent-core/tests/native_response_coordinates.rs",
   "crates/antecedent-estimate/tests/intervention_support.rs",
   "crates/antecedent/tests/native_coordinate_parity.rs",
-  "python/tests/test_coordinates_remainder.py",
+  "python/tests/test_native_response_coordinates.py",
 ]

@@ -418,16 +418,16 @@ def self_test() -> int:
             else:
                 print(f"self-test ok: '{label}' fails")
 
-        x1 = next(r for r in promotion["record"] if r["id"] == "transport.multi_source_limited_experiment")
-        x1_records = list(x1["coverage_records"])
-        x1_route = next(r for r in x1["routes"] if r["stage"] == "uncertainty")
+        multi_source = next(r for r in promotion["record"] if r["id"] == "transport.multi_source_limited_experiment")
+        multi_source_records = list(multi_source["coverage_records"])
+        multi_source_route = next(r for r in multi_source["routes"] if r["stage"] == "uncertainty")
         promo = "parity/promotion.toml"
         licensed_route = (
-            f'{{ name = "{x1_route["name"]}", stage = "uncertainty", status = "licensed", claim = "calibrated" }}'
+            f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "licensed", claim = "calibrated" }}'
         )
-        closed_route_head = f'{{ name = "{x1_route["name"]}", stage = "uncertainty", status = "closed"'
+        closed_route_head = f'{{ name = "{multi_source_route["name"]}", stage = "uncertainty", status = "closed"'
 
-        def open_x1(case: Path) -> None:
+        def open_multi_source(case: Path) -> None:
             path = case / promo
             text = path.read_text()
             start = text.index(closed_route_head)
@@ -436,28 +436,28 @@ def self_test() -> int:
 
         expect("baseline copy", run(), fail_with=None)
         result = run()
-        state = result["calibration"].get(x1["id"], {}).get("status")
+        state = result["calibration"].get(multi_source["id"], {}).get("status")
         if state != "PENDING_CALIBRATION":
             failures.append(f"absent records must be PENDING_CALIBRATION, got {state}")
         else:
             print("self-test ok: absent coverage records report PENDING_CALIBRATION")
-        expect("uncertainty route licensed without coverage records", run(open_x1),
+        expect("uncertainty route licensed without coverage records", run(open_multi_source),
                fail_with="licensed but coverage records are absent")
-        covered = run(open_x1, coverage=x1_records)
+        covered = run(open_multi_source, coverage=multi_source_records)
         expect("uncertainty route licensed with every coverage record present", covered, fail_with=None)
-        if covered["calibration"].get(x1["id"], {}).get("status") != "PASS":
+        if covered["calibration"].get(multi_source["id"], {}).get("status") != "PASS":
             failures.append(f"present records must report PASS: {covered['calibration']}")
         else:
             print("self-test ok: present and attested coverage records report PASS")
-        half = run(open_x1, coverage=x1_records[:1])
+        half = run(open_multi_source, coverage=multi_source_records[:1])
         expect("only one of two coverage records present", half, fail_with="licensed but coverage records are absent")
-        stale = run(coverage=x1_records[:1])
-        if stale["calibration"][x1["id"]]["status"] != "PENDING_CALIBRATION":
+        stale = run(coverage=multi_source_records[:1])
+        if stale["calibration"][multi_source["id"]]["status"] != "PENDING_CALIBRATION":
             failures.append("one of two records present must stay PENDING_CALIBRATION")
         else:
             print("self-test ok: one of two records stays PENDING_CALIBRATION")
         licensed_name = next(
-            r["name"] for r in x1["routes"] if r["status"] == "licensed" and r["stage"] == "prepare"
+            r["name"] for r in multi_source["routes"] if r["status"] == "licensed" and r["stage"] == "prepare"
         )
         row_head = f'route = "{licensed_name}"\n'
         expect(
@@ -472,33 +472,33 @@ def self_test() -> int:
         )
         expect(
             "closed route without refusal evidence",
-            run(edit_file(promo, f', refusal_assertion = "{x1_route["refusal_assertion"]}"', "")),
+            run(edit_file(promo, f', refusal_assertion = "{multi_source_route["refusal_assertion"]}"', "")),
             fail_with="cites no executed refusal test",
         )
         expect(
             "refusal test that does not exist",
-            run(edit_file(promo, f'refusal_assertion = "{x1_route["refusal_assertion"]}"', 'refusal_assertion = "no_such_test"')),
+            run(edit_file(promo, f'refusal_assertion = "{multi_source_route["refusal_assertion"]}"', 'refusal_assertion = "no_such_test"')),
             fail_with="does not exist",
         )
-        x5 = next(r for r in promotion["record"] if r["id"] == "transport.two_step_temporal")
-        x5_heads = [
+        two_step = next(r for r in promotion["record"] if r["id"] == "transport.two_step_temporal")
+        two_step_heads = [
             f'{{ name = "{r["name"]}", stage = "uncertainty", status = "closed"'
-            for r in x5["routes"]
+            for r in two_step["routes"]
             if r["stage"] == "uncertainty"
         ]
 
-        def drop_x5_interval_route(case: Path) -> None:
+        def drop_two_step_interval_route(case: Path) -> None:
             # The two-step temporal cell declares one closed uncertainty route per surface (Rust facade, Python stage);
             # the violation is having none, so every one of them goes.
             path = case / promo
             text = path.read_text()
-            for head in x5_heads:
+            for head in two_step_heads:
                 start = text.index(head)
                 end = text.index("},", start) + 2
                 text = text[:start] + text[end:]
             path.write_text(text)
 
-        expect("interval-bearing surface with no closed route", run(drop_x5_interval_route),
+        expect("interval-bearing surface with no closed route", run(drop_two_step_interval_route),
                fail_with="has no closed uncertainty route")
         fresh_surface = INTERVAL_SURFACES["counterfactual.path_specific_edge"][0]
 

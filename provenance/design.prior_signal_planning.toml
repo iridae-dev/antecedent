@@ -19,7 +19,7 @@ copied_tests = false
 # this planner (a quota-allocated, shrunk resampling of supplied posterior draws), not an
 # implementation of a published combination method, and a topically nearby paper (power
 # priors, meta-analytic predictive priors) would imply a theorem the code does not earn.
-# The decision-value side of the pipeline cites its own sources in f12_evsi.toml.
+# The decision-value side of the pipeline cites its own sources in design.evsi.toml.
 papers = []
 
 implementation_deviations = [

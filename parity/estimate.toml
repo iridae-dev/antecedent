@@ -438,7 +438,7 @@ tabpfn = "pending"
 [[capabilities]]
 id = "estimate.temporal_sequential"
 group = "estimation"
-description = "1.2 staged estimate.temporal_sequential with independent evidence"
+description = "staged estimate.temporal_sequential with independent evidence"
 owner = "estimate"
 evidence_test = "crates/antecedent/tests/temporal_response_facade.rs"
 evidence_assertion = "multi_step_sequence_matches_two_step_truth_and_does_not_collapse"

@@ -1,4 +1,4 @@
-# 1.10 compiler composition inventory.
+# Compiler composition inventory.
 # Status: pending | in_progress | done
 # These are handoff / inspect / claim / reuse operations, not analysis-matrix cells.
 # Parent estimator evidence is not inherited.

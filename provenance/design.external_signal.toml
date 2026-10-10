@@ -17,7 +17,7 @@ copied_tests = false
 # and external-posterior modes is the textbook rule P(theta | y) proportional to
 # P(y | theta) P(theta) applied to finite tables, and the Gaussian-mean and binomial
 # likelihoods it wraps were already present in the preposterior module. The decision-value
-# use of the resulting laws is cited in f12_evsi.toml.
+# use of the resulting laws is cited in design.evsi.toml.
 papers = []
 
 implementation_deviations = [

@@ -115,7 +115,7 @@ notes = "Types + CBOR round-trip + PopulationRegistry::resolve; Dynamic ID usabl
 [[capabilities]]
 id = "validate.functional"
 group = "identify_estimate"
-description = "1.2 staged validate.functional with independent evidence"
+description = "staged validate.functional with independent evidence"
 owner = "context"
 status = "done"
 evidence_kind = "internal_known_truth"
@@ -129,7 +129,7 @@ notes = "Executed Rust staged tests and Python test_release_12.py; matching prov
 [[capabilities]]
 id = "validate.temporal_mediation"
 group = "identify_estimate"
-description = "1.2 staged validate.temporal_mediation with independent evidence"
+description = "staged validate.temporal_mediation with independent evidence"
 owner = "context"
 status = "done"
 evidence_kind = "internal_known_truth"
