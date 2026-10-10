@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 from antecedent.errors import CausalSerializationError, CausalUnsupportedError
 from antecedent.transport import advanced
+from antecedent.transport._temporal_extensions import _temporal_dependent_interval_candidate
 from antecedent.transport.advanced import (
     InitialStateLaw,
     TemporalExtensionRefusal,
@@ -397,20 +398,22 @@ def interval_panel(units: int = 24) -> TemporalUnitPanel:
     return TemporalUnitPanel.from_rows("interval-panel", rows)
 
 
-def test_x5_dependent_interval_route_is_closed_after_real_validation():
+def test_x5_internal_candidate_route_is_closed_after_real_validation():
     error = refusal_of(
-        lambda: temporal_dependent_interval(interval_panel(), sequence=SEQUENCE, replicates=40)
+        lambda: _temporal_dependent_interval_candidate(
+            interval_panel(), sequence=SEQUENCE, replicates=40
+        )
     )
     assert error.reason_code == "cell_not_licensed"
     assert error.detail == "temporal_interval.route_frozen"
     assert "temporal_interval.route_frozen" in str(error)
-    # Every estimand reaches the same closed route; none returns an interval.
+    # The internal candidate diagnostic remains closed for every estimand.
     for kwargs in (
         {"estimand": "fixed_initial_state", "fixed_state": 1},
         {"estimand": "marginalized_initial_state", "target_law": target_law()},
     ):
         error = refusal_of(
-            lambda kwargs=kwargs: temporal_dependent_interval(
+            lambda kwargs=kwargs: _temporal_dependent_interval_candidate(
                 interval_panel(), sequence=SEQUENCE, replicates=40, **kwargs
             )
         )
@@ -420,26 +423,35 @@ def test_x5_dependent_interval_route_is_closed_after_real_validation():
 def test_x5_dependent_interval_validates_its_arguments_before_closing():
     error = refusal_of(
         lambda: temporal_dependent_interval(
-            TemporalUnitPanel("interval-panel", None), sequence=SEQUENCE, replicates=40
+            TemporalUnitPanel("interval-panel", None),
+            sequence=SEQUENCE,
+            target_law=target_law(),
+            replicates=40,
         )
     )
     assert error.reason_code == "route_not_supported"
     assert error.detail == "temporal_interval.unknown_units"
 
     error = refusal_of(
-        lambda: temporal_dependent_interval(interval_panel(5), sequence=SEQUENCE, replicates=40)
+        lambda: temporal_dependent_interval(
+            interval_panel(5), sequence=SEQUENCE, target_law=target_law(), replicates=40
+        )
     )
     assert error.reason_code == "too_few_clusters"
     assert error.detail == "temporal_interval.too_few_units"
 
     error = refusal_of(
-        lambda: temporal_dependent_interval(interval_panel(), sequence=SEQUENCE, replicates=5000)
+        lambda: temporal_dependent_interval(
+            interval_panel(), sequence=SEQUENCE, target_law=target_law(), replicates=5000
+        )
     )
     assert error.reason_code == "route_not_supported"
     assert error.detail == "temporal_interval.too_many_replicates"
 
     error = refusal_of(
-        lambda: temporal_dependent_interval(interval_panel(), sequence=SEQUENCE, replicates=10)
+        lambda: temporal_dependent_interval(
+            interval_panel(), sequence=SEQUENCE, target_law=target_law(), replicates=10
+        )
     )
     assert error.reason_code == "invalid_argument"
 

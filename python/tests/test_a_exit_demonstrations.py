@@ -1,19 +1,7 @@
-"""2.3 A exit gate, boxes 5 to 8: the four scientific demonstrations through public Python routes.
+"""Scientific demonstrations through released Python producers and independent consumers.
 
-Each test composes the public routes of the committed unit tests and re-derives the asserted
-numbers by hand (copied builders; no private module is imported):
-
-* box 5 - ``test_cpdag_scenarios.py`` and ``test_scenario_covariance.py``;
-* box 6 - ``test_closed_pilots.py`` (joint Bayesian, nested Markov);
-* box 7 - ``test_temporal_extensions.py`` and ``test_effect_constancy.py``;
-* box 8 - ``test_temporal_counterfactual.py``, ``test_closed_pilots.py``,
-  ``test_temporal_extensions.py``.
-
-Closure is status-driven: a closed route is called and must refuse with the registry's reason code;
-a route the registry has since opened is not called. No calibration is measured here. Calibration
-of the four calibrated A claims is unmeasured at this commit (``parity/coverage_records.toml``
-holds none of their records), so the box 6 demonstration can only be the "otherwise record the
-failed gate and typed refusal" branch of the gate item.
+Calibrated scalar examples execute their public routes regardless of promotion bookkeeping.
+Broader unsupported methods retain explicit refusals; point results retain their stated scope.
 """
 
 from __future__ import annotations
@@ -26,7 +14,8 @@ from typing import Any
 
 import pytest
 from antecedent import Admg, Cpdag
-from antecedent.errors import CausalUnsupportedError
+from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.inference import MeasuredInference
 from antecedent.temporal import (
     ConstancyConclusion,
     EffectEstimand,
@@ -235,82 +224,26 @@ VERMA_NODES = ["X1", "X2", "X3", "X4"]
 VERMA_DIRECTED = [("X1", "X2"), ("X2", "X3"), ("X3", "X4")]
 
 
-def test_a_exit_demo_calibrated_joint_bayesian_row_records_failed_gate_and_typed_refusal() -> None:
-    """The gate item is satisfiable here only as its "otherwise" branch.
+def test_a_exit_demo_calibrated_bayesian_scalars_and_independent_replay() -> None:
+    """Execute measured Bayesian scalars and independently replay their original evidence."""
+    from test_measured_joint_transport import options, produce
+    from test_measured_nested import produce as nested
 
-    Both posterior candidates remain unmeasured and normal public routes stay closed.
-    The continuous nested posterior has its own implemented method and frozen, unrun
-    measurement suite. Allocated coverage identities are not measured records and
-    cannot promote either the point fit or its separate Bayesian posterior.
-    """
-    registry = _registry()
     with (ROOT / "parity" / "coverage_records.toml").open("rb") as handle:
-        collected = {r["id"] for r in tomllib.load(handle).get("record", [])}
-    joint_record = registry["2.3A.X4.joint_bayesian_transport"]
-    nested_record = registry["2.3A.X4.binary_nested_markov_pilot"]
-    assert nested_record["inference_claim"] == "point_only"
-    assert not nested_record.get("coverage_records", [])
-    posterior = next(
-        row
-        for row in nested_record["inference_outputs"]
-        if row["id"] == "binary_nested_markov_pilot.posterior"
-    )
-    assert posterior["implementation_status"] == "implemented_unmeasured"
-    assert posterior["allocation_status"] == "frozen_harness_compiled_measurement_pending"
-    assert (ROOT / posterior["measurement_suite"]).is_file()
-    allocated = set(posterior["allocated_coverage_records"])
-    assert allocated and allocated <= set(nested_record["candidate_coverage_records"])
-    assert not allocated & collected
-    for record in (joint_record,):
-        assert record["inference_claim"] == "calibrated"
-        if set(record["coverage_records"]) <= collected:
-            # Measured: the record may legitimately be promoted; this demonstration then moves to
-            # a licence test.
-            continue
-        # The failed gate is recorded and the record stays out of the promoted set.
-        assert record["status"] == "carried_forward", record["id"]
-        assert "calibrat" in record["inference_notes"].lower()
-    oracle = ROOT / "crates/antecedent-estimate/tests/joint_bayesian_transport.rs"
-    assert "x4_joint_posterior_oracle_single_source_matches_closed_form" in oracle.read_text(
-        encoding="utf-8"
-    )
-
-    def joint(**overrides: Any) -> Any:
-        kwargs: dict[str, Any] = {
-            "sources": [{"id": "s1"}, {"id": "s2"}],
-            "target": {"x": [0.1, 0.2, 0.3]},
-            "features": ["x"],
-            "draws": 1000,
-            "seed": 7,
-        }
-        kwargs.update(overrides)
-        return transport.joint_bayesian_transport(**kwargs)
-
-    _refused_closed(
-        joint,
-        "2.3A.X4.joint_bayesian_transport",
-        "antecedent.transport.joint_bayesian",
-        "bayesian_transport.route_frozen",
-    )
-    # A request outside the pilot's scope refuses with its own scope detail.
-    adjacent = Admg.from_edges(["x", "a", "y"], [("x", "a"), ("a", "y")], [("x", "y")])
-    with pytest.raises(CausalUnsupportedError) as scope:
-        joint(graph=adjacent)
-    assert scope.value.reason_code == "route_not_supported"
-    assert "bayesian_transport.unsupported_graph" in str(scope.value)
+        collected = {record["id"] for record in tomllib.load(handle).get("record", [])}
+    for result in (produce(False, options(False, "independent")), nested(True), nested(False)):
+        assert isinstance(result, MeasuredInference)
+        assert result.source_report()["calibration"] == "unmeasured"
+        assert all(scalar.calibration == "calibrated" for scalar in result.scalars)
+        assert all(scalar.record_id in collected for scalar in result.scalars)
+        loaded = MeasuredInference.load(result.export(), expected=result.expected_identity)
+        assert loaded.inspect() == result.inspect()
+        assert loaded.source_artifact() == result.source_artifact()
 
     verma = Admg.from_edges(VERMA_NODES, VERMA_DIRECTED, [("X2", "X4")])
-    counts = [100.0 + index for index in range(16)]
-    _refused_closed(
-        lambda: transport.binary_nested_markov(graph=verma, regimes=[{"counts": counts}]),
-        "2.3A.X4.binary_nested_markov_pilot",
-        "antecedent.transport.binary_nested_markov",
-        "nested_markov.route_frozen",
-    )
-    # The pilot's own scope refusal (an intervened regime) is not a nonidentification claim.
     with pytest.raises(CausalUnsupportedError) as outside:
         transport.binary_nested_markov(
-            graph=verma, regimes=[{"counts": counts, "intervened": ["X2"]}]
+            graph=verma, regimes=[{"counts": [250] * 16, "intervened": ["X2"]}]
         )
     assert "nested_markov.outside_binary_pilot" in str(outside.value)
     assert "nonidentif" not in str(outside.value)
@@ -456,21 +389,19 @@ def test_a_exit_demo_temporal_initial_state_refresh_invalidation_and_constancy()
     )
     assert stale.detail == "temporal_refresh.stale_snapshot"
 
-    # Dependent-sample interval: the route stays closed (calibration unmeasured).
-    rows = [
-        (unit, time_id, s0, 0, level, a2, ((unit * 7 + s0 * 3 + level * 5 + a2) % 10) / 10.0)
-        for unit in range(24)
-        for time_id, (s0, level, a2) in enumerate(
-            (s0, level, a2) for s0 in range(2) for level in range(2) for a2 in range(2)
-        )
-    ]
-    panel = TemporalUnitPanel.from_rows("interval-panel", rows)
-    _refused_closed(
-        lambda: temporal_dependent_interval(panel, sequence=SEQUENCE, replicates=40),
-        "2.3A.X5.dependent_temporal_interval",
-        "antecedent.transport.temporal_dependent_interval",
-        "temporal_interval.route_frozen",
+    # A measured whole-unit interval must also survive independent source replay.
+    from test_temporal_interval_activation import panel as interval_panel
+
+    interval = temporal_dependent_interval(
+        interval_panel(),
+        sequence=SEQUENCE,
+        target_law=InitialStateLaw("fixed_target", {0: 0.3, 1: 0.7}),
+        seed=901,
     )
+    assert interval.scalar("response").point == pytest.approx(0.49, abs=1e-12)
+    assert interval.scalar("response").calibration == "calibrated"
+    restored = MeasuredInference.load(interval.export(), expected=interval.expected_identity)
+    assert restored.inspect() == interval.inspect()
 
     # Partition constancy at its declared coordinate. Q = (e2 - e1)^2 / (se1^2 + se2^2).
     effect = EffectEstimand(
@@ -612,24 +543,10 @@ def test_a_exit_demo_temporal_counterfactual_and_closed_cells_stay_visibly_close
     assert passed.value.detail == "transported_counterfactual.route_frozen"
     assert passed.value.missing_gates == ()
 
-    # Sampled observation recovery: closed (calibration unmeasured) after real validation.
-    query = transport.ObservationRecoveryQuery(
-        population="clinic",
-        observed_regime="observed",
-        partially_observed=[transport.PartiallyObservedVariable("X", "R", "X_star")],
-    )
-    complete = [(index, 1, (0, 1)[index % 2], 0) for index in range(40)]
-    _refused_closed(
-        lambda: transport.sampled_observation_recovery(
-            stage=SimpleNamespace(outcome="recovered"),
-            query=query,
-            rows=complete,
-            snapshot="snap-observed",
-            replicates=100,
-            interval_method="bootstrap_percentile",
-            seed=3,
-        ),
-        "2.3A.X10.sampled_observation_recovery",
-        "antecedent.transport.sampled_observation_recovery",
-        "sampled_recovery.route_frozen",
-    )
+    # A caller-created label cannot impersonate the original checked recovery proof.
+    from test_measured_recovery import options as recovery_options
+
+    arguments = recovery_options()
+    arguments["stage"] = SimpleNamespace(outcome="recovered")
+    with pytest.raises(CausalTypeError, match="original native recovery stage"):
+        transport.sampled_observation_recovery(**arguments)

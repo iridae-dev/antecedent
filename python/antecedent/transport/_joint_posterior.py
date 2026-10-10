@@ -15,6 +15,7 @@ import numpy as np
 
 from .. import _native
 from .._data import to_f64
+from .._measured_inference import MeasuredInference, _level, _production_limits
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ._candidate_data import detached, freeze
 from ._impl import TransportIdentification
@@ -239,7 +240,7 @@ def _columns(data: Mapping[str, Any], names: Sequence[str]) -> list[list[float]]
     return [column.tolist() for column in columns]
 
 
-def _candidate(
+def _request_json(
     *,
     sources: Sequence[JointTransportSource | Mapping[str, Any]],
     target: JointTransportTarget | Mapping[str, Any] | None,
@@ -257,8 +258,10 @@ def _candidate(
     learned: bool,
     max_unsupported_mass: float,
     conflict_z_threshold: float,
-) -> JointTransportPosterior:
-    if not isinstance(identification, TransportIdentification) or identification._native is None:
+) -> str:
+    if not isinstance(identification, TransportIdentification) or not isinstance(
+        identification._native, _native.TransportIdentificationResult
+    ):
         raise CausalTypeError("identification must retain its original native transport proof")
     if not isinstance(priors, JointTransportPriors):
         raise CausalTypeError("priors must be JointTransportPriors with complete Gaussian blocks")
@@ -344,10 +347,45 @@ def _candidate(
         text = json.dumps(request, allow_nan=False)
     except (TypeError, ValueError) as error:
         raise CausalValueError("joint transport declarations must be finite JSON values") from error
-    body, artifact = _native.joint_transport_candidate(identification._native, text, learned)
-    return JointTransportPosterior._from_native(
-        "learned_gaussian" if learned else "gaussian", body, bytes(artifact)
+    return text
+
+
+def _candidate(**kwargs: Any) -> JointTransportPosterior:
+    """Explicit internal candidate; retains its original unmeasured wire standing."""
+    text = _request_json(**kwargs)
+    body, artifact = _native.joint_transport_candidate(
+        kwargs["identification"]._native, text, kwargs["learned"]
     )
+    return JointTransportPosterior._from_native(
+        "learned_gaussian" if kwargs["learned"] else "gaussian", body, bytes(artifact)
+    )
+
+
+def _measured(
+    *,
+    level: float = 0.95,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+    **kwargs: Any,
+) -> MeasuredInference:
+    _production_limits(memory_limit_bytes, cancel)
+    _level(level)
+    text = _request_json(**kwargs)
+    producer = getattr(_native, "joint_transport_measured", None)
+    if producer is None:
+        raise CausalUnsupportedError(
+            "joint_transport.route_frozen: measured native authority unavailable",
+            reason_code="cell_not_licensed",
+        )
+    native = producer(
+        kwargs["identification"]._native,
+        text,
+        kwargs["learned"],
+        level=level,
+        memory_limit_bytes=memory_limit_bytes,
+        cancel=cancel,
+    )
+    return MeasuredInference._from_native(native)
 
 
 __all__ = [

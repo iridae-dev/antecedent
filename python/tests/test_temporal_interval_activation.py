@@ -18,11 +18,11 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
+from antecedent.transport._temporal_extensions import _temporal_dependent_interval_candidate as temporal_dependent_interval
 from antecedent.transport.advanced import (
     InitialStateLaw,
     TemporalIntervalCandidate,
     TemporalUnitPanel,
-    temporal_dependent_interval,
 )
 
 _INTERNAL = hasattr(_native, "temporal_dependent_interval_candidate")

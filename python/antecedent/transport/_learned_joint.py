@@ -1,24 +1,8 @@
-"""2.3 learned joint source-target transport (Python surface): a closed route.
+"""Measured target-effect inference for the known-variance learned joint model.
 
-The learned joint row (``antecedent.transport.learned_joint``) fits the outcome mechanism
-through ``antecedent-learn`` (a known-variance Bayesian polynomial-basis regression) over the
-fixed DAG and selection assumptions of one identified transport row, and answers the target
-average effect. The Rust core and its io artifact replay, but the posterior claims a
-*calibrated* interval whose coverage is measured only at the release cut, so the public
-producer is closed.
-
-:func:`learned_joint_transport` is a real entry: it checks its arguments, then asks the Rust
-core whether the request is inside the row. A request outside the row raises the row's own
-scope refusal first (``route_not_supported`` with ``learned_joint_transport.unsupported_graph``,
-an invalid-argument refusal for a basis degree outside ``1..=6``, a draw count outside
-``1..=100000`` or a model above 256 parameters, ``sampling_dependence_unknown`` for undeclared
-or overlapping source dependence, ``transport_missing_evidence`` for no source and
-``joint_law_required`` for no target law), so a caller learns the real obstruction. Otherwise
-the call raises :class:`~antecedent.errors.CausalUnsupportedError` with ``reason_code ==
-"cell_not_licensed"`` and ``learned_joint_transport.route_frozen`` in the message. The function
-returns no posterior on a default release wheel. Internal candidate feature builds
-can return a numerically replayable, unmeasured posterior when an original native
-identification and the complete typed data/prior declarations are supplied.
+The standard producer returns native-authorized scalar inference only inside the
+finite degree-two validation design. The complete original posterior remains an
+unmeasured, model-conditional candidate; its law receives no blanket interval license.
 """
 
 from __future__ import annotations
@@ -27,16 +11,16 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
 from .. import _native
+from .._measured_inference import MeasuredInference
 from .._native import learned_joint_transport_closed as _learned_joint_transport_closed
 from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg
 from ._impl import TransportIdentification, _non_negative
 from ._joint_posterior import (
-    JointTransportPosterior,
     JointTransportPriors,
     JointTransportSource,
     JointTransportTarget,
-    _candidate,
+    _measured,
 )
 
 __all__ = ["learned_joint_transport"]
@@ -104,25 +88,18 @@ def learned_joint_transport(
     outcome: str = "y",
     max_unsupported_mass: float = 0.0,
     conflict_z_threshold: float = 3.0,
-) -> JointTransportPosterior:
-    """Learn-fitted joint transport posterior of the target average effect: closed.
+    level: float = 0.95,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference:
+    """Return the measured target-effect scalar under the declared joint model.
 
-    ``sources`` are source trials (mappings), ``target`` the target covariate sample and
-    ``features`` the covariate names (the certified standardizers). ``basis_degree`` is the
-    polynomial degree of the basis in every covariate (``1..=6``). ``graph_class`` is
-    ``"fixed_dag"`` (the only supported class), ``"admg"`` or ``"graph_posterior"``; an
-    :class:`~antecedent.Admg` ``graph`` with a bidirected edge is an ADMG query and raises
-    ``route_not_supported`` / ``learned_joint_transport.unsupported_graph``, as does a
-    graph-posterior query. A basis degree outside ``1..=6``
-    (``learned_joint_transport.invalid_basis``), a draw count outside ``1..=100000``
-    (``learned_joint_transport.too_many_draws``) and a model above 256 parameters
-    (``learned_joint_transport.too_many_parameters``) raise ``invalid_argument``; undeclared or
-    overlapping source dependence, no source and no target law raise their own typed refusals.
-    Every other request raises ``cell_not_licensed`` / ``learned_joint_transport.route_frozen``:
-    the interval claims calibration, which is unmeasured. An internal candidate
-    feature build additionally accepts an original ``identification`` and complete
-    ``JointTransportSource``, ``JointTransportTarget`` and ``JointTransportPriors``
-    declarations, returning a candidate-only posterior without an interval license.
+    Requires the original identification and typed source, target and complete priors.
+    Native execution checks the finite validation protocol (known variances, declared
+    zero-mean Gaussian variance-1000 priors, degree two, fixed target design and .95
+    scalar interval), derives the actual basis and resolves its attesting record.
+    Nearby unsupported protocols refuse; evidence does not guarantee coverage for
+    arbitrary data-generating laws. Original candidate artifacts remain unmeasured.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of source trials")
@@ -143,7 +120,7 @@ def learned_joint_transport(
     _non_negative("draws", draws)
     _non_negative("seed", seed)
     if (
-        getattr(_native, "joint_transport_candidate", None) is not None
+        getattr(_native, "joint_transport_measured", None) is not None
         and identification is not None
     ):
         if declared != "fixed_dag":
@@ -156,7 +133,10 @@ def learned_joint_transport(
             )
         if priors is None:
             raise CausalTypeError("candidate transport needs explicit complete priors")
-        return _candidate(
+        return _measured(
+            level=level,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
             sources=sources,
             target=target,
             features=feature_names,

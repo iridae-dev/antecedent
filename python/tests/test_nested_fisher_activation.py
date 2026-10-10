@@ -17,9 +17,11 @@ import pytest
 from antecedent import _native
 from antecedent.errors import CausalUnsupportedError, CausalValueError
 from antecedent.graph import Admg
+from antecedent.transport._closed_pilots import (
+    _nested_fisher_candidate as binary_nested_markov_fisher_interval,
+)
 from antecedent.transport.advanced import (
     NestedFisherCandidate,
-    binary_nested_markov_fisher_interval,
 )
 
 _INTERNAL = hasattr(_native, "nested_markov_fisher_candidate")

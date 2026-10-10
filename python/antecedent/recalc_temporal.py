@@ -2,7 +2,7 @@
 
 The source-backed artifact retains complete repeated-unit ownership and runs
 actual checked proof/mechanism reconstruction in an independent consumer.
-Dependent-sampling interval publication remains frozen until calibration.
+Measured dependent-sampling intervals preserve their checked source and require current calibration evidence.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal, cast
 
 from . import _native
+from ._measured_inference import MeasuredInference
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
 from .recalc import Decision, Law, RecalcPlan, RecalcReceipt, Utility, _raise, _seed
 from .recalc_static import _Session
@@ -166,7 +167,7 @@ class TemporalSession(_Session):
             raise CausalTypeError("interval candidate requires original checked temporal session")
         native = getattr(self._handle, "interval_candidate", None)
         if native is None:
-            self.dependent_interval()
+            _raise(self._handle.dependent_interval())
             raise CausalSerializationError("closed interval route returned without a refusal")
         result, error = native(
             json.dumps(config._wire(), allow_nan=False),
@@ -176,9 +177,33 @@ class TemporalSession(_Session):
         _raise(error)
         return CheckedTemporalIntervalCandidate._from_native(result)
 
-    def dependent_interval(self) -> None:
-        """Refuse the frozen public dependent-interval route with its exact reason."""
-        _raise(self._handle.dependent_interval())
+    def dependent_interval(
+        self,
+        *,
+        config: CheckedTemporalIntervalConfig | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: _native.CancellationToken | None = None,
+    ) -> MeasuredInference:
+        """Measured whole-unit interval from the original causal source and both effect arms.
+
+        Defaults to 500 studentized draws at 95%. The native producer enforces
+        the measured binary two-step protocol and current evidence; it refuses
+        every adjacent unmeasured method, target law or functional.
+        """
+        if config is None:
+            config = CheckedTemporalIntervalConfig(method="studentized")
+        if not isinstance(config, CheckedTemporalIntervalConfig):
+            raise CausalTypeError("config must be a CheckedTemporalIntervalConfig")
+        _interval_limits(memory_limit_bytes, cancel)
+        if not isinstance(self._handle, _native.TemporalSessionHandle):
+            raise CausalTypeError("interval requires original checked temporal session")
+        native, error = self._handle.measured_interval(
+            json.dumps(config._wire(), allow_nan=False),
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        )
+        _raise(error)
+        return MeasuredInference._from_native(native)
 
 
 @dataclass(frozen=True, slots=True)

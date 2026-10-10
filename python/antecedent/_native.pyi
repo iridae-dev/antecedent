@@ -5151,6 +5151,21 @@ def mechanism_discrepancy_consume(
 ) -> tuple[str | None, str | None]: ...
 
 class ObservationRecoveryStage:
+    def sampled_measured(
+        self,
+        population: str,
+        observed_regime: str,
+        partial: list[tuple[str, str, str]],
+        fully: list[str],
+        rows: list[tuple[int, int, int, int]],
+        snapshot: str,
+        replicates: int,
+        seed: int,
+        interval_method: str = "bootstrap_bca",
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> NativeMeasuredInference: ...
     # Optional: calibration-internal acceptance builds only.
     def sampled_candidate(
         self,
@@ -6522,6 +6537,13 @@ class BayesianSessionHandle:
     ) -> tuple[bytes | None, str | None]: ...
 
 class TemporalSessionHandle:
+    def measured_interval(
+        self,
+        config_json: str,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[NativeMeasuredInference | None, str | None]: ...
     def __init__(self) -> None: ...
     @staticmethod
     def resume(previous_json: str, resume_json: str) -> TemporalSessionHandle: ...
@@ -6746,3 +6768,71 @@ def consume_checked_temporal_interval_candidate(
     memory_limit_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[NativeCheckedTemporalIntervalCandidate | None, str | None]: ...
+
+class NativeMeasuredInference:
+    def source_report(self) -> str: ...
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+    def source_artifact(self) -> bytes: ...
+
+def joint_transport_measured(
+    identification: TransportIdentificationResult,
+    request_json: str,
+    learned: bool,
+    *,
+    level: float = 0.95,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def consume_measured_inference(
+    artifact: bytes,
+    expected_identity_json: str,
+    *,
+    max_bytes: int = 67108864,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def nested_markov_fisher_measured(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    nominal_level: float,
+    max_iterations: int,
+    tolerance: float,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def nested_markov_posterior_measured(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    max_iterations: int,
+    tolerance: float,
+    alpha: list[float],
+    beta: list[float],
+    seed: int,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def temporal_dependent_interval_measured(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    estimand: str,
+    fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    replicates: int,
+    seed: int,
+    level: float,
+    method: str,
+    min_units: int,
+    max_failed_fraction: float,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...

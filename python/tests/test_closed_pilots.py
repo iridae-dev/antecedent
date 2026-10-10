@@ -1,10 +1,7 @@
-"""2.3A closed calibrated-interval pilots: joint Bayesian transport (A2), the binary
-nested-Markov pilot (A3) and sampled observation recovery (A6).
+"""Measured pilot scope boundaries and typed refusal precedence.
 
-Each public route is closed until calibration is measured at the release cut: it validates
-its request against the pilot's scope through the Rust core, raises the pilot's own scope
-refusal for a request outside the pilot, and otherwise raises ``cell_not_licensed`` with the
-route-frozen detail. The Rust engines and their io artifacts are tested in Rust.
+Success lifecycles and independent numerical oracles live in the measured-family
+suites. These adjacent requests cannot borrow evidence from those exact protocols.
 """
 
 from types import SimpleNamespace
@@ -120,36 +117,25 @@ def test_x4_joint_bayesian_validates_its_arguments_as_typed_errors():
 # ------------------------------------------------------------------ A3 nested Markov
 
 
-def test_x4_nested_markov_route_is_closed_with_cell_not_licensed():
-    from antecedent import _native
-
-    if hasattr(_native, "nested_markov_posterior_candidate"):
-        result = transport.binary_nested_markov(graph=verma(), regimes=[observational()])
-        assert result.calibration == "unmeasured"
-        assert result.inference == "posterior_candidate_withheld_calibration_unmeasured"
-    else:
-        error = refusal_of(
-            lambda: transport.binary_nested_markov(graph=verma(), regimes=[observational()])
-        )
-        assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
+def test_nested_bayesian_below_measured_row_range_cannot_borrow_fisher_evidence():
+    error = refusal_of(
+        lambda: transport.binary_nested_markov(graph=verma(), regimes=[observational()])
+    )
+    assert_refused(error, "cell_not_licensed", "sample_size_outside_measured_range")
 
 
-def test_nested_fisher_public_interval_remains_closed_and_validates_level():
-    from antecedent import _native
+def test_nested_fisher_measured_interval_and_invalid_level():
+    from antecedent.inference import MeasuredInference
 
-    if hasattr(_native, "nested_markov_fisher_candidate"):
-        result = transport.binary_nested_markov_fisher_interval(
-            graph=verma(), regimes=[observational()], nominal_level=0.95
-        )
-        assert result.calibration == "unmeasured"
-        assert result.inference == "interval_withheld_calibration_unmeasured"
-    else:
-        error = refusal_of(
-            lambda: transport.binary_nested_markov_fisher_interval(
-                graph=verma(), regimes=[observational()], nominal_level=0.95
-            )
-        )
-        assert_refused(error, "cell_not_licensed", "nested_markov.route_frozen")
+    result = transport.binary_nested_markov_fisher_interval(
+        graph=verma(), regimes=[observational()], nominal_level=0.95
+    )
+    assert isinstance(result, MeasuredInference)
+    assert [scalar.name for scalar in result.scalars] == ["mean0", "mean1", "contrast"]
+    for scalar in result.scalars:
+        assert scalar.calibration == "calibrated"
+        assert scalar.basis["scope"]["row_count"] == sum(CELLS)
+        assert scalar.interval[0] <= scalar.point <= scalar.interval[1]
     for level in [0.0, 1.0, float("nan")]:
         error = refusal_of(
             lambda level=level: transport.binary_nested_markov_fisher_interval(
@@ -201,20 +187,30 @@ def test_x4_nested_markov_invalid_counts_and_arguments_are_typed_errors():
 
 
 def recovery_query() -> ObservationRecoveryQuery:
-    return ObservationRecoveryQuery(
-        population="clinic",
-        observed_regime="observed",
-        partially_observed=[PartiallyObservedVariable("X", "R", "X_star")],
+    from test_observation_recovery import query
+
+    return query()
+
+
+def recovered_stage(self_censoring=False):
+    from test_observation_recovery import catalog, graph
+
+    return transport.identify_observation_recovery(
+        graph=graph(self_censoring=self_censoring),
+        query=recovery_query(),
+        catalog=catalog(),
+        effect_outcomes=["y"],
+        effect_treatments=["t"],
     )
 
 
-def recovered_stage():
-    return SimpleNamespace(outcome="recovered")
+def complete_rows(proxies=(0, 1, 2, 3)):
+    """Positive complete-case cells for both missing variables and confounder.
 
-
-def complete_rows(proxies=(0, 1)):
-    """Rows of one partially observed variable: ``R = 1`` with each listed proxy value."""
-    return [(index, 1, proxies[index % len(proxies)], 0) for index in range(40)]
+    Two hundred rows stay deliberately below the measured 1000-row minimum;
+    every full cell has 25 rows, so this is a protocol boundary, not zero support.
+    """
+    return [(index, 3, proxies[(index // 2) % len(proxies)], index % 2) for index in range(200)]
 
 
 def sampled_kwargs(**overrides):
@@ -222,7 +218,7 @@ def sampled_kwargs(**overrides):
         "stage": recovered_stage(),
         "query": recovery_query(),
         "rows": complete_rows(),
-        "snapshot": "snap-observed",
+        "snapshot": "snap-1",
         "replicates": 100,
         "interval_method": "bootstrap_percentile",
         "seed": 3,
@@ -231,13 +227,13 @@ def sampled_kwargs(**overrides):
     return kwargs
 
 
-def test_x10_sampled_recovery_route_is_closed_with_cell_not_licensed():
+def test_sampled_percentile_cannot_borrow_measured_bca_evidence():
     error = refusal_of(lambda: transport.sampled_observation_recovery(**sampled_kwargs()))
-    assert_refused(error, "cell_not_licensed", "sampled_recovery.route_frozen")
+    assert_refused(error, "cell_not_licensed", "sampled_recovery.protocol_not_measured")
 
 
-def test_x10_sampled_recovery_unrecoverable_inputs_refuse_before_the_frozen_route():
-    # A zero complete-case cell (no row with X* = 1) is a zero denominator of the formula.
+def test_sampled_recovery_zero_support_and_native_nonrecoverability_refuse():
+    # Missing complete-case proxy cells give a zero denominator of the formula.
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=complete_rows((0,))))
     )
@@ -245,7 +241,7 @@ def test_x10_sampled_recovery_unrecoverable_inputs_refuse_before_the_frozen_rout
     # An adjacent m-graph with a verified nonrecoverability witness has no recovered law.
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(
-            **sampled_kwargs(stage=SimpleNamespace(outcome="nonrecoverable"))
+            **sampled_kwargs(stage=recovered_stage(self_censoring=True))
         )
     )
     assert_refused(error, "route_not_supported", "sampled_recovery.unrecoverable_pattern")
@@ -267,7 +263,7 @@ def test_x10_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details(
         CausalValueError,
     )
     assert_refused(error, "invalid_argument", "sampled_recovery.invalid_input")
-    duplicate = complete_rows() + [(0, 1, 0, 0)]
+    duplicate = complete_rows() + [complete_rows()[0]]
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=duplicate)),
         CausalValueError,
@@ -294,7 +290,7 @@ def test_x10_sampled_recovery_validates_its_arguments_as_typed_errors():
         transport.sampled_observation_recovery(**sampled_kwargs(seed=-1))
 
 
-def test_x10_closed_pilot_routes_are_exported_from_the_advanced_namespace():
+def test_scoped_pilot_routes_are_exported_from_the_advanced_namespace():
     for name in (
         "joint_bayesian_transport",
         "binary_nested_markov",
@@ -304,13 +300,21 @@ def test_x10_closed_pilot_routes_are_exported_from_the_advanced_namespace():
         assert callable(getattr(transport, name))
 
 
-def test_sampled_bca_default_protocol_stays_closed_and_validates_distinct_method():
+def test_sampled_bca_default_rejects_below_measured_rows_and_distinct_method():
     values = sampled_kwargs()
     values.pop("replicates")
     values.pop("interval_method")
     error = refusal_of(lambda: transport.sampled_observation_recovery(**values))
-    assert_refused(error, "cell_not_licensed", "sampled_recovery.route_frozen")
+    assert_refused(error, "cell_not_licensed", "sampled_recovery.protocol_not_measured")
     with pytest.raises(CausalValueError, match="exactly 2000"):
         transport.sampled_observation_recovery(**values, replicates=500)
     with pytest.raises(CausalValueError, match="interval_method"):
         transport.sampled_observation_recovery(**values, interval_method="percentile_alias")
+
+
+def test_sampled_recovery_rejects_fake_stage_before_calling_authority_callbacks():
+    calls = []
+    fake = SimpleNamespace(outcome="recovered", sampled_measured=lambda *args: calls.append(args))
+    with pytest.raises(CausalTypeError, match="original native recovery stage"):
+        transport.sampled_observation_recovery(**sampled_kwargs(stage=fake))
+    assert calls == []

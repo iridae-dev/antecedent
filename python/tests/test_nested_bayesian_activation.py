@@ -14,10 +14,10 @@ import pytest
 from antecedent import _native
 from antecedent.errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.graph import Admg
+from antecedent.transport._closed_pilots import _nested_posterior_candidate as binary_nested_markov
 from antecedent.transport.advanced import (
     NestedMarkovPosteriorCandidate,
     NestedMarkovPrior,
-    binary_nested_markov,
 )
 
 _INTERNAL = hasattr(_native, "nested_markov_posterior_candidate")

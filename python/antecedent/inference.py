@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import TYPE_CHECKING, Any, Literal
 
+from ._measured_inference import MeasuredInference, MeasuredInferenceIdentity, MeasuredScalar
 from ._native import (
     PosteriorArtifact,
     decode_posterior_artifact,
@@ -137,6 +138,9 @@ def _max_completions_kwargs(max_completions: int | None) -> dict[str, Any]:
 
 
 __all__ = [
+    "MeasuredInference",
+    "MeasuredInferenceIdentity",
+    "MeasuredScalar",
     "Bayesian",
     "ClassPrior",
     "Frequentist",

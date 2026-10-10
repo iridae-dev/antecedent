@@ -1,37 +1,19 @@
-"""2.3A closed calibrated-interval pilot routes (Python surface).
+"""Advanced measured scalar producers and explicit internal candidate lifecycles.
 
-Three pilots have a Rust core that replays through an independent io artifact, but each
-claims a *calibrated* interval whose coverage is measured only at the release cut, so the
-public producer of each route is closed:
-
-* :func:`joint_bayesian_transport` (``antecedent.transport.joint_bayesian``, record
-  ``2.3A.X4.joint_bayesian_transport``): ``cell_not_licensed`` /
-  ``bayesian_transport.route_frozen``.
-* :func:`binary_nested_markov` (``antecedent.transport.binary_nested_markov``, record
-  ``2.3A.X4.binary_nested_markov_pilot``): ``cell_not_licensed`` /
-  ``nested_markov.route_frozen``.
-* :func:`sampled_observation_recovery` (``antecedent.transport.sampled_observation_recovery``,
-  record ``2.3A.X10.sampled_observation_recovery``): ``cell_not_licensed`` /
-  ``sampled_recovery.route_frozen``.
-
-Each function is a real entry: it checks its arguments, then asks the Rust core whether the
-request is inside the pilot. A request outside the pilot raises the pilot's own scope
-refusal first (``route_not_supported`` with ``bayesian_transport.unsupported_graph``,
-``nested_markov.outside_binary_pilot`` or ``sampled_recovery.unrecoverable_pattern``, or an
-invalid-argument detail), so a caller learns the real obstruction. Otherwise the call raises
-:class:`~antecedent.errors.CausalUnsupportedError` with ``reason_code ==
-"cell_not_licensed"`` and the route-frozen detail in the message. Normal released builds
-return no interval. Feature-only internal acceptance builds exercise original typed
-candidates and independent artifact replay while retaining unmeasured standing.
+A standard producer reports measured inference only when its original native source
+and every actual scalar basis resolve to current attesting evidence inside the
+finite validation protocol. Internal candidate artifacts retain their unmeasured
+standing. Other pilot routes retain their own refusal boundaries.
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from .. import _native
+from .._measured_inference import MeasuredInference, _production_limits
 from .._native import binary_nested_markov_closed as _binary_nested_markov_closed
 from .._native import joint_bayesian_transport_closed as _joint_bayesian_transport_closed
 from .._native import (
@@ -41,11 +23,10 @@ from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from ..graph import Admg
 from ._impl import TransportIdentification, _non_negative
 from ._joint_posterior import (
-    JointTransportPosterior,
     JointTransportPriors,
     JointTransportSource,
     JointTransportTarget,
-    _candidate,
+    _measured,
 )
 from ._nested_fisher import NestedFisherCandidate
 from ._nested_posterior import NestedMarkovPosteriorCandidate, NestedMarkovPrior
@@ -107,22 +88,18 @@ def joint_bayesian_transport(
     outcome: str = "y",
     max_unsupported_mass: float = 0.0,
     conflict_z_threshold: float = 3.0,
-) -> JointTransportPosterior:
-    """Joint Bayesian source-target transport posterior of a target effect: closed.
+    level: float = 0.95,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference:
+    """Return native-authorized measured inference for the target-effect scalar.
 
-    ``sources`` are source trials (mappings), ``target`` the target covariate sample and
-    ``features`` the covariate names (the certified standardizers). ``graph_class`` is
-    ``"fixed_dag"`` (the only supported class), ``"admg"`` or ``"graph_posterior"``; an
-    :class:`~antecedent.Admg` ``graph`` with a bidirected edge is an ADMG query. An ADMG or
-    graph-posterior query raises ``route_not_supported`` /
-    ``bayesian_transport.unsupported_graph``. A draw count outside ``1..=100000`` and a model
-    above 256 parameters raise ``invalid_argument``; undeclared or overlapping source
-    dependence, no source and no target law raise their own typed refusals. Every other
-    request raises ``cell_not_licensed`` / ``bayesian_transport.route_frozen``: the interval
-    claims calibration, which is unmeasured. An internal candidate feature build
-    with original ``identification`` and complete typed source/target/prior declarations
-    returns a candidate-only, unmeasured joint posterior. Original proof, priors and
-    full covariance remain bound; this does not activate the released interval route.
+    Requires original identification, typed source/target and complete declared
+    Gaussian priors. Native authorization is confined to the measured known-variance
+    finite validation design at .95; every scalar retains its own record and actual
+    basis. Nearby unsupported protocols refuse. The original complete candidate law
+    remains model-conditional and unmeasured; these records are not universal prior
+    calibration or confidence guarantees for arbitrary data-generating laws.
     """
     if isinstance(sources, (str, bytes)) or not isinstance(sources, Sequence):
         raise CausalTypeError("sources must be a sequence of source trials")
@@ -142,7 +119,7 @@ def joint_bayesian_transport(
     _non_negative("draws", draws)
     _non_negative("seed", seed)
     if (
-        getattr(_native, "joint_transport_candidate", None) is not None
+        getattr(_native, "joint_transport_measured", None) is not None
         and identification is not None
     ):
         if declared != "fixed_dag":
@@ -155,7 +132,10 @@ def joint_bayesian_transport(
             )
         if priors is None:
             raise CausalTypeError("candidate transport needs explicit complete priors")
-        return _candidate(
+        return _measured(
+            level=level,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
             sources=sources,
             target=target,
             features=feature_names,
@@ -298,27 +278,51 @@ def binary_nested_markov(
     tolerance: float = 1e-11,
     prior: NestedMarkovPrior | None = None,
     seed: int = 0,
-) -> NestedMarkovPosteriorCandidate:
-    """Continuous eleven-dimensional binary nested-Markov posterior pilot: closed.
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference:
+    """Measured mean0, mean1 and contrast95 under the fixed full-11D posterior pilot.
 
-    ``graph`` is the declared ADMG over binary observed variables and ``regimes`` are
-    regime-specific count tables, each a mapping with ``counts`` (cells, first variable
-    most significant), optional ``levels`` (default binary) and optional ``intervened``
-    names (default: the observational regime). The pilot is exactly one four-variable
-    graph (``X1 -> X2 -> X3 -> X4`` with ``X2 <-> X4``) and the observational regime. Any
-    other ADMG, a regime other than the observational one, a non-binary domain or more than
-    six observed variables raises ``route_not_supported`` /
-    ``nested_markov.outside_binary_pilot`` (never a nonidentification claim); invalid counts
-    raise ``invalid_argument``. Every other request raises ``cell_not_licensed`` /
-    ``nested_markov.route_frozen``: calibration is unmeasured and no interval or posterior is
-    published by normal released builds. Internal acceptance builds expose the
-    original continuous raw-coordinate posterior as an explicitly unmeasured candidate.
-    ``prior`` uses named Beta kernels; its product density is truncated to the positive
-    feasible polytope. The fixed sampler has four chains, 2048 warmup, 4096 retained
-    draws per chain, 5M proposal bound and 95% credible quantiles; ``seed`` is bound
-    into the artifact. Successful original checked-ID/interior point fitting is an
-    explicit pilot eligibility prerequisite, not a condition for posterior existence.
+    Native execution checks the frozen prior/sampler/model/count protocol and resolves
+    each scalar's original measured basis. Evidence concerns the finite declared
+    interior model design; it does not license arbitrary prior or model coverage.
+    The underlying continuous posterior artifact retains unmeasured standing.
     """
+    return cast(
+        MeasuredInference,
+        _nested_posterior_entry(
+            graph=graph,
+            regimes=regimes,
+            max_iterations=max_iterations,
+            tolerance=tolerance,
+            prior=prior,
+            seed=seed,
+            measured=True,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        ),
+    )
+
+
+def _nested_posterior_candidate(**kwargs: Any) -> NestedMarkovPosteriorCandidate:
+    """Explicit internal candidate route, retaining original prior-sensitivity scope."""
+    return cast(NestedMarkovPosteriorCandidate, _nested_posterior_entry(**kwargs, measured=False))
+
+
+def _nested_posterior_entry(
+    *,
+    graph: Admg,
+    regimes: Sequence[Mapping[str, Any]],
+    max_iterations: int = 50_000,
+    tolerance: float = 1e-11,
+    prior: NestedMarkovPrior | None = None,
+    seed: int = 0,
+    measured: bool,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference | NestedMarkovPosteriorCandidate:
+    """Shared original-domain validation and separate native authority dispatch."""
+    _production_limits(memory_limit_bytes, cancel)
     arguments = _nested_arguments(graph, regimes, max_iterations, tolerance)
     if prior is None:
         prior = NestedMarkovPrior()
@@ -336,11 +340,26 @@ def binary_nested_markov(
         )
     from .. import _native
 
-    candidate = getattr(_native, "nested_markov_posterior_candidate", None)
+    candidate = getattr(
+        _native,
+        "nested_markov_posterior_measured" if measured else "nested_markov_posterior_candidate",
+        None,
+    )
     if candidate is not None:
         alpha, beta = prior._wire()
-        return NestedMarkovPosteriorCandidate._from_native(
-            candidate(*arguments, max_iterations, tolerance, alpha, beta, seed)
+        native = candidate(
+            *arguments,
+            max_iterations,
+            tolerance,
+            alpha,
+            beta,
+            seed,
+            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+        )
+        return (
+            MeasuredInference._from_native(native)
+            if measured
+            else NestedMarkovPosteriorCandidate._from_native(native)
         )
     _binary_nested_markov_closed(*arguments)
     raise _frozen("antecedent.transport.binary_nested_markov", "nested_markov.route_frozen")
@@ -366,19 +385,49 @@ def binary_nested_markov_fisher_interval(
     nominal_level: float = 0.95,
     max_iterations: int = 50_000,
     tolerance: float = 1e-11,
-) -> NestedFisherCandidate:
-    """Expected-Fisher/delta interval for the selected IID binary model: closed.
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference:
+    """Native-authorized Fisher/delta mean0, mean1 and contrast intervals.
 
-    The internal method propagates the full eleven-parameter constrained-model
-    covariance to both intervention means and their contrast. It assumes positive
-    integer IID multinomial counts and a correctly specified interior model. Its
-    covariance and artifact replay have independent value evidence, but coverage
-    has not been measured. A valid request therefore refuses with
-    ``cell_not_licensed`` / ``nested_markov.route_frozen``. This entry does not
-    publish an interval or imply a Bayesian posterior. An internal acceptance build
-    exercises the intended producer and fresh artifact consumer as an explicitly
-    unmeasured typed candidate at frozen nominal levels 90% and 95%.
+    Each scalar resolves its actual construction and current measured record. The
+    finite interior IID binary validation protocol and original licensed ID remain
+    mandatory; other nominal levels/options/count scopes refuse without licensing
+    the complete unmeasured candidate covariance or an arbitrary model.
     """
+    return cast(
+        MeasuredInference,
+        _nested_fisher_entry(
+            graph=graph,
+            regimes=regimes,
+            nominal_level=nominal_level,
+            max_iterations=max_iterations,
+            tolerance=tolerance,
+            measured=True,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        ),
+    )
+
+
+def _nested_fisher_candidate(**kwargs: Any) -> NestedFisherCandidate:
+    """Explicit internal Fisher candidate with its original 90/95 numerical scope."""
+    return cast(NestedFisherCandidate, _nested_fisher_entry(**kwargs, measured=False))
+
+
+def _nested_fisher_entry(
+    *,
+    graph: Admg,
+    regimes: Sequence[Mapping[str, Any]],
+    nominal_level: float = 0.95,
+    max_iterations: int = 50_000,
+    tolerance: float = 1e-11,
+    measured: bool,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference | NestedFisherCandidate:
+    """Shared original-domain validation and separate native authority dispatch."""
+    _production_limits(memory_limit_bytes, cancel)
     if isinstance(nominal_level, bool) or not isinstance(nominal_level, (int, float)):
         raise CausalTypeError("nominal_level must be a number")
     try:
@@ -398,10 +447,23 @@ def binary_nested_markov_fisher_interval(
         )
     from .. import _native
 
-    candidate = getattr(_native, "nested_markov_fisher_candidate", None)
+    candidate = getattr(
+        _native,
+        "nested_markov_fisher_measured" if measured else "nested_markov_fisher_candidate",
+        None,
+    )
     if candidate is not None:
-        return NestedFisherCandidate._from_native(
-            candidate(*arguments, nominal_level, max_iterations, tolerance)
+        native = candidate(
+            *arguments,
+            nominal_level,
+            max_iterations,
+            tolerance,
+            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+        )
+        return (
+            MeasuredInference._from_native(native)
+            if measured
+            else NestedFisherCandidate._from_native(native)
         )
     _binary_nested_markov_closed(*arguments)
     raise _frozen(
@@ -418,23 +480,56 @@ def sampled_observation_recovery(
     replicates: int = 2000,
     seed: int = 0,
     interval_method: Literal["bootstrap_bca", "bootstrap_percentile"] = "bootstrap_bca",
-) -> SampledRecoveryCandidate:
-    """Whole-method sampling interval of an exactly recovered effect: closed.
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference:
+    """Measured recovered-effect scalar with original native recovery proof.
 
-    ``stage`` is the decided stage of :func:`identify_observation_recovery` and ``query``
-    its :class:`ObservationRecoveryQuery`. ``rows`` are counted observation-pattern rows
-    ``(id, responses, proxies, fully)``: bit ``i`` of ``responses`` and ``proxies`` refers to
-    the ``i``-th partially observed variable (in the query's order) and bit ``j`` of
-    ``fully`` to the ``j``-th fully observed variable; a missing proxy carries no value, so
-    its proxy bit is 0. An m-graph with a verified nonrecoverability witness, more than six
-    binary variables, a zero complete-case cell (a zero denominator of the recovery formula),
-    or a malformed row raises ``route_not_supported`` /
-    ``sampled_recovery.unrecoverable_pattern`` or ``sampled_recovery.bounds_exceeded``, or an
-    invalid-input refusal. Every other request raises ``cell_not_licensed`` /
-    ``sampled_recovery.route_frozen``: both interval methods' calibration is unmeasured. The default BCa candidate
-    uses 2,000 whole-row draws, exact-midrank tie correction and a complete delete-one-row
-    jackknife. The legacy percentile method remains a distinct unmeasured protocol.
+    The measured finite IID missingness design supports BCa whole-row intervals at
+    .95 with exactly 2000 bootstrap replicates and 1000..4000 original rows. Native
+    execution and fresh replay retain the original query, proof, data, configuration
+    and complete attempted-work receipt. Legacy percentile remains unlicensed; the
+    underlying recovery artifact and numerical diagnostics stay unmeasured.
     """
+    return cast(
+        MeasuredInference,
+        _sampled_recovery_entry(
+            stage=stage,
+            query=query,
+            rows=rows,
+            snapshot=snapshot,
+            replicates=replicates,
+            seed=seed,
+            interval_method=interval_method,
+            measured=True,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        ),
+    )
+
+
+def _sampled_observation_recovery_candidate(**kwargs: Any) -> SampledRecoveryCandidate:
+    """Explicit internal original candidate including the historical percentile method."""
+    return cast(SampledRecoveryCandidate, _sampled_recovery_entry(**kwargs, measured=False))
+
+
+def _sampled_recovery_entry(
+    *,
+    stage: Any,
+    query: ObservationRecoveryQuery,
+    rows: Sequence[Sequence[int]],
+    snapshot: str,
+    replicates: int = 2000,
+    seed: int = 0,
+    interval_method: Literal["bootstrap_bca", "bootstrap_percentile"] = "bootstrap_bca",
+    measured: bool,
+    memory_limit_bytes: int | None = None,
+    cancel: _native.CancellationToken | None = None,
+) -> MeasuredInference | SampledRecoveryCandidate:
+    """Original query/row validation with distinct native authority dispatch."""
+    _production_limits(memory_limit_bytes, cancel)
+    if not isinstance(stage, _native.ObservationRecoveryStage):
+        raise CausalTypeError("stage must retain an original native recovery stage")
     if interval_method not in ("bootstrap_bca", "bootstrap_percentile"):
         raise CausalValueError("interval_method must be bootstrap_bca or bootstrap_percentile")
     outcome = getattr(stage, "outcome", None)
@@ -446,11 +541,7 @@ def sampled_observation_recovery(
         raise CausalValueError("snapshot must name the rows' snapshot")
     if isinstance(rows, (str, bytes)) or not isinstance(rows, Sequence):
         raise CausalTypeError("rows must be a sequence of (id, responses, proxies, fully)")
-    if (
-        isinstance(stage, _native.ObservationRecoveryStage)
-        and hasattr(stage, "sampled_candidate")
-        and len(rows) > 100_000
-    ):
+    if len(rows) > 100_000:
         raise CausalValueError(
             "sampled_recovery.bounds_exceeded: candidate accepts at most 100000 rows",
             reason_code="invalid_argument",
@@ -471,18 +562,14 @@ def sampled_observation_recovery(
             checked,
         )
     except CausalUnsupportedError as error:
-        candidate = getattr(stage, "sampled_candidate", None)
+        candidate = getattr(stage, "sampled_measured" if measured else "sampled_candidate", None)
         if (
             error.reason_code != "cell_not_licensed"
             or "sampled_recovery.route_frozen" not in str(error)
             or candidate is None
         ):
             raise
-        if not isinstance(stage, _native.ObservationRecoveryStage):
-            raise CausalTypeError(
-                "sampled candidate requires an original native recovery stage"
-            ) from None
-        payload, artifact = candidate(
+        produced = candidate(
             query.population,
             query.observed_regime,
             [(p.variable, p.response, p.proxy) for p in query.partially_observed],
@@ -492,7 +579,11 @@ def sampled_observation_recovery(
             replicates,
             seed,
             interval_method,
+            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
         )
+        if measured:
+            return MeasuredInference._from_native(produced)
+        payload, artifact = produced
         return SampledRecoveryCandidate._from_native(payload, bytes(artifact))
     raise _frozen(
         "antecedent.transport.sampled_observation_recovery", "sampled_recovery.route_frozen"

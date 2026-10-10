@@ -78,15 +78,26 @@ def fixture(learned=False, varying="intercept", sharing="independent_varying_blo
 
 
 def call(learned=False, **options):
-    function = tr.learned_joint_transport if learned else tr.joint_bayesian_transport
-    return function(**options)
+    from antecedent.transport._joint_posterior import _candidate
+
+    defaults = dict(
+        treatment="a",
+        outcome="y",
+        varying="intercept",
+        sharing="independent_varying_blocks",
+        dependence="independent_samples",
+        basis_degree=2 if learned else 1,
+        max_unsupported_mass=0.0,
+        conflict_z_threshold=3.0,
+    )
+    return _candidate(**(defaults | options | {"learned": learned}))
 
 
 def oracle(options, learned):
     basis = 2 if learned else 1
     q = 1 + 2 * basis if options["varying"] == "intercept" else 1 + basis
     r = 1 if options["varying"] == "intercept" else 1 + basis
-    blocks = 1 if options["sharing"] == "shared_varying_block" else 2
+    blocks = 1 if options["sharing"] == "shared_varying_block" else len(options["sources"])
     n = q + r * blocks
     covariance = np.zeros((n, n))
     covariance[:q, :q] = options["priors"].invariant.covariance

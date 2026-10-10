@@ -22,6 +22,7 @@ from antecedent.errors import (
     CausalValueError,
 )
 from antecedent.transport import advanced as transport
+from antecedent.transport._closed_pilots import _sampled_observation_recovery_candidate
 
 from test_observation_recovery import catalog, graph, query
 
@@ -105,7 +106,7 @@ def produce(*, seed=7, sample=None, declaration=None, snapshot="snap-1"):
         effect_outcomes=["y"],
         effect_treatments=["t"],
     )
-    return transport.sampled_observation_recovery(
+    return _sampled_observation_recovery_candidate(
         stage=stage,
         query=query() if declaration is None else declaration,
         rows=rows() if sample is None else sample,
@@ -198,7 +199,7 @@ def test_fake_stage_callback_cannot_issue_candidate_authority():
     calls = []
     fake = SimpleNamespace(outcome="recovered", sampled_candidate=lambda *args: calls.append(args))
     with pytest.raises(CausalTypeError, match="original native recovery stage"):
-        transport.sampled_observation_recovery(
+        _sampled_observation_recovery_candidate(
             stage=fake,
             query=query(),
             rows=rows(),
@@ -333,7 +334,7 @@ def test_sampled_bca_candidate_independent_jackknife_and_normal_transform(tmp_pa
         effect_outcomes=["y"],
         effect_treatments=["t"],
     )
-    candidate = transport.sampled_observation_recovery(
+    candidate = _sampled_observation_recovery_candidate(
         stage=stage,
         query=query(),
         rows=sample,
@@ -392,6 +393,6 @@ print(r.interval)
     )
     assert replayed.strip() == str(candidate.interval)
     with pytest.raises(CausalValueError, match="exactly 2000"):
-        transport.sampled_observation_recovery(
+        _sampled_observation_recovery_candidate(
             stage=stage, query=query(), rows=sample, snapshot="snap-1", replicates=500
         )

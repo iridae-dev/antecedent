@@ -118,7 +118,7 @@ def test_temporal_source_history_changes_refit_and_match_fresh_execution():
     assert TemporalSession().execute(changed, seed=41).means == result.means
 
 
-def test_temporal_public_dependent_interval_remains_exactly_frozen():
+def test_temporal_unmeasured_history_protocol_preserves_source_state():
     session = TemporalSession()
     session.execute(request(), seed=41)
     ids = session.identities

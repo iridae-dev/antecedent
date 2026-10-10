@@ -15,9 +15,11 @@ answered here, and each has its own typed result so none can be relabeled as ano
   refuses with a typed ``temporal_refresh.*`` invalidation. A stale interval never
   survives a refresh: the refreshed result has no interval and the receipt records
   whether one was invalidated. Point only.
-* :func:`temporal_dependent_interval` is a calibrated claim whose calibration is measured
-  only at the release cut, so its public route is closed: after validating its arguments
-  it refuses with ``cell_not_licensed`` (``temporal_interval.route_frozen``).
+* :func:`temporal_dependent_interval` returns measured scalar inference only inside
+  the finite validated binary two-step whole-unit protocol, with explicit target
+  initial-state law and current method-specific evidence. Other scopes refuse with
+  their structured causal errors. Original internal candidate artifacts and numerical
+  diagnostics retain unmeasured standing; a measured scalar cannot relabel them.
 
 Rust owns every identity, check, replay and refusal rule; this module builds declarations
 and raises each refusal as :class:`TemporalExtensionRefusal`, a
@@ -32,6 +34,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
+from .._measured_inference import MeasuredInference, _production_limits
 from .._native import (
     consume_temporal_initial_state_artifact as _consume_initial_state,
 )
@@ -616,6 +619,59 @@ def temporal_dependent_interval(
     panel: TemporalUnitPanel,
     *,
     sequence: Sequence[int],
+    estimand: str = MARGINALIZED_LABEL,
+    fixed_state: int | None = None,
+    target_law: InitialStateLaw | int | None = None,
+    replicates: int = 500,
+    seed: int = 0,
+    level: float = 0.95,
+    method: str = "studentized",
+    min_units: int = 20,
+    max_failed_fraction: float = 0.05,
+    memory_limit_bytes: int | None = None,
+    cancel: Any = None,
+) -> MeasuredInference:
+    """Measured 95% whole-unit response with complete balanced binary histories.
+
+    The released construction uses 500 studentized draws, sequence (0, 0), and
+    the explicit target initial-state law (0.3, 0.7). The original panel and
+    full interval receipt are independently replayed. Other histories, laws
+    and methods refuse rather than borrowing this construction's evidence.
+    """
+    return cast(
+        MeasuredInference,
+        _temporal_interval_entry(
+            panel,
+            sequence=sequence,
+            estimand=estimand,
+            fixed_state=fixed_state,
+            target_law=target_law,
+            replicates=replicates,
+            seed=seed,
+            level=level,
+            method=method,
+            min_units=min_units,
+            max_failed_fraction=max_failed_fraction,
+            measured=True,
+            memory_limit_bytes=memory_limit_bytes,
+            cancel=cancel,
+        ),
+    )
+
+
+def _temporal_dependent_interval_candidate(
+    panel: TemporalUnitPanel, **kwargs: Any
+) -> TemporalIntervalCandidate:
+    """Explicit internal historical interval; retains unmeasured standing."""
+    return cast(
+        TemporalIntervalCandidate, _temporal_interval_entry(panel, measured=False, **kwargs)
+    )
+
+
+def _temporal_interval_entry(
+    panel: TemporalUnitPanel,
+    *,
+    sequence: Sequence[int],
     estimand: str = OBSERVED_LABEL,
     fixed_state: int | None = None,
     target_law: InitialStateLaw | int | None = None,
@@ -625,25 +681,24 @@ def temporal_dependent_interval(
     method: str = "percentile",
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
-) -> TemporalIntervalCandidate:
-    """A dependence-preserving sampling interval: **closed** until its calibration is measured.
-
-    The arguments are validated through the Rust core first, so a panel without a unit
-    map (``temporal_interval.unknown_units``), too few units
-    (``temporal_interval.too_few_units``), too many replicates
-    (``temporal_interval.too_many_replicates``) or an unsupported history
-    (``temporal_interval.unsupported_history``) raise their own refusals. A well-formed
-    request then raises ``cell_not_licensed`` with ``temporal_interval.route_frozen``;
-    the normal released build returns no interval. Internal acceptance builds expose
-    the original typed candidate and full-panel replay, explicitly unmeasured;
-    these fixtures do not activate or license the released route.
-    """
+    measured: bool,
+    memory_limit_bytes: int | None = None,
+    cancel: Any = None,
+) -> MeasuredInference | TemporalIntervalCandidate:
+    """Shared source validation; candidate and measured authority remain separate."""
+    _production_limits(memory_limit_bytes, cancel)
     if not isinstance(panel, TemporalUnitPanel):
         raise CausalTypeError("panel must be a TemporalUnitPanel")
     law, point = (None, None) if target_law is None else _law_args(target_law)
     from .. import _native
 
-    candidate = getattr(_native, "temporal_dependent_interval_candidate", None)
+    candidate = getattr(
+        _native,
+        "temporal_dependent_interval_measured"
+        if measured
+        else "temporal_dependent_interval_candidate",
+        None,
+    )
     arguments = (
         panel.snapshot_id,
         panel._wire(),
@@ -660,10 +715,17 @@ def temporal_dependent_interval(
         float(max_failed_fraction),
     )
     if candidate is not None:
-        native, refusal = candidate(*arguments)
+        native, refusal = candidate(
+            *arguments,
+            **({"memory_limit_bytes": memory_limit_bytes, "cancel": cancel} if measured else {}),
+        )
         if refusal is not None:
             raise TemporalExtensionRefusal(json.loads(refusal))
-        return TemporalIntervalCandidate._from_native(native)
+        return (
+            MeasuredInference._from_native(native)
+            if measured
+            else TemporalIntervalCandidate._from_native(native)
+        )
     refusal = _dependent_interval_closed(*arguments)
     raise TemporalExtensionRefusal(json.loads(refusal))
 
