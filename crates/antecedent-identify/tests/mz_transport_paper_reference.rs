@@ -4,7 +4,7 @@
 //! The reference below re-implements the paper's recursion on bitmask graphs with
 //! its own path-enumerating m-separation; it shares no code with the search it
 //! checks and decides success or failure only (never a formula). It covers three
-//! of the departures documented on the X1 record:
+//! of the departures documented on the mz-transport record:
 //!
 //! * repeated exchange in one branch (Fig. 3 line 10 fires only with `I = ∅`;
 //!   the search may also exchange the active source's remaining controllables),

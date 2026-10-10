@@ -1,4 +1,4 @@
-//! F18 `EffectConstancy` artifact: the frozen acceptance numbers through the container, a
+//! `EffectConstancy` artifact: the frozen acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unknown
 //! versions and the unmeasured calibration coordinate.
 #![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]

@@ -1,6 +1,6 @@
 //! Arrival and candidate checks shared by the evidence planners.
 //!
-//! The z-transport planner and the X6 study planner both freeze a base catalog,
+//! The z-transport planner and the study planner both freeze a base catalog,
 //! propose regimes as a catalog delta, and later accept a real catalog in which
 //! the proposed evidence arrived. These checks are the one implementation of
 //! "the base is preserved", "the proposed regime arrived with exactly the

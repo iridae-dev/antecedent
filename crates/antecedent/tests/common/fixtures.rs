@@ -1,4 +1,4 @@
-//! Heterogeneous multi-atom calibration fixtures (R-15 / R-17 / R-18).
+//! Heterogeneous multi-atom calibration fixtures.
 //!
 //! Every fixture pairs a linear-Gaussian data-generating process with a graph
 //! object carrying several atoms. The DBN, `TemporalCpdag` and [`chain_pag`]
@@ -608,7 +608,7 @@ pub fn mediation_backdoor_only_plim(kappa: f64) -> f64 {
 }
 
 // ---------------------------------------------------------------------------
-// Two-lag TemporalDag (R-18).
+// Two-lag TemporalDag.
 // ---------------------------------------------------------------------------
 
 /// `x` iid `N(0, 0.4²)`, `y[t] = B1 x[t-1] + B2 x[t-2] + 0.35 e`.

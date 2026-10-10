@@ -1,4 +1,4 @@
-//! Bounded DAG completions of a supplied CPDAG, decided as a finite scenario set (2.3A X2).
+//! Bounded DAG completions of a supplied CPDAG, decided as a finite scenario set.
 //!
 //! Graph class: a supplied CPDAG of at most [`CPDAG_MAX_NODES`] fully observed
 //! nodes. A completion is a DAG with the CPDAG's skeleton and exactly its

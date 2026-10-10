@@ -654,7 +654,7 @@ fn identified_pag_series(pin: &serde_json::Value) -> TimeSeriesData {
     .unwrap()
 }
 
-/// R-10: positive multi-completion `TemporalPag` evidence for Frequentist Pulse
+/// Positive multi-completion `TemporalPag` evidence for Frequentist Pulse
 /// and single-step Sustained. Six of seven stationary MAG completions identify
 /// at two different lag-1 effects (adjust `z@-1`: 1.96; adjust nothing: 2.72);
 /// the reported point is their equal-weight mixture, pinned against the numpy

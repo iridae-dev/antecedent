@@ -1,4 +1,4 @@
-//! Exact execution of a checked ADMG conditional transport formula (2.2B B1).
+//! Exact execution of a checked ADMG conditional transport formula.
 //!
 //! The identifier reduces `P*(y | do(x), w)` to the joint `P*(y, w'' | do(x, w'))`
 //! (rule 2 moved `w'` into the intervention set) and binds that joint to the

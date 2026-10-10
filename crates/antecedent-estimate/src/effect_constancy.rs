@@ -1,4 +1,4 @@
-//! F18 `EffectConstancy`: a global heterogeneity test of one effect across a declared
+//! `EffectConstancy`: a global heterogeneity test of one effect across a declared
 //! partition (time periods or regions), under a frozen null and a shared effect estimand.
 //!
 //! # Contract
@@ -520,7 +520,7 @@ fn contrast_reports(
         .collect())
 }
 
-/// Run the F18 constancy test.
+/// Run the constancy test.
 ///
 /// Partitions are put in label order first, so the result is invariant to input order and
 /// relabelling that keeps the label order.

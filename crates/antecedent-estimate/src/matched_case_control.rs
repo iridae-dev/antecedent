@@ -1,4 +1,4 @@
-//! Conditional odds ratio from matched case-control sets (2.2 E7).
+//! Conditional odds ratio from matched case-control sets.
 //!
 //! # Design and estimand
 //!

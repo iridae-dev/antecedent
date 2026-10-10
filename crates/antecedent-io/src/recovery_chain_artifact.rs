@@ -1,4 +1,4 @@
-//! Independent artifact for the 2.3 B2 ordered-response recovery row (X10 second row).
+//! Independent artifact for the ordered-response recovery row.
 //!
 //! Format version 1. The artifact binds the m-graph (variables in dense order and
 //! directed edges), the query roles, the decision and its evidence. A recovered

@@ -1,12 +1,12 @@
 //! The closed sampling-uncertainty route of the joint mechanism sensitivity
 //! range on the prepared z stage (record `sensitivity.joint_uncertainty`,
-//! in progress).
+//! calibration unmeasured).
 //!
 //! The one declared composition, the conservative endpoint percentile
 //! bootstrap, has a one-sided coverage target. Its coverage harness
 //! (`crates/antecedent/tests/joint_sensitivity_calibration.rs`, a `one_sided`
-//! record) is wired but not measured until the 2.2 cut, so this route always
-//! refuses with `cell_not_licensed`.
+//! record) is unmeasured, so this route always refuses with
+//! `cell_not_licensed`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -41,7 +41,7 @@ pub struct JointSamplingWire {
 
 impl PreparedZTransport {
     /// The sampling-uncertainty interval of the joint range. Closed for the
-    /// 2.2 release: always refuses with `cell_not_licensed`.
+    /// Calibration is unmeasured: always refuses with `cell_not_licensed`.
     ///
     /// # Errors
     ///
@@ -54,7 +54,7 @@ impl PreparedZTransport {
         let _ = (spec, ctx);
         Err(IoError::Refused {
             code: reason_code!("cell_not_licensed"),
-            message: "joint_sensitivity.interval_withheld: sampling uncertainty is not offered in 2.2; the conservative endpoint percentile bootstrap is not licensed and the assumption range is not a confidence interval".into(),
+            message: "joint_sensitivity.interval_withheld: sampling uncertainty is not offered; the conservative endpoint percentile bootstrap is not licensed and the assumption range is not a confidence interval".into(),
         })
     }
 }

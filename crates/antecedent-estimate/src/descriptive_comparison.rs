@@ -1,4 +1,4 @@
-//! Descriptive raw-versus-adjusted comparison and declared reporting-scale transforms (2.2 E7).
+//! Descriptive raw-versus-adjusted comparison and declared reporting-scale transforms.
 //!
 //! # What this is, and is not
 //!

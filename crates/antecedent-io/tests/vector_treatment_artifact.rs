@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment artifact: hand-derived coefficients and full covariance through the
+//! Joint vector-treatment artifact: hand-derived coefficients and full covariance through the
 //! container, a recomputing consumer (summary replay for the model-based covariance, row replay
 //! for a robust one), the row cap, resealed-mutation refusals against a retained identity,
 //! unresealed tampering, unknown versions and the unmeasured calibration coordinate.

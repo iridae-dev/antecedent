@@ -1,4 +1,4 @@
-//! Dependence-preserving interval of the finite two-step sequence (2.3A, X5).
+//! Dependence-preserving interval of the finite two-step sequence.
 //!
 //! The truth is an enumerated two-step dynamic SCM written out below: a pre-action
 //! state `s0`, a first action `a1` randomized given `s0`, a step-2 covariate `l`

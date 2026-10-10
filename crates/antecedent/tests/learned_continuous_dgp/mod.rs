@@ -1,4 +1,4 @@
-//! Known-truth data-generating processes for the learned continuous transport cell (X4).
+//! Known-truth data-generating processes for the learned continuous transport cell.
 //!
 //! One baseline covariate `z` (graph coordinate 0), a randomized binary treatment `a`
 //! (coordinate 1, probability one half) and a continuous outcome `y` (coordinate 2).

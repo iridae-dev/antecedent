@@ -1,4 +1,4 @@
-//! 2.3.0 A5 transported static path-specific counterfactual artifact
+//! Transported static path-specific counterfactual artifact
 //! (`transported_counterfactual_v1`).
 //!
 //! A bounded, checksummed container with one CBOR section, `transported_counterfactual_meta`:

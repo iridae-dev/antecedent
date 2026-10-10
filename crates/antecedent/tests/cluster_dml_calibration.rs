@@ -8,8 +8,7 @@
 //! grid varies the number of clusters.
 //!
 //! `cluster_dml_t_wald_interval` is registered in `scripts/gate_calibration.sh` (`run_cd`) and
-//! is measured once at the release cut; until then the coverage record is the only missing
-//! piece. A fixed-seed test of the same construction without a record is
+//! its coverage is unmeasured: the coverage record is the only missing piece. A fixed-seed test of the same construction without a record is
 //! `crates/antecedent-estimate/tests/cluster_dml_known_truth.rs`.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

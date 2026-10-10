@@ -1,4 +1,4 @@
-//! Self-certifying two-model witnesses for ADMG conditional transport (2.2B B1).
+//! Self-certifying two-model witnesses for ADMG conditional transport.
 //!
 //! A [`ConditionalWitnessRecord`] is two finite latent models over the
 //! selection diagram's observed variables (binary) and one discrete latent per

@@ -1,5 +1,5 @@
 //! Joint mechanism deviations of the registered surrogate z formula on the
-//! prepared z stage, and their portable replay artifact (2.2B B3, X3).
+//! prepared z stage, and their portable replay artifact.
 //!
 //! The prepared stage evaluates the exact joint assumption range on its
 //! retained laws without re-identifying. The artifact is format version 3 of

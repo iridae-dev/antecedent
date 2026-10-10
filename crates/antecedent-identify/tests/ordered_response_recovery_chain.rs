@@ -1,6 +1,6 @@
-//! 2.3 B2 / X10 second row: decision, witness and refusals of the ordered-response
+//! Decision, witness and refusals of the ordered-response
 //! (`R -> R`) recovery row. Numerical truth from an enumerated SCM lives in
-//! `antecedent-estimate/tests/b2_recovery_chain_truth.rs`.
+//! `antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs`.
 //!
 //! Role ids: `X1 = 0, X2 = 1, R1 = 2, R2 = 3, X*1 = 4, X*2 = 5` unless relabelled.
 
@@ -201,7 +201,7 @@ fn assert_not_supported(result: Result<ChainRecoveryDecision, ChainRecoveryError
 fn adjacent_graphs_are_not_supported_never_nonrecoverable() {
     // The tail variable drives the head response: X2 -> R1 with chain R1 -> R2.
     assert_not_supported(decide(IDS, &IDS, &edges(IDS, 0, true, &[(1, 2)]), &[]));
-    // No response chain: the 2.2 route's graph, not this row's.
+    // No response chain: the exact binary recovery route's graph, not this row's.
     let no_chain = vec![(0, 1), (0, 4), (2, 4), (1, 5), (3, 5), (0, 3)];
     assert_not_supported(decide(IDS, &IDS, &no_chain, &[]));
     // Bidirected edge (unmeasured confounding).

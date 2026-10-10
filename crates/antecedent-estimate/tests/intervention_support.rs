@@ -1,4 +1,4 @@
-//! A0 remainder: a frequentist `InterventionResponse` (set, shifted or stochastic
+//! A frequentist `InterventionResponse` (set, shifted or stochastic
 //! policy) answers one scalar, so it carries exactly one coordinate and one support
 //! label, equal to its summary. It is never scalarized: the label is the summary,
 //! and a policy with no exact regime refuses to name a coordinate.

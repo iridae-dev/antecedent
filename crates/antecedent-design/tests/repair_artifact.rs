@@ -1,4 +1,4 @@
-//! F13 `repair_search_receipt_v1`: the durable identification-repair artifact
+//! `repair_search_receipt_v1`: the durable identification-repair artifact
 //! and its independent consumer. Expected outcomes follow the theorems (a
 //! back-door adjustment set must be read from one joint law; the transport
 //! source factor needs the source experiment), not the code under test.

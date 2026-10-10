@@ -1,5 +1,5 @@
-//! X6 study planning core: bounded, cost-ordered subset search over declared
-//! candidate studies, re-deciding the X1 (mz) route on each preview catalog
+//! Study planning core: bounded, cost-ordered subset search over declared
+//! candidate studies, re-deciding the mz-transport route on each preview catalog
 //! under one shared search budget.
 //!
 //! The mz fixture is R-443 Figure 1(c,d) (`Z1 -> X -> Z2 -> Y`, `Z1 <-> X`,
@@ -177,7 +177,7 @@ fn statuses(plan: &StudyPlan) -> Vec<(String, &'static str)> {
 #[test]
 fn complementary_sources_are_sufficient_only_as_a_pair() {
     let plan = default_plan();
-    // The frozen failure is the X1 decision on the target law alone.
+    // The frozen failure is the mz-transport decision on the target law alone.
     assert_eq!(plan.failure.code, "transport_missing_evidence");
     assert_eq!(plan.failure.detail, "mz_transport.missing_joint_regime");
     assert!(!plan.failure.facts.is_empty());
@@ -210,7 +210,7 @@ fn complementary_sources_are_sufficient_only_as_a_pair() {
         assert!(!repair.required_margin.is_empty());
     }
     let StudyProposalDerivation::Mz(record) = &top.derivation else {
-        panic!("an mz proposal carries the X1 derivation record");
+        panic!("an mz proposal carries the mz-transport derivation record");
     };
     assert_eq!(record.route, "combined");
     assert_eq!(record.populations, ["a", "b"]);

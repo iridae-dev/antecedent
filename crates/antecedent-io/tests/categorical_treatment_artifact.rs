@@ -1,4 +1,4 @@
-//! B4 categorical-treatment artifact: group-mean closed forms through the container, a
+//! Categorical-treatment artifact: group-mean closed forms through the container, a
 //! recomputing consumer (summary replay for the model-based covariance, row replay for a robust
 //! one), Holm multiplicity over the declared family, the declared monotonicity test and its null,
 //! sparse/absent/undeclared-level refusals, resealed-mutation refusals against a retained

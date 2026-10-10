@@ -1,4 +1,4 @@
-//! 2.3 B3: adapter from a marginal sensitivity model result into the F17
+//! Adapter from a marginal sensitivity model result into the
 //! [`SensitivityArtifact`].
 //!
 //! The assumption coordinate is `Lambda` (the odds-ratio bound, scale
@@ -77,7 +77,7 @@ fn surfaces(
     Ok(quantities)
 }
 
-/// Build the F17 artifact of a marginal sensitivity result.
+/// Build the sensitivity artifact of a marginal sensitivity result.
 ///
 /// `effect` is the scientific coordinate of the ATE (its units are the utility units
 /// the `actions` read). `point_quantities` are optional assumption-dependent point

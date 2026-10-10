@@ -1,4 +1,4 @@
-//! A0 remainder: a transported grid with a coordinate that has no value keeps that
+//! A transported grid with a coordinate that has no value keeps that
 //! coordinate, labelled `missing_evidence`, through the Rust result and its artifact.
 //!
 //! Hand example. Graph `x -> y` with `x <-> y`. The source supplies exactly one law,

@@ -3028,7 +3028,7 @@ fn compose_temporal_mediation_for_atom(
 }
 
 /// Declared outcome model behind a static `bayesian.gcomp` / conditional
-/// posterior (R-17). The credible interval is for the treatment contrast of
+/// posterior. The credible interval is for the treatment contrast of
 /// that parametric regression; it is not a nonparametric interval for the
 /// causal effect when the outcome mean is nonlinear in the adjustment set or
 /// carries treatment × covariate interactions the design does not include

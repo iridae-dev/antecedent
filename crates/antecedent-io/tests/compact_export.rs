@@ -1,4 +1,4 @@
-//! B4 compact runtime export: hand-computed point/SE values, support and mask
+//! Compact runtime export: hand-computed point/SE values, support and mask
 //! refusals, tamper and reseal refusals, bounded decode and canonical identity.
 
 use std::io::Cursor;

@@ -1,5 +1,5 @@
 //! Internal replay artifact for the dependence-preserving temporal interval
-//! (2.3A, X5 `dependent_temporal_interval`).
+//! (`dependent_temporal_interval`).
 //!
 //! Format version 1. **Internal**: the public interval route is closed while the
 //! interval's calibration is unmeasured, so no public producer writes this artifact;

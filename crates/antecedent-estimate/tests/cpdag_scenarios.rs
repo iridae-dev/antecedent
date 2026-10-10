@@ -1,4 +1,4 @@
-//! Exact execution of the DAG completions of a CPDAG against an enumerated SCM (2.3A X2).
+//! Exact execution of the DAG completions of a CPDAG against an enumerated SCM.
 //!
 //! The chain `a - b - c` has three completions: `a -> b -> c`, `a <- b -> c` and
 //! `a <- b <- c`. One target joint law is enumerated from the finite SCM

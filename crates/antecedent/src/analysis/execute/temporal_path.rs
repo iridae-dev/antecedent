@@ -915,7 +915,7 @@ impl super::Study {
                 refutations.push(prior_rep.to_refutation_report(estimate.ate, PPC_ALPHA));
                 predictive_checks.push(prior_rep);
 
-                // `full` adds the lag-1 residual-autocorrelation discrepancy (C-4).
+                // `full` adds the lag-1 residual-autocorrelation discrepancy.
                 let post_check =
                     PosteriorPredictiveCheck::for_estimator(&bayes.inner, ctx).with_n_sims(sims);
                 let post_rep = if matches!(self.refute, RefuteSuite::Full) {

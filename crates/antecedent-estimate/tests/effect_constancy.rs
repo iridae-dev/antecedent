@@ -1,4 +1,4 @@
-//! F18 `EffectConstancy`: hand-computed heterogeneity statistics and p-values against closed-form
+//! `EffectConstancy`: hand-computed heterogeneity statistics and p-values against closed-form
 //! chi-square survival functions (df 1: `erfc(sqrt(x / 2))`, df 2: `exp(-x / 2)`), Holm values
 //! checked by hand, refusals, and permutation invariance. Calibration (null Type I error and
 //! power) is deliberately NOT measured here.

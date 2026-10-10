@@ -1,4 +1,4 @@
-//! 2.3 B3: marginal sensitivity model bounds and tipping point (hand-derived oracles).
+//! Marginal sensitivity model bounds and tipping point (hand-derived oracles).
 //!
 //! Two-stratum example, binary outcome, exact inputs:
 //!

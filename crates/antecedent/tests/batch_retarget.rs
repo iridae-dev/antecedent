@@ -1,4 +1,4 @@
-//! E3: configured batches and batch retarget (joint covariance, contrasts, max-t
+//! Configured batches and batch retarget (joint covariance, contrasts, max-t
 //! simultaneous interval, score-table lifetime, tidy export).
 //!
 //! The independent oracles here are written from the raw score tables with plain sums: the

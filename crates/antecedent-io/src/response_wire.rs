@@ -534,7 +534,7 @@ fn observation_assumption_from_wire(a: &ObservationAssumptionWire) -> Observatio
 
 /// Empirical support status on the wire.
 ///
-/// `missing_evidence` is additive (2.2): every earlier spelling decodes unchanged, and
+/// `missing_evidence` is additive: every earlier spelling decodes unchanged, and
 /// a writer emits it only for a coordinate whose required evidence is absent.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -701,7 +701,7 @@ pub struct CausalResponseWire {
     pub interaction_structurally_zero: bool,
     /// Optional scientific coordinate of each response value, in value order.
     ///
-    /// Absent on artifacts written before 2.3. When present it has exactly one
+    /// Absent on artifacts that predate response coordinates. When present it has exactly one
     /// descriptor per response value and consumers identify a value by its
     /// descriptor, never by grid position or display label.
     #[serde(default, skip_serializing_if = "Option::is_none")]

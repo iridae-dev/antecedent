@@ -1,5 +1,5 @@
 //! Prepared lifecycle, refresh and independent artifact consumption of one
-//! finite two-step temporal transport sequence (2.2A, X5).
+//! finite two-step temporal transport sequence.
 //!
 //! The fixture is the known temporal SCM shared with the estimate-crate tests:
 //! source and target differ at the initial state and at the step-2 covariate

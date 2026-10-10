@@ -1,4 +1,4 @@
-//! F9/F13 evidence obligations and the generic identification-repair facade,
+//! Evidence obligations and the generic identification-repair facade,
 //! exercised on two distinct families: catalog-aware classical transport and
 //! back-door adjustment. Expected outcomes are derived by hand from the
 //! theorems, not from the code under test.

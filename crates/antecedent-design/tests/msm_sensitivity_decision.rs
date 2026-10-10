@@ -1,4 +1,4 @@
-//! 2.3 B3: a marginal sensitivity model surface consumed by `evaluate_sensitivity_decision`.
+//! A marginal sensitivity model surface consumed by `evaluate_sensitivity_decision`.
 //!
 //! Same two-stratum inputs and hand expectations as
 //! `antecedent-io/tests/msm_sensitivity_adapter.rs` (ATE identified 0.3, bounds

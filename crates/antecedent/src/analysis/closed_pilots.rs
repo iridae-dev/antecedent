@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn x4_joint_route_is_frozen_and_scope_refusals_come_first() {
+    fn joint_route_is_frozen_and_scope_refusals_come_first() {
         let frozen = joint_bayesian_transport_refusal(&joint_request());
         assert_eq!(frozen.code, "cell_not_licensed");
         assert_eq!(frozen.detail, joint::DETAIL_ROUTE_FROZEN);
@@ -389,7 +389,7 @@ mod tests {
     }
 
     #[test]
-    fn x10_sampled_route_is_frozen_and_a_zero_cell_is_unrecoverable() {
+    fn sampled_route_is_frozen_and_a_zero_cell_is_unrecoverable() {
         let rows: Vec<(u64, u8, u8, u8)> = (0..4_u8).map(|i| (u64::from(i), 1, i & 1, 0)).collect();
         let request = SampledRecoveryRequest {
             graph_recoverable: true,

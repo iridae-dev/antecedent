@@ -1,4 +1,4 @@
-//! ADMG conditional transport on the classical complete-source family (2.2B B1).
+//! ADMG conditional transport on the classical complete-source family.
 //!
 //! The query is the target population's conditional interventional distribution
 //! `P*(y | do(x), w)` over a selection ADMG, answered from a source that can run
@@ -64,7 +64,7 @@
 //! the selection targets. `the_moved_set_is_selection_independent` in the
 //! integration tests pins this on every three-node ADMG and selection pattern.
 //!
-//! # Extension note for the hedge/witness design (B5)
+//! # Extension note for the hedge/witness design
 //!
 //! [`ConditionalObstructionCandidate`] is additive: it pairs the unchanged
 //! [`SHedgeCertificate`] of the reduced joint with the rule-2 moves that produced
@@ -133,7 +133,7 @@ const STAGES: [&str; 3] = ["rule_two_reduction", "classical_sid", "catalog_bindi
 const WITNESS_STAGE: &str = "conditional_witness";
 
 /// The frozen `(reason code, admg_transport.* detail)` pair of an error the
-/// conditional route raises, as the B1 promotion record declares them. `None`
+/// conditional route raises, as the route declares them. `None`
 /// for an error the route does not own.
 #[must_use]
 #[doc(hidden)]

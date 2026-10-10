@@ -707,7 +707,7 @@ pub enum CausalQueryWire {
         /// Cap.
         max_units: u64,
         /// Fixed IT-score reference `(center, scale)`; an inner `None` is the
-        /// empirical default. The outer `None` records a 2.0.0 payload with
+        /// empirical default. The outer `None` records a payload with
         /// no `reference` key so it re-encodes to its original bytes; current
         /// producers write `Some(None)` (an explicit `null`) for empirical.
         #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
@@ -3536,7 +3536,7 @@ mod tests {
 
     #[test]
     fn anomaly_attribution_reference_presence_survives_re_encoding() {
-        // 2.0.0 had no `reference` key; 2.1.0 wrote `reference: null` for an
+        // Earlier writers emitted no `reference` key; later ones wrote `reference: null` for an
         // empirical reference. Both shapes must re-encode to their own bytes,
         // or the digests they were sealed under stop matching.
         #[derive(Serialize)]

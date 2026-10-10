@@ -1,4 +1,4 @@
-//! 2.3A A6 (X10) `x10_sampled_recovery_replay`: the sampled observation-recovery artifact
+//! The sampled observation-recovery artifact
 //! (version 3: derivation identity, observation rows and pattern counts, recovered law,
 //! point, `BCa` interval with calibration `unmeasured`, replicate receipt) replays
 //! independently and refuses a changed pattern, snapshot, seed or interval receipt.

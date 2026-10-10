@@ -1,5 +1,5 @@
 //! Semantic refresh of a prepared horizon-two temporal result onto a new observation period
-//! (X5 `new_period_refresh`).
+//! (`new_period_refresh`).
 //!
 //! # Contract
 //!

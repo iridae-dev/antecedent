@@ -1,4 +1,4 @@
-//! X6: the per-proposal receipt linking identification repair and design ranking, its
+//! The per-proposal receipt linking identification repair and design ranking, its
 //! permutation-invariant bundle, the cross-artifact verifier and re-identification on
 //! arrived data.
 //!

@@ -523,7 +523,7 @@ mod envelope_se_tests {
 
 #[cfg(test)]
 mod envelope_refuter_target_tests {
-    //! R-3: envelope refuters compare each atom with its own estimate.
+    //! Envelope refuters compare each atom with its own estimate.
     use antecedent_discovery::set_edge;
     use antecedent_prob::InferenceDiagnostics;
 
@@ -658,7 +658,7 @@ mod envelope_refuter_target_tests {
         assert!((stable.original_ate - pooled).abs() < 1e-8);
 
         // Targeting every atom against the pooled mixture rejects
-        // the same stable atoms: this is the defect R-3 removes.
+        // the same stable atoms: this is the defect the per-atom comparison removes.
         let mut pooled_target = fitted_atoms(&data, &ctx);
         for atom in &mut pooled_target {
             atom.original.ate = pooled;

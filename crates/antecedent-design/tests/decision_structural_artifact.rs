@@ -91,7 +91,7 @@ fn contract(policy: StructuralPolicy) -> DecisionContract {
     }
 }
 
-/// The frozen F6 structures: A=(2,-1), B=(0,1), no atom probabilities.
+/// The frozen structural-policy structures: A=(2,-1), B=(0,1), no atom probabilities.
 fn frozen_atoms() -> Vec<StructuralAtom> {
     vec![evaluated("graph-1", None, 2.0, 0.0), evaluated("graph-2", None, -1.0, 1.0)]
 }

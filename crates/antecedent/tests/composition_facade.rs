@@ -1,4 +1,4 @@
-//! C3 facade: a composed native-plus-external decision is built from real
+//! Composition facade: a composed native-plus-external decision is built from real
 //! artifacts, exported, and consumed independently. Hand-enumerated oracles:
 //!
 //! * joint decision over four equally likely rows: `risky = E[p * q] = 2`,

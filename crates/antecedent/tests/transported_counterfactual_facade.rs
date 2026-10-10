@@ -1,4 +1,4 @@
-//! 2.3.0 A5: the transported static path-specific counterfactual through the `antecedent`
+//! The transported static path-specific counterfactual through the `antecedent`
 //! facade: evaluate, export and consume, the hand-derived oracle values, the typed refusals
 //! (with the two-model witness) mapped onto `CausalError`, and the general closed route that
 //! the narrow cell does not open.

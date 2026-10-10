@@ -1,4 +1,4 @@
-//! 2.2B X3: joint mechanism deviations of the registered surrogate z formula.
+//! Joint mechanism deviations of the registered surrogate z formula.
 //!
 //! Every range here is checked against an independent computation from the
 //! generating model (brute-force product-polytope vertex enumeration, random
@@ -572,7 +572,7 @@ fn axis_tipping_points_match_the_2_1_analytic_values() {
         )
         .unwrap();
         let [kernel_axis, parent_axis] = [result.axis_tipping[0], result.axis_tipping[1]];
-        // Kernel axis: the 2.1 one-factor analytic value, inside its bracket.
+        // Kernel axis: the one-factor analytic value, inside its bracket.
         assert_eq!(kernel_axis.analytic, one_factor.response.tipping_fraction);
         let t = kernel_axis.analytic.expect("reached inside the kernel box");
         let bracket = kernel_axis.bracket.unwrap();

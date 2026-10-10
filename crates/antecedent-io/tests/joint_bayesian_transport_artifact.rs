@@ -1,4 +1,4 @@
-//! 2.3A X4 `x4_posterior_hydration`: joint source-target transport draws become a portable
+//! Joint source-target transport draws become a portable
 //! aligned joint distribution artifact with scientific quantity coordinates.
 //!
 //! Dependency direction verified: `antecedent-io` depends on `antecedent-estimate`

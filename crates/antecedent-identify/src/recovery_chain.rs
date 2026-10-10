@@ -1,7 +1,7 @@
-//! Ordered-response recovery of a two-variable binary m-graph (2.3 B2 / X10
-//! second row): graph decision, derivation and nonrecoverability witness.
+//! Ordered-response recovery of a two-variable binary m-graph:
+//! graph decision, derivation and nonrecoverability witness.
 //!
-//! This is a second, separate observation-recovery row. The 2.2 row
+//! This is a separate observation-recovery row. The exact binary recovery row
 //! ([`crate::recovery`]) refuses every `R -> R` edge; this row is exactly the
 //! graphs it refuses because of one response chain, and it uses a different
 //! identifying order (responses are factored sequentially, the tail response
@@ -36,7 +36,7 @@
 //! The recovered law is the complete-case cell divided by
 //! `P(R_h = 1) q(x_h)`. This order (head response, then tail response given the
 //! head) is the colluder-free case of Mohan, Pearl and Tian's sequential
-//! recoverability; unlike the 2.2 row it needs no `R_i _||_ R_j | pa(R_i)`
+//! recoverability; unlike the exact binary recovery row it needs no `R_i _||_ R_j | pa(R_i)`
 //! independence because the tail's parents include `R_h`.
 //!
 //! # Nonrecoverability
@@ -56,15 +56,15 @@
 //! # What is refused as not supported (never as nonrecoverable)
 //!
 //! Any edge outside the class: `X_t -> R_h`, a graph with no response chain (use
-//! the 2.2 row), bidirected edges, edges out of a response or proxy into a
+//! the exact binary recovery row), bidirected edges, edges out of a response or proxy into a
 //! substantive node, cross-wired proxies. These are `route_not_supported`: the
 //! row neither proves nor disproves recoverability there. A violation of
 //! positivity is `transport_support_failure`.
 //!
 //! The decision charges one [`SearchBudget`]: one operation per edge inspected
 //! and per witness configuration enumerated. Calibration of any sampled provider
-//! composed on this row is separate, measured only at the release cut, and is
-//! unmeasured and closed here: the evaluator is an exact-law evaluator.
+//! composed on this row is separate and unmeasured: the evaluator is an exact-law
+//! evaluator.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

@@ -1,4 +1,4 @@
-//! Prepared exact binary observation recovery (2.2B X10): graph-licensed
+//! Prepared exact binary observation recovery: graph-licensed
 //! recovery, not MAR/IPCW.
 //!
 //! Preparation decides once (class check, checked recovery formula or verified
@@ -95,7 +95,7 @@ impl ObservationRecoveryResult {
 /// for bit, without fetching data.
 ///
 /// # Errors
-/// Any reconstruction or replay failure, with the X10 reason code.
+/// Any reconstruction or replay failure, with the observation-recovery reason code.
 pub fn consume_observation_recovery_artifact(
     bytes: &[u8],
     limits: RecoveryConsumeLimits,

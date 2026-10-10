@@ -23,7 +23,7 @@ pub use antecedent_design::{
     PreposteriorAnalysis, RankedCandidate, SamplingPlan, ScoreEvaluation, Utility,
     evaluate_decision,
 };
-/// X6 study planning over the X1 (mz) and X9 (mixed-source) catalogs: declared
+/// Study planning over the mz-transport and mixed-source catalogs: declared
 /// candidate studies, the bounded cost-ordered plan, arrival and the portable
 /// `study_plan_v1` artifact.
 pub use antecedent_design::{

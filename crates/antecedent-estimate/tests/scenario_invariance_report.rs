@@ -1,5 +1,5 @@
 //! The edges, selections and invariances behind each scenario answer and each
-//! envelope extreme (2.3.0 A1 remainder).
+//! envelope extreme.
 //!
 //! Every scenario shares `z -> x`, `z -> y`, `x -> y`, `x <-> y`; the source
 //! holds `do(x)` over `(z, y)` (regime 1) and the target its observational joint
@@ -183,7 +183,8 @@ fn invariances(report: &ScenarioSetInvarianceReport, name: &str) -> Vec<SourceIn
 }
 
 #[test]
-fn a1_invariance_each_envelope_extreme_lists_the_edges_selections_and_invariances_behind_it() {
+fn scenario_invariance_each_envelope_extreme_lists_the_edges_selections_and_invariances_behind_it()
+{
     let (prepared, report) = run(four());
     let envelope = report.envelope.as_ref().unwrap();
     let mean = &envelope.means[0];
@@ -220,7 +221,7 @@ fn a1_invariance_each_envelope_extreme_lists_the_edges_selections_and_invariance
 }
 
 #[test]
-fn a1_invariance_every_scenario_is_reported_and_an_unidentified_one_has_no_invariances() {
+fn scenario_invariance_every_scenario_is_reported_and_an_unidentified_one_has_no_invariances() {
     let (prepared, report) = run(four());
     let invariance = prepared.invariance_report(&report).unwrap();
     let names = invariance.scenarios.iter().map(|s| &*s.name).collect::<Vec<_>>();
@@ -245,7 +246,7 @@ fn a1_invariance_every_scenario_is_reported_and_an_unidentified_one_has_no_invar
 }
 
 #[test]
-fn a1_invariance_the_report_is_independent_of_scenario_supply_order() {
+fn scenario_invariance_the_report_is_independent_of_scenario_supply_order() {
     let (prepared, report) = run(four());
     let mut reversed = four();
     reversed.reverse();
@@ -261,7 +262,7 @@ fn a1_invariance_the_report_is_independent_of_scenario_supply_order() {
 }
 
 #[test]
-fn a1_invariance_a_report_for_another_set_is_refused() {
+fn scenario_invariance_a_report_for_another_set_is_refused() {
     let (prepared, _) = run(four());
     let (_, small) = run(vec![scenario("standardize", &[Z]), scenario("direct", &[])]);
     assert!(prepared.invariance_report(&small).is_err());

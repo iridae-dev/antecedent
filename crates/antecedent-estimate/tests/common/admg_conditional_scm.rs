@@ -1,4 +1,4 @@
-//! Latent binary SCMs for the 2.2B B1 conditional transport known-truth tests.
+//! Latent binary SCMs for the conditional transport known-truth tests.
 //!
 //! Each bidirected edge is a binary latent, the target population shifts the
 //! mechanism of every selected node, and every law (each source experiment and

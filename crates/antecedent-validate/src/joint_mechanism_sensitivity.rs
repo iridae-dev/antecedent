@@ -1,5 +1,4 @@
-//! Joint mechanism deviations for the registered surrogate z-transport formula
-//! (2.2B work package B3, workstream X3).
+//! Joint mechanism deviations for the registered surrogate z-transport formula.
 //!
 //! The formula `psi = sum_w P_W(w) [m(w, 1) - m(w, 0)]`, with
 //! `m(w, x) = sum_y y P_Y(y | w, x, do(z))`, cites two source factors: the
@@ -17,7 +16,7 @@
 //! * nested boxes give nested ranges, and `U` (`L`) is monotone in each
 //!   fraction, so a tipping frontier is bracketed by bisection.
 //!
-//! The kernel stage reuses the 2.1 [`DiscreteKernelSensitivity`] evaluator,
+//! The kernel stage reuses the one-factor [`DiscreteKernelSensitivity`] evaluator,
 //! so a single kernel factor is bit-equal to [`crate::z_transport_mechanism_sensitivity`].
 //! The law's shape is checked against the declared bounds before its cells
 //! are read; the read itself is charged one operation per parent level to one
@@ -26,8 +25,8 @@
 //! an assumption range, never a confidence interval. Sampling uncertainty is
 //! not offered by this record: its conservative composition below is compiled
 //! only under `calibration-internal` and its route is closed until its coverage
-//! is measured at the 2.2 cut (record `sensitivity.joint_uncertainty`,
-//! in progress: wired, not measured).
+//! is measured (record `sensitivity.joint_uncertainty`:
+//! wired, not yet measured).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -72,7 +71,7 @@ pub const JOINT_SENSITIVITY_MAX_BOOTSTRAP: u32 = 2000;
 pub const JOINT_SENSITIVITY_MIN_TOLERANCE: f64 = 1e-12;
 /// Largest admitted bracketing tolerance.
 pub const JOINT_SENSITIVITY_MAX_TOLERANCE: f64 = 1e-2;
-/// Largest admitted `|sum - 1|` of the shared parent marginal (the 2.1
+/// Largest admitted `|sum - 1|` of the shared parent marginal (the one-factor
 /// evaluator's kernel-row tolerance).
 const JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE: f64 = 1e-10;
 /// Optimization method recorded in every receipt.
@@ -108,7 +107,7 @@ pub enum JointFactor {
     FixedGraphParentMechanism,
     /// The fixed-graph conditional-mechanism joint problem (out of scope).
     FixedGraphConditionalMechanism,
-    /// Source-target discrepancy diagnostics (out of scope, 2.3B).
+    /// Source-target discrepancy diagnostics (out of scope).
     SourceTargetDiscrepancy,
 }
 
@@ -285,7 +284,7 @@ pub struct JointSensitivityRange {
     pub minimum: f64,
     /// Maximum response over the box.
     pub maximum: f64,
-    /// Outcome vertex per `(w, x)` stratum at the minimum (2.1 kernel witness).
+    /// Outcome vertex per `(w, x)` stratum at the minimum (kernel-stage witness).
     pub minimizing_outcome_by_stratum: Vec<usize>,
     /// Outcome vertex per `(w, x)` stratum at the maximum.
     pub maximizing_outcome_by_stratum: Vec<usize>,
@@ -352,7 +351,7 @@ pub struct FrontierPoint {
 pub struct AxisTipping {
     /// The factor whose fraction is searched.
     pub factor: JointFactor,
-    /// The 2.1 one-factor analytic tipping fraction.
+    /// The one-factor analytic tipping fraction.
     pub analytic: Option<f64>,
     /// How the bracket search ended.
     pub status: TippingStatus,
@@ -426,7 +425,7 @@ pub struct JointMechanismSensitivityResult {
     pub factors: Vec<JointFactorBound>,
     /// Decision threshold.
     pub decision_threshold: Option<f64>,
-    /// Response under the unmodified source factors (the 2.1 baseline).
+    /// Response under the unmodified source factors (the baseline).
     pub baseline: f64,
     /// Exact range over the box.
     pub range: JointSensitivityRange,
@@ -693,7 +692,7 @@ fn kernel_error(error: &ZTransportSensitivityError) -> JointSensitivityError {
 #[derive(Debug)]
 pub(crate) struct JointFactors {
     kernels: ZSurrogateKernels,
-    /// The 2.1 kernel stage read once: its baseline, extremal slopes and
+    /// The kernel stage read once: its baseline, extremal slopes and
     /// witnesses, evaluated at any kernel fraction without copying the kernel.
     kernel: DiscreteKernelSlopes,
     /// `Delta(w) = m(w, 1) - m(w, 0)` under the source kernel.
@@ -721,11 +720,11 @@ impl JointFactors {
             .map(|w| mean(&kernels.kernels[2 * w + 1]) - mean(&kernels.kernels[2 * w]))
             .collect();
         // Factor normalization is enforced, not repaired. Kernel rows are the
-        // law's conditionals and are re-checked by the 2.1 evaluator; the
+        // law's conditionals and are re-checked by the one-factor evaluator; the
         // shared parent marginal is the law's own mass, which a caller's loose
         // `LawTolerance` can leave far from one. The contamination class is
         // defined only on distributions, so the marginal must have unit mass
-        // within the 2.1 evaluator's row tolerance (the same sum it checks). It
+        // within the one-factor evaluator's row tolerance (the same sum it checks). It
         // is then used as read, never renormalized: the kernel stage weights it
         // as read, so the range, the frontier and both axis values share one
         // scale.
@@ -754,7 +753,7 @@ impl JointFactors {
         Ok(Self { kernels, kernel, deltas, parent, spread: high - low })
     }
 
-    /// Response under the unmodified source factors (the 2.1 baseline).
+    /// Response under the unmodified source factors (the baseline).
     fn baseline(&self) -> f64 {
         self.kernel.baseline()
     }
@@ -764,7 +763,7 @@ impl JointFactors {
         factor_bytes(self.deltas.len(), self.kernels.outcome_values.len())
     }
 
-    /// The 2.1 kernel stage at `fraction` (bit-equal to
+    /// The kernel stage at `fraction` (bit-equal to
     /// [`crate::z_transport_mechanism_sensitivity`]).
     fn kernel_stage(
         &self,
@@ -776,7 +775,7 @@ impl JointFactors {
             .map_err(|error| kernel_error(&ZTransportSensitivityError::InvalidSensitivity(error)))
     }
 
-    /// The 2.1 one-factor root-mechanism stage for the parent marginal alone.
+    /// The one-factor root-mechanism stage for the parent marginal alone.
     fn parent_stage(
         &self,
         fraction: f64,
@@ -796,11 +795,11 @@ impl JointFactors {
     /// Exact `(L, U)` at the box corner `(kernel, parent)` with the parent
     /// vertices that attain them (`None` when the parent is not perturbed).
     ///
-    /// `U = A + e_W max(max_w D+(w) - A, 0)` where `A` is the 2.1 kernel-stage
+    /// `U = A + e_W max(max_w D+(w) - A, 0)` where `A` is the kernel-stage
     /// maximum (`sum_w P_W(w) D+(w)`), which equals the closed form
     /// `(1 - e_W) A + e_W max_w D+(w)`; `max_w D+ >= A` holds exactly, so the
     /// clamp only removes rounding. At `e_W = 0` the kernel stage is returned
-    /// unchanged, which makes a single kernel factor bit-equal to 2.1. Nothing
+    /// unchanged, which makes a single kernel factor bit-equal to the one-factor result. Nothing
     /// is allocated: this is the bisection step of every frontier line.
     fn extrema_at(&self, kernel: f64, parent: f64) -> (f64, f64, Option<usize>, Option<usize>) {
         let (stage_min, stage_max) = self.kernel.extrema(kernel);
@@ -827,7 +826,7 @@ impl JointFactors {
         )
     }
 
-    /// [`Self::extrema_at`] with the 2.1 kernel witnesses.
+    /// [`Self::extrema_at`] with the kernel witnesses.
     fn bounds_at(
         &self,
         kernel: f64,

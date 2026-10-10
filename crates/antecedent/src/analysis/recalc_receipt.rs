@@ -1,4 +1,4 @@
-//! Selective recalculation with a visible receipt (2.3 C2).
+//! Selective recalculation with a visible receipt.
 //!
 //! [`antecedent_core::recalc`] decides, per stage, whether a workflow can reuse, must
 //! recompute, or must refuse. This module executes one minimal real route under that plan

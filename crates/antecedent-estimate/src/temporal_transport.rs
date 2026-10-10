@@ -7,7 +7,7 @@
 //! Support is reported per history and per step, and a history outside certified
 //! support refuses rather than being extrapolated. The claim is point-only: no
 //! temporal sampling interval, no initial-state uncertainty and no new-period
-//! refresh (2.3A).
+//! refresh.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -648,7 +648,7 @@ impl PreparedTemporalSequence {
         let refreshed = prepare_temporal_sequence(self.decision.clone(), data, self.limits, ctx)?;
         // The initial-state law (baseline and step-1 covariates) is fixed per
         // population: a refresh that moves the target's law of the initial state
-        // is initial-state uncertainty or a new period (2.3A), not fresh evidence
+        // is initial-state uncertainty or a new period, not fresh evidence
         // about the same sequence.
         let initial = |report: &HistorySupportReport| {
             report.rows.iter().filter(|r| r.step == 1).map(|r| r.target_mass).collect::<Vec<_>>()
@@ -663,7 +663,7 @@ impl PreparedTemporalSequence {
         if moved {
             return Err(refuse(&TemporalRefusal::horizon(
                 "the target's initial-state law changed; the initial state is fixed per \
-                 population, so a moved initial state is a new preparation (2.3A)",
+                 population, so a moved initial state is a new preparation",
             )));
         }
         Ok(refreshed)

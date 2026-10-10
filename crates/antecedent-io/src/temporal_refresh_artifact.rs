@@ -1,5 +1,5 @@
 //! Independent artifact for the semantic refresh of a prepared horizon-two result
-//! onto a new observation period (2.3A, X5 `new_period_refresh`).
+//! onto a new observation period (`new_period_refresh`).
 //!
 //! Format version 1. The artifact records the old and the new window identity (graph,
 //! horizon, lag alignment, intervention history, selection targets, regimes,

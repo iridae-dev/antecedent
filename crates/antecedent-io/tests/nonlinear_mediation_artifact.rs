@@ -1,4 +1,4 @@
-//! B4 nonlinear-mediation artifact: the exact-grid closed-form truth of the core tests through
+//! Nonlinear-mediation artifact: the exact-grid closed-form truth of the core tests through
 //! the container, a re-estimating consumer, resealed-mutation refusals against a retained
 //! identity, the premise and bootstrap records, unknown versions, the row cap and the unmeasured
 //! calibration coordinate with the closed interval status.

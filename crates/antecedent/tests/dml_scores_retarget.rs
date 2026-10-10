@@ -1,4 +1,4 @@
-//! Cross-fitted DML scores and their retarget covariance (2.2 E3 extension, work package C).
+//! Cross-fitted DML scores and their retarget covariance.
 //!
 //! The DML AIPW route keeps a row-identified per-arm score table built from its own
 //! out-of-fold nuisances, so a batch retarget reweights those scores and reports the joint

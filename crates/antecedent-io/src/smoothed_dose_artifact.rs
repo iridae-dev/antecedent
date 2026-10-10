@@ -1,6 +1,6 @@
 //! Independent point-result artifacts for the smoothed dose-response transport grid.
 //!
-//! Format version 1 of the 2.2B cell X4 artifact (`checked_smoothed_dose_transport_v1`).
+//! Format version 1 of the artifact (`checked_smoothed_dose_transport_v1`).
 //! A consumer never fits a learner or resamples. Before any replay work it refuses a
 //! stored bound that is looser than this build's compiled bound (compared field by field:
 //! a larger cap, a lower replicate floor or a node count this build does not offer; an

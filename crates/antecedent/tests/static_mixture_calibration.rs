@@ -1,4 +1,4 @@
-//! Coverage of static graph-posterior mixture intervals (R-19, R-11 / C-1).
+//! Coverage of static graph-posterior mixture intervals.
 //!
 //! A hand-built `GraphPosterior` has two identified DAG atoms whose effects
 //! differ plus one unidentified atom:

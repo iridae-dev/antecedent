@@ -1,4 +1,4 @@
-//! Independent artifacts for the DAG completions of a supplied CPDAG (2.3A X2).
+//! Independent artifacts for the DAG completions of a supplied CPDAG.
 //!
 //! Format version 1. The artifact binds the CPDAG (variables, directed and
 //! undirected edges), the shared coordinate schema, the question, the evidence

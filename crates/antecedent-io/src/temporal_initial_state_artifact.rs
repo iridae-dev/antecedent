@@ -1,5 +1,5 @@
 //! Independent artifact for the target-marginal initial-state estimand of the
-//! finite two-step sequence (2.3A, X5 `uncertain_initial_state`).
+//! finite two-step sequence (`uncertain_initial_state`).
 //!
 //! Format version 1. The artifact records the initial-state variable and the time
 //! order of the sequence's coordinates, the source and target regimes, the graph
@@ -13,7 +13,7 @@
 //! accepts only an artifact whose stored values, labels and identities are
 //! bit-for-bit what the replay produced.
 //!
-//! This artifact is not the 2.2 specified-initial-state sequence artifact: it
+//! This artifact is not the specified-initial-state sequence artifact: it
 //! carries a different feature marker, a different `kind`, no exact laws and no
 //! catalog, and neither decoder accepts the other's bytes. The two result labels
 //! are fixed strings and a consumer refuses a swapped or renamed label, so a

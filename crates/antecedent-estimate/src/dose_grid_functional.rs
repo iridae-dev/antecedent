@@ -1,9 +1,9 @@
-//! 2.3 B1 (X4): one complete response-grid row, a named functional of a
+//! One complete response-grid row, a named functional of a
 //! randomized-dose response curve with per-dose support.
 //!
 //! # The row
 //!
-//! One statement per axis the B1 contract requires.
+//! One statement per axis the contract requires.
 //!
 //! * **Estimand.** For a continuous dose `D` and outcome `Y`, the dose response
 //!   `m(d) = E[Y(d)]`. Exactly one *named functional* is requested per call:
@@ -40,8 +40,8 @@
 //! * **Inference claim.** A pointwise normal interval (heteroskedasticity-robust
 //!   sandwich standard error from the linearized influences) at one dose or for one
 //!   contrast, with calibration [`IntervalCalibration::Unmeasured`]: no coverage
-//!   claim is made and the public route stays closed until calibration is measured
-//!   at the release cut. Level, derivative and contrast claims are separate typed
+//!   claim is made and the public route stays closed while calibration is
+//!   unmeasured. Level, derivative and contrast claims are separate typed
 //!   fields, enabled separately through [`ClaimSet`]. A simultaneous band is a
 //!   different claim: requesting it is refused (`dose_grid.simultaneous_band_closed`)
 //!   and [`DoseGridRow::simultaneous_band`] is always `None`.
@@ -101,7 +101,7 @@ pub struct ClaimSet {
     pub simultaneous_band: bool,
 }
 
-/// Calibration status of an interval. Only `Unmeasured` exists in 2.3 B1.
+/// Calibration status of an interval. Only `Unmeasured` exists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IntervalCalibration {
     /// Coverage has not been measured; no coverage claim is made.

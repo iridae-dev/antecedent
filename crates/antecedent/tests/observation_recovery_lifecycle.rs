@@ -1,4 +1,4 @@
-//! 2.2B X10: prepared lifecycle, export and independent consumption of exact
+//! Prepared lifecycle, export and independent consumption of exact
 //! binary observation recovery, with the artifact mutation set.
 #![allow(clippy::float_cmp, reason = "the mutation needs two cells with different masses")]
 
@@ -394,7 +394,7 @@ fn a_mutated_artifact_fails_independent_consumption() {
     let mut claim = original.clone();
     claim.uncertainty = "calibrated".into();
     assert!(matches!(consume(&claim).unwrap_err(), RecoveryArtifactError::UnsupportedSemantics(_)));
-    // Every kind maps to a registered code and an X10 detail.
+    // Every kind maps to a registered code and an observation-recovery detail.
     assert_eq!(
         RecoveryArtifactError::PremisesMismatch.refusal(),
         ("transport_not_certified", "recovery.invalid_derivation")

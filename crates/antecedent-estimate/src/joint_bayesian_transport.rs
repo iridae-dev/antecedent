@@ -1,4 +1,4 @@
-//! Joint Bayesian source-target transport (2.3A cell X4, engine only).
+//! Joint Bayesian source-target transport.
 //!
 //! # The one model
 //!
@@ -9,7 +9,7 @@
 //! a randomized binary source treatment `A`, certified covariates `X` (the
 //! standardizers) and a continuous outcome `Y`, plus a target covariate sample.
 //!
-//! * **Graph class.** The fixed DAG and selection assumptions of the supplied 2.2
+//! * **Graph class.** The fixed DAG and selection assumptions of the supplied
 //!   certificate. An ADMG or a graph posterior is refused
 //!   (`route_not_supported`, `bayesian_transport.unsupported_graph`).
 //! * **Likelihood (one per source `s`, independent units).**
@@ -19,7 +19,7 @@
 //! * **Invariant mechanism.** `theta` is shared by every source and the target. With
 //!   `w = [A, A*x_1..A*x_p]` (the effect block) plus `[x_1..x_p]` when the covariate
 //!   main effects are invariant ([`VaryingBlock::Intercept`]). Mean exchangeability of
-//!   the 2.2 row is the statement that the whole outcome mechanism except the declared
+//!   the exact binary recovery row is the statement that the whole outcome mechanism except the declared
 //!   varying block transports.
 //! * **Varying mechanism.** `gamma_s` is a population-varying block that never
 //!   interacts with treatment: `v = [1]` ([`VaryingBlock::Intercept`]) or

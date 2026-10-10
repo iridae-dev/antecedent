@@ -1,11 +1,11 @@
-//! F7: generalized finite inverse decision query.
+//! Generalized finite inverse decision query.
 //!
 //! "Which of these declared actions satisfy these constraints?" over a finite,
 //! ordered action grid. Target-mean, target-quantile and probability-threshold
 //! constraints all run through the one typed functional engine on forward claims
 //! that actually supply the law each needs: a quantile or a probability needs an
 //! aligned joint law, a mean-only claim answers an affine target mean and nothing
-//! else, and independent marginals refuse a nonlinear utility. The 2.2 finite
+//! else, and independent marginals refuse a nonlinear utility. The finite
 //! enumeration stays available as [`finite_enumeration_baseline`] and agrees with the
 //! engine on target-mean cases.
 //!

@@ -576,7 +576,7 @@ pub fn hydrate_prior_from_posterior_bytes(
 /// Incompatible meaning, source identity, mapping, scale, or draw alignment.
 #[allow(
     clippy::too_many_lines,
-    reason = "keep the complete F19 refusal and transfer boundary together"
+    reason = "keep the complete refusal and transfer boundary together"
 )]
 pub fn mapped_posterior_transfer(
     bytes: &[u8],

@@ -1,4 +1,4 @@
-//! 2.3A X10: sampled observation recovery against an enumerated binary
+//! Sampled observation recovery against an enumerated binary
 //! missingness SCM, its refusals and its replayable receipt. Interval calibration
 //! is unmeasured here: nothing below asserts a coverage claim.
 #![allow(

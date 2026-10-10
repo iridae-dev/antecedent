@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment artifact (`vector_treatment_v1`).
+//! Joint vector-treatment artifact (`vector_treatment_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one joint fit of `k >= 2` treatments that
 //! share ONE adjustment set and ONE row snapshot:

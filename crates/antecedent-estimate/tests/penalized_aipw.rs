@@ -1,4 +1,4 @@
-//! Penalized-propensity cross-fitted AIPW (2.2 E2): the ridge and lasso routes fit and replay,
+//! Penalized-propensity cross-fitted AIPW: the ridge and lasso routes fit and replay,
 //! tune their penalty (and a lasso's support) on training rows only, keep the score table, row
 //! identity, overlap report and retargeting, publish the cross-fitted influence-function SE and
 //! the refit-bootstrap SE (which repeats penalty selection in every replicate), and the

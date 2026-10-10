@@ -1,5 +1,5 @@
 //! Exact enumerated latent-variable structural causal models for the
-//! counterfactual-identification tests (2.2B X8).
+//! counterfactual-identification tests.
 //!
 //! Every observed variable `V` takes levels `0..card(V)` and is a deterministic
 //! function of its observed parents, the binary latent of every bidirected edge

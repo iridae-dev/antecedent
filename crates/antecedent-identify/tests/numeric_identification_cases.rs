@@ -1,5 +1,5 @@
-//! R13 `tests-quality-5`: numeric identification fixtures the transport sweeps
-//! and status-only visibility pins omit.
+//! Numeric identification fixtures the transport sweeps and status-only
+//! visibility pins omit.
 //!
 //! Each case builds a hand-derived binary SCM, identifies from the graph alone,
 //! and checks the identified expression or its numeric value against truncated
@@ -40,8 +40,10 @@ const fn bit(word: usize, index: usize) -> usize {
 }
 
 fn fixture() -> Json {
-    serde_json::from_str(include_str!("../../../conformance/identify/r13_quality5/expected.json"))
-        .unwrap()
+    serde_json::from_str(include_str!(
+        "../../../conformance/identify/numeric_identification_cases/expected.json"
+    ))
+    .unwrap()
 }
 
 fn case<'a>(fixture: &'a Json, id: &str) -> &'a Json {

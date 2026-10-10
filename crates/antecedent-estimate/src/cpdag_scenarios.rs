@@ -1,4 +1,4 @@
-//! Preparation and evaluation of the DAG completions of a supplied CPDAG (2.3A X2).
+//! Preparation and evaluation of the DAG completions of a supplied CPDAG.
 //!
 //! The identify layer enumerates the completions and decides each one through
 //! the 2.2 classical catalog route with evidence bound to that completion. This

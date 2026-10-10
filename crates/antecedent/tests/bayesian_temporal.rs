@@ -1,4 +1,4 @@
-//! Coverage of Bayesian temporal Pulse / Sustained credible intervals (R-9).
+//! Coverage of Bayesian temporal Pulse / Sustained credible intervals.
 //!
 //! Every replicate runs the staged `Study` path. The treatment and the outcome
 //! residual are independent stationary processes of one noise family

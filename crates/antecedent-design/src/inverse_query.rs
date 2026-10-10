@@ -1,4 +1,4 @@
-//! Generalized finite inverse decision query (F7).
+//! Generalized finite inverse decision query.
 //!
 //! The question is "which of these declared actions satisfy these constraints?"
 //! over a finite, ordered action grid. Three constraint kinds run through the
@@ -47,7 +47,7 @@
 //!   find a feasible point, but that is never reported as a global feasibility
 //!   claim; continuous optimization is separately scoped.
 //!
-//! The 2.2 finite-enumeration baseline stays available as
+//! The finite-enumeration baseline stays available as
 //! [`finite_enumeration_baseline`], independent of the engine.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -503,7 +503,7 @@ pub struct EnumeratedForwardValue {
     pub supported: bool,
 }
 
-/// The 2.2 finite-enumeration baseline: classify each enumerated action by its
+/// The finite-enumeration baseline: classify each enumerated action by its
 /// forward mean against `target`, within `tolerance`. An action off the
 /// evaluated grid is `Unevaluated`, never interpolated; an unsupported one is
 /// `Unsupported`. It uses no distribution engine, so it is the independent

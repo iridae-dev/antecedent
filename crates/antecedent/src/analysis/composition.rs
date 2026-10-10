@@ -1,4 +1,4 @@
-//! C3 facade: build, export and independently consume a portable composed result.
+//! Composition facade: build, export and independently consume a portable composed result.
 //!
 //! A [`BundleBuilder`] collects the parts of a composed decision as nodes of a
 //! typed graph: artifacts embedded from their bytes (a distribution, an external

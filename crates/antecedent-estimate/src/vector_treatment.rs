@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment coefficients: several treatments estimated *together* by one
+//! Joint vector-treatment coefficients: several treatments estimated *together* by one
 //! ordinary-least-squares regression that shares ONE adjustment set and ONE row snapshot.
 //!
 //! # Contract

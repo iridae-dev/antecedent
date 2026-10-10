@@ -568,7 +568,7 @@ fn frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage() {
     tally.assert();
 }
 
-// R-17: serially dependent errors (AR(1) in the exogenous confounder and the
+// Serially dependent errors (AR(1) in the exogenous confounder and the
 // outcome innovation). The shared circular block is the dependence-honest
 // interval these cells license, so these assert nominal coverage.
 
@@ -816,7 +816,7 @@ fn frequentist_temporal_pag_pulse_envelope_nominal_90_coverage() {
 // Bayesian TemporalDag (staged path)
 // ---------------------------------------------------------------------------
 
-/// R-18: single-step Pulse through `Study::series(..).build().run`, so the
+/// Single-step Pulse through `Study::series(..).build().run`, so the
 /// staged prior / dispatch path is what gets calibrated.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -847,7 +847,7 @@ fn bayesian_temporal_dag_pulse_staged_nominal_90_coverage() {
     reported.emit();
 }
 
-/// R-18: both intervened lags carry distinct nonzero effects, so the composed
+/// Both intervened lags carry distinct nonzero effects, so the composed
 /// truth `B1 + B2` tests propagation through every intervened time.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
@@ -1768,7 +1768,7 @@ fn pag_identified_truth() -> f64 {
 }
 
 // ---------------------------------------------------------------------------
-// Non-ignored fixture sanity (R-15 / R-16)
+// Non-ignored fixture sanity
 // ---------------------------------------------------------------------------
 
 const SANITY_N: usize = 20_000;
@@ -1818,7 +1818,7 @@ fn heterogeneous_dbn_fixture_has_disagreeing_atoms_and_unidentified_mass() {
     }
 }
 
-/// R-16: the Frequentist DBN path exposes its mass split on the
+/// The Frequentist DBN path exposes its mass split on the
 /// `estimate.dbn_posterior.frequentist` diagnostic and as `GraphDependent`
 /// status; the Bayesian path on `posterior.unidentified_mass`. Both must equal
 /// the fixture's known unidentified weight.
@@ -1849,7 +1849,7 @@ fn dbn_mixture_functional_retains_unidentified_mass() {
 /// (sampling correlation ≈ 0.17 between the adjusted and unadjusted slopes), so
 /// the shared SE sits a few percent above the independent combination. The
 /// 1.1× margin the CPDAG pin uses was only reachable while the raw-row resample
-/// inflated every mixture SE (F1); the strict inequality is what the
+/// inflated every mixture SE; the strict inequality is what the
 /// positive cross-atom covariance implies.
 #[test]
 fn heterogeneous_dbn_shared_block_se_carries_cross_atom_covariance() {
@@ -2031,7 +2031,7 @@ fn run_confounded_mediation_study(
     run_study(study, ctx_seed)
 }
 
-/// WP-F2: with the mediator-outcome confounder `w[t-1]` present (`kappa =
+/// With the mediator-outcome confounder `w[t-1]` present (`kappa =
 /// 0.5`), a plain `TemporalDag` recovers Total, Direct and Mediated in both
 /// inference modes, for every requested contrast, and reports the adjustment
 /// set it used. Adjusting only the `t -> y` back-door set (empty) gave

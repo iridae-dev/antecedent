@@ -1,4 +1,4 @@
-//! Independent-process consumption of a bounded 2.3 joint distribution artifact.
+//! Independent-process consumption of a bounded joint distribution artifact.
 
 use antecedent_core::{QuantityRole, ScientificQuantity};
 use antecedent_io::distribution_artifact::{

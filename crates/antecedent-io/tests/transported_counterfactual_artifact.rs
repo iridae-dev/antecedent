@@ -1,4 +1,4 @@
-//! 2.3.0 A5 transported static path-specific counterfactual artifact: hand-derived oracle values
+//! Transported static path-specific counterfactual artifact: hand-derived oracle values
 //! through the container, a recomputing consumer, resealed-mutation refusals against a retained
 //! identity (premise, law, coefficient, selection, assignment), false-labelled premises,
 //! refusals that are never stored, unknown versions and bounds.

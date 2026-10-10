@@ -1,4 +1,4 @@
-//! Learned continuous-outcome trial transport (2.2A cell X4): known-truth execution under
+//! Learned continuous-outcome trial transport: known-truth execution under
 //! both sampling designs, overlap refusals, the estimator menu, thread-budget invariance,
 //! the prepared lifecycle, the independently consumed artifact and the closed interval route.
 //!

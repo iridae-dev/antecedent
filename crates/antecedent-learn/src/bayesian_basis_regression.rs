@@ -1,5 +1,5 @@
 //! Known-variance Bayesian basis regression: the outcome-mechanism model object of the
-//! learned joint source-target transport row (2.3A cell X4 remainder, B1 model provider).
+//! learned joint source-target transport row.
 //!
 //! `antecedent-learn` owns the **basis declaration** ([`PolynomialBasis`]) and the **fitted
 //! Gaussian model** ([`KnownVarianceBasisRegression`]): a dense Gaussian coefficient prior,

@@ -1,4 +1,4 @@
-//! B4 latent-class (finite mixture) regime effects.
+//! Latent-class (finite mixture) regime effects.
 //!
 //! Oracle: a deterministic, exactly balanced two-class design whose classes are so far apart that
 //! every posterior responsibility is exactly 0 or 1 at the generating parameters. At such a

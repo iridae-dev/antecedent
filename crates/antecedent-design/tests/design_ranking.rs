@@ -1,7 +1,7 @@
-//! F14 / X6: the in-memory `DesignRanking` value, its order-invariant identity, replay
-//! checks, and the preserved 2.2 structural ordering.
+//! The in-memory `DesignRanking` value, its order-invariant identity, replay
+//! checks, and the preserved structural ordering.
 //!
-//! Oracles (frozen F14 record, enumerated by hand): binary state, guess it for utility 1 if
+//! Oracles (frozen guess decision, enumerated by hand): binary state, guess it for utility 1 if
 //! right, prior 1/2. A signal of accuracy `a` has `EVSI = a - 1/2`: accuracy 3/4 gives 1/4
 //! and accuracy 5/8 gives 1/8. With an identical utility-unit cost of 1/10 the net values are
 //! `1/4 - 1/10 = 3/20` and `1/8 - 1/10 = 1/40`, in that order. A noisy signal of accuracy
@@ -326,7 +326,7 @@ fn overlapping_source_data_and_incompatible_cost_units_refuse_before_ranking() {
 
 #[test]
 fn noisy_candidate_regret_differs_from_its_structural_unlock_rank() {
-    // Structurally "noisy" is verified sufficient and cheapest, so the 2.2 order puts it first.
+    // Structurally "noisy" is verified sufficient and cheapest, so the structural order puts it first.
     let structural = vec![
         StructuralCandidate {
             semantic_id: "precise".into(),

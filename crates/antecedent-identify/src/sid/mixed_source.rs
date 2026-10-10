@@ -1,4 +1,4 @@
-//! Bounded mixed-source proof search (X9): identification from complementary
+//! Bounded mixed-source proof search: identification from complementary
 //! distributions of several studies of one population.
 //!
 //! The theorem-scoped routes run first, in a fixed order, under the same
@@ -440,7 +440,7 @@ pub fn validate_mixed_source_query(
             exclusions.push(exclude("not_available"));
             continue;
         }
-        // 2.2B X10 (B6 audit D3): a recovered law is a derived law, neither a
+        // A recovered law is a derived law, neither a
         // model artifact nor a posterior; it is excluded under its own reason in
         // either kind (fail-closed, no new refusal detail).
         if matches!(distribution.origin, LawOrigin::Recovered { .. }) {
@@ -2031,7 +2031,7 @@ pub fn decide_mixed_source(
 }
 
 /// [`decide_mixed_source`] charging a budget an enclosing plan already shares
-/// (the X6 study planner re-decides each preview catalog on it). Validation,
+/// (the study planner re-decides each preview catalog on it). Validation,
 /// stages and outcomes are exactly those of the public route; the caller owns
 /// the limits.
 ///

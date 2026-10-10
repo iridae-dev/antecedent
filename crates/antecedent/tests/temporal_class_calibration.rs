@@ -1,7 +1,7 @@
 //! Coverage of temporal class envelopes not covered by `mixture_interval_calibration`
-//! (WP-H): Frequentist multi-step Sustained on `TemporalCpdag` / `TemporalPag`,
+//! Frequentist multi-step Sustained on `TemporalCpdag` / `TemporalPag`,
 //! `TemporalPag` Sustained in both inference modes, AR(1) variants of the
-//! `TemporalPag` cells, and the identified-set interval (C-3 / K-2).
+//! `TemporalPag` cells, and the identified-set interval.
 //!
 //! The `TemporalPag` fixture is [`fixtures::chain_pag`] (the structure of
 //! `conformance/estimate/temporal_class_envelope/identified_pag.json`): six
@@ -672,7 +672,7 @@ fn frequentist_temporal_pag_one_completion_sustained_ar1_rho05_n160_nominal_90_c
 }
 
 // ---------------------------------------------------------------------------
-// Identified-set intervals (C-3 Frequentist, K-2 Bayesian no-ClassPrior)
+// Identified-set intervals (Frequentist, and Bayesian without a ClassPrior)
 // ---------------------------------------------------------------------------
 
 /// Scores `structural_response.identified_set_interval` against the causal effect

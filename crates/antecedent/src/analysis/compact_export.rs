@@ -1,4 +1,4 @@
-//! B4 compact runtime export: a coefficient vector, its full covariance, the finite basis, the
+//! Compact runtime export: a coefficient vector, its full covariance, the finite basis, the
 //! declared support of every input and a refusal mask, sealed under one identity and consumable
 //! by an independent verifier that rejects out-of-support and masked queries and tampered
 //! identities.

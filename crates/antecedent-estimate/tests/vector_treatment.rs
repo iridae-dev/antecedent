@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment coefficients: hand-derived OLS coefficients, the full covariance
+//! Joint vector-treatment coefficients: hand-derived OLS coefficients, the full covariance
 //! matrix `sigma^2 (X'X)^-1` (off-diagonals included), contrast variances `w' V w`, HC sandwiches
 //! written out row by row, a Frisch--Waugh closed-form check with an adjustment column, the
 //! joint Wald statistic, and the typed refusals. Calibration (coverage, Type I error, power) is

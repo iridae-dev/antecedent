@@ -1,5 +1,5 @@
-//! Independent artifact of the learned joint source-target transport row (2.3A cell X4
-//! remainder and 2.3B B1 model-provider row `learned_joint_transport`). The original
+//! Independent artifact of the learned joint source-target transport row
+//! (`learned_joint_transport`). The original
 //! candidate format and its posterior quantities retain their `unmeasured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
@@ -7,7 +7,7 @@
 //!
 //! Format version 1. The artifact carries the model declaration (graph class, polynomial
 //! basis degree, varying block, sharing, dependence, bounds), both priors with their
-//! provenance, the checked 2.2 transport identification the model reads, the draw request,
+//! provenance, the checked transport identification the model reads, the draw request,
 //! the source and target identities with the observations themselves, and the result: the
 //! exact posterior moments of the `antecedent-learn` fit, the aligned joint draws with their
 //! RNG identity, the diagnostics (including the basis rank), the graph / provider / query
@@ -27,7 +27,7 @@
 //! The artifact embeds the observations (units), not sufficient statistics, because the
 //! core's fit entry takes units and a re-fit from units reproduces the draws bit for bit.
 //! What replay does not protect against: a producer that supplies fabricated observations
-//! consistently, and the 2.2 derivation the identification record copies, which is a
+//! consistently, and the derivation the identification record copies, which is a
 //! declared premise bound into the premises digest, not re-derived here.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -486,7 +486,7 @@ pub struct LearnedJointArtifactWire {
     pub required_features: Vec<String>,
     /// Model declaration with basis and priors.
     pub model: LearnedModelWire,
-    /// The checked 2.2 transport identification the model reads.
+    /// The checked transport identification the model reads.
     pub identification: TransportIdentificationWire,
     /// Draw request.
     pub options: JointOptionsWire,

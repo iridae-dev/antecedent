@@ -1,4 +1,4 @@
-//! Stage model for selective recalculation (2.3 C2).
+//! Stage model for selective recalculation.
 //!
 //! A causal workflow is a small directed graph of stages: declared inputs (graph, query,
 //! regime, evidence, populations, data snapshot, row design, treatment grid,

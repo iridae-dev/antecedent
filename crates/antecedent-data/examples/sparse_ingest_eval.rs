@@ -1,5 +1,5 @@
 //! One-off evaluation of dense versus CSC-style design-matrix materialization for a wide
-//! binary-column adjustment set (the ~3,000-column case of TODO.md E7).
+//! binary-column adjustment set (the ~3,000-column case).
 //!
 //! Run with
 //! `cargo run --release -p antecedent-data --example sparse_ingest_eval [-- ROWS COLS DENSITY]`

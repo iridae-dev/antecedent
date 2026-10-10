@@ -1,4 +1,4 @@
-//! 2.3 C2 stage model: data-driven mutation tables for `RecalcPlan`.
+//! Stage model: data-driven mutation tables for `RecalcPlan`.
 //!
 //! Each mutation asserts the complete per-stage status table (stage label and status), that
 //! every reused stage keeps an identical effective identity, and that every in-process

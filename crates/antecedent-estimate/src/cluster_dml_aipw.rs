@@ -1,4 +1,4 @@
-//! Cluster-aware cross-fitted AIPW (2.2 E4): the independence unit is a declared cluster.
+//! Cluster-aware cross-fitted AIPW: the independence unit is a declared cluster.
 //!
 //! Rows of one cluster are never split across cross-fit folds, so the nuisances scoring a
 //! cluster are fit on other clusters only, and the dependence enters the *score* level: the

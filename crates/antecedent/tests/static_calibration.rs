@@ -1,4 +1,4 @@
-//! Repeated-sampling coverage for the remaining static cells (R-19, R-17).
+//! Repeated-sampling coverage for the remaining static cells.
 //!
 //! Static responses (Kennedy-DR curve bands, the g-computation intervention
 //! level, the `cell.aipw` joint cell mean, and the CPDAG class-aware joint-IF
@@ -8,7 +8,7 @@
 //! path-specific effects, interventional distributions near 0 and 1, and the
 //! Bayesian counterfactual mean ITE. Each DGP is inside the cell's stated
 //! assumptions; the truth is derived next to each generator. Probes outside a
-//! cell's assumptions (the R-17 `bayesian.gcomp` misspecification, the
+//! cell's assumptions (the `bayesian.gcomp` misspecification, the
 //! Bayesian response scored against the population rather than the
 //! sample-covariate target, a mediator–outcome-confounded mediation law)
 //! print their measured coverage with `CoverageTally::report`-style lines and
@@ -988,7 +988,7 @@ fn mediation_nie_bayesian_nominal_90_coverage() {
 /// Mediator–outcome confounder `x -> m` (γ = 0.7) that is in the graph but not
 /// in the treatment's back-door set. The static linear estimator regresses every
 /// node on its graph parents, so `y` is adjusted for `x`; this probe records the
-/// point bias and coverage on that law (identification work is WP-F2's).
+/// point bias and coverage on that law.
 #[test]
 #[ignore = "calibration: run via scripts/gate_calibration.sh"]
 fn mediation_confounded_mediator_probe() {
@@ -1420,7 +1420,7 @@ fn counterfactual_bayesian_mean_ite_boundary_within_band() {
 }
 
 // ======================================================================
-// R-17: bayesian.gcomp AverageEffect under a misspecified outcome
+// Bayesian.gcomp AverageEffect under a misspecified outcome
 // ======================================================================
 
 /// Columns `t, y, z`: `z ~ N(0,1)`, `t ~ Bern(σ(−0.8 + z))`,

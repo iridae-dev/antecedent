@@ -1,5 +1,5 @@
 //! Counterfactual identification on a bounded ADMG: the effect of treatment
-//! on the treated from the observational joint (2.2B, X8).
+//! on the treated from the observational joint.
 //!
 //! One cell: `P(Y_x = y | X = x')` with `x != x'`, its distribution over every
 //! level of `Y` and the contrast `E[Y_x | X = x'] - E[Y | X = x']`, on an

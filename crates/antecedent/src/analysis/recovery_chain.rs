@@ -1,4 +1,4 @@
-//! 2.3 B2 (X10 second row): ordered-response recovery of a two-variable binary
+//! Ordered-response recovery of a two-variable binary
 //! m-graph, and its portable, independently consumable artifact.
 //!
 //! The row is exactly the graphs the 2.2 observation-recovery route refuses because

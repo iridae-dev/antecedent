@@ -1,4 +1,4 @@
-//! X8 transported static path-specific counterfactual: hand-derived oracle,
+//! Transported static path-specific counterfactual: hand-derived oracle,
 //! enumeration over a finite exogenous space, refusals and the nonrecoverability witness.
 //!
 //! Structural model (covariate Z, treatment A, mediator M, outcome Y):

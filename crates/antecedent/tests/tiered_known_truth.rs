@@ -114,7 +114,7 @@ fn assert_graph_conflict(result: Result<impl std::fmt::Debug, CausalError>) {
     }
 }
 
-/// R-7: a caller ADMG and a tier background are two sources of truth. The
+/// A caller ADMG and a tier background are two sources of truth. The
 /// AverageEffect route keys off the background, so the ADMG (here with a
 /// drawn `t ↔ y` edge that defeats adjustment) must be refused, not ignored.
 #[test]

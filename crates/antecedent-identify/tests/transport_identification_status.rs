@@ -46,7 +46,7 @@ fn scenario_and_temporal_status_spellings_read_as_their_canonical_kind() {
         (ScenarioOutcome::MissingEvidence { obligations: notes() }, K::MissingEvidence),
         (ScenarioOutcome::NotCertified { obligations: notes() }, K::NotCertified),
         (ScenarioOutcome::Unevaluated { stop: SearchStop::Cancelled }, K::BudgetCancel),
-        // A conditional scenario question (2.2B B1) the bounded route did not
+        // A conditional scenario question the bounded route did not
         // certify: not certified, never proven non-transportable.
         (
             ScenarioOutcome::ConditionalNotCertified { obligations: notes(), candidate: None },

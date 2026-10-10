@@ -1,6 +1,6 @@
-//! F11: typed candidate-signal providers (native families and an external signal).
+//! Typed candidate-signal providers (native families and an external signal).
 //!
-//! Oracle (frozen F11 record, enumerated by hand): a binary latent state
+//! Oracle (frozen signal-provider record, enumerated by hand): a binary latent state
 //! `theta in {0, 1}` with prior `P(theta = 1) = 1/2`, and one signal `y` with
 //! sensitivity `P(y = 1 | theta = 1) = 3/4` and specificity `P(y = 0 | theta = 0) = 3/4`.
 //! Then `P(y = 1) = 1/2 * 3/4 + 1/2 * 1/4 = 1/2`, and by Bayes
@@ -84,7 +84,7 @@ const FACTOR_CAPS: [ExternalCapability; 3] =
 const UPDATE_CAPS: [ExternalCapability; 2] =
     [ExternalCapability::Sample, ExternalCapability::Update];
 
-/// The frozen F11 law as an externally computed posterior.
+/// The frozen signal-provider law as an externally computed posterior.
 fn frozen_posterior() -> ExternalLaw {
     ExternalLaw::Posterior {
         states: vec![0.0, 1.0],

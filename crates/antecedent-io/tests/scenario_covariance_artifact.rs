@@ -1,4 +1,4 @@
-//! 2.3A A1 (X2): independent recomputation of the shared-data covariance.
+//! Independent recomputation of the shared-data covariance.
 //!
 //! The units are the six complete rows `(z, x, y)` the estimate-layer oracle uses. The
 //! declared scenarios are linear plug-in scores (closed form `(E[ab] - E[a]E[b]) / n`

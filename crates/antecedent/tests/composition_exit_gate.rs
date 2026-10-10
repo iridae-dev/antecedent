@@ -1,4 +1,4 @@
-//! 2.2 A exit gate: six end-to-end user stories, one test each.
+//! Six end-to-end composition user stories, one test each.
 //!
 //! Every story runs start to finish in ONE test through the public facade:
 //! it builds its own graph, catalog and evidence from scratch (nothing here is
@@ -159,7 +159,7 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Story 1 (X1): a multi-source limited-experiment effect requiring complementary sources.
+// Story 1: a multi-source limited-experiment effect requiring complementary sources.
 // ---------------------------------------------------------------------------
 //
 // `z1 -> x -> z2 -> y` with `z1 <-> x`, `z1 <-> z2`, `z1 <-> y`. Source `a` changes the
@@ -466,7 +466,7 @@ fn story_1_multi_source_limited_experiment_effect_requiring_complementary_source
 }
 
 // ---------------------------------------------------------------------------
-// Story 2 (X2): a finite structural scenario set retaining identified, unidentified and
+// Story 2: a finite structural scenario set retaining identified, unidentified and
 // unevaluated members without renormalization.
 // ---------------------------------------------------------------------------
 
@@ -779,7 +779,7 @@ fn story_2_finite_scenario_set_retains_identified_unidentified_and_unevaluated_m
 }
 
 // ---------------------------------------------------------------------------
-// Story 3 (X4): an overlap-supported learned transport estimate for the one chosen
+// Story 3: an overlap-supported learned transport estimate for the one chosen
 // continuous-outcome cell. Coverage is attested separately.
 // ---------------------------------------------------------------------------
 
@@ -973,7 +973,7 @@ fn refreshed_export(result: &antecedent::LearnedContinuousResult) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
-// Story 4 (X5): a two-step discrete temporal transported intervention with history-support
+// Story 4: a two-step discrete temporal transported intervention with history-support
 // refusal.
 // ---------------------------------------------------------------------------
 
@@ -1271,7 +1271,7 @@ fn story_4_two_step_temporal_transport_with_history_support_refusal() {
 }
 
 // ---------------------------------------------------------------------------
-// Story 5 (X8): a second fixed-DAG cross-world query with shared-abduction semantics and
+// Story 5: a second fixed-DAG cross-world query with shared-abduction semantics and
 // typed refusal.
 // ---------------------------------------------------------------------------
 
@@ -1475,7 +1475,7 @@ fn story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_typed_re
 }
 
 // ---------------------------------------------------------------------------
-// Story 6 (X9): a mixed-source proof found by bounded search, plus an incomplete-search
+// Story 6: a mixed-source proof found by bounded search, plus an incomplete-search
 // case that stays unresolved.
 // ---------------------------------------------------------------------------
 

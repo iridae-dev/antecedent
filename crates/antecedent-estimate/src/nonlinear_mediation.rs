@@ -1,4 +1,4 @@
-//! Nonlinear continuous-mediator mediation (B4).
+//! Nonlinear continuous-mediator mediation.
 //!
 //! Estimand (primary): the natural direct and natural indirect effects of a binary treatment
 //! `A` on `Y` through a continuous mediator `M`, averaged over the observed covariate rows:
@@ -34,7 +34,7 @@ use crate::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 use std::f64::consts::{PI, SQRT_2};
 
-/// Calibration status of the estimator's inference. Measured only at the release cut.
+/// Calibration status of the estimator's inference. Coverage is unmeasured.
 pub const NONLINEAR_MEDIATION_CALIBRATION: &str = "unmeasured";
 /// Interval status: standard errors are reported, public intervals are closed.
 pub const NONLINEAR_MEDIATION_INTERVAL_STATUS: &str = "closed_calibration_unmeasured";

@@ -1,4 +1,4 @@
-//! F12: EVSI through the existing `ReduceDecisionRegret` path with declared
+//! EVSI through the existing `ReduceDecisionRegret` path with declared
 //! integration, cost mapping, ties, truncation and source-overlap refusals.
 //!
 //! Independent oracles (constants written out; nothing is read from the code under test):
@@ -22,7 +22,7 @@
 //!   `P(y) = (5/16, 6/16, 5/16)` and `P(theta = 1/4 | y) = (9/10, 1/2, 1/10)`. The bet's
 //!   posterior value is `(-1/5, 0, 1/5)`; the prior value of both actions is 0. Then
 //!   `EVSI = 5/16 * 1/5 = 1/16` and `EVPI = 1/2 * (0 + 1/4) = 1/8`.
-//! * Frozen F12 record: binary state, guess the state (utility 1 if right), prior 1/2, signal
+//! * Frozen EVSI record: binary state, guess the state (utility 1 if right), prior 1/2, signal
 //!   accuracy `a`. Current value 1/2, post-signal value `a`, `EVSI = a - 1/2`, `EVPI = 1/2`.
 //!   `a = 3/4` gives `EVSI = 1/4` and, with a utility-unit cost 1/10, net `3/20`.
 
@@ -379,7 +379,7 @@ fn monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
     assert!(!strict.candidates[0].integration.converged);
 }
 
-/// The frozen F12 decision: guess the binary state; accuracy `a` gives EVSI `a - 1/2`.
+/// The frozen EVSI decision: guess the binary state; accuracy `a` gives EVSI `a - 1/2`.
 fn guess_problem() -> DecisionProblem<usize, f64> {
     // guess0 pays 1 - theta, guess1 pays theta.
     let utility = AffineUtility::new(vec![1.0, 0.0], vec![-1.0, 1.0]).unwrap();

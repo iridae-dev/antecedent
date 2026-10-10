@@ -1,5 +1,5 @@
-//! Facade-level adapters from the real 2.2 scenario claims into decision atoms
-//! and per-action intervals (2.3 B). Every expected value is derived by hand
+//! Facade-level adapters from the real scenario claims into decision atoms
+//! and per-action intervals. Every expected value is derived by hand
 //! from the laws below.
 //!
 //! The scenarios share `z -> x`, `z -> y`, `x -> y`, `x <-> y` and differ in the

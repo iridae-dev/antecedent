@@ -1,4 +1,4 @@
-//! B4 categorical treatments: group-mean closed forms for the dummy-coded regression, contrast
+//! Categorical treatments: group-mean closed forms for the dummy-coded regression, contrast
 //! variances from the full covariance, Holm multiplicity written out, sparse/absent level
 //! refusals, unordered level-permutation invariance, and the declared monotonicity test with
 //! hand-derived statistics. Calibration (Type I error, power) is deliberately NOT measured here.

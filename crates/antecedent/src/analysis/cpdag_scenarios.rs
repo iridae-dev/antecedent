@@ -1,5 +1,5 @@
 //! DAG completions of a supplied CPDAG as one finite scenario set, and the
-//! shared-data covariance of scenario estimates (2.3A X2).
+//! shared-data covariance of scenario estimates.
 //!
 //! Preparation enumerates the completions of the CPDAG (at most six fully
 //! observed nodes), binds evidence to each completion, decides each through the

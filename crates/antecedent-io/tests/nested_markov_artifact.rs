@@ -1,4 +1,4 @@
-//! 2.3A A3 (X4) `x4_nested_fit_replay`: the binary nested-Markov pilot receipt (graph id,
+//! The binary nested-Markov pilot receipt (graph id,
 //! parameterization, regime counts, fit receipt, diagnostics and three separate status
 //! fields) replays independently.
 //!

@@ -9,7 +9,7 @@
 //! outcome's declared domain (from the set's shared coordinate schema, not from
 //! the atoms the identified distributions happen to carry).
 //!
-//! A conditional question (2.2B B1) compiles each identified scenario through
+//! A conditional question compiles each identified scenario through
 //! the existing ADMG conditional prepared path: the reduced joint's exact plan
 //! at `do(x, w')`, normalized at the requested `w''`. A zero-mass conditioning
 //! event is that scenario's `support_failure`. Counted laws are refused for a

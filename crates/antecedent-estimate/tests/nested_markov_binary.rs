@@ -1,4 +1,4 @@
-//! 2.3A A3 (X4): binary nested-Markov likelihood pilot against an enumerated
+//! Binary nested-Markov likelihood pilot against an enumerated
 //! latent-variable SCM. The oracle below sums the latent variable out by hand and
 //! calls nothing in the code under test.
 #![allow(

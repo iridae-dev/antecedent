@@ -2031,7 +2031,7 @@ pub(super) fn merge_posterior_notes<'a>(
 /// never a count of fits, which the de-duplication cannot recover.
 ///
 /// - `estimate.bayesian.temporal.dependence_correction`: the likelihood was tempered
-///   for serial dependence (R-9); lists every fitted `κ̂`.
+///   for serial dependence; lists every fitted `κ̂`.
 /// - `estimate.bayesian.hmc_draw_floor`: the HMC draw floor raised the requested
 ///   draw count (B-5).
 pub(super) fn posterior_note_diagnostics<'a>(

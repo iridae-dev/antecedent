@@ -1,4 +1,4 @@
-//! B4 joint vector-treatment coefficients: several treatments estimated *together* by one
+//! Joint vector-treatment coefficients: several treatments estimated *together* by one
 //! regression that shares ONE adjustment set and ONE row snapshot, with the named coefficient
 //! vector, its full covariance (off-diagonals included), declared contrasts and a portable,
 //! independently consumable artifact.

@@ -1,4 +1,4 @@
-//! B4 categorical treatments: ordered and unordered regimes, a declared reference level,
+//! Categorical treatments: ordered and unordered regimes, a declared reference level,
 //! per-level and requested pairwise contrasts with the covariance of the dummy-coded
 //! regression, Holm multiplicity over the declared family, and a declared monotonicity test for
 //! ordered levels.

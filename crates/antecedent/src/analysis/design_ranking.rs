@@ -1,4 +1,4 @@
-//! F11/F12/F14 facade: candidate signals, preposterior EVSI with a cost mapping, and the
+//! Design-ranking facade: candidate signals, preposterior EVSI with a cost mapping, and the
 //! durable `design_ranking_v1` ranking artifact.
 //!
 //! A caller declares the decision (terminal actions, an affine utility in a scalar state, a
@@ -618,7 +618,7 @@ pub fn evaluate(
     Ok(DesignRankingEvaluation { report, ranking, wire: artifact })
 }
 
-/// The 2.2 ordering when no probabilistic model is licensed: verified structural
+/// The structural ordering when no probabilistic model is licensed: verified structural
 /// sufficiency, then fewer cost units, then smaller sample budget, then semantic id.
 ///
 /// # Errors

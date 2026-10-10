@@ -1,4 +1,4 @@
-//! F7: the durable inverse-query artifact (`inverse_functional_query_v1`).
+//! The durable inverse-query artifact (`inverse_functional_query_v1`).
 //!
 //! Ordered actions `a0, a1, a2` have outcome laws Bernoulli(1/4, 1/2, 3/4), realized as
 //! four equiprobable aligned rows (see `tests/inverse_query.rs`):

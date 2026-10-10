@@ -1,4 +1,4 @@
-//! Exact binary causal observation recovery (2.2B X10): graph-licensed recovery
+//! Exact binary causal observation recovery: graph-licensed recovery
 //! of the full law of partially observed binary variables, not MAR/IPCW.
 //!
 //! # Model class

@@ -1,4 +1,4 @@
-//! 2.3A X5 `uncertain_initial_state`: the target-marginal initial-state artifact replays
+//! `uncertain_initial_state`: the target-marginal initial-state artifact replays
 //! from its embedded law and panel summary, and refuses every resealed mutation.
 //!
 //! The truth is the enumerated two-step dynamic SCM of the core tests: for the sequence
@@ -288,7 +288,7 @@ fn initial_state_artifact_refuses_a_resealed_changed_panel_summary() {
 fn initial_state_artifact_is_not_the_specified_initial_state_artifact() {
     assert_ne!(TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE, TEMPORAL_TRANSPORT_ARTIFACT_FEATURE);
     let bytes = artifact().export().unwrap();
-    // The 2.2 sequence artifact decoder refuses these bytes outright.
+    // The specified-initial-state sequence artifact decoder refuses these bytes outright.
     assert!(TemporalSequenceArtifactWire::decode(&bytes).is_err());
     // A foreign feature marker or kind is refused by this decoder.
     let mut foreign = artifact();

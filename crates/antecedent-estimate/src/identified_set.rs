@@ -1,4 +1,4 @@
-//! Confidence and credible intervals for a finite identified set (C-3).
+//! Confidence and credible intervals for a finite identified set.
 //!
 //! A class-aware scalar effect with several identified completions has an
 //! identified set `{θ_g}` whose hull `[θ_l, θ_u] = [min_g θ_g, max_g θ_g]` is

@@ -1,6 +1,6 @@
 //! Adapters from claim types to decision inputs under a declared policy.
 //!
-//! The 2.2 claims a decision can read are point claims, graph-dependent claims
+//! The claims a decision can read are point claims, graph-dependent claims
 //! (one answer per graph, no probability), weighted graph-posterior atoms,
 //! finite supplied scenarios and identified sets. The first four become
 //! [`StructuralAtom`]s for [`evaluate_structural`]; each atom keeps the

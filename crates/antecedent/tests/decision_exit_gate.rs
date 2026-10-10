@@ -1,19 +1,19 @@
-//! 2.2 B exit gate: six end-to-end user stories, one test each (B1-B6).
+//! Six end-to-end decision user stories, one test each.
 //!
 //! Every story runs start to finish in ONE test through the public facade: it
-//! builds its evidence from the package's known-truth fixture, prepares once,
+//! builds its evidence from its known-truth fixture, prepares once,
 //! estimates against the enumerated (or closed-form) truth, exports the
 //! artifact, drops every producer object, and then consumes the artifact bytes
 //! alone in a fresh scope. The consumer's answers must equal the producer's bit
-//! for bit. Each story then mutates its artifact in the four categories the
-//! release closure names (theorem premises, source identity, data identity and
+//! for bit. Each story then mutates its artifact in four categories
+//! (theorem premises, source identity, data identity and
 //! result body), unsealed and re-sealed, and asserts its named refusals.
 //!
-//! B2's interval and B3's sampling uncertainty are not measured here: their
-//! routes stay closed (`cell_not_licensed`), and `scripts/gate_decision_exit.sh`
+//! The smoothed dose-response interval and the joint-sensitivity sampling uncertainty
+//! are not measured here: their routes stay closed (`cell_not_licensed`), and `scripts/gate_decision_exit.sh`
 //! reports the calibration state separately. No story attaches an interval.
 //!
-//! Registered in `scripts/decision_exit_report.py` (`B_PACKAGES`).
+//! Registered in `scripts/decision_exit_report.py` (`DECISION_STORIES`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -99,7 +99,7 @@ fn coded(error: &IoError) -> (&'static str, String) {
 }
 
 // ---------------------------------------------------------------------------
-// B1 (X2): ADMG conditional transport.
+// ADMG conditional transport.
 // ---------------------------------------------------------------------------
 
 /// `X(0) -> Y(1) -> W(2)`, `X <-> Y`, the target's `W` mechanism selected:
@@ -136,7 +136,7 @@ fn conditional_reseal(wire: &mut AdmgConditionalArtifactWire) -> Vec<u8> {
 }
 
 #[test]
-fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refusals() {
+fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals() {
     use admg_conditional_scm::{query, request};
     let names = ["X".to_owned(), "Y".to_owned(), "W".to_owned()];
     let ctx = ExecutionContext::for_tests(5);
@@ -324,7 +324,7 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
 }
 
 // ---------------------------------------------------------------------------
-// B2 (X4): smoothed dose-response transport grid.
+// Smoothed dose-response transport grid.
 // ---------------------------------------------------------------------------
 
 fn refused(bytes: &[u8]) -> SmoothedDoseArtifactError {
@@ -355,7 +355,7 @@ fn mutate(
 }
 
 #[test]
-fn story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() {
+fn story_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() {
     use smoothed_dose_dgp::{Design, Scenario, diagram, draw, query};
     const GRID: [f64; 3] = [1.0, 2.0, 3.0];
     const H: f64 = 0.5;
@@ -460,7 +460,7 @@ fn story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() 
 }
 
 // ---------------------------------------------------------------------------
-// B3 (X3): joint mechanism deviations on a prepared z-transport baseline.
+// Joint mechanism deviations on a prepared z-transport baseline.
 // ---------------------------------------------------------------------------
 
 const B3_W: VariableId = VariableId::from_raw(0);
@@ -598,7 +598,7 @@ fn sensitivity_reseal(mut wire: JointSensitivityArtifactWire) -> JointSensitivit
 }
 
 #[test]
-fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range() {
+fn story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range() {
     let ctx = ExecutionContext::for_tests(1);
     let (bytes, range) = {
         let prepared = prepared();
@@ -685,7 +685,7 @@ fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_ra
 }
 
 // ---------------------------------------------------------------------------
-// B4 (X6): planning additions for a failed X1 decision.
+// Planning additions for a failed mz-transport decision.
 // ---------------------------------------------------------------------------
 
 fn study(
@@ -810,14 +810,14 @@ fn arrive(
 }
 
 #[test]
-fn story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival() {
+fn story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arrival() {
     use common::mz_fixture::{X, Y, Z1, Z2, graph, query, sources, target_scm};
     use common::z_scm::{risk_of, vid};
     let ctx = ExecutionContext::for_tests(3);
     let (base, base_data) = base();
     let route = StudyPlanRoute::Mz(query(sources()));
 
-    // The X1 decision on the target law alone fails for missing evidence.
+    // The mz-transport decision on the target law alone fails for missing evidence.
     let failed =
         decide_mz_transport(&graph(), &query(sources()), &base, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx)
             .unwrap();
@@ -924,10 +924,10 @@ fn story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival() {
 }
 
 // ---------------------------------------------------------------------------
-// B5 (X8): bounded ADMG counterfactual identification (ETT).
+// Bounded ADMG counterfactual identification (ETT).
 // ---------------------------------------------------------------------------
 
-fn b5_admg(n: u32, directed: &[(u32, u32)], bidirected: &[(u32, u32)]) -> Admg {
+fn ett_admg(n: u32, directed: &[(u32, u32)], bidirected: &[(u32, u32)]) -> Admg {
     let mut g = Admg::with_variables(n);
     for &(a, b) in directed {
         g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
@@ -938,7 +938,7 @@ fn b5_admg(n: u32, directed: &[(u32, u32)], bidirected: &[(u32, u32)]) -> Admg {
     g
 }
 
-fn b5_law(cards: &[usize], probabilities: Vec<f64>, snapshot: &str) -> ExactDiscreteLaw {
+fn ett_law(cards: &[usize], probabilities: Vec<f64>, snapshot: &str) -> ExactDiscreteLaw {
     let axes = cards
         .iter()
         .enumerate()
@@ -960,7 +960,7 @@ fn b5_law(cards: &[usize], probabilities: Vec<f64>, snapshot: &str) -> ExactDisc
 }
 
 #[test]
-fn story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the_cell() {
+fn story_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the_cell() {
     use latent_scm::{LatentScm, Rng};
     let cards = [2usize, 3, 2];
     let names: Vec<String> = ["x", "m", "y"].iter().map(|s| (*s).to_string()).collect();
@@ -980,7 +980,7 @@ fn story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the
     let scm = LatentScm::random(&mut Rng::new(8), &cards, &[(0, 1), (1, 2)], &[(0, 2)], 3);
     let (bytes, probability) = {
         let prepared = prepare_counterfactual_id(
-            b5_admg(3, &[(0, 1), (1, 2)], &[(0, 2)]),
+            ett_admg(3, &[(0, 1), (1, 2)], &[(0, 2)]),
             names.clone(),
             levels.clone(),
             &ett,
@@ -988,7 +988,7 @@ fn story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the
             &ctx,
         )
         .unwrap();
-        let effect = prepared.evaluate(&b5_law(&cards, scm.observational(), "s8"), &ctx).unwrap();
+        let effect = prepared.evaluate(&ett_law(&cards, scm.observational(), "s8"), &ctx).unwrap();
         let truths = scm.ett_numerators(0, 1, 0, 2);
         let total: f64 = truths.iter().sum();
         assert!(close(effect.probability, truths[1] / total), "{}", effect.probability);
@@ -1055,7 +1055,7 @@ fn story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the
 
     // A non-identified event (the bow arc X -> Y, X <-> Y) refuses, never a number.
     let text = prepare_counterfactual_id(
-        b5_admg(3, &[(0, 2), (1, 2)], &[(0, 2)]),
+        ett_admg(3, &[(0, 2), (1, 2)], &[(0, 2)]),
         names.clone(),
         vec![vec![0.0, 1.0]; 3],
         &ett,
@@ -1070,7 +1070,7 @@ fn story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the
     );
     // Uncertainty is refused: the cell is point-only.
     let text = prepare_counterfactual_id(
-        b5_admg(3, &[(0, 1), (1, 2)], &[(0, 2)]),
+        ett_admg(3, &[(0, 1), (1, 2)], &[(0, 2)]),
         names,
         levels,
         &ett,
@@ -1086,12 +1086,12 @@ fn story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the
 }
 
 // ---------------------------------------------------------------------------
-// B6 (X10): exact binary causal observation recovery.
+// Exact binary causal observation recovery.
 // ---------------------------------------------------------------------------
 
 const B6_EDGES: [(u32, u32); 3] = [(2, 0), (2, 1), (0, 1)];
 
-fn b6_effect(model: &recovery_scm::MModel) -> RecoveredEffectQuery {
+fn recovery_effect(model: &recovery_scm::MModel) -> RecoveredEffectQuery {
     use recovery_scm::v;
     let mut graph = Admg::empty();
     for n in 0..model.k + model.m {
@@ -1103,7 +1103,7 @@ fn b6_effect(model: &recovery_scm::MModel) -> RecoveredEffectQuery {
     RecoveredEffectQuery { graph, outcomes: Arc::from([v(1)]), treatments: Arc::from([v(0)]) }
 }
 
-fn b6_prepare(
+fn recovery_prepare(
     model: &recovery_scm::MModel,
     graph: Admg,
     law: ExactDiscreteLaw,
@@ -1113,7 +1113,7 @@ fn b6_prepare(
         graph,
         &model.query(),
         model.catalog(),
-        Some(b6_effect(model)),
+        Some(recovery_effect(model)),
         RecoveryLimits::default(),
         law,
         [0.0, 1.0].iter().map(|x| Assignment::from_pairs([(v(0), Value::f64(*x))])).collect(),
@@ -1123,7 +1123,7 @@ fn b6_prepare(
 }
 
 #[test]
-fn story_b6_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identification() {
+fn story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identification() {
     use recovery_scm::MModel;
     let ctx = ExecutionContext::for_tests(1);
     // Treatment X0, outcome X1, confounder O; R0 <- O, R1 <- X0.
@@ -1131,7 +1131,7 @@ fn story_b6_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identific
     let names: Vec<String> = (0..model.nodes()).map(|n| format!("n{n}")).collect();
 
     let (bytes, recovered, effects) = {
-        let prepared = b6_prepare(&model, model.graph.clone(), model.observed_law()).unwrap();
+        let prepared = recovery_prepare(&model, model.graph.clone(), model.observed_law()).unwrap();
         let result = prepared.estimate(&ctx).unwrap();
         // The recovered joint law equals the complete-data truth...
         let law = result.recovered().law().probabilities();
@@ -1215,7 +1215,7 @@ fn story_b6_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identific
     // A mechanism outside the class (unmeasured confounding) is refused, not "unrecoverable".
     let mut confounded = model.graph.clone();
     confounded.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
-    let error = b6_prepare(&model, confounded, model.observed_law()).unwrap_err();
+    let error = recovery_prepare(&model, confounded, model.observed_law()).unwrap_err();
     assert_eq!(error.reason_code(), Some("route_not_supported"));
     assert!(error.to_string().contains("recovery.unsupported_mechanism"), "{error}");
 }

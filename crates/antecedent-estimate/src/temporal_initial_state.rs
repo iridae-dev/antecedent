@@ -1,4 +1,4 @@
-//! Uncertain pre-action state of the finite two-step sequence (2.3A, X5).
+//! Uncertain pre-action state of the finite two-step sequence.
 //!
 //! The target two-step mean marginalized over the initial state is
 //! `sum_{s0} P_target(s0) * R(s0)`, where `R(s0)` is the whole sequence's

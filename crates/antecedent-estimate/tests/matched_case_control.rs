@@ -1,4 +1,4 @@
-//! 2.2 E7: conditional odds ratio from matched case-control sets, against hand-enumerated
+//! Conditional odds ratio from matched case-control sets, against hand-enumerated
 //! closed forms and an independent brute-force profile likelihood, plus the typed refusals.
 
 #![allow(clippy::float_cmp, reason = "rows are coded exactly 0.0 or 1.0")]

@@ -1,4 +1,4 @@
-//! Smoothed dose-response transport grid (2.2B cell X4).
+//! Smoothed dose-response transport grid.
 //!
 //! # The one cell
 //!

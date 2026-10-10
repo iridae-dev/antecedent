@@ -1,4 +1,4 @@
-//! Independent artifacts for the shared-data covariance of scenario estimates (2.3A X2).
+//! Independent artifacts for the shared-data covariance of scenario estimates.
 //!
 //! Format version 1. The artifact stores the covariance result (scenario ids in
 //! matrix order, the `K x K` covariance, the means, the method label, the

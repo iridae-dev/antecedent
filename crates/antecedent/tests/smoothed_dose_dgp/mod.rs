@@ -1,4 +1,4 @@
-//! Known-truth structural models for the smoothed dose-response transport cell (2.2B X4).
+//! Known-truth structural models for the smoothed dose-response transport cell.
 //!
 //! One baseline covariate `z` (graph coordinate 0), a randomized continuous dose `a`
 //! (coordinate 1) and a continuous outcome `y` (coordinate 2); the selection diagram marks

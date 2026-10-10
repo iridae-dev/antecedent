@@ -1,4 +1,4 @@
-//! Bounded DAG completions of a supplied CPDAG (2.3A X2).
+//! Bounded DAG completions of a supplied CPDAG.
 //!
 //! The expected completion sets come from an independent brute force: every
 //! orientation of the skeleton, filtered to the acyclic, v-structure-preserving

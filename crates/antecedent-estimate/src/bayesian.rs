@@ -3157,7 +3157,7 @@ mod tests {
         );
     }
 
-    /// estimate-bayes-transport-response-3 / R15: GLS whitening must not feed a
+    /// GLS whitening must not feed a
     /// Poisson likelihood. With unit_ids present, the fit must consume the raw
     /// count column (same posterior as stacked iid) and disclose the skip.
     #[test]

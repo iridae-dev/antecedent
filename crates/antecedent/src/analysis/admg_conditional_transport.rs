@@ -1,4 +1,4 @@
-//! Prepared execution of an ADMG conditional transport formula (2.2B B1).
+//! Prepared execution of an ADMG conditional transport formula.
 //!
 //! Preparation re-checks one decided, catalog-bound conditional derivation
 //! against the selection diagram and compiles one conditional plan per request.

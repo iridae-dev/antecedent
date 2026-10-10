@@ -1,8 +1,8 @@
-//! F17: consume an existing assumption-sensitivity result in a durable decision.
+//! Consume an existing assumption-sensitivity result in a durable decision.
 //!
 //! The facade routes three things and owns no scientific rule of its own:
 //!
-//! * [`PreparedZTransport::sensitivity_artifact`] runs the 2.2 joint mechanism
+//! * [`PreparedZTransport::sensitivity_artifact`] runs the joint mechanism
 //!   sensitivity on a prepared z stage and adapts its result into a
 //!   composition-ready [`SensitivityArtifact`] (assumption coordinate, effect surface,
 //!   coordinate support, uncertainty relationship, provenance);
@@ -38,7 +38,7 @@ use antecedent_design::decision_contract::DecisionContract;
 use super::PreparedZTransport;
 
 impl PreparedZTransport {
-    /// Run the 2.2 joint mechanism sensitivity of the retained checked formula and
+    /// Run the joint mechanism sensitivity of the retained checked formula and
     /// adapt its assumption range into a composition-ready [`SensitivityArtifact`].
     ///
     /// With one declared factor the surface is exact on `grid_points` equally spaced

@@ -1,5 +1,5 @@
 //! Counterfactual identification on a bounded finite-discrete ADMG: the effect
-//! of treatment on the treated from the observational joint (2.2B, X8).
+//! of treatment on the treated from the observational joint.
 //!
 //! # What is licensed
 //!
@@ -14,7 +14,7 @@
 //! its own world sets it away from) has probability zero in every model and is
 //! returned as an exact zero, not refused. Every other shape is refused as
 //! outside the contract, and a world that routes edges (a path-specific query)
-//! is deferred to 2.3.
+//! is not supported by this route.
 //!
 //! # The algorithm
 //!

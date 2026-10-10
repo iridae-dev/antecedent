@@ -141,9 +141,9 @@ pub struct EvidenceRegimeWire {
     /// Identity of the model artifact the law came from. Absent means a measured law.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_artifact: Option<String>,
-    /// Derivation identity of a recovered law (2.2B X10,
-    /// `LawOrigin::Recovered`). Additive and omitted for every other origin, so
-    /// no 2.1 regime's bytes or digest change; a 2.1 reader (`deny_unknown_fields`)
+    /// Derivation identity of a recovered law
+    /// (`LawOrigin::Recovered`). Additive and omitted for every other origin, so
+    /// no earlier regime's bytes or digest change; an earlier reader (`deny_unknown_fields`)
     /// refuses a regime carrying it rather than reading it as measured. Never
     /// present together with `model_artifact`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -238,7 +238,7 @@ impl EvidenceCatalogWire {
                         LawOrigin::ModelArtifact { artifact } => Some(artifact.to_string()),
                         LawOrigin::Measured | LawOrigin::Recovered { .. } => None,
                     },
-                    // Additive (2.2B X10): a recovered law keeps its own origin kind
+                    // Additive: a recovered law keeps its own origin kind
                     // and derivation identity across the wire.
                     recovered_derivation: match &r.origin {
                         LawOrigin::Recovered { derivation } => Some(derivation.to_string()),
@@ -476,10 +476,10 @@ mod tests {
         assert_eq!(wire.to_catalog().unwrap(), catalog);
     }
 
-    /// The 2.1 regime wire shape, as a 2.1 reader decodes it.
+    /// The earlier regime wire shape, as an earlier reader decodes it.
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
-    #[allow(dead_code)] // Decoded only to show which bytes a 2.1 reader accepts.
+    #[allow(dead_code)] // Decoded only to show which bytes an earlier reader accepts.
     struct LegacyRegimeWire {
         id: u32,
         #[serde(default)]
@@ -503,7 +503,7 @@ mod tests {
 
     #[test]
     fn a_recovered_law_round_trips_exactly_and_never_decodes_as_measured() {
-        // 2.2B X10 (B6 audit D2): the origin kind and derivation survive the wire,
+        // The origin kind and derivation survive the wire,
         // so the canonical identity is preserved and differs from a model artifact
         // named "recovered:...".
         let mut recovered = observational(2);
@@ -535,7 +535,7 @@ mod tests {
         let cbor = crate::to_cbor(&wire).unwrap();
         let from_cbor: EvidenceCatalogWire = crate::from_cbor(&cbor).unwrap();
         assert_eq!(from_cbor.to_catalog().unwrap(), catalog);
-        // A 2.1 reader refuses the recovered regime instead of reading it as
+        // An earlier reader refuses the recovered regime instead of reading it as
         // measured, and still reads the measured and model-artifact regimes.
         let regimes = serde_json::to_value(&wire).unwrap()["regimes"].clone();
         assert!(serde_json::from_value::<LegacyRegimeWire>(regimes[0].clone()).is_ok());

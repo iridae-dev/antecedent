@@ -1030,7 +1030,7 @@ mod tests {
             .collect()
     }
 
-    /// F23 frozen boundary: R1 carries `verified_extension`, R2 stays externally
+    /// R1 carries `verified_extension`, R2 stays externally
     /// attested, and neither becomes native.
     #[test]
     fn attested_stays_attested_and_verified_is_never_native() {
@@ -1058,7 +1058,7 @@ mod tests {
         );
     }
 
-    /// F23 frozen boundary: reusing an R1 receipt after a changed quantity,
+    /// Reusing an R1 receipt after a changed quantity,
     /// provider version or snapshot refuses.
     #[test]
     fn receipt_for_one_fingerprint_does_not_survive_changed_quantity_version_or_snapshot() {

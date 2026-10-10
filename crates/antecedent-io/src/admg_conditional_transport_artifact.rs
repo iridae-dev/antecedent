@@ -1,4 +1,4 @@
-//! Independent point-result artifacts for ADMG conditional transport (2.2B B1).
+//! Independent point-result artifacts for ADMG conditional transport .
 //!
 //! Format version 1 (`checked_admg_conditional_point_v1`). A consumer trusts
 //! nothing in the artifact. Before any work (before either digest is hashed) it

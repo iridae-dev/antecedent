@@ -1,4 +1,4 @@
-//! 2.3 B1 (X4): the named-functional dose-response row against closed-form truth.
+//! The named-functional dose-response row against closed-form truth.
 //!
 //! Oracle (independent of the estimator): the response is the quadratic
 //! `m(d) = 1 + 0.5 d + 0.25 d^2`, so `m'(d) = 0.5 + 0.5 d`, written out per grid

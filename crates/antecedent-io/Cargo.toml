@@ -51,5 +51,5 @@ zstd = { workspace = true }
 # Candidate artifact replay tests need the closed implementation. Resolver 2
 # excludes this self dev-dependency from ordinary released/Python builds.
 antecedent-io = { path = ".", features = ["calibration-internal"] }
-# The io interval tests recompute the closed X1 mz bootstrap, compiled only under this feature.
+# The io interval tests recompute the closed mz bootstrap, compiled only under this feature.
 antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate", features = ["calibration-internal"] }

@@ -567,7 +567,7 @@ pub(crate) fn matching_contrast(
         // cluster, multiway or HAC sandwich over those contributions is not a valid
         // variance for the matching estimator.
         //
-        // Kept as a refusal (2.2) rather than derived, because no clustered influence
+        // Kept as a refusal rather than derived, because no clustered influence
         // function is available for this exact estimator:
         // - Fixed-M nearest-neighbour matching is not asymptotically linear in an influence
         //   function of one observation; its only linear representation is the

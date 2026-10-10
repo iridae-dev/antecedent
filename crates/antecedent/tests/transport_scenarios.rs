@@ -1,4 +1,4 @@
-//! Finite graph/selection scenario sets for one transport question (X2, A2).
+//! Finite graph/selection scenario sets for one transport question.
 //!
 //! Every scenario shares `z -> x`, `z -> y`, `x -> y`, `x <-> y` and differs only
 //! in which mechanisms may change between source and target:

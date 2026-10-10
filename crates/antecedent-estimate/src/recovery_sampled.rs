@@ -1,4 +1,4 @@
-//! Sampled observation recovery (2.3A X10): the exact 2.2 binary m-graph recovery
+//! Sampled observation recovery: the exact 2.2 binary m-graph recovery
 //! formula applied to finite counted observation-pattern rows, with a whole-method
 //! outer bootstrap.
 //!

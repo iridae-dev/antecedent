@@ -1,4 +1,4 @@
-//! Independent Gaussian experiment for F18's Q/Wald and Holm composition.
+//! Independent Gaussian experiment for the Q/Wald and Holm composition of `EffectConstancy`.
 //! Known covariance only: this does not calibrate a caller's estimated SEs,
 //! non-Gaussian effect estimator, or a different sampling design.
 //! SPDX-License-Identifier: MIT OR Apache-2.0

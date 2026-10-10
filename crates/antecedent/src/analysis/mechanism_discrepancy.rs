@@ -1,4 +1,4 @@
-//! 2.3 B3: the source-target mechanism discrepancy diagnostic and its artifact.
+//! The source-target mechanism discrepancy diagnostic and its artifact.
 //!
 //! The facade routes and owns no scientific rule of its own:
 //!
@@ -177,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn b3_discrepancy_shared_row_identities_refuse_before_the_fit() {
+    fn discrepancy_shared_row_identities_refuse_before_the_fit() {
         let request = MechanismDiscrepancyRequestWire {
             source: wire("source", 30.0),
             target: wire("target", 30.0),

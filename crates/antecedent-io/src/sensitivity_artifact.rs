@@ -1,4 +1,4 @@
-//! F17 `SensitivityArtifact` (`sensitivity_decision_v1`).
+//! `SensitivityArtifact` (`sensitivity_decision_v1`).
 //!
 //! A composition-ready record of an assumption-sensitivity surface: one declared
 //! assumption coordinate on a finite grid, one or more surface quantities with an
@@ -41,7 +41,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 
 use antecedent_core::ScientificQuantity;
-// Re-exported so a design-level consumer can adapt a 2.2 result without depending on
+// Re-exported so a design-level consumer can adapt a joint mechanism sensitivity result without depending on
 // the validation crate directly.
 pub use antecedent_validate::{
     AxisTipping, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
@@ -1242,7 +1242,7 @@ impl SensitivityArtifact {
         Ok(artifact)
     }
 
-    /// Adapt a 2.2 joint mechanism sensitivity result
+    /// Adapt a joint mechanism sensitivity result
     /// ([`JointMechanismSensitivityResult`]) into a surface of the effect over the
     /// assumption coordinate.
     ///
@@ -1251,7 +1251,7 @@ impl SensitivityArtifact {
     /// surface is filled on `grid_points` equally spaced fractions in `[0, bound]` with
     /// the exact endpoints. With two factors only the unperturbed point and the declared
     /// box are exact, so the surface is the two points `0` and `1` of the box scale and
-    /// `grid_points` must be 2. The 2.2 withheld sampling status is carried unchanged:
+    /// `grid_points` must be 2. The withheld sampling status is carried unchanged:
     /// the range stays an assumption range.
     ///
     /// # Errors
@@ -1636,7 +1636,7 @@ fn leaders_of(actions: &[ActionUtility], utilities: &[f64]) -> Vec<String> {
 
 type Surface = (AssumptionCoordinate, Vec<f64>, Vec<f64>, Vec<f64>);
 
-/// Coordinate, grid and range surface of a 2.2 result, exact at every grid point.
+/// Coordinate, grid and range surface of a joint mechanism sensitivity result, exact at every grid point.
 fn surface_of(
     result: &JointMechanismSensitivityResult,
     grid_points: usize,

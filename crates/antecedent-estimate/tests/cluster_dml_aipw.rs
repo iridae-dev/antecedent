@@ -1,4 +1,4 @@
-//! Cluster-aware cross-fitted AIPW (2.2 E4): whole clusters own their folds, the variance is a
+//! Cluster-aware cross-fitted AIPW: whole clusters own their folds, the variance is a
 //! sandwich over cluster sums (checked against sums written here) and is the published
 //! standard error, and few clusters, a bootstrap or SE-kind request and an out-of-scope
 //! population are refused with

@@ -1,4 +1,4 @@
-//! Temporal extensions of the finite two-step sequence (2.3A, X5): the uncertain
+//! Temporal extensions of the finite two-step sequence: the uncertain
 //! pre-action state, the new-period refresh, and the closed dependent interval.
 //!
 //! * **Initial state** (`antecedent.transport.temporal_initial_state`, point only,
@@ -12,7 +12,7 @@
 //!   intervention history, selection targets, regimes and proof are unchanged. Anything
 //!   else is a typed invalidation. A stale interval never survives a refresh.
 //! * **Dependent interval** (`antecedent.transport.temporal_dependent_interval`): a
-//!   calibrated claim whose calibration is measured only at the release cut, so this
+//!   calibrated claim whose calibration is unmeasured, so this
 //!   route is **closed**: it validates its arguments through the core and then refuses
 //!   with `cell_not_licensed` / `temporal_interval.route_frozen`. Its replay artifact
 //!   exists at the io layer as an internal artifact.

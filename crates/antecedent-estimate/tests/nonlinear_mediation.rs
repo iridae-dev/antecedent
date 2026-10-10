@@ -1,4 +1,4 @@
-//! B4 nonlinear continuous-mediator mediation: exact-SCM closed-form truth, quadrature error
+//! Nonlinear continuous-mediator mediation: exact-SCM closed-form truth, quadrature error
 //! check, confounding and overlap refusals, the total = direct + indirect identity, and a
 //! labelled regression cross-check against the linear product of coefficients. Calibration is
 //! `unmeasured` and nothing here measures coverage.

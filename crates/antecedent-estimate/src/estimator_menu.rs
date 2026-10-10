@@ -1,4 +1,4 @@
-//! Estimator menu for a binary trial-to-target contrast (2.2A cell X4).
+//! Estimator menu for a binary trial-to-target contrast.
 //!
 //! The menu is inspection: for one certified graph, one query and one learner
 //! configuration it lists every estimator this release names, whether it is eligible, and
@@ -391,7 +391,7 @@ pub fn transport_estimator_menu_with(
                 "the outcome is continuous; a finite law cannot represent its mean contrast",
             )),
         },
-        // 2.2B X4: the smoothed dose-response grid has its own query and menu
+        // The smoothed dose-response grid has its own query and menu
         // (`smoothed_dose::smoothed_dose_estimator_menu`); a binary contrast never runs it.
         EstimatorMenuEntry {
             estimator: "smoothed_dose_transport_aipw".into(),

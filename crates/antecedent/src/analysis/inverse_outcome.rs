@@ -26,7 +26,7 @@
 //! enumerated action set and the forward response's declared assumptions;
 //! an action that was not enumerated is unresolved, never excluded. A mean
 //! threshold is not a chance constraint `P(Y^do(a) >= y) >= q`, a quantile
-//! target needs the interventional distribution (2.3B), and an observational
+//! target needs the interventional distribution, and an observational
 //! `P(X | Y)` is not an action: all three are typed refusals.
 //!
 //! The report carries an order-invariant identity digest of every input and
@@ -123,7 +123,7 @@ pub enum InverseQuery {
         /// Required probability.
         probability: f64,
     },
-    /// A target quantile of `Y^do(a)`: refused (2.3B).
+    /// A target quantile of `Y^do(a)`: refused.
     Quantile {
         /// Quantile level.
         level: f64,
@@ -754,14 +754,14 @@ pub fn classify_inverse_outcome(
             return Err(not_licensed(
                 "inverse.quantile_target",
                 "a target-quantile inverse query needs the interventional distribution and is \
-                 scheduled for 2.3B",
+                 not licensed without a calibrated interventional-distribution cell",
             ));
         }
         InverseQuery::ObservationalScenarios => {
             return Err(not_licensed(
                 "inverse.observational_scenarios",
                 "observational scenarios compatible with an outcome (P(X | Y)) are not actions \
-                 and are closed in 2.2; ask for feasible interventions instead",
+                 and are closed; ask for feasible interventions instead",
             ));
         }
     };

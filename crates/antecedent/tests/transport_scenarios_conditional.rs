@@ -1,5 +1,5 @@
 //! Conditional ADMG transport questions inside the finite scenario envelope
-//! (X2: the 2.2B B1 row promoted into the 2.2A A2 scenario system).
+//! (the bounded ADMG conditional row inside the finite scenario system).
 //!
 //! Every scenario is a latent-confounded selection ADMG over `x(0)`, `y(1)`,
 //! `w(2)` and the question is `P*(y | do(x), w)`:
@@ -156,7 +156,7 @@ fn conditional_scenarios_enter_the_envelope_and_the_truth_lies_inside_it() {
     let mean = &envelope.means[0];
     assert!(mean.lower <= truth[1] && truth[1] <= mean.upper, "{mean:?} vs {}", truth[1]);
     assert!(mean.upper - mean.lower > 1e-3, "the scenarios disagree: {mean:?}");
-    // Status accounting is A2's: the s-hedge scenario is retained under its own
+    // Status accounting belongs to the scenario system: the s-hedge scenario is retained under its own
     // status, outside the envelope.
     assert_eq!(count(&report, "identified"), 3);
     assert_eq!(count(&report, negative), 1);
@@ -192,7 +192,7 @@ fn conditional_scenarios_enter_the_envelope_and_the_truth_lies_inside_it() {
         ]
     );
     assert!(matches!(prepared.prepared().decision().question, ScenarioQuestion::Conditional(_)));
-    // No cross-scenario inference with shared data (2.3A).
+    // No cross-scenario inference with shared data.
     let refusal = prepared.aggregate_interval().unwrap_err();
     assert!(refusal.to_string().contains("scenario_aggregate_not_licensed"), "{refusal}");
 }
@@ -507,7 +507,7 @@ fn route_bounds_requests_and_counted_laws_refuse_with_their_frozen_codes() {
 
 #[test]
 fn a_graph_beyond_the_conditional_class_refuses_the_whole_set() {
-    // Seven observed variables: inside A2's 12-variable bound, outside B1's 6.
+    // Seven observed variables: inside the scenario system's 12-variable bound, outside the conditional row's 6.
     let mut graph = antecedent_graph::Admg::with_variables(7);
     graph
         .insert_directed(

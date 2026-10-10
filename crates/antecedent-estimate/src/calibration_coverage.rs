@@ -1524,7 +1524,7 @@ fn rd_sharp_hc1_heteroskedastic_ci_coverage() {
     tally.assert("rd_sharp_hc1_heteroskedastic");
 }
 
-// ------------------------------------------ DML / DR / causal forest (R13)
+// ------------------------------------------ DML / DR / causal forest
 // Reported-level (0.95) coverage cells on the well-specified confounded SCM.
 // Each scores `ate ± Z95·se_analytic` through [`CoverageTally`], counts fit
 // failures as skips (misses, 1% cap), and [`CoverageTally::emit`]s a
@@ -1946,7 +1946,7 @@ fn frontdoor_stacked_hc1_curved_mediator_ci_coverage() {
     tally.emit_boundary("frontdoor_stacked_hc1_curved_mediator");
 }
 
-// --------------------------------------------- precision-layer unit tests (R13)
+// --------------------------------------------- precision-layer unit tests
 
 /// A reported-level (0.95) rate below the precision floor fails the pass predicate.
 #[test]

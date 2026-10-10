@@ -1,4 +1,4 @@
-//! 2.3A A1 (X2): shared-data covariance of scenario estimates over one row sample.
+//! Shared-data covariance of scenario estimates over one row sample.
 //!
 //! The units are six complete rows `(z, x, y)` of a tiny discrete SCM sample. Every
 //! scenario estimator is a plug-in functional of the resampled rows' cell proportions.

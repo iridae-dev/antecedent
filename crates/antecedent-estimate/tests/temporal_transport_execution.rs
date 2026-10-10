@@ -1,4 +1,4 @@
-//! Exact execution of one finite two-step temporal transport sequence (2.2A, X5).
+//! Exact execution of one finite two-step temporal transport sequence.
 //!
 //! The fixture is the known temporal SCM of `common::temporal_fixture`: a
 //! baseline `b`, step covariates `l1` and `l2` (the latter a time-varying

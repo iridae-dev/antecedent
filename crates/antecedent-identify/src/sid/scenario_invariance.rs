@@ -1,4 +1,4 @@
-//! Per-scenario selection differences and invariances (2.3.0 A1 remainder).
+//! Per-scenario selection differences and invariances.
 //!
 //! A transport scenario is a selection diagram: a graph plus the selection
 //! targets, the variables whose generating mechanism may differ between the

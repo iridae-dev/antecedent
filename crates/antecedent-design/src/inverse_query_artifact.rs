@@ -1,4 +1,4 @@
-//! F7 `InverseQueryArtifact` (`inverse_functional_query_v1`).
+//! `InverseQueryArtifact` (`inverse_functional_query_v1`).
 //!
 //! A durable record of one generalized finite inverse decision query and its answer:
 //! the declared query (action grid and order, grid scope, constraints, selection

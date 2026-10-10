@@ -1,5 +1,5 @@
 //! Prepared lifecycle, refresh and artifact consumption of an ADMG conditional
-//! transport formula (2.2B B1, X2). The consumer is independent of the artifact
+//! transport formula. The consumer is independent of the artifact
 //! (it re-derives everything), not of the implementation (it re-runs the same
 //! decision and evaluator); only its proof check is distinct code.
 //!

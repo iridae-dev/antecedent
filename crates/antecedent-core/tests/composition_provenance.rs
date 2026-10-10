@@ -1,4 +1,4 @@
-//! F24 `composition_provenance`: predecessor digests in the provenance chain.
+//! `composition_provenance`: predecessor digests in the provenance chain.
 
 use antecedent_core::{
     CompositionLink, CompositionStage as S, ProvenanceChain, ProvenanceChainError,

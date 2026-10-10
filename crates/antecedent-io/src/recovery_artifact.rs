@@ -1,5 +1,5 @@
-//! Independent point-result artifacts for exact binary observation recovery
-//! (2.2B X10): graph-licensed recovery, not MAR/IPCW.
+//! Independent point-result artifacts for exact binary observation recovery:
+//! graph-licensed recovery, not MAR/IPCW.
 //!
 //! Format version 1. A consumer trusts nothing in the artifact. Under its own
 //! maxima (a stored limit above them refuses before any work) it re-decides the
@@ -49,7 +49,7 @@ pub const RECOVERY_ARTIFACT_FEATURE: &str = "checked_observation_recovery_point_
 pub const RECOVERY_POINT_ONLY: &str = "point_only";
 
 /// Why a recovery artifact was refused. Every kind carries a registered reason
-/// code and the X10 detail it maps to.
+/// code and the recovery detail it maps to.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum RecoveryArtifactError {
@@ -650,7 +650,7 @@ impl RecoveryArtifactWire {
     /// the recovered law and every effect point. No external provider is accessed.
     ///
     /// # Errors
-    /// Any reconstruction failure, with the X10 reason code and detail.
+    /// Any reconstruction failure, with the recovery reason code and detail.
     pub fn consume_with_limits(
         bytes: &[u8],
         limits: RecoveryConsumeLimits,

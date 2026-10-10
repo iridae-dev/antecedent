@@ -1,4 +1,4 @@
-//! Factorized-propensity AIPW for bounded discrete joint cells (2.2 E5).
+//! Factorized-propensity AIPW for bounded discrete joint cells.
 //!
 //! The joint treatment `T = (T_1, .., T_k)` is `k <= 3` binary coordinates, so there are at
 //! most 8 cells. [`crate::cell_aipw::CellSaturatedAipw`] fits one multinomial logit over all

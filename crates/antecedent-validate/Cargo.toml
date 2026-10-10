@@ -18,7 +18,7 @@ workspace = true
 
 [features]
 default = []
-# Exposes the closed 2.2B X3 joint-sensitivity endpoint bootstrap
+# Exposes the closed joint-sensitivity endpoint bootstrap
 # (`joint_sensitivity_bootstrap_interval_internal`) to the calibration harness. Enabled only
 # by dev-dependencies (resolver 2 keeps it out of normal builds); no released build carries it.
 calibration-internal = ["antecedent-estimate/calibration-internal"]
@@ -37,7 +37,7 @@ antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-# Self dev-dependency: the X3 integration tests exercise the closed endpoint bootstrap,
+# Self dev-dependency: the joint-sensitivity integration tests exercise the closed endpoint bootstrap,
 # compiled only under `calibration-internal`.
 antecedent-validate = { path = ".", features = ["calibration-internal"] }
 serde_json = { workspace = true }

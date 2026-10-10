@@ -1,4 +1,4 @@
-//! Prepared learned continuous-outcome trial transport (2.2A cell X4).
+//! Prepared learned continuous-outcome trial transport.
 //!
 //! Preparation checks the binary-contrast query, derives the transport certificate once
 //! and validates the request before any nuisance is fitted. Estimation cross-fits every

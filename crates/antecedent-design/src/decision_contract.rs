@@ -1,4 +1,4 @@
-//! Durable 2.3 decision contract and the source each functional needs.
+//! Durable decision contract and the source each functional needs.
 //!
 //! A [`DecisionContract`] declares actions by stable semantic ID, each with the
 //! scientific quantities its utility reads and a closed, replayable utility

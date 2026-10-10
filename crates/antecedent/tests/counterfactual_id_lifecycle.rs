@@ -1,8 +1,8 @@
-//! 2.2B X8: the counterfactual-identification facade end to end: prepare once,
+//! The counterfactual-identification facade end to end: prepare once,
 //! evaluate and refresh on laws (exact and counted), export and consume the
 //! `counterfactual_id_admg_v1` artifact (replay plus an independent direct-sum
 //! recomputation), typed and re-sealed artifact mutations, consumer limits, the
-//! refusal boundary, and the Markovian regression against the 2.2A edge
+//! refusal boundary, and the Markovian regression against the fixed-DAG edge
 //! contrast.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -204,7 +204,7 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
     // M = X + e_M, Y = 2 X - M + e_Y with X, e_M, e_Y independent: an exact
     // enumeration table (multiplicities proportional to the probabilities).
     // One row per exogenous state (8 rows): few enough rows per level that the
-    // 2.2A fitter treats the columns as continuous and fits the linear-Gaussian
+    // The fixed-DAG fitter treats the columns as continuous and fits the linear-Gaussian
     // mechanisms its cell licenses (5 rows per level would make them discrete).
     let (px, pm, py) = ([1u32, 1], [1u32, 1], [1u32, 1]);
     let (mut xs, mut ms, mut ys) = (Vec::new(), Vec::new(), Vec::new());
@@ -224,7 +224,7 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
             }
         }
     }
-    // The 2.2A edge contrast with every edge intervened is the total effect per unit.
+    // The fixed-DAG edge contrast with every edge intervened is the total effect per unit.
     let edges = [(0u32, 1u32), (0, 2), (1, 2)];
     let mut dag = Dag::with_variables(3);
     for &(a, b) in &edges {
@@ -249,7 +249,7 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
         untreated.iter().map(|&i| a5.unit_effects[i]).sum::<f64>() / untreated.len() as f64;
     let a5_counterfactual =
         untreated.iter().map(|&i| ys[i] + a5.unit_effects[i]).sum::<f64>() / untreated.len() as f64;
-    // B5 on the same law as a finite-discrete joint (Y levels -1..2).
+    // The same law as a finite-discrete joint (Y levels -1..2).
     let y_levels = vec![-1.0, 0.0, 1.0, 2.0];
     let cards = [2usize, 3, 4];
     let mut counts = [0u64; 24];
@@ -623,16 +623,16 @@ fn consumer_limits_refuse_before_any_work_and_bounds_hold_at_export() {
 }
 
 #[test]
-fn the_two_x8_formats_refuse_each_other() {
+fn the_two_cross_world_formats_refuse_each_other() {
     let bytes = frontdoor_effect().export_artifact().unwrap();
-    // The 2.2A reader refuses these bytes: both formats are version 1, so the
+    // The fixed-DAG edge-contrast reader refuses these bytes: both formats are version 1, so the
     // refusal is the closed wire (this format's fields are unknown to it).
     let error = CrossWorldArtifactWire::decode(&bytes).unwrap_err();
     assert!(
         matches!(&error, CrossWorldArtifactError::Decode(m) if m.contains("unknown field `levels`")),
         "{error:?}"
     );
-    // This format's bytes carrying the 2.2A feature marker: refused on the marker.
+    // This format's bytes carrying the edge-contrast feature marker: refused on the marker.
     let mut marked = wire_of(&frontdoor_effect());
     marked.required_features = vec![CROSS_WORLD_ARTIFACT_FEATURE.into()];
     let marked_bytes = antecedent_io::to_cbor(&marked).unwrap();
@@ -644,8 +644,8 @@ fn the_two_x8_formats_refuse_each_other() {
     .unwrap_err();
     assert_eq!(error, CounterfactualIdArtifactError::UnsupportedSemantics("required features"));
     assert_eq!(error.reason(), ("invalid_argument", "counterfactual_id.invalid_artifact"));
-    // A 2.2A artifact is refused by this reader.
-    // Continuous columns, the 2.2A cell's linear-Gaussian fit.
+    // An edge-contrast artifact is refused by this reader.
+    // Continuous columns, the fixed-DAG cell's linear-Gaussian fit.
     let xs: Vec<f64> = (0..40).map(|i| (f64::from(i) * 0.37).sin()).collect();
     let ms: Vec<f64> =
         xs.iter().enumerate().map(|(i, x)| 0.8 * x + (i as f64 * 0.91).cos()).collect();
@@ -863,7 +863,7 @@ fn the_binary_complement_round_trips_and_is_recomputed_independently() {
 
 #[test]
 fn a_routed_world_is_deferred_through_the_facade() {
-    // A path-specific (routed) query on an ADMG: deferred to 2.3.
+    // A path-specific (routed) query on an ADMG: not supported by this route.
     let routed = CounterfactualEventQuery::new(
         vec![
             WorldSpec::new([], []).unwrap(),

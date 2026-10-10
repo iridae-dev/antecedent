@@ -1,8 +1,8 @@
-//! 2.3 B2 (X10 second row): the ordered-response recovery artifact through its re-deciding
+//! The ordered-response recovery artifact through its re-deciding
 //! consumer.
 //!
 //! The truth is the enumerated binary SCM of `antecedent-estimate/tests/
-//! b2_recovery_chain_truth.rs`: `P(X1 = 1) = 0.37`, `P(X2 = 1 | X1) = (0.2, 0.7)`, head
+//! ordered_response_recovery_chain_truth.rs`: `P(X1 = 1) = 0.37`, `P(X2 = 1 | X1) = (0.2, 0.7)`, head
 //! response `P(R_h = 1) = 0.65`, tail response `P(R_t = 1 | R_h, X_h)` =
 //! `[[0.4, 0.55], [0.3, 0.8]]` (dependent) or `P(R_t = 1 | R_h) = (0.3, 0.8)` (independent).
 //! The nonrecoverable fixture adds the self-censoring edge `X2 -> R2`. A fresh consumer must

@@ -1,4 +1,4 @@
-//! 2.2B X10: decision, refusals, budget and verification of exact binary
+//! Decision, refusals, budget and verification of exact binary
 //! observation recovery. Numerical truth lives in
 //! `antecedent-estimate/tests/observation_recovery_execution.rs`.
 

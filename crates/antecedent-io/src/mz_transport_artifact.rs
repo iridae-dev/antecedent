@@ -110,7 +110,7 @@ pub enum MzTransportArtifactError {
 
 impl MzTransportArtifactError {
     /// The frozen `(reason code, mz_transport.* detail)` pair of this failure, when
-    /// the X1 promotion record declares one: a proof or binding failure carries the
+    /// the reason-code registry declares one: a proof or binding failure carries the
     /// pair of the identification error it wraps. Other consumer checks are typed
     /// kinds without a record row.
     #[must_use]

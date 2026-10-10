@@ -1,4 +1,4 @@
-//! B4 latent-class (finite mixture) regime effects.
+//! Latent-class (finite mixture) regime effects.
 //!
 //! # The cell
 //!

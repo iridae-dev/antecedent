@@ -295,7 +295,7 @@ pub(super) fn validate_sequential(
                     .with_n_sims(predictive_sims)
                     .check_with_prior(&mechanism.prepared, &prior, ctx)?;
                 // Mechanism rows are time-ordered: `full` adds the lag-1 residual
-                // autocorrelation discrepancy (C-4).
+                // autocorrelation discrepancy.
                 let post_check = PosteriorPredictiveCheck::for_estimator(estimator, ctx)
                     .with_n_sims(predictive_sims);
                 let post = if suite == RefuteSuite::Full {

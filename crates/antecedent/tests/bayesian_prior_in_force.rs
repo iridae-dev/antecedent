@@ -1,5 +1,5 @@
-//! Bayesian validation uses the prior in force (R-4, R-5), the temporal
-//! serial-dependence posterior check (C-4), the tempering diagnostic (R-9) and
+//! Bayesian validation uses the prior in force, the temporal
+//! serial-dependence posterior check, the tempering diagnostic and
 //! the HMC draw-floor diagnostic (B-5).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
@@ -133,7 +133,7 @@ fn temporal_full_validation_perturbs_and_checks_the_staged_prior() {
         RefuteSuite::Full,
     );
 
-    // R-4: the sensitivity grid is a variance-multiplier grid around the staged prior.
+    // The sensitivity grid is a variance-multiplier grid around the staged prior.
     let sens = staged.posterior.as_ref().unwrap().prior_sensitivity.as_ref().unwrap();
     assert_eq!(sens.family, PriorSensitivityFamily::ResolvedPriorVariance);
     assert_eq!(&*sens.variance_multipliers, &RESOLVED_GRID);
@@ -155,7 +155,7 @@ fn temporal_full_validation_perturbs_and_checks_the_staged_prior() {
     assert_eq!(iso.family, PriorSensitivityFamily::IsotropicScale);
     assert!(isotropic.refutations.iter().any(|r| r.refuter.as_ref() == "prior_sensitivity"));
 
-    // R-5: the prior predictive mean moves with the staged prior:
+    // The prior predictive mean moves with the staged prior:
     // E[mean_t(b0 + b1 x_{t-1})] under the staged coefficient means.
     let prior_ppc = |result: &StudyResult| {
         result

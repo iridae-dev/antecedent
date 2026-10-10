@@ -1,4 +1,4 @@
-//! Smoothed dose-response transport grid (2.2B cell X4): known-truth execution under both
+//! Smoothed dose-response transport grid: known-truth execution under both
 //! sampling designs, exact-integration and oracle-score checks of the derivation, the
 //! smoothing-bias diagnostic, one-family misspecification, support and request refusals,
 //! the quadrature tolerance, invariances, the out-of-fold identity, the estimator menu,

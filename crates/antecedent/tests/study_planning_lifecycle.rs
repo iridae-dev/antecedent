@@ -1,10 +1,10 @@
-//! X6 study planning end to end: declared studies compiled to hypothetical
+//! Study planning end to end: declared studies compiled to hypothetical
 //! deltas, the bounded plan, arrival of the real data re-identified through the
-//! public X1/X9 route and executed against enumerated structural truth, and the
+//! public mz-transport and mixed-source route and executed against enumerated structural truth, and the
 //! independently replayed `study_plan_v1` artifact.
 //!
-//! Fixtures: R-443 Figure 1(c,d) (X1, shared with the estimate-crate tests) and
-//! the front-door surrogate-trial model (X9).
+//! Fixtures: R-443 Figure 1(c,d) (shared with the estimate-crate tests) and
+//! the front-door surrogate-trial model.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -37,7 +37,7 @@ use common::mz_fixture::{
 };
 use common::z_scm::{Scm, risk_of, vid};
 
-// ------------------------------------------------------------------ X1 (mz)
+// ------------------------------------------------------------------ mz-transport
 
 fn assign(variable: usize, level: bool) -> InterventionAssignment {
     InterventionAssignment { variable: vid(variable), value: Value::Bool(level) }
@@ -551,7 +551,7 @@ fn impossible_designs_do_not_compile() {
     assert_eq!(refuse(free), invalid);
 }
 
-// --------------------------------------------------------------- X9 (mixed)
+// --------------------------------------------------------------- mixed-source (mixed)
 
 use mixed_fixture::{X as FX, Y as FY, Z as FZ, build, frontdoor_scm, study as mixed_study};
 

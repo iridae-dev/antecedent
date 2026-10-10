@@ -1,4 +1,4 @@
-//! Derived-treatment declarations for joint cells (2.2 E5).
+//! Derived-treatment declarations for joint cells.
 //!
 //! A *derived treatment* is a treatment built from source columns (a joint cell of binary
 //! components, a product, a sum). Before any estimator sees it, the construction is declared:

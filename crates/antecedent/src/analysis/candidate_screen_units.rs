@@ -1,4 +1,4 @@
-//! Deterministic screen/estimate splits from caller-declared data ownership (2.2 E4).
+//! Deterministic screen/estimate splits from caller-declared data ownership.
 //!
 //! A screen/estimate split is only honest when no unit of dependence contributes rows to
 //! both halves: a repeated entity, a cluster, or a dyad whose endpoint also appears in

@@ -1,4 +1,4 @@
-//! X8 fixed-population temporal counterfactual and the closed transported route.
+//! Fixed-population temporal counterfactual and the closed transported route.
 //!
 //! One cell is licensed: on a fixed, fully observed, Markovian two-slice DAG with
 //! linear-Gaussian additive-noise mechanisms, each unit's exogenous history is abduced once from

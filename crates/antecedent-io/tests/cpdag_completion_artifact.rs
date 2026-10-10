@@ -1,4 +1,4 @@
-//! 2.3A A1 (X2): independent replay of the DAG completions of a CPDAG.
+//! Independent replay of the DAG completions of a CPDAG.
 //!
 //! The fixture is the one the estimate-layer oracle uses: the chain `a - b - c` with
 //! three completions, one enumerated joint law of the SCM `a -> b -> c`, and the

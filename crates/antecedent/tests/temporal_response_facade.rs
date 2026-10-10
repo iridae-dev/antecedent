@@ -514,7 +514,7 @@ fn pulse_sustained_and_surface_share_study_bootstrap_ses() {
     };
 
     // One series: the Pulse publishes only the circular-block bootstrap SE
-    // (R-1). With no replicates there is no calibrated SE, so none is published.
+    //. With no replicates there is no calibrated SE, so none is published.
     let pulse_analytic = run_pulse(0);
     let pulse_boot = run_pulse(40);
     assert!(pulse_analytic.estimate.se_analytic.is_nan(), "iid OLS SE must not be published");

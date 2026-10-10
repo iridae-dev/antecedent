@@ -1,4 +1,4 @@
-//! X8 fixed-population temporal counterfactual and the closed transported gate.
+//! Fixed-population temporal counterfactual and the closed transported gate.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

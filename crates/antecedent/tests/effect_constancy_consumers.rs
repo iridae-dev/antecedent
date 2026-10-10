@@ -1,4 +1,4 @@
-//! Real downstream F18 consumers retain original evidence and point-only limitations.
+//! Real downstream effect-constancy consumers retain original evidence and point-only limitations.
 use antecedent::analysis::effect_constancy::{
     DependenceWire, EffectConstancy, EffectConstancyRequestWire, EffectEstimandWire, FamilyWire,
     PartitionWire,

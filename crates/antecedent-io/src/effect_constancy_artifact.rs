@@ -1,4 +1,4 @@
-//! F18 `EffectConstancy` artifact (`effect_constancy_v1`).
+//! `EffectConstancy` artifact (`effect_constancy_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one global effect-constancy test:
 //!

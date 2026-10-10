@@ -1,5 +1,5 @@
 //! The explicit two-slice unrolling of one finite temporal transport sequence
-//! (2.2A, X5): its frozen horizon, time order, alphabet and hard caps, and its
+//! its frozen horizon, time order, alphabet and hard caps, and its
 //! construction from a lagged template through the ADR 0021 unfolding.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

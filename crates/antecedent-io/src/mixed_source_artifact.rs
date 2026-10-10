@@ -1,4 +1,4 @@
-//! Independent point-result artifacts for mixed-source proof search (X9).
+//! Independent point-result artifacts for mixed-source proof search.
 //!
 //! Format version 1. A consumer trusts nothing in the artifact. It re-runs the
 //! bounded mixed-source decision on the stored graph, query and catalog under its

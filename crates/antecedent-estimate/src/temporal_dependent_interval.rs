@@ -1,4 +1,4 @@
-//! Dependence-preserving sampling interval for the finite two-step sequence (2.3A, X5).
+//! Dependence-preserving sampling interval for the finite two-step sequence.
 //!
 //! Observations of one repeated unit share that unit's dependence, so the
 //! interval resamples whole units: every complete history of a drawn unit moves

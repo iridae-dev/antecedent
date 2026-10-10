@@ -1,4 +1,4 @@
-//! Acceptance evidence for record F25 (structured refusals).
+//! Acceptance evidence for structured refusals.
 //!
 //! A refusal is data: the stage that refused, the offending action or coordinate,
 //! expected versus supplied semantics, the missing capability and a remedy, under a
@@ -102,7 +102,7 @@ fn pair(refusal: &ExternalRefusal) -> (String, String) {
     (refusal.code.to_owned(), refusal.detail.clone())
 }
 
-/// F25 frozen boundary: a decision requests a joint outcome utility from
+/// A decision requests a joint outcome utility from
 /// independent marginals at action A1; the refusal keeps the stage, the action, the
 /// reason, the supplied alignment and the remedy.
 #[test]
@@ -160,7 +160,7 @@ fn wire_response(units: &str) -> ResponseWire {
     .unwrap()
 }
 
-/// F25 frozen boundary: wrong population, action, unit and capability each retain a
+/// Wrong population, action, unit and capability each retain a
 /// distinct, stable reason and detail, and each is a well-formed envelope.
 #[test]
 fn wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
@@ -242,7 +242,7 @@ fn wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
     }
 }
 
-/// F25: a refusal that is itself malformed is refused, with its own detail.
+/// A refusal that is itself malformed is refused, with its own detail.
 #[test]
 fn malformed_refusal_envelopes_are_themselves_refused() {
     let good = evaluate_contract(&contract(), &independent_marginals()).unwrap_err().to_refusal();

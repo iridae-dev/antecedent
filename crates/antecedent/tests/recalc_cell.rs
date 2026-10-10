@@ -1,4 +1,4 @@
-//! 2.3 C2 remainder: cell-AIPW score reuse and portable score resume, proven by counts.
+//! Cell-AIPW score reuse and portable score resume, proven by counts.
 //!
 //! The route is the cell-saturated AIPW interaction contrast over two binary treatments. Each
 //! mutation asserts the whole per-stage status table, the work that actually ran (cell-model

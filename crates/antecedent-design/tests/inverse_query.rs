@@ -1,4 +1,4 @@
-//! Known-truth F7 inverse decision queries on hand-enumerated finite laws.
+//! Known-truth inverse decision queries on hand-enumerated finite laws.
 //!
 //! Ordered actions `a0, a1, a2` have outcome laws Bernoulli(1/4, 1/2, 3/4),
 //! realized as four equiprobable aligned rows:

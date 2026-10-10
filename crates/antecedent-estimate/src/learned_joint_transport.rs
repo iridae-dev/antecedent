@@ -1,10 +1,10 @@
-//! Learned joint source-target transport (2.3A cell X4 remainder and 2.3B B1 model-provider
-//! row `learned_joint_transport`): the outcome mechanism is **fitted through
+//! Learned joint source-target transport (model-provider row
+//! `learned_joint_transport`): the outcome mechanism is **fitted through
 //! `antecedent-learn`**.
 //!
 //! # The named row
 //!
-//! * **Graph.** The fixed DAG and selection assumptions of one already identified 2.2
+//! * **Graph.** The fixed DAG and selection assumptions of one already identified
 //!   transport row (a direct or baseline-standardization [`TransportIdentification`]). An
 //!   ADMG or a graph posterior is refused (`learned_joint_transport.unsupported_graph`).
 //! * **Provider.** `antecedent-learn`'s [`KnownVarianceBasisRegression`] over a declared

@@ -1,4 +1,4 @@
-//! 2.2B B1 (X2): ADMG conditional transport on the classical complete-source family.
+//! ADMG conditional transport on the classical complete-source family.
 //!
 //! Decision, reduction, obstruction-candidate and budget evidence. Numerical truth
 //! against enumerated latent SCMs lives in

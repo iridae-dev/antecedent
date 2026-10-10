@@ -9,7 +9,7 @@
 //! * point-only decision: `E[Y | do(a)] = 1 + 2a`, so `wait` reads `a = 0` and has
 //!   utility `2 * 1 - 1 = 1`, `treat` reads `a = 2` and has utility `2 * 5 - 1 = 9`;
 //! * robust decision: structures `s1 = (a: 5, b: 3)` and `s2 = (a: 6, b: 2)`;
-//! * ranking: the frozen F14 record, net values `3/20` and `1/40`.
+//! * ranking: the frozen guess decision, net values `3/20` and `1/40`.
 
 use std::collections::BTreeMap;
 use std::io::Cursor;

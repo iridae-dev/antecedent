@@ -1,4 +1,4 @@
-//! Selective recalculation on the cell-AIPW route, with portable score resume (2.3 C2).
+//! Selective recalculation on the cell-AIPW route, with portable score resume.
 //!
 //! [`super::recalc_receipt`] executes the cross-fitted AIPW average effect under a
 //! [`RecalcPlan`] and counts the work that ran. This module adds, without touching that

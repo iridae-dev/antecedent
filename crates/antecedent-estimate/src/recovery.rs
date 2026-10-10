@@ -1,4 +1,4 @@
-//! Exact evaluation of a checked observation-recovery formula (2.2B X10) and of
+//! Exact evaluation of a checked observation-recovery formula and of
 //! the downstream effect identified from the recovered law.
 //!
 //! The recovery formula is evaluated by the shared compiled evaluator over the

@@ -1,4 +1,4 @@
-//! Cross-world edge contrast on a fixed Markovian DAG (2.2 A5, X8): exact SCM
+//! Cross-world edge contrast on a fixed Markovian DAG: exact SCM
 //! truth for every edge set, the natural direct effect regression, per-unit
 //! shared abduction (mediator and outcome noise) under linear and non-separable
 //! mechanisms, nonidentification, out-of-contract and refusal boundaries,

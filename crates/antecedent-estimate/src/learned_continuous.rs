@@ -1,4 +1,4 @@
-//! Learned continuous-outcome trial-to-target transport (2.2A cell X4).
+//! Learned continuous-outcome trial-to-target transport.
 //!
 //! # The one cell
 //!

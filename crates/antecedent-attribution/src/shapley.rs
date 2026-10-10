@@ -557,7 +557,7 @@ mod tests {
         }
     }
 
-    /// E1: the per-player standard error against a known, hand-computed Bessel-corrected
+    /// The per-player standard error against a known, hand-computed Bessel-corrected
     /// reference (not derived from the estimator itself).
     #[test]
     fn monte_carlo_se_matches_bessel_corrected_reference() {
@@ -586,7 +586,7 @@ mod tests {
         assert!(one.stderr_of_mean().is_infinite());
     }
 
-    /// E1 end-to-end: with a single Monte Carlo sample, the pre-fix formula
+    /// End-to-end: with a single Monte Carlo sample, the pre-fix formula
     /// (`sqrt(E[X^2] - E[X]^2) / sqrt(n)`) is exactly `0.0` — a single draw has no
     /// meaningful sample variance. The fix must report `+inf` instead.
     #[test]
@@ -638,7 +638,7 @@ mod tests {
         );
     }
 
-    /// E1 end-to-end statistical check: for a 2-player XOR payoff, each player's
+    /// End-to-end statistical check: for a 2-player XOR payoff, each player's
     /// per-permutation marginal contribution is Bernoulli(0.5) (the two possible
     /// orderings are equally likely), with known closed-form variance `0.25`. The
     /// reported MC stderr should track `sqrt(0.25 / n_samples)`.

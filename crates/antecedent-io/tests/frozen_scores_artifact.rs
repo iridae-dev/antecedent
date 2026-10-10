@@ -1,4 +1,4 @@
-//! 2.3 C2: the portable frozen score table.
+//! The portable frozen score table.
 //!
 //! The consumer checks the format bounds and the table shape, recomputes the fit identity from
 //! the stored stage digests, requires the stored snapshot digest to be the declared one, and

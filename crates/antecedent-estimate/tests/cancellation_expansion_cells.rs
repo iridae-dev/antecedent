@@ -1,4 +1,4 @@
-//! Cancellation of the 2.2 E-cells that loop (cost and cancellation checks): a context
+//! Cancellation of the estimation cells that loop (cost and cancellation checks): a context
 //! cancelled before the call yields the cell's typed cancellation refusal and no partial
 //! result, a context tripped in the middle of the bounded loop is observed at that loop's
 //! granularity, and the same inputs complete under a live context.

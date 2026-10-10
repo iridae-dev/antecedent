@@ -1,4 +1,4 @@
-//! 2.2B X3 lifecycle: the prepared z stage evaluates joint mechanism
+//! Lifecycle: the prepared z stage evaluates joint mechanism
 //! deviations, exports a version 3 artifact, and an independent consumer
 //! replays it; mutations fail for the right reason and the interval route is
 //! closed.

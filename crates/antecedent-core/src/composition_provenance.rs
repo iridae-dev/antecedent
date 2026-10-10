@@ -1,4 +1,4 @@
-//! Queryable lineage for 2.3 compositions.
+//! Queryable lineage for compositions.
 //!
 //! Each link names a stage (causal contract, evidence, external provider,
 //! distribution artifact, transformation, decision contract, sensitivity input,

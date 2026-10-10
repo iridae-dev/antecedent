@@ -1,4 +1,4 @@
-//! X6 per-proposal receipt linking identification repair and design ranking, with
+//! Per-proposal receipt linking identification repair and design ranking, with
 //! re-identification on arrived data.
 //!
 //! A [`ProposalReceipt`] binds, for one candidate study, by identities and digests

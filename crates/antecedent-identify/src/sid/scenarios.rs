@@ -42,7 +42,7 @@
 //! input of the classical catalog route reaches it today; it is kept for routes
 //! that can return an undecided scenario.
 //!
-//! # Conditional scenario questions (2.2B B1)
+//! # Conditional scenario questions
 //!
 //! A set may instead ask the conditional question `P*(y | do(x), w)`
 //! ([`ScenarioQuestion::Conditional`], [`decide_conditional_transport_scenarios`]).
@@ -542,10 +542,10 @@ impl TransportScenarioSet {
 /// The one transport question every scenario of a set is decided against.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ScenarioQuestion {
-    /// `P*(y | do(x))`, decided by the classical catalog sID route (2.2A A2).
+    /// `P*(y | do(x))`, decided by the classical catalog sID route.
     Classical(ClassicalTransportQuery),
     /// `P*(y | do(x), w)`, decided by the bounded ADMG conditional transport
-    /// route (2.2B B1): at most 6 observed variables, 0-3 treatments and 1-3
+    /// route: at most 6 observed variables, 0-3 treatments and 1-3
     /// conditioned variables.
     Conditional(ConditionalTransportQuery),
 }
@@ -752,7 +752,7 @@ pub fn decide_transport_scenarios(
 }
 
 /// Decide every scenario independently against one conditional question
-/// `P*(y | do(x), w)` (2.2B B1) and the same catalog.
+/// `P*(y | do(x), w)` and the same catalog.
 ///
 /// Each scenario is decided by the bounded ADMG conditional route (the rule-2
 /// reduction, re-checked by the independent checker; the reduced joint through

@@ -1,4 +1,4 @@
-//! X8 fixed-population temporal counterfactual artifact: hand-computed two-slice SCM values
+//! Fixed-population temporal counterfactual artifact: hand-computed two-slice SCM values
 //! through the container, a recomputing consumer that replays both worlds, resealed-mutation
 //! refusals against a retained identity (action time, unit history, snapshot, mechanism fit)
 //! and unknown versions.

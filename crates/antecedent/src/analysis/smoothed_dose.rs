@@ -1,4 +1,4 @@
-//! Prepared smoothed dose-response transport grid (2.2B cell X4).
+//! Prepared smoothed dose-response transport grid.
 //!
 //! Preparation checks the smoothed-dose query, derives the transport certificate once
 //! and validates the request (bounds, known density, dose support, local support)

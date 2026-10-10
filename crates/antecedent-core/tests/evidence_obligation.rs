@@ -1,4 +1,4 @@
-//! F9 evidence obligations: construction from real failed factor contracts, the
+//! Evidence obligations: construction from real failed factor contracts, the
 //! joint-regime rule, order-independent identity, and the rule that a study
 //! never establishes an assumption.
 //!

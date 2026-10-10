@@ -1,4 +1,4 @@
-//! C1: a native response feeds decision flows through a typed claim.
+//! A native response feeds decision flows through a typed claim.
 //!
 //! Hand example. Program: outcome `y` (mmHg) under `do(dose = d)` for the grid
 //! `d in {1, 2}` in the target population. Native means: `E[y | do(1)] = 3`,

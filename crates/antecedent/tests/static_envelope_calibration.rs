@@ -1,4 +1,4 @@
-//! Repeated-sampling coverage for static envelope and tier cells (R-19).
+//! Repeated-sampling coverage for static envelope and tier cells.
 //!
 //! Every DGP is linear with Gaussian noise, so each completion's reported
 //! functional has a closed-form population value (derived next to each

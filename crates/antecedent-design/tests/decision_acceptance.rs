@@ -1,8 +1,8 @@
-//! Acceptance evidence for the frozen records F4 (decision contract), F5
-//! (decision functionals) and F6 (structural decision policy).
+//! Acceptance evidence for the decision contract, decision functionals and
+//! structural decision policy.
 //!
 //! Every expected number below is enumerated by hand from the frozen text of
-//! `parity/promotion_2_3.toml`, never read back from the code under test.
+//! `parity/promotion.toml`, never read back from the code under test.
 
 use std::path::{Path, PathBuf};
 
@@ -171,7 +171,7 @@ fn run_fresh_consumer(test: &str, files: &[(String, Vec<u8>)]) {
 }
 
 // ---------------------------------------------------------------------------
-// F4: actions A and B, joint states (0,2) and (2,0), utility x*y for A, 1 for B
+// Decision contract: actions A and B, joint states (0,2) and (2,0), utility x*y for A, 1 for B
 // ---------------------------------------------------------------------------
 
 fn admissibility_columns() -> Vec<ScientificQuantity> {
@@ -343,7 +343,7 @@ fn artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_identit
 }
 
 // ---------------------------------------------------------------------------
-// F5: finite law, mass 1/4 at 0 and 3/4 at 2
+// Decision functionals: finite law, mass 1/4 at 0 and 3/4 at 2
 // ---------------------------------------------------------------------------
 
 fn functional_columns(functional: &str) -> Vec<ScientificQuantity> {
@@ -779,7 +779,7 @@ fn artifact_fresh_process_consumer_retains_functional_convention_law_and_units()
 }
 
 // ---------------------------------------------------------------------------
-// F6: two structural atoms, utilities A = (2, -1) and B = (0, 1), no probabilities
+// Structural decision policy: two structural atoms, utilities A = (2, -1) and B = (0, 1), no probabilities
 // ---------------------------------------------------------------------------
 
 fn structural_columns() -> Vec<ScientificQuantity> {

@@ -1,7 +1,7 @@
-//! Versioned wire coordinates for 2.3 scientific quantities.
+//! Versioned wire coordinates for scientific quantities.
 //!
 //! This wire carries semantics only. It does not turn a numerical payload into
-//! a licensed causal estimate or reinterpret a 2.2 posterior artifact.
+//! a licensed causal estimate or reinterpret a posterior-draw artifact.
 
 use antecedent_core::{DistributionMeaning, QuantityCondition, QuantityRole, ScientificQuantity};
 use serde::{Deserialize, Serialize};

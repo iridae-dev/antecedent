@@ -1,4 +1,4 @@
-//! 2.2B X8: counterfactual identification of the effect of treatment on the
+//! Counterfactual identification of the effect of treatment on the
 //! treated on bounded ADMGs, checked against exact enumerated latent-variable
 //! structural models, explicit two-model non-identifiability witnesses, the
 //! shared search budget, the declared bounds and invariances.
@@ -732,7 +732,7 @@ fn shapes_outside_the_contract_refuse_with_their_details() {
     )
     .unwrap();
     expect(&abduced, "route_not_supported", "counterfactual_id.query_outside_contract");
-    // A world that routes an edge: path-specific, deferred to 2.3.
+    // A world that routes an edge: path-specific, not supported by this route.
     let routed = CounterfactualEventQuery::new(
         vec![
             WorldSpec::new([], []).unwrap(),

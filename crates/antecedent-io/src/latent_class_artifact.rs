@@ -1,4 +1,4 @@
-//! B4 latent-class regime-effects artifact (`latent_class_effects_v1`).
+//! Latent-class regime-effects artifact (`latent_class_effects_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one finite-mixture fit:
 //!

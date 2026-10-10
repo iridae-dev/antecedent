@@ -1,4 +1,4 @@
-//! 2.3 B2 / X10 second row: the ordered-response recovery formula against the
+//! The ordered-response recovery formula against the
 //! truth of an enumerated binary SCM, written out independently of the library.
 //!
 //! SCM (axis 0 = X1, axis 1 = X2): `P(X1 = 1) = 0.37`, `P(X2 = 1 | X1) = (0.2,

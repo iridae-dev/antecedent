@@ -1,4 +1,4 @@
-//! 2.2B X10: exact evaluation of recovery formulas against enumerated SCM truth,
+//! Exact evaluation of recovery formulas against enumerated SCM truth,
 //! the downstream effect, the bounded-class sweep and the observed-law refusals.
 #![allow(clippy::cast_possible_truncation, reason = "test indices are small")]
 

@@ -1,4 +1,4 @@
-//! 2.3 B3: the marginal sensitivity model result adapted into the F17
+//! The marginal sensitivity model result adapted into the
 //! `SensitivityArtifact`, consumed by its recomputing decision classification.
 //!
 //! Inputs are the two-stratum example of `antecedent-validate/tests/msm_sensitivity.rs`

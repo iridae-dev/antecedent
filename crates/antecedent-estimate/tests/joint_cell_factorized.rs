@@ -1,4 +1,4 @@
-//! Factorized joint-cell AIPW (2.2 E5): the factorized cell propensities and cell means are
+//! Factorized joint-cell AIPW: the factorized cell propensities and cell means are
 //! checked against a known joint law enumerated by hand, the family keeps its supported cells
 //! when one is empty or rare, ordering sensitivity is reported, a declared `antecedent-learn`
 //! learner supplies the nuisances out of fold (point only), the factorization reproduces the

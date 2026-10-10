@@ -1,4 +1,4 @@
-//! Frozen full-fit B4 diagnostics, no invented confidence intervals. Vector design
+//! Frozen full-fit treatment-inference diagnostics, no invented confidence intervals. Vector design
 //! uses the full ±1 product(U,V,Z), T1=U+Z,T2=.5U+V+.5Z; closed treatment covariance
 //! is(1/n)[[1.25,-.5],[-.5,1]]. Categorical design has three balanced groups and
 //! independent known Gaussian errors. `ModelBased` is measured only homoskedastically;

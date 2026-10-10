@@ -54,7 +54,7 @@ use crate::study_planner::{
 pub const STUDY_PLAN_ARTIFACT_VERSION: u32 = 1;
 /// Artifact kind.
 pub const STUDY_PLAN_ARTIFACT_KIND: &str = "study_plan_v1";
-/// Rule-set identity of the X1 route recorded in the premises.
+/// Rule-set identity of the mz-transport route recorded in the premises.
 const MZ_RULE_SET: &str = "trmz.r443.v1";
 
 impl StudyPlanError {
@@ -193,7 +193,7 @@ pub struct StudyRepairWire {
     pub required_margin: Vec<u32>,
     /// Declared margin.
     pub declared_margin: Vec<u32>,
-    /// X9 proof steps.
+    /// Mixed-source proof steps.
     pub proof_steps: Vec<usize>,
 }
 
@@ -203,11 +203,11 @@ pub struct StudyRepairWire {
 pub struct StudyDerivationWire {
     /// `mz`, `mixed` or `named`.
     pub kind: String,
-    /// X1 derivation record.
+    /// mz-transport derivation record.
     pub mz: Option<MzTransportDerivationRecord>,
-    /// X9 derivation record.
+    /// Mixed-source derivation record.
     pub mixed: Option<MixedSourceDerivationRecord>,
-    /// X9 named route.
+    /// Mixed-source named route.
     pub named_route: Option<String>,
 }
 

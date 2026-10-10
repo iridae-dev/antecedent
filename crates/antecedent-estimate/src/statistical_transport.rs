@@ -1431,7 +1431,7 @@ pub fn mz_transport_bootstrap_law_draws(
 /// count tables, one per replicate (`None` for a replicate whose draw failed).
 ///
 /// Same stream, alias policy and dependence rule as [`nominal_z_transport_interval`];
-/// the 2.2B X3 joint-sensitivity endpoint bootstrap evaluates its exact range on
+/// the joint-sensitivity endpoint bootstrap evaluates its exact range on
 /// each draw. Compiled only under `calibration-internal` (dev-dependencies alone).
 ///
 /// # Errors
@@ -1482,7 +1482,7 @@ pub fn z_transport_bootstrap_law_draws(
 /// This is the internal estimator the calibration harness measures; the public
 /// prepared route does not publish it until its coverage records exist.
 ///
-/// Like the X4 learned-continuous interval, this is compiled only with the
+/// Like the learned-continuous interval, this is compiled only with the
 /// `calibration-internal` feature, which only dev-dependencies (this crate's integration
 /// tests, `antecedent-io`'s interval tests and the facade's calibration harness) enable;
 /// no released build links it. The public prepared route withholds the interval, and

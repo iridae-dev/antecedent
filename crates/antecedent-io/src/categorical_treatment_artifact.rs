@@ -1,4 +1,4 @@
-//! B4 categorical-treatment artifact (`categorical_treatment_v1`).
+//! Categorical-treatment artifact (`categorical_treatment_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one dummy-coded categorical regime fit:
 //!

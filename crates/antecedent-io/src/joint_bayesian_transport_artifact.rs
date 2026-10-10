@@ -1,5 +1,4 @@
-//! Independent artifact of the joint Bayesian source-target transport engine
-//! (2.3A X4, record `transport.joint_bayesian`). The original candidate
+//! Independent artifact of the joint Bayesian source-target transport engine. The original candidate
 //! format and its posterior quantities retain their `unmeasured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen
@@ -7,7 +6,7 @@
 //!
 //! Format version 1. The artifact carries the model declaration (graph class, varying
 //! block, sharing, dependence, bounds), both priors with their provenance (a prior bank
-//! names every observation it consumed), the checked 2.2 transport identification the
+//! names every observation it consumed), the checked transport identification the
 //! model reads, the draw request (count and seed), the source and target data identities
 //! with the observations themselves, and the result: exact posterior mean and covariance,
 //! the aligned joint draws with their RNG identity, the diagnostics, and the calibration
@@ -28,7 +27,7 @@
 //! The artifact embeds the observations (units), not sufficient statistics: the engine's
 //! only fit entry takes units, and a re-fit from units reproduces the draws bit for bit
 //! under the engine's own summation order. What replay does not protect against: a
-//! producer that supplies fabricated observations consistently, and the 2.2 derivation
+//! producer that supplies fabricated observations consistently, and the derivation
 //! the identification record copies, which is a declared premise bound into the premises
 //! digest, not re-derived here (no graph is stored).
 //!
@@ -540,7 +539,7 @@ pub struct JointBayesianArtifactWire {
     pub required_features: Vec<String>,
     /// Model declaration with priors and provenance.
     pub model: JointModelWire,
-    /// The checked 2.2 transport identification the model reads.
+    /// The checked transport identification the model reads.
     pub identification: TransportIdentificationWire,
     /// Draw request.
     pub options: JointOptionsWire,

@@ -1,5 +1,5 @@
-//! 2.3 A exit gate, boxes 3 and 4: the aligned joint draw and the external finite response,
-//! each as ONE gate-shaped test over the committed cross-surface fixtures.
+//! The aligned joint draw and the external finite response,
+//! each as one test over the committed cross-surface fixtures.
 //!
 //! The fixtures in `conformance/cross_surface/` are read-only here. `py_*` files were built by
 //! `python/tests/generate_cross_surface_fixtures.py`, `rust_*` files by the ignored
@@ -7,8 +7,8 @@
 //! `cross_surface_external_claim.rs`; a missing file fails loudly. Every expected identity is
 //! built from constants below, never read back from the artifact.
 //!
-//! Composes: `cross_surface_joint_law.rs` (F21), `cross_surface_external_claim.rs` and
-//! `external_claim_artifact.rs` (F3), plus the `external_binding` and `external` unit tests of
+//! Composes: `cross_surface_joint_law.rs`, `cross_surface_external_claim.rs` and
+//! `external_claim_artifact.rs`, plus the `external_binding` and `external` unit tests of
 //! `antecedent-core`. Python twins: `python/tests/test_composition_exit_joint_and_external.py`.
 //!
 //! Hand-derived joint truth: two equally weighted aligned draws (0, 0) and (1, 2) give means

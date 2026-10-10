@@ -1,4 +1,4 @@
-//! Bounded binary nested-Markov likelihood pilot (2.3A A3, record
+//! Bounded binary nested-Markov likelihood pilot (record
 //! `identify.binary_nested_markov`).
 //!
 //! An ordinary DAG factorization is **not** an ADMG likelihood: factorizing the
@@ -46,8 +46,8 @@
 //! The parameterization has 11 free parameters against 15 for the saturated
 //! model, so four equalities hold on every law of the model (positive `P`):
 //!
-//! * (E1) `X3` independent of `X1` given `X2`: `P(x3=0|x1=0,x2) = P(x3=0|x1=1,x2)`;
-//! * (E2) the Verma constraint: `sum_{x2} P(x2|x1) P(x4=0|x1,x2,x3)` does not
+//! * `X3` independent of `X1` given `X2`: `P(x3=0|x1=0,x2) = P(x3=0|x1=1,x2)`;
+//! * the Verma constraint: `sum_{x2} P(x2|x1) P(x4=0|x1,x2,x3)` does not
 //!   depend on `x1`, for each `x3`.
 //!
 //! [`constraint_residuals`] reports all four residuals. Data whose empirical law
@@ -417,9 +417,9 @@ impl LawMarginals {
 /// The four equality-constraint residuals of a law.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ConstraintResiduals {
-    /// (E1) `P(x3=0|x1=0,x2) - P(x3=0|x1=1,x2)` for `x2 = 0, 1`.
+    /// `P(x3=0|x1=0,x2) - P(x3=0|x1=1,x2)` for `x2 = 0, 1`.
     pub x3_independent_of_x1: [f64; 2],
-    /// (E2) Verma: `R(0, x3) - R(1, x3)` for `x3 = 0, 1`.
+    /// Verma: `R(0, x3) - R(1, x3)` for `x3 = 0, 1`.
     pub verma: [f64; 2],
     /// Largest absolute residual.
     pub max_abs: f64,

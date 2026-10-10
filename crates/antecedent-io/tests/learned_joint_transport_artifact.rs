@@ -1,4 +1,4 @@
-//! 2.3A X4 remainder / B1 model-provider row: the learned joint transport artifact (model
+//! The learned joint transport artifact (model
 //! with its polynomial basis, priors with provenance, data identities, exact posterior fitted
 //! through `antecedent-learn`, aligned joint draws, diagnostics, graph/provider/query record,
 //! identification, calibration `unmeasured`) replays independently.

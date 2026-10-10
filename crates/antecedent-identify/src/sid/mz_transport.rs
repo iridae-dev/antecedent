@@ -99,7 +99,7 @@ const INVALID_DERIVATION: &str = "mz_transport.invalid_derivation";
 const INVALID_OBSTRUCTION: &str = "mz_transport.invalid_obstruction";
 
 /// The frozen `(reason code, mz_transport.* detail)` pair of an error raised by
-/// the mz-transport route, as the X1 promotion record declares them:
+/// the mz-transport route, as the route declares them:
 /// `route_not_supported` for a bound, `invalid_argument` for an invalid query or
 /// catalog, `transport_not_certified` for a derivation, leaf or obstruction that
 /// does not check, `transport_missing_evidence` for an unbound cited regime and
@@ -326,7 +326,7 @@ pub enum MzTransportRoute {
     },
 }
 
-/// A checked positive derivation of an mz-transport query.
+/// A checked positive derivation of a mz-transport query.
 #[derive(Clone, Debug)]
 pub struct MzTransportDerivation {
     query: MzTransportQuery,

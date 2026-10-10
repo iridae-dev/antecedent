@@ -1,4 +1,4 @@
-//! 2.3A X5 `dependent_temporal_interval`: the internal interval artifact replays the whole
+//! `dependent_temporal_interval`: the internal interval artifact replays the whole
 //! unit resampling from its embedded panel and refuses every resealed mutation of a unit,
 //! time id, value, snapshot, design, estimator or stored replicate. The public interval
 //! route stays closed; this artifact is internal and records calibration `unmeasured`.

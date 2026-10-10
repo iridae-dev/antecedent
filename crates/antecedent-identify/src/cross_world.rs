@@ -129,7 +129,7 @@ pub struct CounterfactualNode {
 /// The machine-checkable derivation of a cross-world estimand.
 ///
 /// The struct is `#[non_exhaustive]` and rejects unknown fields on the wire: a
-/// later route (ADMG counterfactual identification, B5) adds fields or a new
+/// later route (ADMG counterfactual identification) adds fields or a new
 /// witness kind under a new artifact version, and a reader of this version must
 /// refuse it rather than misread it. Today it describes one fixed-DAG contract
 /// whose reroutes all read world 0 (`rerouted_edges` carries the source world so
@@ -441,7 +441,7 @@ mod tests {
         let refusal = check_cross_world_edges(3, &MEDIATION, &query).unwrap_err();
         assert_eq!(refusal.code, "route_not_supported");
         assert_eq!(refusal.detail, "cross_world.query_outside_contract");
-        // The 2.2B X8 latent coupling (marginalized, not abducted) is outside
+        // The latent coupling (marginalized, not abducted) is outside
         // this fixed-DAG contract too: refused as a shape, never as a verdict.
         let direct = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
         let latent = CrossWorldQuery::new(

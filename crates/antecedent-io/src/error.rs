@@ -111,7 +111,7 @@ pub enum IoError {
 
 impl IoError {
     /// The registered reason code this error carries, when it has one: a coded
-    /// refusal, or an mz-transport artifact failure the X1 record assigns a code.
+    /// refusal, or an mz-transport artifact failure the registry assigns a code.
     #[must_use]
     pub fn reason_code(&self) -> Option<&'static str> {
         match self {

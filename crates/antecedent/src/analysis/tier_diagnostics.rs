@@ -1,4 +1,4 @@
-//! Tier-aware overlap and E-value diagnostics of an executed tiered result (2.2 E7).
+//! Tier-aware overlap and E-value diagnostics of an executed tiered result.
 //!
 //! A tiered study (`.tiered_background(..)`) runs one of two licensed average-effect cells:
 //!

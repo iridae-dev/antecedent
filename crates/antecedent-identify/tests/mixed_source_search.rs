@@ -1,4 +1,4 @@
-//! Bounded mixed-source proof search (X9).
+//! Bounded mixed-source proof search.
 //!
 //! Graphs are small binary ADMGs. The positive fixture is the chain
 //! `X -> Z -> Y`: one study measures `{X, Z}` and another `{Z, Y}`, so no study

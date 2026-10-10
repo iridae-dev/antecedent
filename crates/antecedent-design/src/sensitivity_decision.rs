@@ -1,7 +1,7 @@
-//! F17: consuming an assumption-sensitivity surface in a durable decision.
+//! Consuming an assumption-sensitivity surface in a durable decision.
 //!
 //! A [`SensitivityArtifact`] (defined with its portable wire in
-//! `antecedent_io::sensitivity_artifact`, where the 2.2 result is adapted) carries a
+//! `antecedent_io::sensitivity_artifact`, where the joint mechanism sensitivity result is adapted) carries a
 //! surface of one or more quantities over a declared assumption coordinate, with an
 //! assumption range at every grid point. This module maps that surface into a
 //! [`DecisionContract`] evaluation by treating every pair of a grid point and a

@@ -1,6 +1,6 @@
 //! Independent point and analytic-interval artifacts for learned continuous-outcome trial transport.
 //!
-//! Format versions 1 (point) and 2 (analytic interval) of the 2.2A cell X4 artifact
+//! Format versions 1 (point) and 2 (analytic interval) of the artifact
 //! (separate from the `learned_trial` v1 wire, which stays consumable). A consumer
 //! never fits a learner or resamples. It
 //! re-derives the transport certificate from the stored graph and query and requires the

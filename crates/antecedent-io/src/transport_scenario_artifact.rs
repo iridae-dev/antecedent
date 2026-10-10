@@ -20,7 +20,7 @@
 //! short by cancellation is never exported: nothing recorded lets a consumer
 //! reproduce where the interruption fell.
 //!
-//! Format version 2 (2.2B B1) is the same artifact for a conditional question
+//! Format version 2 is the same artifact for a conditional question
 //! `P*(y | do(x), w)`: the question carries `conditioned_on`, an identified
 //! scenario carries its checked conditional record (rule-2 moves, remaining
 //! conditioned set and the reduced joint's sID record) in place of `proof`, a
@@ -62,7 +62,7 @@ use std::sync::Arc;
 pub const TRANSPORT_SCENARIO_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TRANSPORT_SCENARIO_ARTIFACT_FEATURE: &str = "transport_scenario_envelope_v1";
-/// The format version of an artifact whose question is conditional (2.2B B1).
+/// The format version of an artifact whose question is conditional.
 pub const TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION: u32 = 2;
 /// The feature marker a version-2 artifact requires beside
 /// [`TRANSPORT_SCENARIO_ARTIFACT_FEATURE`].

@@ -1,4 +1,4 @@
-//! 2.3 C2: the portable selective-recalculation receipt.
+//! The portable selective-recalculation receipt.
 //!
 //! The consumer recomputes the plan from the stored previous and requested digests and the
 //! stored capabilities and requires the stored table, counts, totals and identities to match;

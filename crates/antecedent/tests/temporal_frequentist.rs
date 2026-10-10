@@ -1,4 +1,4 @@
-//! Coverage of dependence-honest Frequentist TemporalDag intervals (R-1, R-2).
+//! Coverage of dependence-honest Frequentist TemporalDag intervals.
 //!
 //! Plain TemporalDag Pulse / single-step Sustained and temporal mediation
 //! (Total, Direct, Mediated) are calibrated under iid noise and under AR(1)
@@ -440,7 +440,7 @@ fn mediation_coverage_on(
     Coverage { tallies: vec![total, direct, mediated], reported: vec![reported], warned }
 }
 
-/// WP-F2: Total / Direct / Mediated coverage on the mediator-outcome-confounded
+/// Total / Direct / Mediated coverage on the mediator-outcome-confounded
 /// DGP (`common::fixtures::mediation_series`, `kappa = 0.5`: `m <- z[t-1] ->
 /// w[t-1] -> y` confounds `m -> y` but not `t -> y`) at n = 160, iid. The
 /// intervals are only calibrated if the outcome model adjusts `{z[t-1],

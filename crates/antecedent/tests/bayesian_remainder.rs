@@ -1,4 +1,4 @@
-//! Bayesian remainder: functional, mediation, CF, derivatives, CATE mixtures.
+//! Bayesian functional, mediation, counterfactual, derivative and CATE-mixture routes.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::too_many_lines)]
 #![allow(

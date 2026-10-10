@@ -1,4 +1,4 @@
-//! X5 `new_period_refresh`: semantic refresh of a held horizon-two result onto a new period.
+//! `new_period_refresh`: semantic refresh of a held horizon-two result onto a new period.
 //! The evaluator here is a deterministic stand-in (the mean of the snapshot's unit outcomes)
 //! so the tests isolate the identity, invalidation and receipt contract; the exact-law
 //! `PreparedTemporalSequence` adapter shares the same decision function.

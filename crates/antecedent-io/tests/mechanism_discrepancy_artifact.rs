@@ -1,4 +1,4 @@
-//! B3 mechanism discrepancy artifact: hand-derived acceptance numbers through the container, a
+//! Mechanism discrepancy artifact: hand-derived acceptance numbers through the container, a
 //! recomputing consumer, resealed-mutation refusals against a retained identity, unresealed
 //! tampering, unknown versions, the never-certifies-invariance flag and the unmeasured
 //! calibration coordinate.

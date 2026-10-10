@@ -923,7 +923,7 @@ mod tests {
         assert!(verify_external_object(&signal, &probes).is_ok());
     }
 
-    // ---- Bernoulli(p = 1/4) acceptance fixtures (F2, F20, F22) ----
+    // ---- Bernoulli(p = 1/4) acceptance fixtures ----
 
     /// Exact pmf of the law the provider declares: `P(0) = 3/4`, `P(1) = 1/4`.
     const PMF: [(f64, f64); 2] = [(0.0, 0.75), (1.0, 0.25)];
@@ -962,7 +962,7 @@ mod tests {
         ExternalCapabilityRequest { expected_identity: identity(), operation }
     }
 
-    /// F2 frozen boundary: Mean 1/4 and seeded samples are admissible.
+    /// Mean 1/4 and seeded samples are admissible.
     #[test]
     fn bernoulli_law_mean_and_seeded_samples_negotiate() {
         let law = bernoulli(vec![ExternalCapability::Sample, ExternalCapability::Mean]);
@@ -982,7 +982,7 @@ mod tests {
         assert_eq!(mean.identity(), &identity());
     }
 
-    /// F2 frozen boundary: an outcome posterior or a missing CDF cannot masquerade
+    /// An outcome posterior or a missing CDF cannot masquerade
     /// as an interventional law.
     #[test]
     fn outcome_posterior_and_missing_cdf_cannot_masquerade_as_an_interventional_law() {
@@ -1006,7 +1006,7 @@ mod tests {
         }
     }
 
-    /// F20 frozen boundary: a mean request accepts; threshold probability (a CDF
+    /// A mean request accepts; threshold probability (a CDF
     /// request) and quantile refuse without a licensed approximation receipt.
     #[test]
     fn mean_request_accepts_and_threshold_and_quantile_refuse() {
@@ -1021,7 +1021,7 @@ mod tests {
         }
     }
 
-    /// F20 frozen boundary: an absent capability is not inferred from another
+    /// An absent capability is not inferred from another
     /// operation or from a provider label.
     #[test]
     fn absent_capability_is_not_inferred_from_another_operation_or_label() {
@@ -1072,7 +1072,7 @@ mod tests {
         ]
     }
 
-    /// F22 frozen boundary: normalization is 1 and the moments and CDF match
+    /// Normalization is 1 and the moments and CDF match
     /// enumeration at this exact fingerprint only.
     #[test]
     fn bernoulli_verification_matches_enumeration_at_exact_fingerprint() {
@@ -1096,7 +1096,7 @@ mod tests {
         );
     }
 
-    /// F22 frozen boundary: wrong support, normalization, moments or seed behavior
+    /// Wrong support, normalization, moments or seed behavior
     /// refuse verification, and so does a different request fingerprint.
     #[test]
     fn wrong_support_normalization_moments_seed_or_fingerprint_refuse_verification() {

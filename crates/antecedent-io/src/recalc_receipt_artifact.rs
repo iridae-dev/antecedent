@@ -1,4 +1,4 @@
-//! Portable selective-recalculation receipt (`recalc_receipt_v1`, 2.3 C2).
+//! Portable selective-recalculation receipt (`recalc_receipt_v1`).
 //!
 //! A bounded, checksummed container holding one receipt of a selective recalculation:
 //!

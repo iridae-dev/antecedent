@@ -1,4 +1,4 @@
-//! Uncertain pre-action state of the finite two-step sequence (2.3A, X5).
+//! Uncertain pre-action state of the finite two-step sequence.
 //!
 //! The truth is the enumerated two-step dynamic SCM of the dependent-interval
 //! test: a pre-action state `s0`, a first action `a1`, a step-2 covariate `l`

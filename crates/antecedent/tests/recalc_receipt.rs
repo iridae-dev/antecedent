@@ -1,4 +1,4 @@
-//! 2.3 C2: selective recalculation proven by instrumented counts.
+//! Selective recalculation proven by instrumented counts.
 //!
 //! The route is the cross-fitted AIPW average effect through `PreparedStudy`. Each mutation
 //! asserts the whole per-stage status table, the counts of work that actually ran (nuisance

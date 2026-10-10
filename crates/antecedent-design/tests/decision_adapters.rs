@@ -1,4 +1,4 @@
-//! Adapters from 2.2 claim types to decision inputs under a declared policy.
+//! Adapters from claim types to decision inputs under a declared policy.
 //! Expected values are enumerated by hand in each test.
 
 use antecedent_core::{IdentifiedSet, QuantityRole, ScientificQuantity, SupportStatus};

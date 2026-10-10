@@ -1,4 +1,4 @@
-//! Coverage of the licensed derivative family (R-19, R-8).
+//! Coverage of the licensed derivative family.
 //!
 //! Every in-assumption DGP here is inside the stated cell assumptions: an
 //! additive outcome surface, a homoskedastic Gaussian treatment law given the
@@ -987,7 +987,7 @@ fn directional_derivative_bayesian_nominal_90_coverage() {
 // The Frequentist Jacobian / directional derivative publishes the point only
 // (`response.derivative_interval_withheld`). Its coefficient-sandwich band is
 // built by `ContinuousResponseEstimator::plugin_gradient_interval_internal` and
-// stays closed until these records are measured at the release cut; the two
+// stays closed while these records are unmeasured; the two
 // tests below score that internal band on the Bayesian cells' DGP and seeds.
 
 /// The construction the closed band is keyed under once the route opens: the

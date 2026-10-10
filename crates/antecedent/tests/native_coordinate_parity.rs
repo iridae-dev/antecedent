@@ -1,5 +1,5 @@
-//! A0 remainder: the coordinates the facade getter reads off a native response are
-//! identical to the C1 program-bound getter's, and to a hand derivation.
+//! The coordinates the facade getter reads off a native response are
+//! identical to the program-bound getter's, and to a hand derivation.
 //!
 //! Hand example. Outcome `y` (mmHg) under `do(dose = d)` for `d in {0.5, 1, 2}` in
 //! the `target` population: three coordinates whose regimes read `do(dose=0.5)`,

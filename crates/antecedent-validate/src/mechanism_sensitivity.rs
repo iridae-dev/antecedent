@@ -396,7 +396,7 @@ impl<E> From<ZTransportSensitivityError> for ScanStop<E> {
     }
 }
 
-/// [`z_surrogate_kernels_metered`] with no hooks: the 2.1 one-factor route.
+/// [`z_surrogate_kernels_metered`] with no hooks: the one-factor route.
 pub(crate) fn z_surrogate_kernels(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,

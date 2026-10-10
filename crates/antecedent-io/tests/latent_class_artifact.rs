@@ -1,4 +1,4 @@
-//! B4 latent-class artifact: the hand-derived two-class fixed point of the core tests through
+//! Latent-class artifact: the hand-derived two-class fixed point of the core tests through
 //! the container, a refitting consumer that checks the canonical output bit for bit, label
 //! handling, resealed-mutation refusals against a retained identity, the premise records, unknown
 //! versions, the row cap and the unmeasured calibration coordinate.

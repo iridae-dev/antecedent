@@ -1,4 +1,4 @@
-//! R-3: multi-atom refuters test each atom against its own estimate.
+//! Multi-atom refuters test each atom against its own estimate.
 //!
 //! Comparing every envelope atom's perturbation refits with the *pooled*
 //! mixture effect made a perfectly stable atom fail `data.subset` whenever

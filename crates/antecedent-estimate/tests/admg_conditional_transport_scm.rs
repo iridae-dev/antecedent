@@ -1,4 +1,4 @@
-//! 2.2B B1 (X2): conditional transport against enumerated latent-SCM truth.
+//! Conditional transport against enumerated latent-SCM truth.
 //!
 //! The oracle never touches the symbolic layer: each bidirected edge is a binary
 //! latent, the target population shifts the mechanism of every selected node,

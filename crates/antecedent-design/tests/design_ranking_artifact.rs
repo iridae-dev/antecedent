@@ -1,4 +1,4 @@
-//! F14 / F12: the durable `design_ranking_v1` artifact and its independent consumer.
+//! The durable `design_ranking_v1` artifact and its independent consumer.
 //!
 //! Oracles are the constants of the core EVSI tests, written out by hand and not read from the
 //! code under test:
@@ -6,7 +6,7 @@
 //! * Gaussian-mean decision, prior `N(1/2, 1)`, `n = 4`, noise variance 12:
 //!   `EVSI = 0.04165773529384315` (unit normal linear loss `G(1) / 2`).
 //! * Binomial bet with a two-point prior `{1/4, 3/4}` and `n = 2`: `EVSI = 1/16`, `EVPI = 1/8`.
-//! * Frozen F14 record: binary state, guess it for utility 1, prior 1/2; signals of accuracy 3/4
+//! * Frozen guess-decision record: binary state, guess it for utility 1, prior 1/2; signals of accuracy 3/4
 //!   and 5/8 have `EVSI = 1/4` and `1/8`; with an identical utility-unit cost 1/10 the net values
 //!   are `3/20` and `1/40`, in that order.
 //!
@@ -163,7 +163,7 @@ fn digests() -> Vec<String> {
     vec!["digest-b".into(), "digest-a".into()]
 }
 
-// -- the frozen F14 decision ----------------------------------------------------------------
+// -- the frozen guess decision ----------------------------------------------------------------
 
 const GUESS: [&str; 2] = ["guess0", "guess1"];
 

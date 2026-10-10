@@ -1,4 +1,4 @@
-//! 2.2 E7: descriptive raw-versus-adjusted comparison and declared reporting-scale
+//! Descriptive raw-versus-adjusted comparison and declared reporting-scale
 //! transforms, against hand-computed values and an independent finite-difference Jacobian,
 //! plus the typed refusals and typed-unavailable fields.
 

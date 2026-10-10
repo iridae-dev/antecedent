@@ -6,7 +6,7 @@
 //! distribution digests, RNG and error, and the cost mapping to a deterministic
 //! canonical order. Its [`DesignRanking::identity`] is invariant to the order the
 //! candidates were supplied in and changes with any altered signal, update, source,
-//! cost mapping, value or order. When no probabilistic model is licensed the 2.2
+//! cost mapping, value or order. When no probabilistic model is licensed the structural
 //! ordering is preserved: verified structural sufficiency first, then lower cost
 //! units, then lower sample budget, then semantic id.
 //!
@@ -27,7 +27,7 @@ pub enum DesignRankingBasis {
     Evsi,
     /// Net value of information under a valid cost-to-utility mapping.
     NetValue,
-    /// 2.2 verified structural sufficiency and cost (no probabilistic model).
+    /// Verified structural sufficiency and cost (no probabilistic model).
     StructuralSufficiencyCost,
 }
 
@@ -250,7 +250,7 @@ impl DesignRanking {
         })
     }
 
-    /// Build the 2.2 structural ranking: verified sufficiency first, then fewer cost
+    /// Build the structural ranking: verified sufficiency first, then fewer cost
     /// units, then smaller sample budget, then semantic id.
     ///
     /// # Errors
@@ -301,7 +301,7 @@ impl DesignRanking {
     }
 
     /// The probabilistic ranking when a licensed model produced `probabilistic`,
-    /// otherwise the preserved 2.2 structural ranking.
+    /// otherwise the preserved structural ranking.
     ///
     /// # Errors
     ///

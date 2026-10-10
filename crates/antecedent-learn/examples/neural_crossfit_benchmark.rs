@@ -1,4 +1,4 @@
-//! Reproducible CPU baseline for the X7 accelerator decision.
+//! Reproducible CPU baseline for the accelerator decision.
 //!
 //! Run with `cargo run --release -p antecedent-learn --features ml-neural
 //! --example neural_crossfit_benchmark`.

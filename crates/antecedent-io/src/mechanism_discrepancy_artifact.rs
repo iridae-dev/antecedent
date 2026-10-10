@@ -1,4 +1,4 @@
-//! B3 mechanism discrepancy artifact (`mechanism_discrepancy_v1`).
+//! Mechanism discrepancy artifact (`mechanism_discrepancy_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one source-target mechanism discrepancy
 //! diagnostic:

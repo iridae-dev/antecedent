@@ -1,4 +1,4 @@
-//! B4 nonlinear continuous-mediator mediation artifact (`nonlinear_mediation_v1`).
+//! Nonlinear continuous-mediator mediation artifact (`nonlinear_mediation_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one natural-effects estimate:
 //!

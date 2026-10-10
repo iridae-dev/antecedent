@@ -1,4 +1,4 @@
-//! 2.2B X8: recorded Y0 differential for counterfactual identification of the
+//! Recorded Y0 differential for counterfactual identification of the
 //! effect of treatment on the treated.
 //!
 //! `conformance/identify/counterfactual_id_y0/expected.json` holds, per graph,

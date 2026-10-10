@@ -1,4 +1,4 @@
-//! Portable frozen score table (`frozen_scores_v1`, 2.3 C2).
+//! Portable frozen score table (`frozen_scores_v1`).
 //!
 //! A bounded, checksummed container holding the frozen cross-fitted (or cell) AIPW score
 //! table of one run, so a fresh process can retarget it by row weights without the original

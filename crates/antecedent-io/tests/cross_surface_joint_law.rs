@@ -1,4 +1,4 @@
-//! F21 composition parity for the aligned joint distribution.
+//! Composition parity for the aligned joint distribution.
 //!
 //! Both surfaces build the enumerated two-coordinate law of two equally weighted
 //! aligned draws (0, 0) and (1, 2): means (1/2, 1), covariance 1/2 and E[XY] = 1.
@@ -105,7 +105,7 @@ fn assert_enumerated_truth(artifact: &DistributionArtifact) {
     assert!(near(artifact.joint_expectation(0, 1, |x, y| x * y).unwrap(), 1.0));
 }
 
-/// F21 positive: the Python-built law reports the enumerated truth under an identity
+/// Positive: the Python-built law reports the enumerated truth under an identity
 /// built here from constants, and the Rust-built twin has the same identity.
 #[test]
 fn python_built_joint_law_reports_the_enumerated_truth_under_constants() {
@@ -121,7 +121,7 @@ fn python_built_joint_law_reports_the_enumerated_truth_under_constants() {
     assert_eq!(rust.draws(), loaded.draws());
 }
 
-/// F21 negative: a changed semantic ID or a wrong distribution meaning refuses, and
+/// Negative: a changed semantic ID or a wrong distribution meaning refuses, and
 /// independent marginals refuse the joint operations with the shared detail.
 #[test]
 fn changed_semantic_id_wrong_meaning_and_marginals_refuse() {
@@ -143,7 +143,7 @@ fn changed_semantic_id_wrong_meaning_and_marginals_refuse() {
     assert!(error.to_string().contains("aligned_joint_draws.marginals_not_joint"), "{error}");
 }
 
-/// F21 artifact: both directions round-trip through the one bounded wire format; the
+/// Artifact: both directions round-trip through the one bounded wire format; the
 /// Rust-built bytes are written for Python and the Python-built bytes survive here.
 #[test]
 fn both_directions_round_trip_through_one_wire_format() {

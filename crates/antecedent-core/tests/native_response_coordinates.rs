@@ -1,4 +1,4 @@
-//! A0 remainder: a native response names its own coordinates, or refuses with a
+//! A native response names its own coordinates, or refuses with a
 //! typed `coordinate_support.*` detail. Expected coordinates are derived by hand.
 
 use std::sync::Arc;

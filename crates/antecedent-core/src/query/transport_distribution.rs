@@ -160,7 +160,7 @@ impl CatalogDistribution {
             &match &self.origin {
                 LawOrigin::Measured => "measured".to_owned(),
                 LawOrigin::ModelArtifact { artifact } => format!("model_artifact:{artifact}"),
-                // Additive (2.2B X10): the measured and model-artifact spellings, and so
+                // Additive: the measured and model-artifact spellings, and so
                 // every existing identity, are unchanged.
                 LawOrigin::Recovered { derivation } => format!("recovered:{derivation}"),
             },
@@ -435,10 +435,10 @@ mod tests {
 
     #[test]
     fn a_recovered_law_never_supplies_a_factor_and_keeps_its_own_identity() {
-        // 2.2B X10: `LawOrigin::Recovered` is additive. It never supplies a
+        // `LawOrigin::Recovered` is additive. It never supplies a
         // population law (so never satisfies a factor or counts as an available
         // experiment), an empty derivation is refused, and its identity spelling
-        // is its own while the 2.1 spellings are unchanged.
+        // is its own while the earlier spellings are unchanged.
         let need_vars = ids(&[1]);
         let need_do = ids(&[0]);
         let need = super::super::transport_catalog::FactorNeed {
@@ -469,7 +469,7 @@ mod tests {
             ));
             assert!(EvidenceCatalog::try_new([], [blank], [], None).is_err());
         }
-        // The 2.1 spellings are unchanged, and a model artifact named like a
+        // The earlier spellings are unchanged, and a model artifact named like a
         // recovered law does not share its identity.
         let spelled = |origin: LawOrigin| {
             let mut r = base.clone();

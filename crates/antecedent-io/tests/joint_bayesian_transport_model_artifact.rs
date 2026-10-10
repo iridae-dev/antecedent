@@ -1,4 +1,4 @@
-//! 2.3A X4 `x4_joint_posterior_artifact`: the joint Bayesian transport model artifact
+//! The joint Bayesian transport model artifact
 //! (model, priors with provenance, data identities, exact posterior, aligned joint
 //! draws, diagnostics, identification, calibration `unmeasured`) replays independently.
 //!

@@ -1,4 +1,4 @@
-//! X6: the checked adapter from `PriorCatalog` posterior sources to a future candidate
+//! The checked adapter from `PriorCatalog` posterior sources to a future candidate
 //! signal likelihood. All expected draws are enumerated by hand from the documented
 //! rule: sources are processed in artifact-id order; each source's draws are mapped to
 //! the target coordinate and shrunk toward the pooled weighted mean

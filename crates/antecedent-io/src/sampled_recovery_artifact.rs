@@ -1,10 +1,10 @@
-//! Independent artifact of sampled observation recovery (2.3A A6, record
-//! `recovery.sampled_observation`), format version 2. Internal and non-routed:
+//! Independent artifact of sampled observation recovery
+//! (`recovery.sampled_observation`), format version 2. Internal and non-routed:
 //! the public interval route `antecedent.transport.sampled_observation_recovery` stays
 //! closed (`cell_not_licensed`, `sampled_recovery.route_frozen`) until the whole-method
 //! calibration is measured, so the interval stored here carries calibration `unmeasured`.
 //!
-//! Version 1 of the recovery artifact ([`crate::recovery_artifact`], 2.2 X10) is the
+//! Version 1 of the recovery artifact ([`crate::recovery_artifact`]) is the
 //! exact-law point artifact and is unchanged: this reader refuses its bytes by version,
 //! and the version-1 reader refuses these.
 //!
@@ -775,7 +775,7 @@ impl SampledRecoveryArtifactWire {
         crate::to_cbor(self)
     }
 
-    /// Decode, refusing any other version (the 2.2 point artifact is version 1) before
+    /// Decode, refusing any other version (the point artifact is version 1) before
     /// the payload is interpreted.
     ///
     /// # Errors

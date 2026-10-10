@@ -1,4 +1,4 @@
-//! The known temporal SCM shared by the two-step sequence tests (2.2A, X5).
+//! The known temporal SCM shared by the two-step sequence tests.
 //!
 //! Coordinates in time order: `b` (baseline), `l1` (step-1 covariate), `a1`,
 //! `l2` (step-2 covariate, affected by `a1`, a time-varying confounder of `a2`

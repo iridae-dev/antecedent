@@ -1,4 +1,4 @@
-//! Independent artifact for the 2.3 B1 dose-grid functional row (X4).
+//! Independent artifact for the dose-grid functional row.
 //!
 //! Format version 1. The artifact binds the design attestation, the one named
 //! functional, the grid (or the two contrast doses), the fixed bandwidth with its

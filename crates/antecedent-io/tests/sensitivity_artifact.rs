@@ -1,5 +1,5 @@
-//! F17 `SensitivityArtifact`: the portable wire, its recomputing consumer, resealed
-//! mutation refusals, version refusal, bounds and the adaptation of a 2.2 result.
+//! `SensitivityArtifact`: the portable wire, its recomputing consumer, resealed
+//! mutation refusals, version refusal, bounds and the adaptation of a joint mechanism sensitivity result.
 //!
 //! Expected values are derived by hand from the declared surfaces. The frozen surface has
 //! `gamma` in `{0, 1, 2}` with action A at utility `2 - gamma` (2, 1, 0) and action B at

@@ -1,4 +1,4 @@
-//! B4 nonlinear continuous-mediator mediation: natural direct, indirect and total effects of a
+//! Nonlinear continuous-mediator mediation: natural direct, indirect and total effects of a
 //! binary treatment through a continuous mediator with a nonlinear outcome model, with a
 //! portable, independently consumable artifact.
 //!

@@ -1,4 +1,4 @@
-//! B3 mechanism discrepancy diagnostic: hand-derived OLS fits, summed covariances, the Wald
+//! Mechanism discrepancy diagnostic: hand-derived OLS fits, summed covariances, the Wald
 //! statistic with df 1 and 2 closed-form tails, the minimal detectable differences, the
 //! comparability and dependence refusals, and the never-certifies-invariance fields. Type I error
 //! and power are deliberately NOT measured here.

@@ -1,4 +1,4 @@
-//! 2.3A X4: joint Bayesian source-target transport against an independent exact oracle.
+//! Joint Bayesian source-target transport against an independent exact oracle.
 //!
 //! The oracle below is written out in closed-form matrix algebra (Gauss-Jordan inverse of
 //! the posterior precision) and never calls the code under test. Calibration is

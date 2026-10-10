@@ -8,7 +8,7 @@
 //!
 //! The question is the classical `P*(y | do(x))` or, through
 //! [`StudyBuilder::conditional_transport_scenarios`], the conditional
-//! `P*(y | do(x), w)` of the bounded ADMG conditional row (2.2B B1), decided per
+//! `P*(y | do(x), w)` of the bounded ADMG conditional row, decided per
 //! scenario on the same shared budget and reported in the same envelope.
 use super::StudyBuilder;
 use super::transport_common::estimate_err;
@@ -91,7 +91,7 @@ impl StudyBuilder {
     }
 
     /// Decide every scenario once against one conditional question
-    /// `P*(y | do(x), w)` by the bounded ADMG conditional route (2.2B B1), and
+    /// `P*(y | do(x), w)` by the bounded ADMG conditional route, and
     /// compile each identified scenario through that route's exact prepared
     /// path. The request binds exactly the treatments and the conditioned
     /// variables. The shared budget, envelope, masses, receipts and artifact

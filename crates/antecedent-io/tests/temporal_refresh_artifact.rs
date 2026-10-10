@@ -1,4 +1,4 @@
-//! 2.3A X5 `new_period_refresh`: the refresh artifact re-decides and replays from its
+//! `new_period_refresh`: the refresh artifact re-decides and replays from its
 //! embedded identities and panel summaries, and refuses every resealed mutation of the
 //! period, snapshot, units, decision, receipt or interval flag.
 //!

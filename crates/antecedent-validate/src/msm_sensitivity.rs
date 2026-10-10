@@ -1,4 +1,4 @@
-//! Marginal sensitivity model (MSM) bounds with a tipping point (2.3 work package B3).
+//! Marginal sensitivity model (MSM) bounds with a tipping point.
 //!
 //! Family: Tan (2006) and Zhao, Small and Bhattacharya (2019) marginal sensitivity
 //! model for inverse-propensity-weighted effects, specialized to a binary treatment

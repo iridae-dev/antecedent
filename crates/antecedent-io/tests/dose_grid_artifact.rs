@@ -1,4 +1,4 @@
-//! 2.3 B1 (X4): the dose-grid functional artifact through its recomputing consumer.
+//! The dose-grid functional artifact through its recomputing consumer.
 //!
 //! The oracle is the closed-form quadratic response `m(d) = 1 + 0.5 d + 0.25 d^2`,
 //! `m'(d) = 0.5 + 0.5 d` and `m(3) - m(1) = 3`; a Gaussian-kernel local quadratic

@@ -1,4 +1,4 @@
-//! One finite two-step temporal transport sequence (2.2A, X5): exact and point-only.
+//! One finite two-step temporal transport sequence: exact and point-only.
 //!
 //! The whole sequence `do(A_1 = a_1, A_2 = a_2)` is one longitudinal intervention
 //! on the explicit two-slice unrolled selection diagram. It is decided by the
@@ -12,7 +12,8 @@
 //! any coordinate without one is assumed invariant at its slice, and that
 //! assumption is recorded per slice. Only the initial-state law (baseline and
 //! step-1 covariates) is fixed per population, not uncertain: temporal sampling
-//! intervals, initial-state uncertainty and new-period refresh are 2.3A.
+//! intervals, initial-state uncertainty and new-period refresh are separate
+//! routes that this decision does not carry.
 //!
 //! One [`antecedent_core::SearchBudget`] bounds the whole decision: the
 //! catalog-aware search, the s-hedge check and every verification replay, then
@@ -118,14 +119,14 @@ impl TemporalRefusal {
     }
 
     /// An interval was requested: temporal sampling and initial-state
-    /// uncertainty are 2.3A, so this route is point-only.
+    /// uncertainty are not part of this route, which is point-only.
     #[must_use]
     pub fn interval_requested() -> Self {
         Self::new(
             reason_code!("estimator_inference_mismatch"),
             TEMPORAL_INTERVAL_REQUESTED,
             "the two-step sequence route is exact and point-only; temporal sampling and \
-             initial-state intervals are 2.3A",
+             initial-state intervals are not offered here",
         )
     }
 }

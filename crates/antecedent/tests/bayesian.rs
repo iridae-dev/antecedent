@@ -893,7 +893,7 @@ fn temporal_sustained_accepted_full_completes_with_data_subset_refuter() {
 /// 0.05" by an accident that a future change could silently erode.
 ///
 /// The Bayesian temporal likelihood is tempered by the serial-dependence
-/// long-run-variance ratio (R-9); on this iid-noise fixture κ̂ is just above 1, which
+/// long-run-variance ratio; on this iid-noise fixture κ̂ is just above 1, which
 /// moved `original_ate` by ~1.5e-6 and the p-value by ~3.5e-4. Combining the
 /// fixed-b-scaled HAC ratio with the AR(1)-residual ratio moved it another ~2.1e-6 and the p-value by ~5.1e-4;
 /// the REML autoregressive factor with its residual-scale term (κ̂ = n/(n − p) on iid

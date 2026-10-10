@@ -679,7 +679,7 @@ mod tests {
         );
     }
 
-    /// C1 regression: `sorted_edge_pairs` must return a canonical ascending order, not
+    /// Regression: `sorted_edge_pairs` must return a canonical ascending order, not
     /// raw `HashMap` iteration order.
     ///
     /// Builds the same 21-pair edge set (7-node complete graph) via two different
@@ -716,7 +716,7 @@ mod tests {
         assert_eq!(sorted_edge_pairs(&descending), expected);
     }
 
-    /// C1 end-to-end confirmation: two full `Pc::run()` calls on bit-identical input
+    /// End-to-end confirmation: two full `Pc::run()` calls on bit-identical input
     /// return a bit-identical skeleton.
     ///
     /// Caveat: this alone is not a reliable pre-fix regression test. Rust's default
@@ -740,7 +740,7 @@ mod tests {
         // collider-orientation bug (`orient_undirected requires an undirected
         // Tail–Tail edge`, from a stale `legs` snapshot in `apply_orient_collider`)
         // that is now fixed -- see `three_parent_collider_orients_all_legs` above --
-        // but this test keeps the disjoint layout since it targets the C1/C2
+        // but this test keeps the disjoint layout since it targets the
         // determinism fixes, not collider orientation.
         let oracle = OracleCi::new([(0usize, 1usize), (1, 2), (3, 4), (4, 5), (6, 7), (7, 8)]);
         let mut constraints = DiscoveryConstraints::default();
@@ -777,7 +777,7 @@ mod tests {
 
     /// Test double whose p-value depends on which conditioning set was queried, so we
     /// can verify a retained edge's reported p-value is the MAXIMUM over every tested
-    /// conditioning set at its winning depth (C2), not whichever was tested last.
+    /// conditioning set at its winning depth, not whichever was tested last.
     struct ZDependentCi;
 
     impl ZDependentCi {

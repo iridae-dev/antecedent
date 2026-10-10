@@ -1,5 +1,5 @@
 //! Replayable artifact for one counterfactual identification on a bounded ADMG
-//! (2.2B X8): format `counterfactual_id_admg_v1`.
+//! (format `counterfactual_id_admg_v1`).
 //!
 //! A separate format, not a version of the cross-world edge-contrast artifact:
 //! its payload is a finite joint law and an identified functional, not an
@@ -7,8 +7,8 @@
 //! (directed and bidirected edges), the counterfactual event query, the search
 //! limits and memory cap the derivation ran under, the canonical derivation
 //! with its search accounting and counterfactual graph, the joint law, and the
-//! point. Every wire struct rejects unknown fields, so the 2.2A reader refuses
-//! these bytes and this reader refuses the 2.2A bytes.
+//! point. Every wire struct rejects unknown fields, so the earlier reader refuses
+//! these bytes and this reader refuses the earlier bytes.
 //!
 //! Two digests, two typed errors. The *premises digest* binds the names,
 //! levels, graph, query, estimand, contract, search limits and memory cap, and

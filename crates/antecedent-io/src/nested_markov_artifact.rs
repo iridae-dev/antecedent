@@ -1,5 +1,5 @@
-//! Independent artifact of the bounded binary nested-Markov likelihood pilot (2.3A A3,
-//! record `identify.binary_nested_markov`). Internal and non-routed: the public
+//! Independent artifact of the bounded binary nested-Markov likelihood pilot
+//! (record `identify.binary_nested_markov`). Internal and non-routed: the public
 //! route `antecedent.transport.binary_nested_markov` stays closed
 //! (`cell_not_licensed`, `nested_markov.route_frozen`) until calibration is measured, so
 //! this artifact publishes a fit and a point contrast, never an interval or posterior.

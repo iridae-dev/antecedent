@@ -231,7 +231,7 @@ fn reseal(bytes: &[u8], kind: &str, edit: impl FnOnce(&mut serde_json::Value)) -
 }
 
 // ---------------------------------------------------------------------------
-// F4: the admissible contract artifact
+// The admissible contract artifact
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -320,7 +320,7 @@ fn contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
     let plain = base(StructuralPolicy::ReportOnly);
     let a0 = DecisionContractArtifact::new(plain.clone()).unwrap();
     let a0_bytes = a0.to_bytes("contract").unwrap();
-    // The A0 path is untouched: same kind, deterministic bytes, no rules field.
+    // The path without rules is untouched: same kind, deterministic bytes, no rules field.
     assert_eq!(
         a0_bytes,
         DecisionContractArtifact::new(plain.clone()).unwrap().to_bytes("contract").unwrap()
@@ -401,7 +401,7 @@ fn decode_is_bounded_before_any_allocation() {
 }
 
 // ---------------------------------------------------------------------------
-// F6: the robust result artifact
+// The robust result artifact
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -680,7 +680,7 @@ fn load_and_replay_refuse_other_contracts_structures_and_profiles() {
 }
 
 // ---------------------------------------------------------------------------
-// F6: external-callback receipts
+// External-callback receipts
 // ---------------------------------------------------------------------------
 
 #[test]

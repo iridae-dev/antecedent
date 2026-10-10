@@ -727,7 +727,7 @@ fn the_facade_error_reports_the_recorded_top_level_code() {
 }
 
 /// Compatibility: a reader refuses any other format version before reading the
-/// payload (so a 2.2 reader never half-reads a newer artifact, and an older
+/// payload (so an older reader never half-reads a newer artifact, and an older
 /// one never reads this), and refuses a required feature it does not know.
 #[test]
 fn another_format_version_or_an_unknown_required_feature_is_refused() {

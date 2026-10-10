@@ -1,4 +1,4 @@
-//! Bounded, portable aligned-draw artifact for the frozen 2.3 F1 cell.
+//! Bounded, portable aligned-draw artifact for the frozen joint-distribution cell.
 //!
 //! The v1 layout has two named axes, `draw` then `quantity`, and f64 values
 //! stored draw-major: draw `i` occupies `i * n_quantities..(i + 1) * n_quantities`.
@@ -190,11 +190,11 @@ pub struct DistributionMetadata {
     pub calibration: DistributionCalibration,
     /// Provider trust status; loading never upgrades it.
     pub trust: DistributionTrust,
-    /// Complete source metadata when converted from a 2.2 posterior artifact.
+    /// Complete source metadata when converted from a posterior-draw artifact.
     /// The source's backend, diagnostics and treatment contrast are retained.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legacy_posterior: Option<CausalPosteriorWire>,
-    /// Exact source-to-target binding used in a checked 2.2 conversion.
+    /// Exact source-to-target binding used in a checked conversion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legacy_bindings: Option<Vec<LegacyPosteriorBinding>>,
 }
@@ -206,23 +206,23 @@ pub struct DistributionArtifact {
     draws: Vec<f64>,
 }
 
-/// Explicit source-to-target quantity binding for a 2.2 posterior conversion.
+/// Explicit source-to-target quantity binding for a posterior-draw conversion.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LegacyPosteriorBinding {
-    /// Exact quantity declared by the 2.2 posterior wire.
+    /// Exact quantity declared by the posterior-draw wire.
     pub source: PosteriorQuantityWire,
-    /// Fully named 2.3 scientific coordinate.
+    /// Fully named scientific coordinate.
     pub target: ScientificQuantityWire,
 }
 
-/// Convert 2.2 column-major posterior draws into a distinct 2.3 joint artifact.
+/// Convert column-major posterior draws into a distinct joint artifact.
 ///
 /// Every source quantity must have one explicit target binding. Coefficients
 /// without stable names, mixed parameter/effect schemas and summary-only
-/// posteriors are refused. The 2.2 reader checks summaries against draws first.
+/// posteriors are refused. The posterior-draw reader checks summaries against draws first.
 /// The caller supplies the expected identity from a separate causal contract:
-/// 2.2 posterior metadata lacks population, regime and snapshot coordinates.
+/// posterior-draw metadata lacks population, regime and snapshot coordinates.
 /// Conversion preserves draw alignment but grants no provider trust or
 /// inferential calibration to the new artifact.
 ///
@@ -386,7 +386,7 @@ impl DistributionArtifact {
     /// Serialize through the existing checksummed sectioned container.
     ///
     /// # Errors
-    /// A payload larger than the F1 bound or invalid metadata is refused.
+    /// A payload larger than the declared bound or invalid metadata is refused.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         validate(&self.metadata, &self.draws)?;
         if artifact_id.trim().is_empty() {
@@ -491,7 +491,7 @@ impl DistributionArtifact {
         Ok(value)
     }
 
-    /// Equal-tailed posterior draw interval using the 2.2 type-7 quantile rule.
+    /// Equal-tailed posterior draw interval using the type-7 quantile rule.
     /// This describes posterior draw mass; it makes no coverage claim.
     ///
     /// # Errors

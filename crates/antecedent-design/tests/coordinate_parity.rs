@@ -1,5 +1,5 @@
-//! A0 remainders (Rust half): lineage of sensitivity inputs and the study-ranking
-//! provider, the inverse/design refusal families under the F25 envelope validator,
+//! Rust half of the coordinate parity checks: lineage of sensitivity inputs and the study-ranking
+//! provider, the inverse/design refusal families under the structured-refusal envelope validator,
 //! evidence-obligation identity, and the cross-surface parity hooks.
 //!
 //! Every oracle is written by hand:
@@ -7,7 +7,7 @@
 //! * the root `decision:contract-1` link digest is BLAKE3 over the little-endian `u64`
 //!   length and bytes of its id, then of its stage name `decision_contract`, with no
 //!   parents (recomputed here, not read from the code under test);
-//! * the guess decision of the frozen F14 record: binary state, prior 1/2, signals of
+//! * the frozen guess decision: binary state, prior 1/2, signals of
 //!   accuracy 3/4 and 5/8 have `EVSI = 1/4` and `1/8`; with an identical utility-unit cost
 //!   1/10 the net values are `3/20` and `1/40`;
 //! * the invariant sensitivity surface: A is `5 - gamma` (5, 4, 3) against B = 1, so A
@@ -70,7 +70,7 @@ fn fixture_dir() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cross_surface")
 }
 
-// -- the frozen F14 guess decision (copied constants of design_ranking_artifact.rs) --------
+// -- the frozen guess decision (copied constants of design_ranking_artifact.rs) --------
 
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -560,7 +560,7 @@ fn sensitivity_chain_digests_move_with_the_contract_snapshot_and_numbers() {
     assert_eq!(digest_of(&chain, "snapshot:snapshot-1"), digest_of(&base, "snapshot:snapshot-1"));
 }
 
-// -- (3) refusal families under the F25 envelope -------------------------------------------
+// -- (3) refusal families under the structured-refusal envelope -------------------------------------------
 
 struct Expect {
     code: &'static str,
@@ -894,7 +894,7 @@ fn regenerate_rust_fixtures() {
     let dir = fixture_dir();
     let ranking = seal_guess();
     std::fs::write(
-        dir.join("rust_a0r_design_ranking.bin"),
+        dir.join("rust_design_ranking.bin"),
         ranking.to_bytes("a0r-ranking").unwrap(),
     )
     .unwrap();
@@ -910,8 +910,8 @@ fn regenerate_rust_fixtures() {
 fn consume_python_fixtures() {
     let dir = fixture_dir();
     // The Python-built design ranking (same hand constants) is consumed by recomputation.
-    let bytes = std::fs::read(dir.join("py_a0r_design_ranking.bin")).unwrap_or_else(|error| {
-        panic!("missing py_a0r_design_ranking.bin ({error}); regenerate the Python fixtures")
+    let bytes = std::fs::read(dir.join("py_design_ranking.bin")).unwrap_or_else(|error| {
+        panic!("missing py_design_ranking.bin ({error}); regenerate the Python fixtures")
     });
     let expectation = ConsumeExpectation {
         decision_contract_identity: Some("contract-1".into()),

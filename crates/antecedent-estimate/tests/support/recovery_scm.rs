@@ -1,4 +1,4 @@
-//! Enumerated binary m-graph SCMs for the X10 recovery tests, independent of the
+//! Enumerated binary m-graph SCMs for the observation-recovery tests, independent of the
 //! library's recovery code: the joint over every node is enumerated from the
 //! mechanisms, the proxies are computed deterministically, and the observed
 //! pattern law and the target law are marginals of that joint.

@@ -5,7 +5,7 @@
 //! budget, and compiles it against supplied exact laws; estimation evaluates the
 //! retained plan and never re-identifies. The claim is exact and point-only:
 //! temporal sampling intervals, initial-state uncertainty and new-period refresh
-//! are 2.3A, so an interval request refuses. A same-window evidence refresh
+//! are not part of this route, so an interval request refuses. A same-window evidence refresh
 //! re-estimates under the same proof; a changed horizon, sequence or window is a
 //! new preparation.
 use super::StudyBuilder;
@@ -93,7 +93,7 @@ impl PreparedTemporalTransport {
     }
 
     /// An interval is not licensed: temporal sampling and initial-state
-    /// uncertainty are 2.3A. This always refuses with
+    /// uncertainty are not part of this route. This always refuses with
     /// `estimator_inference_mismatch`.
     ///
     /// # Errors

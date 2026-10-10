@@ -1,4 +1,4 @@
-//! X8 fixed-population temporal counterfactual artifact (`temporal_counterfactual_v1`).
+//! Fixed-population temporal counterfactual artifact (`temporal_counterfactual_v1`).
 //!
 //! A bounded, checksummed, sectioned container holding one temporal counterfactual answer:
 //!
