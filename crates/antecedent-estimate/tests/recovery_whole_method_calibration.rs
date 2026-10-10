@@ -51,14 +51,10 @@ fn input(n: usize, seed: u64) -> SampledObservationInput {
     }
     SampledObservationInput { snapshot_id: SNAPSHOT.to_owned(), rows }
 }
-fn measure(bca: bool, test: &'static str, expected_id: &str) {
+fn measure(test: &'static str, expected_id: &str) {
     let n = grid_n(2000);
     let mut tally = CoverageTally::for_record(
-        RecordKey {
-            test,
-            dgp: "binary_confounded_missingness_scm",
-            interval: if bca { "bootstrap_bca" } else { "bootstrap_percentile" },
-        },
+        RecordKey { test, dgp: "binary_confounded_missingness_scm", interval: "bootstrap_bca" },
         0.95,
     );
     let results = map_replicates(n_sim(), |rep| {
@@ -85,11 +81,7 @@ fn measure(bca: bool, test: &'static str, expected_id: &str) {
         estimate_sampled_recovery(
             &derivation,
             &input(n, seed),
-            &if bca {
-                SampledRecoveryConfig::bca(seed + 100_000)
-            } else {
-                SampledRecoveryConfig::new(500, seed + 100_000)
-            },
+            &SampledRecoveryConfig::bca(seed + 100_000),
             &ctx,
         )
     });
@@ -106,23 +98,12 @@ fn measure(bca: bool, test: &'static str, expected_id: &str) {
     assert_eq!(tally.record_id().as_deref(), Some(expected_id));
     tally.assert();
 }
-#[test]
-#[ignore = "calibration: final measurement only"]
-fn binary_missingness_whole_row_recovery_l95() {
-    measure(
-        false,
-        "binary_missingness_whole_row_recovery_l95",
-        "cov.recovered_effect.m_graph.frequentist.bootstrap_percentile.l95.binary_missingness_whole_row_recovery_l95",
-    );
-}
-
 // Distinct candidate: the failed B500 percentile evidence remains historical.
 // Same independent DGP, truth, n grid, seeds, thresholds and failure denominator.
 #[test]
 #[ignore = "calibration: final measurement only"]
 fn binary_missingness_whole_row_recovery_bca_l95() {
     measure(
-        true,
         "binary_missingness_whole_row_recovery_bca_l95",
         "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95",
     );

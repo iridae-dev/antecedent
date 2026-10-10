@@ -52,15 +52,15 @@ use crate::splitmix::{mix64, seed_mix, splitmix64};
 
 /// Most bootstrap replicates one request may run.
 pub const SAMPLED_RECOVERY_MAX_REPLICATES: usize = 2000;
-/// Fewest bootstrap replicates a percentile interval is formed from.
-pub const SAMPLED_RECOVERY_MIN_REPLICATES: usize = 20;
+/// Fewest bootstrap replicates required by the supported `BCa` protocol.
+pub const SAMPLED_RECOVERY_MIN_REPLICATES: usize = 2000;
 /// Most observation rows one request may carry.
 pub const SAMPLED_RECOVERY_MAX_ROWS: usize = 1_000_000;
 /// Most binary substantive variables (`X ∪ O`) one request may recover.
 pub const SAMPLED_RECOVERY_MAX_BINARY_VARIABLES: usize = 6;
-/// Nominal level of either whole-row interval.
+/// Nominal level of the whole-row `BCa` interval.
 pub const SAMPLED_RECOVERY_INTERVAL_LEVEL: f64 = 0.95;
-/// Calibration status of the interval: whole-method coverage is not measured.
+/// Original source artifact status, distinct from measured-envelope authorization.
 pub const SAMPLED_RECOVERY_CALIBRATION: &str = "unmeasured";
 
 /// Why a sampled-recovery request was refused. The detail and reason code are
@@ -246,11 +246,9 @@ pub struct SampledObservationInput {
     pub rows: Vec<ObservationRow>,
 }
 
-/// Interval procedure. The old percentile protocol remains replayable.
+/// Supported bias-corrected and accelerated whole-row interval procedure.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SampledIntervalMethod {
-    /// Uncorrected whole-row percentile bootstrap (legacy artifact v2).
-    Percentile,
     /// Bias-corrected and accelerated whole-row bootstrap (artifact v3).
     Bca,
 }
@@ -260,7 +258,6 @@ impl SampledIntervalMethod {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Percentile => "bootstrap_percentile",
             Self::Bca => "bootstrap_bca",
         }
     }
@@ -293,7 +290,7 @@ pub struct SampledBcaReceipt {
 /// Request configuration. Numerical tolerances are explicit.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SampledRecoveryConfig {
-    /// Explicit interval procedure; legacy construction remains percentile.
+    /// Explicit supported interval procedure.
     pub interval_method: SampledIntervalMethod,
     /// Bootstrap replicates, from `SAMPLED_RECOVERY_MIN_REPLICATES` to
     /// `SAMPLED_RECOVERY_MAX_REPLICATES`.
@@ -301,7 +298,7 @@ pub struct SampledRecoveryConfig {
     /// Bootstrap seed; replicate `r` draws from a stream depending only on
     /// `(seed, r)`.
     pub seed: u64,
-    /// Largest fraction of replicates that may fail jointly (at most 0.5).
+    /// Must be zero: every failed replicate invalidates the supported `BCa` procedure.
     pub max_failed_fraction: f64,
     /// Absolute tolerance on the unit mass of the empirical observed law and the
     /// recovered law (the recovered law is not renormalized).
@@ -321,10 +318,10 @@ impl SampledRecoveryConfig {
     #[must_use]
     pub const fn new(replicates: usize, seed: u64) -> Self {
         Self {
-            interval_method: SampledIntervalMethod::Percentile,
+            interval_method: SampledIntervalMethod::Bca,
             replicates,
             seed,
-            max_failed_fraction: 0.05,
+            max_failed_fraction: 0.0,
             normalization_tolerance: 0.1,
             small_cell_count: 5.0,
             treated_level: 1.0,
@@ -414,7 +411,7 @@ pub struct SampledRecoveryReceipt {
     pub interval: SampledEffectInterval,
     /// Every replicate, failed ones included, in id order.
     pub replicates: Vec<SampledReplicateRecord>,
-    /// Exact `BCa` settings and jackknife; absent for the legacy percentile method.
+    /// Exact `BCa` settings and jackknife; required for every supported receipt.
     pub bca: Option<SampledBcaReceipt>,
     /// Digest of everything above.
     pub receipt_digest: String,
@@ -426,10 +423,7 @@ impl SampledRecoveryReceipt {
     #[must_use]
     pub fn recompute_digest(&self) -> String {
         let mut digest = Digest::new();
-        digest.str(match self.config.interval_method {
-            SampledIntervalMethod::Percentile => "sampled_recovery.receipt.v1",
-            SampledIntervalMethod::Bca => "sampled_recovery.receipt.bca.v1",
-        });
+        digest.str("sampled_recovery.receipt.bca.v1");
         digest.str(&self.snapshot_id);
         digest.usize(self.rows);
         digest.str(&self.derivation_identity);
@@ -789,19 +783,19 @@ impl Layout {
 
 fn validate_config(config: &SampledRecoveryConfig) -> Result<(), SampledRecoveryError> {
     let invalid = |message: &str| Err(refusal(SampledRecoveryDetail::InvalidInput, message));
-    if config.interval_method == SampledIntervalMethod::Bca
-        && (config.replicates != 2000 || config.max_failed_fraction != 0.0)
-    {
-        return invalid("BCa requires exactly 2000 replicates and zero allowed failed replicates");
-    }
     if config.replicates > SAMPLED_RECOVERY_MAX_REPLICATES {
         return Err(refusal(
             SampledRecoveryDetail::BoundsExceeded,
             format!("{} replicates; at most {SAMPLED_RECOVERY_MAX_REPLICATES}", config.replicates),
         ));
     }
+    if config.interval_method == SampledIntervalMethod::Bca
+        && (config.replicates != 2000 || config.max_failed_fraction != 0.0)
+    {
+        return invalid("BCa requires exactly 2000 replicates and zero allowed failed replicates");
+    }
     if config.replicates < SAMPLED_RECOVERY_MIN_REPLICATES {
-        return invalid("too few replicates to form a 95% percentile interval");
+        return invalid("too few replicates to form a 95% BCa interval");
     }
     if !(config.max_failed_fraction.is_finite()
         && (0.0..=0.5).contains(&config.max_failed_fraction))
@@ -1262,11 +1256,7 @@ pub fn estimate_sampled_recovery(
     }
     let diagnostics = run.diagnostics(&counts, &recovered_law);
     // Validate every delete-one domain before spending the bootstrap budget.
-    let jackknife = if config.interval_method == SampledIntervalMethod::Bca {
-        Some(run.jackknife(&counts)?)
-    } else {
-        None
-    };
+    let jackknife = run.jackknife(&counts)?;
     let boot = run.bootstrap()?;
     let failed = boot.records.len() - boot.effects.len();
     if boot.effects.len() < 2
@@ -1276,9 +1266,9 @@ pub fn estimate_sampled_recovery(
     }
     let mut sorted = boot.effects.clone();
     sorted.sort_by(f64::total_cmp);
-    let tail = (1.0 - SAMPLED_RECOVERY_INTERVAL_LEVEL) / 2.0;
-    let bca = jackknife.map(|rows| bca_receipt(effect, &boot.effects, rows)).transpose()?;
-    let probabilities = bca.as_ref().map_or([tail, 1.0 - tail], |b| b.adjusted_probabilities);
+    let corrected = bca_receipt(effect, &boot.effects, jackknife)?;
+    let probabilities = corrected.adjusted_probabilities;
+    let bca = Some(corrected);
     let interval = SampledEffectInterval {
         level: SAMPLED_RECOVERY_INTERVAL_LEVEL,
         lower: percentile(&sorted, probabilities[0]),

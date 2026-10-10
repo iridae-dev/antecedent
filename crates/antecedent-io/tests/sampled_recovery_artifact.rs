@@ -1,6 +1,6 @@
 //! 2.3A A6 (X10) `x10_sampled_recovery_replay`: the sampled observation-recovery artifact
-//! (version 2: derivation identity, observation rows and pattern counts, recovered law,
-//! point, percentile interval with calibration `unmeasured`, replicate receipt) replays
+//! (version 3: derivation identity, observation rows and pattern counts, recovered law,
+//! point, `BCa` interval with calibration `unmeasured`, replicate receipt) replays
 //! independently and refuses a changed pattern, snapshot, seed or interval receipt.
 //!
 //! The oracle is the enumerated binary missingness SCM of the engine's own tests (the
@@ -47,7 +47,6 @@ const P_X1: [f64; 4] = [0.2, 0.5, 0.6, 0.8]; // by 2 * X0 + O
 const P_R0: [f64; 2] = [0.5, 0.8]; // by O
 const P_R1: [f64; 2] = [0.6, 0.9]; // by X0
 // Backdoor truth by hand: 0.6 (0.6 - 0.2) + 0.4 (0.8 - 0.5) = 0.36.
-const TRUE_EFFECT: f64 = 0.36;
 
 fn bern(p1: f64, level: u8) -> f64 {
     if level == 1 { p1 } else { 1.0 - p1 }
@@ -90,23 +89,7 @@ fn pattern_probabilities() -> BTreeMap<ObservationPattern, f64> {
     out
 }
 
-/// Rows whose pattern counts are exactly proportional to the probabilities.
-fn exact_rows(n: usize) -> Vec<ObservationRow> {
-    let mut rows = Vec::new();
-    let mut id = 0u64;
-    for (pattern, p) in pattern_probabilities() {
-        let exact = p * n as f64;
-        let count = exact.round();
-        assert!((exact - count).abs() < 1e-6, "{pattern:?}: {exact} is not an integer count");
-        for _ in 0..(count as usize) {
-            rows.push(ObservationRow { id, pattern });
-            id += 1;
-        }
-    }
-    rows
-}
-
-/// `n` rows drawn from the pattern distribution with a seeded generator.
+/// Independent seeded draws from the declared observation-pattern law.
 fn seeded_rows(n: usize, seed: u64) -> Vec<ObservationRow> {
     let table: Vec<(ObservationPattern, f64)> = pattern_probabilities().into_iter().collect();
     let mut rng = Rng::new(seed);
@@ -138,11 +121,8 @@ fn effect_query(model: &MModel) -> RecoveredEffectQuery {
     RecoveredEffectQuery { graph, outcomes: Arc::from([v(1)]), treatments: Arc::from([v(0)]) }
 }
 
-fn loose(replicates: usize, seed: u64) -> SampledRecoveryConfig {
-    SampledRecoveryConfig {
-        normalization_tolerance: 0.25,
-        ..SampledRecoveryConfig::new(replicates, seed)
-    }
+fn loose(seed: u64) -> SampledRecoveryConfig {
+    SampledRecoveryConfig { normalization_tolerance: 0.25, ..SampledRecoveryConfig::bca(seed) }
 }
 
 struct Fixture {
@@ -211,48 +191,8 @@ fn refusal(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn x10_sampled_recovery_replay_exact_proportions_replay_against_the_enumerated_oracle() {
-    let f = fixture(exact_rows(100_000), &SampledRecoveryConfig::new(20, 3));
-    let wire = wire_of(&f);
-    assert_eq!(wire.version, 2);
-    let bytes = wire.export().expect("export");
-    let consumed = consume(&bytes).expect("a faithful artifact replays");
-    // The rerun is the original value for value: point, interval, law, receipt.
-    assert_eq!(consumed.result.effect.to_bits(), f.result.effect.to_bits());
-    assert!((consumed.result.effect - TRUE_EFFECT).abs() < 1e-9, "{}", consumed.result.effect);
-    assert_eq!(consumed.result.receipt, f.result.receipt);
-    assert_eq!(consumed.result.interval, f.result.interval);
-    assert_eq!(consumed.result.diagnostics, f.result.diagnostics);
-    assert_eq!(consumed.result.replicate_effects, f.result.replicate_effects);
-    assert_eq!(consumed.result.recovered_cell_covariance, f.result.recovered_cell_covariance);
-    let law = consumed.result.recovered_law.law().probabilities();
-    assert_eq!(law, f.result.recovered_law.law().probabilities());
-    // The recovered law is the enumerated P(x0, x1, o) = P(o) P(x0 | o) P(x1 | x0, o).
-    for x0 in 0..2u8 {
-        for x1 in 0..2u8 {
-            for o in 0..2u8 {
-                let truth = bern(P_O, o)
-                    * bern(P_X0[usize::from(o)], x0)
-                    * bern(P_X1[usize::from(2 * x0 + o)], x1);
-                let index = usize::from((x0 * 2 + x1) * 2 + o);
-                assert!((law[index] - truth).abs() < 1e-9, "cell {index}");
-            }
-        }
-    }
-    // The stored summary: pattern counts, calibration and the unmeasured interval.
-    assert_eq!(wire.calibration, "unmeasured");
-    assert_eq!(wire.result.interval.calibration, "unmeasured");
-    assert_eq!(wire.receipt.interval.calibration, "unmeasured");
-    let counted: u64 = wire.result.diagnostics.pattern_counts.iter().map(|c| c.3).sum();
-    assert_eq!(counted, 100_000);
-    assert_eq!(wire.receipt.config.seed, 3);
-    assert_eq!(wire.receipt.replicates.len(), 20);
-    assert_ne!(wire.premises_digest, wire.data_digest);
-}
-
-#[test]
 fn x10_sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() {
-    let f = fixture(seeded_rows(4000, 17), &loose(40, 99));
+    let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let consumed = consume(&wire.export().expect("export")).expect("replays");
     assert_eq!(consumed.result.receipt.receipt_digest, f.result.receipt.receipt_digest);
@@ -264,7 +204,7 @@ fn x10_sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covarianc
         "the covariance of overlapping margins is part of the replayed result"
     );
     assert!(consumed.result.cell_covariance(0, 0).is_some_and(|c| c > 0.0));
-    assert_eq!(consumed.wire.receipt.replicates.len(), 40);
+    assert_eq!(consumed.wire.receipt.replicates.len(), 2000);
     wire.check_variable_names(&[]).expect("empty name mapping");
     assert!(wire.check_variable_names(&["x".to_string()]).is_err());
 }
@@ -273,7 +213,7 @@ type Mutation = (&'static str, fn(&mut SampledRecoveryArtifactWire));
 
 #[test]
 fn x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_receipt() {
-    let f = fixture(seeded_rows(4000, 17), &loose(40, 99));
+    let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let mutations: [Mutation; 7] = [
         ("changed pattern", |w| w.rows[0].3 ^= 1),
@@ -317,7 +257,7 @@ fn x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interv
 
 #[test]
 fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
-    let f = fixture(seeded_rows(4000, 17), &loose(40, 99));
+    let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let expected = SampledRecoveryExpectation {
         premises_digest: Some(wire.premises_digest.clone()),
@@ -331,7 +271,7 @@ fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
     );
     assert!(accepted.is_ok());
     // A different seed is a different premises identity (it replays on its own terms).
-    let other = fixture(seeded_rows(4000, 17), &loose(40, 100));
+    let other = fixture(seeded_rows(4000, 17), &loose(100));
     let message = SampledRecoveryArtifactWire::consume_expecting(
         &wire_of(&other).export().expect("export"),
         &expected,
@@ -345,7 +285,7 @@ fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
 
 #[test]
 fn x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
-    let f = fixture(seeded_rows(4000, 17), &loose(40, 99));
+    let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     // Version 1 is the exact-law point artifact; version 4 is unknown.
     for version in [1, 4] {
@@ -369,7 +309,7 @@ fn x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim(
 
 #[test]
 fn x10_sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() {
-    let f = fixture(seeded_rows(4000, 17), &loose(40, 99));
+    let f = fixture(seeded_rows(4000, 17), &loose(99));
     let bytes = wire_of(&f).export().expect("export");
     let tight = [
         SampledRecoveryConsumeLimits { max_rows: 10, ..SampledRecoveryConsumeLimits::default() },
@@ -427,29 +367,6 @@ fn sampled_bca_v3_replays_and_binds_jackknife_method_and_consumer_work() {
         )
         .is_err()
     );
-}
-
-#[test]
-fn legacy_percentile_v2_remains_method_distinct_and_replayable() {
-    let f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::new(20, 7142));
-    let wire = wire_of(&f);
-    assert_eq!(wire.version, 2);
-    assert!(wire.receipt.config.interval_method.is_none());
-    assert!(wire.receipt.bca.is_none());
-    assert_eq!(
-        consume(&wire.export().unwrap()).unwrap().wire.export().unwrap(),
-        wire.export().unwrap()
-    );
-    // Legacy digests omitted failure strings; complete replay still checks them.
-    let forged =
-        resealed(&wire, |w| w.receipt.replicates[0].failure = Some("invented_failure".into()));
-    assert!(consume(&forged).is_err());
-    let bca_disguise = resealed(&wire, |w| {
-        w.version = 3;
-        w.required_features = vec!["sampled_observation_recovery_bca_v3".into()];
-        w.receipt.config.interval_method = Some("bootstrap_bca".into());
-    });
-    assert!(SampledRecoveryArtifactWire::decode(&bca_disguise).is_err());
 }
 
 #[test]

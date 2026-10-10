@@ -59,10 +59,10 @@ class SampledRecoveryCandidate:
         return "unmeasured"
 
     @property
-    def interval_method(self) -> Literal["bootstrap_bca", "bootstrap_percentile"]:
-        """Actual executed method; legacy v2 percentile is never relabeled BCa."""
-        value = self._body["receipt"]["config"].get("interval_method", "bootstrap_percentile")
-        return cast(Literal["bootstrap_bca", "bootstrap_percentile"], value)
+    def interval_method(self) -> Literal["bootstrap_bca"]:
+        """Actual supported method, bound to the independently replayed BCa receipt."""
+        value = self._body["receipt"]["config"]["interval_method"]
+        return cast(Literal["bootstrap_bca"], value)
 
     @property
     def effect(self) -> float:

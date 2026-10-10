@@ -219,17 +219,19 @@ def sampled_kwargs(**overrides):
         "query": recovery_query(),
         "rows": complete_rows(),
         "snapshot": "snap-1",
-        "replicates": 100,
-        "interval_method": "bootstrap_percentile",
+        "replicates": 2000,
+        "interval_method": "bootstrap_bca",
         "seed": 3,
     }
     kwargs.update(overrides)
     return kwargs
 
 
-def test_sampled_percentile_cannot_borrow_measured_bca_evidence():
-    error = refusal_of(lambda: transport.sampled_observation_recovery(**sampled_kwargs()))
-    assert_refused(error, "cell_not_licensed", "sampled_recovery.protocol_not_measured")
+def test_retired_sampled_percentile_is_not_an_available_method():
+    with pytest.raises(CausalValueError, match="interval_method must be bootstrap_bca"):
+        transport.sampled_observation_recovery(
+            **sampled_kwargs(interval_method="bootstrap_percentile")
+        )
 
 
 def test_sampled_recovery_zero_support_and_native_nonrecoverability_refuse():
@@ -249,14 +251,15 @@ def test_sampled_recovery_zero_support_and_native_nonrecoverability_refuse():
 
 def test_x10_sampled_recovery_bounds_and_malformed_rows_carry_their_own_details():
     error = refusal_of(
-        lambda: transport.sampled_observation_recovery(**sampled_kwargs(replicates=5000))
+        lambda: transport.sampled_observation_recovery(**sampled_kwargs(replicates=5000)),
+        CausalValueError,
     )
-    assert_refused(error, "route_not_supported", "sampled_recovery.bounds_exceeded")
+    assert "exactly 2000" in str(error)
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(replicates=5)),
         CausalValueError,
     )
-    assert_refused(error, "invalid_argument", "sampled_recovery.invalid_input")
+    assert "exactly 2000" in str(error)
     # A proxy value with no response is a pattern the proxy model excludes.
     error = refusal_of(
         lambda: transport.sampled_observation_recovery(**sampled_kwargs(rows=[(0, 0, 1, 0)])),

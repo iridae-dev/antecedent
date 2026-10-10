@@ -290,7 +290,6 @@ impl ObservationRecoveryStage {
             SampledRecoveryArtifactInput, SampledRecoveryArtifactWire,
         };
         let config = match interval_method {
-            "bootstrap_percentile" => SampledRecoveryConfig::new(replicates, seed),
             "bootstrap_bca" if replicates == 2000 => SampledRecoveryConfig::bca(seed),
             _ => {
                 return Err(sampled_candidate_error(
@@ -419,7 +418,7 @@ impl ObservationRecoveryStage {
 impl ObservationRecoveryStage {
     /// Internal historical candidate; retains unmeasured semantics.
     #[cfg(feature = "calibration-internal")]
-    #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_percentile"))]
+    #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_bca"))]
     #[allow(clippy::too_many_arguments)]
     fn sampled_candidate(
         &self,

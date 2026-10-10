@@ -5177,7 +5177,7 @@ class ObservationRecoveryStage:
         snapshot: str,
         replicates: int,
         seed: int,
-        interval_method: str = "bootstrap_percentile",
+        interval_method: str = "bootstrap_bca",
     ) -> tuple[str, list[int]]: ...
     @property
     def outcome(self) -> str: ...

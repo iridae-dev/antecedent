@@ -12,7 +12,7 @@
 //! derivation record and both expression arenas, with the evidence catalog binding the
 //! observed snapshot), the observation rows (id and pattern, in order: the whole-row
 //! bootstrap depends on the order), the pattern-count summary, the request configuration
-//! with its seed, the recovered law, the recovered effect point, the percentile interval
+//! with its seed, the recovered law, the recovered effect point, the `BCa` interval
 //! (`calibration = "unmeasured"`), the diagnostics, the bootstrap covariance of the
 //! recovered cells and the replicate receipt (every replicate's selection digest and
 //! effect, failed ones included, and the receipt digest).
@@ -59,11 +59,7 @@ use antecedent_identify::{
 };
 use serde::{Deserialize, Serialize};
 
-/// The artifact format this reader writes and accepts (the sampled-recovery artifact).
-pub const SAMPLED_RECOVERY_ARTIFACT_VERSION: u32 = 2;
-/// The feature marker of the accepted format.
-pub const SAMPLED_RECOVERY_ARTIFACT_FEATURE: &str = "sampled_observation_recovery_v2";
-/// Distinct `BCa` artifact version; the legacy percentile v2 reader remains supported.
+/// Supported `BCa` artifact version.
 pub const SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION: u32 = 3;
 /// `BCa` feature, including exact midrank ties and full delete-one-row jackknife.
 pub const SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE: &str = "sampled_observation_recovery_bca_v3";
@@ -160,7 +156,7 @@ pub type SampledRowWire = (u64, u8, u8, u8);
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SampledConfigWire {
-    /// Absent in legacy v2; exactly `bootstrap_bca` in v3.
+    /// Exactly `bootstrap_bca` in the supported v3 format.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval_method: Option<String>,
     /// Bootstrap replicates.
@@ -182,8 +178,7 @@ pub struct SampledConfigWire {
 impl SampledConfigWire {
     fn from_config(config: &SampledRecoveryConfig) -> Self {
         Self {
-            interval_method: (config.interval_method == SampledIntervalMethod::Bca)
-                .then(|| "bootstrap_bca".into()),
+            interval_method: Some("bootstrap_bca".into()),
             replicates: config.replicates,
             seed: config.seed,
             max_failed_fraction: config.max_failed_fraction,
@@ -196,11 +191,7 @@ impl SampledConfigWire {
 
     fn to_config(&self) -> SampledRecoveryConfig {
         SampledRecoveryConfig {
-            interval_method: if self.interval_method.is_some() {
-                SampledIntervalMethod::Bca
-            } else {
-                SampledIntervalMethod::Percentile
-            },
+            interval_method: SampledIntervalMethod::Bca,
             replicates: self.replicates,
             seed: self.seed,
             max_failed_fraction: self.max_failed_fraction,
@@ -212,7 +203,7 @@ impl SampledConfigWire {
     }
 }
 
-/// The stored percentile interval.
+/// The stored `BCa` interval.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SampledIntervalWire {
@@ -339,7 +330,7 @@ impl SampledBcaWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SampledReceiptWire {
-    /// Absent for legacy percentile receipts.
+    /// Required for the supported `BCa` receipt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bca: Option<SampledBcaWire>,
     /// Snapshot identity of the rows.
@@ -354,7 +345,7 @@ pub struct SampledReceiptWire {
     pub config: SampledConfigWire,
     /// Recovered effect point.
     pub point_effect: f64,
-    /// Percentile interval.
+    /// `BCa` interval.
     pub interval: SampledIntervalWire,
     /// Every replicate in id order.
     pub replicates: Vec<SampledReplicateWire>,
@@ -464,7 +455,7 @@ pub struct SampledResultWire {
     pub effect_standard_error: f64,
     /// Replicates that failed and were dropped jointly.
     pub failed_replicates: usize,
-    /// Percentile interval.
+    /// `BCa` interval.
     pub interval: SampledIntervalWire,
     /// Diagnostics.
     pub diagnostics: SampledDiagnosticsWire,
@@ -522,7 +513,7 @@ impl SampledResultWire {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SampledRecoveryArtifactWire {
-    /// Format version ([`SAMPLED_RECOVERY_ARTIFACT_VERSION`]).
+    /// Format version ([`SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION`]).
     pub version: u32,
     /// Required feature marker.
     pub required_features: Vec<String>,
@@ -633,18 +624,9 @@ impl SampledRecoveryArtifactWire {
         let Some(effect_checked) = derivation.effect() else {
             return Err(IoError::Convert("the derivation identified no downstream effect".into()));
         };
-        let bca = input.result.receipt.config.interval_method == SampledIntervalMethod::Bca;
         let mut wire = Self {
-            version: if bca {
-                SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION
-            } else {
-                SAMPLED_RECOVERY_ARTIFACT_VERSION
-            },
-            required_features: vec![if bca {
-                SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE.into()
-            } else {
-                SAMPLED_RECOVERY_ARTIFACT_FEATURE.into()
-            }],
+            version: SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION,
+            required_features: vec![SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE.into()],
             graph: admg_to_wire(input.graph)?,
             query: RecoveryQueryWire::from_query(derivation.query()),
             effect: RecoveredEffectWire::from_query(input.effect)?,
@@ -693,11 +675,7 @@ impl SampledRecoveryArtifactWire {
         graph.directed.sort_unstable();
         graph.bidirected.sort_unstable();
         let view = PremisesView {
-            tag: if self.version == SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION {
-                "sampled_observation_recovery_bca_premises_v3"
-            } else {
-                "sampled_observation_recovery_premises_v2"
-            },
+            tag: "sampled_observation_recovery_bca_premises_v3",
             graph,
             query: &self.query,
             effect: &self.effect,
@@ -741,10 +719,6 @@ impl SampledRecoveryArtifactWire {
     fn validate_shape(&self) -> Result<(), SampledRecoveryArtifactError> {
         let unsupported = SampledRecoveryArtifactError::UnsupportedSemantics;
         match self.version {
-            SAMPLED_RECOVERY_ARTIFACT_VERSION
-                if self.required_features == [SAMPLED_RECOVERY_ARTIFACT_FEATURE]
-                    && self.receipt.config.interval_method.is_none()
-                    && self.receipt.bca.is_none() => {}
             SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION
                 if self.required_features == [SAMPLED_RECOVERY_BCA_ARTIFACT_FEATURE]
                     && self.receipt.config.interval_method.as_deref() == Some("bootstrap_bca")
@@ -808,9 +782,7 @@ impl SampledRecoveryArtifactWire {
     /// [`IoError::UnsupportedVersion`], or a decoding or shape failure.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
         let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if ![SAMPLED_RECOVERY_ARTIFACT_VERSION, SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION]
-            .contains(&peek.version)
-        {
+        if peek.version != SAMPLED_RECOVERY_BCA_ARTIFACT_VERSION {
             return Err(IoError::UnsupportedVersion { version: peek.version });
         }
         let wire: Self = crate::from_cbor(bytes)?;

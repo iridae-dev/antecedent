@@ -28,7 +28,7 @@ from test_observation_recovery import catalog, graph, query
 
 pytestmark = pytest.mark.skipif(
     not hasattr(_native, "consume_sampled_recovery_candidate"),
-    reason="candidate requires calibration-internal wheel; normal release route stays closed",
+    reason="private candidate hook requires calibration-internal; public measured route is available",
 )
 
 
@@ -111,8 +111,8 @@ def produce(*, seed=7, sample=None, declaration=None, snapshot="snap-1"):
         query=query() if declaration is None else declaration,
         rows=rows() if sample is None else sample,
         snapshot=snapshot,
-        replicates=500,
-        interval_method="bootstrap_percentile",
+        replicates=2000,
+        interval_method="bootstrap_bca",
         seed=seed,
     )
 
@@ -128,11 +128,13 @@ def test_public_sampled_recovery_whole_method_matches_independent_oracle(tmp_pat
     assert result.effect == pytest.approx(0.36, abs=0.01)
     assert evidence["result"]["recovered"]["probabilities"] == pytest.approx(law, abs=1e-12)
     replicate_laws, effects = zip(
-        *(oracle(resample(sample, r, 7)) for r in range(500)), strict=True
+        *(oracle(resample(sample, r, 7)) for r in range(2000)), strict=True
     )
     assert evidence["result"]["failed_replicates"] == 0
     assert evidence["result"]["replicate_effects"] == pytest.approx(effects, abs=1e-12)
-    assert result.interval == pytest.approx(np.quantile(effects, [0.025, 0.975]), abs=1e-12)
+    assert result.interval == pytest.approx(
+        np.quantile(effects, evidence["receipt"]["bca"]["adjusted_probabilities"]), abs=1e-12
+    )
     assert result.effect_standard_error == pytest.approx(np.std(effects, ddof=1), abs=1e-12)
     assert evidence["result"]["recovered_cell_covariance"] == pytest.approx(
         np.cov(np.array(replicate_laws).T, ddof=1).ravel(), abs=1e-12
@@ -204,8 +206,8 @@ def test_fake_stage_callback_cannot_issue_candidate_authority():
             query=query(),
             rows=rows(),
             snapshot="snap-1",
-            replicates=500,
-            interval_method="bootstrap_percentile",
+            replicates=2000,
+            interval_method="bootstrap_bca",
             seed=7,
         )
     assert calls == []

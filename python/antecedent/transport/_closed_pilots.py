@@ -479,7 +479,7 @@ def sampled_observation_recovery(
     snapshot: str,
     replicates: int = 2000,
     seed: int = 0,
-    interval_method: Literal["bootstrap_bca", "bootstrap_percentile"] = "bootstrap_bca",
+    interval_method: Literal["bootstrap_bca"] = "bootstrap_bca",
     memory_limit_bytes: int | None = None,
     cancel: _native.CancellationToken | None = None,
 ) -> MeasuredInference:
@@ -488,8 +488,8 @@ def sampled_observation_recovery(
     The measured finite IID missingness design supports BCa whole-row intervals at
     .95 with exactly 2000 bootstrap replicates and 1000..4000 original rows. Native
     execution and fresh replay retain the original query, proof, data, configuration
-    and complete attempted-work receipt. Legacy percentile remains unlicensed; the
-    underlying recovery artifact and numerical diagnostics stay unmeasured.
+    and complete attempted-work receipt. The original recovery artifact and numerical
+    diagnostics stay unmeasured.
     """
     return cast(
         MeasuredInference,
@@ -509,7 +509,7 @@ def sampled_observation_recovery(
 
 
 def _sampled_observation_recovery_candidate(**kwargs: Any) -> SampledRecoveryCandidate:
-    """Explicit internal original candidate including the historical percentile method."""
+    """Explicit internal original BCa candidate."""
     return cast(SampledRecoveryCandidate, _sampled_recovery_entry(**kwargs, measured=False))
 
 
@@ -521,7 +521,7 @@ def _sampled_recovery_entry(
     snapshot: str,
     replicates: int = 2000,
     seed: int = 0,
-    interval_method: Literal["bootstrap_bca", "bootstrap_percentile"] = "bootstrap_bca",
+    interval_method: Literal["bootstrap_bca"] = "bootstrap_bca",
     measured: bool,
     memory_limit_bytes: int | None = None,
     cancel: _native.CancellationToken | None = None,
@@ -530,8 +530,8 @@ def _sampled_recovery_entry(
     _production_limits(memory_limit_bytes, cancel)
     if not isinstance(stage, _native.ObservationRecoveryStage):
         raise CausalTypeError("stage must retain an original native recovery stage")
-    if interval_method not in ("bootstrap_bca", "bootstrap_percentile"):
-        raise CausalValueError("interval_method must be bootstrap_bca or bootstrap_percentile")
+    if interval_method != "bootstrap_bca":
+        raise CausalValueError("interval_method must be bootstrap_bca")
     outcome = getattr(stage, "outcome", None)
     if outcome not in ("recovered", "nonrecoverable"):
         raise CausalTypeError("stage must be the stage of identify_observation_recovery")
