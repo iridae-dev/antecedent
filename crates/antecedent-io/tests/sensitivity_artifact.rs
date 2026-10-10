@@ -407,7 +407,7 @@ fn adopt_against(status_quo: f64) -> Vec<ActionUtility> {
 }
 
 #[test]
-fn a_2_2_result_is_adapted_exactly_and_travels_through_the_wire() {
+fn a_joint_result_is_adapted_exactly_and_travels_through_the_wire() {
     // Baseline 0.5, extrema -0.1 and 1.1 at the contamination bound 0.4; the range is linear
     // in the fraction, so it is 0.5 - 0.6 t and 0.5 + 0.6 t with t = fraction / 0.4.
     let result = joint_result(
@@ -461,7 +461,7 @@ fn a_2_2_result_is_adapted_exactly_and_travels_through_the_wire() {
 }
 
 #[test]
-fn a_2_2_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
+fn a_joint_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
     let effect = scientific("effect");
     let two = joint_result(
         vec![
@@ -509,4 +509,20 @@ fn a_2_2_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
         ),
         "assumption-range",
     );
+}
+
+#[test]
+fn artifacts_sealed_with_earlier_producer_kind_spellings_still_verify() {
+    // The producer kind is recorded text, not a dispatch key: an artifact sealed under the
+    // spelling a shipped release used keeps its own identity and verifies unchanged.
+    for legacy in ["joint_mechanism_sensitivity_2_2", "msm_sensitivity_2_3"] {
+        let mut parts = frozen_parts();
+        parts.provenance.source_kind = legacy.into();
+        let artifact = SensitivityArtifact::new(parts).unwrap();
+        let bytes = artifact.to_bytes("legacy").unwrap();
+        let restored = SensitivityArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
+        assert_eq!(restored.provenance().source_kind, legacy);
+        assert_eq!(restored, artifact);
+        assert_eq!(restored.outcome(), Some(&frozen_switch()));
+    }
 }

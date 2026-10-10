@@ -33,7 +33,7 @@ use crate::sensitivity_artifact::{
 };
 
 /// Producer kind recorded in the artifact's provenance.
-pub const MSM_SOURCE_KIND: &str = "msm_sensitivity_2_3";
+pub const MSM_SOURCE_KIND: &str = "marginal_sensitivity_model";
 /// Coordinate identity of the perturbation.
 pub const MSM_COORDINATE_ID: &str = "msm_lambda";
 /// Coordinate scale of the perturbation.

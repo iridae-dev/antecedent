@@ -88,7 +88,7 @@ pub const ASSUMPTION_RANGE_STATEMENT: &str = "assumption range over the declared
 const ARTIFACT_KIND: &str = "sensitivity_decision_v1";
 const META_SECTION: &str = "sensitivity_decision.meta";
 const NUMBERS_SECTION: &str = "sensitivity_decision.numbers";
-const JOINT_SOURCE_KIND: &str = "joint_mechanism_sensitivity_2_2";
+const JOINT_SOURCE_KIND: &str = "joint_mechanism_sensitivity";
 
 fn invalid_surface(text: &str) -> IoError {
     IoError::Refused {
@@ -467,7 +467,8 @@ pub struct SourceTipping {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SensitivityProvenance {
-    /// Producer kind (`joint_mechanism_sensitivity_2_2` or a supplied surface).
+    /// Producer kind (`joint_mechanism_sensitivity` or a supplied surface; artifacts sealed with the earlier
+    /// `joint_mechanism_sensitivity_2_2` spelling carry that string and keep verifying).
     pub source_kind: String,
     /// Identity of the checked derivation the numbers came from.
     pub query_binding: String,

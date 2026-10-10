@@ -75,7 +75,7 @@ pub const JOINT_SENSITIVITY_MAX_TOLERANCE: f64 = 1e-2;
 /// evaluator's kernel-row tolerance).
 const JOINT_SENSITIVITY_UNIT_MASS_TOLERANCE: f64 = 1e-10;
 /// Optimization method recorded in every receipt.
-pub const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon contamination of the outcome kernel and the shared parent marginal; closed-form product-polytope vertex extrema (2.1 kernel stage, then the parent-simplex vertex); certified bisection brackets for the tipping frontier";
+pub const JOINT_SENSITIVITY_METHOD: &str = "box-independent epsilon contamination of the outcome kernel and the shared parent marginal; closed-form product-polytope vertex extrema (one-factor kernel stage, then the parent-simplex vertex); certified bisection brackets for the tipping frontier";
 /// Interpretation of the reported range.
 pub const JOINT_SENSITIVITY_INTERPRETATION: &str = "assumption range over the declared joint contamination box; not a confidence interval and not a sampling interval";
 /// The only inference claim the range carries.
