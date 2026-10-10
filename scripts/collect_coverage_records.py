@@ -8,8 +8,8 @@ One command after a calibration run:
 It reads `target/calibration-records/*.log` (written by
 `scripts/gate_calibration.sh`), writes `parity/coverage_records.toml` stamped
 with the SHA of the commit the logs were measured at, rewrites the
-`calibration` / `calibration_reason` pair on every licensed support cell and
-estimator row from those records, and regenerates
+`calibration` / `calibration_reason` pair for each already-bound licensed support
+cell using only its existing record IDs, refreshes estimator rows, and regenerates
 `crates/antecedent-io/src/coverage_records_data.rs`.
 
 Every record is measured at each point of its sample-size grid
@@ -48,7 +48,8 @@ For a small independently measured workstream while older records still owe
 re-measurement, `--append-attested --only-cell QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID`
 adds only new IDs from valid, stamped logs, rejects collisions, preserves every
 older record with its original SHA (including stale records), and syncs only
-the named licensed cells to exactly the named record IDs. It leaves the global gate ledger and estimator rows
+the named licensed cells to exactly the named record IDs after checking their
+coordinate and declared estimator ownership. It leaves the global gate ledger and estimator rows
 alone; preserving an older row does not attest or re-license it.
 
 `--smoke --log-dir <dir> --out <file>` collects the lines of a wiring smoke run
@@ -602,11 +603,9 @@ def sync_licensed_cells(
     records: dict[str, dict],
     only_cells: dict[tuple[str, str, str, str, str], list[str]] | None = None,
 ) -> int:
+    # Collection refreshes measurements, not public-route ownership. New bindings
+    # require explicit --only-cell authorization and estimator compatibility.
     cells = tomllib.loads(LICENSED.read_text()).get("cell", [])
-    by_coordinate: dict[tuple[str, str, str, str], list[str]] = {}
-    for rid, rec in records.items():
-        key = (rec["query"], rec["graph_class"], rec["inference"], rec["structure"])
-        by_coordinate.setdefault(key, []).append(rid)
     text = LICENSED.read_text()
     blocks = text.split("[[cell]]")
     out = [blocks[0]]
@@ -623,13 +622,15 @@ def sync_licensed_cells(
         seen.add(cell_key)
         structures = ["graph_posterior"] if cell["structure"] == "graph_posterior" else ["fixed"]
         if only_cells is None:
-            ids = sorted(
-                rid
-                for structure in structures
-                for rid in by_coordinate.get(
-                    (cell["query"], cell["graph_class"], cell["inference"], structure), []
-                )
-            )
+            ids = list(cell.get("calibration", []))
+            missing = [rid for rid in ids if rid not in records]
+            if missing:
+                raise SystemExit(f"licensed cell {cell_key}: bound calibration records absent: {missing}")
+            if not ids:
+                # An unmeasured cell must not acquire a claim from an unrelated
+                # new estimator sharing broad support axes.
+                out.append(block)
+                continue
         else:
             ids = sorted(only_cells[cell_key])
             for rid in ids:
@@ -638,6 +639,11 @@ def sync_licensed_cells(
                     rec["query"], rec["graph_class"], rec["inference"], rec["structure"]
                 ) != (cell["query"], cell["graph_class"], cell["inference"], structures[0]):
                     raise SystemExit(f"--only-cell {cell_key}: incompatible or absent record {rid}")
+                if rec.get("estimator") not in cell.get("estimators", []):
+                    raise SystemExit(
+                        f"--only-cell {cell_key}: record {rid} estimator {rec.get('estimator')!r} "
+                        "is not owned by the licensed cell"
+                    )
         reason = (
             "no_interval_reported"
             if not ids and cell["query"] in NO_INTERVAL_QUERIES

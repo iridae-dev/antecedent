@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collect_coverage_records as collector  # noqa: E402
@@ -29,6 +30,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
         source = (
             '[[cell]]\nquery = "Elasticity"\ngraph_class = "Dag"\n'
             'structure = "explicit"\ninference = "Frequentist"\nvalidation = "none"\n'
+            'estimators = ["elasticity.plugin"]\n'
             'calibration_reason = "estimator_grid_not_measured"\n\n'
             '[[cell]]\nquery = "Other"\ngraph_class = "Dag"\n'
             'structure = "explicit"\ninference = "Frequentist"\nvalidation = "none"\n'
@@ -49,6 +51,7 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                             "structure": "fixed",
                             "nominal": 0.95,
                             "boundary": False,
+                            "estimator": "elasticity.plugin",
                         }
                     },
                     {("Elasticity", "Dag", "explicit", "Frequentist", "none"): ["new"]},
@@ -61,6 +64,83 @@ class AppendAttestedRecordsTest(unittest.TestCase):
                 path.read_text().split('[[cell]]')[2],
                 source.split('[[cell]]')[2],
             )
+
+
+
+class LicensedCellSyncTest(unittest.TestCase):
+    @staticmethod
+    def source(inference: str = "Bayesian", bound: bool = True) -> str:
+        return (
+            '[[cell]]\nquery="AverageEffect"\ngraph_class="Admg"\n'
+            f'structure="explicit"\ninference="{inference}"\nvalidation="none"\n'
+            'estimators=["functional.effect"]\n'
+            + ('calibration = ["frontdoor"]\ncalibration_reason = "boundary_record"\n'
+               if bound else 'calibration_reason = "estimator_grid_not_measured"\n')
+        )
+
+    @staticmethod
+    def record(estimator: str, inference: str = "Bayesian", boundary: bool = False) -> dict:
+        return dict(query="AverageEffect", graph_class="Admg", structure="fixed",
+                    inference=inference, estimator=estimator, nominal=0.95, boundary=boundary)
+
+    def test_new_passing_fisher_and_bayesian_do_not_rebind_frontdoor_boundary(self) -> None:
+        for inference, estimator in (("Bayesian", "nested_markov_bayesian"),
+                                     ("Frequentist", "nested_markov_fisher")):
+            with self.subTest(inference=inference), tempfile.TemporaryDirectory() as directory:
+                source = self.source(inference)
+                path = Path(directory) / "licensed.toml"
+                path.write_text(source)
+                with patch.object(collector, "LICENSED", path):
+                    collector.sync_licensed_cells({
+                        "frontdoor": self.record("functional.effect", inference, True),
+                        "new_passing": self.record(estimator, inference),
+                    })
+                parsed = collector.tomllib.loads(path.read_text())["cell"][0]
+                self.assertEqual(parsed["calibration"], ["frontdoor"])
+                self.assertEqual(parsed["calibration_reason"], "boundary_record")
+
+    def test_default_sync_leaves_unmeasured_cell_byte_identical(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = self.source(bound=False)
+            path = Path(directory) / "licensed.toml"
+            path.write_text(source)
+            with patch.object(collector, "LICENSED", path):
+                self.assertEqual(collector.sync_licensed_cells({
+                    "new": self.record("nested_markov_bayesian")}), 0)
+            self.assertEqual(path.read_text(), source)
+
+    def test_missing_bound_record_refuses_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = self.source()
+            path = Path(directory) / "licensed.toml"
+            path.write_text(source)
+            with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
+                SystemExit, "bound calibration records absent"
+            ):
+                collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")})
+            self.assertEqual(path.read_text(), source)
+
+    def test_explicit_same_axes_foreign_estimator_refuses_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = self.source()
+            path = Path(directory) / "licensed.toml"
+            path.write_text(source)
+            with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
+                SystemExit, "not owned by the licensed cell"
+            ):
+                collector.sync_licensed_cells({"new": self.record("nested_markov_bayesian")},
+                    {("AverageEffect", "Admg", "explicit", "Bayesian", "none"): ["new"]})
+            self.assertEqual(path.read_text(), source)
+
+    def test_refresh_uses_new_measurement_of_original_bound_method(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "licensed.toml"
+            path.write_text(self.source())
+            with patch.object(collector, "LICENSED", path):
+                collector.sync_licensed_cells({"frontdoor": self.record("functional.effect")})
+            parsed = collector.tomllib.loads(path.read_text())["cell"][0]
+            self.assertEqual(parsed["calibration"], ["frontdoor"])
+            self.assertNotIn("calibration_reason", parsed)
 
 
 def _point(k: int, observed: float, role: str, **extra) -> dict:
