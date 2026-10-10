@@ -80,7 +80,7 @@ jobs:
           OUT="${GITHUB_WORKSPACE}/site/python"
           mkdir -p "$OUT"
           cd "$(mktemp -d)"
-          pdoc antecedent -o "$OUT"
+          python "${GITHUB_WORKSPACE}/scripts/build_python_api_docs.py" "$OUT"
 
       - name: Pack docs.tar.gz
         run: |

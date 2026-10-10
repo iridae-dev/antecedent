@@ -330,10 +330,10 @@ for the base class, the families and the common remedies.
 | Bundle | `Bundle` | `joint_draw` or `point_only_attested`; certifies decoding, identities and bindings only |
 
 The whole path is one runnable script,
-[`decision_lifecycle.py`](../examples/python/decision_lifecycle.py). Runnable
+[`decision_lifecycle.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/decision_lifecycle.py). Runnable
 examples for the later steps:
-[`composition_bundle.py`](../examples/python/composition_bundle.py) (bundle and
-consume) and [`repair_obligations.py`](../examples/python/repair_obligations.py)
+[`composition_bundle.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/composition_bundle.py) (bundle and
+consume) and [`repair_obligations.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/repair_obligations.py)
 (the evidence a failed contract owes, which is where study candidates come from).
 
 Next: [sensitivity and robustness](2_3-sensitivity-and-robustness.md),

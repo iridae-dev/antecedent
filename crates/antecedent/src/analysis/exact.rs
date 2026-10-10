@@ -481,7 +481,7 @@ impl PreparedStudy<ExactPreparedState> {
     /// Evaluate one-factor outcome-kernel sensitivity restricted to a single
     /// treatment-level slice while holding the other arm fixed.
     /// # Errors
-    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,
+    /// Returns a [`antecedent_validate::FixedGraphSensitivityError`] when the checked derivation, graph,
     /// selected treatment level, or mechanism spec is rejected.
     pub fn mechanism_sensitivity_at_treatment_level(
         &self,
@@ -505,7 +505,7 @@ impl PreparedStudy<ExactPreparedState> {
     /// Evaluate bounded contamination of an isolated root mechanism that is a
     /// non-treatment parent of the outcome.
     /// # Errors
-    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,
+    /// Returns a [`antecedent_validate::FixedGraphSensitivityError`] when the checked derivation, graph,
     /// or the selected root mechanism is rejected.
     pub fn mechanism_sensitivity_root_mechanism(
         &self,
@@ -529,7 +529,7 @@ impl PreparedStudy<ExactPreparedState> {
     /// Evaluate bounded contamination of a checked categorical conditional
     /// mechanism among the outcome's non-treatment parents.
     /// # Errors
-    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,
+    /// Returns a [`antecedent_validate::FixedGraphSensitivityError`] when the checked derivation, graph,
     /// or the selected conditional mechanism is rejected.
     pub fn mechanism_sensitivity_conditional_mechanism(
         &self,

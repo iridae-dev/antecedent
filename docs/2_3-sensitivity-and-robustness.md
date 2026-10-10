@@ -285,8 +285,8 @@ calibration unmeasured. It is reported so it can be
 inspected, not as a confidence statement.
 
 Runnable examples:
-[`msm_sensitivity.py`](../examples/python/msm_sensitivity.py) and
-[`mechanism_discrepancy.py`](../examples/python/mechanism_discrepancy.py).
+[`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/msm_sensitivity.py) and
+[`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/mechanism_discrepancy.py).
 
 Related: [the 2.3 lifecycle](2_3-lifecycle.md),
 [transport and counterfactuals](2_3-transport-counterfactuals.md),

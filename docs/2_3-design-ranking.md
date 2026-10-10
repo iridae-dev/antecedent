@@ -351,9 +351,9 @@ portable artifact. Bounds use `max_cost` and `max_sample_budget`; unrelated valu
 or gate arguments refuse rather than being silently applied. Calibration remains
 `unmeasured` for every objective.
 
-Runnable examples: [`rank_designs.py`](../examples/python/rank_designs.py)
-(identification basis), [`rank_designs_evsi.py`](../examples/python/rank_designs_evsi.py)
-(net value) and [`decision_lifecycle.py`](../examples/python/decision_lifecycle.py)
+Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/rank_designs.py)
+(identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/rank_designs_evsi.py)
+(net value) and [`decision_lifecycle.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/decision_lifecycle.py)
 (contract to ranking).
 
 ## Where it fits

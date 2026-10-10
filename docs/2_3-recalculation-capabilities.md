@@ -141,4 +141,4 @@ out.receipt.totals.as_tuple()      # zero fits; only the law and decision are re
 
 Anything that needs the data or a fit is refused before any work and leaves the session unchanged: a changed outcome, folds, graph, row design, data snapshot or treatment grid, and `execute` over new data. These raise `ScoreResumeUnavailable` (`recalc.unavailable_data`, `missing == "data"`, `reason_code == "score_table_unavailable"`); weights over other row ids or of another length, or a declared derived stage, raise `ScoreResumeRefusal`. Both are structured refusals (see [Refusal and partial knowledge](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies)). A `ResumeReceipt` is a verified record, not an exportable artifact: the `recalc_receipt_v1` format refuses a derived stage reused in a fresh process, so `ResumeReceipt.export()` raises.
 
-Runnable example: [`recalc_cell_resume.py`](../examples/python/recalc_cell_resume.py).
+Runnable example: [`recalc_cell_resume.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/recalc_cell_resume.py).
