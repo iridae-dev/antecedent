@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import BuiltinFunctionType
 from typing import Any, Literal, cast
 
 from .. import _native
@@ -33,8 +34,8 @@ class SampledRecoveryIdentity:
 class SampledRecoveryCandidate:
     """Checked whole-row bootstrap candidate, with no measured coverage license.
 
-    Created by ``sampled_observation_recovery`` in a calibration-internal build.
-    Normal release builds keep that route closed until its own evidence gates pass.
+    Created through the private candidate hook in a calibration-internal build.
+    The standard public producer returns native-authorized measured inference.
     Export/load reruns original recovery and every replicate under retained identity.
     """
 
@@ -42,10 +43,21 @@ class SampledRecoveryCandidate:
     _artifact: bytes
 
     def __init__(self) -> None:
-        raise CausalTypeError("use sampled_observation_recovery or load with retained identity")
+        raise CausalTypeError("use the internal candidate hook or load with retained identity")
 
     @classmethod
     def _from_native(cls, payload: str, artifact: bytes) -> SampledRecoveryCandidate:
+        consume = getattr(_native, "consume_sampled_recovery_candidate", None)
+        if (
+            not isinstance(consume, BuiltinFunctionType)
+            or consume.__module__ != _native.__name__
+            or consume.__name__ != "consume_sampled_recovery_candidate"
+        ):
+            raise CausalUnsupportedError(
+                "sampled_recovery.route_frozen: private candidate factory requires "
+                "the original calibration-internal native hook",
+                reason_code="cell_not_licensed",
+            )
         decoded = json.loads(payload)
         if decoded.get("calibration") != "unmeasured":
             raise CausalValueError("sampled recovery candidate must remain unmeasured")
@@ -126,7 +138,7 @@ class SampledRecoveryCandidate:
         consume = getattr(_native, "consume_sampled_recovery_candidate", None)
         if consume is None:
             raise CausalUnsupportedError(
-                "sampled_recovery.route_frozen: whole-method calibration and public gates pending",
+                "sampled_recovery.route_frozen: private candidate replay requires calibration-internal",
                 reason_code="cell_not_licensed",
             )
         payload = consume(

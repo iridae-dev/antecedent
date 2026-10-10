@@ -186,3 +186,22 @@ print(json.dumps(r.source_report(),sort_keys=True))
     ):
         with pytest.raises(CausalError):
             MeasuredInference.load(artifact, expected=identity)
+
+
+def test_normal_raw_recovery_candidate_factory_requires_original_internal_hook(monkeypatch):
+    assert not hasattr(_native, "consume_sampled_recovery_candidate")
+    payload = json.dumps(
+        {"calibration": "unmeasured", "result": {"interval": {"lower": -1, "upper": 1}}}
+    )
+    with pytest.raises(CausalError, match="calibration-internal"):
+        tr.SampledRecoveryCandidate._from_native(payload, b"fabricated")
+    calls = []
+    monkeypatch.setattr(
+        _native,
+        "consume_sampled_recovery_candidate",
+        lambda *args: calls.append(args),
+        raising=False,
+    )
+    with pytest.raises(CausalError, match="original calibration-internal native hook"):
+        tr.SampledRecoveryCandidate._from_native(payload, b"fabricated")
+    assert calls == []
