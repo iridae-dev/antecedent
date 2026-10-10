@@ -66,7 +66,7 @@ bash scripts/gate_provenance_schema.sh
 echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
 
-echo "== retained 2.2 and current 2.3 promotion evidence inventory =="
+echo "== promotion evidence inventory =="
 python3 scripts/release_evidence_report.py
 
 echo "== inherited calibration debt and current inference contract inventory =="
@@ -78,9 +78,8 @@ fi
 
 if [[ "$section" == all || "$section" == promotion ]]; then
 section_start promotion
-# Both release registries are checked; frozen or carried-forward 2.3 cells
-# remain closed until their cited evidence executes.
-echo "== 2.2 and 2.3 promotion records =="
+# Frozen or carried-forward cells remain closed until their cited evidence executes.
+echo "== promotion records =="
 bash scripts/gate_promotion.sh
 section_end promotion
 fi
@@ -144,20 +143,18 @@ bash scripts/gate_docs_support_matrix.sh
 echo "== published docs links resolve =="
 python3 scripts/check_doc_links.py
 
-# 2.2 release closure: declared bounds agree across records, docs, Rust constants and Python
+# Release closure: declared bounds agree across records, docs, Rust constants and Python
 # docstrings; the release notes describe each cell with exactly its record's claim word.
-echo "== 2.2 limits agreement (records, docs, Rust constants, Python) =="
+echo "== limits agreement (records, docs, Rust constants, Python) =="
 python3 scripts/check_limits_agreement.py
-python3 scripts/check_limits_agreement.py --release 2.3
 
-echo "== 2.3 interval ownership and candidate measurement wiring =="
-python3 scripts/check_interval_coordinates.py --release 2.3
+echo "== interval ownership and measurement wiring =="
+python3 scripts/check_interval_coordinates.py
 
-echo "== 2.2 and 2.3 release notes claim vocabulary =="
+echo "== release notes claim vocabulary =="
 python3 scripts/check_release_claims.py
-python3 scripts/check_release_claims.py --release 2.3
 
-# The calibration inventories are generated; a stale checked-in copy fails here (B8 gap closed).
+# The calibration inventories are generated; a stale checked-in copy fails here.
 echo "== calibration backlog and readiness inventories are current =="
 python3 scripts/generate_calibration_backlog.py --check
 python3 scripts/calibration_readiness.py --check
@@ -220,15 +217,15 @@ fi
 if [[ "$section" == all || "$section" == features || "$section" == feature-exits ]]; then
 section_start feature_exits
 if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
-  # 2.2 A exit gate: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
-  # check. PENDING_CALIBRATION (story 3 / X1 coverage records unmeasured) exits 0 here; the
-  # release-candidate cut can add --require-calibrated.
-  echo "== 2.2 A exit gate =="
+  # Composition exit: six end-to-end stories (Rust and Python) plus the zero-unmeasured-interval
+  # check. PENDING_CALIBRATION (story 3 / multi-source coverage records unmeasured) exits 0 here;
+  # the release-candidate gate adds --require-calibrated.
+  echo "== composition exit stories =="
   bash scripts/gate_composition_exit.sh
-  # 2.2 B exit gate scaffold: per-package table (PENDING_IMPLEMENTATION until a package registers
-  # its stories in scripts/decision_exit_report.py) plus the interval check over every 2.2 record. The
-  # cut runs it with --release.
-  echo "== 2.2 B exit gate =="
+  # Decision exit scaffold: per-story table (PENDING_IMPLEMENTATION until a story registers its
+  # tests in scripts/decision_exit_report.py) plus the interval check over every record. The
+  # release-candidate gate runs it with --release.
+  echo "== decision exit stories =="
   bash scripts/gate_decision_exit.sh
 fi
 section_end feature_exits

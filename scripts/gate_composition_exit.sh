@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 2.2 A exit gate: milestone A is complete only when six end-to-end user stories pass from clean
+# Composition exit gate: complete only when six end-to-end user stories pass from clean
 # preparation through independent artifact consumption, with zero newly introduced unmeasured
-# interval coordinates (TODO.md "2.2 A exit gate").
+# interval coordinates.
 #
 #   bash scripts/gate_composition_exit.sh                         # run everything, print the per-story table
 #   bash scripts/gate_composition_exit.sh --require-calibrated    # PENDING_CALIBRATION is a failure (release)
@@ -9,13 +9,13 @@
 #
 # It runs the six Rust stories (crates/antecedent/tests/composition_exit_gate.rs), the Python stories
 # (python/tests/test_composition_exit_gate.py, against the extension already built into python/.venv; build
-# it first with `cd python && uv run maturin develop --release`, or set A_EXIT_BUILD_PYTHON=1),
+# it first with `cd python && uv run maturin develop --release`, or set COMPOSITION_EXIT_BUILD_PYTHON=1),
 # then scripts/check_interval_surfaces.py --run-refusals (which also executes the cited closed-route
 # refusal tests), and joins them with scripts/composition_exit_report.py.
 #
-# Status per story: PASS / FAIL / PENDING_CALIBRATION. Story 3's "calibrated" and X1's interval
+# Status per story: PASS / FAIL / PENDING_CALIBRATION. Story 3's "calibrated" and the multi-source interval
 # records are PENDING_CALIBRATION while the coverage records allocated to them in
-# parity/promotion_2_2.toml are absent from parity/coverage_records.toml, and PASS automatically
+# parity/promotion.toml are absent from parity/coverage_records.toml, and PASS automatically
 # once they exist and the calibration attestation (scripts/calibration_facets.py) holds. Exit
 # status is nonzero on any FAIL; PENDING_CALIBRATION exits 0 unless --require-calibrated.
 set -euo pipefail
@@ -44,16 +44,16 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "== A exit gate: six Rust stories =="
+echo "== composition exit: six Rust stories =="
 cargo test -p antecedent --test composition_exit_gate 2>&1 | tee "$tmp/rust.log" || true
 
-echo "== A exit gate: six Python stories =="
-if [[ "${A_EXIT_BUILD_PYTHON:-0}" == "1" ]]; then
+echo "== composition exit: six Python stories =="
+if [[ "${COMPOSITION_EXIT_BUILD_PYTHON:-0}" == "1" ]]; then
   (cd python && uv run maturin develop --release)
 fi
 (cd python && uv run pytest -v -p no:cacheprovider tests/test_composition_exit_gate.py 2>&1) | tee "$tmp/python.log" || true
 
-echo "== A exit gate: interval coordinates and calibration state =="
+echo "== composition exit: interval coordinates and calibration state =="
 python3 scripts/check_interval_surfaces.py --run-refusals --json >"$tmp/intervals.json" || true
 if [[ ! -s "$tmp/intervals.json" ]]; then
   echo '{"intervals":"FAIL","calibration":{},"errors":["check_interval_surfaces.py produced no result"]}' >"$tmp/intervals.json"

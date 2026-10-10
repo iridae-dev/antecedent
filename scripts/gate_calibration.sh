@@ -57,19 +57,19 @@ grid_group() {
   case "$1" in
     "antecedent-estimate: bayesian_"*) return 1 ;;
     antecedent-estimate:*|v19_*|v110_*|v20_*) return 0 ;;
-    # 2.2 coverage records: X1 (both mz suites) and the two X4 coverage records. The X4
-    # weak-overlap and misspecified-nuisance tests print measurements, emit no record,
+    # Multi-source limited-experiment (both mz suites) and the two learned continuous trial
+    # transport coverage records. The learned-transport weak-overlap and misspecified-nuisance tests print measurements, emit no record,
     # and run once at the base point.
     mz_transport_calibration:*) return 0 ;;
     bayesian_basis_prior_precision:*|adjusted_recalc_precision:*|temporal_recalc_calibration:*|bayesian_recalc_calibration:*|posterior_summary_calibration:*|scenario_covariance_calibration:*|evsi_precision_calibration:*|design_ar_precision_calibration:*|generic_aipw_precision:*|nested_markov_fisher_calibration:*|nested_markov_bayesian_calibration:*|joint_bayesian_transport_calibration:*|learned_joint_calibration:*|quadratic_dose_calibration:*|treatment_inference_calibration:*|bootstrap_effect_precision:*|mechanism_discrepancy_calibration:*|retained_score_precision:*|temporal_unit_calibration:*|recovery_whole_method_calibration:*) return 0 ;;
     learned_continuous_calibration:*_mean_contrast) return 0 ;;
-    # 2.2B X4 smoothed dose-response: the two *_psi_h coverage records only.
+    # Smoothed dose-response transport: the two *_psi_h coverage records only.
     smoothed_dose_calibration:*_psi_h) return 0 ;;
-    # 2.2B X3 joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
+    # Joint sensitivity: the zero-box (gated) and positive-box (one_sided) records.
     joint_sensitivity_calibration:*) return 0 ;;
-    # 2.2E E3 batch retarget: the unpublished family-level max-t band (wired, unmeasured).
+    # Batch retarget: the unpublished family-level max-t band (wired, unmeasured).
     batch_retarget_calibration:*) return 0 ;;
-    # 2.2E E4 clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
+    # Clustered DML: the published t_(G-1) Wald interval (wired, unmeasured).
     cluster_dml_calibration:*) return 0 ;;
     *) return 1 ;;
   esac
@@ -254,7 +254,7 @@ run_temporal_recalc() {
   local name="$1"
   check "temporal_recalc_calibration: ${name}" cargo test --release -p antecedent --test temporal_recalc_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 C2 checked temporal response and paired effect candidates =="
+echo "== checked temporal response and paired effect candidates =="
 # Original response percentile/basic measurements failed. Their harnesses and
 # archived results remain retained; bootstrap-t is a distinct required method.
 run_temporal_recalc temporal_checked_response_studentized_l95
@@ -267,7 +267,7 @@ run_bayesian_recalc() {
   local name="$1"
   check "bayesian_recalc_calibration: ${name}" cargo test --release -p antecedent --test bayesian_recalc_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 C2 checked Gaussian posterior summary precision =="
+echo "== checked Gaussian posterior summary precision =="
 run_bayesian_recalc gaussian_adapter_posterior_summary_precision
 
 # Actual basis NIG and replayed mapped source-prior conditional summary precision.
@@ -283,7 +283,7 @@ run_posterior_summary() {
   local name="$1"
   check "posterior_summary_calibration: ${name}" cargo test --release -p antecedent-io --test posterior_summary_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 F1 F16 posterior quantile numerical precision =="
+echo "== posterior quantile numerical precision =="
 run_posterior_summary posterior_type7_quantile_precision
 
 # Precision of shared-row bootstrap covariance; no interval or error-control license.
@@ -291,7 +291,7 @@ run_scenario_covariance() {
   local name="$1"
   check "scenario_covariance_calibration: ${name}" cargo test --release -p antecedent-estimate --test scenario_covariance_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 X2 shared-row covariance numerical precision =="
+echo "== shared-row covariance numerical precision =="
 run_scenario_covariance shared_row_mean_covariance_precision
 
 # Conditional numerical diagnostics only; no coverage emitter or new inference license.
@@ -299,7 +299,7 @@ run_evsi_precision() {
   local name="$1"
   check "evsi_precision_calibration: ${name}" cargo test --release -p antecedent-design --test evsi_precision_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 conditional EVSI and ranking numerical precision =="
+echo "== conditional EVSI and ranking numerical precision =="
 run_evsi_precision evsi_finite_and_conjugate_exact_precision
 run_evsi_precision evsi_monte_carlo_score_error_and_net_value_precision
 run_evsi_precision evsi_fixed_rank_selection_and_tie_precision
@@ -309,17 +309,17 @@ run_design_ar_precision() {
   local name="$1"
   check "design_ar_precision_calibration: ${name}" cargo test --release -p antecedent --test design_ar_precision_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 original checked IV AR all-run numerical diagnostics =="
+echo "== original checked IV AR all-run numerical diagnostics =="
 run_design_ar_precision checked_design_iv_ar_full_method_error_rate_and_weak_boundaries
 
 run_generic_aipw_precision() {
   local name="$1"
   check "generic_aipw_precision: ${name}" cargo test --release -p antecedent --test generic_aipw_precision "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 public five-fold AIPW known-target score SE diagnostics =="
+echo "== public five-fold AIPW known-target score SE diagnostics =="
 run_generic_aipw_precision generic_aipw_five_fold_known_target_score_precision
 
-# Closed 2.3 X4 candidates: whole-method measurements, final step only.
+# Closed whole-method candidates: whole-method measurements, final step only.
 run_nested_fisher() {
   local name="$1"
   check "nested_markov_fisher_calibration: ${name}" cargo test --release -p antecedent-estimate --test nested_markov_fisher_calibration "$name" -- --ignored --exact --nocapture
@@ -332,7 +332,7 @@ run_joint_gaussian() {
   local name="$1"
   check "joint_bayesian_transport_calibration: ${name}" cargo test --release -p antecedent-estimate --test joint_bayesian_transport_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 X4 closed Fisher and joint Gaussian candidates =="
+echo "== closed Fisher and joint Gaussian candidates =="
 run_nested_fisher nested_fisher_iid_latent_verma_l95
 run_nested_fisher nested_fisher_iid_markov_submodel_l95
 run_nested_bayesian nested_bayesian_full11d_uniform_l95
@@ -350,7 +350,7 @@ run_recovery_whole_method() {
   local name="$1"
   check "recovery_whole_method_calibration: ${name}" cargo test --release -p antecedent-estimate --test recovery_whole_method_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 closed temporal and recovery whole-method candidates =="
+echo "== closed temporal and recovery whole-method candidates =="
 # Distinct corrected constructions; historical percentile/basic failures are
 # preserved in the original harnesses and carryover disposition, never relabeled.
 run_temporal_unit temporal_two_step_units_studentized_l95
@@ -360,7 +360,7 @@ run_learned_joint() {
   local name="$1"
   check "learned_joint_calibration: ${name}" cargo test --release -p antecedent-estimate --test learned_joint_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 closed degree-2 learned joint posterior candidate =="
+echo "== closed degree-2 learned joint posterior candidate =="
 run_learned_joint learned_degree2_gaussian_one_source_intercept_l95
 run_learned_joint learned_degree2_gaussian_two_independent_intercepts_l95
 run_learned_joint learned_degree2_gaussian_two_shared_intercepts_l95
@@ -370,7 +370,7 @@ run_quadratic_dose() {
   local name="$1"
   check "quadratic_dose_calibration: ${name}" cargo test --release -p antecedent-estimate --test quadratic_dose_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 closed exact-quadratic dose pointwise candidates =="
+echo "== closed exact-quadratic dose pointwise candidates =="
 run_quadratic_dose randomized_exact_quadratic_level_l95
 run_quadratic_dose randomized_exact_quadratic_derivative_l95
 run_quadratic_dose randomized_exact_quadratic_contrast_l95
@@ -379,7 +379,7 @@ run_treatment_inference() {
   local name="$1"
   check "treatment_inference_calibration: ${name}" cargo test --release -p antecedent-estimate --test treatment_inference_calibration "$name" -- --ignored --exact --nocapture
 }
-echo "== 2.3 full-fit treatment covariance and error-rate diagnostics =="
+echo "== full-fit treatment covariance and error-rate diagnostics =="
 run_bootstrap_effect_precision() {
   local name="$1"
   check "bootstrap_effect_precision: ${name}" cargo test --release -p antecedent-estimate --test bootstrap_effect_precision "$name" -- --ignored --exact --nocapture
@@ -425,9 +425,9 @@ run_ignored antecedent-estimate aipw_att_hc1_ci_coverage
 # runs about 3% short of the Monte Carlo SD at n = 600).
 run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
 run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
-# 2.2E E2 penalized propensity: the cross-fitted influence-function SE and the refit
+# Penalized propensity: the cross-fitted influence-function SE and the refit
 # bootstrap (penalty and support selection repeated in every replicate), ridge and lasso.
-# Wired, measured once at the 2.2 cut; records estimate.penalized_propensity_aipw.
+# Records estimate.penalized_propensity_aipw.
 run_ignored antecedent-estimate aipw_ridge_influence_ci_coverage
 run_ignored antecedent-estimate aipw_ridge_refit_bootstrap_ci_coverage
 run_ignored antecedent-estimate aipw_lasso_influence_ci_coverage
@@ -918,7 +918,7 @@ run_v110 calibration_counterfactual counterfactual_interaction_bayesian_unit_and
 run_v110 calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
 run_v110 class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
 
-echo "== 2.0 statistical transport: empirical-table IID bootstrap (antecedent) =="
+echo "== statistical transport: empirical-table IID bootstrap (antecedent) =="
 run_v20() {
   local filter="$1"
   echo "== antecedent: transport_statistical_calibration ${filter} =="
@@ -931,7 +931,7 @@ run_v20 source_target_imbalance_standardize_nominal_coverage
 run_v20 recursive_frontdoor_nominal_coverage
 run_v20 weak_overlap_near_empty_conditioner_boundary
 
-echo "== 2.2 multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
+echo "== multi-source limited-experiment (TR^mz) joint bootstrap (antecedent) =="
 run_mz() {
   local filter="$1"
   echo "== antecedent: mz_transport_calibration ${filter} =="
@@ -942,7 +942,7 @@ run_mz() {
 run_mz multi_source_mz_independent_studies
 run_mz multi_source_mz_shared_units
 
-echo "== 2.2 learned continuous-outcome trial transport joint bootstrap (antecedent) =="
+echo "== learned continuous-outcome trial transport joint bootstrap (antecedent) =="
 run_lc() {
   local filter="$1"
   echo "== antecedent: learned_continuous_calibration ${filter} =="
@@ -955,7 +955,7 @@ run_lc learned_trial_aipw_independent_samples_continuous_mean_contrast
 run_lc learned_trial_aipw_weak_overlap_boundary
 run_lc learned_trial_aipw_misspecified_nuisance_cases
 
-echo "== 2.2B smoothed dose-response transport joint bootstrap (antecedent) =="
+echo "== smoothed dose-response transport joint bootstrap (antecedent) =="
 run_sd() {
   local filter="$1"
   echo "== antecedent: smoothed_dose_calibration ${filter} =="
@@ -968,7 +968,7 @@ run_sd smoothed_dose_transport_independent_samples_psi_h
 run_sd smoothed_dose_transport_grid_points
 run_sd smoothed_dose_transport_weak_overlap_boundary
 
-echo "== 2.2B joint mechanism sensitivity conservative endpoint bootstrap (antecedent) =="
+echo "== joint mechanism sensitivity conservative endpoint bootstrap (antecedent) =="
 # Record sensitivity.joint_uncertainty. The zero box is a two-sided gated record;
 # the positive box is a `one_sided` record (CoverageTally::assert_one_sided, side upper):
 # coverage of the true upper extremal bound at least nominal, no upper band or ceiling.
@@ -982,10 +982,10 @@ run_js() {
 run_js z_joint_sensitivity_zero_box
 run_js z_joint_sensitivity_positive_box
 
-echo "== 2.2E batch retarget unpublished max-t simultaneous band (antecedent) =="
+echo "== batch retarget unpublished max-t simultaneous band (antecedent) =="
 # Record estimate.batch_retarget_covariance. The family-level simultaneous interval
 # route is closed (cell_not_licensed); the band is scored through the unpublished evaluator
-# and measured once at the 2.2 cut. Nothing is measured before it.
+# and is measured only by this gate.
 run_br() {
   local filter="$1"
   echo "== antecedent: batch_retarget_calibration ${filter} =="
@@ -995,9 +995,9 @@ run_br() {
 }
 run_br batch_retarget_max_t_simultaneous_band
 
-echo "== 2.2E clustered DML published t Wald interval (antecedent) =="
+echo "== clustered DML published t Wald interval (antecedent) =="
 # Record estimate.clustered_dml_aipw. The cluster-sandwich interval estimate +- t_(G-1) se is
-# scored through the facade's published interval and measured once at the 2.2 cut; the
+# scored through the facade's published interval and measured only by this gate; the
 # coverage record is the only missing piece.
 run_cd() {
   local filter="$1"
@@ -1015,7 +1015,7 @@ if [ -n "$RECHECKED" ]; then
   echo "gate_calibration: group(s) rechecked at ${RECHECK_NSIM} replicates:"
   printf '%s' "$RECHECKED"
 fi
-# Retained adjusted source-fit and fixed-target variance diagnostics (2.3).
+# Retained adjusted source-fit and fixed-target variance diagnostics.
 run_adjusted_recalc_precision() {
   local name="$1"
   check "adjusted_recalc_precision: ${name}" cargo test --release -p antecedent --test adjusted_recalc_precision "$name" -- --ignored --exact --nocapture

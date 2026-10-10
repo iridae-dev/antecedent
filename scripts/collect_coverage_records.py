@@ -44,7 +44,7 @@ that still owe a re-measurement. Without it the registry is exactly the logs.
 `--retag` rewrites only the `facets` of the existing records (after a change
 to `scripts/calibration_surface.list`); nothing is measured or re-stamped.
 
-For a small independently measured workstream while older records still owe
+For a small independently measured set of cells while older records still owe
 re-measurement, `--append-attested --only-cell QUERY:GRAPH:STRUCTURE:INFERENCE:VALIDATION=ID,ID`
 adds only new IDs from valid, stamped logs, rejects collisions, preserves every
 older record with its original SHA (including stale records), and syncs only

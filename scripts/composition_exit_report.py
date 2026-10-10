@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""2.2 A exit gate: join the executed story results into one per-story table and a verdict.
+"""Composition exit: join the executed story results into one per-story table and a verdict.
 
 Inputs are the captured logs of the two story suites and the JSON of
 scripts/check_interval_surfaces.py; this script decides nothing about the science, only whether every
@@ -16,8 +16,8 @@ Per-story status:
                          coverage records are absent (not pass, not fail)
 
 Exit status: 1 on any FAIL; PENDING_CALIBRATION exits 0 unless `--require-calibrated`.
-The X1 coverage records (not one of the six stories, but part of "zero unmeasured interval
-coordinates") are reported as their own row and follow the same rule.
+The multi-source coverage records (not one of the six stories, but part of "zero unmeasured
+interval coordinates") are reported as their own row and follow the same rule.
 """
 
 from __future__ import annotations
@@ -27,13 +27,16 @@ import re
 import sys
 from pathlib import Path
 
+# Calibration state is keyed by promotion record id (scripts/check_interval_surfaces.py).
+MULTI_SOURCE = "transport.multi_source_limited_experiment"
+LEARNED_CONTINUOUS = "transport.learned_continuous_trial"
 STORIES = {
-    1: "multi-source limited experiment (X1)",
-    2: "finite scenario set: identified/unidentified/unevaluated (X2)",
-    3: "learned continuous transport, overlap-supported (X4)",
-    4: "two-step temporal transport, history-support refusal (X5)",
-    5: "cross-world query, shared abduction, typed refusal (X8)",
-    6: "mixed-source proof by bounded search + incomplete search (X9)",
+    1: "multi-source limited experiment",
+    2: "finite scenario set: identified/unidentified/unevaluated ",
+    3: "learned continuous transport, overlap-supported ",
+    4: "two-step temporal transport, history-support refusal ",
+    5: "cross-world query, shared abduction, typed refusal ",
+    6: "mixed-source proof by bounded search + incomplete search ",
 }
 RUST = re.compile(r"^test (?:\S+::)?story_(\d)_\w+ \.\.\. (ok|FAILED|ignored)\s*$", re.M)
 PYTHON = re.compile(r"(?:^|/)test_composition_exit_gate\.py::test_story_(\d)_\w+(?:\[[^\]]*\])?\s+(PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)", re.M)
@@ -50,27 +53,28 @@ def evaluate(rust_log: str, python_log: str, intervals: dict, require_calibrated
     rust = outcomes(RUST, rust_log, {"ok"})
     python = outcomes(PYTHON, python_log, {"PASSED"})
     calibration = intervals.get("calibration", {})
-    x4 = calibration.get("X4", {"status": "FAIL", "detail": "no calibration state reported"})
-    x1 = calibration.get("X1", {"status": "FAIL", "detail": "no calibration state reported"})
+    missing = {"status": "FAIL", "detail": "no calibration state reported"}
+    learned = calibration.get(LEARNED_CONTINUOUS, missing)
+    multi_source = calibration.get(MULTI_SOURCE, missing)
     rows: list[tuple[str, str, str, str, str]] = []
     for number, title in STORIES.items():
         r, p = rust.get(number, "MISSING"), python.get(number, "MISSING")
         status = "PASS" if (r, p) == ("PASS", "PASS") else "FAIL"
         detail = ""
         if status == "PASS" and number == 3:
-            status = x4["status"]
-            detail = f"calibrated: {x4['status']} ({x4['detail']})"
+            status = learned["status"]
+            detail = f"calibrated: {learned['status']} ({learned['detail']})"
         rows.append((f"story {number}", title, r, p, status + (f"  [{detail}]" if detail else "")))
     rows.append((
-        "X1 coverage", "multi-source interval records (interval-coordinate check)", "-", "-",
-        f"{x1['status']}  [{x1['detail']}]",
+        "multi-source coverage", "multi-source interval records (interval-coordinate check)", "-", "-",
+        f"{multi_source['status']}  [{multi_source['detail']}]",
     ))
     rows.append((
         "intervals", "zero newly introduced unmeasured interval coordinates", "-", "-",
         intervals.get("intervals", "FAIL"),
     ))
     width = max(len(r[0]) for r in rows), max(len(r[1]) for r in rows)
-    lines = ["2.2 A exit gate", ""]
+    lines = ["composition exit", ""]
     lines.append(f"{'item':<{width[0]}}  {'story':<{width[1]}}  rust     python   status")
     for item, title, r, p, status in rows:
         lines.append(f"{item:<{width[0]}}  {title:<{width[1]}}  {r:<7}  {p:<7}  {status}")
@@ -100,8 +104,8 @@ def self_test() -> int:
     pending = {
         "intervals": "PASS",
         "calibration": {
-            "X1": {"status": "PENDING_CALIBRATION", "detail": "2 of 2 absent"},
-            "X4": {"status": "PENDING_CALIBRATION", "detail": "2 of 2 absent"},
+            MULTI_SOURCE: {"status": "PENDING_CALIBRATION", "detail": "2 of 2 absent"},
+            LEARNED_CONTINUOUS: {"status": "PENDING_CALIBRATION", "detail": "2 of 2 absent"},
         },
         "errors": [],
     }

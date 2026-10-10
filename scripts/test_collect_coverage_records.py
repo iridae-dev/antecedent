@@ -22,8 +22,7 @@ class DelegatedIntervalCarrierTest(unittest.TestCase):
             source = root / "source.rs"
             source.write_text("pub(crate) fn candidate_interval_replay() {}\n"
                               "pub fn candidate_interval_internal() {}\n")
-            with patch.object(intervals, "ROOT", root), patch.object(intervals.cai, "ROOT", root), \
-                    patch.object(intervals, "RELEASE", "2.3"):
+            with patch.object(intervals, "ROOT", root), patch.object(intervals.cai, "ROOT", root):
                 self.assertEqual(intervals.surface_interval_findings("source.rs"),
                                  [(2, "candidate_interval_internal")])
 

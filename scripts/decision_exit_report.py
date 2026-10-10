@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""2.2 B exit gate (scaffold): join registered story results and record state into one table.
+"""Decision exit (scaffold): join registered story results and record state into one table.
 
-The per-package registry `B_PACKAGES` below is where each 2.2B package owner adds the
-end-to-end story tests of their package (Rust integration-test targets and Python test files,
-all of which must pass from clean preparation through independent artifact consumption). Each of
-B1-B6 registers one story in `crates/antecedent/tests/decision_exit_gate.rs`; a package is still
-PENDING_IMPLEMENTATION while its record is `frozen` or `in_progress`, and PASS only once it is
-`promoted` with its stories passing and any allocated coverage measured.
+The registry `DECISION_STORIES` below is where each decision-story owner adds the end-to-end
+story tests of their cell (Rust integration-test targets and Python test files, all of which must
+pass from clean preparation through independent artifact consumption). Each story is registered
+in `crates/antecedent/tests/decision_exit_gate.rs`; a story is still PENDING_IMPLEMENTATION while
+its record is `frozen` or `in_progress`, and PASS only once it is `promoted` with its stories
+passing and any allocated coverage measured.
 
     python3 scripts/decision_exit_report.py --list-tests                      # TSV of tests to run
     python3 scripts/decision_exit_report.py --runs runs.tsv --intervals iv.json \\
@@ -15,13 +15,13 @@ PENDING_IMPLEMENTATION while its record is `frozen` or `in_progress`, and PASS o
 
 `runs.tsv` has one line per executed test target: `kind<TAB>package<TAB>target<TAB>rc<TAB>log`
 (kind is `rust` or `python`; `log` is a file holding the captured output). `iv.json` is the output
-of `scripts/check_interval_coordinates.py --json`.
+of `scripts/check_interval_coordinates.py --json`; its `calibration` table is keyed by record id.
 
 STORY RULES (strict, deterministic):
-  * a package reads PASS only if its `B_PACKAGES` entry registers story files (non-empty `rust` or
+  * a story reads PASS only if its `DECISION_STORIES` entry registers story files (non-empty `rust` or
     `python`) AND lists `evidence`: the route-evidence assertions the story covers, by test name;
   * every evidence name must be a test function (`fn name` / `def name`) in a registered story file,
-    or in a fixture file the package's record already cites (`fixtures[].evidence_test` with
+    or in a fixture file the story's record already cites (`fixtures[].evidence_test` with
     `evidence_assertion`, or a route's `refusal_test` with `refusal_assertion`);
   * at least one evidence name must live in a story file, and every one that does must appear as
     passed in that story's run log (`test <name> ... ok` for Rust; `PASSED ...::<name>` for pytest -rA),
@@ -30,38 +30,39 @@ STORY RULES (strict, deterministic):
     never passes without a calibration reading for it: a missing or pending reading is
     PENDING_CALIBRATION (live record) or a CARRIED_FORWARD calibration row (carried record).
 
-Recommended story list (one line each; owners register these in `B_PACKAGES`):
-  B1  prepare latent-confounded selection ADMG + conditional query -> point vs enumerated truth ->
-      export -> independent consume; non-transportable diagram -> `transport_not_certified`;
-      counted laws refused.
-  B2  prepare trial + dose + grid -> smoothed psi_h -> export/consume; tampered artifact fails;
-      `.interval()` refuses `cell_not_licensed`.
-  B3  z baseline -> joint 2-factor deviation with tipping frontier -> export/consume; re-sealed
-      mutated threshold/factor set fails replay; union never labelled a CI.
-  B4  failed X1 (and X9) decision -> plan studies -> export/replay; bounds-exceeded catalog is
-      inconclusive, never 'sufficient'; arrival flips the decision.
-  B5  confounded ADMG ETT vs Y0 fixture -> evaluate -> export/consume; non-identified event
-      refuses; uncertainty refuses.
-  B6  binary m-graph with item-missing variables -> recover joint law -> feed downstream ID ->
-      export/consume; out-of-class mechanism refuses; `prepare_empirical` refuses
-      `cell_not_licensed`.
+Registered stories (one line each; owners register these in `DECISION_STORIES`):
+  admg_conditional_transport  prepare latent-confounded selection ADMG + conditional query ->
+      point vs enumerated truth -> export -> independent consume; non-transportable diagram ->
+      `transport_not_certified`; counted laws refused.
+  smoothed_dose_response  prepare trial + dose + grid -> smoothed psi_h -> export/consume;
+      tampered artifact fails; `.interval()` refuses `cell_not_licensed`.
+  joint_mechanism_sensitivity  z baseline -> joint 2-factor deviation with tipping frontier ->
+      export/consume; re-sealed mutated threshold/factor set fails replay; union never labelled
+      a CI.
+  study_planning  failed multi-source (and mixed-source) decision -> plan studies ->
+      export/replay; bounds-exceeded catalog is inconclusive, never 'sufficient'; arrival flips
+      the decision.
+  admg_counterfactual_identification  confounded ADMG ETT vs Y0 fixture -> evaluate ->
+      export/consume; non-identified event refuses; uncertainty refuses.
+  binary_observation_recovery  binary m-graph with item-missing variables -> recover joint law ->
+      feed downstream ID -> export/consume; out-of-class mechanism refuses; `prepare_empirical`
+      refuses `cell_not_licensed`.
 
-Per-package status:
+Per-story status:
   PASS                   record `promoted`, stories registered with evidence, every registered story
                          target ran and passed, evidence passed, and any allocated coverage is
                          measured and attested
-  FAIL                   a registered story failed, did not run or ran zero tests; the record is
-                         unregistered here; or the record's interval state is FAIL
+  FAIL                   a registered story failed, did not run or ran zero tests; or the record's
+                         interval state is FAIL
   PENDING_IMPLEMENTATION no record yet, record `frozen`, no story tests registered, or the record
                          is `in_progress` with nothing left but its closed routes
-  PENDING_CALIBRATION    stories pass but an allocated coverage record is absent (measured once at
-                         the 2.2 cut)
-  CARRIED_FORWARD        the record is `carried_forward` (its refusal stays visible; 2.2 ships); also
+  PENDING_CALIBRATION    stories pass but an allocated coverage record is absent
+  CARRIED_FORWARD        the record is `carried_forward` (its refusal stays visible); also
                          a separate calibration row for a carried record's unmeasured coverage ids
 
 Exit status: 1 on any FAIL. PENDING_CALIBRATION is nonzero only with `--require-calibrated`,
-PENDING_IMPLEMENTATION only with `--require-implemented`; `--release` is both (the cut).
-Environment: B_EXIT_ROOT (tree to read, default the repo).
+PENDING_IMPLEMENTATION only with `--require-implemented`; `--release` is both.
+Environment: DECISION_EXIT_ROOT (tree to read, default the repo).
 """
 
 from __future__ import annotations
@@ -76,61 +77,62 @@ import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-ROOT = Path(os.environ.get("B_EXIT_ROOT", REPO))
+ROOT = Path(os.environ.get("DECISION_EXIT_ROOT", REPO))
 
 # ---------------------------------------------------------------------------------------------
-# STORY REGISTRY. Each B package adds its end-to-end story tests here (additive, one entry per
-# package; do not invent tests that do not exist):
+# STORY REGISTRY. Each decision story adds its end-to-end story tests here (additive, one entry per
+# story; do not invent tests that do not exist):
+#   "records": the promotion record ids (parity/promotion.toml) the story covers
 #   "rust":   [("<crate>", "<integration test target>")]   run as `cargo test -p <crate> --test <target>`
 #   "python": ["tests/<file>.py"]                         run from python/ with pytest
 #   "evidence": ["<test fn name>", ...]  the route-evidence assertions the story covers (required
 #                                        as soon as a story is registered; see STORY RULES above)
-# A story test must take its package's cell from clean preparation through independent artifact
+# A story test must take its cell from clean preparation through independent artifact
 # consumption and its typed refusal (mirror crates/antecedent/tests/composition_exit_gate.rs and
 # python/tests/test_composition_exit_gate.py).
 # ---------------------------------------------------------------------------------------------
-B_PACKAGES: dict[str, dict] = {
-    "B1": {
-        "workstream": "X2",
+DECISION_STORIES: dict[str, dict] = {
+    "admg_conditional_transport": {
+        "records": ["transport.admg_conditional"],
         "title": "latent-confounded ADMG transport row",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refusals"],
+        "evidence": ["story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals"],
     },
-    "B2": {
-        "workstream": "X4",
+    "smoothed_dose_response": {
+        "records": ["transport.smoothed_dose_response"],
         "title": "smoothed dose-response transport grid",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval"],
+        "evidence": ["story_smoothed_dose_grid_against_closed_form_truth_with_closed_interval"],
     },
-    "B3": {
-        "workstream": "X3",
+    "joint_mechanism_sensitivity": {
+        "records": ["sensitivity.joint_mechanism", "sensitivity.joint_uncertainty"],
         "title": "joint mechanism deviations + sampling uncertainty",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range"],
+        "evidence": ["story_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range"],
     },
-    "B4": {
-        "workstream": "X6",
+    "study_planning": {
+        "records": ["design.study_planning"],
         "title": "planning over restricted catalogs / competing designs",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival"],
+        "evidence": ["story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arrival"],
     },
-    "B5": {
-        "workstream": "X8",
+    "admg_counterfactual_identification": {
+        "records": ["counterfactual.admg_identification"],
         "title": "bounded ADMG counterfactual-ID cell",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_b5_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the_cell"],
+        "evidence": ["story_confounded_admg_ett_matches_the_latent_model_and_refuses_outside_the_cell"],
     },
-    "B6": {
-        "workstream": "X10",
+    "binary_observation_recovery": {
+        "records": ["recovery.binary_observation"],
         "title": "exact binary causal observation recovery",
         "rust": [("antecedent", "decision_exit_gate")],
         "python": [],
-        "evidence": ["story_b6_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identification"],
+        "evidence": ["story_binary_m_graph_recovers_the_joint_law_and_feeds_downstream_identification"],
     },
 }
 
@@ -139,20 +141,22 @@ PASSED_PY = re.compile(r"\b(\d+) passed\b")
 FAILED_PY = re.compile(r"\b\d+ (failed|error)")
 
 
-def b_records(root: Path, registry: str = "parity/promotion.toml") -> dict[str, list[dict]]:
-    """Every milestone-B record by work package (a package may own several, e.g. a carried one)."""
+def story_records(root: Path, registry: str = "parity/promotion.toml") -> dict[str, list[dict]]:
+    """Every record of each registered story (a story may own several, e.g. a carried one)."""
     p = root / registry
     records = tomllib.loads(p.read_text()).get("record", []) if p.is_file() else []
+    by_id = {r["id"]: r for r in records}
     out: dict[str, list[dict]] = {}
-    for r in records:
-        if r.get("milestone") == "B":
-            out.setdefault(r["work_package"], []).append(r)
+    for story, entry in DECISION_STORIES.items():
+        found = [by_id[i] for i in entry["records"] if i in by_id]
+        if found:
+            out[story] = found
     return out
 
 
 def list_tests() -> list[str]:
     out = []
-    for pkg, entry in B_PACKAGES.items():
+    for pkg, entry in DECISION_STORIES.items():
         out += [f"rust\t{pkg}\t{crate}\t{target}" for crate, target in entry["rust"]]
         out += [f"python\t{pkg}\t{path}" for path in entry["python"]]
     return out
@@ -186,7 +190,7 @@ def _defines(text: str, name: str, python: bool) -> bool:
 
 
 def _fixture_evidence(recs: list[dict]) -> list[tuple[str, str]]:
-    """(file, test name) pairs the package's records already cite as evidence."""
+    """(file, test name) pairs the story's records already cite as evidence."""
     out: list[tuple[str, str]] = []
     for r in recs:
         for f in r.get("fixtures") or []:
@@ -201,11 +205,11 @@ def _fixture_evidence(recs: list[dict]) -> list[tuple[str, str]]:
 def evidence_problems(
     pkg: str, entry: dict, runs: dict, recs: list[dict], root: Path
 ) -> list[str]:
-    """Why the package's registered stories do not evidence its routes (empty: they do)."""
+    """Why the story's registered stories do not evidence its routes (empty: they do)."""
     evidence = list(entry.get("evidence") or [])
     if not evidence:
         return [
-            f"{pkg}: stories are registered but B_PACKAGES lists no `evidence` assertions (the story "
+            f"{pkg}: stories are registered but DECISION_STORIES lists no `evidence` assertions (the story "
             "file must name the route evidence tests it covers)"
         ]
     story_files: list[
@@ -268,12 +272,12 @@ def story_state(
     recs: list[dict] | None = None,
     root: Path | None = None,
 ) -> tuple[str, str]:
-    """(PASS|FAIL|NONE, detail) over the package's registered story targets."""
+    """(PASS|FAIL|NONE, detail) over the story's registered story targets."""
     targets = [("rust", f"{c}/{t}") for c, t in entry["rust"]] + [
         ("python", p) for p in entry["python"]
     ]
     if not targets:
-        return "NONE", "no story test registered in B_PACKAGES"
+        return "NONE", "no story test registered in DECISION_STORIES"
     total = 0
     for kind, target in targets:
         got = runs.get((kind, pkg, target))
@@ -315,9 +319,9 @@ def evaluate(
     by_pkg: dict[str, list[dict]] = {
         k: (v if isinstance(v, list) else [v]) for k, v in records.items()
     }
-    for pkg, entry in B_PACKAGES.items():
+    for pkg, entry in DECISION_STORIES.items():
         recs = by_pkg.get(pkg, [])
-        label = f"{pkg} {entry['workstream']}"
+        label = pkg
         if not recs:
             rows.append(
                 (
@@ -351,12 +355,12 @@ def evaluate(
                 (
                     label,
                     "CARRIED_FORWARD",
-                    "every record of the package is carried_forward",
+                    "every record of the story is carried_forward",
                 )
             )
             rows.extend(extra)
             continue
-        # Every live record of the package must be promoted for a PASS: a package
+        # Every live record of the story must be promoted for a PASS: a story
         # whose sibling record is still frozen or in_progress is not finished.
         unpromoted = [r for r in live if r.get("status") != "promoted"]
         if any(r.get("status") == "frozen" for r in live):
@@ -401,30 +405,15 @@ def evaluate(
         else:
             rows.append((label, "PASS", detail))
         rows.extend(extra)
-    for pkg in sorted(set(by_pkg) - set(B_PACKAGES)):
-        rows.append(
-            (
-                pkg,
-                "FAIL",
-                f"record {by_pkg[pkg][0]['id']} has a work package unregistered in B_PACKAGES",
-            )
-        )
     rows.append(
         (
             "intervals",
             intervals.get("intervals", "FAIL"),
-            "zero newly introduced unmeasured interval coordinates (all 2.2 records)",
-        )
-    )
-    rows.append(
-        (
-            "B7 X7",
-            "CARRIED_FORWARD",
-            "GPU lane carried forward to 2.3+; no code in 2.2 (CPU-only 2.1 baseline)",
+            "zero newly introduced unmeasured interval coordinates (all records)",
         )
     )
     width = max(len(r[0]) for r in rows)
-    lines = ["2.2 B exit gate", ""]
+    lines = ["decision exit", ""]
     lines += [
         f"{item:<{width}}  {status:<22}  {detail}" for item, status, detail in rows
     ]
@@ -465,8 +454,18 @@ def self_test() -> int:
             p.write_text(body)
             return p
 
-        ev = "b1_routes_refuse_uncertainty"
-        ev2 = "b1_point_equals_truth"
+        P1, P2, P3 = (
+            "admg_conditional_transport",
+            "smoothed_dose_response",
+            "joint_mechanism_sensitivity",
+        )
+        RECORD_IDS = {
+            P1: "transport.admg_conditional",
+            P2: "transport.smoothed_dose_response",
+            P3: "sensitivity.joint_mechanism",
+        }
+        ev = "routes_refuse_uncertainty"
+        ev2 = "point_equals_truth"
         rust_ok = log(
             "ok_rust.log",
             f"test {ev} ... ok\ntest {ev2} ... ok\ntest result: ok. 2 passed; 0 failed; 0 ignored\n",
@@ -478,47 +477,45 @@ def self_test() -> int:
         zero = log("zero.log", "test result: ok. 0 passed; 0 failed; 0 ignored\n")
         py_ok = log(
             "ok_py.log",
-            f"PASSED tests/test_b1_exit_gate.py::{ev}\n===== 1 passed in 0.5s =====\n",
+            f"PASSED tests/test_synth_exit_gate.py::{ev}\n===== 1 passed in 0.5s =====\n",
         )
         py_unrelated = log(
             "py_unrelated.log",
-            "PASSED tests/test_b1_exit_gate.py::test_other\n===== 1 passed in 0.5s =====\n",
+            "PASSED tests/test_synth_exit_gate.py::test_other\n===== 1 passed in 0.5s =====\n",
         )
         bad_py = log("bad_py.log", "===== 1 failed, 2 passed in 0.5s =====\n")
         rust_src = f"#[test]\nfn {ev}() {{}}\n#[test]\nfn {ev2}() {{}}\n"
         py_src = f"def {ev}():\n    pass\n"
-        put("crates/antecedent/tests/b1_exit_gate.rs", rust_src)
-        put("python/tests/test_b1_exit_gate.py", py_src)
+        put("crates/antecedent/tests/synth_exit_gate.rs", rust_src)
+        put("python/tests/test_synth_exit_gate.py", py_src)
         put(
             "crates/antecedent/tests/fixture_cited.rs",
             "#[test]\nfn cited_fixture_fn() {}\n",
         )
         saved = {
             k: {a: list(b) if isinstance(b, list) else b for a, b in v.items()}
-            for k, v in B_PACKAGES.items()
+            for k, v in DECISION_STORIES.items()
         }
         try:
-            B_PACKAGES["B1"]["rust"] = [("antecedent", "b1_exit_gate")]
-            B_PACKAGES["B1"]["python"] = ["tests/test_b1_exit_gate.py"]
-            B_PACKAGES["B1"]["evidence"] = [ev, ev2]
+            DECISION_STORIES[P1]["rust"] = [("antecedent", "synth_exit_gate")]
+            DECISION_STORIES[P1]["python"] = ["tests/test_synth_exit_gate.py"]
+            DECISION_STORIES[P1]["evidence"] = [ev, ev2]
 
             def rec(
                 pkg: str, status: str, claim: str = "point_only", ids=None, rid=None
             ) -> dict:
                 return {
-                    "id": rid or f"2.2B.{pkg}",
-                    "work_package": pkg,
-                    "milestone": "B",
+                    "id": rid or RECORD_IDS.get(pkg, f"synth.{pkg}"),
                     "status": status,
                     "inference_claim": claim,
                     "coverage_records": list(ids or []),
                 }
 
             def runs(rust=rust_ok, py=py_ok, rc_rust=0, rc_py=0, skip_py=False) -> dict:
-                lines = [f"rust\tB1\tantecedent/b1_exit_gate\t{rc_rust}\t{rust}"]
+                lines = [f"rust\t{P1}\tantecedent/synth_exit_gate\t{rc_rust}\t{rust}"]
                 if not skip_py:
                     lines.append(
-                        f"python\tB1\ttests/test_b1_exit_gate.py\t{rc_py}\t{py}"
+                        f"python\t{P1}\ttests/test_synth_exit_gate.py\t{rc_py}\t{py}"
                     )
                 return parse_runs("\n".join(lines))
 
@@ -526,7 +523,7 @@ def self_test() -> int:
             iv_pending = {
                 "intervals": "PASS",
                 "calibration": {
-                    "2.2B.B1": {
+                    RECORD_IDS[P1]: {
                         "status": "PENDING_CALIBRATION",
                         "detail": "2 of 2 absent",
                     }
@@ -545,32 +542,40 @@ def self_test() -> int:
                     root=root,
                 )
                 text = "\n".join(lines)
-                if rc != code or verdict not in text:
+                if verdict.startswith("ROW:"):
+                    _, item, status = verdict.split(":")
+                    found = any(
+                        ln.split()[:1] == [item] and status in ln.split()[1:2]
+                        for ln in lines
+                    )
+                else:
+                    found = verdict in text
+                if rc != code or not found:
                     failures.append(
                         f"'{label}': rc={rc} (want {code}), want {verdict!r}\n{text}"
                     )
 
             # ---- all six promoted and passing (every package its own stories)
-            full = {p: rec(p, "promoted") for p in B_PACKAGES}
+            full = {p: rec(p, "promoted") for p in DECISION_STORIES}
             lines_all = []
-            for p in B_PACKAGES:
-                if p == "B1":
+            for p in DECISION_STORIES:
+                if p == P1:
                     continue
                 n = p.lower()
                 put(
                     f"crates/antecedent/tests/{n}_exit_gate.rs",
                     f"#[test]\nfn {n}_evidence() {{}}\n",
                 )
-                B_PACKAGES[p]["rust"] = [("antecedent", f"{n}_exit_gate")]
-                B_PACKAGES[p]["evidence"] = [f"{n}_evidence"]
+                DECISION_STORIES[p]["rust"] = [("antecedent", f"{n}_exit_gate")]
+                DECISION_STORIES[p]["evidence"] = [f"{n}_evidence"]
                 ok = log(
                     f"{n}.log",
                     f"test {n}_evidence ... ok\ntest result: ok. 1 passed; 0 failed\n",
                 )
                 lines_all.append(f"rust\t{p}\tantecedent/{n}_exit_gate\t0\t{ok}")
             lines_all += [
-                f"rust\tB1\tantecedent/b1_exit_gate\t0\t{rust_ok}",
-                f"python\tB1\ttests/test_b1_exit_gate.py\t0\t{py_ok}",
+                f"rust\t{P1}\tantecedent/synth_exit_gate\t0\t{rust_ok}",
+                f"python\t{P1}\ttests/test_synth_exit_gate.py\t0\t{py_ok}",
             ]
             expect(
                 "all promoted and passing",
@@ -582,10 +587,10 @@ def self_test() -> int:
                 True,
                 True,
             )
-            for p in list(B_PACKAGES):
-                if p != "B1":
-                    B_PACKAGES[p]["rust"] = []
-                    B_PACKAGES[p]["evidence"] = []
+            for p in list(DECISION_STORIES):
+                if p != P1:
+                    DECISION_STORIES[p]["rust"] = []
+                    DECISION_STORIES[p]["evidence"] = []
             expect(
                 "scaffold: nothing registered is pending, exit 0",
                 {},
@@ -606,23 +611,23 @@ def self_test() -> int:
             )
             expect(
                 "frozen record is pending implementation",
-                {"B1": rec("B1", "frozen")},
+                {P1: rec(P1, "frozen")},
                 {},
                 iv_ok,
                 0,
                 "record frozen",
             )
             expect(
-                "registered stories + evidence, promoted: B1 passes",
-                {"B1": rec("B1", "promoted")},
+                "registered stories + evidence, promoted: the first story passes",
+                {P1: rec(P1, "promoted")},
                 runs(),
                 iv_ok,
                 0,
-                "B1 X2      PASS",
+                f"ROW:{P1}:PASS",
             )
             expect(
                 "a failed Rust story fails",
-                {"B1": rec("B1", "promoted")},
+                {P1: rec(P1, "promoted")},
                 runs(rc_rust=101),
                 iv_ok,
                 1,
@@ -630,7 +635,7 @@ def self_test() -> int:
             )
             expect(
                 "a failed Python story fails",
-                {"B1": rec("B1", "promoted")},
+                {P1: rec(P1, "promoted")},
                 runs(py=bad_py),
                 iv_ok,
                 1,
@@ -638,7 +643,7 @@ def self_test() -> int:
             )
             expect(
                 "a nonzero Python rc fails",
-                {"B1": rec("B1", "promoted")},
+                {P1: rec(P1, "promoted")},
                 runs(rc_py=1),
                 iv_ok,
                 1,
@@ -646,7 +651,7 @@ def self_test() -> int:
             )
             expect(
                 "zero tests run fails",
-                {"B1": rec("B1", "promoted")},
+                {P1: rec(P1, "promoted")},
                 runs(rust=zero),
                 iv_ok,
                 1,
@@ -654,7 +659,7 @@ def self_test() -> int:
             )
             expect(
                 "a story that never ran fails",
-                {"B1": rec("B1", "promoted")},
+                {P1: rec(P1, "promoted")},
                 runs(skip_py=True),
                 iv_ok,
                 1,
@@ -662,7 +667,7 @@ def self_test() -> int:
             )
             expect(
                 "pending calibration exits 0 by default",
-                {"B1": rec("B1", "in_progress", "calibrated")},
+                {P1: rec(P1, "in_progress", "calibrated")},
                 runs(),
                 iv_pending,
                 0,
@@ -670,7 +675,7 @@ def self_test() -> int:
             )
             expect(
                 "pending calibration fails --require-calibrated",
-                {"B1": rec("B1", "in_progress", "calibrated")},
+                {P1: rec(P1, "in_progress", "calibrated")},
                 runs(),
                 iv_pending,
                 1,
@@ -679,7 +684,7 @@ def self_test() -> int:
             )
             expect(
                 "a failed story outranks pending calibration",
-                {"B1": rec("B1", "in_progress", "calibrated")},
+                {P1: rec(P1, "in_progress", "calibrated")},
                 runs(rc_rust=1),
                 iv_pending,
                 1,
@@ -687,7 +692,7 @@ def self_test() -> int:
             )
             expect(
                 "in_progress point-only record is not a pass",
-                {"B1": rec("B1", "in_progress")},
+                {P1: rec(P1, "in_progress")},
                 runs(),
                 iv_ok,
                 0,
@@ -695,25 +700,25 @@ def self_test() -> int:
             )
             expect(
                 "record with no registered story is pending",
-                {"B2": rec("B2", "promoted")},
+                {P2: rec(P2, "promoted")},
                 runs(),
                 iv_ok,
                 0,
                 "no story test registered",
             )
             # A package is not finished while a sibling live record is unpromoted.
-            sibling = [rec("B1", "promoted"), rec("B1", "in_progress", rid="2.2B.B1.sibling")]
+            sibling = [rec(P1, "promoted"), rec(P1, "in_progress", rid="synth.sibling")]
             expect(
                 "a promoted record with an in_progress sibling is pending, not a pass",
-                {"B1": sibling},
+                {P1: sibling},
                 runs(),
                 iv_ok,
                 0,
-                "record still in_progress (2.2B.B1.sibling)",
+                "record still in_progress (synth.sibling)",
             )
             expect(
                 "... and fails --require-implemented",
-                {"B1": sibling},
+                {P1: sibling},
                 runs(),
                 iv_ok,
                 1,
@@ -723,24 +728,16 @@ def self_test() -> int:
             )
             expect(
                 "a frozen sibling is pending implementation",
-                {"B1": [rec("B1", "promoted"), rec("B1", "frozen", rid="2.2B.B1.sibling")]},
+                {P1: [rec(P1, "promoted"), rec(P1, "frozen", rid="synth.sibling")]},
                 runs(),
                 iv_ok,
                 0,
-                "record frozen (2.2B.B1.sibling)",
+                "record frozen (synth.sibling)",
             )
             expect("interval violation fails", {}, {}, iv_fail, 1, "verdict: FAIL")
             expect(
-                "unregistered package fails",
-                {"B9": rec("B9", "promoted")},
-                {},
-                iv_ok,
-                1,
-                "unregistered",
-            )
-            expect(
                 "carried_forward is accepted",
-                {"B3": rec("B3", "carried_forward")},
+                {P3: rec(P3, "carried_forward")},
                 {},
                 iv_ok,
                 0,
@@ -750,7 +747,7 @@ def self_test() -> int:
             )
 
             # ---- D4: evidence rules. A green story run is not enough.
-            promoted = {"B1": rec("B1", "promoted")}
+            promoted = {P1: rec(P1, "promoted")}
             expect(
                 "a story whose run log lacks the evidence tests fails",
                 promoted,
@@ -767,7 +764,7 @@ def self_test() -> int:
                 1,
                 "did not pass in its run log",
             )
-            B_PACKAGES["B1"]["evidence"] = []
+            DECISION_STORIES[P1]["evidence"] = []
             expect(
                 "stories registered with no evidence list fail",
                 promoted,
@@ -776,17 +773,17 @@ def self_test() -> int:
                 1,
                 "lists no `evidence`",
             )
-            B_PACKAGES["B1"]["evidence"] = [ev, "b1_ghost_test"]
+            DECISION_STORIES[P1]["evidence"] = [ev, "ghost_test"]
             expect(
                 "an evidence name defined nowhere fails",
                 promoted,
                 runs(),
                 iv_ok,
                 1,
-                "b1_ghost_test is neither",
+                "ghost_test is neither",
             )
-            B_PACKAGES["B1"]["evidence"] = ["cited_fixture_fn"]
-            fixture_rec = rec("B1", "promoted")
+            DECISION_STORIES[P1]["evidence"] = ["cited_fixture_fn"]
+            fixture_rec = rec(P1, "promoted")
             fixture_rec["fixtures"] = [
                 {
                     "evidence_test": "crates/antecedent/tests/fixture_cited.rs",
@@ -795,28 +792,28 @@ def self_test() -> int:
             ]
             expect(
                 "evidence only in a cited fixture is not a story",
-                {"B1": fixture_rec},
+                {P1: fixture_rec},
                 runs(),
                 iv_ok,
                 1,
                 "no evidence test lives in a registered story file",
             )
-            B_PACKAGES["B1"]["evidence"] = [ev, "cited_fixture_fn"]
+            DECISION_STORIES[P1]["evidence"] = [ev, "cited_fixture_fn"]
             expect(
                 "evidence in a story file plus a cited fixture passes",
-                {"B1": fixture_rec},
+                {P1: fixture_rec},
                 runs(),
                 iv_ok,
                 0,
-                "B1 X2      PASS",
+                f"ROW:{P1}:PASS",
             )
-            B_PACKAGES["B1"]["evidence"] = [ev, ev2]
+            DECISION_STORIES[P1]["evidence"] = [ev, ev2]
 
             # ---- D3: allocated coverage ids never pass without a calibration reading
             ids = ["cov.x.l95.a"]
             expect(
                 "promoted with allocated ids and no calibration reading is pending",
-                {"B1": rec("B1", "promoted", "assumption_range", ids)},
+                {P1: rec(P1, "promoted", "assumption_range", ids)},
                 runs(),
                 iv_ok,
                 0,
@@ -824,7 +821,7 @@ def self_test() -> int:
             )
             expect(
                 "... and fails --require-calibrated",
-                {"B1": rec("B1", "promoted", "assumption_range", ids)},
+                {P1: rec(P1, "promoted", "assumption_range", ids)},
                 runs(),
                 iv_ok,
                 1,
@@ -833,46 +830,46 @@ def self_test() -> int:
             )
             iv_pass = {
                 "intervals": "PASS",
-                "calibration": {"2.2B.B1": {"status": "PASS", "detail": "ok"}},
+                "calibration": {RECORD_IDS[P1]: {"status": "PASS", "detail": "ok"}},
                 "errors": [],
             }
             expect(
                 "promoted with allocated ids and a passing reading passes",
-                {"B1": rec("B1", "promoted", "calibrated", ids)},
+                {P1: rec(P1, "promoted", "calibrated", ids)},
                 runs(),
                 iv_pass,
                 0,
-                "B1 X2      PASS",
+                f"ROW:{P1}:PASS",
             )
             carried = rec(
-                "B1", "carried_forward", "calibrated", ids, rid="2.2B.B1.carried"
+                P1, "carried_forward", "calibrated", ids, rid="synth.carried"
             )
             expect(
                 "a carried_forward sibling's unmeasured ids are a CARRIED_FORWARD calibration row",
-                {"B1": [rec("B1", "promoted"), carried]},
+                {P1: [rec(P1, "promoted"), carried]},
                 runs(),
                 iv_ok,
                 0,
-                "B1 calibration",
+                f"{P1} calibration",
                 True,
                 False,
             )
             expect(
                 "...and the promoted record still passes",
-                {"B1": [rec("B1", "promoted"), carried]},
+                {P1: [rec(P1, "promoted"), carried]},
                 runs(),
                 iv_ok,
                 0,
-                "B1 X2           PASS",
+                f"ROW:{P1}:PASS",
             )
             expect(
                 "a carried record with a failing reading does not hide behind the carry",
-                {"B1": [rec("B1", "promoted", "calibrated", ids), carried]},
+                {P1: [rec(P1, "promoted", "calibrated", ids), carried]},
                 runs(),
                 {
                     "intervals": "PASS",
                     "calibration": {
-                        "2.2B.B1": {"status": "FAIL", "detail": "not attested"}
+                        RECORD_IDS[P1]: {"status": "FAIL", "detail": "not attested"}
                     },
                     "errors": [],
                 },
@@ -880,8 +877,8 @@ def self_test() -> int:
                 "interval calibration",
             )
         finally:
-            B_PACKAGES.clear()
-            B_PACKAGES.update(saved)
+            DECISION_STORIES.clear()
+            DECISION_STORIES.update(saved)
     if failures:
         for f in failures:
             print(f"SELF-TEST FAIL: {f}")
@@ -897,58 +894,17 @@ def main(argv: list[str]) -> int:
     for flag in ("--runs", "--intervals", "--promotion"):
         parser.add_argument(flag)
     parser.parse_args(argv)  # Reject unknown flags, bare arguments and missing values.
-    # The 2.2 B story registry cannot evidence the different 2.3 package map.
-    # Expose its successor inventory explicitly rather than silently reporting
-    # 2.2 evidence when a caller asks for the current release.
+    registry = "parity/promotion.toml"
     if "--promotion" in argv:
         index = argv.index("--promotion")
         if index + 1 >= len(argv):
             print("--promotion requires a registry path", file=sys.stderr)
             return 2
-        registry = argv[index + 1]
-        canonical = {ROOT / "parity/promotion.toml"}
-        if (ROOT / registry).resolve() not in {p.resolve() for p in canonical}:
+        selected = argv[index + 1]
+        if (ROOT / selected).resolve() != (ROOT / registry).resolve():
             print("--promotion requires parity/promotion.toml", file=sys.stderr)
             return 2
-        try:
-            selected = tomllib.loads((ROOT / registry).read_text())
-        except (OSError, ValueError) as error:
-            print(f"invalid promotion registry: {error}", file=sys.stderr)
-            return 2
-        if selected.get("release") is None:
-            argv = argv[:index] + argv[index + 2 :]
-        elif selected.get("release") != "2.3":
-            print("unsupported promotion release", file=sys.stderr)
-            return 2
-        else:
-            from release_evidence_report import main as report_main
-
-            if "--self-test" in argv:
-                return self_test() or report_main(["--self-test"])
-
-            if any(flag in argv for flag in ("--runs", "--intervals", "--list-tests")):
-                print(
-                    "2.2 B story/interval inputs cannot evidence 2.3; use gate_promotion.sh",
-                    file=sys.stderr,
-                )
-                return 2
-            code = report_main(["--root", str(ROOT), "--release-version", "2.3"])
-            if code == 0 and any(
-                flag in argv
-                for flag in (
-                    "--release",
-                    "--require-calibrated",
-                    "--require-implemented",
-                )
-            ):
-                print(
-                    "2.3 inventory does not certify implementation or calibration; use the release-candidate gate",
-                    file=sys.stderr,
-                )
-                return 1
-            return code
-    else:
-        registry = "parity/promotion.toml"
+        argv = argv[:index] + argv[index + 2 :]
     if "--self-test" in argv:
         return self_test()
     if "--list-tests" in argv:
@@ -970,7 +926,7 @@ def main(argv: list[str]) -> int:
     )
     release = "--release" in argv
     lines, code = evaluate(
-        b_records(ROOT, registry),
+        story_records(ROOT, registry),
         runs,
         intervals,
         require_calibrated=release or "--require-calibrated" in argv,

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Compare exact 2.3 record bounds to their original guards, docs and refusal evidence.
+"""Compare exact record bounds to their original guards, docs and refusal evidence.
 
-A mapping belongs to a complete record ID. Shared milestone/workstream prefixes
-never select a sibling record's bounds. Missing/stale mappings are errors for every
+A mapping belongs to a complete record ID. A shared id prefix
+never selects a sibling record's bounds. Missing/stale mappings are errors for every
 status, including candidates; checking a candidate is not inference activation.
 """
 
@@ -250,8 +250,8 @@ def self_test() -> int:
         )
         (root / "scope.md").write_text("alpha:4\nbeta:8\n", encoding="utf-8")
         records = [
-            {"id": "2.3C.C3.alpha", "bounds": {"max_items": 4}},
-            {"id": "2.3C.C3.beta", "bounds": {"max_items": 8}},
+            {"id": "synth.c3.alpha", "bounds": {"max_items": 4}},
+            {"id": "synth.c3.beta", "bounds": {"max_items": 8}},
         ]
         mappings = [
             {
@@ -317,7 +317,7 @@ def self_test() -> int:
             changed = copy.deepcopy(mappings)
             declared = copy.deepcopy(records)
             if case == "prefix":
-                changed[1]["record"] = "2.3C.C3"
+                changed[1]["record"] = "synth.c3"
             elif case == "duplicate":
                 changed.append(copy.deepcopy(changed[0]))
             elif case == "missing":
@@ -375,7 +375,7 @@ def self_test() -> int:
         print("FAIL:", failure)
     if not failures:
         print(
-            "2.3 limits agreement self-test PASS: exact sibling identities and evidence mutations"
+            "exact-record limits agreement self-test PASS: exact sibling identities and evidence mutations"
         )
     return int(bool(failures))
 
@@ -389,7 +389,7 @@ def main() -> int:
     for error in errors:
         print(f"FAIL: {error}")
     if not errors:
-        print(f"2.3 limits agreement PASS: {len(checked)} exact-record bounds")
+        print(f"exact-record limits agreement PASS: {len(checked)} exact-record bounds")
     return int(bool(errors))
 
 

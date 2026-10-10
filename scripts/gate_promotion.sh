@@ -11,7 +11,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 # The self-test (scripts/promotion_selftest.py) builds ONE synthetic record
-# (2.2A.XT.self_test_cell) with its own owning registries and source files in a temp
+# (xt.cell) with its own owning registries and source files in a temp
 # dir, so it never depends on the state of any committed record. The baseline
 # synthetic registry must pass the checker; each corruption case mutates only
 # synthetic files and must fail with its specific message and rule id, and every

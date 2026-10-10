@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""2.2 release closure: the declared bounds of every 2.2 record agree everywhere they are stated.
+"""Declared bounds agree everywhere they are stated.
 
-For every record of parity/promotion_2_2.toml, each numeric entry of its `bounds` table must
+For every regex-mapped record of parity/promotion.toml, each numeric entry of its `bounds` table must
 equal the value stated by each place mapped to it in `MAPPING` below:
 
   rust      a Rust constant (`const NAME: ty = <int | OTHER_CONST>;`) or an integer literal picked
@@ -18,8 +18,8 @@ entry at all (so a new record cannot ship a bound nobody compares). A bound with
 no docs entry is reported as a `gap` (a documentation statement owed, not a failure); `--strict`
 makes gaps failures.
 
-Extending it for a 2.2B record: add `Bound(...)` rows for the record's id prefix (`"2.2B.X3"`, ...) to
-`MAPPING`. `rust=` and `python=` take `C(path, NAME)` (a constant) or `L(path, regex)` (first
+Extending it for a new record: add `Bound(...)` rows for the record's id (`"sensitivity.joint_mechanism"`, ...) to
+`MAPPING` and list the id in `CELLS`. `rust=` and `python=` take `C(path, NAME)` (a constant) or `L(path, regex)` (first
 capture group is the number; every match in the file must agree); `docs=` takes `L(path, regex)`;
 `refusal=r"regex"` anchors the bound in the record's `*.bounds_exceeded` refusal text: the
 regex's first capture group is the number, every match must equal the bound and at least one must
@@ -34,8 +34,9 @@ reason. An unmapped one is an error (a gap on a `frozen` record). Works for any 
     python3 scripts/check_limits_agreement.py             # check the tree
     python3 scripts/check_limits_agreement.py --strict    # documentation gaps also fail
     python3 scripts/check_limits_agreement.py --self-test # synthetic disagreements must fail
-    python3 scripts/check_limits_agreement.py --release 2.3 # exact full 2.3 record IDs
-    python3 scripts/check_limits_agreement.py --release 2.3 --self-test
+
+Records outside `CELLS` are compared by scripts/check_limits.py (exact record ids, parity/limits.toml);
+both run on every invocation.
 
 Environment: LIMITS_AGREEMENT_ROOT (tree to read, default the repo; used by the self-test).
 """
@@ -54,37 +55,35 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("LIMITS_AGREEMENT_ROOT", REPO))
 RECORDS = "parity/promotion.toml"
-# Former milestone/workstream prefixes, kept so one mapping row still covers the
-# record that used to share it. Records outside this set are not 2.2 bounds.
-PREFIX = {
-    "transport.multi_source_limited_experiment": "2.2A.X1",
-    "transport.finite_scenario_envelope": "2.2A.X2",
-    "transport.learned_continuous_trial": "2.2A.X4",
-    "transport.two_step_temporal": "2.2A.X5",
-    "counterfactual.path_specific_edge": "2.2A.X8",
-    "identify.mixed_source_proof_search": "2.2A.X9",
-    "transport.admg_conditional": "2.2B.X2",
-    "design.study_planning": "2.2B.X6",
-    "recovery.binary_observation": "2.2B.X10",
-    "transport.smoothed_dose_response": "2.2B.X4",
-    "sensitivity.joint_mechanism": "2.2B.X3",
-    "sensitivity.joint_uncertainty": "2.2B.X3",
-    "counterfactual.admg_identification": "2.2B.X8",
-    "estimate.matched_case_control_odds_ratio": "2.2E.E7",
-    "estimate.descriptive_comparison": "2.2E.E7",
-    "estimate.tier_diagnostics": "2.2E.E7",
-    "decision.finite_action_inverse": "2.2E.E6",
-    "estimate.penalized_propensity_aipw": "2.2E.E2",
-    "estimate.clustered_dml_aipw": "2.2E.E4",
-    "estimate.factorized_joint_cells": "2.2E.E5",
-    "estimate.batch_retarget_covariance": "2.2E.E3",
-    "estimate.dml_score_covariance": "2.2E.E3",
-    "estimate.preflight_rank_drop": "2.2E.E1",
-}
-
-
-def short_id(record_id: str) -> str:
-    return PREFIX.get(record_id, ".".join(record_id.split(".")[:3]))
+# Records whose bounds are compared here by regex-mapped places; every other record is
+# compared by scripts/check_limits.py.
+CELLS = frozenset(
+    {
+        "transport.multi_source_limited_experiment",
+        "transport.finite_scenario_envelope",
+        "transport.learned_continuous_trial",
+        "transport.two_step_temporal",
+        "counterfactual.path_specific_edge",
+        "identify.mixed_source_proof_search",
+        "transport.admg_conditional",
+        "design.study_planning",
+        "recovery.binary_observation",
+        "transport.smoothed_dose_response",
+        "sensitivity.joint_mechanism",
+        "sensitivity.joint_uncertainty",
+        "counterfactual.admg_identification",
+        "estimate.matched_case_control_odds_ratio",
+        "estimate.descriptive_comparison",
+        "estimate.tier_diagnostics",
+        "decision.finite_action_inverse",
+        "estimate.penalized_propensity_aipw",
+        "estimate.clustered_dml_aipw",
+        "estimate.factorized_joint_cells",
+        "estimate.batch_retarget_covariance",
+        "estimate.dml_score_covariance",
+        "estimate.preflight_rank_drop",
+    }
+)
 SCOPE = "docs/guides/transport-scope.md"
 
 WORDS = {
@@ -123,7 +122,7 @@ def L(path: str, regex: str) -> Place:
 
 @dataclass(frozen=True)
 class Bound:
-    record: str  # record id prefix "2.2<milestone>.<workstream>", e.g. "2.2A.X1" or "2.2B.X2"
+    record: str  # full record id in parity/promotion.toml
     key: str  # key of the record's `bounds` table
     rust: tuple[Place, ...] = ()
     docs: tuple[Place, ...] = ()
@@ -147,7 +146,7 @@ XW_IO = "crates/antecedent-io/src/cross_world_artifact.rs"
 MIX = "crates/antecedent-identify/src/sid/mixed_source.rs"
 MIX_PY = "python/antecedent/transport/_mixed_source.py"
 
-# ---- 2.2B cells
+# ---- cells
 COND = "crates/antecedent-identify/src/sid/conditional.rs"
 COND_PY = "python/antecedent/transport/_admg_conditional.py"
 PLAN = "crates/antecedent-identify/src/sid/study_planning.rs"
@@ -178,40 +177,40 @@ def scope_and(doc: str, regex: str) -> tuple[Place, ...]:
     return (L(SCOPE, regex), L(doc, regex))
 
 
-# The mapping table: one row per (record, bounds key). Extend with additive rows for 2.2B records.
+# The mapping table: one row per (record, bounds key). Extend with additive rows for new records.
 MAPPING: tuple[Bound, ...] = (
-    # ---- 2.2 expansion cells
-    Bound("2.2E.E7", "max_iterations", rust=(C(MATCHED, "MAX_ITERATIONS"),),
+    # ---- estimator and decision cells
+    Bound("estimate.matched_case_control_odds_ratio", "max_iterations", rust=(C(MATCHED, "MAX_ITERATIONS"),),
           docs=(L("docs/guides/matched-case-control.md", r"at most (\d+) Newton iterations"),)),
-    Bound("2.2E.E7", "replay_max_rows", python=(L(MATCHED_PY, r"^_MAX_REPLAY_ROWS = ([\d_]+)"),),
+    Bound("estimate.matched_case_control_odds_ratio", "replay_max_rows", python=(L(MATCHED_PY, r"^_MAX_REPLAY_ROWS = ([\d_]+)"),),
           docs=(L("docs/guides/matched-case-control.md", r"at\s+most ([\d,]+) reconstructed rows"),)),
-    Bound("2.2E.E6", "max_actions", rust=(C(INVERSE, "MAX_INVERSE_ACTIONS"),),
+    Bound("decision.finite_action_inverse", "max_actions", rust=(C(INVERSE, "MAX_INVERSE_ACTIONS"),),
           docs=(L("docs/guides/inverse-outcome.md", r"more than (\d+) actions"),)),
-    Bound("2.2E.E6", "max_forward_points", rust=(C(INVERSE, "MAX_INVERSE_FORWARD_POINTS"),),
+    Bound("decision.finite_action_inverse", "max_forward_points", rust=(C(INVERSE, "MAX_INVERSE_FORWARD_POINTS"),),
           docs=(L("docs/guides/inverse-outcome.md", r"or (\d+) forward points"),)),
-    Bound("2.2E.E2", "max_grid", rust=(C(PENALIZED, "MAX_RIDGE_GRID"),),
+    Bound("estimate.penalized_propensity_aipw", "max_grid", rust=(C(PENALIZED, "MAX_RIDGE_GRID"),),
           docs=(L("docs/guides/penalized-aipw.md", r"at most (\d+) penalty candidates"),)),
-    Bound("2.2E.E2", "max_inner_folds", rust=(C(PENALIZED, "MAX_RIDGE_INNER_FOLDS"),),
+    Bound("estimate.penalized_propensity_aipw", "max_inner_folds", rust=(C(PENALIZED, "MAX_RIDGE_INNER_FOLDS"),),
           docs=(L("docs/guides/penalized-aipw.md", r"at most (\d+) inner folds"),)),
-    Bound("2.2E.E4", "default_min_clusters", rust=(C(CLUSTER_DML, "DEFAULT_MIN_CLUSTERS"),),
+    Bound("estimate.clustered_dml_aipw", "default_min_clusters", rust=(C(CLUSTER_DML, "DEFAULT_MIN_CLUSTERS"),),
           docs=(L("docs/guides/clustered-dml.md", r"min_clusters` \(default (\d+), floor"),)),
-    Bound("2.2E.E4", "min_clusters_floor", rust=(C(CLUSTER_DML, "MIN_CLUSTERS_FLOOR"),),
+    Bound("estimate.clustered_dml_aipw", "min_clusters_floor", rust=(C(CLUSTER_DML, "MIN_CLUSTERS_FLOOR"),),
           docs=(L("docs/guides/clustered-dml.md", r"min_clusters` \(default \d+, floor (\d+)"),)),
-    Bound("2.2E.E4", "default_min_components_per_fold", rust=(C(CLUSTER_DML, "DEFAULT_MIN_COMPONENTS_PER_FOLD"),),
+    Bound("estimate.clustered_dml_aipw", "default_min_components_per_fold", rust=(C(CLUSTER_DML, "DEFAULT_MIN_COMPONENTS_PER_FOLD"),),
           docs=(L("docs/guides/clustered-dml.md", r"default (\d+), floor 2\)"),)),
-    Bound("2.2E.E4", "min_components_per_fold_floor", rust=(C(CLUSTER_DML, "MIN_COMPONENTS_PER_FOLD_FLOOR"),),
+    Bound("estimate.clustered_dml_aipw", "min_components_per_fold_floor", rust=(C(CLUSTER_DML, "MIN_COMPONENTS_PER_FOLD_FLOOR"),),
           docs=(L("docs/guides/clustered-dml.md", r"default 4, floor (\d+)\)"),)),
-    Bound("2.2E.E7", "max_scales", rust=(C(DESCRIPTIVE, "MAX_REPORTING_SCALES"),),
+    Bound("estimate.descriptive_comparison", "max_scales", rust=(C(DESCRIPTIVE, "MAX_REPORTING_SCALES"),),
           docs=(L("docs/guides/descriptive-comparison.md", r"at most (\d+) reporting scales"),)),
-    Bound("2.2E.E5", "max_components", rust=(C(JOINT_CELLS, "MAX_FACTORIZED_COMPONENTS"),),
+    Bound("estimate.factorized_joint_cells", "max_components", rust=(C(JOINT_CELLS, "MAX_FACTORIZED_COMPONENTS"),),
           docs=(L("docs/guides/joint-cells.md", r"up to (\w+)\s+binary components"),)),
-    Bound("2.2E.E5", "max_folds", rust=(C(JOINT_CELLS, "MAX_FOLDS"),),
+    Bound("estimate.factorized_joint_cells", "max_folds", rust=(C(JOINT_CELLS, "MAX_FOLDS"),),
           docs=(L("docs/guides/joint-cells.md", r"at most (\d+) cross-fitting folds"),)),
-    Bound("2.2E.E5", "max_orderings", rust=(C(JOINT_CELLS, "MAX_ORDERINGS"),),
+    Bound("estimate.factorized_joint_cells", "max_orderings", rust=(C(JOINT_CELLS, "MAX_ORDERINGS"),),
           docs=(L("docs/guides/joint-cells.md", r"at most (\d+) orderings"),)),
-    # ---- X1 mz-transportability
+    # ---- mz-transportability
     Bound(
-        "2.2A.X1",
+        "transport.multi_source_limited_experiment",
         "max_observed",
         rust=(C(MZ, "MZ_TRANSPORT_MAX_OBSERVED"),),
         docs=(
@@ -224,7 +223,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"more than (\d+) observed",
     ),
     Bound(
-        "2.2A.X1",
+        "transport.multi_source_limited_experiment",
         "max_sources",
         rust=(C(MZ, "MZ_TRANSPORT_MAX_SOURCES"),),
         docs=(L(SCOPE, r"from two to (\w+) source populations"),),
@@ -232,7 +231,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"Sources outside 2-(\d+)",
     ),
     Bound(
-        "2.2A.X1",
+        "transport.multi_source_limited_experiment",
         "max_controllable_per_source",
         rust=(C(MZ, "MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE"),),
         docs=(L(SCOPE, r"observed variables, (\d+) controllables per source"),),
@@ -240,7 +239,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"controllables per source outside 1-(\d+)",
     ),
     Bound(
-        "2.2A.X1",
+        "transport.multi_source_limited_experiment",
         "max_candidate_regimes",
         rust=(C(MZ, "MZ_TRANSPORT_MAX_CANDIDATE_REGIMES"),),
         docs=(L(SCOPE, r"controllables per source, (\d+) candidate regimes"),),
@@ -248,7 +247,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"more than (\d+) candidate regimes",
     ),
     Bound(
-        "2.2A.X1",
+        "transport.multi_source_limited_experiment",
         "max_search_states",
         rust=(
             L(
@@ -264,7 +263,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"above (\d+) operations / depth",
     ),
     Bound(
-        "2.2A.X1",
+        "transport.multi_source_limited_experiment",
         "max_depth",
         rust=(
             L(
@@ -282,9 +281,9 @@ MAPPING: tuple[Bound, ...] = (
         ),
         refusal=r"operations / depth (\d+)",
     ),
-    # ---- X2 finite scenario envelope
+    # ---- finite scenario envelope
     Bound(
-        "2.2A.X2",
+        "transport.finite_scenario_envelope",
         "max_scenarios",
         rust=(C(SCEN, "SCENARIO_MAX_COUNT"),),
         docs=(L(SCOPE, r"list of one to (\d+) fixed selection ADMGs"),),
@@ -294,16 +293,16 @@ MAPPING: tuple[Bound, ...] = (
         ),
     ),
     Bound(
-        "2.2A.X2",
+        "transport.finite_scenario_envelope",
         "max_observed",
         rust=(C(SCEN, "SCENARIO_MAX_OBSERVED"),),
         docs=(
             L(SCOPE, r"\(at most (\d+) observed variables\) is decided independently"),
         ),
     ),
-    # ---- X4 learned continuous trial transport
+    # ---- learned continuous trial transport
     Bound(
-        "2.2A.X4",
+        "transport.learned_continuous_trial",
         "max_folds",
         rust=(C(LEARN, "LEARNED_CONTINUOUS_MAX_FOLDS"),),
         docs=(L(SCOPE, r"At most (\d+) cross-fitting folds and a bootstrap cap"),),
@@ -311,7 +310,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the fold cap",
     ),
     Bound(
-        "2.2A.X4",
+        "transport.learned_continuous_trial",
         "max_bootstrap",
         rust=(C(LEARN, "LEARNED_CONTINUOUS_MAX_BOOTSTRAP"),),
         docs=(L(SCOPE, r"bootstrap cap of ([\d,]+) replicates\s+\(floor"),),
@@ -319,34 +318,34 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"more than (\d+) bootstrap replicates",
     ),
     Bound(
-        "2.2A.X4",
+        "transport.learned_continuous_trial",
         "min_bootstrap",
         rust=(C(LEARN, "LEARNED_CONTINUOUS_MIN_BOOTSTRAP"),),
         docs=(L(SCOPE, r"replicate floor (\d+)"),),
         python=(L(LEARN_PY, r"\(at most \d+, floor (\d+)\)"),),
     ),
     Bound(
-        "2.2A.X4",
+        "transport.learned_continuous_trial",
         "max_rows_consumed",
         rust=(L(LEARN_IO, r"max_rows: ([\d_]+), max_features"),),
         docs=(L(SCOPE, r"a consumer admits at most ([\d,]+) rows and \d+ features"),),
     ),
     Bound(
-        "2.2A.X4",
+        "transport.learned_continuous_trial",
         "max_features_consumed",
         rust=(L(LEARN_IO, r"max_rows: [\d_]+, max_features: ([\d_]+)"),),
         docs=(L(SCOPE, r"a consumer admits at most [\d,]+ rows and (\d+) features"),),
     ),
-    # ---- X5 two-step temporal transport
+    # ---- two-step temporal transport
     Bound(
-        "2.2A.X5",
+        "transport.two_step_temporal",
         "horizon",
         rust=(C(TEMP, "TEMPORAL_HORIZON"),),
         docs=(L(SCOPE, r"The licensed horizon is (\d+) steps"),),
         python=(L(TEMP_PY, r"and the horizon is (\w+)\."),),
     ),
     Bound(
-        "2.2A.X5",
+        "transport.two_step_temporal",
         "max_actions",
         rust=(C(TEMP, "TEMPORAL_MAX_ACTIONS"),),
         docs=(L(SCOPE, r"alphabet \(at most (\d+) actions\)"),),
@@ -354,7 +353,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"More than (\d+) actions",
     ),
     Bound(
-        "2.2A.X5",
+        "transport.two_step_temporal",
         "max_observed",
         rust=(C(TEMP, "TEMPORAL_MAX_OBSERVED"),),
         docs=(L(SCOPE, r"diagram of at most (\d+) coordinates"),),
@@ -362,7 +361,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"more than (\d+) coordinates",
     ),
     Bound(
-        "2.2A.X5",
+        "transport.two_step_temporal",
         "max_history_states",
         rust=(C(TEMP, "TEMPORAL_MAX_HISTORY_STATES"),),
         docs=(L(SCOPE, r"coordinates and ([\d,]+) complete covariate histories"),),
@@ -371,31 +370,31 @@ MAPPING: tuple[Bound, ...] = (
         ),
         refusal=r"more than (\d+) complete covariate histories",
     ),
-    # ---- X8 path-specific edge intervention (cross-world)
+    # ---- path-specific edge intervention (cross-world)
     Bound(
-        "2.2A.X8",
+        "counterfactual.path_specific_edge",
         "max_variables",
         rust=(C(XW_ID, "CROSS_WORLD_MAX_NODES"),),
         docs=(L(SCOPE, r"The graph has at most (\d+) variables, a query"),),
         note="no Python statement of the variable cap",
     ),
     Bound(
-        "2.2A.X8",
+        "counterfactual.path_specific_edge",
         "max_worlds",
         rust=(C(XW_CORE, "MAX_CROSS_WORLDS"),),
         docs=(L(SCOPE, r"a query declares at most (\d+) worlds"),),
         note="no Python statement of the world cap",
     ),
     Bound(
-        "2.2A.X8",
+        "counterfactual.path_specific_edge",
         "max_rows",
         rust=(C(XW_IO, "CROSS_WORLD_MAX_ROWS"),),
         docs=(L(SCOPE, r"a consumer admits at most ([\d,]+) rows; the claim"),),
         note="no Python statement of the row cap",
     ),
-    # ---- X9 mixed-source proof search
+    # ---- mixed-source proof search
     Bound(
-        "2.2A.X9",
+        "identify.mixed_source_proof_search",
         "max_observed",
         rust=(C(MIX, "MIXED_SOURCE_MAX_OBSERVED"),),
         docs=(L(SCOPE, r"Bounds: at most (\d+) observed variables, \d+ usable"),),
@@ -403,7 +402,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the observed-variable cap",
     ),
     Bound(
-        "2.2A.X9",
+        "identify.mixed_source_proof_search",
         "max_distributions",
         rust=(C(MIX, "MIXED_SOURCE_MAX_DISTRIBUTIONS"),),
         docs=(
@@ -413,7 +412,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the distribution cap",
     ),
     Bound(
-        "2.2A.X9",
+        "identify.mixed_source_proof_search",
         "max_search_states",
         rust=(
             L(
@@ -429,7 +428,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"above (\d+) operations / depth",
     ),
     Bound(
-        "2.2A.X9",
+        "identify.mixed_source_proof_search",
         "max_depth",
         rust=(
             L(
@@ -448,28 +447,28 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"operations / depth (\d+)",
     ),
     Bound(
-        "2.2A.X9",
+        "identify.mixed_source_proof_search",
         "max_move",
         rust=(C(MIX, "MIXED_SOURCE_MAX_MOVE"),),
         docs=(L(SCOPE, r"each with at most (\w+)\s+moved variables"),),
     ),
     Bound(
-        "2.2A.X9",
+        "identify.mixed_source_proof_search",
         "max_intervention_set",
         rust=(C(MIX, "MIXED_SOURCE_MAX_DO"),),
         docs=(L(SCOPE, r"at most (\w+)\s+intervened variables"),),
     ),
     Bound(
-        "2.2A.X9",
+        "identify.mixed_source_proof_search",
         "max_sources",
         rust=(C(MZ, "MZ_TRANSPORT_MAX_SOURCES"),),
         docs=(L(SCOPE, r"usable distributions and (\d+) sources, under a"),),
         python=(L(MIX_PY, r"declares at most (\w+) sources"),),
         refusal=r"(\d+) declared sources",
     ),
-    # ---- 2.2B X2 ADMG conditional transport
+    # ---- ADMG conditional transport
     Bound(
-        "2.2B.X2",
+        "transport.admg_conditional",
         "max_observed",
         rust=(C(COND, "ADMG_CONDITIONAL_MAX_OBSERVED"),),
         docs=(L(SCOPE, r"at most (\d+)\s+observed variables, 0-\d+ treatments"),),
@@ -477,7 +476,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"More than (\d+) observed variables",
     ),
     Bound(
-        "2.2B.X2",
+        "transport.admg_conditional",
         "max_treatments",
         rust=(C(COND, "ADMG_CONDITIONAL_MAX_TREATMENTS"),),
         docs=(L(SCOPE, r"0-(\d+) treatments, 1-\d+ conditioned variables"),),
@@ -487,7 +486,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"observed variables, (\d+) treatments",
     ),
     Bound(
-        "2.2B.X2",
+        "transport.admg_conditional",
         "max_conditioned",
         rust=(C(COND, "ADMG_CONDITIONAL_MAX_CONDITIONED"),),
         docs=(L(SCOPE, r"0-\d+ treatments, 1-(\d+) conditioned variables"),),
@@ -495,7 +494,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"treatments or (\d+) conditioned",
     ),
     Bound(
-        "2.2B.X2",
+        "transport.admg_conditional",
         "max_search_states",
         rust=(
             L(
@@ -515,7 +514,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"above (\d+) operations / depth",
     ),
     Bound(
-        "2.2B.X2",
+        "transport.admg_conditional",
         "max_depth",
         rust=(
             L(
@@ -534,9 +533,9 @@ MAPPING: tuple[Bound, ...] = (
         ),
         refusal=r"operations / depth (\d+)",
     ),
-    # ---- 2.2B X6 study planning
+    # ---- study planning
     Bound(
-        "2.2B.X6",
+        "design.study_planning",
         "max_candidates",
         rust=(C(PLAN, "STUDY_PLAN_MAX_CANDIDATES"),),
         docs=(
@@ -549,7 +548,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"More than (\d+) candidates",
     ),
     Bound(
-        "2.2B.X6",
+        "design.study_planning",
         "max_regimes_per_candidate",
         rust=(C(PLAN, "STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE"),),
         docs=(
@@ -562,20 +561,20 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the per-candidate regime cap",
     ),
     Bound(
-        "2.2B.X6",
+        "design.study_planning",
         "max_subset_size",
         rust=(C(PLAN, "STUDY_PLAN_MAX_SUBSET"),),
         docs=(L(SCOPE, r"regimes each; every subset of at most (\d+)"),),
         python=(L(PLAN_PY, r"evaluates every subset of at most (\w+) studies"),),
     ),
     Bound(
-        "2.2B.X6",
+        "design.study_planning",
         "max_proposals",
         rust=(C(PLAN, "STUDY_PLAN_MAX_PROPOSALS"),),
         docs=(L(SCOPE, r"at most (\d+) proposals retained"),),
     ),
     Bound(
-        "2.2B.X6",
+        "design.study_planning",
         "max_search_states",
         rust=(
             L(
@@ -590,7 +589,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"limits above (\d+) operations",
     ),
     Bound(
-        "2.2B.X6",
+        "design.study_planning",
         "max_depth",
         rust=(
             L(
@@ -609,7 +608,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"\((\d+) Mz,",
     ),
     Bound(
-        "2.2B.X6",
+        "design.study_planning",
         "max_depth_mixed",
         rust=(
             L(
@@ -623,9 +622,9 @@ MAPPING: tuple[Bound, ...] = (
         python=(L(PLAN_PY, r'^_MAX_DEPTH = \{"mz": \d+, "mixed": (\d+)\}'),),
         refusal=r", (\d+) Mixed\)",
     ),
-    # ---- 2.2B X10 binary observation recovery
+    # ---- binary observation recovery
     Bound(
-        "2.2B.X10",
+        "recovery.binary_observation",
         "max_partially_observed",
         rust=(C(REC, "RECOVERY_MAX_PARTIALLY_OBSERVED"),),
         docs=(L(SCOPE, r"at most (\d+) partially observed variables"),),
@@ -633,7 +632,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the partially-observed cap",
     ),
     Bound(
-        "2.2B.X10",
+        "recovery.binary_observation",
         "max_fully_observed",
         rust=(C(REC, "RECOVERY_MAX_FULLY_OBSERVED"),),
         docs=(L(SCOPE, r"at most (\d+) fully observed `O`"),),
@@ -641,7 +640,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the fully-observed cap",
     ),
     Bound(
-        "2.2B.X10",
+        "recovery.binary_observation",
         "max_observed_cells",
         rust=(C(REC, "RECOVERY_MAX_OBSERVED_CELLS"),),
         docs=(L(SCOPE, r"at most (\d+)\s+observed cells"),),
@@ -649,7 +648,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the cell cap",
     ),
     Bound(
-        "2.2B.X10",
+        "recovery.binary_observation",
         "max_search_operations",
         rust=(
             L(
@@ -668,7 +667,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"above (\d+) operations / depth",
     ),
     Bound(
-        "2.2B.X10",
+        "recovery.binary_observation",
         "max_depth",
         rust=(
             L(
@@ -686,9 +685,9 @@ MAPPING: tuple[Bound, ...] = (
         ),
         refusal=r"operations / depth (\d+)",
     ),
-    # ---- 2.2B X4 smoothed dose-response transport
+    # ---- smoothed dose-response transport
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_grid_points",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_GRID"),),
         docs=(
@@ -699,7 +698,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"More than (\d+) grid doses",
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_folds",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_FOLDS"),),
         docs=scope_and(DOSE_DOC, r"grid doses, (\d+) cross-fitting folds"),
@@ -707,7 +706,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the fold cap",
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_rows",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_ROWS"),),
         docs=scope_and(DOSE_DOC, r"cross-fitting folds, ([\d,]+) rows,"),
@@ -715,7 +714,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the row cap",
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_features",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_FEATURES"),),
         docs=scope_and(DOSE_DOC, r"rows, (\d+) covariates,"),
@@ -723,7 +722,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the covariate cap",
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_basis_degree",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_BASIS_DEGREE"),),
         docs=scope_and(DOSE_DOC, r"covariates,\s+basis degree 1 to (\d+),"),
@@ -731,7 +730,7 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the basis degree cap",
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_knots",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_KNOTS"),),
         docs=scope_and(DOSE_DOC, r"basis degree 1 to \d+,\s+at most (\d+) knots"),
@@ -739,14 +738,14 @@ MAPPING: tuple[Bound, ...] = (
         note="no Python statement of the knot cap",
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "min_bootstrap",
         rust=(C(DOSE, "SMOOTHED_DOSE_MIN_BOOTSTRAP"),),
         docs=scope_and(DOSE_DOC, r"bootstrap request of (\d+) to [\d,]+ replicates"),
         python=(L(DOSE_PY, r"\(at most \d+, floor (\d+)\)"),),
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_bootstrap",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_BOOTSTRAP"),),
         docs=scope_and(DOSE_DOC, r"bootstrap request of \d+ to ([\d,]+) replicates"),
@@ -754,42 +753,42 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"more than (\d+) bootstrap replicates",
     ),
     Bound(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "max_workspace_bytes",
         rust=(C(DOSE, "SMOOTHED_DOSE_MAX_WORKSPACE_BYTES"),),
         docs=(L(DOSE_DOC, r"mandatory cap of 512 MiB \(([\d,]+) bytes\)"),),
         python=(L(DOSE_PY, r"mandatory 512 MiB \(([\d,]+) bytes\) cap"),),
     ),
-    # ---- 2.2B X3 joint mechanism sensitivity
+    # ---- joint mechanism sensitivity
     Bound(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "max_factors",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_FACTORS"),),
         docs=scope_and(JOINT_DOC, r"[Aa]t most (\d+) factors declared"),
     ),
     Bound(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "max_parent_levels",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_PARENT_LEVELS"),),
         docs=scope_and(JOINT_DOC, r"factors declared \([^)]*\), (\d+) parent levels"),
         refusal=r"More than (\d+) parent levels",
     ),
     Bound(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "max_outcome_categories",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES"),),
         docs=scope_and(JOINT_DOC, r"parent levels, (\d+) outcome categories"),
         refusal=r"or (\d+) outcome categories",
     ),
     Bound(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "max_frontier_points",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_FRONTIER_POINTS"),),
         docs=scope_and(JOINT_DOC, r"frontier grid of 1 to (\d+)\s+points"),
         refusal=r"grid outside 1-(\d+)",
     ),
     Bound(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "max_operations",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_OPERATIONS"),),
         docs=scope_and(JOINT_DOC, r"at most ([\d,]+)\s+search operations"),
@@ -800,7 +799,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"above (\d+) operations / depth",
     ),
     Bound(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "max_bisection_iterations",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_DEPTH"),),
         docs=scope_and(JOINT_DOC, r"bisection depth of\s+(\d+)\s+iterations"),
@@ -811,15 +810,15 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"operations / depth (\d+)",
     ),
     Bound(
-        "2.2B.X3",
+        "sensitivity.joint_uncertainty",
         "max_bootstrap_internal",
         rust=(C(JOINT, "JOINT_SENSITIVITY_MAX_BOOTSTRAP"),),
         docs=scope_and(JOINT_DOC, r"bootstrap request\s+cap of (\d+)"),
         refusal=r"more than (\d+) bootstrap replicates",
     ),
-    # ---- 2.2B X8 ADMG counterfactual identification
+    # ---- ADMG counterfactual identification
     Bound(
-        "2.2B.X8",
+        "counterfactual.admg_identification",
         "max_variables",
         rust=(C(CFID, "COUNTERFACTUAL_ID_MAX_VARIABLES"),),
         docs=(L(SCOPE, r"of at most (\d+) finite-discrete variables"),),
@@ -827,7 +826,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"More than (\d+) variables",
     ),
     Bound(
-        "2.2B.X8",
+        "counterfactual.admg_identification",
         "max_levels",
         rust=(C(CFID, "COUNTERFACTUAL_ID_MAX_LEVELS"),),
         docs=(L(SCOPE, r"at\s+most (\d+) levels each"),),
@@ -835,7 +834,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"more than (\d+) levels",
     ),
     Bound(
-        "2.2B.X8",
+        "counterfactual.admg_identification",
         "max_search_operations",
         rust=(C(CFID, "COUNTERFACTUAL_ID_MAX_OPERATIONS"),),
         docs=(L(SCOPE, r"\(at most (\d+) operations, depth \d+\); Python"),),
@@ -843,7 +842,7 @@ MAPPING: tuple[Bound, ...] = (
         refusal=r"above (\d+) operations or depth",
     ),
     Bound(
-        "2.2B.X8",
+        "counterfactual.admg_identification",
         "max_search_depth",
         rust=(C(CFID, "COUNTERFACTUAL_ID_MAX_DEPTH"),),
         docs=(L(SCOPE, r"\(at most \d+ operations, depth (\d+)\); Python"),),
@@ -875,18 +874,20 @@ _MEMORY_REASON = (
 )
 
 NONINT: tuple[NonInt, ...] = (
-    NonInt("2.2E.E7", "cancellation_check", places=(C(DESCRIPTIVE, "POLL_EVERY_ROWS"),)),
-    NonInt("2.2E.E7", "work", exclude="2 x 2 names the dimension of the fixed delta-method covariance, not a tunable execution bound"),
-    NonInt("2.2E.E3", "max_t_draws", places=(C(BATCH_RETARGET, "MAX_T_MIN_DRAWS"), C(BATCH_RETARGET, "MAX_T_MAX_DRAWS"))),
-    NonInt("2.2E.E3", "max_t_poll", places=(C(JOINT_IF, "MAX_T_POLL_EVERY"),)),
-    NonInt("2.2A.X1", "memory_limit", exclude=_MEMORY_REASON),
-    NonInt("2.2B.X2", "memory_limit", exclude=_MEMORY_REASON),
-    NonInt("2.2B.X6", "memory_limit", exclude=_MEMORY_REASON),
-    NonInt("2.2B.X10", "memory_limit", exclude=_MEMORY_REASON),
-    NonInt("2.2B.X8", "memory_limit", exclude=_MEMORY_REASON),
-    NonInt("2.2B.X3", "memory_limit", exclude=_MEMORY_REASON),
+    NonInt("estimate.descriptive_comparison", "cancellation_check", places=(C(DESCRIPTIVE, "POLL_EVERY_ROWS"),)),
+    NonInt("estimate.tier_diagnostics", "cancellation_check", places=(C(DESCRIPTIVE, "POLL_EVERY_ROWS"),)),
+    NonInt("estimate.descriptive_comparison", "work", exclude="2 x 2 names the dimension of the fixed delta-method covariance, not a tunable execution bound"),
+    NonInt("estimate.tier_diagnostics", "work", exclude="2 x 2 names the dimension of the fixed delta-method covariance, not a tunable execution bound"),
+    NonInt("estimate.batch_retarget_covariance", "max_t_draws", places=(C(BATCH_RETARGET, "MAX_T_MIN_DRAWS"), C(BATCH_RETARGET, "MAX_T_MAX_DRAWS"))),
+    NonInt("estimate.batch_retarget_covariance", "max_t_poll", places=(C(JOINT_IF, "MAX_T_POLL_EVERY"),)),
+    NonInt("transport.multi_source_limited_experiment", "memory_limit", exclude=_MEMORY_REASON),
+    NonInt("transport.admg_conditional", "memory_limit", exclude=_MEMORY_REASON),
+    NonInt("design.study_planning", "memory_limit", exclude=_MEMORY_REASON),
+    NonInt("recovery.binary_observation", "memory_limit", exclude=_MEMORY_REASON),
+    NonInt("counterfactual.admg_identification", "memory_limit", exclude=_MEMORY_REASON),
+    NonInt("sensitivity.joint_mechanism", "memory_limit", exclude=_MEMORY_REASON),
     NonInt(
-        "2.2B.X6",
+        "design.study_planning",
         "per_decision_operations",
         head=r"^([^:]*):",  # '4096 (Mz) / 20000 (Mixed): ...prose...'
         places=(
@@ -901,7 +902,7 @@ NONINT: tuple[NonInt, ...] = (
         ),
     ),
     NonInt(
-        "2.2B.X4",
+        "transport.smoothed_dose_response",
         "quadrature_nodes",
         places=(
             L(DOSE, r"SMOOTHED_DOSE_QUADRATURE_NODES: \[usize; 2\] = \[(\d+), \d+\]"),
@@ -910,7 +911,7 @@ NONINT: tuple[NonInt, ...] = (
         doubled=True,
     ),
     NonInt(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "tolerance",
         places=(
             C(JOINT, "JOINT_SENSITIVITY_MIN_TOLERANCE"),
@@ -918,11 +919,11 @@ NONINT: tuple[NonInt, ...] = (
         ),
     ),
     NonInt(
-        "2.2B.X3",
+        "sensitivity.joint_mechanism",
         "operation_limit",
         places=(C(JOINT, "JOINT_SENSITIVITY_MAX_OPERATIONS"),),
     ),
-    NonInt("2.2B.X3", "depth_limit", places=(C(JOINT, "JOINT_SENSITIVITY_MAX_DEPTH"),)),
+    NonInt("sensitivity.joint_mechanism", "depth_limit", places=(C(JOINT, "JOINT_SENSITIVITY_MAX_DEPTH"),)),
 )
 
 
@@ -1080,10 +1081,12 @@ def check(
     strict: bool = False,
     mapping: tuple[Bound, ...] | None = None,
     nonint: tuple[NonInt, ...] | None = None,
+    cells: frozenset[str] | None = None,
 ) -> tuple[list[str], list[str], list[str]]:
     """Return (errors, gaps, ok lines)."""
     mapping = MAPPING if mapping is None else mapping
     nonint = NONINT if nonint is None else nonint
+    cells = CELLS if cells is None else cells
     rd = Reader(root)
     errors: list[str] = []
     gaps: list[str] = []
@@ -1104,12 +1107,9 @@ def check(
             except re.error as e:
                 errors.append(f"mapping {b.record}.{b.key}: refusal regex invalid: {e}")
     short_ids = set()
-    records = [
-        rec for rec in records
-        if rec["id"] in PREFIX or rec["id"].startswith("2.")
-    ]
+    records = [rec for rec in records if rec["id"] in cells]
     for rec in records:
-        short = short_id(rec["id"])
+        short = rec["id"]
         short_ids.add(short)
         bounds = rec.get("bounds", {})
         numeric = {k: v for k, v in bounds.items() if _is_int(v)}
@@ -1184,7 +1184,7 @@ def check(
             if not bad:
                 ok.append(f"{tag}: agrees ({len(places)} place(s))")
     declared = {
-        (short_id(r["id"]), k)
+        (r["id"], k)
         for r in records
         for k in r.get("bounds", {})
     }
@@ -1204,26 +1204,21 @@ def check(
 
 
 def main(argv: list[str]) -> int:
-    if "--release" in argv:
-        index = argv.index("--release")
-        if index + 1 >= len(argv) or argv[index + 1] not in ("2.2", "2.3"):
-            print("--release must be 2.2 or 2.3")
-            return 1
-        if argv[index + 1] == "2.3":
-            from check_limits import check as check_2_3
-            from check_limits import self_test as self_test_2_3
-            if "--self-test" in argv:
-                return self_test_2_3()
-            errors, checked = check_2_3(ROOT)
-            for error in errors:
-                print(f"FAIL: {error}")
-            if not errors:
-                print(f"2.3 limits agreement PASS: {len(checked)} exact-record bounds")
-            return int(bool(errors))
     if "--self-test" in argv:
-        return self_test()
+        from check_limits import self_test as exact_record_self_test
+
+        return self_test() or exact_record_self_test()
     strict = "--strict" in argv
     errors, gaps, ok = check(ROOT, strict)
+    from check_limits import check as exact_record_check
+
+    exact_errors, exact_checked = exact_record_check(ROOT)
+    for error in exact_errors:
+        print(f"FAIL: {error}")
+    if exact_errors:
+        errors = errors + exact_errors
+    else:
+        print(f"ok   {len(exact_checked)} exact-record bound(s) agree (scripts/check_limits.py)")
     for line in ok:
         print(f"ok   {line}")
     for g in gaps:
@@ -1245,7 +1240,7 @@ def main(argv: list[str]) -> int:
 # unrelated record or docs edit cannot break it. Every rule has a clean case and a mutant.
 SYN_RECORDS = """
 [[record]]
-id = "2.2Z.A1.synth_in_progress"
+id = "synth.in_progress"
 status = "in_progress"
 bounds = { max_a = 4, max_b = 12, max_ops = 4096, depth = 24, nodes = "2 or 4, doubling check at 4 or 8", tol = "[1e-3, 1e-1]", ops_text = "4096 (cap): 32 ops in the fixture", memory_limit = "min(ctx, 64 MiB default)", contract = "SearchBudget" }
 [[record.refusals]]
@@ -1253,12 +1248,12 @@ detail = "synth.bounds_exceeded"
 when = "Sources outside 2-4, more than 12 b, or limits above 4096 operations / depth 24."
 
 [[record]]
-id = "2.2Z.B1.synth_frozen"
+id = "synth.frozen"
 status = "frozen"
 bounds = { max_unmapped = 9, loose = "at most 7 things" }
 
 [[record]]
-id = "2.2Z.C1.synth_carried"
+id = "synth.carried"
 status = "carried_forward"
 bounds = { max_c = 3 }
 [[record.refusals]]
@@ -1280,9 +1275,10 @@ SYN_PY = "def f(max_ops: int = 4_096): ...\n# at most 4 sources\n"
 SYN_RS_PATH = "crates/synth/src/lib.rs"
 SYN_DOC_PATH = "docs/synth.md"
 SYN_PY_PATH = "python/synth.py"
+SYN_CELLS = frozenset({"synth.in_progress", "synth.frozen", "synth.carried"})
 SYN_MAPPING: tuple[Bound, ...] = (
     Bound(
-        "2.2Z.A1",
+        "synth.in_progress",
         "max_a",
         rust=(C(SYN_RS_PATH, "SYN_MAX_A"),),
         docs=(L(SYN_DOC_PATH, r"at most (\d+) sources"),),
@@ -1290,14 +1286,14 @@ SYN_MAPPING: tuple[Bound, ...] = (
         refusal=r"Sources outside 2-(\d+)",
     ),
     Bound(
-        "2.2Z.A1",
+        "synth.in_progress",
         "max_b",
         rust=(C(SYN_RS_PATH, "SYN_MAX_B"),),  # alias of SYN_BASE_B
         docs=(L(SYN_DOC_PATH, r"sources, (\d+) b,"),),
         refusal=r"more than (\d+) b",
     ),
     Bound(
-        "2.2Z.A1",
+        "synth.in_progress",
         "max_ops",
         rust=(L(SYN_RS_PATH, r"operations: ([\d_]+),"),),
         docs=(L(SYN_DOC_PATH, r"b, (\d+) operations"),),
@@ -1305,14 +1301,14 @@ SYN_MAPPING: tuple[Bound, ...] = (
         refusal=r"above (\d+) operations / depth",
     ),
     Bound(
-        "2.2Z.A1",
+        "synth.in_progress",
         "depth",
         rust=(L(SYN_RS_PATH, r"depth: ([\d_]+) "),),
         docs=(L(SYN_DOC_PATH, r"operations, depth (\d+)\."),),
         refusal=r"operations / depth (\d+)",
     ),
     Bound(
-        "2.2Z.C1",
+        "synth.carried",
         "max_c",
         rust=(C(SYN_RS_PATH, "SYN_MAX_C"),),
         docs=(L(SYN_DOC_PATH, r"At most (\d+) c\."),),
@@ -1321,7 +1317,7 @@ SYN_MAPPING: tuple[Bound, ...] = (
 )
 SYN_NONINT: tuple[NonInt, ...] = (
     NonInt(
-        "2.2Z.A1",
+        "synth.in_progress",
         "nodes",
         places=(
             L(SYN_RS_PATH, r"SYN_NODES: \[usize; 2\] = \[(\d+), \d+\]"),
@@ -1330,13 +1326,13 @@ SYN_NONINT: tuple[NonInt, ...] = (
         doubled=True,
     ),
     NonInt(
-        "2.2Z.A1",
+        "synth.in_progress",
         "tol",
         places=(C(SYN_RS_PATH, "SYN_MIN_TOL"), C(SYN_RS_PATH, "SYN_MAX_TOL")),
     ),
-    NonInt("2.2Z.A1", "memory_limit", exclude="memory default is an expression"),
+    NonInt("synth.in_progress", "memory_limit", exclude="memory default is an expression"),
     NonInt(
-        "2.2Z.A1",
+        "synth.in_progress",
         "ops_text",
         head=r"^([^:]*):",
         places=(L(SYN_RS_PATH, r"operations: ([\d_]+),"),),
@@ -1363,6 +1359,7 @@ def self_test() -> int:
             d,
             mapping=kw.pop("mapping", SYN_MAPPING),
             nonint=kw.pop("nonint", SYN_NONINT),
+            cells=SYN_CELLS,
             **kw,  # type: ignore[arg-type]
         )
 
@@ -1463,7 +1460,7 @@ def self_test() -> int:
             "bounds = { max_c = 3, max_z = 1 }",
             "max_z",
         )
-        # D2: a rewording of one bound in the refusal text is caught even though the number
+        # A rewording of one bound in the refusal text is caught even though the number
         # still appears elsewhere in the text ('4' remains in '2-4' and in the 4096 figure).
         mutated(
             "refusal_reword",
@@ -1538,7 +1535,7 @@ def self_test() -> int:
             "max_q = 3 }",
             "stale mapping",
             mapping=SYN_MAPPING
-            + (Bound("2.2Z.C1", "max_c", rust=(C(SYN_RS_PATH, "SYN_MAX_C"),)),),
+            + (Bound("synth.carried", "max_c", rust=(C(SYN_RS_PATH, "SYN_MAX_C"),)),),
         )
         # A same-named constant in another file does not satisfy a mapping to this file.
         d = Path(t) / "const_elsewhere"
@@ -1556,14 +1553,14 @@ def self_test() -> int:
         errs, _, _ = run(
             d,
             mapping=SYN_MAPPING
-            + (Bound("2.2Z.A1", "gone", rust=(C(SYN_RS_PATH, "SYN_MAX_A"),)),),
+            + (Bound("synth.in_progress", "gone", rust=(C(SYN_RS_PATH, "SYN_MAX_A"),)),),
         )
         if not any("stale mapping" in e for e in errs):
             failures.append(
                 f"stale_row: a row for an undeclared bound must be stale, got {errs[:3]}"
             )
         errs, _, _ = run(
-            d, nonint=SYN_NONINT + (NonInt("2.2Z.A1", "gone", exclude="x"),)
+            d, nonint=SYN_NONINT + (NonInt("synth.in_progress", "gone", exclude="x"),)
         )
         if not any("stale mapping" in e for e in errs):
             failures.append("stale NONINT row must be reported")
@@ -1577,7 +1574,7 @@ def self_test() -> int:
             failures.append("a refusal regex without a capture group must be an error")
         # a documentation gap is a gap, and --strict fails it
         gapless = tuple(
-            replace(b, docs=()) if (b.record, b.key) == ("2.2Z.C1", "max_c") else b
+            replace(b, docs=()) if (b.record, b.key) == ("synth.carried", "max_c") else b
             for b in SYN_MAPPING
         )
         plain_errs, plain_gaps, _ = run(d, mapping=gapless)

@@ -32,7 +32,6 @@ bash scripts/gate_support_matrix.sh --self-test
 bash scripts/gate_composition_exit.sh --self-test
 bash scripts/gate_decision_exit.sh --self-test
 python3 scripts/check_limits_agreement.py --self-test
-python3 scripts/check_limits_agreement.py --release 2.3 --self-test
 python3 scripts/check_release_claims.py --self-test
 bash scripts/gate_graphless_support.sh --self-test
 bash scripts/gate_named_tests.sh --self-test

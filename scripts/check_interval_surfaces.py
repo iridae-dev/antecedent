@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""2.2 A exit gate, interval-coordinate check: zero newly introduced unmeasured intervals.
+"""Composition exit, interval-coordinate check: zero unmeasured interval coordinates.
 
-For every 2.2A record of parity/promotion_2_2.toml this proves that no licensed route, row or
-artifact ships an interval without a matching coverage record:
+For every transport and identification record listed in `INTERVAL_SURFACES` (parity/promotion.toml)
+this proves that no licensed route, row or artifact ships an interval without a matching coverage
+record:
 
-  (a) no licensed route of a 2.2A record has an owning-registry row (parity/transport_stages.toml
+  (a) no licensed route of such a record has an owning-registry row (parity/transport_stages.toml
       [[routes]], parity/support_licensed.toml cells) that carries `estimator_grid_not_measured`
       (as `calibration_reason` or anywhere in its text);
   (b) every route whose stage is `uncertainty` is `closed` (and cites an executed refusal test) or
       is licensed with EVERY coverage record its record allocates present in
       parity/coverage_records.toml;
-  (c) every public interval-bearing output of a 2.2A surface (Rust result types, wire structs and
-      Python result types found by grep) belongs to a workstream whose interval route is closed
+  (c) every public interval-bearing output of such a surface (Rust result types, wire structs and
+      Python result types found by grep) belongs to a record whose interval route is closed
       or covered, and the closed-route refusal tests that show the runtime status is withheld
       (`cell_not_licensed` and the other closed reasons) exist, name their reason, and, with
       `--run-refusals`, are executed here.
 
-It also reports, per calibrated 2.2A workstream (X1, X4), whether its allocated coverage records
+It also reports, per calibrated record, whether its allocated coverage records
 exist and are attested:
 
   PENDING_CALIBRATION   at least one allocated record is absent from coverage_records.toml
@@ -30,7 +31,7 @@ exist and are attested:
     python3 scripts/check_interval_surfaces.py --self-test     # synthetic violations must fail
 
 Exit status 1 on any FAIL. PENDING_CALIBRATION is not a failure here; the gate decides.
-Environment: A_INTERVALS_ROOT (tree to read, default the repo), A_INTERVALS_SKIP_ATTEST=1
+Environment: INTERVAL_SURFACES_ROOT (tree to read, default the repo), INTERVAL_SURFACES_SKIP_ATTEST=1
 (self-test only: treat present records as attested).
 """
 
@@ -47,7 +48,7 @@ import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-ROOT = Path(os.environ.get("A_INTERVALS_ROOT", REPO))
+ROOT = Path(os.environ.get("INTERVAL_SURFACES_ROOT", REPO))
 sys.path.insert(0, str(REPO / "scripts"))
 from promotion_source import closure_code  # noqa: E402  (the one reader of test bodies for the gates)
 
@@ -60,39 +61,39 @@ WITHHOLD_REASONS = {
     "scenario_aggregate_not_licensed",
 }
 
-# Public surfaces where an interval-bearing output could live, per workstream: the Rust result
-# and wire types and the Python result types of each 2.2A cell.
+# Public surfaces where an interval-bearing output could live, per record: the Rust result
+# and wire types and the Python result types of each cell.
 INTERVAL_SURFACES = {
-    "X1": [
+    "transport.multi_source_limited_experiment": [
         "crates/antecedent-io/src/mz_transport_artifact.rs",
         "crates/antecedent-estimate/src/statistical_transport.rs",
         "crates/antecedent/src/analysis/mz_transport.rs",
         "python/antecedent/transport/_multi_source.py",
     ],
-    "X2": [
+    "transport.finite_scenario_envelope": [
         "crates/antecedent-estimate/src/transport_scenarios.rs",
         "crates/antecedent-io/src/transport_scenario_artifact.rs",
         "crates/antecedent/src/analysis/transport_scenarios.rs",
         "python/antecedent/transport/_scenarios.py",
     ],
-    "X4": [
+    "transport.learned_continuous_trial": [
         "crates/antecedent-estimate/src/learned_continuous.rs",
         "crates/antecedent-io/src/learned_continuous_artifact.rs",
         "crates/antecedent/src/analysis/learned_continuous.rs",
         "python/antecedent/transport/_learned_continuous.py",
     ],
-    "X5": [
+    "transport.two_step_temporal": [
         "crates/antecedent-estimate/src/temporal_transport.rs",
         "crates/antecedent-io/src/temporal_transport_artifact.rs",
         "crates/antecedent/src/analysis/temporal_transport.rs",
         "python/antecedent/transport/_temporal.py",
     ],
-    "X8": [
+    "counterfactual.path_specific_edge": [
         "crates/antecedent/src/cross_world.rs",
         "crates/antecedent-io/src/cross_world_artifact.rs",
         "python/antecedent/cross_world.py",
     ],
-    "X9": [
+    "identify.mixed_source_proof_search": [
         "crates/antecedent-estimate/src/mixed_source.rs",
         "crates/antecedent-io/src/mixed_source_artifact.rs",
         "crates/antecedent/src/analysis/mixed_source.rs",
@@ -117,27 +118,6 @@ def load(rel: str) -> dict:
     return tomllib.loads(path.read_text()) if path.is_file() else {}
 
 
-# Scientific ids of the former milestone-A transport and identification cells.
-LEGACY_WORKSTREAM = {
-    "transport.multi_source_limited_experiment": "X1",
-    "transport.finite_scenario_envelope": "X2",
-    "transport.learned_continuous_trial": "X4",
-    "transport.two_step_temporal": "X5",
-    "counterfactual.path_specific_edge": "X8",
-    "identify.mixed_source_proof_search": "X9",
-}
-
-
-def workstream(record: dict) -> str:
-    if record.get("id") in LEGACY_WORKSTREAM:
-        return LEGACY_WORKSTREAM[record["id"]]
-    return str(record.get("workstream") or record["id"].split(".")[1])
-
-
-def is_expansion_a(record: dict) -> bool:
-    return record.get("milestone") == "A" or record.get("id") in LEGACY_WORKSTREAM
-
-
 def coverage_ids() -> set[str]:
     return {r.get("id") for r in load("parity/coverage_records.toml").get("record", [])}
 
@@ -160,7 +140,7 @@ def names_reason(body: str, reason: str) -> bool:
 
 def attested() -> tuple[bool, str]:
     """Every coverage record in this tree matches the code it was measured at."""
-    if os.environ.get("A_INTERVALS_SKIP_ATTEST") == "1":
+    if os.environ.get("INTERVAL_SURFACES_SKIP_ATTEST") == "1":
         return True, "attestation skipped (self-test)"
     proc = subprocess.run(
         [sys.executable, "scripts/calibration_facets.py", "status", "--require"],
@@ -194,14 +174,14 @@ def check() -> dict:
     stages = load("parity/transport_stages.toml")
     support = load("parity/support_licensed.toml")
     present = coverage_ids()
-    records = [r for r in promotion.get("record", []) if is_expansion_a(r)]
+    records = [r for r in promotion.get("record", []) if r.get("id") in INTERVAL_SURFACES]
     if not records:
         errors.append("no transport or identification record found in parity/promotion.toml")
 
     stage_rows = {row.get("route"): row for row in stages.get("routes", [])}
     scoped_routes: set[str] = set()
     for record in records:
-        rid, ws = record["id"], workstream(record)
+        rid = record["id"]
         allocated = list(record.get("coverage_records") or [])
         missing = [c for c in allocated if c not in present]
         claim = record.get("inference_claim")
@@ -262,10 +242,7 @@ def check() -> dict:
                     )
                 refusals.append({"record": rid, "route": name, "test": test, "assertion": assertion})
         # (c) public interval-bearing outputs must sit behind a closed or covered route.
-        surfaces = INTERVAL_SURFACES.get(ws)
-        if surfaces is None:
-            errors.append(f"{rid}: workstream {ws} has no interval-surface entry in check_interval_surfaces.py")
-            surfaces = []
+        surfaces = INTERVAL_SURFACES[rid]
         findings = []
         for rel in surfaces:
             if not (ROOT / rel).is_file():
@@ -281,10 +258,10 @@ def check() -> dict:
         if findings:
             notes.append(f"{rid}: {len(findings)} interval-bearing public names, all behind "
                          f"{'a closed route' if closed_uncertainty else 'covered routes'}")
-        # Calibration state of a calibrated workstream.
+        # Calibration state of a calibrated record.
         if claim == "calibrated":
             if missing:
-                calibration[ws] = {
+                calibration[rid] = {
                     "status": "PENDING_CALIBRATION",
                     "detail": f"{len(missing)} of {len(allocated)} coverage records absent",
                     "missing": missing,
@@ -292,18 +269,18 @@ def check() -> dict:
             else:
                 ok, message = attested()
                 if ok:
-                    calibration[ws] = {"status": "PASS", "detail": "records present and attested"}
+                    calibration[rid] = {"status": "PASS", "detail": "records present and attested"}
                 else:
-                    calibration[ws] = {"status": "FAIL", "detail": f"records present, not attested: {message}"}
+                    calibration[rid] = {"status": "FAIL", "detail": f"records present, not attested: {message}"}
                     errors.append(f"{rid}: coverage records present but not attested: {message}")
-    # Legacy rows are reported, not judged: they predate 2.2A.
+    # Rows outside these records are reported, not judged.
     legacy = [
         name
         for name, row in stage_rows.items()
         if name not in scoped_routes and NOMINAL in json.dumps(row) and row.get("status") == "licensed"
     ]
     if legacy:
-        notes.append(f"{len(legacy)} pre-2.2A licensed rows keep {NOMINAL} (not 2.2A routes)")
+        notes.append(f"{len(legacy)} licensed rows outside these records keep {NOMINAL}")
     return {
         "intervals": "FAIL" if errors else "PASS",
         "calibration": calibration,
@@ -354,11 +331,11 @@ def report(result: dict, *, as_json: bool) -> None:
     if as_json:
         print(json.dumps(result))
         return
-    print(f"2.2A records checked: {len(result['records'])}")
+    print(f"records checked: {len(result['records'])}")
     for note in result["notes"]:
         print(f"  note: {note}")
-    for ws, state in sorted(result["calibration"].items()):
-        print(f"  calibration {ws}: {state['status']} ({state['detail']})")
+    for rid, state in sorted(result["calibration"].items()):
+        print(f"  calibration {rid}: {state['status']} ({state['detail']})")
     for error in result["errors"]:
         print(f"  FAIL: {error}")
     print(f"interval coordinates: {result['intervals']}")
@@ -377,10 +354,8 @@ def self_test() -> int:
     try:
         needed = set(REGISTRY_FILES) - {"parity/coverage_records.toml"}
         promotion = tomllib.loads((real_root / "parity/promotion.toml").read_text())
-        for record in (r for r in promotion["record"] if is_expansion_a(r)):
-            if record.get("milestone") != "A":
-                continue
-            needed |= set(INTERVAL_SURFACES.get(workstream(record), []))
+        for record in (r for r in promotion["record"] if r.get("id") in INTERVAL_SURFACES):
+            needed |= set(INTERVAL_SURFACES[record["id"]])
             for route in record.get("routes") or []:
                 if route.get("refusal_test"):
                     needed.add(route["refusal_test"])
@@ -389,12 +364,12 @@ def self_test() -> int:
             if src.is_file():
                 (baseline / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, baseline / rel)
-        # The committed A matrix can contain licensed routes beyond X1. Keep
-        # their coverage present while varying X1's closed route below.
+        # The committed matrix can contain licensed routes beyond the multi-source cell. Keep
+        # their coverage present while varying its closed route below.
         baseline_coverage = {
             coverage_id
             for record in promotion["record"]
-            if record.get("milestone") == "A"
+            if record.get("id") in INTERVAL_SURFACES
             and any(route.get("stage") == "uncertainty" and route.get("status") == "licensed"
                     for route in record.get("routes") or [])
             for coverage_id in record.get("coverage_records") or []
@@ -402,7 +377,7 @@ def self_test() -> int:
         (baseline / "parity/coverage_records.toml").write_text(
             "".join(f'[[record]]\nid = "{coverage_id}"\n' for coverage_id in sorted(baseline_coverage))
         )
-        os.environ["A_INTERVALS_SKIP_ATTEST"] = "1"
+        os.environ["INTERVAL_SURFACES_SKIP_ATTEST"] = "1"
 
         def run(edit=None, coverage: list[str] | None = None) -> dict:
             global ROOT
@@ -443,7 +418,7 @@ def self_test() -> int:
             else:
                 print(f"self-test ok: '{label}' fails")
 
-        x1 = next(r for r in promotion["record"] if workstream(r) == "X1" and is_expansion_a(r))
+        x1 = next(r for r in promotion["record"] if r["id"] == "transport.multi_source_limited_experiment")
         x1_records = list(x1["coverage_records"])
         x1_route = next(r for r in x1["routes"] if r["stage"] == "uncertainty")
         promo = "parity/promotion.toml"
@@ -461,7 +436,7 @@ def self_test() -> int:
 
         expect("baseline copy", run(), fail_with=None)
         result = run()
-        state = result["calibration"].get("X1", {}).get("status")
+        state = result["calibration"].get(x1["id"], {}).get("status")
         if state != "PENDING_CALIBRATION":
             failures.append(f"absent records must be PENDING_CALIBRATION, got {state}")
         else:
@@ -470,14 +445,14 @@ def self_test() -> int:
                fail_with="licensed but coverage records are absent")
         covered = run(open_x1, coverage=x1_records)
         expect("uncertainty route licensed with every coverage record present", covered, fail_with=None)
-        if covered["calibration"].get("X1", {}).get("status") != "PASS":
+        if covered["calibration"].get(x1["id"], {}).get("status") != "PASS":
             failures.append(f"present records must report PASS: {covered['calibration']}")
         else:
             print("self-test ok: present and attested coverage records report PASS")
         half = run(open_x1, coverage=x1_records[:1])
         expect("only one of two coverage records present", half, fail_with="licensed but coverage records are absent")
         stale = run(coverage=x1_records[:1])
-        if stale["calibration"]["X1"]["status"] != "PENDING_CALIBRATION":
+        if stale["calibration"][x1["id"]]["status"] != "PENDING_CALIBRATION":
             failures.append("one of two records present must stay PENDING_CALIBRATION")
         else:
             print("self-test ok: one of two records stays PENDING_CALIBRATION")
@@ -505,7 +480,7 @@ def self_test() -> int:
             run(edit_file(promo, f'refusal_assertion = "{x1_route["refusal_assertion"]}"', 'refusal_assertion = "no_such_test"')),
             fail_with="does not exist",
         )
-        x5 = next(r for r in promotion["record"] if workstream(r) == "X5" and r.get("milestone") == "A")
+        x5 = next(r for r in promotion["record"] if r["id"] == "transport.two_step_temporal")
         x5_heads = [
             f'{{ name = "{r["name"]}", stage = "uncertainty", status = "closed"'
             for r in x5["routes"]
@@ -513,7 +488,7 @@ def self_test() -> int:
         ]
 
         def drop_x5_interval_route(case: Path) -> None:
-            # X5 declares one closed uncertainty route per surface (Rust facade, Python stage);
+            # The two-step temporal cell declares one closed uncertainty route per surface (Rust facade, Python stage);
             # the violation is having none, so every one of them goes.
             path = case / promo
             text = path.read_text()
@@ -525,13 +500,13 @@ def self_test() -> int:
 
         expect("interval-bearing surface with no closed route", run(drop_x5_interval_route),
                fail_with="has no closed uncertainty route")
-        fresh_surface = INTERVAL_SURFACES["X8"][0]
+        fresh_surface = INTERVAL_SURFACES["counterfactual.path_specific_edge"][0]
 
         def add_public_interval(case: Path) -> None:
             path = case / fresh_surface
             path.write_text(path.read_text() + "\npub struct SelfTestLeak {\n    pub interval: Option<(f64, f64)>,\n}\n")
 
-        def drop_x8_route(case: Path) -> None:
+        def drop_cross_world_route(case: Path) -> None:
             path = case / promo
             text = path.read_text()
             head = '{ name = "antecedent.cross_world.uncertainty"'
@@ -541,7 +516,7 @@ def self_test() -> int:
 
         def leak_without_route(case: Path) -> None:
             add_public_interval(case)
-            drop_x8_route(case)
+            drop_cross_world_route(case)
 
         expect("new public interval field without a closed route", run(leak_without_route),
                fail_with="public interval-bearing output")

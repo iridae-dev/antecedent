@@ -51,7 +51,7 @@ Optional record fields (in addition to the frozen ones):
                     appears in no cited evidence closure nor the route's entry-point
                     file). Route names stay meaningful identifiers.
   surface_exports   python files whose `__all__` names listed in owned_exports are
-                    covered likewise; owned_exports = names this workstream owns
+                    covered likewise; owned_exports = names this record owns
   surface_internal  [{ name = "...", why = "..." }]: exempt Rust/pyo3 items that
                     must be #[doc(hidden)] (or an underscore pyo3 name)
   shared_evidence   true on a fixture: it may share its test with another role
@@ -117,7 +117,7 @@ RULES = {
     "frozen_field": "every frozen field is present and non-empty",
     "duplicate_record": "record ids are unique",
     "unknown_status": "status is frozen, in_progress, promoted or carried_forward",
-    "claim_invalid": "inference_claim is a 2.2 claim (never nominal)",
+    "claim_invalid": "inference_claim is an allowed inference claim (never nominal)",
     "coverage_required": "a calibrated claim allocates coverage record ids",
     "coverage_unexpected": "coverage ids are allocated only for a calibrated claim",
     "coverage_unknown": "a promoted record's coverage ids exist in the coverage registry",
@@ -160,7 +160,7 @@ RULES = {
     "route_name": "route names are present and unique",
     "route_stage": "route stage is valid",
     "route_registry": "owning registry is known",
-    "route_claim": "a route claim is a 2.2 claim",
+    "route_claim": "a route claim is an allowed inference claim",
     "route_status": "route status is closed or licensed",
     "closed_reason": "a closed route has a registered runtime reason_code",
     "closed_refusal_pair": "refusal_test and refusal_assertion come together",
@@ -236,7 +236,7 @@ STATUSES = {"frozen", "in_progress", "promoted", "carried_forward"}
 # Statuses at which implementation exists, so refusals, details, surface and
 # search metering are checked against code.
 IMPLEMENTED = {"in_progress", "promoted"}
-# "nominal" is deliberately absent: no 2.2 interval ships unmeasured.
+# "nominal" is deliberately absent: no interval ships unmeasured.
 CLAIMS = {"point_only", "calibrated", "structural_envelope", "assumption_range", "none"}
 # The only route claims an in_progress record may license ahead of promotion.
 EARLY_CLAIMS = {"point_only", "none"}
@@ -276,7 +276,7 @@ stage_routes = {
 }
 support_cells = tomllib.loads(support_path.read_text()).get("cell", [])
 # The support axes cannot name a contrast, so a closed sub-cell contrast owned by
-# a 2.2 record is a [[closed_contrast]] row (the support-matrix gates read only
+# a record is a [[closed_contrast]] row (the support-matrix gates read only
 # [[closed]]).
 support_closed_contrasts = tomllib.loads(support_closed_path.read_text()).get("closed_contrast", [])
 coverage_ids = {
@@ -550,7 +550,7 @@ for rec in records:
     implemented = status in IMPLEMENTED
     claim = rec.get("inference_claim")
     if claim not in CLAIMS:
-        fail("claim_invalid", f"{rid}: inference_claim {claim!r} is not a 2.2 claim ({', '.join(sorted(CLAIMS))})")
+        fail("claim_invalid", f"{rid}: inference_claim {claim!r} is not an allowed inference claim ({', '.join(sorted(CLAIMS))})")
     cov = rec.get("coverage_records") or []
     if claim == "calibrated" and not cov:
         fail("coverage_required", f"{rid}: a calibrated interval must allocate its coverage record ids")
@@ -844,7 +844,7 @@ for rec in records:
         permanent = route.get("permanent_in_release") is True
         route_claim = route.get("claim")
         if route_claim is not None and route_claim not in CLAIMS:
-            fail("route_claim", f"{rid}: {name}: claim {route_claim!r} is not a 2.2 claim")
+            fail("route_claim", f"{rid}: {name}: claim {route_claim!r} is not an allowed inference claim")
         route_status = route.get("status")
         licensed = route_status == "licensed"
         if route_status == "closed":
@@ -963,7 +963,7 @@ for rec in records:
             if promoted and not permanent and not licensed:
                 fail("promoted_closed_route", f"{rid}: promoted record leaves non-permanent route {name} closed")
 
-        # No nominal-only interval ships from implemented 2.2 work, anywhere.
+        # No nominal-only interval ships from implemented work, anywhere.
         if implemented:
             if licensed and carries(route, NOMINAL):
                 fail("nominal_route", f"{rid}: licensed route {name} carries {NOMINAL}")

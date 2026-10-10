@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inventory inherited calibration debt and the current 2.3 inference contracts.
+"""Inventory inherited calibration debt and the current inference contracts.
 
 This renders declarations, not measurement or a license. Per-output calibration
 designs must still cover diagnostics inside point-only records.
@@ -37,10 +37,10 @@ def registered_inference() -> list[str]:
     }
     if expected != set(by_route) or len(by_route) != len(cells):
         raise ValueError(
-            "2.3 inference inventory requires an exact route-to-evidence ledger"
+            "inference inventory requires an exact route-to-evidence ledger"
         )
     lines = [
-        "## Current 2.3 registered inference contracts",
+        "## Current registered inference contracts",
         "",
         (
             f"The following inventory covers all {len(records)} promotion records and "
@@ -91,7 +91,7 @@ def registered_inference() -> list[str]:
     lines += [
         "",
         (
-            "Source: `promotion_2_3.toml` and `2_3_evidence_ledger.toml`. "
+            "Source: `promotion.toml` and `evidence_ledger.toml`. "
             "Regenerate after changing a public route, uncertainty method or consumer."
         ),
         "",
@@ -347,7 +347,7 @@ def render() -> str:
         )
     )
     lines = [
-        "# 2.3 X11 calibration backlog plan",
+        "# Calibration backlog plan",
         "",
         "Generated from `support_licensed.toml` without changing its `estimator_grid_not_measured` markers. These are 40 cells across 18 distinct coordinates. The fixed-DAG point route is reviewed first; graph-posterior rows remain pending. A typed reason below explains why the missing calibration does not license an inferential claim. It is not a waiver or a coverage record.",
         "",
@@ -420,7 +420,7 @@ def self_test() -> None:
                 raise AssertionError(f"{label}: wrong refusal {error}") from error
         else:
             raise AssertionError(f"{label}: invalid allocation accepted")
-    print("2.3 calibration plan historical allocation self-test: ok")
+    print("calibration plan historical allocation self-test: ok")
 
 
 def main() -> None:
@@ -434,11 +434,11 @@ def main() -> None:
     content = render()
     if args.check:
         if not OUTPUT.exists() or OUTPUT.read_text() != content:
-            parser.error("2_3_calibration_plan.md is stale")
+            parser.error("parity/calibration_plan.md is stale")
     else:
         OUTPUT.write_text(content)
     print(
-        "2.3 calibration plan: inherited 40 cells / 18 coordinates retained; "
+        "calibration plan: inherited 40 cells / 18 coordinates retained; "
         "current promotion routes and inference boundaries inventoried"
     )
 

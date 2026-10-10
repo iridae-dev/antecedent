@@ -207,7 +207,7 @@ def docs_cases() -> list[bool]:
             "walkthrough_deferral",
             {
                 "docs/python-workflow.md": append(
-                    "Panel promotions stay a separately gated workstream."
+                    "Panel promotions stay a separately gated line of work."
                 )
             },
             ["forbidden deferral_prose 'separately gated'"],
