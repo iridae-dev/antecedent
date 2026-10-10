@@ -12,7 +12,7 @@ table, and two interval constructions whose assumptions are stated below: the cr
 influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a refit bootstrap
 that repeats penalty selection and every nuisance fit on each resample. A declared
 GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. The
-record is `2.2E.E2.penalized_propensity_aipw` in `parity/promotion_2_2.toml`; its claim is
+record is `estimate.penalized_propensity_aipw` in `parity/promotion_2_2.toml`; its claim is
 `calibrated` at the four measured ridge/lasso 95% analytic and refit-bootstrap coordinates (see "Calibration").
 
 ```python

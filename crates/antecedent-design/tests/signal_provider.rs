@@ -121,7 +121,7 @@ fn posterior_of_one(signal: &dyn DecisionSignal<f64>, y: f64, n: u64) -> f64 {
 }
 
 #[test]
-fn f11_known_truth_external_posterior_reproduces_the_frozen_update() {
+fn known_truth_external_posterior_reproduces_the_frozen_update() {
     let req = request("study-a", 1);
     let prepared = external_posterior(&req).prepare(&req).unwrap();
     assert_eq!(prepared.receipt.update_mode, SignalUpdateMode::ExternalPosterior);
@@ -138,7 +138,7 @@ fn f11_known_truth_external_posterior_reproduces_the_frozen_update() {
 }
 
 #[test]
-fn f11_native_update_from_a_supplied_likelihood_reproduces_the_frozen_update() {
+fn native_update_from_a_supplied_likelihood_reproduces_the_frozen_update() {
     let req = request("study-a", 1);
     let law = ExternalLaw::Likelihood {
         states: vec![0.0, 1.0],
@@ -160,7 +160,7 @@ fn f11_native_update_from_a_supplied_likelihood_reproduces_the_frozen_update() {
 }
 
 #[test]
-fn f11_externally_computed_decision_values_are_tagged_and_not_native() {
+fn externally_computed_decision_values_are_tagged_and_not_native() {
     let req = request("study-a", 1);
     let values = ExternalDecisionValues {
         branch_probabilities: vec![0.5, 0.5],
@@ -183,7 +183,7 @@ fn f11_externally_computed_decision_values_are_tagged_and_not_native() {
 }
 
 #[test]
-fn f11_native_binomial_and_equivalent_external_law_agree_pointwise() {
+fn native_binomial_and_equivalent_external_law_agree_pointwise() {
     // One Bernoulli trial: P(y = 1 | theta) = theta, so at theta in {1/4, 3/4}:
     // y = 0 -> [3/4, 1/4], y = 1 -> [1/4, 3/4].
     let req = request("study-a", 1);
@@ -207,7 +207,7 @@ fn f11_native_binomial_and_equivalent_external_law_agree_pointwise() {
 }
 
 #[test]
-fn f11_native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
+fn native_receipts_are_native_and_differ_from_an_equivalent_external_receipt() {
     let req = request("study-a", 1);
     let native = NativeBinomialSignal.prepare(&req).unwrap();
     assert_eq!(native.receipt.trust, SignalTrustLabel::NativeLicensed);
@@ -229,7 +229,7 @@ fn f11_native_receipts_are_native_and_differ_from_an_equivalent_external_receipt
 }
 
 #[test]
-fn f11_predictive_law_without_coherent_posterior_update_refuses() {
+fn predictive_law_without_coherent_posterior_update_refuses() {
     let req = request("study-a", 1);
     // Rows sum to one, but averaging over P(y) gives P(theta = 0) = 0.575, not the prior 1/2.
     let law = ExternalLaw::Posterior {
@@ -256,7 +256,7 @@ fn f11_predictive_law_without_coherent_posterior_update_refuses() {
 }
 
 #[test]
-fn f11_repeated_state_draws_require_one_conditional_law() {
+fn repeated_state_draws_require_one_conditional_law() {
     let req = request("study-a", 1);
     let states = vec![0.0, 0.0, 1.0];
     let law = ExternalLaw::Likelihood {
@@ -295,7 +295,7 @@ fn f11_repeated_state_draws_require_one_conditional_law() {
 }
 
 #[test]
-fn f11_wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
+fn wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
     let req = request("study-a", 1);
     let provider = external_posterior(&req);
     let mut other = request("study-b", 1);
@@ -336,7 +336,7 @@ fn f11_wrong_candidate_prior_sample_size_or_fingerprint_refuses() {
 }
 
 #[test]
-fn f11_returned_posterior_quantity_must_align_with_the_request() {
+fn returned_posterior_quantity_must_align_with_the_request() {
     let req = request("study-a", 1);
     let obj = object(&req, UPDATE_CAPS.to_vec());
     let trust = attested(&obj);
@@ -356,7 +356,7 @@ fn f11_returned_posterior_quantity_must_align_with_the_request() {
 }
 
 #[test]
-fn f11_native_trust_capability_and_object_claims_refuse() {
+fn native_trust_capability_and_object_claims_refuse() {
     let req = request("study-a", 1);
     let obj = object(&req, UPDATE_CAPS.to_vec());
     let error = ExternalSignal::new(
@@ -402,7 +402,7 @@ fn f11_native_trust_capability_and_object_claims_refuse() {
 }
 
 #[test]
-fn f11_request_declares_lineage_independence_sample_size_and_limits() {
+fn request_declares_lineage_independence_sample_size_and_limits() {
     let mut req = request("study-a", 1);
     req.evidence_lineage.clear();
     assert_eq!(req.validate(), Err(SignalError::MissingLineage));

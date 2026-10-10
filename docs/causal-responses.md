@@ -360,7 +360,7 @@ Bayesian responses (posterior intervals), static responses, and `cell.aipw`
 refuse a positive `bootstrap=` rather than ignoring it.
 
 Coverage of these bands on linear-Gaussian DGPs with iid and AR(1) residuals
-is measured by `crates/antecedent/tests/v19_temporal_response_calibration.rs`
+is measured by `crates/antecedent/tests/temporal_response_calibration.rs`
 (run via `scripts/gate_calibration.sh`, 400 replicates, `n = 160`). Gated: iid and
 AR(1) `ρ = 0.5` residuals on every Frequentist cell, and both the dose curve
 (0.945–0.948 pointwise, 0.948 simultaneous) and the shift response (0.943
@@ -437,7 +437,7 @@ its covariates. With the additive outcome nuisance this is the per-row
 constant `c_i = mu(a_i, x_i) - ∫ mu(a_i, x) dP_n(x) = h(x_i) - mean h(x)` from
 the row's own cross-fit fold, identical at every grid point. Without it the
 pointwise band under-covered at nominal 0.90 on a confounded linear law
-(`crates/antecedent/tests/v19_static_calibration.rs`; that pre-fix run was not
+(`crates/antecedent/tests/static_calibration.rs`; that pre-fix run was not
 retained). The values
 still condition on the fitted nuisances and bandwidth: second-order nuisance
 error and bandwidth selection are not inside them.
@@ -493,7 +493,7 @@ cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
 separate 1.4 cell, not a derivative license. The definitions below are the
 licensed forms, not a license to run every constructor argument. Repeated-
 sampling coverage of every published derivative interval is gated in
-`crates/antecedent/tests/v19_derivative_calibration.rs`.
+`crates/antecedent/tests/derivative_calibration.rs`.
 
 - `ResponseCurve(treatment, outcome, grid=...)` evaluates
   `a -> E[Y | do(A=a)]` on an explicit, increasing grid.
@@ -559,7 +559,7 @@ sampling coverage of every published derivative interval is gated in
   Its 90% coverage is measured over the gate's three sample-size points as
   `response_jacobian_dag_frequentist_nominal_90_coverage` and
   `directional_derivative_dag_frequentist_nominal_90_coverage` in
-  `v19_derivative_calibration.rs`. The public route remains point-only while
+  `derivative_calibration.rs`. The public route remains point-only while
   those records and the interval route are reviewed for promotion; one
   directional coordinate narrowly missed an exploratory 8,000-repetition
   threshold, although the prescribed gate passed. For an interval today, run the query with Bayesian

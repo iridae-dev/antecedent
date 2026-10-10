@@ -3,7 +3,7 @@
 Every expected value is derived by hand from the declared surfaces; the fixtures mirror
 `crates/antecedent-design/tests/sensitivity_decision.rs`:
 
-* frozen surface (record ``2.3B.F17.sensitivity_decision_composition``): ``gamma`` in
+* frozen surface (record ``decision.sensitivity_composition``): ``gamma`` in
   ``{0, 1, 2}``; action A has utility ``2 - gamma`` (2, 1, 0) and action B has utility 1,
   so A leads at 0, they tie at 1 and B leads at 2;
 * invariant surface: A is ``5 - gamma`` (5, 4, 3) against B = 1, so A leads everywhere;

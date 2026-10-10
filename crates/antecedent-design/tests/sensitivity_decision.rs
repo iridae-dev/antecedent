@@ -2,7 +2,7 @@
 //!
 //! Every expected value is derived by hand from the declared surfaces:
 //!
-//! * frozen surface (record `2.3B.F17.sensitivity_decision_composition`): `gamma` in
+//! * frozen surface (record `decision.sensitivity_composition`): `gamma` in
 //!   `{0, 1, 2}`, action A has utility `2 - gamma` (2, 1, 0) and action B has utility 1,
 //!   so A leads at 0, they tie at 1 and B leads at 2;
 //! * invariant surface: A is `5 - gamma` (5, 4, 3) against B = 1, so A leads everywhere;
@@ -140,7 +140,7 @@ fn refusal(error: &IoError) -> (&'static str, &str) {
 }
 
 #[test]
-fn f17_invariant_action_across_the_whole_assumption_range() {
+fn invariant_action_across_the_whole_assumption_range() {
     // A = 5 - gamma = (5, 4, 3) beats B = 1 at every gamma.
     let artifact = SensitivityArtifact::new(parts(
         &[0.0, 1.0, 2.0],
@@ -160,7 +160,7 @@ fn f17_invariant_action_across_the_whole_assumption_range() {
 }
 
 #[test]
-fn f17_frozen_surface_switches_with_an_exact_tie_at_gamma_one() {
+fn frozen_surface_switches_with_an_exact_tie_at_gamma_one() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     let result = evaluate(&artifact);
     let expected = DecisionSwitch {
@@ -188,7 +188,7 @@ fn f17_frozen_surface_switches_with_an_exact_tie_at_gamma_one() {
 }
 
 #[test]
-fn f17_tipping_coordinate_is_the_closed_form_crossing() {
+fn tipping_coordinate_is_the_closed_form_crossing() {
     // 1 - gamma changes sign between 0.5 (+0.5) and 1.5 (-0.5); linear, so gamma* = 1.
     let artifact = SensitivityArtifact::new(parts(
         &[0.0, 0.5, 1.5, 2.0],
@@ -208,7 +208,7 @@ fn f17_tipping_coordinate_is_the_closed_form_crossing() {
 }
 
 #[test]
-fn f17_no_robust_action_when_the_range_straddles_at_every_point() {
+fn no_robust_action_when_the_range_straddles_at_every_point() {
     // The effect lies in [-1, 2] at every gamma; the status quo is 0. At each gamma the
     // lower vertex favors B and the upper vertex favors A.
     let artifact = SensitivityArtifact::new(parts(
@@ -236,7 +236,7 @@ fn f17_no_robust_action_when_the_range_straddles_at_every_point() {
 }
 
 #[test]
-fn f17_alternating_leaders_give_no_robust_action() {
+fn alternating_leaders_give_no_robust_action() {
     // A, B and C each lead at exactly one of the three points: two switches.
     let artifact = SensitivityArtifact::new(parts(
         &[0.0, 1.0, 2.0],
@@ -261,7 +261,7 @@ fn f17_alternating_leaders_give_no_robust_action() {
 }
 
 #[test]
-fn f17_assumption_range_is_not_a_sampling_interval() {
+fn assumption_range_is_not_a_sampling_interval() {
     // The effect's assumption range is [0.5, 1.5], [0.4, 1.4], [0.3, 1.3] against a status
     // quo of 0, so A leads everywhere. The sampling interval [-2, 3] is far wider and, if
     // it were merged into the range, would flip the decision; it must not.
@@ -337,7 +337,7 @@ fn f17_assumption_range_is_not_a_sampling_interval() {
 }
 
 #[test]
-fn f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
+fn unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
     let mut p = frozen_parts();
     p.support = vec![PointSupport::Supported, PointSupport::Unsupported, PointSupport::Supported];
     let artifact = SensitivityArtifact::new(p).unwrap();
@@ -365,7 +365,7 @@ fn f17_unsupported_coordinate_refuses_and_a_subrange_avoids_it() {
 }
 
 #[test]
-fn f17_unevaluated_point_leaves_the_decision_unresolved() {
+fn unevaluated_point_leaves_the_decision_unresolved() {
     let mut p = frozen_parts();
     p.support = vec![PointSupport::Supported, PointSupport::Unevaluated, PointSupport::Supported];
     let artifact = SensitivityArtifact::new(p).unwrap();
@@ -376,7 +376,7 @@ fn f17_unevaluated_point_leaves_the_decision_unresolved() {
 }
 
 #[test]
-fn f17_mixed_estimands_and_foreign_inputs_refuse() {
+fn mixed_estimands_and_foreign_inputs_refuse() {
     // A in dollars against B in quality-adjusted years cannot be compared.
     let mut unlike = frozen_parts();
     unlike.quantities = vec![
@@ -426,7 +426,7 @@ fn f17_mixed_estimands_and_foreign_inputs_refuse() {
 }
 
 #[test]
-fn f17_weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() {
+fn weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() {
     let artifact = SensitivityArtifact::new(frozen_parts()).unwrap();
     let bayes = contract_from_artifact(&artifact, StructuralPolicy::BayesOverStructures).unwrap();
 
@@ -470,7 +470,7 @@ fn f17_weights_are_declared_for_point_surfaces_and_never_inferred_from_ranges() 
 }
 
 #[test]
-fn f17_declaration_order_does_not_change_identity_or_decision() {
+fn declaration_order_does_not_change_identity_or_decision() {
     let base = SensitivityArtifact::new(frozen_parts()).unwrap();
     let mut shuffled = frozen_parts();
     shuffled.grid.reverse();
@@ -544,7 +544,7 @@ fn adopt_against(status_quo: f64) -> Vec<ActionUtility> {
 }
 
 #[test]
-fn f17_a_2_2_joint_sensitivity_result_feeds_a_decision_contract() {
+fn a_2_2_joint_sensitivity_result_feeds_a_decision_contract() {
     // One factor, contamination fraction up to 0.4; baseline 0.5; extrema -0.1 and 1.1.
     // The range is linear in the fraction: lower = 0.5 - 0.6 t, upper = 0.5 + 0.6 t with
     // t = fraction / 0.4, so at 0, 0.1, 0.2, 0.3, 0.4 it is 0.5, 0.35, 0.2, 0.05, -0.1 below

@@ -235,7 +235,7 @@ fn reseal(bytes: &[u8], kind: &str, edit: impl FnOnce(&mut serde_json::Value)) -
 // ---------------------------------------------------------------------------
 
 #[test]
-fn f4_admissible_contract_round_trips_with_canonical_identity() {
+fn admissible_contract_round_trips_with_canonical_identity() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let artifact = AdmissibleContractArtifact::new(c.clone()).unwrap();
     assert_eq!(artifact.identity(), c.identity().unwrap());
@@ -255,7 +255,7 @@ fn f4_admissible_contract_round_trips_with_canonical_identity() {
 }
 
 #[test]
-fn f4_admissible_identity_ignores_declaration_order_but_not_semantics() {
+fn admissible_identity_ignores_declaration_order_but_not_semantics() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let id = c.identity().unwrap();
 
@@ -286,7 +286,7 @@ fn f4_admissible_identity_ignores_declaration_order_but_not_semantics() {
 }
 
 #[test]
-fn f4_resealed_rule_edit_is_refused_under_the_retained_identity() {
+fn resealed_rule_edit_is_refused_under_the_retained_identity() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let original = AdmissibleContractArtifact::new(c.clone()).unwrap();
     let retained = original.identity().to_owned();
@@ -316,7 +316,7 @@ fn f4_resealed_rule_edit_is_refused_under_the_retained_identity() {
 }
 
 #[test]
-fn f4_contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
+fn contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
     let plain = base(StructuralPolicy::ReportOnly);
     let a0 = DecisionContractArtifact::new(plain.clone()).unwrap();
     let a0_bytes = a0.to_bytes("contract").unwrap();
@@ -345,7 +345,7 @@ fn f4_contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
 }
 
 #[test]
-fn f4_invalid_rules_refuse_with_structured_detail() {
+fn invalid_rules_refuse_with_structured_detail() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rich_rules());
     let json = admissible_contract_to_json(&c).unwrap();
     let ghost = "\"action_id\":\"A\",\"input\":0";
@@ -382,7 +382,7 @@ fn f4_invalid_rules_refuse_with_structured_detail() {
 }
 
 #[test]
-fn f4_decode_is_bounded_before_any_allocation() {
+fn decode_is_bounded_before_any_allocation() {
     let huge = vec![0_u8; MAX_DECISION_ARTIFACT_BYTES + 1];
     assert!(matches!(
         AdmissibleContractArtifact::from_bytes(&huge, "x").unwrap_err(),
@@ -405,7 +405,7 @@ fn f4_decode_is_bounded_before_any_allocation() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn f6_robust_result_round_trips_and_replays_by_recomputation() {
+fn robust_result_round_trips_and_replays_by_recomputation() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -451,7 +451,7 @@ fn f6_robust_result_round_trips_and_replays_by_recomputation() {
 }
 
 #[test]
-fn f6_every_robust_verdict_state_round_trips() {
+fn every_robust_verdict_state_round_trips() {
     type Case = (StructuralPolicy, AdmissibilityRules, Vec<StructuralAtom>, ClaimProfile);
     let invariant = StructuralPolicy::RequireInvariantBestAction;
     let supported_both = supported_profile();
@@ -544,7 +544,7 @@ fn f6_every_robust_verdict_state_round_trips() {
 }
 
 #[test]
-fn f6_robust_bytes_are_invariant_to_action_order() {
+fn robust_bytes_are_invariant_to_action_order() {
     let rules = require_supported();
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, rules);
     let mut reordered = c.clone();
@@ -571,7 +571,7 @@ fn f6_robust_bytes_are_invariant_to_action_order() {
 }
 
 #[test]
-fn f6_resealed_robust_mutations_are_refused() {
+fn resealed_robust_mutations_are_refused() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -640,7 +640,7 @@ fn f6_resealed_robust_mutations_are_refused() {
 }
 
 #[test]
-fn f6_load_and_replay_refuse_other_contracts_structures_and_profiles() {
+fn load_and_replay_refuse_other_contracts_structures_and_profiles() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -684,7 +684,7 @@ fn f6_load_and_replay_refuse_other_contracts_structures_and_profiles() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn f6_external_callback_receipt_is_retained_and_never_native() {
+fn external_callback_receipt_is_retained_and_never_native() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let atoms = two_atoms();
     let claims = supported_profile();
@@ -736,7 +736,7 @@ fn f6_external_callback_receipt_is_retained_and_never_native() {
 }
 
 #[test]
-fn f6_changing_any_receipt_field_changes_the_derivation() {
+fn changing_any_receipt_field_changes_the_derivation() {
     let digest = |receipt: ExternalCallbackReceipt| {
         sealed(vec![receipt])
             .provenance_chain()
@@ -773,7 +773,7 @@ fn f6_changing_any_receipt_field_changes_the_derivation() {
 }
 
 #[test]
-fn f6_invalid_external_receipts_refuse() {
+fn invalid_external_receipts_refuse() {
     let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
     let claims = supported_profile();
     let atoms = [

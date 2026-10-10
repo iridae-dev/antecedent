@@ -21,7 +21,7 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-estimate/src/cell_aipw.rs",
- "crates/antecedent/tests/v15_numeric_pins.rs (additive interaction recovery, k=3 refuse, cheap/full contrast routing)",
- "conformance/estimate/v15_cell_aipw_interaction",
- "crates/antecedent/tests/v19_static_calibration.rs::intervention_response_cell_aipw_nominal_95_coverage",
+ "crates/antecedent/tests/numeric_pins.rs (additive interaction recovery, k=3 refuse, cheap/full contrast routing)",
+ "conformance/estimate/cell_aipw_interaction",
+ "crates/antecedent/tests/static_calibration.rs::intervention_response_cell_aipw_nominal_95_coverage",
 ]

@@ -2,7 +2,7 @@
 
 One cell: a randomized continuous dose from a trial, transported to a covariate-shifted
 target population, reported on a grid of at most 16 doses at one declared bandwidth.
-Record `2.2B.X4.smoothed_dose_response_transport` in `parity/promotion_2_2.toml`;
+Record `transport.smoothed_dose_response` in `parity/promotion_2_2.toml`;
 refusal details live in the `dose_response` namespace. The scope summary is in
 [the transport scope guide](../guides/transport-scope.md#smoothed-dose-response-transport-22b-x4).
 

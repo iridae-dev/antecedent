@@ -5,7 +5,7 @@
 sets sampled on the outcome: the **conditional odds ratio** of a binary exposure,
 by exact conditional likelihood (conditional logistic regression). It is a new
 design row, not a conversion of the AIPW result, and its claim is `point_only`.
-The record is `2.2E.E7.matched_case_control_odds_ratio` in
+The record is `estimate.matched_case_control_odds_ratio` in
 `parity/promotion_2_2.toml`.
 
 The safeguarded solve takes at most 500 Newton iterations. Artifact replay expands at

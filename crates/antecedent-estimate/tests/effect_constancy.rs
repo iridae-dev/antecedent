@@ -48,7 +48,7 @@ fn run_independent(
 }
 
 #[test]
-fn f18_constancy_oracle_equal_effects_have_zero_statistic() {
+fn constancy_oracle_equal_effects_have_zero_statistic() {
     // Frozen acceptance: effects 1 and 1, variance 1/4 each, zero covariance.
     let result = run_independent(&[part("p1", 1.0, 0.5), part("p2", 1.0, 0.5)]).unwrap();
     assert_eq!(result.null, EFFECT_CONSTANCY_NULL);
@@ -64,7 +64,7 @@ fn f18_constancy_oracle_equal_effects_have_zero_statistic() {
 }
 
 #[test]
-fn f18_constancy_oracle_one_versus_two_has_statistic_two() {
+fn constancy_oracle_one_versus_two_has_statistic_two() {
     // Q = (2 - 1)^2 / (1/4 + 1/4) = 2; df 1: sf = erfc(sqrt(1)) = erfc(1).
     let result = run_independent(&[part("p1", 1.0, 0.5), part("p2", 2.0, 0.5)]).unwrap();
     close(result.test.statistic, 2.0, "Q");
@@ -79,7 +79,7 @@ fn f18_constancy_oracle_one_versus_two_has_statistic_two() {
 }
 
 #[test]
-fn f18_constancy_oracle_three_partitions_df_two_and_holm() {
+fn constancy_oracle_three_partitions_df_two_and_holm() {
     // Effects 0, 1, 2 with unit variance: pooled 1, Q = 1 + 0 + 1 = 2, df 2, p = exp(-1).
     let parts = [part("a", 0.0, 1.0), part("b", 1.0, 1.0), part("c", 2.0, 1.0)];
     let result = run_independent(&parts).unwrap();
@@ -107,7 +107,7 @@ fn f18_constancy_oracle_three_partitions_df_two_and_holm() {
 }
 
 #[test]
-fn f18_constancy_oracle_holm_adjust_by_hand() {
+fn constancy_oracle_holm_adjust_by_hand() {
     // p = (0.01, 0.04, 0.03, 0.5): sorted 0.01, 0.03, 0.04, 0.5 -> 0.04, 0.09, 0.08, 0.5;
     // running max 0.04, 0.09, 0.09, 0.5. Original order: 0.04, 0.09, 0.09, 0.5.
     let adjusted = holm_adjust(&[0.01, 0.04, 0.03, 0.5]);
@@ -119,7 +119,7 @@ fn f18_constancy_oracle_holm_adjust_by_hand() {
 }
 
 #[test]
-fn f18_constancy_oracle_varying_effects_rejected() {
+fn constancy_oracle_varying_effects_rejected() {
     // Q = 25 / (0.25 + 0.25) = 50; sf = erfc(5) ~ 1.5e-12.
     let result = run_independent(&[part("a", 0.0, 0.5), part("b", 5.0, 0.5)]).unwrap();
     close(result.test.statistic, 50.0, "Q");
@@ -129,7 +129,7 @@ fn f18_constancy_oracle_varying_effects_rejected() {
 }
 
 #[test]
-fn f18_constancy_oracle_dependent_covariance_differs_by_analytic_amount() {
+fn constancy_oracle_dependent_covariance_differs_by_analytic_amount() {
     // Estimates 1 and 2, variance 1/4 each, covariance 1/8.
     // Var(e2 - e1) = 1/4 + 1/4 - 2/8 = 1/4, so Wald = 1 / (1/4) = 4 versus Q = 2 under
     // independence; df 1: sf = erfc(sqrt(2)) = 0.04550026389635842.
@@ -149,7 +149,7 @@ fn f18_constancy_oracle_dependent_covariance_differs_by_analytic_amount() {
 }
 
 #[test]
-fn f18_constancy_oracle_diagonal_covariance_equals_cochran_q() {
+fn constancy_oracle_diagonal_covariance_equals_cochran_q() {
     let parts = [part("a", 0.0, 1.0), part("b", 1.0, 1.0), part("c", 2.0, 1.0)];
     let diagonal =
         PartitionDependence::Covariance(vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
@@ -159,7 +159,7 @@ fn f18_constancy_oracle_diagonal_covariance_equals_cochran_q() {
 }
 
 #[test]
-fn f18_constancy_oracle_reference_family_is_reported() {
+fn constancy_oracle_reference_family_is_reported() {
     let parts = [part("a", 0.0, 1.0), part("b", 1.0, 1.0), part("c", 2.0, 1.0)];
     let family = ContrastFamily::AgainstReference("a".into());
     let result =
@@ -174,7 +174,7 @@ fn f18_constancy_oracle_reference_family_is_reported() {
 }
 
 #[test]
-fn f18_incompatible_partition_estimand_units_and_regime_refuse() {
+fn incompatible_partition_estimand_units_and_regime_refuse() {
     for mutate in [
         |e: &mut EffectEstimandIdentity| e.estimand = "risk_ratio".into(),
         |e: &mut EffectEstimandIdentity| e.units = "log_scale".into(),
@@ -191,7 +191,7 @@ fn f18_incompatible_partition_estimand_units_and_regime_refuse() {
 }
 
 #[test]
-fn f18_incompatible_partition_unsupported_coordinate_and_duplicate_label_refuse() {
+fn incompatible_partition_unsupported_coordinate_and_duplicate_label_refuse() {
     let mut unsupported = part("b", 1.0, 0.5);
     unsupported.support = PartitionSupport::Unsupported;
     let (code, message) =
@@ -209,7 +209,7 @@ fn f18_incompatible_partition_unsupported_coordinate_and_duplicate_label_refuse(
 }
 
 #[test]
-fn f18_incompatible_partition_too_few_and_non_finite_refuse() {
+fn incompatible_partition_too_few_and_non_finite_refuse() {
     let (code, message) = refusal(run_independent(&[part("a", 1.0, 0.5)]).unwrap_err());
     assert_eq!(code, "invalid_argument");
     assert!(message.contains("effect_constancy.too_few_partitions"));
@@ -229,7 +229,7 @@ fn f18_incompatible_partition_too_few_and_non_finite_refuse() {
 }
 
 #[test]
-fn f18_incompatible_partition_invalid_covariance_refuses() {
+fn incompatible_partition_invalid_covariance_refuses() {
     let parts = [part("a", 1.0, 0.5), part("b", 2.0, 0.5)];
     let cases: [Vec<f64>; 5] = [
         vec![0.25, 0.0, 0.0],         // wrong size
@@ -261,7 +261,7 @@ fn f18_incompatible_partition_invalid_covariance_refuses() {
 }
 
 #[test]
-fn f18_incompatible_partition_unknown_reference_and_alpha_refuse() {
+fn incompatible_partition_unknown_reference_and_alpha_refuse() {
     let parts = [part("a", 1.0, 0.5), part("b", 2.0, 0.5)];
     let family = ContrastFamily::AgainstReference("zzz".into());
     let error = test_effect_constancy(&parts, &PartitionDependence::Independent, &family, 0.05)
@@ -278,7 +278,7 @@ fn f18_incompatible_partition_unknown_reference_and_alpha_refuse() {
 }
 
 #[test]
-fn f18_partition_permutation_gives_bit_identical_statistic() {
+fn partition_permutation_gives_bit_identical_statistic() {
     let a = part("a", 0.3, 0.4);
     let b = part("b", 1.1, 0.6);
     let c = part("c", -0.2, 0.5);

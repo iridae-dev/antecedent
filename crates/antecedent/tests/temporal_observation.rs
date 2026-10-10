@@ -414,7 +414,7 @@ fn temporal_observation_outer_block_bootstrap_refits_and_returns_pointwise_bands
 /// refit the observation nuisance and every unfolded sequential mechanism on them, and
 /// publish pointwise and simultaneous bands. (The earlier raw-series replicate measured
 /// 31-81% coverage and was withheld; its replacement is calibrated in
-/// `v19_temporal_response_calibration`.)
+/// `temporal_response_calibration`.)
 #[test]
 fn temporal_sequence_observation_outer_block_bootstrap_returns_bands() {
     let pin = fixture();

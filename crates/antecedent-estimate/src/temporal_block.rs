@@ -76,7 +76,7 @@ impl CircularBlockFamily {
     /// Threshold on [`score_effective_rows`] of the family's estimating scores
     /// below which the interval carries a `short_series` warning.
     ///
-    /// Provenance: `crates/antecedent/tests/v19_short_series_measurement.rs`,
+    /// Provenance: `crates/antecedent/tests/short_series_measurement.rs`,
     /// table in `docs/short-series-thresholds.md` (2000 replicates per cell, the
     /// nominal-0.90 interval built from the published SE, AR(1) ρ ∈ {0.5, 0.8, 0.9,
     /// 0.95}, n from 40 to 1600). Each family is measured on a short-memory score and on a persistent one

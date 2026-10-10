@@ -1,0 +1,178 @@
+# Scientific feature packages. Each names one promotion record.
+version = 1
+
+[[feature]]
+id = "distribution.joint_alignment"
+purpose = "typed quantity coordinates"
+depends_on = []
+record = "distribution.joint_alignment"
+record_state = "frozen"
+
+[[feature]]
+id = "distribution.meanings"
+purpose = "distribution meaning and provider requirements"
+depends_on = ["distribution.joint_alignment"]
+record = "distribution.meanings"
+record_state = "frozen"
+
+[[feature]]
+id = "distribution.aligned_joint_draws"
+purpose = "portable aligned joint draws"
+depends_on = ["distribution.joint_alignment", "distribution.meanings"]
+record = "distribution.aligned_joint_draws"
+record_state = "frozen"
+
+[[feature]]
+id = "distribution.mapped_posterior_transfer"
+purpose = "mapped posterior transfer"
+depends_on = ["distribution.aligned_joint_draws", "distribution.joint_alignment"]
+record = "distribution.mapped_posterior_transfer"
+record_state = "frozen"
+
+[[feature]]
+id = "external.scientific_providers"
+purpose = "typed external law and posterior provider contracts"
+depends_on = ["distribution.joint_alignment", "distribution.meanings"]
+record = "external.scientific_providers"
+record_state = "frozen"
+
+[[feature]]
+id = "external.response_binding"
+purpose = "checked external result binding"
+depends_on = ["external.scientific_providers", "distribution.joint_alignment"]
+record = "external.response_binding"
+record_state = "frozen"
+
+[[feature]]
+id = "external.capability_negotiation"
+purpose = "provider capability negotiation"
+depends_on = ["external.scientific_providers", "distribution.meanings"]
+record = "external.capability_negotiation"
+record_state = "frozen"
+
+[[feature]]
+id = "external.object_verification"
+purpose = "object-level exact-request verification"
+depends_on = ["external.scientific_providers", "external.capability_negotiation"]
+record = "external.object_verification"
+record_state = "frozen"
+
+[[feature]]
+id = "external.trust_receipt"
+purpose = "external trust and provenance boundary"
+depends_on = ["external.response_binding", "external.object_verification"]
+record = "external.trust_receipt"
+record_state = "frozen"
+
+[[feature]]
+id = "support.coordinate"
+purpose = "finite coordinate support"
+depends_on = ["distribution.joint_alignment", "distribution.meanings"]
+record = "support.coordinate"
+record_state = "frozen"
+
+[[feature]]
+id = "composition.provenance"
+purpose = "composition provenance chain"
+depends_on = ["support.coordinate", "external.trust_receipt"]
+record = "composition.provenance"
+record_state = "frozen"
+
+[[feature]]
+id = "composition.structured_refusals"
+purpose = "structured cross-stage refusals"
+depends_on = ["composition.provenance"]
+record = "composition.structured_refusals"
+record_state = "frozen"
+
+[[feature]]
+id = "composition.language_parity"
+purpose = "Rust and Python composition parity"
+depends_on = ["distribution.aligned_joint_draws", "external.scientific_providers", "support.coordinate", "composition.structured_refusals"]
+record = "composition.language_parity"
+record_state = "frozen"
+
+[[feature]]
+id = "temporal.effect_constancy"
+purpose = "effect constancy across a declared time partition"
+depends_on = ["distribution.joint_alignment", "distribution.meanings"]
+record = "temporal.effect_constancy"
+record_state = "frozen"
+
+[[feature]]
+id = "decision.contract"
+purpose = "durable decision contracts"
+depends_on = ["distribution.aligned_joint_draws", "distribution.joint_alignment", "distribution.meanings"]
+record = "decision.contract"
+record_state = "frozen"
+
+[[feature]]
+id = "decision.functionals"
+purpose = "typed expectation, probability and quantile functionals"
+depends_on = ["decision.contract", "distribution.meanings"]
+record = "decision.functionals"
+record_state = "frozen"
+
+[[feature]]
+id = "decision.structural_policy"
+purpose = "structural decision policy and robustness"
+depends_on = ["decision.contract", "decision.functionals"]
+record = "decision.structural_policy"
+record_state = "frozen"
+
+[[feature]]
+id = "design.evidence_obligations"
+purpose = "machine-readable evidence obligations"
+depends_on = ["external.response_binding", "composition.provenance"]
+record = "design.evidence_obligations"
+record_state = "frozen"
+
+[[feature]]
+id = "design.study_candidate"
+purpose = "durable study candidate"
+depends_on = ["design.evidence_obligations"]
+record = "design.study_candidate"
+record_state = "frozen"
+
+[[feature]]
+id = "design.identification_repair"
+purpose = "theorem-scoped identification repair facade"
+depends_on = ["design.evidence_obligations", "design.study_candidate"]
+record = "design.identification_repair"
+record_state = "frozen"
+
+[[feature]]
+id = "design.external_signal"
+purpose = "external candidate signal and update"
+depends_on = ["external.scientific_providers", "decision.contract", "external.capability_negotiation"]
+record = "design.external_signal"
+record_state = "frozen"
+
+[[feature]]
+id = "design.evsi"
+purpose = "preposterior EVSI and cost mapping"
+depends_on = ["decision.functionals", "design.external_signal"]
+record = "design.evsi"
+record_state = "frozen"
+
+[[feature]]
+id = "design.ranking_artifact"
+purpose = "portable design ranking artifact"
+depends_on = ["design.evsi", "composition.provenance"]
+record = "design.ranking_artifact"
+record_state = "frozen"
+
+[[feature]]
+id = "decision.sensitivity_composition"
+purpose = "sensitivity result in durable decisions"
+depends_on = ["decision.contract", "decision.structural_policy", "composition.provenance"]
+record = "decision.sensitivity_composition"
+record_state = "frozen"
+
+[[feature]]
+id = "decision.functional_inverse"
+purpose = "generalized finite inverse decision query"
+depends_on = ["decision.contract", "decision.functionals", "decision.structural_policy", "support.coordinate"]
+record = "decision.functional_inverse"
+record_state = "frozen"
+

@@ -53,7 +53,38 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("LIMITS_AGREEMENT_ROOT", REPO))
-RECORDS = "parity/promotion_2_2.toml"
+RECORDS = "parity/promotion.toml"
+# Former milestone/workstream prefixes, kept so one mapping row still covers the
+# record that used to share it. Records outside this set are not 2.2 bounds.
+PREFIX = {
+    "transport.multi_source_limited_experiment": "2.2A.X1",
+    "transport.finite_scenario_envelope": "2.2A.X2",
+    "transport.learned_continuous_trial": "2.2A.X4",
+    "transport.two_step_temporal": "2.2A.X5",
+    "counterfactual.path_specific_edge": "2.2A.X8",
+    "identify.mixed_source_proof_search": "2.2A.X9",
+    "transport.admg_conditional": "2.2B.X2",
+    "design.study_planning": "2.2B.X6",
+    "recovery.binary_observation": "2.2B.X10",
+    "transport.smoothed_dose_response": "2.2B.X4",
+    "sensitivity.joint_mechanism": "2.2B.X3",
+    "sensitivity.joint_uncertainty": "2.2B.X3",
+    "counterfactual.admg_identification": "2.2B.X8",
+    "estimate.matched_case_control_odds_ratio": "2.2E.E7",
+    "estimate.descriptive_comparison": "2.2E.E7",
+    "estimate.tier_diagnostics": "2.2E.E7",
+    "decision.finite_action_inverse": "2.2E.E6",
+    "estimate.penalized_propensity_aipw": "2.2E.E2",
+    "estimate.clustered_dml_aipw": "2.2E.E4",
+    "estimate.factorized_joint_cells": "2.2E.E5",
+    "estimate.batch_retarget_covariance": "2.2E.E3",
+    "estimate.dml_score_covariance": "2.2E.E3",
+    "estimate.preflight_rank_drop": "2.2E.E1",
+}
+
+
+def short_id(record_id: str) -> str:
+    return PREFIX.get(record_id, ".".join(record_id.split(".")[:3]))
 SCOPE = "docs/guides/transport-scope.md"
 
 WORDS = {
@@ -1073,10 +1104,12 @@ def check(
             except re.error as e:
                 errors.append(f"mapping {b.record}.{b.key}: refusal regex invalid: {e}")
     short_ids = set()
+    records = [
+        rec for rec in records
+        if rec["id"] in PREFIX or rec["id"].startswith("2.")
+    ]
     for rec in records:
-        short = ".".join(
-            rec["id"].split(".")[:3]
-        )  # "2.2A.X1": milestone and workstream
+        short = short_id(rec["id"])
         short_ids.add(short)
         bounds = rec.get("bounds", {})
         numeric = {k: v for k, v in bounds.items() if _is_int(v)}
@@ -1151,7 +1184,7 @@ def check(
             if not bad:
                 ok.append(f"{tag}: agrees ({len(places)} place(s))")
     declared = {
-        (".".join(r["id"].split(".")[:3]), k)
+        (short_id(r["id"]), k)
         for r in records
         for k in r.get("bounds", {})
     }
@@ -1177,8 +1210,8 @@ def main(argv: list[str]) -> int:
             print("--release must be 2.2 or 2.3")
             return 1
         if argv[index + 1] == "2.3":
-            from check_limits_2_3 import check as check_2_3
-            from check_limits_2_3 import self_test as self_test_2_3
+            from check_limits import check as check_2_3
+            from check_limits import self_test as self_test_2_3
             if "--self-test" in argv:
                 return self_test_2_3()
             errors, checked = check_2_3(ROOT)

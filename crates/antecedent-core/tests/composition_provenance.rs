@@ -57,7 +57,7 @@ fn declared_from(chain: &ProvenanceChain) -> Vec<Vec<String>> {
 }
 
 #[test]
-fn f24_every_score_traces_contract_snapshot_provider_artifact_transform_and_decision_in_order() {
+fn every_score_traces_contract_snapshot_provider_artifact_transform_and_decision_in_order() {
     let chain = producer();
     let lineage = chain.lineage("claim").unwrap();
     let seen: Vec<(&str, S)> = lineage.iter().map(|l| (l.id.as_str(), l.stage)).collect();
@@ -89,7 +89,7 @@ fn f24_every_score_traces_contract_snapshot_provider_artifact_transform_and_deci
 }
 
 #[test]
-fn f24_missing_or_changed_predecessor_digest_refuses_chain_validation() {
+fn missing_or_changed_predecessor_digest_refuses_chain_validation() {
     // A missing predecessor.
     let mut rows = ROWS;
     rows[2] = ("provider:lab/curve@v1", S::ExternalProvider, &["data:missing"]);
@@ -175,7 +175,7 @@ fn f24_missing_or_changed_predecessor_digest_refuses_chain_validation() {
 }
 
 #[test]
-fn f24_fresh_reader_reconstructs_the_lineage_from_digests_not_labels() {
+fn fresh_reader_reconstructs_the_lineage_from_digests_not_labels() {
     let producer = producer();
     // Retained independently of the artifact bytes.
     let retained_claim = producer.digest_of("claim").unwrap().to_owned();

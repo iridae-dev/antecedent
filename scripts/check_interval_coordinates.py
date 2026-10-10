@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """2.2 closure: zero newly introduced unmeasured interval coordinates, for every 2.2 record.
 
-This is scripts/check_a_intervals.py generalised from the 2.2A records to ALL records of
+This is scripts/check_interval_surfaces.py generalised from the 2.2A records to ALL records of
 parity/promotion_2_2.toml (milestone A and B), importing its helpers read-only. For each record:
 
   (a) no licensed route has an owning-registry row (parity/transport_stages.toml [[routes]],
@@ -24,13 +24,13 @@ parity/promotion_2_2.toml (milestone A and B), importing its helpers read-only. 
       whose test emits a coverage record (its own name is a literal in its body) must be owned by
       some 2.2 record's `coverage_records` (else it is measured at the cut with no owner);
   (c) every public interval-bearing name on the record's surface files (the workstream's table in
-      check_a_intervals.INTERVAL_SURFACES for the 2.2A workstreams, otherwise the record's own
+      check_interval_surfaces.INTERVAL_SURFACES for the 2.2A workstreams, otherwise the record's own
       `surface` and `surface_rust` files minus its `search_impl`) sits behind a closed or covered
       uncertainty route.
 
 Calibration state is reported PER RECORD, for EVERY record that allocates coverage ids (not only
 `calibrated` claims, so a `carried_forward` record's pending measurement stays visible) (2.2B repeats workstream ids of 2.2A, so the workstream
-key of check_a_intervals would collide): PENDING_CALIBRATION while an allocated record is absent,
+key of check_interval_surfaces would collide): PENDING_CALIBRATION while an allocated record is absent,
 PASS once all are present and attested (scripts/calibration_facets.py), FAIL otherwise.
 
     python3 scripts/check_interval_coordinates.py                 # static check
@@ -60,12 +60,12 @@ import tomllib
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("INTERVALS_22_ROOT", REPO))
 RELEASE = "2.2"
-# check_a_intervals reads its tree from this variable at import; keep both on one tree.
+# check_interval_surfaces reads its tree from this variable at import; keep both on one tree.
 os.environ["A_INTERVALS_ROOT"] = str(ROOT)
 if os.environ.get("INTERVALS_22_SKIP_ATTEST") == "1":
     os.environ["A_INTERVALS_SKIP_ATTEST"] = "1"
 sys.path.insert(0, str(REPO / "scripts"))
-import check_a_intervals as cai  # noqa: E402  (read-only reuse)
+import check_interval_surfaces as cai  # noqa: E402  (read-only reuse)
 from promotion_source import (  # noqa: E402
     assertion_texts,
     ignored_test_literals,
@@ -530,7 +530,8 @@ def check() -> dict:
     notes: list[str] = []
     refusals: list[dict] = []
     calibration: dict[str, dict] = {}
-    promotion_path = f"parity/promotion_{RELEASE.replace('.', '_')}.toml"
+    named = f"parity/promotion_{RELEASE.replace('.', '_')}.toml"
+    promotion_path = named if (ROOT / named).is_file() else "parity/promotion.toml"
     promotion = load(promotion_path)
     stages = load("parity/transport_stages.toml")
     support = load("parity/support_licensed.toml")
@@ -888,7 +889,7 @@ def self_test() -> int:
     real = REPO
     base = Path(tempfile.mkdtemp(prefix="intervals22_"))
     try:
-        promotion = tomllib.loads((real / "parity/promotion_2_2.toml").read_text())
+        promotion = tomllib.loads((real / "parity/promotion.toml").read_text())
         needed = set(REGISTRY_FILES) - {"parity/coverage_records.toml"}
         for rec in promotion["record"]:
             needed |= set(surfaces_of(rec))
@@ -932,6 +933,9 @@ routes = [
 ]
 """
         promo = base / "parity/promotion_2_2.toml"
+        promo.parent.mkdir(parents=True, exist_ok=True)
+        if not promo.is_file():
+            shutil.copy2(real / "parity/promotion.toml", promo)
         # Keep the live A records, drop the live B ones: the synthetic B record below stands in for
         # them, so a B package's in-flight edits cannot break this self-test.
         blocks = re.split(r"(?m)^(?=\[\[record\]\])", promo.read_text())

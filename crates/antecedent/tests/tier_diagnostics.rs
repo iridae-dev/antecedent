@@ -1,6 +1,6 @@
 //! 2.2 E7: tier-aware overlap and E-value diagnostics read off executed tiered results.
 //!
-//! The data generators match `v19_tiered_known_truth.rs` (linear Gaussian, closed-form
+//! The data generators match `tiered_known_truth.rs` (linear Gaussian, closed-form
 //! truth). The E-value oracle is written here from the raw outcome column and the reported
 //! effect, not by calling the code that attaches it.
 //!

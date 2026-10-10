@@ -10,8 +10,8 @@ handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
-The [2.3 lifecycle](2_3-lifecycle.md) connects native and external claims to
-decisions, study ranking and portable bundles; [measured scalar adapters](2_3-population-time-uncertainty.md)
+The [2.3 lifecycle](lifecycle.md) connects native and external claims to
+decisions, study ranking and portable bundles; [measured scalar adapters](population-time-uncertainty.md)
 license specified Bayesian, nested-Markov, temporal and recovery intervals under
 separate source-bound contracts, without adding arbitrary analysis-grid cells.
 
@@ -1499,7 +1499,7 @@ numbers, and early stopping. Python exposes these workflows through
 `design.rank_designs`; the returned `basis` distinguishes identification,
 EVSI/net value, structural sufficiency/cost and the native model objectives.
 Model-based scores and Monte Carlo errors remain point estimates and diagnostics.
-The [design-ranking guide](2_3-design-ranking.md) states the interpretation and
+The [design-ranking guide](design-ranking.md) states the interpretation and
 source requirements for each objective, including checked Bayesian prior reuse.
 
 ## Incremental state

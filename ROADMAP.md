@@ -449,7 +449,7 @@ cover missing/outside support, schema/unit/population/contrast mismatch, changed
 rows/weights/cohort, wrong parent identity and resealed artifacts. Probability,
 quantile, nonlinear utility and joint-law requests remain refused until a separate
 producer supplies the required aligned law. This package remains open; its exact
-2.3 refusal boundary is documented in `docs/2_3-producer-consumer-matrix.md`.
+2.3 refusal boundary is documented in `docs/producer-consumer-matrix.md`.
 
 #### 5. Observation-conditioned scientific queries
 

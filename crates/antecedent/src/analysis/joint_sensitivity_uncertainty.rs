@@ -1,5 +1,5 @@
 //! The closed sampling-uncertainty route of the joint mechanism sensitivity
-//! range on the prepared z stage (record `2.2B.X3.joint_sensitivity_uncertainty`,
+//! range on the prepared z stage (record `sensitivity.joint_uncertainty`,
 //! in progress).
 //!
 //! The one declared composition, the conservative endpoint percentile

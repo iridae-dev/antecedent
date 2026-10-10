@@ -89,7 +89,7 @@ Common remedies:
 | `composition_bundle.node_not_found` | Add the node before connecting it (`NodeNotFoundRefusal.offending` is the missing id). |
 | `invalid_argument` | Fix the argument named in `detail` and `offending`. |
 
-See also the [2.3 lifecycle](2_3-lifecycle.md) for the refusal-handling pattern in
+See also the [2.3 lifecycle](lifecycle.md) for the refusal-handling pattern in
 context.
 
 ## Remedies

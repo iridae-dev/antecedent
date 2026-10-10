@@ -1,4 +1,4 @@
-"""C1: the producer/consumer matrix, executed (``docs/2_3-producer-consumer-matrix.md``).
+"""C1: the producer/consumer matrix, executed (``docs/producer-consumer-matrix.md``).
 
 Rows are the producers of a scientific object, columns the consumers that could take it.
 Each cell is ``DIRECT`` (a licensed route takes the object), ``ADAPTER`` (a named,
@@ -1351,7 +1351,7 @@ def test_c1_matrix_declares_every_cell_once_and_counts_them() -> None:
 
 
 def test_c1_matrix_document_agrees_with_the_executable_table() -> None:
-    path = Path(__file__).resolve().parents[2] / "docs" / "2_3-producer-consumer-matrix.md"
+    path = Path(__file__).resolve().parents[2] / "docs" / "producer-consumer-matrix.md"
     lines = path.read_text(encoding="utf-8").splitlines()
     rows: dict[str, tuple[str, ...]] = {}
     for line in lines:

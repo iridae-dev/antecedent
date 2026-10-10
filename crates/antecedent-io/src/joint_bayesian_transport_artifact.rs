@@ -1,5 +1,5 @@
 //! Independent artifact of the joint Bayesian source-target transport engine
-//! (2.3A X4, record `2.3A.X4.joint_bayesian_transport`). The original candidate
+//! (2.3A X4, record `transport.joint_bayesian`). The original candidate
 //! format and its posterior quantities retain their `unmeasured` standing.
 //! Separate `build_measured` / `consume_measured` adapters authorize only the
 //! target-effect scalar when the actual native execution satisfies the frozen

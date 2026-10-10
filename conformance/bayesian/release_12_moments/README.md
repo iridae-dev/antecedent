@@ -74,7 +74,7 @@ residual-scale factor n/(n - p) (one mechanism selects q = 1 with a small τ̂).
 `dependent_pulse` is an AR(2)(0.3, 0.5) treatment and residual on the same 96
 rows (`td`, `yd`; y = 0.8 t_{t-1} + e): REML selects q = 2, tr(HR) ≈ 21 of 95
 rows and τ̂ ≈ 0.38, and κ̂ ≈ 5.8 against ≈ 2.6 for the kernel ratio; the Rust
-test `v19_bayesian_temporal::release_12_dependent_pulse_moments_and_tempering_match_the_reference`
+test `bayesian_temporal::release_12_dependent_pulse_moments_and_tempering_match_the_reference`
 checks the Pulse posterior moments and κ̂ to 1e-5. The stationary reference keeps
 the independent-product moments of a and b1 + b2 from their separately tempered
 posteriors.
@@ -85,7 +85,7 @@ the outcome mechanism at the largest κ̂ over its direct c' (e_1), mediated b
 (e_2) and total c' + â b (e_1 + â e_2) directions, with â the OLS mediator
 slope. `tempering.mediation` / `tempering.confounded_mediation` list the two
 mechanisms (`m`, `y`; both on the same rows). The Rust test
-`v19_bayesian_temporal::release_12_mediation_moments_and_tempering_match_the_reference`
+`bayesian_temporal::release_12_mediation_moments_and_tempering_match_the_reference`
 checks the moments and both κ̂.
 
 ## Modifier-mean uncertainty (`conditional`)

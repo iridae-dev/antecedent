@@ -34,24 +34,24 @@ Start an ordinary analysis with the [Python workflow](python-workflow.md) or
 [Rust quickstart](rust-quickstart.md). The same model extends to discovery and
 structural uncertainty, response and temporal questions, Bayesian inference,
 validation, counterfactuals, learner-backed estimation, transport across
-populations, and the 2.1 design-family studies — randomized and factorial
+populations, and design-family studies — randomized and factorial
 experiments, held-out policy value, quasi-experimental designs, survival, and
 longitudinal regimes. Those are different causal programs, not disconnected
 products.
 
-## 2.3 features
+## Decisions, design, and composition
 
-The 2.3 line connects analysis to decisions. Each page states its claim label and
+These pages connect an analysis to a decision. Each page states its claim label and
 what it refuses.
 
 | Question | Read |
 | --- | --- |
-| What is the path from analysis to a decision to a study plan? | [The 2.3 lifecycle](2_3-lifecycle.md) |
-| Which study should I run next, and how do I replay the ranking? | [Design ranking](2_3-design-ranking.md) |
-| How far could the answer move under an unmeasured assumption? | [Sensitivity and robustness](2_3-sensitivity-and-robustness.md) |
-| Can a counterfactual effect be carried to another population? | [Transport and counterfactuals](2_3-transport-counterfactuals.md) |
-| How do I recompute a decision without refitting? | [Prepared recalculation](2_3-recalculation-capabilities.md) |
-| How do I bind foreign numbers, decide on them and export the whole composition? | [External science](2_3-external-science.md), [decisions](2_3-decisions.md), [composition](2_3-composition.md) |
+| What is the path from analysis to a decision to a study plan? | [The analysis lifecycle](lifecycle.md) |
+| Which study should I run next, and how do I replay the ranking? | [Design ranking](design-ranking.md) |
+| How far could the answer move under an unmeasured assumption? | [Sensitivity and robustness](sensitivity-and-robustness.md) |
+| Can a counterfactual effect be carried to another population? | [Transport and counterfactuals](transport-counterfactuals.md) |
+| How do I recompute a decision without refitting? | [Prepared recalculation](recalculation-capabilities.md) |
+| How do I bind foreign numbers, decide on them and export the whole composition? | [External science](external-science.md), [decisions](decisions.md), [composition](composition.md) |
 | How do refusals expose their cause and remedy? | [Structured refusals](refusal-and-partial-knowledge.md#structured-refusals-and-their-remedies) |
 
 For exact public boundaries, consult the [support matrix](support-matrix.md).

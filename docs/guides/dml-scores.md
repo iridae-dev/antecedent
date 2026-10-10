@@ -5,7 +5,7 @@ cross-fitted AIPW **score table** of the average effect they report, so a prepar
 and a batch retarget (see [the batch guide](batch-retarget.md)) reweight those scores and
 report the joint plug-in score covariance of the retargeted claims. The claim is
 `point_only`: values and a plug-in score covariance (a standard error is not an interval).
-The record is `2.2E.E3.dml_score_covariance` in `parity/promotion_2_2.toml`.
+The record is `estimate.dml_score_covariance` in `parity/promotion_2_2.toml`.
 
 ```rust
 let prepared = BatchStudy::new(data, graph)

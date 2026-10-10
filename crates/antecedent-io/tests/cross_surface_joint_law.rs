@@ -108,7 +108,7 @@ fn assert_enumerated_truth(artifact: &DistributionArtifact) {
 /// F21 positive: the Python-built law reports the enumerated truth under an identity
 /// built here from constants, and the Rust-built twin has the same identity.
 #[test]
-fn f21_python_built_joint_law_reports_the_enumerated_truth_under_constants() {
+fn python_built_joint_law_reports_the_enumerated_truth_under_constants() {
     let loaded =
         DistributionArtifact::from_bytes(&read_fixture("py_joint_law.bin"), &expected_identity())
             .unwrap();
@@ -124,7 +124,7 @@ fn f21_python_built_joint_law_reports_the_enumerated_truth_under_constants() {
 /// F21 negative: a changed semantic ID or a wrong distribution meaning refuses, and
 /// independent marginals refuse the joint operations with the shared detail.
 #[test]
-fn f21_changed_semantic_id_wrong_meaning_and_marginals_refuse() {
+fn changed_semantic_id_wrong_meaning_and_marginals_refuse() {
     let bytes = read_fixture("py_joint_law.bin");
     for changed in [
         identity(DistributionMeaningWire::InterventionalPredictive, DrawAlignment::Joint, "z"),
@@ -146,7 +146,7 @@ fn f21_changed_semantic_id_wrong_meaning_and_marginals_refuse() {
 /// F21 artifact: both directions round-trip through the one bounded wire format; the
 /// Rust-built bytes are written for Python and the Python-built bytes survive here.
 #[test]
-fn f21_both_directions_round_trip_through_one_wire_format() {
+fn both_directions_round_trip_through_one_wire_format() {
     let python = read_fixture("py_joint_law.bin");
     let loaded = DistributionArtifact::from_bytes(&python, &expected_identity()).unwrap();
     let again = loaded.to_bytes("joint-law").unwrap();

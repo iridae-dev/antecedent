@@ -8,9 +8,9 @@ been measured, but every public route still refuses for 2.2.
 
 Two records in `parity/promotion_2_2.toml` cover this page:
 
-- `2.2B.X3.joint_mechanism_sensitivity` (promoted): the exact assumption range
+- `sensitivity.joint_mechanism` (promoted): the exact assumption range
   only. It offers no sampling uncertainty.
-- `2.2B.X3.joint_sensitivity_uncertainty` (in progress): the conservative
+- `sensitivity.joint_uncertainty` (in progress): the conservative
   endpoint bootstrap, its closed routes and its two coverage ids. Their tests
   were measured by the registered calibration gate.
 
@@ -193,7 +193,7 @@ cancelled frontier is not exported, because it does not replay.
 
 ## Sampling uncertainty (measured, route closed)
 
-Record `2.2B.X3.joint_sensitivity_uncertainty` is in progress. Every route to
+Record `sensitivity.joint_uncertainty` is in progress. Every route to
 this composition refuses with `cell_not_licensed` for 2.2. Its two
 coverage records were measured by `scripts/gate_calibration.sh` (`run_js`, over
 the sample-size grid).

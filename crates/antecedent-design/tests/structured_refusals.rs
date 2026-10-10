@@ -106,7 +106,7 @@ fn pair(refusal: &ExternalRefusal) -> (String, String) {
 /// independent marginals at action A1; the refusal keeps the stage, the action, the
 /// reason, the supplied alignment and the remedy.
 #[test]
-fn f25_decision_refusal_carries_stage_action_reason_supplied_meaning_and_remedy() {
+fn decision_refusal_carries_stage_action_reason_supplied_meaning_and_remedy() {
     let error = evaluate_contract(&contract(), &independent_marginals()).unwrap_err();
     assert!(matches!(
         error,
@@ -163,7 +163,7 @@ fn wire_response(units: &str) -> ResponseWire {
 /// F25 frozen boundary: wrong population, action, unit and capability each retain a
 /// distinct, stable reason and detail, and each is a well-formed envelope.
 #[test]
-fn f25_wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
+fn wrong_population_action_unit_and_capability_stay_four_distinct_refusals() {
     let mut population = contract();
     population.actions[0].inputs[1].population_id = "other".into();
     let population = population.validate().unwrap_err().to_refusal();
@@ -244,7 +244,7 @@ fn f25_wrong_population_action_unit_and_capability_stay_four_distinct_refusals()
 
 /// F25: a refusal that is itself malformed is refused, with its own detail.
 #[test]
-fn f25_malformed_refusal_envelopes_are_themselves_refused() {
+fn malformed_refusal_envelopes_are_themselves_refused() {
     let good = evaluate_contract(&contract(), &independent_marginals()).unwrap_err().to_refusal();
 
     let mut unregistered = good.clone();
@@ -274,7 +274,7 @@ fn f25_malformed_refusal_envelopes_are_themselves_refused() {
 /// A contract declared as JSON (the form every host language sends) refuses with the
 /// same typed code and detail a Rust caller gets, not a generic declaration error.
 #[test]
-fn f25_json_declared_contract_keeps_its_typed_refusal() {
+fn json_declared_contract_keeps_its_typed_refusal() {
     use antecedent_design::decision_artifact::{contract_from_json_refusal, contract_to_json};
     let good = contract_to_json(&contract()).unwrap();
     assert!(contract_from_json_refusal(&good).is_ok());

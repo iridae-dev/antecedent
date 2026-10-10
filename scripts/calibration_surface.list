@@ -117,7 +117,7 @@ key estimator.transport_smoothed_dose estimator transport.smoothed_dose_transpor
 
 # Joint mechanism deviations (2.2B X3): the exact joint range and the conservative
 # endpoint percentile bootstrap over its per-replicate endpoints. Record
-# 2.2B.X3.joint_sensitivity_uncertainty is in progress: its suite is registered in
+# sensitivity.joint_uncertainty is in progress: its suite is registered in
 # gate_calibration.sh (run_js) and its two records carry these facets once measured at the cut.
 estimator.transport_joint_sensitivity crates/antecedent-validate/src/joint_mechanism_sensitivity.rs
 key estimator.transport_joint_sensitivity estimator transport.z_joint_sensitivity_endpoint_bootstrap
@@ -287,34 +287,34 @@ allow registry_mirror crates/antecedent/src/lib.rs INTERVAL_METHOD_REASONS RECOR
 
 # ---- suites: a suite's own code only reaches the records it emits ----------
 suite.calibration_coverage crates/antecedent-estimate/src/calibration_coverage.rs
-suite.v19_calibration crates/antecedent/tests/v19_calibration.rs
-suite.v19_temporal_class_calibration crates/antecedent/tests/v19_temporal_class_calibration.rs
-suite.v19_static_mixture_calibration crates/antecedent/tests/v19_static_mixture_calibration.rs
-suite.v19_static_envelope_calibration crates/antecedent/tests/v19_static_envelope_calibration.rs
-suite.v19_static_calibration crates/antecedent/tests/v19_static_calibration.rs
-suite.v19_derivative_calibration crates/antecedent/tests/v19_derivative_calibration.rs
-suite.v19_temporal_response_calibration crates/antecedent/tests/v19_temporal_response_calibration.rs
-suite.v19_bayesian_temporal crates/antecedent/tests/v19_bayesian_temporal.rs
-suite.v19_temporal_frequentist crates/antecedent/tests/v19_temporal_frequentist.rs
-suite.v19_tiered_known_truth crates/antecedent/tests/v19_tiered_known_truth.rs
-suite.v19_short_series_measurement crates/antecedent/tests/v19_short_series_measurement.rs
-suite.v19_bayesian_prior_in_force crates/antecedent/tests/v19_bayesian_prior_in_force.rs
-suite.v110_panel_calibration crates/antecedent/tests/v110_panel_calibration.rs
-suite.v110_calibration_response crates/antecedent/tests/v110_calibration_response.rs
-suite.v110_calibration_admg crates/antecedent/tests/v110_calibration_admg.rs
-suite.v110_calibration_distribution_admg crates/antecedent/tests/v110_calibration_distribution_admg.rs
-suite.v110_calibration_design crates/antecedent/tests/v110_calibration_design.rs
-suite.v110_calibration_estimate crates/antecedent/tests/v110_calibration_estimate.rs
-suite.v110_calibration_temporal crates/antecedent/tests/v110_calibration_temporal.rs
-suite.v110_calibration_backlog crates/antecedent/tests/v110_calibration_backlog.rs
-suite.v110_calibration_bayesian_static crates/antecedent/tests/v110_calibration_bayesian_static.rs
-suite.v110_calibration_counterfactual crates/antecedent/tests/v110_calibration_counterfactual.rs
-suite.v110_calibration_anomaly_bayesian crates/antecedent/tests/v110_calibration_anomaly_bayesian.rs
-suite.v110_calibration_attribution_bayesian crates/antecedent/tests/v110_calibration_attribution_bayesian.rs
-suite.v110_calibration_design_bayesian crates/antecedent/tests/v110_calibration_design_bayesian.rs
-suite.v110_calibration_temporal_class crates/antecedent/tests/v110_calibration_temporal_class.rs
-suite.v110_class_posterior_calibration crates/antecedent/tests/v110_class_posterior_calibration.rs
-suite.v20_transport_statistical_calibration crates/antecedent/tests/v20_transport_statistical_calibration.rs
+suite.mixture_interval_calibration crates/antecedent/tests/mixture_interval_calibration.rs
+suite.temporal_class_calibration crates/antecedent/tests/temporal_class_calibration.rs
+suite.static_mixture_calibration crates/antecedent/tests/static_mixture_calibration.rs
+suite.static_envelope_calibration crates/antecedent/tests/static_envelope_calibration.rs
+suite.static_calibration crates/antecedent/tests/static_calibration.rs
+suite.derivative_calibration crates/antecedent/tests/derivative_calibration.rs
+suite.temporal_response_calibration crates/antecedent/tests/temporal_response_calibration.rs
+suite.bayesian_temporal crates/antecedent/tests/bayesian_temporal.rs
+suite.temporal_frequentist crates/antecedent/tests/temporal_frequentist.rs
+suite.tiered_known_truth crates/antecedent/tests/tiered_known_truth.rs
+suite.short_series_measurement crates/antecedent/tests/short_series_measurement.rs
+suite.bayesian_prior_in_force crates/antecedent/tests/bayesian_prior_in_force.rs
+suite.panel_calibration crates/antecedent/tests/panel_calibration.rs
+suite.calibration_response crates/antecedent/tests/calibration_response.rs
+suite.calibration_admg crates/antecedent/tests/calibration_admg.rs
+suite.calibration_distribution_admg crates/antecedent/tests/calibration_distribution_admg.rs
+suite.calibration_design crates/antecedent/tests/calibration_design.rs
+suite.calibration_estimate crates/antecedent/tests/calibration_estimate.rs
+suite.calibration_temporal crates/antecedent/tests/calibration_temporal.rs
+suite.calibration_backlog crates/antecedent/tests/calibration_backlog.rs
+suite.calibration_bayesian_static crates/antecedent/tests/calibration_bayesian_static.rs
+suite.calibration_counterfactual crates/antecedent/tests/calibration_counterfactual.rs
+suite.calibration_anomaly_bayesian crates/antecedent/tests/calibration_anomaly_bayesian.rs
+suite.calibration_attribution_bayesian crates/antecedent/tests/calibration_attribution_bayesian.rs
+suite.calibration_design_bayesian crates/antecedent/tests/calibration_design_bayesian.rs
+suite.calibration_temporal_class crates/antecedent/tests/calibration_temporal_class.rs
+suite.class_posterior_calibration crates/antecedent/tests/class_posterior_calibration.rs
+suite.transport_statistical_calibration crates/antecedent/tests/transport_statistical_calibration.rs
 suite.z_transport_surrogate_calibration crates/antecedent/tests/z_transport_surrogate_calibration.rs
 suite.mz_transport_calibration crates/antecedent/tests/mz_transport_calibration.rs
 # The R-443 Figure 1(c,d) structural models and law builders its designs draw from.

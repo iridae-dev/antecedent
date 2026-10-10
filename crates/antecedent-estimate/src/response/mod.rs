@@ -1449,7 +1449,7 @@ impl ContinuousResponseEstimator {
         // own sandwich. The conventional local-quadratic interval ignores the
         // O(h²·m''') smoothing bias of m̂' (and the O(h²·m'''') bias of m̂'')
         // and under-covers the true derivative at an MSE-sized bandwidth
-        // (tests/v19_derivative_calibration.rs).
+        // (tests/derivative_calibration.rs).
         let corrected = antecedent_stats::gaussian_local_quadratic_bias_corrected(
             &sample.treatments,
             &pseudo,

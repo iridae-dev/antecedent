@@ -72,7 +72,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("RELEASE_CLAIMS_ROOT", REPO))
 RELEASE = "2.2"
-RECORDS = "parity/promotion_2_2.toml"
+RECORDS = "parity/promotion.toml"
 COVERAGE = "parity/coverage_records.toml"
 NOTES = "docs/release-notes/v2.2.0.md"
 
@@ -396,12 +396,15 @@ def claim_words(body: str) -> set[str]:
 WARNINGS: list[str] = []
 
 
-def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
+def check(root: Path, notes_rel: str = NOTES, final: bool = False, subset: bool = False) -> list[str]:
     """Errors (nonempty fails). While the notes are a DRAFT, a record or package the skeleton does
     not yet cover is a warning in WARNINGS (regenerate with --write-draft), not an error."""
     errors: list[str] = []
     WARNINGS.clear()
-    records = load(root, RECORDS).get("record", [])
+    registry = load(root, RECORDS)
+    records = registry.get("record", [])
+    if "release" not in registry:
+        subset = True
     present = {r.get("id") for r in load(root, COVERAGE).get("record", [])}
     p = root / notes_rel
     if not p.is_file():
@@ -410,6 +413,9 @@ def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
     lenient = DRAFT_MARK in text and not final
     stale = WARNINGS if lenient else errors
     cells, _ = blocks(text)
+    if subset:
+        noted = {key.split(":", 1)[1] for key in cells if key.startswith("cell:")}
+        records = [rec for rec in records if rec.get("id") in noted]
     # 1. glossary
     gloss = text.split("## How to read the claims", 1)
     if len(gloss) < 2:
@@ -535,8 +541,11 @@ def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
                 f"{label}: the {rec['inference_claim']} entry must say the range is never a "
                 "confidence interval"
             )
-    # 4. B packages
+    # 4. B packages. Live records no longer carry milestone labels; the package
+    # skeleton remains for the synthetic self-test registry.
     have_b = {r["work_package"] for r in records if r.get("milestone") == "B"}
+    if not any(r.get("work_package") for r in records):
+        have_b = set(B_PACKAGES)
     for pkg, (ws, _) in B_PACKAGES.items():
         if pkg in have_b:
             continue
@@ -544,9 +553,9 @@ def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
         # decision, not a missing statistical record. Keep the exception tied
         # to this package and its checked carryover statement.
         if RELEASE == "2.3" and pkg == "B5" and "carried-forward:X7" in cells:
-            decision = root / "parity/2_3_x7_decision.md"
+            decision = root / "parity/accelerator_decision.md"
             if not decision.is_file():
-                errors.append("B5 carryover lacks parity/2_3_x7_decision.md")
+                errors.append("B5 carryover lacks parity/accelerator_decision.md")
             continue
         if f"todo-cell:{pkg}" not in cells:
             stale.append(
@@ -585,7 +594,7 @@ def main(argv: list[str]) -> int:
             print("--release requires 2.2 or 2.3")
             return 2
         RELEASE = argv[index + 1]
-        RECORDS = f"parity/promotion_{RELEASE.replace('.', '_')}.toml"
+        RECORDS = "parity/promotion.toml"
         NOTES = f"docs/release-notes/v{RELEASE}.0.md"
         DRAFT_MARK = f"<!-- draft:v{RELEASE}.0 -->"
         if RELEASE == "2.3":
@@ -601,7 +610,7 @@ def main(argv: list[str]) -> int:
                 "baseline (`benches/baselines/neural_crossfit.md`) supplies no "
                 "same-host accelerator comparison; no GPU backend is available. "
                 "The required measured gain and distribution gates remain open. "
-                "See the explicit decision in `parity/2_3_x7_decision.md`."
+                "See the explicit decision in `parity/accelerator_decision.md`."
             )
     notes = NOTES
     if "--notes" in argv:
@@ -617,7 +626,7 @@ def main(argv: list[str]) -> int:
         p.write_text(draft(records, present))
         print(f"wrote draft {notes} ({len(records)} record entries)")
         return 0
-    errors = check(ROOT, notes, final="--final" in argv)
+    errors = check(ROOT, notes, final="--final" in argv, subset="--release" in argv)
     for w in WARNINGS:
         print(f"warning: stale draft: {w} (run --write-draft)")
     if errors:
@@ -1072,7 +1081,7 @@ def self_test() -> int:
                 check(root, final=True),
                 "B5 carryover lacks",
             )
-            (root / "parity/2_3_x7_decision.md").write_text("X7 remains deferred.\n")
+            (root / "parity/accelerator_decision.md").write_text("X7 remains deferred.\n")
             expect("explicit accelerator carryover can finalize", check(root, final=True), None)
             notes.write_text(carryover_notes.replace("<!-- carried-forward: X7 -->", ""))
             expect("accelerator carryover requires its marker", check(root, final=True), "B5")

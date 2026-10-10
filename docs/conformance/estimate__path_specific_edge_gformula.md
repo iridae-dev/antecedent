@@ -58,7 +58,7 @@ Consumers:
 - `crates/antecedent-estimate/src/functional_distribution.rs` checks the
   plug-in and that one Bayesian draw evaluates the edge g-formula on a single
   reweighted row law.
-- `crates/antecedent/tests/v19_static_calibration.rs`
+- `crates/antecedent/tests/static_calibration.rs`
   (`path_specific_two_path_*_nominal_90_coverage`) samples from the same SCM
   for 400-replicate coverage.
 

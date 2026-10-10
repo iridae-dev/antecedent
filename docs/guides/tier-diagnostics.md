@@ -2,7 +2,7 @@
 
 `antecedent::tier_diagnostics(&result, &ctx)` reads an executed **tiered** average-effect result
 (`Study::tiered_background(..)`) and states which diagnostics that result's own design
-carries. It refits nothing and builds no graph. The record is `2.2E.E7.tier_diagnostics` in
+carries. It refits nothing and builds no graph. The record is `estimate.tier_diagnostics` in
 `parity/promotion_2_2.toml`; the claim is `point_only` (an E-value is a sensitivity
 summary, not an inferential interval).
 

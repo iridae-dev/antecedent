@@ -1,5 +1,5 @@
 {
- "provenance": "Outputs of transport.estimate_trial_effect and interference.estimate recorded from a v1.9.0 build (git archive v1.9.0; maturin develop --release) on the closed-form inputs of tests/test_design_utilities_v19_parity.py.",
+ "provenance": "Outputs of transport.estimate_trial_effect and interference.estimate recorded from a v1.9.0 build (git archive v1.9.0; maturin develop --release) on the closed-form inputs of tests/test_design_utilities_parity.py.",
  "version": "1.9.0",
  "cases": {
   "transport_ipw": {

@@ -244,10 +244,10 @@ class UntrustedIntervalInputTests(unittest.TestCase):
 
         root = Path(__file__).resolve().parents[1]
         records = tomllib.loads(
-            (root / "parity/promotion_2_3.toml").read_text(encoding="utf-8")
+            (root / "parity/promotion.toml").read_text(encoding="utf-8")
         )["record"]
         record = next(
-            r for r in records if r["id"] == "2.3A.F15.measured_scalar_inference"
+            r for r in records if r["id"] == "inference.measured_scalar"
         )
         item = record["untrusted_interval_inputs"][0]
         self.assertEqual(untrusted_interval_input_problems(root, record, item), [])

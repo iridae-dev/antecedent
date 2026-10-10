@@ -26,7 +26,7 @@ use crate::temporal_block::score_effective_rows;
 /// Effective rows of a published cell's influence below which a temporal response band
 /// carries `response.temporal.block.short_series`.
 ///
-/// Provenance: `crates/antecedent/tests/v19_temporal_response_calibration.rs`
+/// Provenance: `crates/antecedent/tests/temporal_response_calibration.rs`
 /// (400 replicates, nominal 0.95), the rule of the scalar families: the smallest
 /// multiple of 5 at which every design covering below the gate band warns on most of
 /// its replicates. The shift response under an AR(1) φ = 0.9 treatment reads the

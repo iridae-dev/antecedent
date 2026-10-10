@@ -247,7 +247,7 @@ run_ignored() {
 # A pass/fail reference experiment, not a coverage claim for arbitrary input estimators.
 check "effect_constancy_calibration: known_gaussian_null_power_and_holm" \
   cargo test --release -p antecedent-estimate --test effect_constancy_calibration \
-  f18_known_gaussian_null_power_and_holm_grid -- --exact --nocapture
+  known_gaussian_null_power_and_holm_grid -- --exact --nocapture
 
 # Actual checked temporal adapter, paired effects share whole-unit resampling.
 run_temporal_recalc() {
@@ -427,7 +427,7 @@ run_ignored antecedent-estimate aipw_atc_hc1_boundary_within_band
 run_ignored antecedent-estimate aipw_att_cluster_ci_coverage
 # 2.2E E2 penalized propensity: the cross-fitted influence-function SE and the refit
 # bootstrap (penalty and support selection repeated in every replicate), ridge and lasso.
-# Wired, measured once at the 2.2 cut; records 2.2E.E2.penalized_propensity_aipw.
+# Wired, measured once at the 2.2 cut; records estimate.penalized_propensity_aipw.
 run_ignored antecedent-estimate aipw_ridge_influence_ci_coverage
 run_ignored antecedent-estimate aipw_ridge_refit_bootstrap_ci_coverage
 run_ignored antecedent-estimate aipw_lasso_influence_ci_coverage
@@ -471,8 +471,8 @@ echo "== temporal / mixture interval coverage (antecedent) =="
 run_ignored_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_calibration "$filter" -- --ignored --exact --nocapture
+  check "mixture_interval_calibration: ${filter}" \
+    cargo test --release -p antecedent --test mixture_interval_calibration "$filter" -- --ignored --exact --nocapture
 }
 run_ignored_test frequentist_dbn_pulse_shared_block_nominal_90_coverage
 run_ignored_test frequentist_dbn_sustained_shared_block_nominal_90_coverage
@@ -515,8 +515,8 @@ echo "== temporal class envelopes: multi-step, TemporalPag, identified-set inter
 run_temporal_class() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_temporal_class_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_temporal_class_calibration "$filter" \
+  check "temporal_class_calibration: ${filter}" \
+    cargo test --release -p antecedent --test temporal_class_calibration "$filter" \
     -- --ignored --exact --nocapture
 }
 run_temporal_class frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage
@@ -555,8 +555,8 @@ echo "== static graph-posterior mixture coverage (antecedent) =="
 run_static_mixture_test() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_static_mixture_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_static_mixture_calibration "$filter" \
+  check "static_mixture_calibration: ${filter}" \
+    cargo test --release -p antecedent --test static_mixture_calibration "$filter" \
     -- --ignored --nocapture
 }
 run_static_mixture_test static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage
@@ -568,8 +568,8 @@ echo "== derivative-family interval coverage (antecedent) =="
 run_ignored_derivative() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_derivative_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_derivative_calibration "$filter" \
+  check "derivative_calibration: ${filter}" \
+    cargo test --release -p antecedent --test derivative_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_ignored_derivative ade_frequentist_gaussian_treatment_nominal_90_coverage
@@ -601,8 +601,8 @@ echo "== Bayesian temporal Pulse / Sustained under serial dependence (antecedent
 run_ignored_bayes_temporal() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_bayesian_temporal: ${filter}" \
-    cargo test --release -p antecedent --test v19_bayesian_temporal "$filter" -- --ignored --nocapture
+  check "bayesian_temporal: ${filter}" \
+    cargo test --release -p antecedent --test bayesian_temporal "$filter" -- --ignored --nocapture
 }
 run_ignored_bayes_temporal bayesian_temporal_pulse_iid_nominal_90_coverage
 run_ignored_bayes_temporal bayesian_temporal_pulse_ar1_rho05_n160_nominal_90_coverage
@@ -658,8 +658,8 @@ echo "== dependence-honest Frequentist TemporalDag SEs (R-1, R-2) =="
 run_temporal_frequentist() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_temporal_frequentist: ${filter}" \
-    cargo test --release -p antecedent --test v19_temporal_frequentist "$filter" \
+  check "temporal_frequentist: ${filter}" \
+    cargo test --release -p antecedent --test temporal_frequentist "$filter" \
     -- --ignored --exact --nocapture
 }
 run_temporal_frequentist temporal_dag_pulse_iid_n160_nominal_90_coverage
@@ -697,8 +697,8 @@ echo "== static envelope / tier coverage (antecedent, release) =="
 run_static_envelope() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_static_envelope_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_static_envelope_calibration "$filter" \
+  check "static_envelope_calibration: ${filter}" \
+    cargo test --release -p antecedent --test static_envelope_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_static_envelope static_cpdag_ate_envelope_frequentist_nominal_90_coverage
@@ -721,20 +721,20 @@ echo "== temporal response surfaces: pointwise + simultaneous bands (antecedent)
 # TemporalDag surfaces, observation-adjusted pairs, horizon-dependent I(h), and
 # TemporalCpdag / TemporalPag completion atoms, two-step Sequence overlays on
 # complete and observation-adjusted data, iid and AR(1) residuals).
-check "v19_temporal_response_calibration" \
-  cargo test --release -p antecedent --test v19_temporal_response_calibration -- --ignored --nocapture
+check "temporal_response_calibration" \
+  cargo test --release -p antecedent --test temporal_response_calibration -- --ignored --nocapture
 
 echo "== panel routes: cluster-by-unit SE, unit bootstrap, between-unit bands (antecedent) =="
 # One invocation runs every ignored test in the file.
-check "v110_panel_calibration" \
-  cargo test --release -p antecedent --test v110_panel_calibration -- --ignored --nocapture
+check "panel_calibration" \
+  cargo test --release -p antecedent --test panel_calibration -- --ignored --nocapture
 
 echo "== remaining static cells: responses, mediation, path, distribution, counterfactual (R-19, R-17) =="
 run_static_remaining() {
   local filter="$1"
   echo "== antecedent: ${filter} =="
-  check "v19_static_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v19_static_calibration "$filter" \
+  check "static_calibration: ${filter}" \
+    cargo test --release -p antecedent --test static_calibration "$filter" \
     -- --ignored --nocapture --exact
 }
 run_static_remaining response_curve_dag_frequentist_pointwise_nominal_90_coverage
@@ -805,125 +805,125 @@ run_v110() {
   check "${file}: ${filter}" \
     cargo test --release -p antecedent --test "$file" "$filter" -- --ignored --exact --nocapture
 }
-run_v110 v110_calibration_response intervention_response_dag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_response intervention_response_dag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_cpdag_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_pag_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_response intervention_response_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_response response_curve_cpdag_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_response response_curve_pag_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_response intervention_response_codetermined_frequentist_nominal_coverage
-run_v110 v110_calibration_response intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_response response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_admg average_effect_admg_frontdoor_frequentist_nominal_coverage
-run_v110 v110_calibration_admg average_effect_admg_frontdoor_bayesian_nominal_coverage
-run_v110 v110_calibration_admg interventional_distribution_admg_frontdoor_bayesian_nominal_coverage
-run_v110 v110_calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_nominal_coverage
-run_v110 v110_calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage
-run_v110 v110_calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage
-run_v110 v110_calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_pag_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_pag_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_pag_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_pag_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_bayesian_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_admg_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog average_effect_unknown_frequentist_joint_band_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_frequentist_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_intervention_response_bayesian_accepted_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_backlog intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage
-run_v110 v110_calibration_backlog response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage
-run_v110 v110_calibration_anomaly_bayesian anomaly_attribution_dag_bayesian_nominal_coverage
-run_v110 v110_calibration_design transport_admg_trial_ipw_frequentist_nominal_coverage
+run_v110 calibration_response intervention_response_dag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_response intervention_response_dag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_response intervention_response_cpdag_bayesian_nominal_coverage
+run_v110 calibration_response intervention_response_pag_bayesian_nominal_coverage
+run_v110 calibration_response intervention_response_cpdag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_response intervention_response_pag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_response response_curve_cpdag_bayesian_pointwise_nominal_coverage
+run_v110 calibration_response response_curve_pag_bayesian_pointwise_nominal_coverage
+run_v110 calibration_response intervention_response_codetermined_frequentist_nominal_coverage
+run_v110 calibration_response intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_response response_curve_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_v110 calibration_admg average_effect_admg_frontdoor_frequentist_nominal_coverage
+run_v110 calibration_admg average_effect_admg_frontdoor_bayesian_nominal_coverage
+run_v110 calibration_admg interventional_distribution_admg_frontdoor_bayesian_nominal_coverage
+run_v110 calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_nominal_coverage
+run_v110 calibration_distribution_admg interventional_distribution_admg_frontdoor_frequentist_accepted_nominal_coverage
+run_v110 calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_confounded_nominal_coverage
+run_v110 calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_unconfounded_nominal_coverage
+run_v110 calibration_backlog temporal_mediation_effect_temporal_cpdag_bayesian_accepted_nominal_coverage
+run_v110 calibration_backlog intervention_response_admg_bayesian_nominal_coverage
+run_v110 calibration_backlog intervention_response_admg_bayesian_accepted_nominal_coverage
+run_v110 calibration_backlog intervention_response_pag_frequentist_nominal_coverage
+run_v110 calibration_backlog intervention_response_pag_frequentist_accepted_nominal_coverage
+run_v110 calibration_backlog response_curve_pag_frequentist_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_pag_frequentist_accepted_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_admg_bayesian_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_admg_bayesian_accepted_pointwise_nominal_coverage
+run_v110 calibration_backlog intervention_response_admg_frequentist_nominal_coverage
+run_v110 calibration_backlog intervention_response_admg_frequentist_accepted_nominal_coverage
+run_v110 calibration_backlog intervention_response_admg_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_backlog response_curve_admg_frequentist_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_admg_frequentist_accepted_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_admg_graph_posterior_frequentist_pointwise_nominal_coverage
+run_v110 calibration_backlog average_effect_unknown_frequentist_joint_band_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_intervention_response_frequentist_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_intervention_response_bayesian_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_response_curve_frequentist_pointwise_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_response_curve_bayesian_pointwise_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_intervention_response_frequentist_accepted_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_intervention_response_bayesian_accepted_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_response_curve_frequentist_accepted_pointwise_nominal_coverage
+run_v110 calibration_backlog temporal_cpdag_response_curve_bayesian_accepted_pointwise_nominal_coverage
+run_v110 calibration_backlog temporal_pag_intervention_response_frequentist_nominal_coverage
+run_v110 calibration_backlog temporal_pag_intervention_response_bayesian_nominal_coverage
+run_v110 calibration_backlog temporal_pag_response_curve_frequentist_pointwise_nominal_coverage
+run_v110 calibration_backlog temporal_pag_response_curve_bayesian_pointwise_nominal_coverage
+run_v110 calibration_backlog temporal_pag_intervention_response_frequentist_accepted_nominal_coverage
+run_v110 calibration_backlog temporal_pag_intervention_response_bayesian_accepted_nominal_coverage
+run_v110 calibration_backlog temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage
+run_v110 calibration_backlog temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage
+run_v110 calibration_backlog intervention_response_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_backlog intervention_response_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_backlog intervention_response_temporal_pag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_backlog intervention_response_temporal_pag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_backlog response_curve_temporal_cpdag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_temporal_cpdag_graph_posterior_bayesian_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage
+run_v110 calibration_backlog response_curve_temporal_pag_graph_posterior_bayesian_pointwise_nominal_coverage
+run_v110 calibration_anomaly_bayesian anomaly_attribution_dag_bayesian_nominal_coverage
+run_v110 calibration_design transport_admg_trial_ipw_frequentist_nominal_coverage
 # Boundary cell: the conservative Young variance bound over-covers by design.
-run_v110 v110_calibration_design interference_dag_bernoulli_neighbor_count_conservative_bound_boundary
-run_v110 v110_calibration_attribution_bayesian change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage
-run_v110 v110_calibration_design_bayesian interference_query_dag_bayesian_neighbor_count_nominal_coverage
-run_v110 v110_calibration_design_bayesian transport_query_admg_bayesian_bootstrap_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
-run_v110 v110_calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
-run_v110 v110_calibration_estimate glm_adjustment_binary_outcome_nominal_coverage
-run_v110 v110_calibration_estimate average_effect_dag_frequentist_default_nominal_coverage
-run_v110 v110_calibration_temporal temporal_cpdag_mediation_frequentist_confounded_nominal_coverage
-run_v110 v110_calibration_temporal temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage
-run_v110 v110_calibration_temporal pulse_effect_temporal_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_temporal pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_logit_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_probit_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_dag_bayesian_poisson_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_cpdag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_effect_pag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static conditional_effect_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static conditional_effect_cpdag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static conditional_effect_pag_bayesian_default_nominal_coverage
+run_v110 calibration_design interference_dag_bernoulli_neighbor_count_conservative_bound_boundary
+run_v110 calibration_attribution_bayesian change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage
+run_v110 calibration_design_bayesian interference_query_dag_bayesian_neighbor_count_nominal_coverage
+run_v110 calibration_design_bayesian transport_query_admg_bayesian_bootstrap_nominal_coverage
+run_v110 calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_temporal_class pulse_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_temporal_class pulse_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_temporal_class sustained_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_temporal_class sustained_effect_temporal_pag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage
+run_v110 calibration_temporal_class temporal_mediation_effect_temporal_cpdag_graph_posterior_bayesian_nominal_coverage
+run_v110 calibration_estimate glm_adjustment_binary_outcome_nominal_coverage
+run_v110 calibration_estimate average_effect_dag_frequentist_default_nominal_coverage
+run_v110 calibration_temporal temporal_cpdag_mediation_frequentist_confounded_nominal_coverage
+run_v110 calibration_temporal temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage
+run_v110 calibration_temporal pulse_effect_temporal_dag_bayesian_default_nominal_coverage
+run_v110 calibration_temporal pulse_effect_temporal_dag_autoregressive_parent_adjustment_nominal_coverage
+run_v110 calibration_bayesian_static average_effect_dag_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static average_effect_dag_bayesian_logit_nominal_coverage
+run_v110 calibration_bayesian_static average_effect_dag_bayesian_probit_nominal_coverage
+run_v110 calibration_bayesian_static average_effect_dag_bayesian_poisson_nominal_coverage
+run_v110 calibration_bayesian_static average_effect_cpdag_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static average_effect_pag_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static conditional_effect_dag_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static conditional_effect_cpdag_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static conditional_effect_pag_bayesian_default_nominal_coverage
 # Boundary cells: an atom probability 0.035 from a boundary at 600 rows.
-run_v110 v110_calibration_bayesian_static interventional_distribution_dag_bayesian_near_one_default_coverage
-run_v110 v110_calibration_bayesian_static interventional_distribution_dag_bayesian_near_zero_default_coverage
-run_v110 v110_calibration_bayesian_static mediation_nde_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static mediation_nie_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static path_specific_chain_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static path_specific_two_path_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static interventional_distribution_dag_bayesian_near_one_default_coverage
+run_v110 calibration_bayesian_static interventional_distribution_dag_bayesian_near_zero_default_coverage
+run_v110 calibration_bayesian_static mediation_nde_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static mediation_nie_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static path_specific_chain_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static path_specific_two_path_bayesian_default_nominal_coverage
 # Boundary cell: the mean-ITE credible interval is finite-sample tight at n=300.
-run_v110 v110_calibration_bayesian_static counterfactual_bayesian_mean_ite_default_coverage
-run_v110 v110_calibration_bayesian_static intervention_response_dag_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static response_curve_dag_bayesian_default_pointwise_nominal_coverage
-run_v110 v110_calibration_bayesian_static average_derivative_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static point_derivative_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static semi_elasticity_log_treatment_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static semi_elasticity_log_outcome_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static elasticity_bayesian_default_nominal_coverage
-run_v110 v110_calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static counterfactual_bayesian_mean_ite_default_coverage
+run_v110 calibration_bayesian_static intervention_response_dag_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static response_curve_dag_bayesian_default_pointwise_nominal_coverage
+run_v110 calibration_bayesian_static average_derivative_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static point_derivative_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static semi_elasticity_log_treatment_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static semi_elasticity_log_outcome_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static elasticity_bayesian_default_nominal_coverage
+run_v110 calibration_bayesian_static directional_derivative_bayesian_default_nominal_coverage
 # Boundary cell: the Jacobian band's measured coverage is asserted, not nominal.
-run_v110 v110_calibration_bayesian_static response_jacobian_bayesian_default_coverage
-run_v110 v110_calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
-run_v110 v110_calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
-run_v110 v110_class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
+run_v110 calibration_bayesian_static response_jacobian_bayesian_default_coverage
+run_v110 calibration_counterfactual counterfactual_interaction_bayesian_unit_and_mean_ite_coverage
+run_v110 calibration_counterfactual counterfactual_exp_modifier_bayesian_unit_and_mean_ite_coverage
+run_v110 class_posterior_calibration class_posterior_frequentist_ate_joint_if_nominal_90_coverage
 
 echo "== 2.0 statistical transport: empirical-table IID bootstrap (antecedent) =="
 run_v20() {
   local filter="$1"
-  echo "== antecedent: v20_transport_statistical_calibration ${filter} =="
-  check "v20_transport_statistical_calibration: ${filter}" \
-    cargo test --release -p antecedent --test v20_transport_statistical_calibration "$filter" \
+  echo "== antecedent: transport_statistical_calibration ${filter} =="
+  check "transport_statistical_calibration: ${filter}" \
+    cargo test --release -p antecedent --test transport_statistical_calibration "$filter" \
     -- --ignored --exact --nocapture
 }
 run_v20 shared_factor_target_observational_nominal_coverage
@@ -969,7 +969,7 @@ run_sd smoothed_dose_transport_grid_points
 run_sd smoothed_dose_transport_weak_overlap_boundary
 
 echo "== 2.2B joint mechanism sensitivity conservative endpoint bootstrap (antecedent) =="
-# Record 2.2B.X3.joint_sensitivity_uncertainty. The zero box is a two-sided gated record;
+# Record sensitivity.joint_uncertainty. The zero box is a two-sided gated record;
 # the positive box is a `one_sided` record (CoverageTally::assert_one_sided, side upper):
 # coverage of the true upper extremal bound at least nominal, no upper band or ceiling.
 run_js() {
@@ -983,7 +983,7 @@ run_js z_joint_sensitivity_zero_box
 run_js z_joint_sensitivity_positive_box
 
 echo "== 2.2E batch retarget unpublished max-t simultaneous band (antecedent) =="
-# Record 2.2E.E3.batch_retarget_covariance_contrasts. The family-level simultaneous interval
+# Record estimate.batch_retarget_covariance. The family-level simultaneous interval
 # route is closed (cell_not_licensed); the band is scored through the unpublished evaluator
 # and measured once at the 2.2 cut. Nothing is measured before it.
 run_br() {
@@ -996,7 +996,7 @@ run_br() {
 run_br batch_retarget_max_t_simultaneous_band
 
 echo "== 2.2E clustered DML published t Wald interval (antecedent) =="
-# Record 2.2E.E4.clustered_dml_aipw. The cluster-sandwich interval estimate +- t_(G-1) se is
+# Record estimate.clustered_dml_aipw. The cluster-sandwich interval estimate +- t_(G-1) se is
 # scored through the facade's published interval and measured once at the 2.2 cut; the
 # coverage record is the only missing piece.
 run_cd() {

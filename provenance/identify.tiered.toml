@@ -21,6 +21,6 @@ upstream_implementations_observed = []
 
 test_sources = [
  "crates/antecedent-identify/src/tiered.rs",
- "crates/antecedent/tests/v19_tiered_known_truth.rs",
- "crates/antecedent/tests/v15_numeric_pins.rs (codetermined_same_tier_joint_cell_aipw_matches_closure_admg)",
+ "crates/antecedent/tests/tiered_known_truth.rs",
+ "crates/antecedent/tests/numeric_pins.rs (codetermined_same_tier_joint_cell_aipw_matches_closure_admg)",
 ]

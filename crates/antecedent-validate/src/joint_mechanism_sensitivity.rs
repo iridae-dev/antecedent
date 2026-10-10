@@ -26,7 +26,7 @@
 //! an assumption range, never a confidence interval. Sampling uncertainty is
 //! not offered by this record: its conservative composition below is compiled
 //! only under `calibration-internal` and its route is closed until its coverage
-//! is measured at the 2.2 cut (record `2.2B.X3.joint_sensitivity_uncertainty`,
+//! is measured at the 2.2 cut (record `sensitivity.joint_uncertainty`,
 //! in progress: wired, not measured).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

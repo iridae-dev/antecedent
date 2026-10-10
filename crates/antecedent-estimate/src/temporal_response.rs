@@ -445,7 +445,7 @@ pub const TEMPORAL_RESPONSE_EFFECTIVE_ROWS: &str = "response.temporal.effective_
 pub const TEMPORAL_RESPONSE_SHORT_SERIES: &str = "response.temporal.block.short_series";
 
 /// Text of [`TEMPORAL_RESPONSE_PERSISTENCE_BOUNDARY`]; the numbers are from
-/// `crates/antecedent/tests/v19_temporal_response_calibration.rs` (400
+/// `crates/antecedent/tests/temporal_response_calibration.rs` (400
 /// replicates, nominal 95%).
 const PERSISTENCE_BOUNDARY_MESSAGE: &str = "circular blocks are max(span, ceil(sqrt(n))), \
      lengthened to ceil(b_PW·n^(1/6)) (at most n/3) when an estimating score is detectably \

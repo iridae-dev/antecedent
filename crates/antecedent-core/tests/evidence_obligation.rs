@@ -112,7 +112,7 @@ fn spec(kind: EvidenceObligationKind) -> EvidenceObligationSpec {
 }
 
 #[test]
-fn f9_unmet_factors_become_kind_specific_obligations() {
+fn unmet_factors_become_kind_specific_obligations() {
     let marginals = DistributionAvailability::SeparateMarginals { variables: vars(&[Y, Z]).into() };
     let joint = DistributionAvailability::Joint;
 
@@ -178,7 +178,7 @@ fn f9_unmet_factors_become_kind_specific_obligations() {
 }
 
 #[test]
-fn f9_every_kind_constructs_with_its_stable_name() {
+fn every_kind_constructs_with_its_stable_name() {
     for kind in EvidenceObligationKind::ALL {
         let mut s = spec(kind);
         match kind {
@@ -207,7 +207,7 @@ fn f9_every_kind_constructs_with_its_stable_name() {
 }
 
 #[test]
-fn f9_separate_studies_never_address_one_joint_regime_factor() {
+fn separate_studies_never_address_one_joint_regime_factor() {
     let obligation =
         EvidenceObligation::try_new(spec(EvidenceObligationKind::ProvideJointLaw)).unwrap();
     // Two separate studies, each a joint law over only one of the two variables.
@@ -224,7 +224,7 @@ fn f9_separate_studies_never_address_one_joint_regime_factor() {
 }
 
 #[test]
-fn f9_establish_assumption_is_never_addressed_by_a_study() {
+fn establish_assumption_is_never_addressed_by_a_study() {
     let mut s = spec(EvidenceObligationKind::EstablishAssumption);
     s.variables = Arc::from([]);
     s.population = None;
@@ -250,7 +250,7 @@ fn f9_establish_assumption_is_never_addressed_by_a_study() {
 }
 
 #[test]
-fn f9_unresolved_assumption_records_become_assumption_obligations() {
+fn unresolved_assumption_records_become_assumption_obligations() {
     let unresolved = ObligationRecord::new(
         "assume:no_unmeasured_confounding",
         ObligationScope::Program,
@@ -277,7 +277,7 @@ fn f9_unresolved_assumption_records_become_assumption_obligations() {
 }
 
 #[test]
-fn f9_identity_is_order_independent_and_provenance_sensitive() {
+fn identity_is_order_independent_and_provenance_sensitive() {
     let a = EvidenceObligation::try_new(spec(EvidenceObligationKind::ProvideJointLaw)).unwrap();
     let mut reordered = spec(EvidenceObligationKind::ProvideJointLaw);
     reordered.variables = vars(&[Z, Y]).into();
@@ -290,7 +290,7 @@ fn f9_identity_is_order_independent_and_provenance_sensitive() {
 }
 
 #[test]
-fn f9_malformed_obligations_are_refused_with_registered_codes() {
+fn malformed_obligations_are_refused_with_registered_codes() {
     let mut one_variable = spec(EvidenceObligationKind::ProvideJointLaw);
     one_variable.variables = vars(&[Y]).into();
     let error = EvidenceObligation::try_new(one_variable).unwrap_err();
@@ -324,7 +324,7 @@ fn f9_malformed_obligations_are_refused_with_registered_codes() {
 }
 
 #[test]
-fn f9_increase_sample_is_addressed_only_by_enough_rows() {
+fn increase_sample_is_addressed_only_by_enough_rows() {
     let mut s = spec(EvidenceObligationKind::IncreaseSample);
     s.variables = vars(&[Y]).into();
     s.regime.joint = false;

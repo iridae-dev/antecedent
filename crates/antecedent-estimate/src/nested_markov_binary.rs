@@ -1,5 +1,5 @@
 //! Bounded binary nested-Markov likelihood pilot (2.3A A3, record
-//! `2.3A.X4.binary_nested_markov_pilot`).
+//! `identify.binary_nested_markov`).
 //!
 //! An ordinary DAG factorization is **not** an ADMG likelihood: factorizing the
 //! selected graph below as `P(x1) P(x2|x1) P(x3|x2) P(x4|x3)` would ignore the

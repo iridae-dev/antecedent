@@ -82,7 +82,7 @@ on the point numbers; the `analyze` path derives its Monte Carlo stream from the
 analysis seed.
 
 The calibration slot of both cells is keyed by the construction the coverage
-harness measures (`crates/antecedent/tests/v110_calibration_design.rs`):
+harness measures (`crates/antecedent/tests/calibration_design.rs`):
 query, graph class, `fixed` structure, `tabular` modality, `Frequentist`,
 estimator (`transport.trial_ipw` / `interference.ht_hajek`), `analytic_se`,
 `iid` dependence, `point` identification, at the reported 0.95 level. A

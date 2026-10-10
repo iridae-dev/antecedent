@@ -1,5 +1,5 @@
 //! Coverage of the published cluster-DML Wald interval `estimate ± t_{G-1} · se` (record
-//! `2.2E.E4.clustered_dml_aipw`).
+//! `estimate.clustered_dml_aipw`).
 //!
 //! Clustered data with a cluster-level random effect on the outcome, a covariate and the
 //! treatment effect; the population average effect is 2. The scored interval is the

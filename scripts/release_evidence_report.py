@@ -30,20 +30,45 @@ def build_report(root: Path, releases: list[str]) -> dict:
         raise ValueError("duplicate carryover disposition")
     registries = {}
     all_records = {}
-    # Validate both registries even for a filtered report, so a stale disposition
-    # cannot hide behind a release filter.
-    for release in ("2.2", "2.3"):
-        registry = f"parity/promotion_{release.replace('.', '_')}.toml"
-        data = tomllib.loads((root / registry).read_text())
-        if data.get("release") != release:
-            raise ValueError(f"{registry}: release mismatch")
+    single = root / "parity/promotion.toml"
+    if single.is_file():
+        data = tomllib.loads(single.read_text())
+        if "release" in data:
+            raise ValueError("parity/promotion.toml: release field is not a claim")
         records = data.get("record", [])
-        registries[release] = (registry, records)
+        notes = {
+            "2.2": root / "docs/release-notes/v2.2.0.md",
+            "2.3": root / "docs/release-notes/v2.3.0.md",
+        }
+        grouped = {release: [] for release in ("2.2", "2.3")}
         for record in records:
             rid = record["id"]
             if rid in all_records:
                 raise ValueError(f"duplicate promotion record {rid}")
             all_records[rid] = record
+            owners = [
+                release for release, path in notes.items()
+                if path.is_file() and f"<!-- cell: {rid} -->" in path.read_text()
+            ]
+            if len(owners) != 1:
+                raise ValueError(f"{rid}: expected one release-note cell marker, found {owners}")
+            grouped[owners[0]].append(record)
+        for release, grouped_records in grouped.items():
+            registries[release] = ("parity/promotion.toml", grouped_records)
+    else:
+        # Synthetic self-test trees still carry one file per historical release.
+        for release in ("2.2", "2.3"):
+            registry = f"parity/promotion_{release.replace('.', '_')}.toml"
+            data = tomllib.loads((root / registry).read_text())
+            if data.get("release") != release:
+                raise ValueError(f"{registry}: release mismatch")
+            records = data.get("record", [])
+            registries[release] = (registry, records)
+            for record in records:
+                rid = record["id"]
+                if rid in all_records:
+                    raise ValueError(f"duplicate promotion record {rid}")
+                all_records[rid] = record
     carried = {
         rid for rid, r in all_records.items() if r["status"] == "carried_forward"
     }
@@ -88,7 +113,7 @@ def build_report(root: Path, releases: list[str]) -> dict:
         for record in records:
             summary = {
                 "id": record["id"],
-                "work_package": record["work_package"],
+                "work_package": record.get("work_package", record.get("capability", "")),
                 "status": record["status"],
                 "inference_claim": record["inference_claim"],
                 "owners": record.get("owners", []),
@@ -169,28 +194,31 @@ def self_test() -> int:
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         (root / "parity").mkdir()
-        paths = [
-            "promotion_2_2.toml",
-            "promotion_2_3.toml",
-            "promotion_carryovers.toml",
-        ]
-        for name in paths:
-            (root / "parity" / name).write_text((REPO / "parity" / name).read_text())
+        (root / "parity/promotion.toml").write_text(
+            (REPO / "parity/promotion.toml").read_text()
+        )
+        (root / "parity/promotion_carryovers.toml").write_text(
+            (REPO / "parity/promotion_carryovers.toml").read_text()
+        )
+        notes = root / "docs/release-notes"
+        notes.mkdir(parents=True)
+        for name in ("v2.2.0.md", "v2.3.0.md"):
+            (notes / name).write_text((REPO / "docs/release-notes" / name).read_text())
         report = build_report(root, ["2.2", "2.3"])
         assert len(report["releases"]) == 2
         assert not any(
             report[k]
             for k in ("execution_verified", "calibration_verified", "release_certified")
         )
-        assert "2.3: parity/promotion_2_3.toml" in render(report)
+        assert "2.3: parity/promotion.toml" in render(report)
         assert len(build_report(root, ["2.2"])["releases"]) == 1
         assert len(build_report(root, ["2.3"])["releases"]) == 1
         baseline = (root / "parity/promotion_carryovers.toml").read_text()
         correction = tomllib.loads(baseline)["cell"][1]["corrective_action"]
         for before, after, expected in [
-            ('id = "2.3A.X4.joint_bayesian_transport"', 'id = "unknown"', "mismatch"),
+            ('id = "sensitivity.joint_uncertainty"', 'id = "unknown"', "mismatch"),
             (
-                'failed_gates = ["whole_posterior_calibration"]',
+                'failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]',
                 "failed_gates = []",
                 "precise failed gates",
             ),
@@ -224,11 +252,13 @@ def self_test() -> int:
         else:
             raise AssertionError("duplicate disposition accepted")
         (root / "parity/promotion_carryovers.toml").write_text(baseline)
-        registry = root / "parity/promotion_2_3.toml"
+        registry = root / "parity/promotion.toml"
         original = registry.read_text()
         # All carried routes must be closed regardless of the report filter.
+        carried_at = original.index('id = "sensitivity.joint_uncertainty"')
+        closed_at = original.index('status = "closed"', carried_at)
         registry.write_text(
-            original.replace('status = "closed"', 'status = "licensed"', 1)
+            original[:closed_at] + 'status = "licensed"' + original[closed_at + len('status = "closed"') :]
         )
         try:
             build_report(root, ["2.2"])
@@ -245,11 +275,10 @@ def self_test() -> int:
             if r["status"] == "carried_forward"
         )
         assertion = first["routes"][0]["refusal_assertion"]
-        registry.write_text(
-            original.replace(
-                f'refusal_assertion = "{assertion}"', 'refusal_assertion = ""', 1
-            )
-        )
+        carried_at = original.index(f'id = "{first["id"]}"')
+        token = f'refusal_assertion = "{assertion}"'
+        at = original.index(token, carried_at)
+        registry.write_text(original[:at] + 'refusal_assertion = ""' + original[at + len(token) :])
         try:
             build_report(root, ["2.3"])
         except ValueError as error:

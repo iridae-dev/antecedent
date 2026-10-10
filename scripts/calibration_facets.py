@@ -2170,7 +2170,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "boundary": False,
         "role": "gated",
     }
-    suite = "crates/antecedent/tests/v19_static_calibration.rs"
+    suite = "crates/antecedent/tests/static_calibration.rs"
     cf = {
         "id": "cf",
         "test": f"{suite}::counterfactual",
@@ -2180,7 +2180,7 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
         "calibration_sha": start,
         **measured,
     }
-    temporal = "crates/antecedent/tests/v19_temporal_frequentist.rs"
+    temporal = "crates/antecedent/tests/temporal_frequentist.rs"
     tp = {
         "id": "tp",
         "test": f"{temporal}::pulse",
@@ -2857,30 +2857,30 @@ def self_test() -> int:
     )
     refs = references(base)
     counterfactual = {
-        "test": "crates/antecedent/tests/v19_static_calibration.rs::t",
-        "dgp": "crates/antecedent/tests/v19_static_calibration.rs::d",
+        "test": "crates/antecedent/tests/static_calibration.rs::t",
+        "dgp": "crates/antecedent/tests/static_calibration.rs::d",
         "query": "Counterfactual",
         "estimator": "gcm.fit",
     }
     temporal_rec = {
-        "test": "crates/antecedent/tests/v19_temporal_frequentist.rs::t",
-        "dgp": "crates/antecedent/tests/v19_temporal_frequentist.rs::d",
+        "test": "crates/antecedent/tests/temporal_frequentist.rs::t",
+        "dgp": "crates/antecedent/tests/temporal_frequentist.rs::d",
         "query": "PulseEffect",
         "estimator": "temporal.linear.adjustment",
     }
     expect(
         set(record_facets(counterfactual, base, refs))
-        >= {CORE, "mechanism", "suite.v19_static_calibration"},
+        >= {CORE, "mechanism", "suite.static_calibration"},
         "a counterfactual record carries core, mechanism and its suite",
     )
     temporal_facets = record_facets(temporal_rec, base, refs)
     expect(
         CORE in temporal_facets
         and "mechanism" not in temporal_facets
-        and "suite.v19_static_calibration" not in temporal_facets
+        and "suite.static_calibration" not in temporal_facets
         and "estimator.temporal_adjustment" in temporal_facets
         and "identity.temporal" in temporal_facets
-        and "suite.v19_temporal_frequentist" in temporal_facets,
+        and "suite.temporal_frequentist" in temporal_facets,
         "a temporal record carries core, its estimator, identity and suite; not mechanism",
     )
     split = []
@@ -2946,7 +2946,7 @@ def self_test() -> int:
             owed(mutated) == {"cf", "tp"},
             f"a {label} change owes every record measured at that SHA",
         )
-    suite = {"a" * 40: ["crates/antecedent/tests/v19_temporal_frequentist.rs"], "b" * 40: []}
+    suite = {"a" * 40: ["crates/antecedent/tests/temporal_frequentist.rs"], "b" * 40: []}
     expect(owed(suite) == {"tp"}, "a suite change owes the records that suite emits")
     estimator = {
         "a" * 40: ["crates/antecedent-estimate/src/temporal_adjustment.rs"],

@@ -132,7 +132,7 @@ fn require_supported() -> AdmissibilityRules {
 }
 
 #[test]
-fn f6_adapter_partial_identification_gives_an_interval_per_action_with_conflicting_leaders() {
+fn adapter_partial_identification_gives_an_interval_per_action_with_conflicting_leaders() {
     // A in [2, 8], B in [4, 6]. The lower bound favors B (4 > 2), the upper bound
     // favors A (8 > 6); neither interval lies wholly above the other.
     let sets = [interval("A", 2.0, 8.0), interval("B", 4.0, 6.0)];
@@ -180,7 +180,7 @@ fn f6_adapter_partial_identification_gives_an_interval_per_action_with_conflicti
 }
 
 #[test]
-fn f6_adapter_identified_sets_with_a_dominating_action_have_a_necessarily_best() {
+fn adapter_identified_sets_with_a_dominating_action_have_a_necessarily_best() {
     // A in [5, 8] beats B in [1, 4] for every value: 5 > 4.
     let sets = [interval("A", 5.0, 8.0), interval("B", 1.0, 4.0)];
     let result =
@@ -204,7 +204,7 @@ fn f6_adapter_identified_sets_with_a_dominating_action_have_a_necessarily_best()
 }
 
 #[test]
-fn f6_adapter_identified_losses_are_minimized_at_their_worst_case() {
+fn adapter_identified_losses_are_minimized_at_their_worst_case() {
     // Losses A in [2, 8] and B in [4, 6]: the worst losses are 8 and 6, so B.
     let sets = [interval("A", 2.0, 8.0), interval("B", 4.0, 6.0)];
     let by_loss = contract(
@@ -226,7 +226,7 @@ fn f6_adapter_identified_losses_are_minimized_at_their_worst_case() {
 }
 
 #[test]
-fn f6_adapter_identified_sets_respect_constraints_declarations_and_support() {
+fn adapter_identified_sets_respect_constraints_declarations_and_support() {
     let invariant = |rules| {
         contract(
             DecisionCriterion::PosteriorExpectedUtility,
@@ -285,7 +285,7 @@ fn f6_adapter_identified_sets_respect_constraints_declarations_and_support() {
 }
 
 #[test]
-fn f6_adapter_identified_set_refusals() {
+fn adapter_identified_set_refusals() {
     let sets = [interval("A", 2.0, 8.0), interval("B", 4.0, 6.0)];
     let error =
         evaluate_identified_sets(&plain(StructuralPolicy::BayesOverStructures), &sets).unwrap_err();
@@ -360,7 +360,7 @@ fn interval_contract(utility: UtilityExpr) -> DecisionContract {
 }
 
 #[test]
-fn f6_adapter_utility_interval_encloses_the_nonlinear_utility() {
+fn adapter_utility_interval_encloses_the_nonlinear_utility() {
     let product_minus_one = UtilityExpr::difference(
         UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1)),
         UtilityExpr::Const(1.0),
@@ -424,7 +424,7 @@ fn f6_adapter_utility_interval_encloses_the_nonlinear_utility() {
 }
 
 #[test]
-fn f6_adapter_invariant_best_action_across_graph_dependent_claims() {
+fn adapter_invariant_best_action_across_graph_dependent_claims() {
     let claims = vec![
         exact("g1", ClaimProbability::Unspecified, 5.0, 3.0),
         exact("g2", ClaimProbability::Unspecified, 6.0, 2.0),
@@ -442,7 +442,7 @@ fn f6_adapter_invariant_best_action_across_graph_dependent_claims() {
 }
 
 #[test]
-fn f6_adapter_graph_dependent_claims_name_each_graphs_leader() {
+fn adapter_graph_dependent_claims_name_each_graphs_leader() {
     let claims = vec![
         exact("g1", ClaimProbability::Unspecified, 5.0, 3.0),
         exact("g2", ClaimProbability::Unspecified, 1.0, 4.0),
@@ -464,7 +464,7 @@ fn f6_adapter_graph_dependent_claims_name_each_graphs_leader() {
 }
 
 #[test]
-fn f6_adapter_graph_dependent_claims_refuse_probabilities() {
+fn adapter_graph_dependent_claims_refuse_probabilities() {
     let claims = vec![
         exact("g1", ClaimProbability::Genuine(0.5), 5.0, 3.0),
         exact("g2", ClaimProbability::Genuine(0.5), 1.0, 4.0),
@@ -476,7 +476,7 @@ fn f6_adapter_graph_dependent_claims_refuse_probabilities() {
 }
 
 #[test]
-fn f6_adapter_weighted_graph_atoms_never_renormalize_unidentified_mass() {
+fn adapter_weighted_graph_atoms_never_renormalize_unidentified_mass() {
     let claims = vec![
         exact("g1", ClaimProbability::Genuine(0.5), 5.0, 3.0),
         exact("g2", ClaimProbability::Genuine(0.3), 1.0, 4.0),
@@ -523,7 +523,7 @@ fn f6_adapter_weighted_graph_atoms_never_renormalize_unidentified_mass() {
 }
 
 #[test]
-fn f6_adapter_weighted_atoms_bayes_refusal_without_genuine_probabilities() {
+fn adapter_weighted_atoms_bayes_refusal_without_genuine_probabilities() {
     // Counts are never probabilities.
     let counts = vec![
         exact("g1", ClaimProbability::CompletionCount(3), 5.0, 3.0),
@@ -582,7 +582,7 @@ fn f6_adapter_weighted_atoms_bayes_refusal_without_genuine_probabilities() {
 }
 
 #[test]
-fn f6_adapter_finite_scenarios_with_declared_weights() {
+fn adapter_finite_scenarios_with_declared_weights() {
     // Declared weights 0.6 and 0.4 as probabilities: A = 3 + 0.4 = 3.4 and
     // B = 1.8 + 0.8 = 2.6.
     let claims = vec![
@@ -625,7 +625,7 @@ fn f6_adapter_finite_scenarios_with_declared_weights() {
 }
 
 #[test]
-fn f6_adapter_point_claim_is_a_point_not_an_envelope() {
+fn adapter_point_claim_is_a_point_not_an_envelope() {
     let adapted = adapt_point_claim(
         "p",
         AtomEvidence::Evaluated(law(5.0, 3.0)),
@@ -658,7 +658,7 @@ fn f6_adapter_point_claim_is_a_point_not_an_envelope() {
 }
 
 #[test]
-fn f6_adapter_unsupported_atom_keeps_its_support_status_beyond_unevaluated() {
+fn adapter_unsupported_atom_keeps_its_support_status_beyond_unevaluated() {
     let s2 = SuppliedClaim {
         id: "g2".into(),
         probability: ClaimProbability::Unspecified,
@@ -704,7 +704,7 @@ fn f6_adapter_unsupported_atom_keeps_its_support_status_beyond_unevaluated() {
 }
 
 #[test]
-fn f6_adapter_no_admissible_action_when_a_declaration_removes_every_action() {
+fn adapter_no_admissible_action_when_a_declaration_removes_every_action() {
     let claims = vec![exact("g1", ClaimProbability::Unspecified, 5.0, 3.0)];
     let adapted =
         adapt_graph_dependent_claims(claims, StructuralPolicy::RequireInvariantBestAction).unwrap();
@@ -725,7 +725,7 @@ fn f6_adapter_no_admissible_action_when_a_declaration_removes_every_action() {
 }
 
 #[test]
-fn f6_adapter_policy_and_claim_shape_mismatches_refuse() {
+fn adapter_policy_and_claim_shape_mismatches_refuse() {
     let claims = vec![
         exact("g1", ClaimProbability::Unspecified, 5.0, 3.0),
         exact("g2", ClaimProbability::Unspecified, 1.0, 4.0),

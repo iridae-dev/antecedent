@@ -4,7 +4,7 @@
     python3 scripts/promotion_selftest.py --mutation-check  # manual: every rule has a live case
     python3 scripts/promotion_selftest.py --release 2.3     # the broken-record cases against a 2.3 registry
 
-The self-test builds ONE synthetic record (2.2A.XT.self_test_cell) with its own owning
+The self-test builds ONE synthetic record (xt.cell) with its own owning
 registries and source files in a temp dir, so it never depends on the state of any
 committed record. The baseline must pass the checker; each case mutates only
 synthetic files and must fail with its specific message AND its `[rule-id]`. Cases
@@ -137,13 +137,10 @@ STAGE_POINT = 'route = "self_test_cell.point_route"\nstage = "evaluate"\nstatus 
 
 # The one synthetic record, generated here so no committed record can drift it.
 RECORD = f'''version = 1
-release = "2.2"
 
 [[record]]
-id = "2.2A.XT.self_test_cell"
-workstream = "XT"
-milestone = "A"
-work_package = "AT"
+id = "xt.cell"
+capability = "xt"
 status = "in_progress"
 consumer_question = "Does the self-test cell hold every frozen field?"
 theorem = "self-test theorem."
@@ -202,7 +199,7 @@ SUPPORT_CLOSED = f'''version = 1
 query = "NestedCounterfactualEffect"
 contrast = "self_test_contrast"
 reason_code = "{REASON}"
-record = "2.2A.XT.self_test_cell"
+record = "xt.cell"
 '''
 
 SEARCH_OK = (
@@ -367,8 +364,8 @@ REFUSAL_ASSERT = f', refusal_assertion = "{PY_REFUSAL}"'
 # (rule, label, edits to the synthetic files, must report, must not report)
 cases = [
     # -- registry and frozen fields
-    ("registry_header", "wrong release", [rec('release = "2.2"', 'release = "2.1"')],
-     "promotion registry requires version 1 and release 2.2", None),
+    ("registry_header", "release field", [rec("version = 1\n", 'version = 1\nrelease = "2.2"\n')],
+     "promotion registry requires version 1 and no release field", None),
     ("frozen_field", "missing frozen theorem", [rec('\ntheorem = ', '\ntheorem_draft = ')],
      "missing frozen field theorem", None),
     ("duplicate_record", "duplicate record id", [rec(REC_BODY, REC_BODY + "\n[[record]]" + REC_BODY)],
@@ -388,7 +385,7 @@ cases = [
      "unknown coverage record 2.2A.NOPE", None),
     # -- bounds and search
     ("bounds_cancellation", "uncancellable bound", [rec('cancellation = true', 'cancellation = false')],
-     "2.2A.XT.self_test_cell: bounds.cancellation must be true", None),
+     "xt.cell: bounds.cancellation must be true", None),
     ("bounds_limit", "search without depth limit", [rec('depth_limit = "SearchLimits.depth", ', '')],
      "a bounded search must declare bounds.depth_limit", None),
     ("bounds_contract", "search off the shared contract", [rec('contract = "antecedent_core::SearchBudget"', 'contract = "ZTransportLimits"')],
@@ -398,7 +395,7 @@ cases = [
     ("search_impl_shape", "search_impl is not a list", [rec('search_impl = ["{D}/search_ok.rs"]', 'search_impl = "x.rs"')],
      "search_impl must be a list of source paths", None),
     ("search_impl_missing", "in_progress search without search_impl", [rec('search_impl = ["{D}/search_ok.rs"]\n', '')],
-     "2.2A.XT.self_test_cell: a search at status in_progress must declare search_impl", None),
+     "xt.cell: a search at status in_progress must declare search_impl", None),
     ("search_impl_file", "search_impl names a missing file",
      [rec('search_impl = ["{D}/search_ok.rs"]', 'search_impl = ["{D}/search_ok.rs", "{D}/missing.rs"]')],
      "missing.rs is not a Rust source file", None),
@@ -476,7 +473,7 @@ cases = [
      "duplicate fixture id xt.point_a.positive", None),
     ("fixture_id_format", "fixture id does not end in its role",
      [rec('id = "xt.point_a.positive", role = "positive"', 'id = "xt.point_a.wrong", role = "positive"')],
-     "fixture xt.point_a.wrong must be <workstream>.<name>.<role>", None),
+     "fixture xt.point_a.wrong must be <capability>.<name>.<role>", None),
     ("fixture_intent", "fixture without an intent", [rec('intent = "self-test positive"', 'intent = ""')],
      "fixture xt.point_a.positive needs an intent", None),
     ("evidence_pair", "evidence_test without an assertion", [rec(POS, POS.replace(f', evidence_assertion = "{PY_POS}"', ""))],
@@ -516,7 +513,7 @@ cases = [
      [rec('\nstatus = "in_progress"\n', '\nstatus = "promoted"\n'), rec(ART, ART + LIFE)],
      "promoted record lacks executed evidence for fixture xt.extra_a.lifecycle", None),
     ("fixture_roles", "missing negative fixture", [rec(NEG, '')],
-     "2.2A.XT.self_test_cell: missing fixture roles negative", None),
+     "xt.cell: missing fixture roles negative", None),
     ("fixture_roles", "calibrated claim without a calibration fixture",
      [rec('inference_claim = "point_only"\n', 'inference_claim = "calibrated"\ncoverage_records = ["2.2A.NOPE"]\n')],
      "missing fixture roles calibration", None),
@@ -593,7 +590,7 @@ cases = [
      "support_route is licensed in its record but still closed in support_closed.toml", None),
     ("support_no_closed_row", "closed support route without a closed row", [("support_closed.toml", SUPPORT_CLOSED, "version = 1\n")],
      "support_route has no support_closed.toml row", None),
-    ("support_closed_record", "closed row names another record", [("support_closed.toml", 'record = "2.2A.XT.self_test_cell"', 'record = "2.2A.XT.other"')],
+    ("support_closed_record", "closed row names another record", [("support_closed.toml", 'record = "xt.cell"', 'record = "2.2A.XT.other"')],
      "support_closed.toml row names record '2.2A.XT.other'", None),
     ("support_closed_reason", "closed row with another reason", [("support_closed.toml", f'reason_code = "{REASON}"', 'reason_code = "cell_not_licensed"')],
      "support_route: support_closed.toml reason_code 'cell_not_licensed'", None),
@@ -740,7 +737,7 @@ positives = [
     ("a covers entry no evidence closure or entry file mentions still passes but warns",
      [("surface_api.rs", None, EXTRA_FN),
       rec(UNC_CLOSED, covering(UNC_CLOSED, "self_test_extra_fn"))],
-     "warning: 2.2A.XT.self_test_cell: self_test_cell.uncertainty_route: covers entry self_test_extra_fn"),
+     "warning: xt.cell: self_test_cell.uncertainty_route: covers entry self_test_extra_fn"),
     ("an executing-verb method on a listed value type is fine when it is a route component or internal",
      [("surface_api.rs", IMPL_ANCHOR, IMPL_ANCHOR + "    pub fn identify_route(&self) {}\n    #[doc(hidden)]\n    pub fn run_hidden(&self) {}\n"),
       rec('why = "self-test hidden helper" }]', 'why = "self-test hidden helper" }, { name = "run_hidden", why = "r" }]')]),
@@ -1086,22 +1083,20 @@ def baseline() -> tuple[bool, str]:
 
 
 def committed() -> tuple[bool, str]:
-    """Both committed registries pass every rule (evidence resolved statically here;
+    """The committed registry passes every rule (evidence resolved statically here;
     the gate itself lists and executes it for real)."""
-    for release in ("2_2", "2_3"):
-        path = Path(f"parity/promotion_{release}.toml")
-        code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
-        if code != 0:
-            return False, f"SELF-TEST FAIL: {path} does not pass\n{out[-2500:]}"
-    # The 2.3 filename must not accidentally accept the 2.2 release marker.
+    path = Path("parity/promotion.toml")
+    code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
+    if code != 0:
+        return False, f"SELF-TEST FAIL: {path} does not pass\n{out[-2500:]}"
     with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "promotion_2_3.toml"
-        source = (ROOT / "parity/promotion_2_3.toml").read_text()
-        path.write_text(source.replace('release = "2.3"', 'release = "2.2"', 1))
-        code, out = run(path, {"PROMOTION_STATIC_ONLY": "1"})
-        if code == 0 or "promotion registry requires version 1 and release 2.3 [registry_header]" not in out:
-            return False, f"SELF-TEST FAIL: 2.3 release mismatch was accepted\n{out[-2500:]}"
-    return True, "self-test ok: both committed registries pass the checker"
+        leaked = Path(tmp) / "promotion.toml"
+        source = (ROOT / "parity/promotion.toml").read_text()
+        leaked.write_text(source.replace("version = 1\n", 'version = 1\nrelease = "2.4"\n', 1))
+        code, out = run(leaked, {"PROMOTION_STATIC_ONLY": "1"})
+        if code == 0 or "promotion registry requires version 1 and no release field [registry_header]" not in out:
+            return False, f"SELF-TEST FAIL: a release field was accepted\n{out[-2500:]}"
+    return True, "self-test ok: the committed registry passes the checker"
 
 
 def rule_ids() -> tuple[list[str], set[str]]:

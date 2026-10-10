@@ -213,7 +213,7 @@ frontier line and a declared memory cap of at most 512 MiB; the uncertainty
 record's internal estimator has a bootstrap request cap of 2000. The range is
 never a confidence interval, and its guarantee (exact within the declared contamination
 class) covers the range only. The one declared sampling composition (conservative endpoint
-percentile bootstrap, paper-inherited) is record `2.2B.X3.joint_sensitivity_uncertainty`,
+percentile bootstrap, paper-inherited) is record `sensitivity.joint_uncertainty`,
 in progress: its gated zero-box and `one_sided` positive-box coverage records
 were measured. Its public routes still refuse with `cell_not_licensed` pending
 promotion. Export and consume use a
@@ -323,7 +323,7 @@ action alphabet (at most 8 actions), on an explicit two-slice unrolled selection
 diagram of at most 12 coordinates and 4096 complete covariate histories. The
 estimand is the target distribution and mean of the outcome under
 `do(A_1=a1, A_2=a2)`. The claim is exact and point-only; temporal sampling
-intervals are available through the separate [2.3 measured temporal adapter](../2_3-population-time-uncertainty.md). This exact-law route still refuses an
+intervals are available through the separate [2.3 measured temporal adapter](../population-time-uncertainty.md). This exact-law route still refuses an
 interval request (`temporal_transport.interval_requested`,
 `estimator_inference_mismatch`).
 
@@ -387,7 +387,7 @@ interval request (`temporal_transport.interval_requested`,
   What is enforced is that a same-window refresh may not move the target's
   initial-state masses (beyond 1e-9); a moved initial state is initial-state
   uncertainty or a new period and refuses as a changed window. Use the
-  separate [2.3 temporal recalculation workflow](../2_3-recalculation-capabilities.md)
+  separate [2.3 temporal recalculation workflow](../recalculation-capabilities.md)
   when its original source and horizon contract apply.
 - **Lifecycle.** A same-window evidence refresh re-estimates under the same proof and
   identity. The licensed horizon is 2 steps. A longer horizon, a third period, laws over other coordinates or another
@@ -676,7 +676,7 @@ estimand is `psi_h(a) = E_target[ integral K_h(a - t) E(Y | X, A=t, S=1) dt ]`; 
 bandwidth and kernel are part of it, never tuned. The derivation of the score, its model
 double robustness and the executed numerical checks are in
 [smoothed-dose-response-transport.md](../architecture/smoothed-dose-response-transport.md); record
-`2.2B.X4.smoothed_dose_response_transport`, refusal namespace `dose_response`.
+`transport.smoothed_dose_response`, refusal namespace `dose_response`.
 
 - **Surface.** Rust `StudyBuilder::smoothed_dose_transport` / `PreparedSmoothedDose`
   (estimate, refresh, interval, estimator menu) and `consume_smoothed_dose_artifact`;
@@ -856,7 +856,7 @@ most 4 levels each, from the observational joint (exact law or empirical counts)
 on the conjunction `{Y_x = y, X = x'}` identifies each district term by ID under one
 `SearchBudget` (at most 100000 operations, depth 64); Python
 `antecedent.counterfactual_id.prepare_effect_on_treated`, record
-`2.2B.X8.admg_counterfactual_id`. When ID* stops and the treatment is binary, the
+`counterfactual.admg_identification`. When ID* stops and the treatment is binary, the
 consistency identity `P(Y_x = y, X = x') = P_x(y) - P(y, X = x)` answers wherever ID
 identifies `P_x(y)`. A query ID* does not identify (conflicting
 subscripts, or an ID hedge on a district term) and the binary complement does not
@@ -865,7 +865,7 @@ identified by ID*, which is NOT a proof of non-identifiability (ID* composed wit
 is not complete from `P(V)`; a graph whose ETT is identified through `P(y | do(x))`
 was refused by ID* alone). The claim is a point and never carries an interval;
 path-specific queries are outside this ETT route. The separate
-[2.3 transported path-specific adapter](../2_3-transport-counterfactuals.md)
+[2.3 transported path-specific adapter](../transport-counterfactuals.md)
 supports only its declared affine-additive model. The consumer refuses stored limits
 above its own before any work; replay does not protect against a producer sealing a
 wrong graph, query or law, nor against a bug shared by the engine and the consumer
@@ -889,7 +889,7 @@ The classical routes described here bind:
 These records do not license arbitrary learned-trial intervals. Separate
 2.3 adapters supply measured joint Bayesian and learned joint transport,
 binary nested-Markov, dependent temporal and sampled-recovery scalar intervals;
-see [their exact protocols and source-bound consumers](../2_3-population-time-uncertainty.md).
+see [their exact protocols and source-bound consumers](../population-time-uncertainty.md).
 `transport.multi_source_calibrated_coverage` and
 `transport.simultaneous_grid_bands` stay closed. T7/T8 full coverage
 remeasurement is not claimed here.

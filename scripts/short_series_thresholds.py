@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Short-series thresholds: derived from the measurement's per-replicate records, rendered into the docs.
 
-The measurement (`crates/antecedent/tests/v19_short_series_measurement.rs`, an ignored
+The measurement (`crates/antecedent/tests/short_series_measurement.rs`, an ignored
 provenance run, not a gate) writes one CSV row per replicate when
 `ANTECEDENT_SHORT_SERIES_CSV=<path>` is set. This script owns the rule that turns those
 rows into a per-family threshold, the registry of the latest result

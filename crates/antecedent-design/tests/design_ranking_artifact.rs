@@ -243,7 +243,7 @@ fn candidate_mut<'a>(wire: &'a mut DesignRankingArtifactWire, id: &str) -> &'a m
 }
 
 #[test]
-fn f14_round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
+fn round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
     let wire = seal_guess(frozen_candidates());
     assert_eq!(wire.calibration, DESIGN_RANKING_CALIBRATION);
     assert_eq!(wire.calibration, "unmeasured");
@@ -283,7 +283,7 @@ fn f14_round_trip_retains_net_values_three_twentieths_and_one_fortieth() {
 }
 
 #[test]
-fn f14_reordered_candidates_preserve_identity_and_bytes() {
+fn reordered_candidates_preserve_identity_and_bytes() {
     let forward = seal_guess(frozen_candidates());
     let mut reversed_input = frozen_candidates();
     reversed_input.reverse();
@@ -299,7 +299,7 @@ fn f14_reordered_candidates_preserve_identity_and_bytes() {
 }
 
 #[test]
-fn f14_unsealed_mutation_corruption_and_unknown_version_refuse() {
+fn unsealed_mutation_corruption_and_unknown_version_refuse() {
     let wire = seal_guess(frozen_candidates());
     let mut edited = wire.clone();
     candidate_mut(&mut edited, "cand-1").evsi = 0.9;
@@ -330,7 +330,7 @@ fn f14_unsealed_mutation_corruption_and_unknown_version_refuse() {
 }
 
 #[test]
-fn f14_altered_signal_or_update_is_refused_even_when_resealed() {
+fn altered_signal_or_update_is_refused_even_when_resealed() {
     type CandidateMutation = Box<dyn Fn(&mut CandidateWire)>;
     let wire = seal_guess(frozen_candidates());
 
@@ -445,7 +445,7 @@ fn f14_altered_signal_or_update_is_refused_even_when_resealed() {
 }
 
 #[test]
-fn f14_altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
+fn altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
     let wire = seal_guess(frozen_candidates());
 
     let mut edited = wire.clone();
@@ -490,7 +490,7 @@ fn f14_altered_cost_mapping_amount_or_unit_is_refused_even_when_resealed() {
 }
 
 #[test]
-fn f14_source_overlap_is_refused_before_ranking_and_when_resealed() {
+fn source_overlap_is_refused_before_ranking_and_when_resealed() {
     // The evaluator refuses to produce the ranking at all.
     let mut overlapping = frozen_candidates();
     overlapping[0].reused_observation_ids = vec!["obs-prior".into()];
@@ -531,7 +531,7 @@ fn f14_source_overlap_is_refused_before_ranking_and_when_resealed() {
 }
 
 #[test]
-fn f14_stored_order_and_search_receipt_must_follow_from_the_values() {
+fn stored_order_and_search_receipt_must_follow_from_the_values() {
     let wire = seal_guess(frozen_candidates());
     let mut edited = wire.clone();
     candidate_mut(&mut edited, "cand-1").rank = 1;
@@ -550,7 +550,7 @@ fn f14_stored_order_and_search_receipt_must_follow_from_the_values() {
 }
 
 #[test]
-fn f14_bounds_are_checked_before_any_recomputation() {
+fn bounds_are_checked_before_any_recomputation() {
     let wire = seal_guess(frozen_candidates());
     let mut huge = wire.clone();
     let template = huge.candidates[0].clone();
@@ -610,7 +610,7 @@ fn seal_bet(candidates: Vec<EvsiCandidate>) -> (DesignRankingArtifactWire, EvsiR
 }
 
 #[test]
-fn f12_native_binomial_is_natively_replayed_and_equivalent_external_signals_are_not() {
+fn native_binomial_is_natively_replayed_and_equivalent_external_signals_are_not() {
     let native: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
     let (wire, _) = seal_bet(vec![
         candidate("a_native", 2, native, 0.0, "utility"),
@@ -664,7 +664,7 @@ fn f12_native_binomial_is_natively_replayed_and_equivalent_external_signals_are_
 }
 
 #[test]
-fn f12_attested_decision_values_stay_attested_when_altered_or_relabelled() {
+fn attested_decision_values_stay_attested_when_altered_or_relabelled() {
     let (wire, _) = seal_bet(vec![candidate(
         "values",
         2,
@@ -705,7 +705,7 @@ fn f12_attested_decision_values_stay_attested_when_altered_or_relabelled() {
 }
 
 #[test]
-fn f12_native_gaussian_matches_the_closed_form_and_alterations_are_refused() {
+fn native_gaussian_matches_the_closed_form_and_alterations_are_refused() {
     let utility = AffineUtility::new(vec![0.0, 0.0], vec![0.0, 1.0]).unwrap();
     let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
     let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
@@ -752,7 +752,7 @@ fn f12_native_gaussian_matches_the_closed_form_and_alterations_are_refused() {
 }
 
 #[test]
-fn f12_monte_carlo_value_is_bound_but_never_marked_replayed() {
+fn monte_carlo_value_is_bound_but_never_marked_replayed() {
     let utility = AffineUtility::new(vec![0.0, -0.45], vec![0.0, 1.0]).unwrap();
     let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
     let prior = DecisionPrior::Draws(vec![0.2, 0.5, 0.8]);

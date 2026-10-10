@@ -70,7 +70,7 @@ echo "== retained 2.2 and current 2.3 promotion evidence inventory =="
 python3 scripts/release_evidence_report.py
 
 echo "== inherited calibration debt and current inference contract inventory =="
-python3 scripts/generate_2_3_calibration_plan.py --check
+python3 scripts/generate_calibration_plan.py --check
 
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
@@ -224,12 +224,12 @@ if [[ "${SKIP_PRIOR_GATES:-0}" != "1" ]]; then
   # check. PENDING_CALIBRATION (story 3 / X1 coverage records unmeasured) exits 0 here; the
   # release-candidate cut can add --require-calibrated.
   echo "== 2.2 A exit gate =="
-  bash scripts/gate_a_exit.sh
+  bash scripts/gate_composition_exit.sh
   # 2.2 B exit gate scaffold: per-package table (PENDING_IMPLEMENTATION until a package registers
-  # its stories in scripts/b_exit_report.py) plus the interval check over every 2.2 record. The
+  # its stories in scripts/decision_exit_report.py) plus the interval check over every 2.2 record. The
   # cut runs it with --release.
   echo "== 2.2 B exit gate =="
-  bash scripts/gate_b_exit.sh
+  bash scripts/gate_decision_exit.sh
 fi
 section_end feature_exits
 fi

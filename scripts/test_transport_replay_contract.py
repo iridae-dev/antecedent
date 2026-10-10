@@ -86,7 +86,7 @@ class ReplayContractTests(unittest.TestCase):
         route = {
             "route": "antecedent.transport.joint_bayesian",
             "stage": "uncertainty",
-            "promotion_record": "2.3A.X4.joint_bayesian_transport",
+            "promotion_record": "transport.joint_bayesian",
             "evidence_test": PATH,
             "evidence_assertion": ASSERTION,
         }

@@ -2,8 +2,8 @@
 # Coverage citation gate.
 #
 # A licensed row that quotes a measured coverage cites the test that produced
-# it, in the form `0.895 (v19_static_calibration::path_specific_two_path_*)` or
-# `(crates/antecedent/tests/v19_derivative_calibration.rs::ade_..._coverage)`.
+# it, in the form `0.895 (static_calibration::path_specific_two_path_*)` or
+# `(crates/antecedent/tests/derivative_calibration.rs::ade_..._coverage)`.
 # The 2026-09-15 traceability pass found quoted numbers that no test had
 # produced on the current tree; a citation that names a test which does not
 # exist is the cheapest such drift to catch mechanically. This gate resolves
@@ -64,7 +64,7 @@ def test_fns(module: str):
 fns_cache = {}
 
 # ------------------------------------------------ citations in the prose
-# `v19_static_calibration::name`, `crates/antecedent/tests/v19_x.rs::name`, and the
+# `static_calibration::name`, `crates/antecedent/tests/v19_x.rs::name`, and the
 # shorthand `::name` that continues the last-named module inside one citation.
 CITE_RE = re.compile(
     r"(?:crates/antecedent/tests/)?(v1(?:9|10)_[a-z0-9_]+)(?:\.rs)?::([A-Za-z0-9_{},*]+)"

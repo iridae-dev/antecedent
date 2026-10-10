@@ -119,7 +119,7 @@ fn retained(atoms: &[StructuralAtom]) -> Vec<(String, Option<String>)> {
 }
 
 #[test]
-fn f6_artifact_retains_atom_ids_unidentified_mass_and_declared_policy() {
+fn artifact_retains_atom_ids_unidentified_mass_and_declared_policy() {
     let c = contract(StructuralPolicy::Maximin);
     let identity = c.identity().unwrap();
     let atoms = frozen_atoms();
@@ -178,7 +178,7 @@ fn f6_artifact_retains_atom_ids_unidentified_mass_and_declared_policy() {
 }
 
 #[test]
-fn f6_artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tampering() {
+fn artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tampering() {
     let c = contract(StructuralPolicy::Maximin);
     let identity = c.identity().unwrap();
     let atoms = frozen_atoms();
@@ -223,7 +223,7 @@ fn f6_artifact_refuses_other_contract_other_atom_ids_changed_digests_and_tamperi
 }
 
 #[test]
-fn f6_replay_recomputes_and_refuses_a_changed_verdict_or_number() {
+fn replay_recomputes_and_refuses_a_changed_verdict_or_number() {
     let c = contract(StructuralPolicy::Maximin);
     let atoms = frozen_atoms();
     let result = evaluate_structural(&c, &atoms).unwrap();
@@ -263,7 +263,7 @@ fn f6_replay_recomputes_and_refuses_a_changed_verdict_or_number() {
 }
 
 #[test]
-fn f6_fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
+fn fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
     const PATH_ENV: &str = "ANTECEDENT_23_STRUCTURAL_TEST_DIR";
     if let Ok(dir) = std::env::var(PATH_ENV) {
         let dir = std::path::PathBuf::from(dir);
@@ -293,7 +293,7 @@ fn f6_fresh_process_consumer_rebuilds_atoms_from_constants_and_replays() {
     std::fs::write(dir.join("structural.bin"), artifact.to_bytes("s").unwrap()).unwrap();
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .arg("--exact")
-        .arg("f6_fresh_process_consumer_rebuilds_atoms_from_constants_and_replays")
+        .arg("fresh_process_consumer_rebuilds_atoms_from_constants_and_replays")
         .env(PATH_ENV, &dir)
         .output()
         .unwrap();

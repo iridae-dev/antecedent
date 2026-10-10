@@ -4,7 +4,7 @@ Before a nuisance fit refuses a table, `antecedent` can say what is wrong with i
 The diagnostics and the plan add no inferential claim; they are a diagnostic and
 planning layer over existing cells. The one entry point that estimates after a rank
 drop (`estimate_with_rank_drop`) does change what is computed, so it carries its own
-promotion record, `2.2E.E1.preflight_rank_drop_estimation`, `point_only`. Two kinds
+promotion record, `estimate.preflight_rank_drop`, `point_only`. Two kinds
 of check are kept in separate types so one is never read as the other.
 
 | Check | Rust | Python | Fits a model? |

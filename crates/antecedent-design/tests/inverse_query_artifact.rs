@@ -163,7 +163,7 @@ fn message(error: &IoError) -> String {
 }
 
 #[test]
-fn f7_artifact_round_trips_the_status_table_and_replays_through_the_engine() {
+fn artifact_round_trips_the_status_table_and_replays_through_the_engine() {
     let artifact = sealed(vec![median_at_least(1.0)], GridScope::FiniteEnumeration);
     // Medians by hand: F_a0(0) = 3/4, F_a1(0) = 1/2, F_a2(0) = 1/4 against level 1/2, so the
     // left-inverse quantile is 0, 0, 1 and only a2 reaches 1.
@@ -184,7 +184,7 @@ fn f7_artifact_round_trips_the_status_table_and_replays_through_the_engine() {
 }
 
 #[test]
-fn f7_premises_and_data_digests_are_kept_apart() {
+fn premises_and_data_digests_are_kept_apart() {
     let base = sealed(vec![mean_at_least(0.5)], GridScope::FiniteEnumeration);
     // Same premises, different numbers: only the data digest moves.
     let other_numbers = InverseQueryArtifact::new(
@@ -205,7 +205,7 @@ fn f7_premises_and_data_digests_are_kept_apart() {
 }
 
 #[test]
-fn f7_artifact_keeps_the_feasibility_fields_distinct() {
+fn artifact_keeps_the_feasibility_fields_distinct() {
     let scenario = |id: &str, a1: &[f64]| StructuralAtom {
         id: id.into(),
         probability: Some(0.5),
@@ -241,7 +241,7 @@ fn f7_artifact_keeps_the_feasibility_fields_distinct() {
 }
 
 #[test]
-fn f7_artifact_embeds_means_and_a_probability_on_them_refuses() {
+fn artifact_embeds_means_and_a_probability_on_them_refuses() {
     let means = MeanSource {
         coordinates: REGIMES.iter().map(|r| quantity("y", r, "mean")).collect(),
         means: vec![0.25, 0.5, 0.75],
@@ -275,7 +275,7 @@ fn f7_artifact_embeds_means_and_a_probability_on_them_refuses() {
 }
 
 #[test]
-fn f7_consumer_refuses_resealed_mutations() {
+fn consumer_refuses_resealed_mutations() {
     let artifact = sealed(vec![mean_at_least(0.5)], GridScope::FiniteEnumeration);
     let bytes = artifact.to_bytes("inverse-query-tamper").unwrap();
     let (meta, contract, data) = decode_parts(&bytes).unwrap();
@@ -322,7 +322,7 @@ fn f7_consumer_refuses_resealed_mutations() {
 }
 
 #[test]
-fn f7_other_versions_and_layouts_are_refused() {
+fn other_versions_and_layouts_are_refused() {
     let artifact = sealed(vec![mean_at_least(0.5)], GridScope::FiniteEnumeration);
     let bytes = artifact.to_bytes("inverse-query-version").unwrap();
     let (meta, contract, data) = decode_parts(&bytes).unwrap();
@@ -337,7 +337,7 @@ fn f7_other_versions_and_layouts_are_refused() {
 }
 
 #[test]
-fn f7_continuous_sample_artifact_never_claims_global_feasibility() {
+fn continuous_sample_artifact_never_claims_global_feasibility() {
     // No sampled point reaches a mean of 0.9; that does not show the continuum has none.
     let none_found = sealed(vec![mean_at_least(0.9)], GridScope::ContinuousSample);
     assert_eq!(none_found.result().existence, ExistenceClaim::Undetermined);

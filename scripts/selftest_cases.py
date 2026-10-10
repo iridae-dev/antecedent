@@ -512,8 +512,8 @@ def schema_cases() -> list[bool]:
             "record_facets_narrowed_by_hand",
             {
                 "parity/coverage_records.toml": replace(
-                    'facets = ["core", "mechanism", "suite.v19_static_calibration"]',
-                    'facets = ["suite.v19_static_calibration"]',
+                    'facets = ["core", "mechanism", "suite.static_calibration"]',
+                    'facets = ["suite.static_calibration"]',
                 )
             },
             ["are not the derived", "collect_coverage_records.py --retag"],
@@ -601,7 +601,7 @@ def schema_cases() -> list[bool]:
             "record_without_facets",
             {
                 "parity/coverage_records.toml": replace(
-                    'facets = ["core", "estimator.temporal_adjustment", "identity.temporal", "suite.v19_temporal_frequentist"]\n',
+                    'facets = ["core", "estimator.temporal_adjustment", "identity.temporal", "suite.temporal_frequentist"]\n',
                     "",
                 )
             },
@@ -771,7 +771,7 @@ def reachability_cases() -> list[bool]:
             g,
             "orphan_calibration_test",
             {
-                "crates/antecedent/tests/v19_calibration.rs": append(
+                "crates/antecedent/tests/mixture_interval_calibration.rs": append(
                     '\n#[test]\n#[ignore = "calibration: run via scripts/gate_calibration.sh"]\n'
                     "fn orphan_cell_nominal_90_coverage() {}\n"
                 )

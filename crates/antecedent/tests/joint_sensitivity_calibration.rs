@@ -1,5 +1,5 @@
 //! Coverage of the 2.2B X3 conservative endpoint percentile bootstrap (record
-//! `2.2B.X3.joint_sensitivity_uncertainty`).
+//! `sensitivity.joint_uncertainty`).
 //!
 //! The registered surrogate formula's cited joint is `P(W) P(X) P(Y | W, X)`
 //! under `do(Z = 0)` with a W-dependent effect. The truth is `psi(delta0)` at

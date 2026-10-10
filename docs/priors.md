@@ -347,4 +347,4 @@ populations differ, and refuses overlapping study observations. It supports
 one scalar state with Gaussian-mean or binomial future-study signals; compatibility
 and convergence are checked before ranking. It does not reconstruct posterior
 draws from a mean and variance or make an unidentified effect identified.
-See [design ranking](2_3-design-ranking.md) for the complete source-to-study example.
+See [design ranking](design-ranking.md) for the complete source-to-study example.

@@ -1,5 +1,5 @@
 //! Independent artifact of sampled observation recovery (2.3A A6, record
-//! `2.3A.X10.sampled_observation_recovery`), format version 2. Internal and non-routed:
+//! `recovery.sampled_observation`), format version 2. Internal and non-routed:
 //! the public interval route `antecedent.transport.sampled_observation_recovery` stays
 //! closed (`cell_not_licensed`, `sampled_recovery.route_frozen`) until the whole-method
 //! calibration is measured, so the interval stored here carries calibration `unmeasured`.

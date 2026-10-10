@@ -164,10 +164,10 @@ echo "== release candidate: PR inventory + composition + calibration attestation
 bash scripts/gate_release.sh
 
 echo "== release candidate: calibrated 2.2 A exit =="
-bash scripts/gate_a_exit.sh --require-calibrated
+bash scripts/gate_composition_exit.sh --require-calibrated
 
 echo "== release candidate: complete and calibrated 2.2 B exit =="
-bash scripts/gate_b_exit.sh --release
+bash scripts/gate_decision_exit.sh --release
 
 echo "== release candidate: strict bounds and final claims =="
 python3 scripts/check_limits_agreement.py --strict

@@ -5,7 +5,7 @@
 standard AIPW average effect with **whole clusters** owning folds. The route publishes the
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
 scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The record is
-`2.2E.E4.clustered_dml_aipw` in `parity/promotion_2_2.toml`; the one-way interval's
+`estimate.clustered_dml_aipw` in `parity/promotion_2_2.toml`; the one-way interval's
 95% coverage record is measured and the one-way interval is licensed at its measured coordinate
 (see [What is published](#what-is-published-and-what-is-not)).
 

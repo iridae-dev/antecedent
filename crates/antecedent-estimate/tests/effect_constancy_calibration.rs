@@ -22,7 +22,7 @@ fn normal(state: &mut u64) -> f64 {
 
 #[test]
 #[allow(clippy::too_many_lines)] // One declared experiment and its per-cell acceptance rules.
-fn f18_known_gaussian_null_power_and_holm_grid() {
+fn known_gaussian_null_power_and_holm_grid() {
     const REPLICATES: usize = 2000;
     for k in [2_usize, 3, 8] {
         for rho in [0.0_f64, 0.6, -0.5 / (k - 1) as f64] {

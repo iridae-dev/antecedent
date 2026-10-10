@@ -990,7 +990,7 @@ impl super::Study {
 /// restate it as bounds.
 ///
 /// Static class envelopes publish the frozen-weight mixture's sampling
-/// interval (the construction `v19_static_envelope_calibration` scores); no
+/// interval (the construction `static_envelope_calibration` scores); no
 /// interval for the identified set is constructed on this path.
 pub(super) fn static_class_structural_mixture<G>(
     envelope: &IdentificationEnvelope<G>,

@@ -1,6 +1,6 @@
 """Sampling uncertainty of the joint mechanism sensitivity range: closed until measured.
 
-Record ``2.2B.X3.joint_sensitivity_uncertainty`` (in progress). The one
+Record ``sensitivity.joint_uncertainty`` (in progress). The one
 declared composition, the conservative endpoint percentile bootstrap, has a
 one-sided coverage target. Its coverage is wired but not measured until the
 2.2 cut, so the interval is not offered and

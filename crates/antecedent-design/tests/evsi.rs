@@ -231,7 +231,7 @@ fn gaussian_request(scale_unused: f64) -> EvsiRequest {
 }
 
 #[test]
-fn f12_gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
+fn gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
     let prior = DecisionPrior::Normal { mean: 0.5, variance: 1.0 };
     let report = run(&gaussian_problem(1.0, 0.0), &prior, &gaussian_request(1.0)).unwrap();
     let row = &report.candidates[0];
@@ -256,7 +256,7 @@ fn f12_gaussian_mean_matches_the_closed_form_normal_linear_loss_value() {
 }
 
 #[test]
-fn f12_binomial_enumeration_matches_native_and_every_external_update_mode() {
+fn binomial_enumeration_matches_native_and_every_external_update_mode() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let req_for = |id: &str| signal_request(id, 2);
@@ -321,7 +321,7 @@ fn f12_binomial_enumeration_matches_native_and_every_external_update_mode() {
 }
 
 #[test]
-fn f12_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() {
+fn evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() {
     let prior = bet_prior();
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
     let req =
@@ -347,7 +347,7 @@ fn f12_evsi_is_nonnegative_bounded_by_evpi_and_positive_affine_invariant() {
 }
 
 #[test]
-fn f12_monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
+fn monte_carlo_is_labelled_with_error_replicates_ess_and_convergence() {
     // Bet pays theta - 0.45 over draws {0.2, 0.5, 0.8}: EVPI = (0 + 0.05 + 0.35) / 3 - 0.05 = 1/12.
     let utility = AffineUtility::new(vec![0.0, -0.45], vec![0.0, 1.0]).unwrap();
     let problem = DecisionProblem::new(vec![0_usize, 1], Arc::new(utility), vec![]);
@@ -407,7 +407,7 @@ fn guess_prior() -> DecisionPrior<f64> {
 const GUESS_ACTIONS: [&str; 2] = ["guess0", "guess1"];
 
 #[test]
-fn f12_frozen_record_values_and_net_value_only_with_a_cost_mapping() {
+fn frozen_record_values_and_net_value_only_with_a_cost_mapping() {
     let problem = guess_problem();
     let prior = guess_prior();
     // Without a mapping: value and cost are reported separately.
@@ -457,7 +457,7 @@ fn f12_frozen_record_values_and_net_value_only_with_a_cost_mapping() {
 }
 
 #[test]
-fn f12_incompatible_cost_units_and_missing_maps_refuse() {
+fn incompatible_cost_units_and_missing_maps_refuse() {
     let problem = guess_problem();
     let prior = guess_prior();
     // Currency cost with a utility-unit map: units differ.
@@ -521,7 +521,7 @@ fn f12_incompatible_cost_units_and_missing_maps_refuse() {
 }
 
 #[test]
-fn f12_changed_terminal_action_set_and_incoherent_values_refuse() {
+fn changed_terminal_action_set_and_incoherent_values_refuse() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let id = "values";
@@ -562,7 +562,7 @@ fn f12_changed_terminal_action_set_and_incoherent_values_refuse() {
 }
 
 #[test]
-fn f12_external_law_for_other_prior_draws_or_sample_size_refuses() {
+fn external_law_for_other_prior_draws_or_sample_size_refuses() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let other_states = ExternalLaw::Likelihood {
@@ -589,7 +589,7 @@ fn f12_external_law_for_other_prior_draws_or_sample_size_refuses() {
 }
 
 #[test]
-fn f12_source_overlap_between_prior_and_study_data_refuses() {
+fn source_overlap_between_prior_and_study_data_refuses() {
     let provider: Arc<dyn SignalProvider> = Arc::new(NativeBinomialSignal);
     let mut overlapping = candidate("c", 2, provider, 0.0, "utility");
     overlapping.reused_observation_ids = vec!["obs-future".into(), "obs-prior".into()];
@@ -613,7 +613,7 @@ fn f12_source_overlap_between_prior_and_study_data_refuses() {
 }
 
 #[test]
-fn f12_signal_provider_refusals_surface_with_their_namespace() {
+fn signal_provider_refusals_surface_with_their_namespace() {
     // The provider's exact-request check fires when the request was altered after the
     // external object was bound to its fingerprint.
     let problem = bet_problem(1.0, 0.0);
@@ -626,7 +626,7 @@ fn f12_signal_provider_refusals_surface_with_their_namespace() {
 }
 
 #[test]
-fn f12_ties_truncation_and_cancellation_are_reported() {
+fn ties_truncation_and_cancellation_are_reported() {
     let problem = bet_problem(1.0, 0.0);
     let prior = bet_prior();
     let make = |id: &str| {
@@ -669,7 +669,7 @@ fn f12_ties_truncation_and_cancellation_are_reported() {
 }
 
 #[test]
-fn f12_candidates_rank_by_net_value_and_larger_samples_are_worth_more() {
+fn candidates_rank_by_net_value_and_larger_samples_are_worth_more() {
     // Two-point prior, bet pays theta - 1/2, equal prior weights: after outcome y the
     // marginal-weighted bet value is (1/2)(1/4)(P(y | 3/4) - P(y | 1/4)), so
     // EVSI(n) = (1/8) * sum_y max(0, P(y | 3/4) - P(y | 1/4)).

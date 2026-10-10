@@ -5,7 +5,7 @@
 //! here is AR(1)(`ρ`) along with the residual, so the estimating score
 //! `x̃_{t-1}·e_t` is itself close to AR(1)(`ρ²`): its memory grows without bound
 //! as `ρ → 1`. These are the designs where the circular-block interval runs out
-//! of series first (`v19_short_series_measurement`).
+//! of series first (`short_series_measurement`).
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 

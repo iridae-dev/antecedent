@@ -23,5 +23,5 @@ For an analysis you have configured, `ant.prepare(...)` checks identification wi
 
 Specialized 2.3 decision, ranking, recalculation and measured-inference adapters
 have their own checked contracts; they do not add arbitrary combinations to the
-analysis grid. Start with the [2.3 lifecycle](2_3-lifecycle.md) and consult the
-[measured interval scopes](2_3-population-time-uncertainty.md).
+analysis grid. Start with the [2.3 lifecycle](lifecycle.md) and consult the
+[measured interval scopes](population-time-uncertainty.md).

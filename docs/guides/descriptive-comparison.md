@@ -3,7 +3,7 @@
 `antecedent.descriptive` (Rust: `antecedent_estimate::descriptive_comparison`) holds two
 small computations over estimates you already have. Both are `point_only` and
 **descriptive**: they report a gap and re-express a pair of means, and neither identifies
-or decomposes a causal effect. The record is `2.2E.E7.descriptive_comparison` in
+or decomposes a causal effect. The record is `estimate.descriptive_comparison` in
 `parity/promotion_2_2.toml`.
 
 ```python

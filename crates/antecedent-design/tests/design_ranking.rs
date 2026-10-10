@@ -191,7 +191,7 @@ fn identities(report: &EvsiReport) -> BTreeMap<String, String> {
 }
 
 #[test]
-fn f14_net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() {
+fn net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() {
     let forward = evaluate(&request(frozen_candidates(), Some(utility_map()))).unwrap();
     let mut reversed_candidates = frozen_candidates();
     reversed_candidates.reverse();
@@ -213,7 +213,7 @@ fn f14_net_values_are_three_twentieths_and_one_fortieth_in_any_input_order() {
 }
 
 #[test]
-fn f14_independent_inspection_recovers_every_retained_field() {
+fn independent_inspection_recovers_every_retained_field() {
     let report = evaluate(&request(frozen_candidates(), Some(utility_map()))).unwrap();
     let ranking = DesignRanking::from_evsi(&report, &digests()).unwrap();
     assert_eq!(ranking.decision_contract_identity.as_deref(), Some("contract-1"));
@@ -241,7 +241,7 @@ fn f14_independent_inspection_recovers_every_retained_field() {
 }
 
 #[test]
-fn f14_altered_signal_update_source_cost_or_contract_changes_identity_and_refuses_replay() {
+fn altered_signal_update_source_cost_or_contract_changes_identity_and_refuses_replay() {
     let base = evaluate(&request(frozen_candidates(), Some(utility_map()))).unwrap();
     let ranking = DesignRanking::from_evsi(&base, &digests()).unwrap();
     let signals = identities(&base);
@@ -310,7 +310,7 @@ fn f14_altered_signal_update_source_cost_or_contract_changes_identity_and_refuse
 }
 
 #[test]
-fn f14_overlapping_source_data_and_incompatible_cost_units_refuse_before_ranking() {
+fn overlapping_source_data_and_incompatible_cost_units_refuse_before_ranking() {
     let mut overlapping = frozen_candidates();
     overlapping[0].reused_observation_ids = vec!["obs-prior".into()];
     let error = evaluate(&request(overlapping, Some(utility_map()))).unwrap_err();

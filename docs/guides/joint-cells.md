@@ -5,7 +5,7 @@ binary components. This guide covers the two pieces added for it: an explicit
 **derived-treatment declaration** (`antecedent.derived.DerivedTreatment`, Rust
 `DerivedTreatmentDeclaration`) and a **factorized-propensity AIPW** over the cells
 (`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`.
-The record is `2.2E.E5.factorized_joint_cells` in `parity/promotion_2_2.toml`; no
+The record is `estimate.factorized_joint_cells` in `parity/promotion_2_2.toml`; no
 calibration is run for it.
 
 One fit accepts at most 20 cross-fitting folds and at most 6 orderings.

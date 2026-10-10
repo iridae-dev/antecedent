@@ -182,7 +182,7 @@ fn scenarios(atoms: Vec<StructuralAtom>) -> ForwardEvidence {
 }
 
 #[test]
-fn f7_forward_inverse_round_trip() {
+fn forward_inverse_round_trip() {
     // By hand: a1 realizes 1,1,0,0 with weight 1/4 each, so E[Y] = 2/4 = 1/2.
     let law = bernoulli_law();
     let forward = evaluate_functional(
@@ -214,7 +214,7 @@ fn f7_forward_inverse_round_trip() {
 }
 
 #[test]
-fn f7_target_mean_constraint_on_a_finite_law() {
+fn target_mean_constraint_on_a_finite_law() {
     let result =
         evaluate_inverse_query(&query(&IDS, vec![mean_at_least(0.5)]), &point(bernoulli_law()))
             .unwrap();
@@ -228,7 +228,7 @@ fn f7_target_mean_constraint_on_a_finite_law() {
 }
 
 #[test]
-fn f7_target_quantile_uses_the_engines_left_inverse() {
+fn target_quantile_uses_the_engines_left_inverse() {
     let at_least_one =
         InverseConstraint::TargetQuantile { p: 0.5, target: 1.0, comparison: Comparison::AtLeast };
     let result =
@@ -255,7 +255,7 @@ fn f7_target_quantile_uses_the_engines_left_inverse() {
 }
 
 #[test]
-fn f7_probability_threshold_constraint_on_a_finite_law() {
+fn probability_threshold_constraint_on_a_finite_law() {
     // P(Y >= 1) >= 1/2: probabilities by hand are 1/4, 2/4, 3/4.
     let upper = InverseConstraint::ProbabilityThreshold {
         outcome_threshold: 1.0,
@@ -323,7 +323,7 @@ fn risky_contract() -> DecisionContract {
 }
 
 #[test]
-fn f7_nonlinear_utility_inverts_on_an_aligned_joint_law_and_refuses_marginals() {
+fn nonlinear_utility_inverts_on_an_aligned_joint_law_and_refuses_marginals() {
     let grid = ["risky", "safe"];
     let q = query_on(risky_contract(), &grid, vec![mean_at_least(3.0)]);
     let result = evaluate_inverse_query(&q, &point(risky_columns(DrawAlignment::Joint))).unwrap();
@@ -361,7 +361,7 @@ fn mean_claim() -> ForwardClaim {
 }
 
 #[test]
-fn f7_a_mean_never_answers_a_probability_or_quantile() {
+fn a_mean_never_answers_a_probability_or_quantile() {
     let evidence = ForwardEvidence { point: Some(mean_claim()), ..ForwardEvidence::default() };
     // A target mean on an affine utility is answerable from means.
     let q = query_on(contract_with("mean"), &IDS, vec![mean_at_least(0.5)]);
@@ -389,7 +389,7 @@ fn f7_a_mean_never_answers_a_probability_or_quantile() {
 }
 
 #[test]
-fn f7_unsupported_coordinate_is_one_actions_status() {
+fn unsupported_coordinate_is_one_actions_status() {
     let columns = [
         (quantity("y", REGIMES[0], "outcome"), A0.to_vec()),
         (quantity("y", REGIMES[1], "outcome"), A1.to_vec()),
@@ -407,7 +407,7 @@ fn f7_unsupported_coordinate_is_one_actions_status() {
 }
 
 #[test]
-fn f7_absent_coordinate_is_unevaluated_and_never_interpolated() {
+fn absent_coordinate_is_unevaluated_and_never_interpolated() {
     let columns = [
         (quantity("y", REGIMES[0], "outcome"), A0.to_vec()),
         (quantity("y", REGIMES[1], "outcome"), A1.to_vec()),
@@ -421,7 +421,7 @@ fn f7_absent_coordinate_is_unevaluated_and_never_interpolated() {
 }
 
 #[test]
-fn f7_conflicting_scenarios_are_structurally_ambiguous() {
+fn conflicting_scenarios_are_structurally_ambiguous() {
     // s2 differs from s1 only in a1, whose mean there is 1/4.
     let s1 = bernoulli_law();
     let s2 = law_with(&A0);
@@ -456,7 +456,7 @@ fn f7_conflicting_scenarios_are_structurally_ambiguous() {
 }
 
 #[test]
-fn f7_unidentified_atom_blocks_a_scenario_claim_and_keeps_its_mass() {
+fn unidentified_atom_blocks_a_scenario_claim_and_keeps_its_mass() {
     let evidence = scenarios(vec![
         atom("s1", Some(0.7), bernoulli_law()),
         StructuralAtom {
@@ -474,7 +474,7 @@ fn f7_unidentified_atom_blocks_a_scenario_claim_and_keeps_its_mass() {
 }
 
 #[test]
-fn f7_unevaluated_atom_is_not_renormalized_away() {
+fn unevaluated_atom_is_not_renormalized_away() {
     let evidence = scenarios(vec![
         atom("s1", Some(0.5), bernoulli_law()),
         StructuralAtom {
@@ -498,7 +498,7 @@ fn f7_unevaluated_atom_is_not_renormalized_away() {
 }
 
 #[test]
-fn f7_scenario_posterior_needs_genuine_probabilities() {
+fn scenario_posterior_needs_genuine_probabilities() {
     let evidence =
         scenarios(vec![atom("s1", None, bernoulli_law()), atom("s2", None, bernoulli_law())]);
     let result = evaluate_inverse_query(&query(&IDS, vec![mean_at_least(0.5)]), &evidence).unwrap();
@@ -513,7 +513,7 @@ fn f7_scenario_posterior_needs_genuine_probabilities() {
 }
 
 #[test]
-fn f7_identified_set_and_interval_region_are_separate_fields() {
+fn identified_set_and_interval_region_are_separate_fields() {
     let members = vec![atom("m1", None, bernoulli_law()), atom("m2", None, law_with(&A2))];
     let evidence = ForwardEvidence {
         identified_set: Some(IdentifiedSet { members: members.clone(), exhaustive: true }),
@@ -541,7 +541,7 @@ fn f7_identified_set_and_interval_region_are_separate_fields() {
 }
 
 #[test]
-fn f7_multiple_feasible_actions_follow_the_declared_rule() {
+fn multiple_feasible_actions_follow_the_declared_rule() {
     let q = |grid: &[&str], rule: SelectionRule| {
         let mut built = query(grid, vec![mean_at_least(0.5)]);
         built.selection = rule;
@@ -567,7 +567,7 @@ fn f7_multiple_feasible_actions_follow_the_declared_rule() {
 }
 
 #[test]
-fn f7_one_found_continuous_grid_point_is_not_global_feasibility() {
+fn one_found_continuous_grid_point_is_not_global_feasibility() {
     let mut sampled = query(&IDS, vec![mean_at_least(0.5)]);
     sampled.grid_scope = GridScope::ContinuousSample;
     let result = evaluate_inverse_query(&sampled, &point(bernoulli_law())).unwrap();
@@ -590,7 +590,7 @@ fn f7_one_found_continuous_grid_point_is_not_global_feasibility() {
 }
 
 #[test]
-fn f7_finite_enumeration_baseline_agrees_with_the_engine() {
+fn finite_enumeration_baseline_agrees_with_the_engine() {
     let forward = [0.25, 0.5, 0.75];
     for comparison in [Comparison::AtLeast, Comparison::AtMost] {
         let baseline_points: Vec<EnumeratedForwardValue> = IDS
@@ -660,7 +660,7 @@ fn f7_finite_enumeration_baseline_agrees_with_the_engine() {
 }
 
 #[test]
-fn f7_evaluation_budget_leaves_candidates_unevaluated() {
+fn evaluation_budget_leaves_candidates_unevaluated() {
     let mut limited = query(&IDS, vec![mean_at_least(0.5)]);
     limited.max_evaluations = Some(2);
     let result = evaluate_inverse_query(&limited, &point(bernoulli_law())).unwrap();
@@ -672,7 +672,7 @@ fn f7_evaluation_budget_leaves_candidates_unevaluated() {
 }
 
 #[test]
-fn f7_malformed_queries_refuse_with_inverse_query_details() {
+fn malformed_queries_refuse_with_inverse_query_details() {
     let evidence = point(bernoulli_law());
     let detail = |q: &InverseQuery, e: &ForwardEvidence| {
         evaluate_inverse_query(q, e).unwrap_err().to_refusal().detail

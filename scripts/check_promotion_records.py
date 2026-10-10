@@ -1,4 +1,4 @@
-"""Validate a versioned promotion registry (2.2 or 2.3).
+"""Validate the scientific promotion registry.
 
 A record freezes a cell's scientific surface before implementation. A route is
 licensed only when its record carries the evidence for it: a promoted record
@@ -113,7 +113,7 @@ root = Path(__file__).resolve().parents[1]
 # --mutation-check, proves the case stops failing when the rule is switched off).
 RULES = {
     # registry and frozen fields
-    "registry_header": "registry is version 1, release matches its versioned filename",
+    "registry_header": "registry is version 1 and has no release field",
     "frozen_field": "every frozen field is present and non-empty",
     "duplicate_record": "record ids are unique",
     "unknown_status": "status is frozen, in_progress, promoted or carried_forward",
@@ -145,7 +145,7 @@ RULES = {
     "refusal_dead_const": "a detail held in a const is used by live code",
     # fixtures and evidence
     "fixture_duplicate": "fixture ids are unique",
-    "fixture_id_format": "fixture id is <workstream>.<name>.<role>",
+    "fixture_id_format": "fixture id is <capability>.<name>.<role>",
     "fixture_intent": "a fixture states its intent",
     "evidence_pair": "evidence_test and evidence_assertion come together",
     "evidence_unresolved": "a cited test resolves to a collected, non-ignored test",
@@ -218,13 +218,8 @@ if "--emit-evidence" in args:
     at = args.index("--emit-evidence")
     emit_path = Path(args[at + 1])
     del args[at : at + 2]
-registry_path = Path(args[0]) if args else root / "parity/promotion_2_2.toml"
+registry_path = Path(args[0]) if args else root / "parity/promotion.toml"
 registry = tomllib.loads(registry_path.read_text())
-expected_release = {"promotion_2_2.toml": "2.2", "promotion_2_3.toml": "2.3"}.get(
-    registry_path.name
-)
-if expected_release is None:
-    expected_release = "2.2"  # Synthetic self-test registries retain the 2.2 contract.
 
 DISABLED = {r for r in os.environ.get("PROMOTION_DISABLE_RULES", "").split(",") if r}
 STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest
@@ -232,7 +227,7 @@ SYNTHETIC = os.environ.get("PROMOTION_SYNTHETIC_EVIDENCE") == "1"
 CACHE_DIR = os.environ.get("PROMOTION_EVIDENCE_CACHE")
 
 FROZEN = (
-    "id", "workstream", "milestone", "work_package", "status", "consumer_question",
+    "id", "capability", "status", "consumer_question",
     "theorem", "reference", "guarantee", "graph_class", "population_semantics",
     "evidence_family", "provider", "estimand", "inference_claim", "owners",
     "identity_inputs", "wire_changes", "compatibility", "refusals", "routes", "fixtures",
@@ -300,8 +295,8 @@ def fail(rule: str, message: str) -> None:
         errors.append(f"{message} [{rule}]")
 
 
-if registry.get("version") != 1 or registry.get("release") != expected_release:
-    fail("registry_header", f"promotion registry requires version 1 and release {expected_release}")
+if registry.get("version") != 1 or "release" in registry:
+    fail("registry_header", "promotion registry requires version 1 and no release field")
 
 
 # A surface_values type also covers the INHERENT methods and associated functions
@@ -508,7 +503,7 @@ namespaces_in_use = {
 }
 code_details, dynamic_details = scan_details(namespaces_in_use)
 # Details each namespace's implemented records declare between them. Sibling records
-# of one workstream may share a namespace (2.2B.X3's range record and its sampling
+# of one capability family may share a namespace (the joint-sensitivity range record and its sampling
 # uncertainty record both use `joint_sensitivity`): a literal in the namespace is
 # declared when ANY implemented record declares it, while each record still emits
 # every detail it declares itself (refusal_detail_missing).
@@ -764,7 +759,7 @@ for rec in records:
                 )
 
     # Fixtures first: a route's license depends on which roles cite executed evidence.
-    workstream = str(rec.get("workstream", "")).lower()
+    capability = str(rec.get("capability", ""))
     roles: set[str] = set()
     evidenced: set[str] = set()
     budget_evidenced = budget_asserting = False
@@ -773,8 +768,8 @@ for rec in records:
         if fid in seen_fixtures:
             fail("fixture_duplicate", f"{rid}: duplicate fixture id {fid}")
         seen_fixtures.add(fid)
-        if not fid.startswith(f"{workstream}.") or not fid.endswith(f".{role}"):
-            fail("fixture_id_format", f"{rid}: fixture {fid} must be <workstream>.<name>.<role>")
+        if not fid.startswith(f"{capability}.") or not fid.endswith(f".{role}"):
+            fail("fixture_id_format", f"{rid}: fixture {fid} must be <capability>.<name>.<role>")
         if not fixture.get("intent"):
             fail("fixture_intent", f"{rid}: fixture {fid} needs an intent")
         roles.add(role)

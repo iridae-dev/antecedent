@@ -3032,7 +3032,7 @@ fn compose_temporal_mediation_for_atom(
 /// that parametric regression; it is not a nonparametric interval for the
 /// causal effect when the outcome mean is nonlinear in the adjustment set or
 /// carries treatment × covariate interactions the design does not include
-/// (`tests/v19_static_calibration.rs::bayesian_gcomp_misspecification_probe`).
+/// (`tests/static_calibration.rs::bayesian_gcomp_misspecification_probe`).
 pub(super) fn gcomp_outcome_model_assumption(
     likelihood: antecedent_prob::BayesLikelihood,
     conditional: bool,

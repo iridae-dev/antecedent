@@ -43,7 +43,7 @@ claim's exposed original coordinates. Caller-attested scalar mappings retain
 their external trust and cannot inherit a provider's verified response trust.
 This dated source review preceded calibration and inference activation. For
 current supported methods and attestation requirements, see the
-[measured-inference guide](2_3-population-time-uncertainty.md). The final GitHub
+[measured-inference guide](population-time-uncertainty.md). The final GitHub
 release checks remain required before publication.
 
 Date: 2026-10-05
