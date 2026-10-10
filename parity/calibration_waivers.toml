@@ -1,4 +1,281 @@
-# No active calibration waivers. All792 collected records were actually remeasured
-# at5c76724fbac09c655ec77576a648afb0ed1a0779; historical waiver declarations
-# remain recoverable in Git history and grant no exception to changed surfaces.
-waiver = []
+# Replay waivers for coverage records (scripts/calibration_facets.py).
+#
+# A waiver lets a reviewed change that cannot move a measured number stand in
+# for a re-measurement, with evidence. It applies to a record only when the
+# record was measured at `from`, every attested path in the record's facets
+# that changed since is listed in `paths`, and none of them changed after
+# `to`. Its evidence is a replay: the `replay` records, measured at `from`,
+# re-run at `to` through scripts/gate_calibration.sh and compared bit for bit
+# with the stored records. Each `exercises` list names the waived paths that
+# record's test runs. A reviewed_equivalence certificate instead binds an exact
+# source diff that delegates to unchanged accepted numerical code; it never claims
+# that a new wrapper ran in an old harness. Together these cover every path.
+# recordless_gates = true additionally attests original passed gate rows under
+# the same exact source scope and genuine numeric replay; it never re-stamps them.
+#
+# Write `id`, `from`, `to`, `reviewed_by`, `justification`, `paths` and the
+# `replay` tables by hand, then fill `outcome` by running
+#   python3 scripts/calibration_facets.py replay --waiver <id>
+# on a clean checkout of `to`. That command rewrites this file; comments other
+# than this header are not kept (the justification is the prose).
+# `scripts/gate_calibration_attestation.sh` validates every waiver and reports
+# the records it covers as `attested_by_replay (waiver <id>)`.
+
+[[waiver]]
+id = "release-2-3-source-equivalence"
+from = "5c76724fbac09c655ec77576a648afb0ed1a0779"
+to = "13705704191962d95f4c907e3716da5c0c3ea13a"
+reviewed_by = "authorized release engineering review"
+recordless_gates = true
+gate_ledger_commit = "e4bc216c0f01bf913f373df721863e0730e0ed14"
+justification = """
+Original5c numerical records and gate pass provenance are immutable. Seven changed native engine/identity paths retain accepted algorithms: fit_joint_bayesian_transport and fit_learned_joint_transport posterior updates/draw order unchanged; nested Fisher body only changes feature visibility; evaluate_exact_recovery/evaluate_recovered_effect and estimate_sampled_recovery retain BCa B2000 whole-row draws, compressed delete-one jackknife, tie convention and endpoints, with only native source-alias scientific identity projection. dependent_unit_interval studentized scores/SE/pivot/endpoint and extracted checked_paired_effect_interval Basic/Percentile arithmetic retain original paired seed/score order. Failed superseded percentile/direct temporal prototype branches are removed, not licensed or waived. Existing accepted calibration grids, truth, seed domains, denominators and thresholds are unchanged. Six genuine representative replay groups verify bit-identical original emitted fields. New proof/carrier/module/registry paths are exact-blob source-equivalence reviews, never falsely claimed executed by old harness. Recordless gate inheritance requires the immutable genuine main e4 collection row, exact original SHA/pass count and this same source scope. Recovery functional normalization requires independently verified native construction and raw replay receipts; no generic mismatch is waived.\
+"""
+paths = [
+  "crates/antecedent-estimate/src/joint_bayesian_transport.rs",
+  "crates/antecedent-estimate/src/learned_joint_transport.rs",
+  "crates/antecedent-estimate/src/nested_markov_uncertainty.rs",
+  "crates/antecedent-estimate/src/recovery.rs",
+  "crates/antecedent-estimate/src/recovery_sampled.rs",
+  "crates/antecedent-estimate/src/temporal_dependent_interval.rs",
+  "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs",
+  "crates/antecedent-estimate/tests/temporal_unit_calibration.rs",
+  "crates/antecedent-identify/src/recovery.rs",
+  "crates/antecedent-io/src/calibration.rs",
+  "crates/antecedent-io/src/coverage_records_data.rs",
+  "crates/antecedent-io/src/joint_bayesian_transport_artifact.rs",
+  "crates/antecedent-io/src/learned_joint_transport_artifact.rs",
+  "crates/antecedent-io/src/lib.rs",
+  "crates/antecedent-io/src/measured_inference.rs",
+  "crates/antecedent-io/src/measured_inference/nested.rs",
+  "crates/antecedent-io/src/measured_inference/recovery_temporal.rs",
+  "crates/antecedent-io/src/measured_inference/transport.rs",
+  "crates/antecedent-io/src/nested_markov_artifact.rs",
+  "crates/antecedent-io/src/nested_markov_bayesian_artifact.rs",
+  "crates/antecedent-io/src/sampled_recovery_artifact.rs",
+  "crates/antecedent-io/src/temporal_interval_artifact.rs",
+  "crates/antecedent-learn/src/lib.rs",
+  "crates/antecedent/src/analysis/closed_pilots.rs",
+  "crates/antecedent/src/analysis/mod.rs",
+  "crates/antecedent/src/analysis/recalc_temporal.rs",
+  "crates/antecedent/src/analysis/recalc_temporal_measured.rs",
+  "crates/antecedent/src/analysis/temporal_extensions.rs",
+  "crates/antecedent/src/lib.rs",
+  "crates/antecedent/tests/temporal_recalc_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95"
+exercises = [
+  "crates/antecedent-estimate/src/joint_bayesian_transport.rs",
+]
+
+[[waiver.replay]]
+record = "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_one_source_intercept_l95"
+exercises = [
+  "crates/antecedent-estimate/src/learned_joint_transport.rs",
+]
+
+[[waiver.replay]]
+record = "cov.average_effect.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.contrast"
+exercises = [
+  "crates/antecedent-estimate/src/nested_markov_uncertainty.rs",
+]
+
+[[waiver.replay]]
+record = "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95"
+exercises = [
+  "crates/antecedent-estimate/src/temporal_dependent_interval.rs",
+  "crates/antecedent-estimate/tests/temporal_unit_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95"
+exercises = [
+  "crates/antecedent-estimate/src/temporal_dependent_interval.rs",
+  "crates/antecedent/src/analysis/recalc_temporal.rs",
+  "crates/antecedent/tests/temporal_recalc_calibration.rs",
+]
+
+[[waiver.replay]]
+record = "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95"
+exercises = [
+  "crates/antecedent-estimate/src/recovery.rs",
+  "crates/antecedent-estimate/src/recovery_sampled.rs",
+  "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs",
+  "crates/antecedent-identify/src/recovery.rs",
+]
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/calibration.rs"
+from_blob = "c16a5c58f02c2b2ca5341adc81eeb3468f097b32"
+to_blob = "fb326322a5d513b1c4f555ee4019b7f784fd8d77"
+kind = "proof_delegation"
+rationale = "Adds exact opaque measured authorization and one pending native scientific-identity alias matcher. Coverage lookup and successful estimator outputs are not changed; no new fit, RNG or interval arithmetic."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/coverage_records_data.rs"
+from_blob = "f9398915f3bef29abab5717a07f37c86bfc7fa63"
+to_blob = "9c7ae7cc3d9118a0261f3c200390cdb648274e95"
+kind = "proof_delegation"
+rationale = "Generated original5c numerical records and measurement identities remain immutable. Only source/evidence declarations, attestation visibility and pending-empty alias metadata are added."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/joint_bayesian_transport_artifact.rs"
+from_blob = "5424690ea943abfdd5174758014046068e2898ca"
+to_blob = "b5da3f3c02954edcf05e8ed00ac47509308bd36e"
+kind = "proof_delegation"
+rationale = "Measured envelope delegates unchanged fit_joint_bayesian_transport with the original checked inputs; original candidate bytes and unmeasured candidate status are retained. Basis capture/canonical presentation labels do not change successful fit or draw inputs."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/learned_joint_transport_artifact.rs"
+from_blob = "bd5bdc04574e277d851d53b1cf14fb2ca2cc7674"
+to_blob = "241c458db6247cb3d811ef37ae834aa5139ac010"
+kind = "proof_delegation"
+rationale = "Measured envelope delegates unchanged fit_learned_joint_transport with the original checked inputs; preserves original candidate bytes. Native basis capture does not change design matrix, posterior or RNG operations."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/lib.rs"
+from_blob = "a577bc6d5abb1a29c192d3531e92ec7f01ddfe4e"
+to_blob = "7bd4d0395586867d235eb43480e9157c1e82a262"
+kind = "proof_delegation"
+rationale = "Module/type exposure and registration only: retained numerical function bodies and their successful inputs, seeds and output ordering are unchanged."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/measured_inference.rs"
+from_blob = ""
+to_blob = "935e4a5c2ca8b52ebd63f121da7620a5943c8f6c"
+kind = "proof_delegation"
+rationale = "Additive opaque measured carrier/source replay authorization delegates original accepted producers and preserves original candidate reports/bytes. Scalar/license binding, bounds and cached serialization introduce no numerical estimator, draw, SE or interval formula."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/measured_inference/nested.rs"
+from_blob = ""
+to_blob = "0c8b1232d2f7932f4b8309a844e3d46e664c06dd"
+kind = "proof_delegation"
+rationale = "Additive opaque measured carrier/source replay authorization delegates original accepted producers and preserves original candidate reports/bytes. Scalar/license binding, bounds and cached serialization introduce no numerical estimator, draw, SE or interval formula."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/measured_inference/recovery_temporal.rs"
+from_blob = ""
+to_blob = "b7e50773ed38c0dcc3c46b045ce3c339df07e456"
+kind = "proof_delegation"
+rationale = "Additive opaque measured carrier/source replay authorization delegates original accepted producers and preserves original candidate reports/bytes. Scalar/license binding, bounds and cached serialization introduce no numerical estimator, draw, SE or interval formula."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/measured_inference/transport.rs"
+from_blob = ""
+to_blob = "14b90ed22d3999d8d48307e996e435c003befbe4"
+kind = "proof_delegation"
+rationale = "Additive opaque measured carrier/source replay authorization delegates original accepted producers and preserves original candidate reports/bytes. Scalar/license binding, bounds and cached serialization introduce no numerical estimator, draw, SE or interval formula."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/nested_markov_artifact.rs"
+from_blob = "fa550eb7549f7e4c5086d5d30d94568b6ff49699"
+to_blob = "54b5f024c9a5f586e20429dc21fe255eaae995ff"
+kind = "proof_delegation"
+rationale = "Original licensed identification/point-fit/Fisher producer and replay are retained; adds measured authority delegation around original candidate bytes, without interval arithmetic changes."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/nested_markov_bayesian_artifact.rs"
+from_blob = "0f8aea46ffcdf28b2a609570f5a0d308fbea44fc"
+to_blob = "2d84a221e33b1b6b4d07fe76e05a35fbda2482d9"
+kind = "proof_delegation"
+rationale = "Original full11D posterior numerical module is byte-identical to baseline; artifact retains candidate source and independently replayed posterior. New access/authorization does not change sampler, prior, diagnostics or quantile arithmetic."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/sampled_recovery_artifact.rs"
+from_blob = "6c9297a8771b4d2b75a7da3013a463bd56d8d049"
+to_blob = "98b0ac217764d23762d85e013f830cb6f3bc9b52"
+kind = "proof_delegation"
+rationale = "Retires failed percentile/v2 prototype handling; accepted BCa v3 source bytes, original proof and producer/replay arithmetic are unchanged. Measured source guards reject unsupported weighted/non-IID sources without changing the accepted IID numerical path."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-io/src/temporal_interval_artifact.rs"
+from_blob = "60cbefb0c3882947b5cd48d43a2e7a2bdd10f216"
+to_blob = "c7791f8647b1f0b7a630eca4c10dc921346babb5"
+kind = "proof_delegation"
+rationale = "Retires failed direct percentile/basic variants and retains accepted studentized source/config/receipt. Independent measured envelope verifies original accepted receipt and delegates existing calculator."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent-learn/src/lib.rs"
+from_blob = "db4c115174320b2cf731e63f04005a840cd6aed4"
+to_blob = "c376b77d751ba232f3e5c84cd1750819fb3247c0"
+kind = "proof_delegation"
+rationale = "Module/type exposure and registration only: retained numerical function bodies and their successful inputs, seeds and output ordering are unchanged."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/closed_pilots.rs"
+from_blob = "501930d1fe53b0ac5cfe04bfb689fedda4bd5229"
+to_blob = "f3115481f6fabb2b8ef9b9da71047fad1f772231"
+kind = "proof_delegation"
+rationale = "Public boundary dispatch now delegates original successful engines through measured authority; nested posterior module visibility changes only. Inline ordinary fixture/prose/preflight-error updates do not compile into measurement harnesses or affect arithmetic."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/mod.rs"
+from_blob = "2eed1baf0cac660246742ab0b7a19c4578b661e5"
+to_blob = "289fed5adce1bd4c79b1ef169ceb945a61b30b4a"
+kind = "proof_delegation"
+rationale = "Module/type exposure and registration only: retained numerical function bodies and their successful inputs, seeds and output ordering are unchanged."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/recalc_temporal_measured.rs"
+from_blob = ""
+to_blob = "b2ad737c11eb1870d765f982236575cf5185b1e1"
+kind = "proof_delegation"
+rationale = "Additive opaque measured carrier/source replay authorization delegates original accepted producers and preserves original candidate reports/bytes. Scalar/license binding, bounds and cached serialization introduce no numerical estimator, draw, SE or interval formula."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/analysis/temporal_extensions.rs"
+from_blob = "3808e68a031ffca52f0d57efef0e299c9050ffd7"
+to_blob = "92c789280810b91c4e2c07edd0300a3180996771"
+kind = "proof_delegation"
+rationale = "Direct studentized facade delegates retained native dependent-unit calculator. Removes unsupported old direct variants and adds source/authority guards; accepted calculator, design, seeds and endpoints unchanged."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[[waiver.reviewed_equivalence]]
+path = "crates/antecedent/src/lib.rs"
+from_blob = "090508ed96898ba3f2489560a166011123facc83"
+to_blob = "d4940164baaf0d6fffa47d75485b9c60f99a0a98"
+kind = "proof_delegation"
+rationale = "Module/type exposure and registration only: retained numerical function bodies and their successful inputs, seeds and output ordering are unchanged."
+invariant_evidence = "Exact baseline/final Git objects; reviewed original-source producer/consumer and numerical oracle tests. Numerical replay names only actually executed engine paths; wrapper delegation is independently source-reviewed, not claimed exercised by original measurement harness."
+
+[waiver.outcome]
+replayed_at = "13705704191962d95f4c907e3716da5c0c3ea13a"
+identical = true
+records = [
+  "cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95",
+  "cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_one_source_intercept_l95",
+  "cov.average_effect.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.contrast",
+  "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95",
+  "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95",
+  "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95",
+]
+differences = [
+]
+
+[waiver.outcome.fingerprints]
+"cov.average_effect.admg.frequentist.analytic_se.l95.nested_fisher_iid_markov_submodel_l95.contrast" = "284b65710e1601e747a4f43c96f1bb94784ea32e106a9fcc5756ccd8f7980589"
+"cov.classical_transport.dag.bayesian.posterior_quantile.l95.joint_gaussian_one_source_intercept_l95" = "88e5f9245db7486f0d146ed6e553e5b7b4bd4ec2f1ce23cbd20546052f5b3189"
+"cov.classical_transport.dag.bayesian.posterior_quantile.l95.learned_degree2_gaussian_one_source_intercept_l95" = "3d1e87e03e23e618db46436509f3e7521747fe5fed5a9058c318abd050d9502a"
+"cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95" = "87d399ebc4e968e8710df72d579663dced882c2a33cd8ba4d1794765816e57c6"
+"cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_effect_basic_l95" = "0f779cd7099bb39357a14fcf0d2f171d98acfadf71cd4168774b5cd9ce4b2da0"
+"cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95" = "c1e5dfb6eb336e7d16849764c75f9f35bcffa9d95f804f8b7aaf786703fa7560"
