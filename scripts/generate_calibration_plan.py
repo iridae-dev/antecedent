@@ -26,9 +26,24 @@ def table_text(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
 
 
-def registered_inference() -> list[str]:
-    records = tomllib.loads(PROMOTION.read_text())["record"]
+def ledger_scope() -> tuple[list[dict], list[dict]]:
+    """Return the promotion records the evidence ledger declares, and its cells.
+
+    The ledger owns a subset of the merged promotion registry; the records it
+    names are the ones whose routes, uncertainty methods and output allocations
+    this inventory renders. A ledger cell naming no promotion record is an error.
+    """
+    registry = tomllib.loads(PROMOTION.read_text())["record"]
     cells = tomllib.loads(LEDGER.read_text())["cell"]
+    owned = {cell["id"] for cell in cells}
+    missing = owned - {record["id"] for record in registry}
+    if missing:
+        raise ValueError(f"ledger names unregistered records {sorted(missing)}")
+    return [record for record in registry if record["id"] in owned], cells
+
+
+def registered_inference() -> list[str]:
+    records, cells = ledger_scope()
     by_route = {(cell["id"], cell["route"]): cell for cell in cells}
     expected = {
         (record["id"], route["name"])
@@ -43,7 +58,7 @@ def registered_inference() -> list[str]:
         "## Current registered inference contracts",
         "",
         (
-            f"The following inventory covers all {len(records)} promotion records and "
+            f"The following inventory covers the {len(records)} promotion records owned by the evidence ledger and "
             f"{len(expected)} registered routes, including closed producers and independent "
             "consumers. It is generated from the promotion registry and evidence ledger. "
             "A point-only status can still carry unmeasured standard errors, p-values, "
@@ -381,14 +396,14 @@ def render() -> str:
         "",
     ]
     lines += registered_inference()
-    lines += per_output_inference(tomllib.loads(PROMOTION.read_text())["record"])
+    lines += per_output_inference(ledger_scope()[0])
     return "\n".join(lines)
 
 
 
 def self_test() -> None:
     """Historical failures stay visible without replacing selected ownership."""
-    records = tomllib.loads(PROMOTION.read_text())["record"]
+    records = ledger_scope()[0]
     source = next(record for record in records if record.get("historical_coverage_records"))
     per_output_inference([source])
     # Keep generic historical-allocation guards independent of retired live methods.

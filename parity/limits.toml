@@ -494,7 +494,7 @@ implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.r
 documentation = [{ path = "docs/supported-bounds.md", pattern = "\\| transport\\.scenario_invariance \\| max_scenarios \\| ([\\d,]+) \\|" }]
 guard = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ MAX_SCENARIOS\\ \\{" }
 refusal = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "if\\ scenarios\\.len\\(\\)\\ >\\ MAX_SCENARIOS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_invariance_report.rs", pattern = "\\ba1_invariance_a_report_for_another_set_is_refused\\b" }
+scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_invariance_report.rs", pattern = "\\bscenario_invariance_a_report_for_another_set_is_refused\\b" }
 
 [[bound]]
 record = "counterfactual.transported_additive"
@@ -548,7 +548,7 @@ implementation = [{ path = "crates/antecedent-estimate/src/joint_bayesian_transp
 documentation = [{ path = "docs/supported-bounds.md", pattern = "\\| transport\\.learned_joint \\| max_draws \\| ([\\d,]+) \\|" }]
 guard = { path = "crates/antecedent-estimate/src/joint_bayesian_transport.rs", pattern = "if\\ options\\.draws\\ ==\\ 0\\ \\|\\|\\ options\\.draws\\ >\\ JOINT_TRANSPORT_MAX_DRAWS\\ \\{" }
 refusal = { path = "crates/antecedent-estimate/src/joint_bayesian_transport.rs", pattern = "if\\ options\\.draws\\ ==\\ 0\\ \\|\\|\\ options\\.draws\\ >\\ JOINT_TRANSPORT_MAX_DRAWS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/learned_joint_transport_artifact.rs", pattern = "\\ba2_learned_artifact_refuses_stored_sizes_above_the_consumer_limits\\b" }
+scope_fixture = { path = "crates/antecedent-io/tests/learned_joint_transport_artifact.rs", pattern = "\\blearned_joint_artifact_refuses_stored_sizes_above_the_consumer_limits\\b" }
 
 [[bound]]
 record = "transport.learned_joint"
@@ -557,7 +557,7 @@ implementation = [{ path = "crates/antecedent-estimate/src/joint_bayesian_transp
 documentation = [{ path = "docs/supported-bounds.md", pattern = "\\| transport\\.learned_joint \\| max_model_parameters \\| ([\\d,]+) \\|" }]
 guard = { path = "crates/antecedent-estimate/src/joint_bayesian_transport.rs", pattern = "if\\ layout\\.dim\\(\\)\\ >\\ JOINT_TRANSPORT_MAX_PARAMETERS\\ \\{" }
 refusal = { path = "crates/antecedent-estimate/src/joint_bayesian_transport.rs", pattern = "if\\ layout\\.dim\\(\\)\\ >\\ JOINT_TRANSPORT_MAX_PARAMETERS\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/learned_joint_transport_artifact.rs", pattern = "\\ba2_learned_artifact_refuses_stored_sizes_above_the_consumer_limits\\b" }
+scope_fixture = { path = "crates/antecedent-io/tests/learned_joint_transport_artifact.rs", pattern = "\\blearned_joint_artifact_refuses_stored_sizes_above_the_consumer_limits\\b" }
 
 [[bound]]
 record = "transport.learned_joint"
@@ -566,7 +566,7 @@ implementation = [{ path = "crates/antecedent-learn/src/bayesian_basis_regressio
 documentation = [{ path = "docs/supported-bounds.md", pattern = "\\| transport\\.learned_joint \\| max_basis_degree \\| ([\\d,]+) \\|" }]
 guard = { path = "crates/antecedent-learn/src/bayesian_basis_regression.rs", pattern = "if\\ degree\\ ==\\ 0\\ \\|\\|\\ degree\\ >\\ BASIS_MAX_DEGREE\\ \\{" }
 refusal = { path = "crates/antecedent-learn/src/bayesian_basis_regression.rs", pattern = "if\\ degree\\ ==\\ 0\\ \\|\\|\\ degree\\ >\\ BASIS_MAX_DEGREE\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-io/tests/learned_joint_transport_artifact.rs", pattern = "\\ba2_learned_artifact_refuses_stored_sizes_above_the_consumer_limits\\b" }
+scope_fixture = { path = "crates/antecedent-io/tests/learned_joint_transport_artifact.rs", pattern = "\\blearned_joint_artifact_refuses_stored_sizes_above_the_consumer_limits\\b" }
 
 [[bound]]
 record = "sensitivity.mechanism_discrepancy"
@@ -962,7 +962,7 @@ implementation = [{ path = "crates/antecedent-io/src/distribution_artifact.rs", 
 documentation = [{ path = "docs/supported-bounds.md", pattern = "\\| composition\\.native_authority \\| max_draws \\| ([\\d,]+) \\|" }]
 guard = { path = "crates/antecedent-io/src/distribution_artifact.rs", pattern = "\\|\\|\\ old\\.n_draws\\ as\\ usize\\ >\\ MAX_DISTRIBUTION_DRAWS" }
 refusal = { path = "crates/antecedent-io/src/distribution_artifact.rs", pattern = "\\|\\|\\ old\\.n_draws\\ as\\ usize\\ >\\ MAX_DISTRIBUTION_DRAWS[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "python/tests/test_composition.py", pattern = "\\btest_c1_boundary_caller_native_constructor_refuses_before_coercion\\b" }
+scope_fixture = { path = "python/tests/test_composition.py", pattern = "\\btest_composition_boundary_caller_native_constructor_refuses_before_coercion\\b" }
 
 [[bound]]
 record = "composition.native_authority"
@@ -971,7 +971,7 @@ implementation = [{ path = "crates/antecedent-io/src/distribution_artifact.rs", 
 documentation = [{ path = "docs/supported-bounds.md", pattern = "\\| composition\\.native_authority \\| max_coordinates \\| ([\\d,]+) \\|" }]
 guard = { path = "crates/antecedent-io/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{" }
 refusal = { path = "crates/antecedent-io/src/distribution_artifact.rs", pattern = "if\\ self\\.quantities\\.is_empty\\(\\)\\ \\|\\|\\ self\\.quantities\\.len\\(\\)\\ >\\ MAX_DISTRIBUTION_COORDINATES\\ \\{[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "python/tests/test_composition.py", pattern = "\\btest_c1_boundary_caller_native_constructor_refuses_before_coercion\\b" }
+scope_fixture = { path = "python/tests/test_composition.py", pattern = "\\btest_composition_boundary_caller_native_constructor_refuses_before_coercion\\b" }
 
 [[bound]]
 record = "composition.rollout_state"
