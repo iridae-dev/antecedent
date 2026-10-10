@@ -158,13 +158,35 @@ fn law_sequence<'py>(laws: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
 
 /// A decided, compiled scenario set; estimation never re-identifies.
 #[pyclass(skip_from_py_object)]
-struct PreparedTransportScenariosStage {
+pub(crate) struct PreparedTransportScenariosStage {
     inner: antecedent::PreparedTransportScenarios,
     graph: Admg,
     catalog: antecedent_core::EvidenceCatalog,
     last: Option<ScenarioSetReport>,
     max_support_rows: usize,
     memory_bytes: Option<u64>,
+}
+
+impl PreparedTransportScenariosStage {
+    /// The last estimated report with the variable names it is read with, for the
+    /// decision adapters in `composition_api`; `None` before `estimate()`.
+    pub(crate) fn last_report(&self) -> Option<(&ScenarioSetReport, &[String])> {
+        self.last.as_ref().map(|report| (report, self.graph.names.as_slice()))
+    }
+
+    /// The decided set, its last estimated report and the variable names, for the
+    /// derived selection-invariance report; `None` before `estimate()`.
+    pub(crate) fn prepared_and_report(
+        &self,
+    ) -> Option<(
+        &antecedent_estimate::transport_scenarios::PreparedScenarioSet,
+        &ScenarioSetReport,
+        &[String],
+    )> {
+        self.last
+            .as_ref()
+            .map(|report| (self.inner.prepared(), report, self.graph.names.as_slice()))
+    }
 }
 
 /// Supplied exact laws, or `StatisticalTransportData` for the empirical plug-in.

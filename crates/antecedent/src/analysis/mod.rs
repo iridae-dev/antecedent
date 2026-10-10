@@ -10,6 +10,7 @@ mod batch_export;
 mod batch_retarget;
 mod builder;
 mod candidate_screen_units;
+pub mod categorical_treatment;
 mod checked_bayesian_class_conditional;
 mod checked_bayesian_graph_posterior;
 mod checked_bayesian_temporal_class_effect;
@@ -24,28 +25,62 @@ mod checked_temporal_effect;
 mod checked_temporal_graph_posterior_effect;
 mod checked_temporal_graph_posterior_response;
 mod checked_temporal_response;
+pub mod closed_pilots;
+pub mod compact_export;
+pub mod composition;
+pub mod conditional_study_ranking;
 mod contract;
 mod contract_identity;
 mod cost;
+mod cpdag_scenarios;
+pub mod decision_claims;
+mod decision_contract_facade;
 mod derived_treatment;
+pub mod design_ranking;
+pub mod dose_grid_functional;
+pub mod effect_constancy;
+pub mod effect_constancy_consumers;
 mod exact;
 mod execute;
 mod inverse_outcome;
+pub mod inverse_query;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
+pub mod latent_class_effects;
 mod learned_continuous;
+pub mod learned_joint_closed;
 mod learned_trial;
+pub mod mechanism_discrepancy;
 mod mixed_source;
+pub mod msm_sensitivity;
 mod mz_transport;
+pub mod native_claims;
+pub mod nonlinear_mediation;
 mod preflight;
 mod rank_drop_estimate;
+pub mod recalc_adjusted;
+pub mod recalc_cell;
+pub mod recalc_design;
+pub mod recalc_dr;
+pub mod recalc_receipt;
+pub mod recalc_temporal;
+pub mod recalc_temporal_measured;
 mod recovery;
+pub mod recovery_chain;
+pub mod repair;
+pub mod sensitivity_decision;
 mod smoothed_dose;
 mod statistical;
+pub mod temporal_counterfactual;
+mod temporal_extensions;
+#[doc(hidden)]
+pub use temporal_extensions::temporal_dependent_interval_candidate;
 mod temporal_transport;
 mod tier_diagnostics;
 mod transport_grid;
 mod transport_scenarios;
+pub mod transported_counterfactual;
+pub mod vector_treatment;
 mod z_transport;
 mod z_transport_sensitivity_artifact;
 pub use admg_conditional_transport::{
@@ -75,6 +110,10 @@ pub(crate) use checked_temporal_graph_posterior_response::{
 pub use cost::{
     BatchCostEstimate, CostEstimate, InferenceDefault, JointCellCostEstimate, RetargetCostEstimate,
     estimate_joint_cell_cost,
+};
+pub use cpdag_scenarios::{
+    PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
+    consume_scenario_covariance_artifact, export_scenario_covariance,
 };
 pub use derived_treatment::{
     ConstituentRole, DeclaredExclusion, DerivedTreatmentDeclaration, DerivedTreatmentPlan,
@@ -118,6 +157,11 @@ pub use smoothed_dose::{PreparedSmoothedDose, SmoothedDoseResult, consume_smooth
 pub use statistical::{
     StatisticalBindingView, StatisticalContrast, StatisticalPreparedState,
     StatisticalStudyInspection, StatisticalStudyResult,
+};
+pub use temporal_extensions::{
+    IntervalEstimand, TemporalInitialState, TemporalWindow,
+    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
+    temporal_dependent_interval,
 };
 pub use temporal_transport::{PreparedTemporalTransport, consume_temporal_transport_artifact};
 pub use tier_diagnostics::{
@@ -163,6 +207,18 @@ pub use batch_retarget::{max_t_critical_value, simultaneous_band_unpublished};
 pub use builder::{InterferenceSpec, RdConfig, RefuteSuite, StudyBuilder, TransportTrialSpec};
 pub use candidate_screen_units::{ScreenSplitReceipt, ScreenUnits};
 pub use contract::CausalContract;
+pub use decision_contract_facade::{
+    ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
+    AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
+    BoundDecisionContract, ClaimProbability, ClaimProfile, DecisionClaimKind,
+    DecisionDeclaredExclusion, DecisionFacadeRefusal, DecisionSupportRule, DecisionUncertaintyKind,
+    ExternalCallbackReceipt, ExternalTrustLimit, IdentifiedActionRange, IdentifiedSetDecision,
+    IdentifiedUtility, IdentifiedVerdict, InputSupport, ReplayReceipt, RobustDecisionResult,
+    RobustResultArtifact, RobustVerdict, RobustnessError, SuppliedClaim, SupportShortfall,
+    UncertaintyRequirement, adapt_finite_scenarios, adapt_graph_dependent_claims,
+    adapt_point_claim, adapt_weighted_graph_atoms, assess_robustness, evaluate_adapted,
+    evaluate_identified_sets, evaluate_robust, utility_interval,
+};
 pub use execute::DagResponseOrigin;
 pub use execute::Study;
 pub use latency::{
@@ -193,3 +249,23 @@ pub(crate) use checked_temporal_response::{
 };
 pub use execute::{CheckedBayesianSpecialistInfo, CheckedTransportTrialInfo};
 pub(crate) use execute::{parametric_scm_identification, response_witness_ate};
+
+pub mod proposal_arrival;
+pub mod recalc_attempt;
+pub mod recalc_bayesian;
+pub mod recalc_external;
+#[cfg(feature = "calibration-internal")]
+pub mod recalc_joint_bayesian;
+/// Shared finite static response and multi-source transport recalculation.
+pub mod recalc_static;
+
+/// Shared native response and two executing attested callback branches.
+pub mod recalc_composite;
+
+pub mod sensitivity_source;
+/// Independently retained original source diagnostics and contributor mappings.
+pub mod source_evidence;
+pub mod source_projection;
+
+#[doc(hidden)]
+pub use temporal_extensions::validate_temporal_dependent_interval;

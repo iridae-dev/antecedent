@@ -1,0 +1,10 @@
+feature_id = "c2_bayesian_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Original checked preparation and original conjugate Gaussian/basis engine issue the actual posterior. Retention and summary never create new draws. A changed likelihood/configuration invalidates numerical state while compatible causal proof is retained. Source transfer is admitted only through a bounded capsule embedding source raw data, checked source graph/query/configuration and original posterior artifact: fresh verification reruns the source posterior and compares its complete artifact before the target uses it. Known same-content source/target likelihood is refused before work; absence of partial overlap identifiers cannot establish independence. Selected joint transport remains a separate calibration-internal candidate, not a public calibrated transport license.", "Retention is original engineering over existing identified/numerical engines; no imported estimator theorem or coverage guarantee is asserted. Whole-method measurement and public inference activation remain separate gates."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/recalc_bayesian.rs", "python/tests/test_recalc_bayesian.py", "conformance/recalculation/bayesian_retention/expected.json", "conformance/recalculation/bayesian_retention/README.md"]

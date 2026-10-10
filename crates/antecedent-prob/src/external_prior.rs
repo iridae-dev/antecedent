@@ -223,113 +223,123 @@ pub fn compose_external_priors_with_alphas(
     alphas_applied: &[f64],
     baseline: &PriorSet,
 ) -> Result<ComposedPrior, ProbError> {
-    if sources.len() != alphas_requested.len() || sources.len() != alphas_applied.len() {
-        return Err(ProbError::Shape {
-            message: "compose_external_priors: alpha vector length mismatch",
-        });
-    }
-    for &a in alphas_requested.iter().chain(alphas_applied.iter()) {
-        if !a.is_finite() || !(0.0..=1.0).contains(&a) {
-            return Err(ProbError::InvalidPrior {
-                message: "external prior alpha must be finite and in [0, 1]",
-            });
-        }
-    }
-    for src in sources {
-        src.validate()?;
-    }
-    // Precisions add only on a common scale: an absolute-scale source (hydrated
-    // from a posterior without a residual variance) is resolved to V0 by the
-    // target fit, which a composed prior mixing it with V0 entries cannot express.
-    if baseline.absolute_coefficient_scale().is_some()
-        || sources.iter().any(|s| s.prior.absolute_coefficient_scale().is_some())
-    {
-        return Err(ProbError::InvalidPrior {
-            message: "compose_external_priors: a prior with absolute-scale coefficient \
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::PriorConstruction,
+        || {
+            if sources.len() != alphas_requested.len() || sources.len() != alphas_applied.len() {
+                return Err(ProbError::Shape {
+                    message: "compose_external_priors: alpha vector length mismatch",
+                });
+            }
+            for &a in alphas_requested.iter().chain(alphas_applied.iter()) {
+                if !a.is_finite() || !(0.0..=1.0).contains(&a) {
+                    return Err(ProbError::InvalidPrior {
+                        message: "external prior alpha must be finite and in [0, 1]",
+                    });
+                }
+            }
+            for src in sources {
+                src.validate()?;
+            }
+            // Precisions add only on a common scale: an absolute-scale source (hydrated
+            // from a posterior without a residual variance) is resolved to V0 by the
+            // target fit, which a composed prior mixing it with V0 entries cannot express.
+            if baseline.absolute_coefficient_scale().is_some()
+                || sources.iter().any(|s| s.prior.absolute_coefficient_scale().is_some())
+            {
+                return Err(ProbError::InvalidPrior {
+                    message: "compose_external_priors: a prior with absolute-scale coefficient \
                       variances (source posterior without a residual variance) cannot be \
                       composed with conjugate-V0 priors; supply it as the prior directly",
-        });
-    }
-    validate_mixture_weights(sources)?;
+                });
+            }
+            validate_mixture_weights(sources)?;
 
-    let base_coef = baseline.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
-        message: "baseline prior missing GaussianCoefficients",
-    })?;
-    base_coef.validate()?;
-    let n = base_coef.len();
+            let base_coef = baseline.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+                message: "baseline prior missing GaussianCoefficients",
+            })?;
+            base_coef.validate()?;
+            let n = base_coef.len();
 
-    for src in sources {
-        let coef = src.prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
-            message: "external source prior missing GaussianCoefficients",
-        })?;
-        coef.validate()?;
-        if coef.len() != n {
-            return Err(ProbError::Shape {
-                message: "compose_external_priors: coefficient dimension mismatch",
-            });
-        }
-    }
+            for src in sources {
+                let coef = src.prior.gaussian_coefficients().ok_or(ProbError::InvalidPrior {
+                    message: "external source prior missing GaussianCoefficients",
+                })?;
+                coef.validate()?;
+                if coef.len() != n {
+                    return Err(ProbError::Shape {
+                        message: "compose_external_priors: coefficient dimension mismatch",
+                    });
+                }
+            }
 
-    let use_mixture = sources.iter().any(|s| s.weight.mixture_weight.is_some());
-    // A dense (correlated) baseline or source composes on full matrices; an
-    // all-diagonal composition keeps the per-coefficient arithmetic.
-    let any_dense = baseline.coefficient_correlation().is_some()
-        || sources.iter().any(|s| s.prior.coefficient_correlation().is_some());
-    let (composed_coef, composed_corr) = if any_dense {
-        compose_dense(baseline, sources, alphas_applied, use_mixture)?
-    } else if use_mixture {
-        (compose_mixture(base_coef, sources, alphas_applied)?, None)
-    } else {
-        (compose_power_add(base_coef, sources, alphas_applied)?, None)
-    };
+            let use_mixture = sources.iter().any(|s| s.weight.mixture_weight.is_some());
+            // A dense (correlated) baseline or source composes on full matrices; an
+            // all-diagonal composition keeps the per-coefficient arithmetic.
+            let any_dense = baseline.coefficient_correlation().is_some()
+                || sources.iter().any(|s| s.prior.coefficient_correlation().is_some());
+            let (composed_coef, composed_corr) = if any_dense {
+                compose_dense(baseline, sources, alphas_applied, use_mixture)?
+            } else if use_mixture {
+                (compose_mixture(base_coef, sources, alphas_applied)?, None)
+            } else {
+                (compose_power_add(base_coef, sources, alphas_applied)?, None)
+            };
 
-    let mut prior = PriorSet {
-        specs: Vec::new(),
-        contrast: baseline.contrast,
-        categorical: baseline.categorical.clone(),
-        restrictions: Vec::new(),
-    };
-    prior.push(PriorSpec::GaussianCoefficients(composed_coef));
-    if let Some(corr) = composed_corr {
-        prior.push(PriorSpec::CoefficientCorrelation(corr));
-    }
-    if let Some(ig) = baseline.residual_inv_gamma() {
-        prior.push(PriorSpec::ResidualInvGamma(ig));
-    } else if let Some(v) = baseline.known_residual_variance() {
-        prior.push(PriorSpec::KnownResidualVariance(v));
-    }
-    for r in &baseline.restrictions {
-        prior.restrictions.push(r.clone());
-    }
-    for src in sources {
-        for r in &src.prior.restrictions {
-            prior.restrictions.push(r.clone());
-        }
-    }
-    prior.restrictions.push(composition_assumption(sources, alphas_requested, alphas_applied));
-    prior.validate()?;
+            let mut prior = PriorSet {
+                specs: Vec::new(),
+                contrast: baseline.contrast,
+                categorical: baseline.categorical.clone(),
+                restrictions: Vec::new(),
+            };
+            prior.push(PriorSpec::GaussianCoefficients(composed_coef));
+            if let Some(corr) = composed_corr {
+                prior.push(PriorSpec::CoefficientCorrelation(corr));
+            }
+            if let Some(ig) = baseline.residual_inv_gamma() {
+                prior.push(PriorSpec::ResidualInvGamma(ig));
+            } else if let Some(v) = baseline.known_residual_variance() {
+                prior.push(PriorSpec::KnownResidualVariance(v));
+            }
+            for r in &baseline.restrictions {
+                prior.restrictions.push(r.clone());
+            }
+            for src in sources {
+                for r in &src.prior.restrictions {
+                    prior.restrictions.push(r.clone());
+                }
+            }
+            prior.restrictions.push(composition_assumption(
+                sources,
+                alphas_requested,
+                alphas_applied,
+            ));
+            prior.validate()?;
 
-    let source_ids: Vec<Arc<str>> = sources.iter().map(|s| Arc::clone(&s.id)).collect();
-    let mixture_weights: Vec<Option<f64>> =
-        sources.iter().map(|s| s.weight.mixture_weight).collect();
-    let effective_ess = effective_ess_per_source(sources, alphas_applied, use_mixture);
-    let composed_ess = if use_mixture { None } else { power_composed_ess(sources, alphas_applied) };
-    let kish_ess_diag = if sources.is_empty() {
-        None
-    } else {
-        Some(kish_ess(&kish_weights_for_composition(sources, alphas_applied, use_mixture)))
-    };
+            let source_ids: Vec<Arc<str>> = sources.iter().map(|s| Arc::clone(&s.id)).collect();
+            let mixture_weights: Vec<Option<f64>> =
+                sources.iter().map(|s| s.weight.mixture_weight).collect();
+            let effective_ess = effective_ess_per_source(sources, alphas_applied, use_mixture);
+            let composed_ess =
+                if use_mixture { None } else { power_composed_ess(sources, alphas_applied) };
+            let kish_ess_diag = if sources.is_empty() {
+                None
+            } else {
+                Some(kish_ess(&kish_weights_for_composition(sources, alphas_applied, use_mixture)))
+            };
 
-    Ok(ComposedPrior {
-        prior,
-        source_ids: Arc::from(source_ids),
-        alphas_requested: Arc::from(alphas_requested.to_vec()),
-        alphas_applied: Arc::from(alphas_applied.to_vec()),
-        mixture_weights: Arc::from(mixture_weights),
-        effective_ess: Arc::from(effective_ess),
-        composed_ess,
-        kish_ess: kish_ess_diag,
-    })
+            Ok(ComposedPrior {
+                prior,
+                source_ids: Arc::from(source_ids),
+                alphas_requested: Arc::from(alphas_requested.to_vec()),
+                alphas_applied: Arc::from(alphas_applied.to_vec()),
+                mixture_weights: Arc::from(mixture_weights),
+                effective_ess: Arc::from(effective_ess),
+                composed_ess,
+                kish_ess: kish_ess_diag,
+            })
+        },
+    )
 }
 
 /// Per-source **prior-strength ESS** after α discount (`α_applied · ess`);

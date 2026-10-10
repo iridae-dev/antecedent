@@ -323,8 +323,8 @@ action alphabet (at most 8 actions), on an explicit two-slice unrolled selection
 diagram of at most 12 coordinates and 4096 complete covariate histories. The
 estimand is the target distribution and mean of the outcome under
 `do(A_1=a1, A_2=a2)`. The claim is exact and point-only; temporal sampling
-intervals, initial-state uncertainty and new-period refresh are 2.3A, and an
-interval request refuses (`temporal_transport.interval_requested`,
+intervals are available through the separate [2.3 measured temporal adapter](../2_3-population-time-uncertainty.md). This exact-law route still refuses an
+interval request (`temporal_transport.interval_requested`,
 `estimator_inference_mismatch`).
 
 - **Unrolling.** `TemporalSequenceSpec` places every coordinate in time: baseline
@@ -386,7 +386,9 @@ interval request refuses (`temporal_transport.interval_requested`,
   point: it is not declared separately but read from the target's observational law.
   What is enforced is that a same-window refresh may not move the target's
   initial-state masses (beyond 1e-9); a moved initial state is initial-state
-  uncertainty or a new period (2.3A) and refuses as a changed window.
+  uncertainty or a new period and refuses as a changed window. Use the
+  separate [2.3 temporal recalculation workflow](../2_3-recalculation-capabilities.md)
+  when its original source and horizon contract apply.
 - **Lifecycle.** A same-window evidence refresh re-estimates under the same proof and
   identity. The licensed horizon is 2 steps. A longer horizon, a third period, laws over other coordinates or another
   measurement window refuse (`temporal_transport.horizon`) and need a new
@@ -657,7 +659,8 @@ it is not a second transport engine.
 - **Not licensed.** Counted laws, an empirical plug-in and any interval
   (`cell_not_licensed`, `admg_transport.interval_withheld`); selection-bias
   (`S = 1` sampling) semantics; soft interventions; gID / g-transportability with
-  surrogate or heterogeneous experiments (deferred to 2.3A).
+  surrogate or heterogeneous experiments; use the separate
+  [mixed-source proof route](#mixed-source-proof-search-22a-x9) for its declared evidence catalog.
 - **Witness extension note.** `ConditionalObstructionCandidate` is additive: it
   pairs the unchanged `SHedgeCertificate` of the reduced joint with the rule-2 moves
   and the non-movable remainder (`ConditionalObstructionRecord`). The hedge and
@@ -861,7 +864,9 @@ answer refuses with `route_not_supported` and a checkable obstruction: it is not
 identified by ID*, which is NOT a proof of non-identifiability (ID* composed with ID
 is not complete from `P(V)`; a graph whose ETT is identified through `P(y | do(x))`
 was refused by ID* alone). The claim is a point and never carries an interval;
-path-specific queries on ADMGs are deferred to 2.3. The consumer refuses stored limits
+path-specific queries are outside this ETT route. The separate
+[2.3 transported path-specific adapter](../2_3-transport-counterfactuals.md)
+supports only its declared affine-additive model. The consumer refuses stored limits
 above its own before any work; replay does not protect against a producer sealing a
 wrong graph, query or law, nor against a bug shared by the engine and the consumer
 (the consumer re-derives with the same engine). The recorded y0 0.2.11 differential
@@ -876,12 +881,15 @@ laws make no sampling-coverage claim.
 
 ## Calibration scope
 
-Bound records only:
+The classical routes described here bind:
 
 - four `ClassicalTransport` percentile-bootstrap rows
 - two `TransportQuery` / `transport.trial_ipw` analytic-SE rows
 
-Learned-trial intervals stay uncalibrated (`calibration_reason`).
+These records do not license arbitrary learned-trial intervals. Separate
+2.3 adapters supply measured joint Bayesian and learned joint transport,
+binary nested-Markov, dependent temporal and sampled-recovery scalar intervals;
+see [their exact protocols and source-bound consumers](../2_3-population-time-uncertainty.md).
 `transport.multi_source_calibrated_coverage` and
 `transport.simultaneous_grid_bands` stay closed. T7/T8 full coverage
 remeasurement is not claimed here.

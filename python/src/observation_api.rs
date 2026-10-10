@@ -70,6 +70,8 @@ pub(crate) struct ObservationResponseResult {
     #[pyo3(get)]
     diagnostic_details: Vec<String>,
     #[pyo3(get)]
+    diagnostic_scopes: Vec<String>,
+    #[pyo3(get)]
     warnings: Vec<String>,
     #[pyo3(get)]
     identification: String,
@@ -476,7 +478,12 @@ fn observation_response_result(
         support_status: support_status.into(),
         support_minima: response.support.query_region.minima.to_vec(),
         support_maxima: response.support.query_region.maxima.to_vec(),
-        support_point_status: Vec::new(),
+        support_point_status: response
+            .support
+            .point_status
+            .as_ref()
+            .map(|cells| cells.iter().map(|status| status.as_str().to_owned()).collect())
+            .unwrap_or_default(),
         diagnostic_ids: response
             .support
             .diagnostics
@@ -494,6 +501,12 @@ fn observation_response_result(
             .diagnostics
             .iter()
             .map(|diagnostic| diagnostic.detail.to_string())
+            .collect(),
+        diagnostic_scopes: response
+            .support
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.scope.as_str().to_owned())
             .collect(),
         warnings: response
             .support

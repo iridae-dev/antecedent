@@ -108,6 +108,9 @@ class ArrowLoadInfo:
     column_names: list[str]
 
 class AteAnalysisResult:
+    def effect_source_json(
+        self, units: str, population: str, supplied_value: float
+    ) -> tuple[str | None, str | None]: ...
     structural_weight_basis: str | None
     structural_identified_mass: float | None
     structural_unidentified_mass: float | None
@@ -232,6 +235,7 @@ class AteAnalysisResult:
     allowlist_parent: str | None
 
 class ResponseAnalysisResult:
+    def program_basis_json(self) -> str | None: ...
     certificate_json: str | None
     treatments: list[str]
     outcomes: list[str]
@@ -254,6 +258,7 @@ class ResponseAnalysisResult:
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]
+    diagnostic_scopes: list[str]
     warnings: list[str]
     identification: str
     adjustment_set: list[str]
@@ -278,6 +283,9 @@ class ResponseAnalysisResult:
     allowlist_parent: str | None
     diagnostics: list[str]
     identifier: str | None
+    def response_coordinates(
+        self, outcome_units: str, population: str = "target", transform: str = "identity"
+    ) -> tuple[str | None, str | None]: ...
 
 class TransportIdentificationResult:
     outcome: str
@@ -575,6 +583,7 @@ class ObservationResponseResult:
     diagnostic_ids: list[str]
     diagnostic_values: list[list[float]]
     diagnostic_details: list[str]
+    diagnostic_scopes: list[str]
     warnings: list[str]
     identification: str
     adjustment_set: list[str]
@@ -1065,6 +1074,7 @@ class PreparedAnalysis:
         self,
         *,
         artifact_id: str = "prepared-contract",
+        quantities_json: str | None = None,
     ) -> bytes: ...
     @staticmethod
     def identify_existing(
@@ -4128,6 +4138,71 @@ def gamma_from_mean_and_ess(
     ess: float,
 ) -> tuple[float, float]: ...
 
+class ExternalClaimArtifact:
+    source_evidence: SourceEvidenceHandle
+    metadata_json: str
+    provenance_label: str
+    @staticmethod
+    def load(data: bytes, expected_identity_json: str) -> ExternalClaimArtifact: ...
+    def values_copy(self) -> NDArray[np.float64]: ...
+    def export(self, artifact_id: str) -> bytes: ...
+
+def bind_external_response(
+    contract_json: str, response_json: str, causal_contract_id: str
+) -> tuple[ExternalClaimArtifact | None, str | None]: ...
+
+class NativeResponseClaim:
+    source_evidence: SourceEvidenceHandle
+    execution_program_id: str | None
+    coordinates_json: str
+    means: list[float]
+    point_status: list[str]
+    support_status: str
+    trust: str
+    calibration: str
+    program_identity: str
+    provenance_id: str
+    has_joint_law: bool
+    def joint_artifact(
+        self, contract_json: str
+    ) -> tuple[JointDistributionArtifact | None, str | None]: ...
+    def decision_source(self, contract_json: str) -> tuple[str | None, str | None]: ...
+
+def program_binding_identity(binding_json: str) -> tuple[str | None, str | None]: ...
+def check_external_program(binding_json: str, claim_json: str) -> tuple[str | None, str | None]: ...
+def bind_external_to_program(
+    binding_json: str,
+    claim_json: str,
+    contract_json: str,
+    response_json: str,
+    causal_contract_id: str,
+) -> tuple[ExternalClaimArtifact | None, str | None]: ...
+def native_response_claim(
+    raw: ResponseAnalysisResult | None,
+    projection_json: str,
+    binding_json: str,
+    snapshot_id: str | None = None,
+    rng_id: str | None = None,
+    calibration: str | None = None,
+    premises_json: str | None = None,
+) -> tuple[NativeResponseClaim | None, str | None]: ...
+
+class JointDistributionArtifact:
+    source_evidence: SourceEvidenceHandle | None
+    semantic: str
+    axes: list[str]
+    shape: tuple[int, int]
+    n_draws: int
+    metadata_json: str
+    def __init__(self, metadata_json: str, draws: NDArray[np.float64]) -> None: ...
+    @staticmethod
+    def load(data: bytes, expected_identity_json: str) -> JointDistributionArtifact: ...
+    def draws_copy(self) -> NDArray[np.float64]: ...
+    def mean(self, coordinate: int) -> float: ...
+    def covariance(self, left: int, right: int) -> float: ...
+    def joint_product_expectation(self, left: int, right: int) -> float: ...
+    def export(self, artifact_id: str) -> bytes: ...
+
 class DecodedCausalArtifact:
     @property
     def artifact_id(self) -> str: ...
@@ -4149,6 +4224,7 @@ def encode_causal_artifact(
     variable_names: list[str],
     payload_json: str,
     artifact_id: str,
+    contract_json: str | None = None,
 ) -> bytes: ...
 def decode_causal_artifact(bytes: bytes) -> DecodedCausalArtifact: ...
 def accept_analysis_result_contract(bytes: bytes) -> dict[str, str]: ...
@@ -4454,6 +4530,65 @@ def consume_transport_scenarios_artifact(
     cancel: CancellationToken | None = None,
 ) -> str: ...
 
+class CpdagScenarioRun:
+    @property
+    def payload_json(self) -> str: ...
+    def export(self) -> tuple[bytes | None, str | None]: ...
+
+class ScenarioCovarianceRun:
+    @property
+    def payload_json(self) -> str: ...
+    def export(self) -> tuple[bytes | None, str | None]: ...
+
+def cpdag_completion_scenarios_stage(
+    cpdag: Cpdag,
+    coordinates: list[tuple[str, str, int | None, str | None]],
+    outcomes: list[str],
+    treatments: list[str],
+    source: str,
+    target: str,
+    evidence_mode: str,
+    evidence: list[tuple[str | None, list[tuple[str, str]] | None, str, Any, str | None]],
+    laws: Any,
+    assignments: dict[str, float],
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[CpdagScenarioRun | None, str | None]: ...
+def consume_cpdag_scenarios_artifact(
+    artifact: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    max_operations: int = 10_000_000,
+    max_evaluation_depth: int = 256,
+    max_support_rows: int = 1_000_000,
+    max_laws: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+def scenario_shared_covariance_stage(
+    spec_json: str,
+    *,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[ScenarioCovarianceRun | None, str | None]: ...
+def consume_scenario_covariance_artifact(
+    artifact: bytes,
+    *,
+    max_rows: int = 10_000,
+    max_columns: int = 64,
+    max_replicates: int = 2000,
+    max_compositions: int = 4_000_000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
+
 class PreparedTemporalTransportStage:
     def estimate(
         self, *, memory_bytes: int | None = None, cancel: CancellationToken | None = None
@@ -4501,6 +4636,89 @@ def consume_temporal_transport_artifact(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
+
+class NativeTemporalInitialState:
+    """A prepared target-marginal initial-state result and its observation window."""
+
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+    def export_refresh(self) -> tuple[bytes | None, str | None]: ...
+    def refresh(
+        self,
+        snapshot_id: str,
+        units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+        window: tuple[
+            int,
+            list[tuple[str, int]],
+            list[str],
+            list[str],
+            int,
+            int,
+            str | None,
+            str | None,
+        ],
+        interval_existed: bool,
+    ) -> tuple[NativeTemporalInitialState | None, str | None]: ...
+
+def temporal_initial_state_prepare(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    fixed_state: int | None,
+    premises: tuple[str, list[str], str, str, str, str],
+    window: tuple[
+        int, list[tuple[str, int]], list[str], list[str], int, int, str | None, str | None
+    ]
+    | None,
+) -> tuple[NativeTemporalInitialState | None, str | None]: ...
+def consume_temporal_initial_state_artifact(
+    artifact: bytes, *, max_summary_rows: int = 1_000_000, max_units: int = 100_000
+) -> tuple[str | None, str | None]: ...
+def consume_temporal_refresh_artifact(
+    artifact: bytes, *, max_summary_rows: int = 1_000_000, max_units: int = 100_000
+) -> tuple[str | None, str | None]: ...
+def temporal_dependent_interval_closed(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    estimand: str,
+    fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    replicates: int,
+    seed: int,
+    level: float,
+    method: Literal["studentized"],
+    min_units: int,
+    max_failed_fraction: float,
+) -> str: ...
+
+# Available only in calibration-internal acceptance builds; no released license.
+class NativeTemporalIntervalCandidate:
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def temporal_dependent_interval_candidate(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    estimand: str,
+    fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    replicates: int,
+    seed: int,
+    level: float,
+    method: Literal["studentized"],
+    min_units: int,
+    max_failed_fraction: float,
+) -> tuple[NativeTemporalIntervalCandidate | None, str | None]: ...
+def consume_temporal_interval_candidate(
+    artifact: bytes,
+    expected_identity: str,
+) -> tuple[NativeTemporalIntervalCandidate | None, str | None]: ...
 def evaluate_cross_world_edge_contrast(
     names: list[str],
     columns: Sequence[Any],
@@ -4678,6 +4896,69 @@ def replay_study_plan(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> str: ...
+
+class RepairContractStage:
+    @property
+    def family(self) -> str: ...
+    @property
+    def contract_id(self) -> str: ...
+    def obligations(self, quantities_json: str | None = None) -> list[dict[str, Any]]: ...
+    def repair(
+        self,
+        candidates_json: str,
+        objective: str,
+        *,
+        max_operations: int,
+        max_depth: int,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> RepairStage: ...
+
+class RepairStage:
+    @property
+    def outcome(self) -> str: ...
+    def report(self) -> dict[str, Any]: ...
+    def export(self) -> bytes: ...
+
+def repair_transport_contract(
+    graph: Admg,
+    selections: list[str],
+    source: str,
+    target: str,
+    outcomes: list[str],
+    treatments: list[str],
+    catalog: Any,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> RepairContractStage: ...
+def repair_z_transport_contract(
+    names: list[str],
+    failure_snapshot: bytes,
+    *,
+    max_steps: int = 100_000,
+    max_depth: int = 256,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> RepairContractStage: ...
+def repair_backdoor_contract(
+    graph: Dag,
+    treatment: str,
+    outcome: str,
+    population: str,
+    observed: list[str],
+    assumptions: list[tuple[str, str, str | None]],
+) -> RepairContractStage: ...
+def consume_repair_artifact(
+    artifact: bytes,
+    *,
+    max_operations: int,
+    max_depth: int,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> RepairStage: ...
 def classify_inverse_outcome_stage(
     query_kind: str,
     threshold: float,
@@ -4796,8 +5077,108 @@ def candidate_screen_from_units(
     first: list[int] | None = None,
     second: list[int] | None = None,
 ) -> tuple[str, list[int], list[int], int, str, int, int, int, str]: ...
+def joint_bayesian_transport_closed(
+    graph_class: str,
+    dependence: str,
+    varying: str,
+    sharing: str,
+    features: int,
+    sources: int,
+    has_target: bool,
+    draws: int,
+) -> None: ...
+def binary_nested_markov_closed(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+) -> None: ...
+def sampled_observation_recovery_closed(
+    graph_recoverable: bool,
+    partially_observed: int,
+    fully_observed: int,
+    replicates: int,
+    rows: list[tuple[int, int, int, int]],
+) -> None: ...
+def learned_joint_transport_closed(
+    graph_class: str,
+    dependence: str,
+    varying: str,
+    sharing: str,
+    features: int,
+    basis_degree: int,
+    sources: int,
+    has_target: bool,
+    draws: int,
+) -> None: ...
+def msm_sensitivity_run(
+    strata: list[tuple[float, float, list[float], list[float], list[float], list[float]]],
+    lambda_max: float,
+    grid_points: int,
+    decision_threshold: float | None,
+    tolerance: float,
+    sampling_composition: str | None = None,
+) -> tuple[str | None, str | None]: ...
+def msm_sensitivity_artifact_run(
+    strata: list[tuple[float, float, list[float], list[float], list[float], list[float]]],
+    lambda_max: float,
+    grid_points: int,
+    decision_threshold: float | None,
+    tolerance: float,
+    effect_json: str,
+    point_quantities_json: str,
+    actions_json: str,
+    causal_contract_id: str,
+    artifact_id: str,
+) -> tuple[bytes | None, str | None]: ...
+def mechanism_discrepancy_summarize(
+    label: str,
+    node: str,
+    node_unit: str,
+    parents: list[tuple[str, str]],
+    protocol_id: str,
+    outcome: list[float],
+    parent_values: list[list[float]],
+) -> tuple[str | None, str | None]: ...
+def mechanism_discrepancy_run(
+    request_json: str,
+    source_ids: list[str],
+    target_ids: list[str],
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def mechanism_discrepancy_consume(
+    data: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
 
 class ObservationRecoveryStage:
+    def sampled_measured(
+        self,
+        population: str,
+        observed_regime: str,
+        partial: list[tuple[str, str, str]],
+        fully: list[str],
+        rows: list[tuple[int, int, int, int]],
+        snapshot: str,
+        replicates: int,
+        seed: int,
+        interval_method: str = "bootstrap_bca",
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> NativeMeasuredInference: ...
+    # Optional: calibration-internal acceptance builds only.
+    def sampled_candidate(
+        self,
+        population: str,
+        observed_regime: str,
+        partial: list[tuple[str, str, str]],
+        fully: list[str],
+        rows: list[tuple[int, int, int, int]],
+        snapshot: str,
+        replicates: int,
+        seed: int,
+        interval_method: str = "bootstrap_bca",
+    ) -> tuple[str, list[int]]: ...
     @property
     def outcome(self) -> str: ...
     def decision(self) -> dict[str, Any]: ...
@@ -5430,3 +5811,1028 @@ def estimate_with_rank_drop_json(
     seed: int = 1,
     threads: int | None = None,
 ) -> str: ...
+def decision_contract_normalize(contract_json: str) -> tuple[str | None, str | None]: ...
+def evaluate_decision(
+    contract_json: str, source: JointDistributionArtifact
+) -> tuple[str | None, str | None]: ...
+def export_decision_contract(contract_json: str, artifact_id: str) -> bytes: ...
+def load_decision_contract(data: bytes, expected_identity: str) -> str: ...
+def export_decision_result(
+    contract_json: str, source: JointDistributionArtifact, artifact_id: str
+) -> bytes: ...
+def replay_decision_result(
+    data: bytes, contract_json: str, source: JointDistributionArtifact
+) -> tuple[str | None, str | None]: ...
+def decision_source_digest(source: JointDistributionArtifact) -> str: ...
+def evaluate_decision_means(
+    contract_json: str,
+    coordinates_json: str,
+    means: list[float],
+    provider_id: str,
+    snapshot_id: str,
+    causal_contract_id: str,
+) -> tuple[str | None, str | None]: ...
+def composition_lineage(links_json: str) -> str: ...
+
+class TrustEvidence:
+    @staticmethod
+    def none() -> TrustEvidence: ...
+    @staticmethod
+    def attested(attestor: str) -> TrustEvidence: ...
+    @property
+    def kind(self) -> str: ...
+
+class DecisionInput:
+    def _retain_external_source(self, claim: ExternalClaimArtifact) -> None: ...
+    has_source_evidence: bool
+    source_evidence: SourceEvidenceHandle | None
+    @property
+    def id(self) -> str: ...
+    def summary_json(self) -> str: ...
+
+def composition_input_from_native_claim(
+    input_id: str,
+    claim: NativeResponseClaim,
+    contract_json: str,
+) -> tuple[DecisionInput | None, str | None]: ...
+def composition_input_from_distribution(
+    input_id: str,
+    artifact: JointDistributionArtifact,
+    evidence: TrustEvidence,
+    requirement: str,
+) -> tuple[DecisionInput | None, str | None]: ...
+def composition_input_from_means(
+    input_id: str,
+    coordinates_json: str,
+    means: list[float],
+    statuses: list[str],
+    provider_id: str,
+    snapshot_id: str,
+    causal_contract_id: str,
+    evidence: TrustEvidence,
+    requirement: str,
+) -> tuple[DecisionInput | None, str | None]: ...
+def composition_input_from_scalar(
+    input_id: str,
+    coordinate_json: str,
+    value: float,
+    status: str,
+    provider_id: str,
+    snapshot_id: str,
+    causal_contract_id: str,
+    evidence: TrustEvidence,
+    requirement: str,
+) -> tuple[DecisionInput | None, str | None]: ...
+def composition_evaluate(
+    contract_json: str,
+    inputs: list[DecisionInput],
+    unsupported: str,
+    weakest_support: str,
+) -> tuple[str | None, str | None]: ...
+def composition_functional(
+    contract_json: str,
+    action_id: str,
+    functional_json: str,
+    input: DecisionInput,
+    weakest_support: str,
+) -> tuple[str | None, str | None]: ...
+def composition_check(
+    inputs: list[DecisionInput], relations_json: str, operation: str | None = None
+) -> tuple[str | None, str | None]: ...
+def composition_check_paired_draws(
+    inputs: list[DecisionInput], relations_json: str
+) -> tuple[str | None, str | None]: ...
+def composition_check_atoms(atoms_json: str, combination: str) -> tuple[str | None, str | None]: ...
+def decide_scenario_claims(
+    declaration_json: str,
+    kind: str,
+    result: PreparedTransportScenariosStage | CpdagScenarioRun,
+    binding_json: str,
+    policy: str,
+    weights_json: str | None = None,
+    expected_causal: str | None = None,
+) -> tuple[str | None, str | None]: ...
+
+class ProposalBundle:
+    @staticmethod
+    def from_json(json: str) -> ProposalBundle: ...
+    def to_json(self) -> str: ...
+    @property
+    def identity(self) -> str: ...
+    def verify(self, repair: bytes, ranking: bytes) -> str | None: ...
+    def on_arrival(
+        self, contract: RepairContractStage, candidate_json: str, arrival_json: str
+    ) -> tuple[str | None, str | None]: ...
+
+def proposal_bundle_build(
+    repair: bytes, ranking: bytes
+) -> tuple[ProposalBundle | None, str | None]: ...
+def proposal_ranked_candidates(ranking: bytes) -> list[str]: ...
+def admissible_contract_normalize(declaration_json: str) -> tuple[str | None, str | None]: ...
+def export_admissible_contract(declaration_json: str, artifact_id: str) -> bytes: ...
+def load_admissible_contract(data: bytes, expected_identity: str) -> str: ...
+def evaluate_robust_decision(
+    declaration_json: str,
+    kind: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+    receipts_json: str,
+) -> tuple[str | None, str | None]: ...
+def export_robust_decision(
+    declaration_json: str,
+    kind: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+    receipts_json: str,
+    artifact_id: str,
+) -> tuple[bytes | None, str | None]: ...
+def replay_robust_decision(
+    data: bytes,
+    declaration_json: str,
+    kind: str,
+    claims_json: str,
+    sources: list[JointDistributionArtifact | None],
+) -> tuple[str | None, str | None]: ...
+def evaluate_identified_set_decision(
+    declaration_json: str, utilities_json: str
+) -> tuple[str | None, str | None]: ...
+def identified_utility_interval(
+    declaration_json: str, action_id: str, intervals: list[tuple[float, float]]
+) -> tuple[tuple[float, float] | None, str | None]: ...
+def evaluate_effect_constancy(
+    request_json: str, artifact_id: str
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_effect_constancy_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def plan_recalculation(previous_json: str, requested_json: str, capabilities_json: str) -> str: ...
+def recalc_stage_identity(label: str, parts: list[bytes]) -> str: ...
+def consume_recalc_receipt(
+    artifact: bytes, expected_identity: str | None = None
+) -> tuple[str | None, str | None]: ...
+
+class RecalcSessionHandle:
+    def __init__(self, retarget: str = "licensed") -> None: ...
+    @staticmethod
+    def resume(
+        previous_json: str, resume_json: str, retarget: str = "licensed"
+    ) -> RecalcSessionHandle: ...
+    def set_retarget_support(self, retarget: str) -> None: ...
+    def set_request_support(self, request: str, licensed_route: str | None = None) -> None: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def score_contrast(self) -> list[float] | None: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+
+class CellSessionHandle:
+    def __init__(self, retarget: str = "licensed") -> None: ...
+    def set_retarget_support(self, retarget: str) -> None: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def score_columns(self) -> list[tuple[int, list[float]]] | None: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatments: list[str],
+        outcome: str,
+        adjustment: list[str],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        folds: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatments: list[str],
+        outcome: str,
+        adjustment: list[str],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        folds: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
+
+class CrossfitSessionHandle:
+    def __init__(self) -> None: ...
+    def is_live(self) -> bool: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        edges: list[tuple[str, str]],
+        treatment: str,
+        outcome: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[str] | None = None,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_frozen_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
+
+class ScoreResumeHandle:
+    @staticmethod
+    def from_bytes(
+        artifact: bytes, expected_identity: str | None = None
+    ) -> tuple[ScoreResumeHandle | None, str | None]: ...
+    def artifact_identity(self) -> str: ...
+    def n_rows(self) -> int: ...
+    def row_ids(self) -> list[int]: ...
+    def score_columns(self) -> list[tuple[int, list[float]]]: ...
+    def has_run(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def plan(
+        self,
+        n_variables: int,
+        edges: list[tuple[int, int]],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[int] | None = None,
+        target_row_ids: list[int] | None = None,
+        changed_inputs: list[tuple[str, str]] | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def execute_retarget(
+        self,
+        n_variables: int,
+        edges: list[tuple[int, int]],
+        quantity: str,
+        benefit_per_unit: float,
+        cost: float,
+        *,
+        arm: int | None = None,
+        target_weights: NDArray[np.float64] | None = None,
+        target_depends_on: list[int] | None = None,
+        target_row_ids: list[int] | None = None,
+        changed_inputs: list[tuple[str, str]] | None = None,
+    ) -> tuple[str | None, str | None]: ...
+
+def evaluate_design_ranking(
+    request_json: str, artifact_id: str, checked_prior: CheckedPriorSignal | None = None
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_design_ranking(
+    artifact: bytes, expectation_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def rank_structural_designs(candidates_json: str) -> tuple[str | None, str | None]: ...
+def evaluate_dose_grid_functional(
+    request_json: str, dose: list[float], outcome: list[float]
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_dose_grid_artifact(
+    artifact: bytes, *, max_rows: int = 100_000, max_grid: int = 1_024
+) -> tuple[str | None, str | None]: ...
+def dose_support_labels(
+    dose: list[float], points: list[float], bandwidth: float, minimum_local_ess: float
+) -> tuple[str | None, str | None]: ...
+def recover_recovery_chain(
+    nodes: list[str],
+    directed: list[tuple[str, str]],
+    bidirected: list[tuple[str, str]],
+    first: tuple[str, str, str],
+    second: tuple[str, str, str],
+    law_json: str | None = None,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_recovery_chain_artifact(
+    artifact: bytes,
+    *,
+    seed: int = 0,
+    memory_bytes: int | None = None,
+    cancel: Any = None,
+) -> tuple[str | None, str | None]: ...
+def evaluate_vector_treatment(
+    outcome: list[float],
+    adjustment_columns: list[list[float]],
+    treatment_columns: list[list[float]],
+    declaration_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_vector_treatment_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_categorical_treatment(
+    outcome: list[float],
+    adjustment_columns: list[list[float]],
+    levels: list[str],
+    declaration_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_categorical_treatment_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def build_compact_export(
+    spec_json: str, artifact_id: str
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_compact_export(
+    artifact: bytes, expected_identity: str, max_bytes: int | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_compact_export(
+    artifact: bytes,
+    expected_identity: str,
+    queries_json: str,
+    max_bytes: int | None = None,
+) -> tuple[str | None, str | None]: ...
+def evaluate_nonlinear_mediation(
+    treatment: NDArray[np.float64],
+    mediator: NDArray[np.float64],
+    outcome: NDArray[np.float64],
+    covariates: list[NDArray[np.float64]],
+    covariate_names: list[str],
+    premises_json: str,
+    config_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_nonlinear_mediation_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_latent_class_effects(
+    outcome: NDArray[np.float64],
+    treatment: NDArray[np.float64],
+    covariates: list[NDArray[np.float64]],
+    covariate_names: list[str],
+    config_json: str,
+    artifact_id: str,
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_latent_class_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def evaluate_temporal_counterfactual(
+    request_json: str, artifact_id: str, *, seed: int = 0
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_temporal_counterfactual_artifact(
+    artifact: bytes, expected_identity_json: str | None = None, *, seed: int = 0
+) -> tuple[str | None, str | None]: ...
+def transported_path_specific_refusal(
+    transport_license: bool,
+    fixed_population_license: bool,
+    cross_population_assumptions: bool,
+    required_factors: list[tuple[str, str]],
+    supplied_factors: list[tuple[str, str, str]],
+) -> str: ...
+def evaluate_transported_counterfactual(
+    request_json: str, artifact_id: str
+) -> tuple[str | None, bytes | None, str | None]: ...
+def consume_transported_counterfactual_artifact(
+    artifact: bytes, expected_identity_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def scenario_invariance_report(stage: Any) -> tuple[str | None, str | None]: ...
+
+class SensitivityArtifact:
+    summary_json: str
+    def export(self, artifact_id: str) -> bytes: ...
+    @staticmethod
+    def consume(
+        data: bytes, expected_identity_json: str | None = None
+    ) -> tuple[SensitivityArtifact | None, str | None]: ...
+    def outcome_json(
+        self, range: tuple[float, float] | None = None
+    ) -> tuple[str | None, str | None]: ...
+
+def sensitivity_artifact_from_surface(
+    surface_json: str,
+) -> tuple[SensitivityArtifact | None, str | None]: ...
+def sensitivity_artifact_from_z_joint(
+    stage: PreparedZTransportStage,
+    factors: list[tuple[str, float]],
+    effect_json: str,
+    grid_points: int,
+    actions_json: str,
+    causal_contract_id: str,
+    *,
+    decision_threshold: float | None = None,
+    total_budget: float | None = None,
+    tolerance: float = 1e-9,
+    frontier_points: int = 17,
+    max_operations: int = 100_000,
+    max_depth: int = 64,
+    max_memory_bytes: int = 67_108_864,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[SensitivityArtifact | None, str | None]: ...
+def sensitivity_contract(
+    artifact: SensitivityArtifact, policy: str
+) -> tuple[str | None, str | None]: ...
+def sensitivity_decide(
+    contract_json: str, artifact: SensitivityArtifact, spec_json: str
+) -> tuple[str | None, str | None]: ...
+
+class InverseQueryArtifact:
+    source_evidence: list[SourceEvidenceHandle]
+    result_json: str
+    identity_json: str
+    query_json: str
+    contract_json: str
+    @staticmethod
+    def build(
+        contract_json: str,
+        query_json: str,
+        point: JointDistributionArtifact | str | None = None,
+        interval_region: tuple[
+            JointDistributionArtifact | str, JointDistributionArtifact | str, bool
+        ]
+        | None = None,
+        identified_set: tuple[list[tuple[str, float | None, str, object]], bool] | None = None,
+        scenarios: list[tuple[str, float | None, str, object]] | None = None,
+    ) -> tuple[InverseQueryArtifact | None, str | None]: ...
+    @staticmethod
+    def consume(
+        data: bytes, expected_identity_json: str | None = None
+    ) -> tuple[InverseQueryArtifact | None, str | None]: ...
+    def export(self, artifact_id: str) -> bytes: ...
+
+def inverse_query_baseline(
+    points_json: str, target: float, comparison: str, tolerance: float
+) -> tuple[str | None, str | None]: ...
+
+class CompositionBundle:
+    identity: str
+    nodes_json: str
+    edges_json: str
+    def export(self, artifact_id: str) -> tuple[bytes | None, str | None]: ...
+
+class CompositionBundleBuilder:
+    def __init__(self) -> None: ...
+    def add_artifact(
+        self, kind: str, data: bytes, node_id: str | None = None
+    ) -> tuple[str | None, str | None]: ...
+    def add_reference(
+        self,
+        node_id: str,
+        kind: str,
+        identity: str,
+        requires_json: str,
+        facts_json: str | None = None,
+        inspected_json: str | None = None,
+    ) -> str | None: ...
+    def connect(self, upstream: str, dependent: str) -> str | None: ...
+    def relate(self, left: str, right: str, relationship: str) -> tuple[str | None, str | None]: ...
+    def build(self) -> tuple[CompositionBundle | None, str | None]: ...
+
+def consume_composition_bundle(
+    data: bytes, expected_identity: str, supplied_json: str | None = None
+) -> tuple[str | None, str | None]: ...
+def composition_describe_artifact(kind: str, data: bytes) -> tuple[str | None, str | None]: ...
+def composition_mean_decision(
+    contract_json: str, claim_data: bytes, artifact_id: str
+) -> tuple[bytes | None, str | None]: ...
+def composition_detect_kind(data: bytes) -> str | None: ...
+
+class AdjustedSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> AdjustedSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def prediction_columns(self) -> list[str] | None: ...
+    def predict(
+        self, rows: list[list[float]], columns: list[str]
+    ) -> tuple[str | None, str | None]: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+
+class DrSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> DrSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def prediction_columns(self) -> list[str] | None: ...
+    def row_ids(self) -> list[int] | None: ...
+    def score_contrast(self) -> list[float] | None: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: Sequence[NDArray[np.float64]],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def predict(
+        self,
+        rows: list[list[float]],
+        columns: list[str],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, str | None]: ...
+    def export_scores(self) -> tuple[tuple[str, bytes] | None, str | None]: ...
+    def export_predictor(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class StaticResponseSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> StaticResponseSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def response(self) -> ResponseAnalysisResult | None: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: list[Any],
+        graph: Admg,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: list[Any],
+        graph: Admg,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class MultiSourceSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> MultiSourceSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(
+        self,
+        graph: Admg,
+        catalog: Any,
+        laws: Any,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        graph: Admg,
+        catalog: Any,
+        laws: Any,
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class DesignSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> DesignSessionHandle: ...
+    @staticmethod
+    def consume(
+        artifact: bytes,
+        names: list[str] | None = None,
+        columns: list[Any] | None = None,
+        specification: str | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[DesignSessionHandle | None, str | None, bytes | None, str | None, str | None]: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: list[Any],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: list[Any],
+        specification: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(self) -> tuple[bytes | None, str | None]: ...
+
+class BayesianSessionHandle:
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> BayesianSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(
+        self,
+        names: list[str],
+        columns: list[Any],
+        specification: str,
+        inference: dict[str, Any],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> str: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: list[Any],
+        specification: str,
+        inference: dict[str, Any],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_prior_source(self) -> tuple[bytes | None, str | None]: ...
+    def effect_draws(self) -> list[float] | None: ...
+    def export_result(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+
+class TemporalSessionHandle:
+    def measured_interval(
+        self,
+        config_json: str,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+    def __init__(self) -> None: ...
+    @staticmethod
+    def resume(previous_json: str, resume_json: str) -> TemporalSessionHandle: ...
+    def is_live(self) -> bool: ...
+    def identities_json(self) -> str: ...
+    def capabilities_json(self) -> str: ...
+    def plan(self, specification: str, *, seed: int = 1, threads: int | None = None) -> str: ...
+    def execute(
+        self, specification: str, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def export_result(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[bytes | None, str | None]: ...
+    @staticmethod
+    def consume(
+        artifact: bytes, *, seed: int = 1, threads: int | None = None
+    ) -> tuple[TemporalSessionHandle | None, str | None, bytes | None, str | None]: ...
+    # Optional calibration-internal checked-source lifecycle only.
+    def interval_candidate(
+        self,
+        config_json: str,
+        *,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[NativeCheckedTemporalIntervalCandidate | None, str | None]: ...
+    def dependent_interval(self) -> str: ...
+
+# Finite source-state terminal decision and study-ranking artifact.
+def export_rollout(
+    source: bytes,
+    ranking: bytes,
+    binding_json: str,
+    artifact_id: str,
+    source_evidence: bytes | None = None,
+) -> tuple[str, bytes]: ...
+def consume_rollout(artifact: bytes, expectation_json: str) -> str: ...
+
+class ExternalCallbackProviderHandle:
+    def __init__(self, text: str, callback: Any) -> None: ...
+
+class ExternalCallbackSessionHandle:
+    def __init__(self) -> None: ...
+    def is_live(self) -> bool: ...
+    def plan(
+        self, names: list[str], columns: list[Any], text: str, supplied_provider: bool
+    ) -> tuple[str | None, str | None]: ...
+    def execute(
+        self,
+        names: list[str],
+        columns: list[Any],
+        text: str,
+        provider: ExternalCallbackProviderHandle | None = None,
+        *,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, bytes | None, ExternalClaimArtifact | None, str | None]: ...
+    def export_output(self) -> tuple[bytes | None, str | None]: ...
+    @staticmethod
+    def resume(
+        data: bytes, names: list[str], columns: list[Any], text: str
+    ) -> tuple[ExternalCallbackSessionHandle | None, str | None]: ...
+
+def estimate_proposal_arrival(
+    graph: Admg,
+    catalog: Any,
+    base_laws: Any,
+    arrived_laws: Any,
+    repair: bytes,
+    ranking: bytes,
+    request_json: str,
+    seed: int,
+) -> tuple[str, bytes]: ...
+def consume_proposal_arrival(artifact: bytes, expected_proposal: str, seed: int) -> str: ...
+def review_effect_constancy(artifact: bytes, identity_json: str, request_json: str) -> str: ...
+
+class SourceEvidenceHandle:
+    summary_json: str
+    def diagnostics_at(self, quantity_json: str) -> str: ...
+    def resolve_with(self, actual: NativeResponseClaim) -> SourceEvidenceHandle: ...
+    def project(self, contract_json: str, actions: list[str]) -> SourceEvidenceHandle: ...
+    def export(self) -> bytes: ...
+    def original_artifact(self) -> bytes: ...
+    @staticmethod
+    def consume(bytes: bytes) -> SourceEvidenceHandle: ...
+
+class CompositeSessionHandle:
+    def __init__(self, native: StaticResponseSessionHandle, payload: dict[str, object]) -> None: ...
+    def plan(self, payload: dict[str, object]) -> tuple[str | None, str | None]: ...
+    def execute(
+        self,
+        payload: dict[str, object],
+        providers: dict[int, ExternalCallbackProviderHandle],
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def rank_conditional_studies(
+        self, policy_json: str
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def consume_conditional_studies(
+        self, artifact: bytes, expected_identity: str | None = None
+    ) -> tuple[str | None, bytes | None, str | None]: ...
+    def native_response(self) -> ResponseAnalysisResult | None: ...
+    def export_native(self) -> bytes: ...
+    def export_callback(self, branch: int) -> bytes: ...
+
+# Original-source projections and opaque actual execution resolution.
+def produce_source_projection(
+    source: bytes, native: bool, projection_json: str
+) -> tuple[str, list[int]]: ...
+def consume_source_projection(data: bytes, expected_identity: str) -> str: ...
+def consume_source_projection_bundle(
+    data: bytes,
+    expected_identity: str,
+    supplied_json: str | None,
+    actual_claims: dict[str, NativeResponseClaim],
+) -> tuple[str | None, str | None]: ...
+def export_law_functional_source(
+    contract_json: str, action_id: str, functional_json: str, input: DecisionInput
+) -> tuple[str, list[int]]: ...
+def consume_law_functional_source(bytes: bytes, expected_identity: str | None = None) -> str: ...
+def rollout_ranking(artifact: bytes, expectation_json: str) -> list[int]: ...
+def sensitivity_source_summary(artifact: SensitivityArtifact) -> str | None: ...
+def original_sensitivity_source(artifact: SensitivityArtifact) -> bytes | None: ...
+def export_sensitivity_source(artifact: SensitivityArtifact) -> bytes: ...
+def consume_sensitivity_source(data: bytes) -> SensitivityArtifact: ...
+def resolve_law_functional_source(bytes: bytes, actual: NativeResponseClaim) -> str: ...
+
+class SourceBackedMeanClaim: ...
+
+def source_backed_native_mean(
+    original: NativeResponseClaim, declaration: str
+) -> SourceBackedMeanClaim: ...
+def observe_native_attempts(
+    operation: Callable[[], Any],
+) -> tuple[Any | None, BaseException | None, str]:
+    """Execute once and separately observe original synchronous native component work."""
+
+class CheckedPriorSignal:
+    @property
+    def diagnostics_json(self) -> str: ...
+
+def adapt_prior_signal(
+    sources: list[dict[str, Any]], request_json: str
+) -> tuple[CheckedPriorSignal | None, str | None]: ...
+
+# Feature-only nested Fisher candidate lifecycle; absent from normal wheels.
+class NativeNestedFisherCandidate:
+    @property
+    def identity(self) -> str: ...
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def nested_markov_fisher_candidate(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    nominal_level: float,
+    max_iterations: int,
+    tolerance: float,
+) -> NativeNestedFisherCandidate: ...
+def consume_nested_markov_fisher_candidate(
+    bytes: bytes,
+    expected_identity: str,
+) -> NativeNestedFisherCandidate: ...
+
+# Present only on internal candidate feature builds, never a release activation switch.
+def joint_transport_candidate(
+    proof: TransportIdentificationResult, request_json: str, learned: bool
+) -> tuple[str, bytes]: ...
+def consume_joint_transport_candidate(data: bytes, expectation_json: str, learned: bool) -> str: ...
+
+# Feature-only original continuous Verma posterior; absent from normal wheels.
+class NativeNestedMarkovPosteriorCandidate:
+    @property
+    def identity(self) -> str: ...
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def nested_markov_posterior_candidate(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    max_iterations: int,
+    tolerance: float,
+    alpha: list[float],
+    beta: list[float],
+    seed: int,
+) -> NativeNestedMarkovPosteriorCandidate: ...
+def consume_nested_markov_posterior_candidate(
+    bytes: bytes,
+    expected_identity: str,
+) -> NativeNestedMarkovPosteriorCandidate: ...
+
+# Optional: calibration-internal acceptance builds only.
+def consume_sampled_recovery_candidate(
+    artifact: bytes,
+    premises_digest: str,
+    data_digest: str,
+    *,
+    max_rows: int = 100_000,
+    max_replicates: int = 2000,
+    memory_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> str: ...
+
+# Optional calibration-internal original checked TemporalSession source/proof route.
+class NativeCheckedTemporalIntervalCandidate:
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def consume_checked_temporal_interval_candidate(
+    artifact: bytes,
+    expected_identity_json: str,
+    *,
+    max_units: int = 4096,
+    max_histories: int = 100_000,
+    max_replicates: int = 2000,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[NativeCheckedTemporalIntervalCandidate | None, str | None]: ...
+
+class NativeMeasuredInference:
+    def source_report(self) -> str: ...
+    def payload(self) -> str: ...
+    def export(self) -> bytes: ...
+    def source_artifact(self) -> bytes: ...
+
+def joint_transport_measured(
+    identification: TransportIdentificationResult,
+    request_json: str,
+    learned: bool,
+    *,
+    level: float = 0.95,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def consume_measured_inference(
+    artifact: bytes,
+    expected_identity_json: str,
+    *,
+    max_bytes: int = 67108864,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def nested_markov_fisher_measured(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    nominal_level: float,
+    max_iterations: int,
+    tolerance: float,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def nested_markov_posterior_measured(
+    variables: list[str],
+    directed: list[tuple[int, int]],
+    bidirected: list[tuple[int, int]],
+    regimes: list[tuple[list[int] | None, list[int], list[float]]],
+    max_iterations: int,
+    tolerance: float,
+    alpha: list[float],
+    beta: list[float],
+    seed: int,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> NativeMeasuredInference: ...
+def temporal_dependent_interval_measured(
+    snapshot_id: str,
+    units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
+    sequence: tuple[int, int],
+    estimand: str,
+    fixed_state: int | None,
+    law: tuple[str, str, list[tuple[int, float]]] | None,
+    point: int | None,
+    replicates: int,
+    seed: int,
+    level: float,
+    method: Literal["studentized"],
+    min_units: int,
+    max_failed_fraction: float,
+    *,
+    memory_limit_bytes: int | None = None,
+    cancel: CancellationToken | None = None,
+) -> tuple[NativeMeasuredInference | None, str | None]: ...

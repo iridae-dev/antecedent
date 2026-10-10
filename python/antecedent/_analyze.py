@@ -145,6 +145,10 @@ def analyze(
     return_posterior_artifact: bool = False,
     class_prior: ClassPrior | None = None,
     max_completions: int | None = None,
+    outcome_units: str | None = None,
+    dose_units: str | None = None,
+    quantity_population: str = "target",
+    quantity_transform: str = "identity",
 ) -> Analysis:
     """Identify then estimate a causal effect.
 
@@ -246,6 +250,17 @@ def analyze(
         that fit their point and uncertainty together, or mix identifications,
         have no such stages and refuse it
         (``reason=stage_stream_unavailable``).
+    outcome_units:
+        Declared outcome units for a response result. When supplied, populate
+        ``result.quantities`` from the native response's variable, intervention,
+        horizon and functional, using ``quantity_population`` and
+        ``quantity_transform``. Unsupported response shapes refuse; units are
+        never inferred or converted.
+    dose_units:
+        Optional physical dose-unit declaration, requiring ``outcome_units``.
+        Retains a checked ``result.program_binding`` for later ``Contract.evaluate``.
+        Without it, direct decision evaluation uses the original numeric intervention
+        scale and makes no claim about physical dose units.
     return_posterior_artifact:
         When ``True`` and inference is Bayesian, attach full posterior draw
         bytes on ``result.posterior.artifact`` (for download / sequential-prior
@@ -284,6 +299,9 @@ def analyze(
             or seed != 1
             or not accept_discovered
             or return_posterior_artifact
+            or outcome_units is not None
+            or quantity_population != "target"
+            or quantity_transform != "identity"
         ):
             from .errors import CausalUnsupportedError
 
@@ -320,6 +338,40 @@ def analyze(
                 "transferable prior",
                 reason_code="option_not_applicable",
             )
+
+    if dose_units is not None:
+        from .errors import CausalTypeError, CausalValueError
+
+        if not isinstance(dose_units, str):
+            raise CausalTypeError("dose_units must be a string")
+        if not dose_units.strip() or len(dose_units.encode()) > 256 or outcome_units is None:
+            raise CausalValueError(
+                "dose_units must be non-empty, at most 256 bytes and requires outcome_units"
+            )
+        if not isinstance(query, ResponseCurve):
+            raise CausalValueError("dose_units requires a static ResponseCurve query")
+
+    if outcome_units is None and (
+        quantity_population != "target" or quantity_transform != "identity"
+    ):
+        from .errors import CausalValueError
+
+        raise CausalValueError(
+            "quantity_population and quantity_transform require declared outcome_units"
+        )
+
+    if outcome_units is not None:
+        from .errors import CausalTypeError, CausalValueError
+
+        for name, value in (
+            ("outcome_units", outcome_units),
+            ("quantity_population", quantity_population),
+            ("quantity_transform", quantity_transform),
+        ):
+            if not isinstance(value, str):
+                raise CausalTypeError(f"{name} must be a string")
+            if not value.strip():
+                raise CausalValueError(f"{name} must be non-empty")
 
     prepared = PreparedAnalysis.prepare(
         data,
@@ -368,6 +420,55 @@ def analyze(
         result = copy_model(
             result,
             posterior=copy_model(result.posterior, artifact=prepared.export_artifact()),
+        )
+    if outcome_units is not None:
+        from .errors import CausalUnsupportedError as _Unsupported
+        from .results.response import CausalResponseView
+
+        if not isinstance(result, CausalResponseView):
+            raise _Unsupported(
+                "outcome_units requires a response result with native scientific coordinates",
+                reason_code="option_not_applicable",
+            )
+        from .results._report import copy_model
+
+        result = copy_model(
+            result,
+            quantities=result.response_coordinates(
+                outcome_units=outcome_units,
+                population=quantity_population,
+                transform=quantity_transform,
+            ),
+        )
+        from . import artifacts
+        from .results._slots import ReasoningSlots
+
+        # The descriptor-bearing body has a distinct sealed claim identity.
+        # Project the native exported contract so view and portable claim agree.
+        artifact = artifacts.loads(result.export())
+        if artifact.contract is not None:
+            slots = ReasoningSlots.from_result_section(
+                artifact.contract,
+                artifact.payload,
+                answer=result.answer,
+                calibration=result.calibration,
+            )
+            result = copy_model(result, reasoning=slots, claim_id=slots.claim_id)
+    if dose_units is not None:
+        assert isinstance(result, CausalResponseView)
+        assert outcome_units is not None
+        from .program_claims import ProgramBinding
+        from .results._report import copy_model
+
+        result = copy_model(
+            result,
+            program_binding=ProgramBinding.from_response(
+                result,
+                outcome_units=outcome_units,
+                dose_units=dose_units,
+                population=quantity_population,
+                transform=quantity_transform,
+            ),
         )
     # This facade accepts only the legacy analysis query family.
     from typing import cast

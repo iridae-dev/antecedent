@@ -17,7 +17,9 @@ difference-in-differences and other quasi-experimental designs, survival, and
 longitudinal regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
 ``antecedent.quasi.SyntheticControl``, ``antecedent.policy.PolicyValue``,
 ``antecedent.survival.SurvivalOutcome``, ``antecedent.regimes.LongitudinalRegime``),
-not at the root. The eighteen root-exported stage modules are:
+not at the root.
+
+Root-exported stage modules (listed in ``__all__``):
 
 ``antecedent.attribution``, ``antecedent.data``, ``antecedent.design``,
 ``antecedent.discovery``, ``antecedent.errors``, ``antecedent.experiment``,
@@ -26,11 +28,59 @@ not at the root. The eighteen root-exported stage modules are:
 ``antecedent.priors``, ``antecedent.quasi``, ``antecedent.regimes``,
 ``antecedent.state``, ``antecedent.survival``, and ``antecedent.validation``.
 
-Nineteen narrower modules are reachable but deliberately outside ``__all__``:
-``accepted_graph``, ``artifacts``, ``counterfactual``, ``derived``, ``estimators``,
-``handoff``, ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
+Narrower modules imported eagerly, reachable but deliberately outside ``__all__``:
+``accepted_graph``, ``artifacts``, ``counterfactual``, ``decision``, ``derived``, ``estimators``,
+``external``, ``handoff``, ``ids``, ``inference``, ``interference``, ``intervention``, ``learners``,
 ``matched``, ``model``, ``observation``, ``population``, ``prediction``, ``query``,
 ``results``, and ``transport``.
+
+The 2.3 stage modules are loaded on first attribute access (``antecedent.recalc_cell`` imports
+the module then, so ``import antecedent`` pays nothing for them) and are listed by
+``dir(antecedent)``; none is in ``__all__``. The full tuple is ``_LAZY_MODULES``. They are
+grouped here by workflow stage.
+
+Lifecycle -- analyze, bind external evidence, inspect the claim, decide, rank a study, bundle:
+
+* ``program_claims`` binds a claim to the identified program and the request it answers, and
+  ``external`` (eager) binds an externally supplied response to it;
+* ``decision`` (eager) states the :class:`~antecedent.decision.Contract` and evaluates it on a
+  result, a bound claim or a distribution; ``decision_robust`` adds admissibility rules and
+  robustness under structural uncertainty, ``scenario_decision`` decides over a scenario or CPDAG
+  completion set, ``sensitivity_decision`` over an assumption-sensitivity result, and ``inverse`` /
+  ``inverse_query`` answer which enumerated interventions reach a target;
+* ``design`` (root-exported) ranks the study to run next, ``repair`` states evidence obligations
+  and identification repair, and ``proposals`` links the two with a per-proposal receipt;
+* ``joint_distribution`` holds the aligned distribution artifacts decisions consume, and
+  ``composition`` / ``composition_bundle`` define what may be combined and export the whole chain
+  as one portable bundle an independent consumer checks against retained identities.
+
+Transport and counterfactual:
+
+* ``transport`` (eager) answers the ordinary transport question; ``scenario_invariance`` reports the
+  selection differences and invariances behind each scenario answer, and ``mechanism_discrepancy``
+  diagnoses whether a source mechanism agrees with the target;
+* ``transported_counterfactual`` transports a static path-specific counterfactual,
+  ``temporal_counterfactual`` is its fixed-population temporal counterpart, ``cross_world`` is the
+  path-specific edge intervention on a Markovian DAG and ``counterfactual_id`` the effect of
+  treatment on the treated on a bounded ADMG.
+
+Sensitivity and robustness:
+
+* ``msm_sensitivity`` gives marginal-sensitivity-model bounds, the tipping point and a durable
+  sensitivity artifact; ``descriptive`` compares raw with adjusted contrasts on a declared
+  reporting scale; ``dose_grid`` reads a named functional off a randomized-dose response curve;
+  ``temporal`` tests effect constancy across a time or region partition.
+
+Recalculation (selective, with a visible receipt):
+
+* ``recalc`` provides receipts and the shared surface. Its adapters cover static, adjusted,
+  cell-AIPW (with portable score resume), DML / DR-Learner, Bayesian, temporal, external,
+  design and composite workflows. ``recalc_capabilities`` inventories what each can recompute.
+
+Specialized effect families: ``categorical_treatment``, ``vector_treatment``,
+``nonlinear_mediation``, ``latent_class``, ``recovery_chain`` and ``compact_export`` (a compact
+runtime export of a fitted effect model); ``preflight`` holds the pre-fit diagnostics, rank-drop
+plans and cost counts.
 
 Graph interchange is on the classes: ``Dag.from_dot`` / ``Dag.to_dot`` and the
 JSON / GML / NetworkX peers, likewise on ``Cpdag`` / ``Pag`` / ``Admg``.
@@ -42,6 +92,8 @@ The native DTOs live on ``antecedent._native`` only.
 
 from __future__ import annotations
 
+from importlib import import_module as _import_module
+from types import ModuleType as _ModuleType
 from typing import NoReturn as _NoReturn
 
 # A debug-profile extension returns bit-identical estimates while running
@@ -86,8 +138,10 @@ from . import (
 # ``__all__`` alongside its siblings rather than being added to it.
 # (``artifacts`` is also part of this family -- see the comment above.)
 from . import counterfactual as counterfactual
+from . import decision as decision
 from . import derived as derived
 from . import estimators as estimators
+from . import external as external
 from . import handoff as handoff
 from . import ids as ids
 from . import inference as inference
@@ -268,13 +322,82 @@ except ImportError:  # pragma: no cover - extension not built
 # was never actually reachable from Python would misrepresent history rather
 # than document it, so it is omitted (see this module's docstring companion
 # report for the verification).
+#
+# --- Lazy stage modules (PEP 562) ----------------------------------------------------
+#
+# The 2.3 stage modules are public (their classes and functions are documented in each
+# module's docstring) but none is in ``__all__`` and importing them all would put the whole
+# family on the cost of ``import antecedent``. ``__getattr__`` imports one on first access and
+# caches it on the package, ``__dir__`` lists them so tab completion finds them, and neither
+# adds a name to ``__all__``. ``identify`` is absent on purpose: the root name is the function.
+_LAZY_MODULES: tuple[str, ...] = (
+    "categorical_treatment",
+    "compact_export",
+    "composition",
+    "composition_bundle",
+    "counterfactual_id",
+    "cross_world",
+    "decision_robust",
+    "descriptive",
+    "dose_grid",
+    "effect_constancy_review",
+    "execution_attempt",
+    "functional_source",
+    "inverse",
+    "inverse_query",
+    "joint_distribution",
+    "latent_class",
+    "mechanism_discrepancy",
+    "msm_sensitivity",
+    "nonlinear_mediation",
+    "preflight",
+    "program_claims",
+    "proposal_arrival",
+    "proposals",
+    "recalc",
+    "recalc_adjusted",
+    "recalc_bayesian",
+    "recalc_capabilities",
+    "recalc_cell",
+    "recalc_composite",
+    "recalc_design",
+    "recalc_dr",
+    "recalc_external",
+    "recalc_static",
+    "recalc_temporal",
+    "recovery_chain",
+    "repair",
+    "scenario_decision",
+    "scenario_invariance",
+    "sensitivity_decision",
+    "source_evidence",
+    "source_projection",
+    "temporal",
+    "temporal_counterfactual",
+    "transported_counterfactual",
+    "vector_treatment",
+)
+
 _RETIRED_MODULES = {"prior_bank": "priors"}
 _RETIRED_DISCOVER_PREFIX = "discover_"
 _RETIRED_DAG_PREFIXES = ("dag_from_", "dag_to_")
 _RETIRED_TARGET_PREFIX = "target_"
 
 
-def __getattr__(name: str) -> _NoReturn:
+def __dir__() -> list[str]:
+    # ``annotations`` is the ``from __future__`` binding every module carries, not API.
+    return sorted((set(globals()) | set(_LAZY_MODULES)) - {"annotations"})
+
+
+def __getattr__(name: str) -> _ModuleType:
+    if name in _LAZY_MODULES:
+        module = _import_module(f"{__name__}.{name}")
+        globals()[name] = module
+        return module
+    return _raise_missing_attribute(name)
+
+
+def _raise_missing_attribute(name: str) -> _NoReturn:
     if name in _RETIRED_MODULES:
         raise AttributeError(
             f"antecedent.{name} was renamed to antecedent.{_RETIRED_MODULES[name]} in 0.4.0"

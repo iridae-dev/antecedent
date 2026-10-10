@@ -1,0 +1,21 @@
+feature_id = "c2_portable_predictor_resume"
+implementation_crate = "antecedent-learn"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+# Original instrumentation and lifecycle checks, not a new estimator. The existing
+# DR/CATE provider owns estimation; this row verifies immutable numerical model reuse.
+papers = []
+implementation_deviations = [
+  "Factories resolved inside count_resolved_fits carry a scoped atomic successful-fit counter across worker threads. Direct concrete learners and already resolved/custom factories are outside the instrument; nested scopes are independent and unwinding restores the parent.",
+  "Portable CATE models are read from independently verified parent analysis artifacts. New feature rows perform point prediction without fitting; the model carries no training data or executable learner. Outcome/model changes require supplied data and a new execution; an artifact is not a refitting capability.",
+  "Fresh-process prediction preserves the parent claim and unavailable prediction uncertainty. No new confidence interval, overlap guarantee, extrapolation license or shared family-specific recalculation adapter is introduced.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/portable_predictor_resume.rs",
+  "crates/antecedent-learn/src/fit_counts.rs",
+  "python/tests/test_portable_predictor_resume.py",
+  "python/tests/test_cohesive_learners.py",
+]

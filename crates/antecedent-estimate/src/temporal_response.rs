@@ -20,12 +20,12 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, ContinuousDomain, CredibleDraws, Diagnostic, DiagnosticKind,
-    DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification, IdentificationStatus,
-    Intervention, InterventionSequence, MAX_TEMPORAL_RESPONSE_CELLS, MechanismOverride,
-    ObservationSpec, ParametricAssumption, ResponseFunctional, ResponseIdentification,
-    ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
-    SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalNodeKey,
-    TemporalResponseSpec, Value, VariableId,
+    DiagnosticScope, DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification,
+    IdentificationStatus, Intervention, InterventionSequence, MAX_TEMPORAL_RESPONSE_CELLS,
+    MechanismOverride, ObservationSpec, ParametricAssumption, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery,
+    TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData, fill_circular_block_indexes};
 use antecedent_expr::IdentifiedEstimand;
@@ -296,6 +296,7 @@ pub fn publish_simultaneous_band(
                      (same layout as the mean); {construction}",
                     band.level * 100.0
                 )),
+                scope: DiagnosticScope::PerCoordinate,
             });
             support.diagnostics.push(SupportDiagnostic {
                 id: Arc::from(SIMULTANEOUS_BAND_UPPER),
@@ -305,6 +306,7 @@ pub fn publish_simultaneous_band(
                      (same layout as the mean); {construction}",
                     band.level * 100.0
                 )),
+                scope: DiagnosticScope::PerCoordinate,
             });
             support.diagnostics.push(SupportDiagnostic {
                 id: Arc::from(SIMULTANEOUS_BAND_CRITICAL),
@@ -314,6 +316,7 @@ pub fn publish_simultaneous_band(
                      replicates or draws]; the pointwise band in uncertainty uses one cell at a \
                      time and is not simultaneous",
                 ),
+                scope: DiagnosticScope::Global,
             });
         }
         Err(reason) => support.warnings.push(Diagnostic::new(
@@ -573,7 +576,9 @@ fn push_block_dispersion_diagnostics(
              circular-Bartlett fixed-b ratio times HC1, before the per-cell kernel-bias factor \
              (response.temporal.kernel_bias_factor)",
         ),
+        scope: DiagnosticScope::Global,
     });
+    let kernel_scope = per_cell_scope(support, dispersion.kernel_factors.len());
     support.diagnostics.push(SupportDiagnostic {
         id: Arc::from(TEMPORAL_RESPONSE_KERNEL_FACTOR),
         values: Arc::from(dispersion.kernel_factors.clone()),
@@ -584,7 +589,9 @@ fn push_block_dispersion_diagnostics(
              BIC-selected AR(q <= 4) when larger) that the Bartlett kernel at the block length \
              keeps; 1 when the fit carries no positive long-run excess",
         ),
+        scope: kernel_scope,
     });
+    let rows_scope = per_cell_scope(support, dispersion.effective_rows.len());
     support.diagnostics.push(SupportDiagnostic {
         id: Arc::from(TEMPORAL_RESPONSE_EFFECTIVE_ROWS),
         values: Arc::from(dispersion.effective_rows.clone()),
@@ -594,7 +601,17 @@ fn push_block_dispersion_diagnostics(
              block-length Bartlett reading; below {RESPONSE_SHORT_SERIES_ROWS} the band carries \
              response.temporal.block.short_series"
         )),
+        scope: rows_scope,
     });
+}
+
+/// Per-cell values align with the surface only when there is one per cell; the
+/// single value of a mixed class band describes the whole surface.
+fn per_cell_scope(support: &SupportReport, values: usize) -> DiagnosticScope {
+    match &support.point_status {
+        Some(cells) if cells.len() == values => DiagnosticScope::PerCoordinate,
+        _ => DiagnosticScope::Global,
+    }
 }
 
 /// Dispersion factor applied to circular-block replicate deviations.
@@ -1275,6 +1292,7 @@ impl TemporalResponseEstimator {
                  n/(p+2) (support diagnostics response.temporal_bayesian.tempering_capped / \
                  _inestimable disclose which horizons hit either bound)",
             ),
+            scope: DiagnosticScope::Global,
         });
         let capped_horizons: Vec<u32> = temporal
             .horizons
@@ -2364,6 +2382,7 @@ fn intervention_support(
             detail: Arc::from(
                 "per-horizon support requested by A + delta as [min_0+delta, max_0+delta, …]",
             ),
+            scope: DiagnosticScope::Global,
         });
     }
     if shifted_extrapolation {
@@ -2447,6 +2466,7 @@ fn assemble_temporal_support(
                     "row-major dose × horizon surface: value[d * n_horizons + h]; \
                      grid stores [dose_d, horizon_h] pairs",
                 ),
+                scope: DiagnosticScope::Global,
             },
             SupportDiagnostic {
                 id: Arc::from("response.temporal.horizon_treatment_range"),
@@ -2454,6 +2474,7 @@ fn assemble_temporal_support(
                 detail: Arc::from(
                     "per-horizon lag-aligned treatment range as [min_0, max_0, min_1, max_1, …]",
                 ),
+                scope: DiagnosticScope::Global,
             },
         ],
         warnings,

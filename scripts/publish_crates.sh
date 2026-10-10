@@ -59,10 +59,21 @@ members = {
     if pkg["id"] in set(meta["workspace_members"]) and pkg["name"] != "antecedent-py"
 }
 deps = {name: set() for name in members}
+version_errors = []
 for name, pkg in members.items():
     for dep in pkg.get("dependencies", []):
+        if dep["name"] in members:
+            expected = "^" + members[dep["name"]]["version"]
+            # Cargo omits unversioned path-only dev dependencies from packages.
+            unpublished_dev = dep.get("kind") == "dev" and dep["req"] == "*"
+            if not unpublished_dev and dep["req"] != expected:
+                version_errors.append(
+                    f"{name}: {dep['name']} requires {dep['req']}; expected {expected}"
+                )
         if dep["name"] in deps and dep.get("kind") in (None, "normal", "build"):
             deps[name].add(dep["name"])
+if version_errors:
+    sys.exit("internal dependency version mismatch:\n" + "\n".join(version_errors))
 
 dependents = defaultdict(set)
 indegree = {name: 0 for name in members}

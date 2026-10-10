@@ -1,0 +1,34 @@
+feature_id = "f17_sensitivity_decision"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Composition of an assumption-sensitivity surface (an exact value or a lower/upper range per
+# declared assumption coordinate on a grid) with a decision contract: per grid point the
+# contract is evaluated, then the leaders are compared across the grid to report an invariant
+# action, an assumption-dependent switch with its tipping coordinate, or no robust action.
+# The artifact lives in antecedent-io because the design crate has no antecedent-validate
+# dependency; it also adapts the 2.2 JointMechanismSensitivityResult. The comparison of
+# leaders across a grid is original engineering and the robust-decision criteria it relies on
+# are textbook rules whose theorems were not verified against the code, so papers = [] is an
+# explicit judgment. Sensitivity-analysis methods themselves belong to the 2.2 joint
+# sensitivity records, not to this composition.
+papers = []
+
+implementation_deviations = [
+  "The surface is evaluated only at its declared grid points. A switch between two grid points reports the bracket and a linear interpolation explicitly labelled as an interpolation (exact only when the tie lies on a grid point); nothing between grid points is evaluated and no continuity is assumed.",
+  "An assumption range is a declared input and is never a probability: weights are declared for point surfaces and are never inferred from a range, and a robust verdict over a range is a worst-case or invariance statement, not a probability-weighted one.",
+  "A sampling interval is retained beside the decision and never composed with the assumption range: the licensed composition list is empty, so a request or a stored claim of composition is refused (composition_not_licensed) and the decision is unchanged by the interval. This record grants no coverage claim.",
+  "A 2.2 JointMechanismSensitivityResult is adapted only when its range can be filled exactly into a surface; otherwise the adaptation is refused. The 2.2 result's own scope and guarantees are inherited unchanged and not widened.",
+  "Unsupported coordinates inside the evaluated range refuse, a sub-range that avoids them is the only licensed way forward, and an unevaluated grid point leaves the decision unresolved. Declaration order does not change identity or decision.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/sensitivity_decision.rs",
+  "crates/antecedent-io/tests/sensitivity_artifact.rs",
+  "python/tests/test_sensitivity_decision.py",
+]

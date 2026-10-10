@@ -1,0 +1,43 @@
+{
+  "case": "observational_dag_root_initial_state_shift",
+  "rule": "dag_root_initial_shift_v1",
+  "scope": "binary two-step DAG; root S0 is the only population-varying mechanism; empirical point only",
+  "coordinate_order": ["s0", "a1", "l2", "a2", "y"],
+  "source_units": 640,
+  "identical_histories_per_unit": 2,
+  "structural_model": {
+    "s0": "uniform binary",
+    "a1": "uniform binary",
+    "a2": "uniform binary",
+    "u_l2": "uniform integer on [0,4)",
+    "u_y": "uniform integer on [0,20)",
+    "l2": "1[u_l2 < s0+a1+1]",
+    "y": "1[u_y < 2+4*a1+3*l2+5*a2+2*s0+2*s0*a1]",
+    "target_response": "0.1375+0.2375*a1+0.25*a2+0.1375*p1+0.1*p1*a1"
+  },
+  "target_p1_0_8": {
+    "response_00": 0.2475,
+    "response_01": 0.4975,
+    "response_10": 0.565,
+    "response_11": 0.815,
+    "effect_11_vs_00": 0.5675,
+    "effect_10_vs_01": 0.0675
+  },
+  "target_p1_0_25": {
+    "response_00": 0.171875,
+    "response_11": 0.684375,
+    "effect_11_vs_00": 0.5125
+  },
+  "control_first_unit_y_to_zero": {
+    "response_00": 0.245,
+    "effect_11_vs_00": 0.57
+  },
+  "paired_additive_candidate": {
+    "units": 24,
+    "response_11": 7.165,
+    "effect_11_vs_00": 5.0,
+    "model": "1+s0+2*a1+3*a2+0.5*l2+0.01*unit; balanced complete histories duplicated within unit",
+    "replicates": 20,
+    "calibration": "unmeasured"
+  }
+}

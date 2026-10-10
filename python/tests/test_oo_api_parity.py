@@ -7,6 +7,7 @@ import math
 import antecedent
 import numpy as np
 import pytest
+from antecedent import _native, design
 
 
 def _ate_data(n: int = 200, seed: int = 0):
@@ -272,36 +273,41 @@ def test_antecedent_state_rejected_replace_preserves_existing_data():
 
 
 def test_rank_designs_full_surface():
-    ranking = antecedent.design.rank_designs(
-        [0.5, 0.3, 0.2],
-        [1, 0, 0],
-        [10, 20, 30],
+    ranking = design.rank_designs(
         [
-            {"kind": "measure", "variables": [3], "tag": 1},
-            {"kind": "observe_environment", "environment": 7, "additional_rows": 50},
-            {"kind": "increase_sampling_rate", "additional_samples": 10},
-            {"kind": "intervene", "targets": [0]},
+            design.Measurement([3], tag=1),
+            design.Environment(7, additional_rows=50),
+            design.Sampling(10),
+            design.Experiment([0]),
         ],
-        objective="increase_identification_probability",
+        prior=design.StructurePrior(
+            weights=(0.5, 0.3, 0.2), identified=(True, False, False), keys=(10, 20, 30)
+        ),
         query_id=0,
-        query_id_unlock=[(0, [3])],
-        env_id_unlock=[(0, [7])],
-        min_batches=2,
-        max_batches=4,
-        batch_size=4,
-        rank_uncertainty_threshold=1.0,
-        seed=3,
+        variable_unlocks={0: [3]},
+        environment_unlocks={0: [7]},
+        monte_carlo=design.MonteCarlo(2, 4, 4, 1.0),
+        rng_seed=3,
     )
+    assert ranking.basis == "identification"
     assert ranking.mc_samples > 0
-    assert len(ranking.ranked) == 4
-    assert ranking.best_index in {r.candidate_index for r in ranking.ranked}
-    kinds = {r.kind for r in ranking.ranked}
+    assert len(ranking.candidates) == 4
+    assert ranking.best is not None and ranking.best.rank == 0  # ranks are zero-based
+    assert [c.rank for c in ranking.candidates] == [0, 1, 2, 3]
+    kinds = {c.kind for c in ranking.candidates}
     assert "measure" in kinds
     assert "observe_environment" in kinds
+    assert "basis='identification'" in repr(ranking)
+    assert ranking.explain().startswith("Basis: identification.")
+    assert ranking.to_dict()["basis"] == "identification"
+    with pytest.raises(antecedent.errors.CausalValueError, match="decision ranking"):
+        ranking.export()
 
 
-def test_rank_designs_decision_regret_is_conjugate_normal_evsi():
-    ranking = antecedent.design.rank_designs(
+def test_native_rank_designs_decision_regret_is_conjugate_normal_evsi():
+    # The native legacy entry point (dict plans, decision-regret objective) is still exercised
+    # directly; the typed surface is `antecedent.design.rank_designs`.
+    ranking = _native.rank_designs(
         [1.0],
         [1],
         [1],
@@ -345,7 +351,7 @@ def test_rank_designs_decision_regret_is_conjugate_normal_evsi():
         assert ranked.implemented_functional == "preposterior_expected_value_of_sample_information"
 
 
-def test_rank_designs_decision_regret_callable_utility_on_draws():
+def test_native_rank_designs_decision_regret_callable_utility_on_draws():
     def bet(actions, outcomes):
         a = np.asarray(actions, dtype=np.float64)
         o = np.asarray(outcomes, dtype=np.float64)
@@ -360,7 +366,7 @@ def test_rank_designs_decision_regret_callable_utility_on_draws():
         "batch_size": 4,
         "seed": 5,
     }
-    exact = antecedent.design.rank_designs(
+    exact = _native.rank_designs(
         [1.0],
         [1],
         [1],
@@ -385,7 +391,7 @@ def test_rank_designs_decision_regret_callable_utility_on_draws():
     assert exact.ranked[0].evaluation == "exact"
     assert exact.ranked[0].score == pytest.approx(expected, abs=1e-15)
 
-    mc = antecedent.design.rank_designs(
+    mc = _native.rank_designs(
         [1.0],
         [1],
         [1],
@@ -402,9 +408,9 @@ def test_rank_designs_decision_regret_callable_utility_on_draws():
     assert mc.ranked[0].stderr > 0.0
 
 
-def test_rank_designs_decision_regret_requires_a_decision_model():
+def test_native_rank_designs_decision_regret_requires_a_decision_model():
     with pytest.raises(antecedent.errors.CausalDesignError, match="decisions context"):
-        antecedent.design.rank_designs(
+        _native.rank_designs(
             [1.0],
             [1],
             [1],
@@ -476,3 +482,81 @@ def test_path_specific_and_distribution_queries():
 
 def test_extensibility_exported():
     assert hasattr(antecedent.extensibility, "CiBatchTest")
+
+
+@pytest.mark.parametrize(
+    "name,parameters,result",
+    [
+        (
+            "joint_bayesian_transport",
+            "sources target features graph graph_class dependence varying sharing draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "MeasuredInference",
+        ),
+        (
+            "learned_joint_transport",
+            "sources target features graph graph_class dependence varying sharing basis_degree draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "MeasuredInference",
+        ),
+        (
+            "temporal_dependent_interval",
+            "panel sequence estimand fixed_state target_law replicates seed level method min_units max_failed_fraction memory_limit_bytes cancel",
+            "MeasuredInference",
+        ),
+        (
+            "binary_nested_markov",
+            "graph regimes max_iterations tolerance prior seed memory_limit_bytes cancel",
+            "MeasuredInference",
+        ),
+        (
+            "binary_nested_markov_fisher_interval",
+            "graph regimes nominal_level max_iterations tolerance memory_limit_bytes cancel",
+            "MeasuredInference",
+        ),
+        (
+            "sampled_observation_recovery",
+            "stage query rows snapshot replicates seed interval_method memory_limit_bytes cancel",
+            "MeasuredInference",
+        ),
+        (
+            "consume_joint_transport_posterior",
+            "data kind expected_identity",
+            "JointTransportPosterior",
+        ),
+    ],
+)
+def test_candidate_public_signature_contract(name, parameters, result):
+    """Measured normal producers and the historical source consumer have explicit contracts."""
+    import inspect
+
+    from antecedent.transport import advanced
+
+    signature = inspect.signature(getattr(advanced, name))
+    assert tuple(signature.parameters) == tuple(parameters.split())
+    assert signature.return_annotation == result
+    assert all(
+        p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD) for p in signature.parameters.values()
+    )
+
+
+def test_checked_prior_bridge_signature_and_identity_defaults():
+    import inspect
+
+    signature = inspect.signature(design.adapt_prior_to_signal)
+    assert tuple(signature.parameters) == (
+        "catalog",
+        "query",
+        "sources",
+        "signal",
+        "state",
+        "target_population",
+        "prior_id",
+        "variables",
+        "transport_policy_id",
+        "candidate_observation_ids",
+        "resolution",
+    )
+    assert signature.return_annotation == "CheckedPriorSignal"
+    assert signature.parameters["transport_policy_id"].default is None
+    assert signature.parameters["candidate_observation_ids"].default == ()
+    for required in ("sources", "state", "target_population", "prior_id"):
+        assert signature.parameters[required].default is inspect.Parameter.empty

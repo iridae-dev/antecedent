@@ -22,27 +22,34 @@ default = []
 # recompute, for the calibration harness and lifecycle tests only. Enabled only by
 # the facade's dev-dependencies (resolver 2 keeps it out of normal builds); no
 # released build carries it, so no public route yields or accepts an interval.
-calibration-internal = ["antecedent-estimate/calibration-internal"]
+calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-learn/calibration-internal"]
 
 [dependencies]
-antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
-antecedent-discovery = { version = "2.2.0", path = "../antecedent-discovery" }
-antecedent-estimate = { version = "2.2.0", path = "../antecedent-estimate" }
-antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
-antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
-antecedent-identify = { version = "2.2.0", path = "../antecedent-identify" }
-antecedent-model = { version = "2.2.0", path = "../antecedent-model" }
-antecedent-prob = { version = "2.2.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.2.0", path = "../antecedent-stats" }
-antecedent-validate = { version = "2.2.0", path = "../antecedent-validate" }
+antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
+antecedent-counterfactual = { version = "2.3.0", path = "../antecedent-counterfactual" }
+antecedent-discovery = { version = "2.3.0", path = "../antecedent-discovery" }
+antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "2.3.0", path = "../antecedent-expr" }
+antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
+antecedent-identify = { version = "2.3.0", path = "../antecedent-identify" }
+antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
+antecedent-learn = { version = "2.3.0", path = "../antecedent-learn" }
+antecedent-model = { version = "2.3.0", path = "../antecedent-model" }
+antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
+antecedent-validate = { version = "2.3.0", path = "../antecedent-validate" }
 blake3 = { workspace = true }
 ciborium = { workspace = true }
 memmap2 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = "0.10.9"
 thiserror = { workspace = true }
 zstd = { workspace = true }
 
 [dev-dependencies]
+# Candidate artifact replay tests need the closed implementation. Resolver 2
+# excludes this self dev-dependency from ordinary released/Python builds.
+antecedent-io = { path = ".", features = ["calibration-internal"] }
 # The io interval tests recompute the closed X1 mz bootstrap, compiled only under this feature.
-antecedent-estimate = { version = "2.2.0", path = "../antecedent-estimate", features = ["calibration-internal"] }
+antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate", features = ["calibration-internal"] }

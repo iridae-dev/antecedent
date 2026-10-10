@@ -30,6 +30,27 @@ use crate::propensity::clip_of;
 use crate::scores::{LinearContrast, ScoreColumn, ScoreSummary, ScoreTable};
 use crate::util::stats_err;
 
+thread_local! {
+    /// Cell models (multinomial propensity or per-cell outcome regression) fitted on this
+    /// thread since it started; read only through [`count_cell_model_fits`].
+    static CELL_MODEL_FITS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn note_cell_model_fit() {
+    CELL_MODEL_FITS.with(|fits| fits.set(fits.get().saturating_add(1)));
+}
+
+/// Run `work` and return its result with the number of cell models it fitted on the calling
+/// thread: one multinomial propensity per fold plus one outcome regression per fold, cell and
+/// threshold. This is the cell route's fit instrument; it counts fits that completed, so it
+/// is evidence that a refit really happened (or did not).
+pub fn count_cell_model_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
+    let before = CELL_MODEL_FITS.with(std::cell::Cell::get);
+    let out = work();
+    let after = CELL_MODEL_FITS.with(std::cell::Cell::get);
+    (out, after.saturating_sub(before))
+}
+
 /// Maximum jointly intervened binary coordinates (8 cells at k=3).
 pub const MAX_JOINT_BINARY: usize = 3;
 
@@ -317,159 +338,187 @@ fn crossfit_cell_scores(
     thresholds: &[Option<f64>],
     est: &CellSaturatedAipw,
 ) -> Result<ScoreTable, EstimationError> {
-    let n = prepared.n;
-    let folds = est.folds;
-    if folds < 2 || n < folds {
-        return Err(EstimationError::data_msg("cell AIPW cross-fitting requires folds in 2..=n"));
-    }
-    let n_cells = prepared.n_cells;
-    let mut columns = Vec::new();
-    for &thr in thresholds {
-        for arm in 0..n_cells {
-            columns
-                .push(ScoreColumn { arm: u32::try_from(arm).unwrap_or(u32::MAX), threshold: thr });
-        }
-    }
-    let mut scores = vec![0.0; n * columns.len()];
-    let mut propensities = vec![0.0; n * columns.len()];
-    let fold_ids: Vec<u32> = match prepared.fold_assignment.as_deref() {
-        Some(ids) if ids.len() == n => ids.to_vec(),
-        Some(_) => {
-            return Err(EstimationError::data_msg(
-                "shared fold assignment length must match complete-case rows",
-            ));
-        }
-        None => crate::learn_nuisance::crossfit_fold_plan(
-            &prepared.cell,
-            &prepared.row_index,
-            folds,
-            est.fold_seed,
-        )?,
-    };
-
-    if fold_ids.iter().any(|&id| id as usize >= folds) {
-        return Err(EstimationError::data_msg("shared fold ids must lie in 0..folds"));
-    }
-    let clip = clip_of(est.overlap);
-    let mut out_ws = crate::aipw::AipwWorkspace::default();
-
-    for fold in 0..folds {
-        let train: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize != fold).collect();
-        let valid: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize == fold).collect();
-        let mut design_train = Vec::new();
-        select_rows_colmajor(&prepared.design, n, prepared.ncols, &train, &mut design_train);
-        let mut design_valid = Vec::new();
-        select_rows_colmajor(&prepared.design, n, prepared.ncols, &valid, &mut design_valid);
-
-        let train_cells: Vec<_> = train.iter().map(|&i| prepared.cell[i] as usize).collect();
-        for c in 0..n_cells {
-            if !train_cells.contains(&c) {
-                return Err(EstimationError::unsupported(
-                    "unsupported cell: cross-fit training fold is missing a joint treatment combination",
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::ScoreConstruction,
+        || {
+            let n = prepared.n;
+            let folds = est.folds;
+            if folds < 2 || n < folds {
+                return Err(EstimationError::data_msg(
+                    "cell AIPW cross-fitting requires folds in 2..=n",
                 ));
             }
-        }
-        let e_valid = multinomial_propensity(
-            &design_train,
-            train.len(),
-            &train_cells,
-            &design_valid,
-            valid.len(),
-            prepared.ncols,
-            n_cells,
-            est.backend,
-        )?;
-        // The clip is the only floor. With none, a cell propensity of exactly 0 (infinite
-        // weight) is refused rather than silently floored at a hidden constant.
-        let floor = clip.unwrap_or(0.0);
-        if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
-            return Err(EstimationError::OverlapWithFields {
-                message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
-                fields: Box::new(crate::overlap::propensity_score_fields(&e_valid)),
-            });
-        }
-
-        for (t_idx, &threshold) in thresholds.iter().enumerate() {
-            for c in 0..n_cells {
-                for (k, &i) in valid.iter().enumerate() {
-                    propensities[(t_idx * n_cells + c) * n + i] = e_valid[c * valid.len() + k];
+            let n_cells = prepared.n_cells;
+            let mut columns = Vec::new();
+            for &thr in thresholds {
+                for arm in 0..n_cells {
+                    columns.push(ScoreColumn {
+                        arm: u32::try_from(arm).unwrap_or(u32::MAX),
+                        threshold: thr,
+                    });
                 }
             }
-            let y_all = match threshold {
-                None => prepared.outcome.clone(),
-                Some(c) => prepared.outcome.iter().map(|&yi| f64::from(yi > c)).collect(),
-            };
-            for c in 0..n_cells {
-                let cell_train: Vec<usize> =
-                    train.iter().copied().filter(|&i| prepared.cell[i] as usize == c).collect();
-                // The per-cell OLS needs residual degrees of freedom: a cell with no more
-                // training rows than design columns is an exact interpolant (or
-                // underdetermined), and swapping in a cell mean would silently leave double
-                // robustness resting on the propensity alone. Refuse instead.
-                if cell_train.len() <= prepared.ncols {
-                    return Err(EstimationError::unsupported(
-                        "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
+            let mut scores = vec![0.0; n * columns.len()];
+            let mut propensities = vec![0.0; n * columns.len()];
+            let fold_ids: Vec<u32> = match prepared.fold_assignment.as_deref() {
+                Some(ids) if ids.len() == n => ids.to_vec(),
+                Some(_) => {
+                    return Err(EstimationError::data_msg(
+                        "shared fold assignment length must match complete-case rows",
                     ));
                 }
-                let mut design_c = Vec::new();
+                None => crate::learn_nuisance::crossfit_fold_plan(
+                    &prepared.cell,
+                    &prepared.row_index,
+                    folds,
+                    est.fold_seed,
+                )?,
+            };
+
+            if fold_ids.iter().any(|&id| id as usize >= folds) {
+                return Err(EstimationError::data_msg("shared fold ids must lie in 0..folds"));
+            }
+            let clip = clip_of(est.overlap);
+            let mut out_ws = crate::aipw::AipwWorkspace::default();
+
+            for fold in 0..folds {
+                let train: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize != fold).collect();
+                let valid: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize == fold).collect();
+                let mut design_train = Vec::new();
                 select_rows_colmajor(
                     &prepared.design,
                     n,
                     prepared.ncols,
-                    &cell_train,
-                    &mut design_c,
+                    &train,
+                    &mut design_train,
                 );
-                let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
-                let fit = est
-                    .backend
-                    .least_squares(
-                        &design_c,
-                        cell_train.len(),
-                        prepared.ncols,
-                        &y_c,
-                        &mut out_ws.outcome,
-                    )
-                    .map_err(stats_err)?;
-                let mut pred = Vec::new();
-                predict_colmajor(
+                let mut design_valid = Vec::new();
+                select_rows_colmajor(
+                    &prepared.design,
+                    n,
+                    prepared.ncols,
+                    &valid,
+                    &mut design_valid,
+                );
+
+                let train_cells: Vec<_> =
+                    train.iter().map(|&i| prepared.cell[i] as usize).collect();
+                for c in 0..n_cells {
+                    if !train_cells.contains(&c) {
+                        return Err(EstimationError::unsupported(
+                            "unsupported cell: cross-fit training fold is missing a joint treatment combination",
+                        ));
+                    }
+                }
+                let e_valid = multinomial_propensity(
+                    &design_train,
+                    train.len(),
+                    &train_cells,
                     &design_valid,
                     valid.len(),
                     prepared.ncols,
-                    &fit.coefficients,
-                    &mut pred,
-                );
-                let col = t_idx * n_cells + c;
-                for (k, &i) in valid.iter().enumerate() {
-                    let a = f64::from(prepared.cell[i] as usize == c);
-                    let e = e_valid[c * valid.len() + k].max(floor);
-                    scores[col * n + i] = pred[k] + (a / e) * (y_all[i] - pred[k]);
+                    n_cells,
+                    est.backend,
+                )?;
+                note_cell_model_fit();
+                // The clip is the only floor. With none, a cell propensity of exactly 0 (infinite
+                // weight) is refused rather than silently floored at a hidden constant.
+                let floor = clip.unwrap_or(0.0);
+                if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
+                    return Err(EstimationError::OverlapWithFields {
+                        message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
+                        fields: Box::new(crate::overlap::propensity_score_fields(&e_valid)),
+                    });
+                }
+
+                for (t_idx, &threshold) in thresholds.iter().enumerate() {
+                    for c in 0..n_cells {
+                        for (k, &i) in valid.iter().enumerate() {
+                            propensities[(t_idx * n_cells + c) * n + i] =
+                                e_valid[c * valid.len() + k];
+                        }
+                    }
+                    let y_all = match threshold {
+                        None => prepared.outcome.clone(),
+                        Some(c) => prepared.outcome.iter().map(|&yi| f64::from(yi > c)).collect(),
+                    };
+                    for c in 0..n_cells {
+                        let cell_train: Vec<usize> = train
+                            .iter()
+                            .copied()
+                            .filter(|&i| prepared.cell[i] as usize == c)
+                            .collect();
+                        // The per-cell OLS needs residual degrees of freedom: a cell with no more
+                        // training rows than design columns is an exact interpolant (or
+                        // underdetermined), and swapping in a cell mean would silently leave double
+                        // robustness resting on the propensity alone. Refuse instead.
+                        if cell_train.len() <= prepared.ncols {
+                            return Err(EstimationError::unsupported(
+                                "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
+                            ));
+                        }
+                        let mut design_c = Vec::new();
+                        select_rows_colmajor(
+                            &prepared.design,
+                            n,
+                            prepared.ncols,
+                            &cell_train,
+                            &mut design_c,
+                        );
+                        let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
+                        let fit = est
+                            .backend
+                            .least_squares(
+                                &design_c,
+                                cell_train.len(),
+                                prepared.ncols,
+                                &y_c,
+                                &mut out_ws.outcome,
+                            )
+                            .map_err(stats_err)?;
+                        note_cell_model_fit();
+                        let mut pred = Vec::new();
+                        predict_colmajor(
+                            &design_valid,
+                            valid.len(),
+                            prepared.ncols,
+                            &fit.coefficients,
+                            &mut pred,
+                        );
+                        let col = t_idx * n_cells + c;
+                        for (k, &i) in valid.iter().enumerate() {
+                            let a = f64::from(prepared.cell[i] as usize == c);
+                            let e = e_valid[c * valid.len() + k].max(floor);
+                            scores[col * n + i] = pred[k] + (a / e) * (y_all[i] - pred[k]);
+                        }
+                    }
                 }
             }
-        }
-    }
 
-    Ok(ScoreTable {
-        observed_arm: prepared.cell.clone().into(),
-        propensities: propensities.into(),
-        observed_outcome: prepared.outcome.clone().into(),
-        n_rows: n,
-        row_index: Arc::from(prepared.row_index.clone()),
-        fold_ids: Arc::from(fold_ids),
-        n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
-        scores: Arc::from(scores),
-        columns: Arc::from(columns),
-        adjustment_set: Arc::clone(&prepared.adjustment_set),
-        nuisance_provenance: Arc::from(
-            if prepared.fold_assignment.is_some() || prepared.shared_design {
-                "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design"
-            } else {
-                "cell.aipw.crossfit.multinomial_logit.ols.v1"
-            },
-        ),
-        propensity_clip: clip,
-        treatment: prepared.treatments[0],
-        intervened: Arc::clone(&prepared.treatments),
-    })
+            Ok(ScoreTable {
+                observed_arm: prepared.cell.clone().into(),
+                propensities: propensities.into(),
+                observed_outcome: prepared.outcome.clone().into(),
+                n_rows: n,
+                row_index: Arc::from(prepared.row_index.clone()),
+                fold_ids: Arc::from(fold_ids),
+                n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
+                scores: Arc::from(scores),
+                columns: Arc::from(columns),
+                adjustment_set: Arc::clone(&prepared.adjustment_set),
+                nuisance_provenance: Arc::from(
+                    if prepared.fold_assignment.is_some() || prepared.shared_design {
+                        "cell.aipw.crossfit.multinomial_logit.ols.v1;batch.shared_design"
+                    } else {
+                        "cell.aipw.crossfit.multinomial_logit.ols.v1"
+                    },
+                ),
+                propensity_clip: clip,
+                treatment: prepared.treatments[0],
+                intervened: Arc::clone(&prepared.treatments),
+            })
+        },
+    )
 }
 
 // Reference-cell multinomial likelihood with Newton steps and backtracking.
@@ -485,88 +534,117 @@ fn multinomial_propensity(
     k: usize,
     backend: FaerBackend,
 ) -> Result<Vec<f64>, EstimationError> {
-    let d = (k - 1) * p;
-    let mut beta = vec![0.0; d];
-    let probabilities = |x: &[f64], rows: usize, b: &[f64]| {
-        let mut out = vec![0.0; rows * k];
-        for r in 0..rows {
-            let mut max_eta: f64 = 0.0;
-            for c in 0..k - 1 {
-                let eta = (0..p).map(|j| x[j * rows + r] * b[c * p + j]).sum::<f64>();
-                out[c * rows + r] = eta;
-                max_eta = max_eta.max(eta);
-            }
-            let mut mass = (-max_eta).exp();
-            out[(k - 1) * rows + r] = mass;
-            for c in 0..k - 1 {
-                out[c * rows + r] = (out[c * rows + r] - max_eta).exp();
-                mass += out[c * rows + r];
-            }
-            for c in 0..k {
-                out[c * rows + r] /= mass;
-            }
-        }
-        out
-    };
-    let loss = |prob: &[f64]| -> f64 {
-        cells
-            .iter()
-            .enumerate()
-            .map(|(r, &c)| -prob[c * n + r].max(f64::MIN_POSITIVE).ln())
-            .sum::<f64>()
-            / n as f64
-    };
-    let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
-    for _ in 0..100 {
-        let prob = probabilities(train, n, &beta);
-        let mut gradient = vec![0.0; d];
-        let mut hessian = vec![0.0; d * d];
-        for r in 0..n {
-            for c in 0..k - 1 {
-                for j in 0..p {
-                    let a = c * p + j;
-                    gradient[a] +=
-                        train[j * n + r] * (prob[c * n + r] - f64::from(cells[r] == c)) / n as f64;
-                    for e in 0..k - 1 {
-                        for l in 0..p {
-                            let b = e * p + l;
-                            hessian[b * d + a] += train[j * n + r]
-                                * train[l * n + r]
-                                * prob[c * n + r]
-                                * (f64::from(c == e) - prob[e * n + r])
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::GlmFit,
+        || {
+            let d = (k - 1) * p;
+            let mut beta = vec![0.0; d];
+            let probabilities = |x: &[f64], rows: usize, b: &[f64]| {
+                let mut out = vec![0.0; rows * k];
+                for r in 0..rows {
+                    let mut max_eta: f64 = 0.0;
+                    for c in 0..k - 1 {
+                        let eta = (0..p).map(|j| x[j * rows + r] * b[c * p + j]).sum::<f64>();
+                        out[c * rows + r] = eta;
+                        max_eta = max_eta.max(eta);
+                    }
+                    let mut mass = (-max_eta).exp();
+                    out[(k - 1) * rows + r] = mass;
+                    for c in 0..k - 1 {
+                        out[c * rows + r] = (out[c * rows + r] - max_eta).exp();
+                        mass += out[c * rows + r];
+                    }
+                    for c in 0..k {
+                        out[c * rows + r] /= mass;
+                    }
+                }
+                out
+            };
+            let loss = |prob: &[f64]| -> f64 {
+                cells
+                    .iter()
+                    .enumerate()
+                    .map(|(r, &c)| -prob[c * n + r].max(f64::MIN_POSITIVE).ln())
+                    .sum::<f64>()
+                    / n as f64
+            };
+            let score = |prob: &[f64]| {
+                let mut gradient = vec![0.0; d];
+                for r in 0..n {
+                    for c in 0..k - 1 {
+                        for j in 0..p {
+                            gradient[c * p + j] += train[j * n + r]
+                                * (prob[c * n + r] - f64::from(cells[r] == c))
                                 / n as f64;
                         }
                     }
                 }
+                gradient
+            };
+            let mut ws = antecedent_stats::LeastSquaresWorkspace::default();
+            for iteration in 0..100 {
+                let prob = probabilities(train, n, &beta);
+                let gradient = score(&prob);
+                let mut hessian = vec![0.0; d * d];
+                for r in 0..n {
+                    for c in 0..k - 1 {
+                        for j in 0..p {
+                            let a = c * p + j;
+                            for e in 0..k - 1 {
+                                for l in 0..p {
+                                    let b = e * p + l;
+                                    hessian[b * d + a] += train[j * n + r]
+                                        * train[l * n + r]
+                                        * prob[c * n + r]
+                                        * (f64::from(c == e) - prob[e * n + r])
+                                        / n as f64;
+                                }
+                            }
+                        }
+                    }
+                }
+                if gradient.iter().all(|v| v.abs() < 1e-8) {
+                    return Ok(probabilities(valid, nv, &beta));
+                }
+                for j in 0..d {
+                    hessian[j * d + j] += 1e-10;
+                }
+                let step = backend
+                    .least_squares(&hessian, d, d, &gradient, &mut ws)
+                    .map_err(stats_err)?
+                    .coefficients;
+                let old = loss(&prob);
+                let mut scale = 1.0;
+                let mut accepted = false;
+                for _ in 0..30 {
+                    let trial: Vec<_> =
+                        beta.iter().zip(&step).map(|(b, s)| b - scale * s).collect();
+                    let trial_prob = probabilities(train, n, &trial);
+                    if loss(&trial_prob) < old {
+                        beta = trial;
+                        accepted = true;
+                        break;
+                    }
+                    // At the optimum, a summed loss cannot reliably resolve the
+                    // final Newton decrease (O(score²)). Certify that trial using
+                    // the SAME unpenalized score tolerance as the iteration entry;
+                    // never accept mere loss equality or a small parameter step.
+                    if score(&trial_prob).iter().all(|v| v.abs() < 1e-8) {
+                        return Ok(probabilities(valid, nv, &trial));
+                    }
+                    scale *= 0.5;
+                }
+                if !accepted {
+                    return Err(EstimationError::data_msg(format!(
+                        "multinomial propensity failed to converge: iteration={iteration}, loss={old:.17e}, max_score={:.17e}, newton_decrement={:.17e}",
+                        gradient.iter().map(|v| v.abs()).fold(0.0_f64, f64::max),
+                        gradient.iter().zip(&step).map(|(g, s)| g * s).sum::<f64>(),
+                    )));
+                }
             }
-        }
-        if gradient.iter().all(|v| v.abs() < 1e-8) {
-            return Ok(probabilities(valid, nv, &beta));
-        }
-        for j in 0..d {
-            hessian[j * d + j] += 1e-10;
-        }
-        let step = backend
-            .least_squares(&hessian, d, d, &gradient, &mut ws)
-            .map_err(stats_err)?
-            .coefficients;
-        let old = loss(&prob);
-        let mut scale = 1.0;
-        let mut accepted = false;
-        for _ in 0..30 {
-            let trial: Vec<_> = beta.iter().zip(&step).map(|(b, s)| b - scale * s).collect();
-            if loss(&probabilities(train, n, &trial)) < old {
-                beta = trial;
-                accepted = true;
-                break;
-            }
-            scale *= 0.5;
-        }
-        if !accepted {
-            return Err(EstimationError::data_msg("multinomial propensity failed to converge"));
-        }
-    }
-    Err(EstimationError::data_msg("multinomial propensity exceeded iteration limit"))
+            Err(EstimationError::data_msg("multinomial propensity exceeded iteration limit"))
+        },
+    )
 }
 
 /// 2×2 interaction contrast `(μ_11 − μ_10) − (μ_01 − μ_00)` on the first
@@ -760,6 +838,50 @@ mod tests {
     };
     use antecedent_data::{Float64Column, OwnedColumn, OwnedColumnarStorage, ValidityBitmap};
     use antecedent_kernels::standard_normal;
+
+    #[test]
+    fn multinomial_propensity_matches_exact_two_stratum_frequencies() {
+        // With [1,Z] and Z in {-1,+1}, each reference-cell log odds is
+        // independently parameterized in both strata. Its MLE is the observed
+        // cell frequency: no production Newton or softmax function is reused.
+        for counts in
+            [[[77usize, 93, 81, 96], [95, 91, 96, 99]], [[1, 20, 200, 100], [3, 7, 11, 19]]]
+        {
+            let n: usize = counts.iter().flatten().sum();
+            let mut train = vec![1.0; n];
+            let mut cells = Vec::with_capacity(n);
+            for (stratum, row) in counts.iter().enumerate() {
+                for (cell, &count) in row.iter().enumerate() {
+                    for _ in 0..count {
+                        train.push(if stratum == 0 { -1.0 } else { 1.0 });
+                        cells.push(cell);
+                    }
+                }
+            }
+            let probabilities = super::multinomial_propensity(
+                &train,
+                n,
+                &cells,
+                &[1.0, 1.0, -1.0, 1.0],
+                2,
+                2,
+                4,
+                FaerBackend,
+            )
+            .unwrap();
+            for stratum in 0..2 {
+                let total = counts[stratum].iter().sum::<usize>() as f64;
+                for cell in 0..4 {
+                    let expected = counts[stratum][cell] as f64 / total;
+                    assert!((probabilities[cell * 2 + stratum] - expected).abs() < 1e-7);
+                }
+                assert!(
+                    ((0..4).map(|cell| probabilities[cell * 2 + stratum]).sum::<f64>() - 1.0).abs()
+                        < 1e-14
+                );
+            }
+        }
+    }
 
     fn interaction_dgp(n: usize) -> TabularData {
         let mut rng = ExecutionContext::for_tests(9).rng.stream_for(StreamDomain::Estimate, 0xC11);

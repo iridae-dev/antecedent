@@ -21,6 +21,14 @@ from ._native import (
 from ._native import (
     encode_causal_artifact as _encode_causal_artifact,
 )
+from .joint_distribution import (
+    DistributionIdentity,
+    DistributionMeaning,
+    DrawAlignment,
+    JointDistributionArtifact,
+    QuantityCondition,
+    ScientificQuantity,
+)
 
 PayloadKind = Literal[
     "query",
@@ -51,16 +59,26 @@ def dumps(
     *,
     variable_names: Sequence[str],
     artifact_id: str,
+    contract: Mapping[str, Any] | None = None,
 ) -> bytes:
-    """Encode one canonical query/result wire mapping as a format-0.5 artifact."""
+    """Encode a canonical wire mapping, preserving an explicit analysis contract.
+
+    A supplied contract is retained as declared; :func:`accept` independently
+    checks its seal and result digest. Repacking never repairs a stale claim.
+    """
 
     # `_encode_causal_artifact` now returns real Python `bytes` at the Rust
     # boundary (PyO3 `PyBytes`), so no `bytes(...)` coercion is needed here.
-    return _encode_causal_artifact(
+    arguments = (
         payload_kind,
         list(variable_names),
         json.dumps(payload, allow_nan=False, separators=(",", ":")),
         artifact_id,
+    )
+    if contract is None:
+        return _encode_causal_artifact(*arguments)
+    return _encode_causal_artifact(
+        *arguments, json.dumps(contract, allow_nan=False, separators=(",", ":"))
     )
 
 
@@ -93,4 +111,16 @@ def accept(data: bytes) -> dict[str, str]:
     return dict(_accept_analysis_result_contract(data))
 
 
-__all__ = ["CausalArtifact", "PayloadKind", "accept", "dumps", "loads"]
+__all__ = [
+    "CausalArtifact",
+    "DistributionIdentity",
+    "DistributionMeaning",
+    "DrawAlignment",
+    "JointDistributionArtifact",
+    "PayloadKind",
+    "QuantityCondition",
+    "ScientificQuantity",
+    "accept",
+    "dumps",
+    "loads",
+]

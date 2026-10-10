@@ -24,16 +24,16 @@ default = []
 calibration-internal = ["antecedent-estimate/calibration-internal"]
 
 [dependencies]
-antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.2.0", path = "../antecedent-data" }
-antecedent-estimate = { version = "2.2.0", path = "../antecedent-estimate" }
-antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
-antecedent-identify = { version = "2.2.0", path = "../antecedent-identify" }
-antecedent-discovery = { version = "2.2.0", path = "../antecedent-discovery" }
-antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
-antecedent-prob = { version = "2.2.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.2.0", path = "../antecedent-stats" }
-antecedent-kernels = { version = "2.2.0", path = "../antecedent-kernels" }
+antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
+antecedent-data = { version = "2.3.0", path = "../antecedent-data" }
+antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "2.3.0", path = "../antecedent-expr" }
+antecedent-identify = { version = "2.3.0", path = "../antecedent-identify" }
+antecedent-discovery = { version = "2.3.0", path = "../antecedent-discovery" }
+antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
+antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
+antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
 thiserror = { workspace = true }
 
 [dev-dependencies]

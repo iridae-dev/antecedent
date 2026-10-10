@@ -1,0 +1,38 @@
+feature_id = "c2_selective_recalculation"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A stage model that decides, per stage of a causal workflow, whether an artifact can be reused,
+# must be recomputed or is refused, and a minimal instrumented executor that proves reuse by
+# counting the cross-fitted nuisance fits an estimator actually ran. The stage model is a small
+# dependency graph with one BLAKE3 identity per stage over its declared inputs and the identities of
+# the stages it depends on; the planner compares two such identity sets. This is incremental
+# recomputation over a content-addressed dependency graph (the textbook build-system idea),
+# adapted to causal stages. papers = [] is an explicit judgment: no paper introduces this
+# planner or the stage list, the identity construction is length-prefixed BLAKE3 hashing and the
+# only scientific estimator it drives (cross-fitted AIPW through Study::prepare, refresh and
+# retarget, with a net-benefit decision rule) is cited by its own records (estimate.aipw).
+papers = []
+
+implementation_deviations = [
+  "The six-family, ten-operation capability inventory is an inspection-only semantic contract using the existing Stage model. It selects only actual native-backed live scores, verified score resumes or verified point predictors; readable artifacts and capability flags do not grant execution. Missing family adapters explicitly refuse. The inventory executes no estimator and never promotes inference; portable prediction retains its parent claim but cannot supply AIPW scores, residual covariance or a refit factory.",
+  "Claim policy: the cell is point-only. It decides which stages to reuse, recompute or refuse and runs one real route; it grants no interval, coverage or calibration claim. The reported law standard error and the net-benefit decision are carried from the existing prepared-study route, not measured here; every uncertainty diagnostic stays 'unmeasured'.",
+  "Reuse is proven by counts, not by the plan alone: fold-fit counts are read from the estimator's own cross-fit nuisance cache (5 folds x 2 nuisance sets = 10 fits on a first run, 0 on a utility-only change, 0 on a compatible retarget). The identification, score-build, reweight and decision counters are call-level counts at the wrapper's call sites and say only that the wrapper invoked the operation; the fold-fit counter independently confirms that a refit really happened.",
+  "The cross-fit cache scope lives for one call. It is NOT a persistent fit cache: a second session fits again. Reuse across calls is the retained prepared study and its frozen score table and nothing else. 'Reused' never means persistently cached; across a process boundary it needs a portable fit, scores, data snapshot or provider named in the resume context, and an ordinary loaded result supplies none of them.",
+  "The executor drives exactly one route: the cross-fitted AIPW average effect over a binary treatment through Study::prepare, PreparedStudy::refresh and PreparedStudy::retarget, with a net-benefit rule benefit_per_unit * ate - cost. The Prior and ProviderRequest stages and external-study mutations are plan-level only: the planner decides them but this executor runs no prior or provider, so their mutations are exercised through the plan only.",
+  "A retarget reuses frozen scores only when the estimator's retarget route is declared licensed; an undeclared retarget recomputes the score artifact and an incompatible target is refused at the law. The planner trusts the declared capability and does not verify that a target is a licensed function of the adjustment set.",
+  "Provider requests and priors depend on the full causal request (graph, query, regime, evidence, populations and treatment grid) and the individual external-study input. An unsupported treatment grid blocks their computation. Both executors share the same decision rule and reject non-finite utilities or net-benefit overflow before publishing a decision.",
+  "Stage identities are BLAKE3 (derive-key mode, length-prefixed parts) over the caller's declared own-input bytes. The caller is responsible for the declared bytes representing the input; the planner cannot detect a change a caller did not declare.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "python/tests/test_recalc_capabilities.py",
+  "crates/antecedent-core/tests/recalc_plan.rs",
+  "crates/antecedent/tests/recalc_receipt.rs",
+  "python/tests/test_recalc.py",
+]

@@ -1,0 +1,31 @@
+feature_id = "c1_program_binding"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Binds an external claim to the identified program and request it answers: graph, checked
+# contract, treatment, outcome, target population, intervention kind, horizon, dose grid and
+# units, functional and transform each enter one BLAKE3 identity, and a claim whose declared
+# coordinates or identity differ in any field is refused with its own typed detail. This is a
+# composition contract of equality checks and identity hashing over declared strings and exact
+# dose bits. papers = [] is an explicit judgment: it is original engineering over standard
+# content hashing, no paper introduces it, and it makes no statistical or causal claim of its own
+# (identification and any numerical value are produced and attested elsewhere).
+papers = []
+
+implementation_deviations = [
+  "Nothing here estimates, identifies, converts or rescales anything. The checks compare declared coordinates and identities only; a unit, population, regime, horizon, functional or transform that differs is refused, never reinterpreted. The check order is fixed (binding validity, graph-only identity, graph and contract identity, treatment and outcome, population, dose grid and units, each coordinate, declared durable identity), so the first failing field names the refusal.",
+  "A graph-only identity (the graph id, a graph:-prefixed id, a contract:<graph> alias, or the graph-only derived key of either graph) is always refused as insufficient, because two different questions on one graph share it. The durable identity covers every field of the program and request, hashes each string with a length prefix and each dose by its exact IEEE bits, and changes when any one field changes, including the contract identity.",
+  "Doses are compared bit for bit and must be strictly increasing and finite. The regime label of a dose is rendered with a six-significant-digit rule that matches Python's g format, so Rust and Python name the same regime; a label that differs only by that rounding is a different request and is refused.",
+  "A bound claim stays external: binding to the program adds the verified program identity and never promotes the result to native estimation or upgrades its trust. The contract itself must carry the program's graph and exact coordinates, so a contract that describes another request is refused before the underlying result binding runs.",
+  "The Python facade derives its default contract identity from the program (contract and request) instead of a graph-only hash; an explicit contract_id still binds unchanged. The Python path delegates every identity, check and refusal to the Rust core.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-core/tests/program_binding.rs",
+  "python/tests/test_program_claims.py",
+]

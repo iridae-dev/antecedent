@@ -7,7 +7,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, cast
 
 from ..errors import CausalSerializationError, CausalUnsupportedError
 from ..results import (
@@ -22,6 +22,7 @@ from ..results import (
     SlotView,
     SupportDiagnostic,
     SupportReport,
+    SupportStatus,
     ValidationView,
 )
 from ._day1 import (
@@ -551,7 +552,7 @@ def _unavailable_result(
     *,
     shape: str,
     stage: Mapping[str, Any] | None,
-    support_status: str = "outside_empirical_support",
+    support_status: SupportStatus = "outside_empirical_support",
 ) -> AnalysisResult | CausalResponseView:
     identified = None if stage is None else stage.get("identified")
     section = TransportSection(
@@ -665,7 +666,7 @@ _SUPPORT_SEVERITY = {
 }
 
 
-def _surface_support(statuses: Sequence[str]) -> str:
+def _surface_support(statuses: Sequence[SupportStatus]) -> SupportStatus:
     """Worst label over the requested points; missing evidence ranks weakest."""
     return max(statuses, key=_SUPPORT_SEVERITY.__getitem__, default="supported")
 
@@ -684,17 +685,27 @@ def _grid_view(
     outcome = query.question.outcome  # type: ignore[union-attr]
     points: list[list[float]] = []
     values: list[list[float]] = []
-    statuses: list[str] = []
+    statuses: list[SupportStatus] = []
     diagnostics: list[SupportDiagnostic] = []
     warnings: list[str] = []
     for index, row in enumerate(rows):
         if row.mean is None:
             detail = row.detail or "unavailable"
             statuses.append(
-                row.support if row.support in _SUPPORT_SEVERITY else "outside_empirical_support"
+                cast(SupportStatus, row.support)
+                if row.support in _SUPPORT_SEVERITY
+                else "outside_empirical_support"
             )
+            # Scoped to its own requested coordinate: ``values[j]`` is 1 at this record's
+            # coordinate and 0 elsewhere, so no other coordinate reads it as its support.
+            marker = tuple(1.0 if position == index else 0.0 for position in range(len(rows)))
             diagnostics.append(
-                SupportDiagnostic(id=f"grid:{index}", values=(row.coordinate,), detail=detail)
+                SupportDiagnostic(
+                    id=f"grid:{index}",
+                    values=marker,
+                    detail=detail,
+                    scope="per_coordinate",
+                )
             )
             warnings.append(detail)
             continue
@@ -711,6 +722,33 @@ def _grid_view(
             support_status=_surface_support(statuses) if statuses else "missing_evidence",
         )
     support_status = _surface_support(statuses)
+    # Evidence availability aligned with the requested rows (one value per entry of
+    # ``point_status``); the per-failure ``grid:`` records below name only the
+    # coordinates that failed.
+    diagnostics.insert(
+        0,
+        SupportDiagnostic(
+            id="transport.evidence_available",
+            values=tuple(1.0 if status == "supported" else 0.0 for status in statuses),
+            detail="1 where the requested coordinate has a transported value, 0 where it has none",
+            scope="per_coordinate",
+        ),
+    )
+    # The transport estimators compute no per-point propensity/density and no per-point
+    # source/target overlap, so there is no value to attach to a coordinate. Say so
+    # explicitly rather than leave the absence to read as uniform support.
+    for inapplicable, what in (
+        ("transport.propensity_density", "propensity or density"),
+        ("transport.source_target_overlap", "source/target overlap"),
+    ):
+        diagnostics.append(
+            SupportDiagnostic(
+                id=inapplicable,
+                values=(),
+                detail=f"no per-coordinate {what} is computed by this transport route",
+                scope="inapplicable",
+            )
+        )
     region = {treatment: (min(p[0] for p in points), max(p[0] for p in points))}
     result = CausalResponseView(
         estimand=query.question,

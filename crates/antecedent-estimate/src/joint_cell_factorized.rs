@@ -691,6 +691,12 @@ impl ConditionalFits<'_> {
     ) -> Result<Result<Vec<f64>, String>, EstimationError> {
         let key = (fold, mask, values, target);
         if let Some(hit) = self.cache.get(&key) {
+            if hit.is_err() {
+                antecedent_core::execution_attempt::OperationGuard::begin(
+                    antecedent_core::execution_attempt::Operation::CachedFailureRead,
+                )
+                .complete();
+            }
             return Ok(hit.clone());
         }
         if self.ctx.cancellation.is_cancelled() {
@@ -1304,6 +1310,45 @@ fn ordering_sensitivity(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn attempt_observer_records_actual_cached_conditional_failure_without_refitting() {
+        use antecedent_core::execution_attempt::{Operation, observe_execution};
+        use antecedent_stats::fit_counts::count_least_squares_solves;
+        let input = fixture(80, 17);
+        let problem =
+            prepare_problem(&input.data, &input.treatments, input.outcome, &input.adjustment)
+                .unwrap();
+        let ctx = ExecutionContext::for_tests(17);
+        let config = FactorizedJointConfig::new(RidgeTuning::default());
+        // This actual fold has no training rows. The original fit retains its
+        // unsupported conditional-prefix result rather than invoking a solver.
+        let folds = [FoldSplit { train: Vec::new(), valid: vec![0], design_valid: vec![1.0] }];
+        let mut fits = ConditionalFits {
+            ctx: &ctx,
+            config: &config,
+            problem: &problem,
+            folds: &folds,
+            learned: None,
+            cache: HashMap::new(),
+            selections: Vec::new(),
+            provenances: Vec::new(),
+            degenerate: 0,
+        };
+        let (first, solves) =
+            count_least_squares_solves(|| observe_execution(|| fits.get(0, 0, 0, 0)));
+        assert_eq!(solves, 0);
+        let original_failure = first.result.unwrap().unwrap_err();
+        assert!(original_failure.contains("no training row"));
+        assert_eq!(first.report.counts(Operation::CachedFailureRead).attempted, 0);
+        let (cached, solves) =
+            count_least_squares_solves(|| observe_execution(|| fits.get(0, 0, 0, 0)));
+        assert_eq!(solves, 0);
+        assert_eq!(cached.result.unwrap().unwrap_err(), original_failure);
+        let counts = cached.report.counts(Operation::CachedFailureRead);
+        assert_eq!((counts.attempted, counts.completed, counts.failed), (1, 1, 0));
+        assert_eq!(cached.report.counts(Operation::LeastSquaresSolve).attempted, 0);
+    }
 
     fn supported(estimate: f64) -> (CellEstimate, Vec<f64>) {
         (

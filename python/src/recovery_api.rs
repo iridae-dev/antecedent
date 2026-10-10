@@ -265,8 +265,269 @@ struct ObservationRecoveryStage {
     memory_bytes: Option<u64>,
 }
 
+impl ObservationRecoveryStage {
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    fn sampled_source(
+        &self,
+        py: Python<'_>,
+        population: String,
+        observed_regime: String,
+        partial: Vec<(String, String, String)>,
+        fully: Vec<String>,
+        rows: Vec<(u64, u8, u8, u8)>,
+        snapshot: String,
+        replicates: usize,
+        seed: u64,
+        interval_method: &str,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(String, Vec<u8>)> {
+        use antecedent_estimate::{
+            ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
+            estimate_sampled_recovery,
+        };
+        use antecedent_io::sampled_recovery_artifact::{
+            SampledRecoveryArtifactInput, SampledRecoveryArtifactWire,
+        };
+        let config = match interval_method {
+            "bootstrap_bca" if replicates == 2000 => SampledRecoveryConfig::bca(seed),
+            _ => {
+                return Err(sampled_candidate_error(
+                    "invalid_argument",
+                    "sampled_recovery.invalid_input: BCa requires 2000 replicates and a known interval method",
+                ));
+            }
+        };
+        let declared = ObservationRecoveryQuery {
+            population: population.into(),
+            observed_regime: regime_of(&self.catalog, &self.query.population, &observed_regime)?,
+            partially_observed: partial
+                .iter()
+                .map(|(x, r, p)| {
+                    Ok(PartiallyObserved {
+                        variable: resolve(&self.graph.names, x)?,
+                        response: resolve(&self.graph.names, r)?,
+                        proxy: resolve(&self.graph.names, p)?,
+                    })
+                })
+                .collect::<PyResult<Vec<_>>>()?
+                .into(),
+            fully_observed: fully
+                .iter()
+                .map(|x| resolve(&self.graph.names, x))
+                .collect::<PyResult<Vec<_>>>()?
+                .into(),
+        };
+        let canonical = declared.canonical();
+        if canonical != self.query.canonical() {
+            return Err(crate::value_err(
+                "sampled_recovery.invalid_input: query differs from retained recovery stage",
+            ));
+        }
+        let (k, m) = (partial.len(), fully.len());
+        if k + m > 6 || rows.len() > 100_000 {
+            return Err(crate::value_err(
+                "sampled_recovery.bounds_exceeded: candidate accepts at most six binary variables and 100000 rows",
+            ));
+        }
+        let mask = |n: usize| (1u8 << n) - 1;
+        if rows.iter().any(|(_, r, p, f)| r & !mask(k) != 0 || p & !r != 0 || f & !mask(m) != 0) {
+            return Err(crate::value_err(
+                "sampled_recovery.invalid_input: bits outside declared observation roles",
+            ));
+        }
+        let RecoveryDecision::Recovered(derivation) = &self.decision else {
+            return Err(crate::value_err(
+                "sampled_recovery.unrecoverable_pattern: no recovered derivation",
+            ));
+        };
+        let effect = self.effect.clone().ok_or_else(|| {
+            crate::value_err(
+                "sampled_recovery.invalid_input: stage must retain a downstream effect",
+            )
+        })?;
+        let partial_order: Vec<_> = canonical
+            .partially_observed
+            .iter()
+            .map(|p| {
+                declared
+                    .partially_observed
+                    .iter()
+                    .position(|s| s == p)
+                    .expect("canonicalization preserves roles")
+            })
+            .collect();
+        let full_order: Vec<_> = canonical
+            .fully_observed
+            .iter()
+            .map(|p| {
+                declared
+                    .fully_observed
+                    .iter()
+                    .position(|s| s == p)
+                    .expect("canonicalization preserves roles")
+            })
+            .collect();
+        let remap = |bits: u8, order: &[usize]| {
+            order.iter().enumerate().fold(0u8, |v, (dst, src)| v | (((bits >> src) & 1) << dst))
+        };
+        let input = SampledObservationInput {
+            snapshot_id: snapshot,
+            rows: rows
+                .into_iter()
+                .map(|(id, r, p, f)| ObservationRow {
+                    id,
+                    pattern: ObservationPattern {
+                        responses: remap(r, &partial_order),
+                        proxies: remap(p, &partial_order),
+                        fully: remap(f, &full_order),
+                    },
+                })
+                .collect(),
+        };
+        let derivation = derivation.clone();
+        let graph = self.shared.clone();
+        let catalog = self.catalog.clone();
+        let names = self.graph.names.clone();
+        let memory = match (self.memory_bytes, memory_limit_bytes) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        let ctx = crate::measured_inference_api::context(seed, memory, cancel);
+        crate::detach_catch(py, move || {
+            let result = estimate_sampled_recovery(&derivation, &input, &config, &ctx)
+                .map_err(|e| sampled_candidate_error(e.reason_code(), &e.to_string()))?;
+            let wire = SampledRecoveryArtifactWire::checked(&SampledRecoveryArtifactInput {
+                graph: &graph,
+                effect: &effect,
+                derivation: &derivation,
+                catalog: &catalog,
+                input: &input,
+                result: &result,
+                variable_names: &names,
+            })
+            .map_err(|e| sampled_candidate_io_error(&e))?;
+            let bytes = wire.export().map_err(|e| sampled_candidate_io_error(&e))?;
+            let summary = sampled_candidate_json(&wire);
+            Ok((summary, bytes))
+        })
+    }
+}
+
 #[pymethods]
 impl ObservationRecoveryStage {
+    /// Internal historical candidate; retains unmeasured semantics.
+    #[cfg(feature = "calibration-internal")]
+    #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_bca"))]
+    #[allow(clippy::too_many_arguments)]
+    fn sampled_candidate(
+        &self,
+        py: Python<'_>,
+        population: String,
+        observed_regime: String,
+        partial: Vec<(String, String, String)>,
+        fully: Vec<String>,
+        rows: Vec<(u64, u8, u8, u8)>,
+        snapshot: String,
+        replicates: usize,
+        seed: u64,
+        interval_method: &str,
+    ) -> PyResult<(String, Vec<u8>)> {
+        self.sampled_source(
+            py,
+            population,
+            observed_regime,
+            partial,
+            fully,
+            rows,
+            snapshot,
+            replicates,
+            seed,
+            interval_method,
+            None,
+            None,
+        )
+    }
+    /// Checked whole-row BCa producer bound to current measured native evidence.
+    #[pyo3(signature=(population,observed_regime,partial,fully,rows,snapshot,replicates,seed,interval_method="bootstrap_bca",*,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn sampled_measured(
+        &self,
+        py: Python<'_>,
+        population: String,
+        observed_regime: String,
+        partial: Vec<(String, String, String)>,
+        fully: Vec<String>,
+        rows: Vec<(u64, u8, u8, u8)>,
+        snapshot: String,
+        replicates: usize,
+        seed: u64,
+        interval_method: &str,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+        use antecedent_io::sampled_recovery_artifact::{
+            SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
+        };
+        if replicates != 2000
+            || interval_method != "bootstrap_bca"
+            || !(1000..=4000).contains(&rows.len())
+        {
+            return Err(crate::transport_common::error(IoError::Refused {code:antecedent_core::reason_code!("cell_not_licensed"),message:"sampled_recovery.protocol_not_measured: measured BCa requires 2000 draws and 1000..=4000 observation rows".into()}));
+        }
+        if self.catalog.bindings.iter().any(|binding| {
+            binding.regime == self.query.observed_regime
+                && (binding.weights.is_some()
+                    || binding.sampling != antecedent_core::SamplingDesign::Independent)
+        }) {
+            return Err(crate::transport_common::error(IoError::Refused {
+                code: antecedent_core::reason_code!("cell_not_licensed"),
+                message: "sampled_recovery.protocol_not_measured: measured whole-row recovery requires an unweighted independent observation binding".into(),
+            }));
+        }
+        let memory = match (self.memory_bytes, memory_limit_bytes) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        crate::measured_inference_api::before_work(
+            0,
+            rows.len().saturating_mul(64),
+            memory,
+            cancel.as_ref(),
+        )?;
+        let (_, bytes) = self.sampled_source(
+            py,
+            population,
+            observed_regime,
+            partial,
+            fully,
+            rows,
+            snapshot,
+            replicates,
+            seed,
+            interval_method,
+            memory,
+            cancel.clone(),
+        )?;
+        let ctx = crate::measured_inference_api::context(seed, memory, cancel);
+        crate::detach_catch(py, move || {
+            let source = SampledRecoveryArtifactWire::decode(&bytes)
+                .map_err(crate::transport_common::error)?;
+            let expected = SampledRecoveryExpectation {
+                premises_digest: Some(source.premises_digest),
+                data_digest: Some(source.data_digest),
+            };
+            let measured = SampledRecoveryArtifactWire::measure(
+                &bytes,
+                &expected,
+                SampledRecoveryConsumeLimits::default(),
+                &ctx,
+            )
+            .map_err(crate::transport_common::error)?;
+            crate::measured_inference_api::check_cancelled(&ctx)?;
+            crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
+        })
+    }
     /// `recovered` or `nonrecoverable`.
     #[getter]
     #[doc(hidden)]
@@ -652,5 +913,81 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PreparedObservationRecoveryStage>()?;
     module.add_function(wrap_pyfunction!(identify_observation_recovery_stage, module)?)?;
     module.add_function(wrap_pyfunction!(consume_observation_recovery_artifact, module)?)?;
+    #[cfg(feature = "calibration-internal")]
+    module.add_function(wrap_pyfunction!(consume_sampled_recovery_candidate, module)?)?;
     Ok(())
+}
+
+fn sampled_candidate_error(code: &str, message: &str) -> PyErr {
+    if code == antecedent_core::reason_code!("invalid_argument") {
+        crate::with_reason_code(
+            crate::value_err(message),
+            antecedent_core::reason_code!("invalid_argument"),
+        )
+    } else {
+        crate::refusal(code, message)
+    }
+}
+
+fn sampled_candidate_io_error(error: &IoError) -> PyErr {
+    match error.reason_code() {
+        Some(code) => sampled_candidate_error(code, &error.to_string()),
+        None => crate::transport_common::serialization_error(error),
+    }
+}
+
+fn sampled_candidate_json(
+    wire: &antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire,
+) -> String {
+    serde_json::json!({"result":wire.result,"snapshot":wire.snapshot_id,"calibration":wire.calibration,"premises_digest":wire.premises_digest,"data_digest":wire.data_digest,"query":wire.query,"names":wire.variable_names,"receipt":wire.receipt}).to_string()
+}
+
+/// Candidate consumer reruns the original whole-row method under retained identities.
+#[cfg(feature = "calibration-internal")]
+#[doc(hidden)]
+#[pyfunction]
+#[pyo3(signature=(artifact, premises_digest, data_digest, *, max_rows=100_000, max_replicates=2000, memory_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments)]
+fn consume_sampled_recovery_candidate(
+    py: Python<'_>,
+    artifact: &[u8],
+    premises_digest: String,
+    data_digest: String,
+    max_rows: usize,
+    max_replicates: usize,
+    memory_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> PyResult<String> {
+    use antecedent_io::sampled_recovery_artifact::{
+        SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
+    };
+    let valid_digest = |value: &str| {
+        value.len() == 64 && value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    };
+    if artifact.len() > 32 * 1024 * 1024
+        || !valid_digest(&premises_digest)
+        || !valid_digest(&data_digest)
+        || !(1..=100_000).contains(&max_rows)
+        || !(1..=2000).contains(&max_replicates)
+    {
+        return Err(crate::value_err(
+            "sampled_recovery.invalid_input: bounded bytes and retained expected identities required",
+        ));
+    }
+    let bytes = artifact.to_vec();
+    crate::detach_catch(py, move || {
+        let ctx = execution_context(0, memory_bytes, cancel);
+        let expected = SampledRecoveryExpectation {
+            premises_digest: Some(premises_digest),
+            data_digest: Some(data_digest),
+        };
+        let consumed = SampledRecoveryArtifactWire::consume_expecting(
+            &bytes,
+            &expected,
+            SampledRecoveryConsumeLimits { max_rows, max_replicates, ..Default::default() },
+            &ctx,
+        )
+        .map_err(|e| sampled_candidate_io_error(&e))?;
+        Ok(sampled_candidate_json(&consumed.wire))
+    })
 }

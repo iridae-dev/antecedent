@@ -1,0 +1,36 @@
+{
+  "bundle_identity": "5ef964ff45f6987334ba3e05dd7e48884452a4ca6805f62df3f3d2bd6d3aca95",
+  "claim_label": "point_only_attested",
+  "edges": [
+    [
+      "claim",
+      "mean_result"
+    ],
+    [
+      "contract",
+      "result"
+    ],
+    [
+      "law",
+      "result"
+    ],
+    [
+      "mean_contract",
+      "mean_result"
+    ]
+  ],
+  "node_kinds": {
+    "claim": "external_claim",
+    "contract": "decision_contract",
+    "law": "distribution",
+    "mean_contract": "decision_contract",
+    "mean_result": "decision_result",
+    "result": "decision_result"
+  },
+  "values": {
+    "mean_result.treat.expected_utility": 9.0,
+    "mean_result.wait.expected_utility": 1.0,
+    "result.risky.expected_utility": 2.0,
+    "result.safe.expected_utility": 3.0
+  }
+}

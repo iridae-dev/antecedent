@@ -133,6 +133,17 @@ impl SharpRdIdentifier {
         graph: Option<&Dag>,
         query: &CausalQuery,
     ) -> Result<IdentificationResult, IdentificationError> {
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::Identification,
+            || self.identify_inner_checked(graph, query),
+        )
+    }
+
+    fn identify_inner_checked(
+        &self,
+        graph: Option<&Dag>,
+        query: &CausalQuery,
+    ) -> Result<IdentificationResult, IdentificationError> {
         let CausalQuery::AverageEffect(ate) = query else {
             return Err(IdentificationError::UnsupportedQuery {
                 message: "sharp RD identifier requires an average-effect query",

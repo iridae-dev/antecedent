@@ -35,6 +35,29 @@ impl std::fmt::Debug for CheckedBayesianBasisAteExecution {
 }
 
 impl CheckedBayesianBasisAteExecution {
+    pub(crate) fn with_inference_config(
+        &self,
+        config: BayesianConfig,
+    ) -> Result<Self, CausalError> {
+        if config.backend != antecedent_estimate::BayesianBackendKind::ConjugateGaussian
+            || config.likelihood != antecedent_prob::BayesLikelihood::GaussianIdentity
+            || config.n_draws < 2
+            || !config.prior_scale.is_finite()
+            || config.prior_scale <= 0.0
+            || config.prior.is_some()
+            || config.prior_artifact.is_some()
+            || config.external_compose.is_some()
+        {
+            return Err(CausalError::Unsupported {
+                message: "bayesian.basis.gcomp requires its declared conjugate Gaussian shrinkage prior",
+            });
+        }
+        let mut next = self.clone();
+        next.context.inference = InferenceMode::Bayesian(config.clone());
+        next.config = config;
+        Ok(next)
+    }
+
     pub(crate) fn checked(
         data: &TabularData,
         graph: &Dag,

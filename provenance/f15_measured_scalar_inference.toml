@@ -1,0 +1,14 @@
+feature_id = "f15_measured_scalar_inference"
+implementation_crate = "antecedent-io"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "Semantic factory/replay authority contract, not a new numerical inference theorem. The six prerequisite method records own all interval calibration claims.",
+  "Historical source artifacts remain unchanged and unmeasured. A separate native envelope independently replays the original source and resolves each exact scalar basis against currently attesting records.",
+  "Readable caller basis/report metadata and serialized calibrated flags cannot mint native authority. No implicit joint distribution, simultaneous guarantee or Contract.evaluate source is created.",
+]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-io/src/measured_inference.rs", "crates/antecedent-io/src/measured_inference/transport.rs", "crates/antecedent-io/src/measured_inference/nested.rs", "crates/antecedent-io/src/measured_inference/recovery_temporal.rs", "python/tests/test_measured_inference.py", "python/tests/test_measured_joint_transport.py", "python/tests/test_measured_nested.py", "python/tests/test_measured_recovery.py", "python/tests/test_measured_temporal_public.py"]

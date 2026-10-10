@@ -25,15 +25,18 @@ pub mod bayesian_iv;
 pub mod bayesian_mediation;
 pub mod bayesian_rd;
 pub mod bayesian_robust_ate;
+pub mod categorical_treatment;
 pub mod causal_forest;
 pub mod cell_aipw;
 pub mod conditional;
 pub mod continuous_dose;
+pub mod cpdag_scenarios;
 pub mod crossfit_aipw;
 pub mod crossfit_cache;
 pub mod design_compile;
 pub mod dml;
 pub mod dr;
+pub mod effect_constancy;
 pub mod empirical_table;
 pub mod envelope;
 pub mod error;
@@ -48,11 +51,17 @@ pub mod interference;
 pub mod interference_observational;
 pub mod interference_saturation;
 pub mod iv;
+pub mod joint_bayesian_transport;
 pub mod joint_if;
+pub mod latent_class_effects;
 mod learn_nuisance;
 pub mod local_polynomial_ratio;
+pub mod mechanism_discrepancy;
 pub mod mixed_source;
 pub mod multi_arm;
+pub mod nested_markov_binary;
+pub mod nested_markov_uncertainty;
+pub mod nonlinear_mediation;
 pub mod observation;
 pub mod overlap;
 pub mod policy_value;
@@ -64,8 +73,12 @@ pub mod randomized_neyman;
 pub mod randomized_scores;
 pub mod rd;
 pub mod recovery;
+pub mod recovery_chain;
+pub mod recovery_sampled;
 pub mod response;
 pub mod retarget;
+pub mod scenario_covariance;
+pub mod scenario_invariance_report;
 pub mod scores;
 pub mod se;
 pub mod serial_dependence;
@@ -76,8 +89,12 @@ pub mod switchback;
 pub mod synthetic_control;
 pub mod temporal_adjustment;
 pub mod temporal_block;
+pub mod temporal_dependent_interval;
+pub mod temporal_history_fit;
+pub mod temporal_initial_state;
 pub mod temporal_mediation;
 pub mod temporal_observed_bayes;
+pub mod temporal_refresh;
 pub mod temporal_response;
 pub mod temporal_response_dispersion;
 pub mod temporal_sequential;
@@ -86,6 +103,7 @@ pub mod temporal_transport;
 pub mod transport;
 pub mod transport_scenarios;
 pub mod util;
+pub mod vector_treatment;
 
 #[cfg(test)]
 #[allow(clippy::doc_markdown)]
@@ -97,10 +115,12 @@ pub use adjustment::{
 };
 pub mod cluster_dml_aipw;
 pub mod descriptive_comparison;
+pub mod dose_grid_functional;
 pub mod estimator_menu;
 pub mod fit_plan;
 pub mod joint_cell_factorized;
 pub mod learned_continuous;
+pub mod learned_joint_transport;
 pub mod learned_trial;
 pub mod longitudinal_regime;
 pub mod marginal_structural_model;
@@ -268,6 +288,16 @@ pub use rd::{
     SharpRegressionDiscontinuity,
 };
 pub use recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
+pub use recovery_chain::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
+pub use recovery_sampled::{
+    ObservationPattern, ObservationRow, SAMPLED_RECOVERY_CALIBRATION,
+    SAMPLED_RECOVERY_INTERVAL_LEVEL, SAMPLED_RECOVERY_MAX_BINARY_VARIABLES,
+    SAMPLED_RECOVERY_MAX_REPLICATES, SAMPLED_RECOVERY_MAX_ROWS, SAMPLED_RECOVERY_MIN_REPLICATES,
+    SampledEffectInterval, SampledObservationInput, SampledRecoveryConfig, SampledRecoveryDetail,
+    SampledRecoveryDiagnostics, SampledRecoveryError, SampledRecoveryReceipt,
+    SampledRecoveryResult, derive_sampled_recovery, estimate_sampled_recovery,
+    refuse_component_variance_only, replay_sampled_recovery, sampled_recovery_route_frozen,
+};
 pub use response::{ContinuousResponseEstimator, ContinuousResponseOptions, ResponseInfluence};
 pub use retarget::{
     DirectedAncestry, MIN_WEIGHTED_ARM_N_EFF, RetargetRefusal, RetargetResult, changes_target,
@@ -354,3 +384,6 @@ pub use static_mediation::{
     estimate_static_mediation_bayesian_outcome_prior, linear_no_interaction_restriction,
 };
 pub mod augmented_panel_did;
+
+/// Retained adjusted-regression execution and measured model fits.
+pub mod adjustment_resume;

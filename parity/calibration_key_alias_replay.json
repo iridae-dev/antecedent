@@ -1,0 +1,80 @@
+{
+  "branch": "2.3.0",
+  "logs": {
+    "recovery_whole_method_calibration__binary_missingness_whole_row_recovery_bca_l95.p0.log": {
+      "sha256": "70aecbc89274f353fd7debe32aa520ad0644fb92b2f6e956e199e67c02138be5",
+      "text": "   Compiling antecedent-estimate v2.3.0 (/Users/charleshinshaw/Desktop/antecedent/crates/antecedent-estimate)\n    Finished `release` profile [optimized] target(s) in 7.10s\n     Running tests/recovery_whole_method_calibration.rs (target/release/deps/recovery_whole_method_calibration-959769a4d9d70e6a)\n\nrunning 1 test\ncalibration binary_missingness_whole_row_recovery_bca_l95: nominal=0.95 coverage=0.960 mcse=0.0109 band=[0.917, 0.983] mean_length=0.1903 (384/400 covered, 0 skipped)\ncalibration-record {\"bound_replicates\":400,\"boundary\":false,\"dependence\":\"iid\",\"dgp\":\"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_confounded_missingness_scm\",\"estimator\":\"sampled_observation_recovery\",\"functional\":\"recovered_effect:recovery_scientific.v1:x10.recovery.v1|graph=mgraph.v1;nodes=[0, 1, 2, 3, 4, 5, 6];directed=[(0, 1), (0, 4), (0, 5), (1, 6), (2, 0), (2, 1), (2, 3), (3, 5), (4, 6)]|population=|regime=0|observed=catalog_distribution.v1|source_regime=0|study=|population=scientific_source|kind=observational|evidence_kind=available|origin=measured|selection=population|interventions=|values=|measured=2,3,4,5,6|availability=joint|conditioned_on=|snapshot=|dataset=|sampling=independent|dependence=|projections=|roles=[(0, 3, 5), (1, 4, 6)]|fully=[2]|premises=[\\\"m_graph_dag_no_bidirected\\\", \\\"no_self_censoring:3\\\", \\\"response_parents:3<-[2]\\\", \\\"no_self_censoring:4\\\", \\\"response_parents:4<-[0]\\\"]|numerator=0|factors=3<[2]|[2]@3;4<[0]|[3, 5]@6|root=8|margins=0:[2, 3, 4, 5, 6]:;1:[2, 3]:;2:[2]:;4:[3, 4, 5]:;5:[3, 5]:|effect=[1]|[0]|[(0, 1), (2, 0), (2, 1)]|6|[\\\"sid.line7\\\", \\\"sid.line1\\\", \\\"sid.line2\\\", \\\"sid.line4\\\"]:treated=3ff0000000000000:control=0000000000000000\",\"graph_class\":\"MGraph\",\"grid_point\":0,\"id\":\"cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95\",\"identification\":\"point\",\"inference\":\"Frequentist\",\"interval_method\":\"bootstrap_bca\",\"mcse\":0.009797958971132717,\"measured_at\":\"13705704191962d95f4c907e3716da5c0c3ea13a\",\"modality\":\"tabular\",\"n_max\":1000,\"n_min\":1000,\"nominal\":0.95,\"observed\":0.96,\"posterior\":\"\",\"posterior_draws_min\":0,\"query\":\"RecoveredEffect\",\"replicates\":400,\"replicates_min\":2000,\"role\":\"gated\",\"se_kind\":\"\",\"structure\":\"fixed\",\"test\":\"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95\",\"unidentified_mass_max\":0.0}\ntest binary_missingness_whole_row_recovery_bca_l95 ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 19.25s\n\ncalibration-measured-at 13705704191962d95f4c907e3716da5c0c3ea13a\n"
+    },
+    "recovery_whole_method_calibration__binary_missingness_whole_row_recovery_bca_l95.p1.log": {
+      "sha256": "0fa6141ee452ce54278cd56646a98faaea57ef7be3387f4d4616aa95688e384d",
+      "text": "    Finished `release` profile [optimized] target(s) in 0.12s\n     Running tests/recovery_whole_method_calibration.rs (target/release/deps/recovery_whole_method_calibration-959769a4d9d70e6a)\n\nrunning 1 test\ncalibration binary_missingness_whole_row_recovery_bca_l95: nominal=0.95 coverage=0.930 mcse=0.0109 band=[0.917, 0.983] mean_length=0.1338 (372/400 covered, 0 skipped)\ncalibration-record {\"bound_replicates\":400,\"boundary\":false,\"dependence\":\"iid\",\"dgp\":\"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_confounded_missingness_scm\",\"estimator\":\"sampled_observation_recovery\",\"functional\":\"recovered_effect:recovery_scientific.v1:x10.recovery.v1|graph=mgraph.v1;nodes=[0, 1, 2, 3, 4, 5, 6];directed=[(0, 1), (0, 4), (0, 5), (1, 6), (2, 0), (2, 1), (2, 3), (3, 5), (4, 6)]|population=|regime=0|observed=catalog_distribution.v1|source_regime=0|study=|population=scientific_source|kind=observational|evidence_kind=available|origin=measured|selection=population|interventions=|values=|measured=2,3,4,5,6|availability=joint|conditioned_on=|snapshot=|dataset=|sampling=independent|dependence=|projections=|roles=[(0, 3, 5), (1, 4, 6)]|fully=[2]|premises=[\\\"m_graph_dag_no_bidirected\\\", \\\"no_self_censoring:3\\\", \\\"response_parents:3<-[2]\\\", \\\"no_self_censoring:4\\\", \\\"response_parents:4<-[0]\\\"]|numerator=0|factors=3<[2]|[2]@3;4<[0]|[3, 5]@6|root=8|margins=0:[2, 3, 4, 5, 6]:;1:[2, 3]:;2:[2]:;4:[3, 4, 5]:;5:[3, 5]:|effect=[1]|[0]|[(0, 1), (2, 0), (2, 1)]|6|[\\\"sid.line7\\\", \\\"sid.line1\\\", \\\"sid.line2\\\", \\\"sid.line4\\\"]:treated=3ff0000000000000:control=0000000000000000\",\"graph_class\":\"MGraph\",\"grid_point\":1,\"id\":\"cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95\",\"identification\":\"point\",\"inference\":\"Frequentist\",\"interval_method\":\"bootstrap_bca\",\"mcse\":0.01275735082217307,\"measured_at\":\"13705704191962d95f4c907e3716da5c0c3ea13a\",\"modality\":\"tabular\",\"n_max\":2000,\"n_min\":2000,\"nominal\":0.95,\"observed\":0.93,\"posterior\":\"\",\"posterior_draws_min\":0,\"query\":\"RecoveredEffect\",\"replicates\":400,\"replicates_min\":2000,\"role\":\"gated\",\"se_kind\":\"\",\"structure\":\"fixed\",\"test\":\"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95\",\"unidentified_mass_max\":0.0}\ntest binary_missingness_whole_row_recovery_bca_l95 ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 20.77s\n\ncalibration-measured-at 13705704191962d95f4c907e3716da5c0c3ea13a\n"
+    },
+    "recovery_whole_method_calibration__binary_missingness_whole_row_recovery_bca_l95.p2.log": {
+      "sha256": "3282ccec335e3d3436e2d1d80574f1e3ac889c5e614588fc0d971280e1d1dff2",
+      "text": "    Finished `release` profile [optimized] target(s) in 0.12s\n     Running tests/recovery_whole_method_calibration.rs (target/release/deps/recovery_whole_method_calibration-959769a4d9d70e6a)\n\nrunning 1 test\ncalibration binary_missingness_whole_row_recovery_bca_l95: nominal=0.95 coverage=0.953 mcse=0.0109 band=[0.917, 0.983] mean_length=0.0949 (381/400 covered, 0 skipped)\ncalibration-record {\"bound_replicates\":400,\"boundary\":false,\"dependence\":\"iid\",\"dgp\":\"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_confounded_missingness_scm\",\"estimator\":\"sampled_observation_recovery\",\"functional\":\"recovered_effect:recovery_scientific.v1:x10.recovery.v1|graph=mgraph.v1;nodes=[0, 1, 2, 3, 4, 5, 6];directed=[(0, 1), (0, 4), (0, 5), (1, 6), (2, 0), (2, 1), (2, 3), (3, 5), (4, 6)]|population=|regime=0|observed=catalog_distribution.v1|source_regime=0|study=|population=scientific_source|kind=observational|evidence_kind=available|origin=measured|selection=population|interventions=|values=|measured=2,3,4,5,6|availability=joint|conditioned_on=|snapshot=|dataset=|sampling=independent|dependence=|projections=|roles=[(0, 3, 5), (1, 4, 6)]|fully=[2]|premises=[\\\"m_graph_dag_no_bidirected\\\", \\\"no_self_censoring:3\\\", \\\"response_parents:3<-[2]\\\", \\\"no_self_censoring:4\\\", \\\"response_parents:4<-[0]\\\"]|numerator=0|factors=3<[2]|[2]@3;4<[0]|[3, 5]@6|root=8|margins=0:[2, 3, 4, 5, 6]:;1:[2, 3]:;2:[2]:;4:[3, 4, 5]:;5:[3, 5]:|effect=[1]|[0]|[(0, 1), (2, 0), (2, 1)]|6|[\\\"sid.line7\\\", \\\"sid.line1\\\", \\\"sid.line2\\\", \\\"sid.line4\\\"]:treated=3ff0000000000000:control=0000000000000000\",\"graph_class\":\"MGraph\",\"grid_point\":2,\"id\":\"cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95\",\"identification\":\"point\",\"inference\":\"Frequentist\",\"interval_method\":\"bootstrap_bca\",\"mcse\":0.010635289135702893,\"measured_at\":\"13705704191962d95f4c907e3716da5c0c3ea13a\",\"modality\":\"tabular\",\"n_max\":4000,\"n_min\":4000,\"nominal\":0.95,\"observed\":0.9525,\"posterior\":\"\",\"posterior_draws_min\":0,\"query\":\"RecoveredEffect\",\"replicates\":400,\"replicates_min\":2000,\"role\":\"gated\",\"se_kind\":\"\",\"structure\":\"fixed\",\"test\":\"crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95\",\"unidentified_mass_max\":0.0}\ntest binary_missingness_whole_row_recovery_bca_l95 ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 24.68s\n\ncalibration-measured-at 13705704191962d95f4c907e3716da5c0c3ea13a\n"
+    }
+  },
+  "raw_main_replay_record": {
+    "boundary": false,
+    "dependence": "iid",
+    "dgp": "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_confounded_missingness_scm",
+    "estimator": "sampled_observation_recovery",
+    "functional": "recovered_effect:recovery_scientific.v1:x10.recovery.v1|graph=mgraph.v1;nodes=[0, 1, 2, 3, 4, 5, 6];directed=[(0, 1), (0, 4), (0, 5), (1, 6), (2, 0), (2, 1), (2, 3), (3, 5), (4, 6)]|population=|regime=0|observed=catalog_distribution.v1|source_regime=0|study=|population=scientific_source|kind=observational|evidence_kind=available|origin=measured|selection=population|interventions=|values=|measured=2,3,4,5,6|availability=joint|conditioned_on=|snapshot=|dataset=|sampling=independent|dependence=|projections=|roles=[(0, 3, 5), (1, 4, 6)]|fully=[2]|premises=[\"m_graph_dag_no_bidirected\", \"no_self_censoring:3\", \"response_parents:3<-[2]\", \"no_self_censoring:4\", \"response_parents:4<-[0]\"]|numerator=0|factors=3<[2]|[2]@3;4<[0]|[3, 5]@6|root=8|margins=0:[2, 3, 4, 5, 6]:;1:[2, 3]:;2:[2]:;4:[3, 4, 5]:;5:[3, 5]:|effect=[1]|[0]|[(0, 1), (2, 0), (2, 1)]|6|[\"sid.line7\", \"sid.line1\", \"sid.line2\", \"sid.line4\"]:treated=3ff0000000000000:control=0000000000000000",
+    "graph_class": "MGraph",
+    "grid": [
+      {
+        "boundary": false,
+        "mcse": 0.009797958971132717,
+        "n_max": 1000,
+        "n_min": 1000,
+        "observed": 0.96,
+        "point": 0,
+        "replicates": 400,
+        "role": "gated"
+      },
+      {
+        "boundary": false,
+        "mcse": 0.01275735082217307,
+        "n_max": 2000,
+        "n_min": 2000,
+        "observed": 0.93,
+        "point": 1,
+        "replicates": 400,
+        "role": "gated"
+      },
+      {
+        "boundary": false,
+        "mcse": 0.010635289135702893,
+        "n_max": 4000,
+        "n_min": 4000,
+        "observed": 0.9525,
+        "point": 2,
+        "replicates": 400,
+        "role": "gated"
+      }
+    ],
+    "id": "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95",
+    "identification": "point",
+    "inference": "Frequentist",
+    "interval_method": "bootstrap_bca",
+    "mcse": 0.01275735082217307,
+    "modality": "tabular",
+    "n_max": 4000,
+    "n_min": 1000,
+    "nominal": 0.95,
+    "observed": 0.93,
+    "posterior": "",
+    "posterior_draws_min": 0,
+    "query": "RecoveredEffect",
+    "replicates": 400,
+    "replicates_min": 2000,
+    "role": "gated",
+    "se_kind": "",
+    "structure": "fixed",
+    "test": "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs::binary_missingness_whole_row_recovery_bca_l95",
+    "unidentified_mass_max": 0.0
+  },
+  "record_id": "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95",
+  "source_sha": "13705704191962d95f4c907e3716da5c0c3ea13a",
+  "version": 1
+}

@@ -1,0 +1,28 @@
+feature_id = "c2_dr_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+# Original stage retention and dependency binding over the existing DML AIPW
+# and DR-Learner estimators. Statistical derivations belong to estimate.dml and estimate.dr.learner.
+papers = []
+implementation_deviations = [
+  "Uses the shared RecalcPlan and RecalcReceipt and existing checked preparation, estimation, refresh and retarget primitives rather than a parallel estimator engine.",
+  "The declared DML minimum is its untrimmed binary-treatment AIPW score. Partially linear DML and trimmed-population scores cannot be substituted for this per-arm object and remain explicit refusals in this adapter.",
+  "DR-Learner marginal AIPW scores and its final-stage CATE predictor are distinct retained objects. Same-row score reweighting does not derive scores or sampling covariance from CATE predictions.",
+  "Complete-case row identities, ordered feature schemas, nuisance learners, folds, overlap and seeded streams bind retained state. Compatible utility and same-row target changes reuse; invalidating requests recheck or refit.",
+  "Execution measures actual nuisance and final-stage learner work and successful score-table builds (two on initial preparation/estimation); bounded physical-input reuse avoids duplicate nuisance fits and includes fold-unit kind/seed. Canonical graph/target/utility identities permit independent score consumption; reported analytic diagnostics and point predictions retain unmeasured calibration, with no interval or coverage promotion.",
+  "Historical receipts contain no executable state. Fresh processes require independently verified scores or predictors for their separately licensed operations, or supplied raw data for refitting.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-learn/src/fit_counts.rs",
+  "crates/antecedent-estimate/src/crossfit_cache.rs",
+  "crates/antecedent-estimate/src/learn_nuisance.rs",
+  "python/src/recalc_bounds.rs",
+  "python/antecedent/_recalc_bounds.py",
+  "crates/antecedent/tests/recalc_dr.rs",
+  "crates/antecedent-io/tests/recalc_receipt_artifact.rs",
+  "python/tests/test_recalc_dr.py",
+]

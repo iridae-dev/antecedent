@@ -1,0 +1,10 @@
+feature_id = "c2_native_execution_attempts"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Actual original source RAII lifecycle guards and propagated joined-worker counters, including original Python interrupt dispatch and resolved learner workers; no parallel numerical engine or scientific authority.", "Distinct primitive/model operation levels are not summed as fits; original errors and successful receipt wire remain unchanged."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-core/src/execution_attempt.rs", "python/tests/test_execution_attempt.py", "crates/antecedent/tests/recalc_attempt.rs", "crates/antecedent-estimate/src/joint_cell_factorized.rs", "crates/antecedent-stats/src/fit_counts.rs", "crates/antecedent-learn/src/fit_counts.rs", "crates/antecedent-estimate/src/retarget.rs"]

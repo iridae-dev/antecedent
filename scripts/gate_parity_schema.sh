@@ -547,6 +547,8 @@ def _resolves(spec: str) -> bool:
     # would drift the suite facet after the 2.1 replay waivers.
     if re.search(r'dgp:\s*"' + re.escape(fn) + r'"', text):
         return True
+    if fn in collector.conditional_record_dgp_labels(path):
+        return True
     # A suite that imports its data-generating function from a shared test module
     # (`use common::static_dgp::{path_data, ..}`) names it through that import: it
     # resolves when a file compiled into the same test target defines it.
@@ -835,10 +837,6 @@ by_id = {rec.get("id"): rec for rec in records}
 
 # --- licensed cell calibration obligation ---
 lic = tomllib.loads((root / "parity/support_licensed.toml").read_text()).get("cell", [])
-by_coordinate = {}
-for rid, rec in by_id.items():
-    key = (rec["query"], rec["graph_class"], rec["inference"], rec["structure"])
-    by_coordinate.setdefault(key, []).append(rid)
 for cell in lic:
     label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
     has_cal = "calibration" in cell
@@ -866,23 +864,10 @@ for cell in lic:
         )
     if not has_cal and cell.get("calibration_reason") == "boundary_record":
         problems.append(f"support_licensed.toml {label}: boundary_record without a record list")
-    structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
-    expected_ids = sorted(
-        by_coordinate.get(
-            (cell.get("query"), cell.get("graph_class"), cell.get("inference"), structure), []
-        )
-    )
-    if expected_ids:
-        if sorted(cell.get("calibration") or []) != expected_ids:
-            problems.append(
-                f"support_licensed.toml {label}: calibration is not the records measured for this "
-                f"coordinate; re-run scripts/collect_coverage_records.py"
-            )
-    elif has_cal:
-        problems.append(f"support_licensed.toml {label}: cites records that measure another coordinate")
-    for rid in cell.get("calibration") or []:
-        if rid not in record_ids:
-            problems.append(f"support_licensed.toml {label}: unknown record {rid}")
+    for evidence_error in collector.calibration_estimator_evidence_problems(cell, root):
+        problems.append(f"support_licensed.toml {label}: {evidence_error}")
+    for ownership_error in collector.licensed_cell_calibration_problems(cell, by_id):
+        problems.append(f"support_licensed.toml {label}: {ownership_error}")
     # Coverage figures in `limitations` must cite a matching record or say they are
     # not a registry value: scripts/gate_coverage_citations.sh owns that check, so
     # known-truth values, SEs and disclosed probe figures stay in the license text.
@@ -1019,6 +1004,14 @@ else:
 import external_evidence  # noqa: E402
 
 problems.extend(f"external evidence: {p}" for p in external_evidence.check())
+
+# Identity-only migrations cannot rewrite their original measurements or become
+# active merely because a metadata status is changed.
+import calibration_key_aliases
+try:
+    calibration_key_aliases.validated_aliases(root)
+except (ValueError, KeyError, StopIteration, OSError, subprocess.CalledProcessError) as exc:
+    problems.append(f"calibration identity mapping: {exc}")
 
 # ---- [gates] publishing requires calibration attestation ----
 # A tag must not ship calibration labels from a registry that no longer

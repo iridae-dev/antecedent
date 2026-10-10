@@ -63,6 +63,7 @@ import time
 import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -173,12 +174,46 @@ def measures(head: str, test_filter: str, rec: dict) -> bool:
     return same_file and test_filter in fn
 
 
+@lru_cache(maxsize=None)
+def _workspace_packages(root: Path) -> tuple[tuple[str, Path], ...]:
+    """Actual Cargo member names and directories, including member globs."""
+    workspace = tomllib.loads((root / "Cargo.toml").read_text())["workspace"]
+    excluded = {path for pattern in workspace.get("exclude", []) for path in root.glob(pattern)}
+    members = {path for pattern in workspace["members"] for path in root.glob(pattern)} - excluded
+    packages = []
+    for member in sorted(members):
+        manifest = tomllib.loads((member / "Cargo.toml").read_text())
+        if "package" in manifest:
+            packages.append((manifest["package"]["name"], member))
+    return tuple(packages)
+
+
+@lru_cache(maxsize=None)
+def _suite_owner(root: Path, head: str) -> str | None:
+    owners = []
+    for package, member in _workspace_packages(root):
+        manifest = tomllib.loads((member / "Cargo.toml").read_text())
+        explicit = any(
+            test.get("name") == head
+            and (member / test.get("path", f"tests/{head}.rs")).is_file()
+            for test in manifest.get("test", [])
+        )
+        automatic = manifest["package"].get("autotests", True) and any(
+            path.is_file() for path in (member / "tests" / f"{head}.rs", member / "tests" / head / "main.rs")
+        )
+        if explicit or automatic:
+            owners.append(package)
+    if len(owners) > 1:
+        raise SystemExit(f"ambiguous calibration test target {head!r}: {', '.join(owners)}")
+    return owners[0] if owners else None
+
+
 def _suite_file(head: str) -> bool:
-    return (ROOT / "crates" / "antecedent" / "tests" / f"{head}.rs").is_file()
+    return _suite_owner(ROOT, head) is not None
 
 
 def _package(head: str) -> bool:
-    return (ROOT / "crates" / head / "Cargo.toml").is_file()
+    return any(package == head for package, _ in _workspace_packages(ROOT))
 
 
 @dataclass
@@ -380,10 +415,14 @@ def prebuild(groups: list[Group]) -> int:
     packages = sorted({g.head for g in groups if _package(g.head)})
     for package in packages:
         commands.append(["cargo", "test", "--release", "-p", package, "--lib", "--no-run"])
-    suites = sorted({g.head for g in groups if _suite_file(g.head)})
-    if suites:
-        tests = [arg for suite in suites for arg in ("--test", suite)]
-        commands.append(["cargo", "test", "--release", "-p", "antecedent", *tests, "--no-run"])
+    suites_by_package: dict[str, set[str]] = {}
+    for group in groups:
+        owner = _suite_owner(ROOT, group.head)
+        if owner is not None:
+            suites_by_package.setdefault(owner, set()).add(group.head)
+    for package, suites in sorted(suites_by_package.items()):
+        tests = [arg for suite in sorted(suites) for arg in ("--test", suite)]
+        commands.append(["cargo", "test", "--release", "-p", package, *tests, "--no-run"])
     for command in commands:
         print(f"== build: {' '.join(command)}", flush=True)
         if subprocess.run(command, cwd=ROOT).returncode != 0:

@@ -1,0 +1,24 @@
+feature_id = "f15_joint_distribution"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# This is a semantic identity and type-checking contract, not an estimator or
+# implementation of a paper's identification theorem.
+papers = []
+implementation_deviations = [
+  "Generic Python and PyO3 constructors refuse native trust before copying caller draws. Historical v1 negative fixtures retain labelled metadata and identity when loaded, but the original composition boundary keeps them unverified and refuses native requirements. Only actual producer-issued execution state can grant native authority.",
+  "Quantity comparison checks declared semantic coordinates exactly; it does not prove identification, convert units, or infer observational/interventional equivalence.",
+  "Distribution meanings are descriptive tags; numerical methods and calibration require separate promotion cells.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/src/quantity.rs",
+  "crates/antecedent-io/src/quantity_wire.rs",
+  "crates/antecedent-io/tests/distribution_artifact.rs",
+  "python/tests/test_composition.py",
+  "conformance/composition/metadata_only_native/legacy.art",
+  "conformance/composition/metadata_only_native/README.md",
+]

@@ -67,6 +67,7 @@ Environment: B_EXIT_ROOT (tree to read, default the repo).
 from __future__ import annotations
 
 import json
+import argparse
 import os
 import re
 import sys
@@ -138,9 +139,9 @@ PASSED_PY = re.compile(r"\b(\d+) passed\b")
 FAILED_PY = re.compile(r"\b\d+ (failed|error)")
 
 
-def b_records(root: Path) -> dict[str, list[dict]]:
+def b_records(root: Path, registry: str = "parity/promotion_2_2.toml") -> dict[str, list[dict]]:
     """Every milestone-B record by work package (a package may own several, e.g. a carried one)."""
-    p = root / "parity/promotion_2_2.toml"
+    p = root / registry
     records = tomllib.loads(p.read_text()).get("record", []) if p.is_file() else []
     out: dict[str, list[dict]] = {}
     for r in records:
@@ -890,6 +891,63 @@ def self_test() -> int:
 
 
 def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    for flag in ("--self-test", "--list-tests", "--release", "--require-calibrated", "--require-implemented"):
+        parser.add_argument(flag, action="store_true")
+    for flag in ("--runs", "--intervals", "--promotion"):
+        parser.add_argument(flag)
+    parser.parse_args(argv)  # Reject unknown flags, bare arguments and missing values.
+    # The 2.2 B story registry cannot evidence the different 2.3 package map.
+    # Expose its successor inventory explicitly rather than silently reporting
+    # 2.2 evidence when a caller asks for the current release.
+    if "--promotion" in argv:
+        index = argv.index("--promotion")
+        if index + 1 >= len(argv):
+            print("--promotion requires a registry path", file=sys.stderr)
+            return 2
+        registry = argv[index + 1]
+        canonical = {ROOT / f"parity/promotion_{version}.toml" for version in ("2_2", "2_3")}
+        if (ROOT / registry).resolve() not in {p.resolve() for p in canonical}:
+            print("--promotion requires the canonical parity/promotion_2_2.toml or parity/promotion_2_3.toml registry", file=sys.stderr)
+            return 2
+        try:
+            selected = tomllib.loads((ROOT / registry).read_text())
+        except (OSError, ValueError) as error:
+            print(f"invalid promotion registry: {error}", file=sys.stderr)
+            return 2
+        if selected.get("release") == "2.3":
+            from release_evidence_report import main as report_main
+
+            if "--self-test" in argv:
+                return self_test() or report_main(["--self-test"])
+
+            if any(flag in argv for flag in ("--runs", "--intervals", "--list-tests")):
+                print(
+                    "2.2 B story/interval inputs cannot evidence 2.3; use gate_promotion.sh",
+                    file=sys.stderr,
+                )
+                return 2
+            code = report_main(["--root", str(ROOT), "--release-version", "2.3"])
+            if code == 0 and any(
+                flag in argv
+                for flag in (
+                    "--release",
+                    "--require-calibrated",
+                    "--require-implemented",
+                )
+            ):
+                print(
+                    "2.3 inventory does not certify implementation or calibration; use the release-candidate gate",
+                    file=sys.stderr,
+                )
+                return 1
+            return code
+        if selected.get("release") != "2.2":
+            print("unsupported promotion release", file=sys.stderr)
+            return 2
+        argv = argv[:index] + argv[index + 2 :]
+    else:
+        registry = "parity/promotion_2_2.toml"
     if "--self-test" in argv:
         return self_test()
     if "--list-tests" in argv:
@@ -911,7 +969,7 @@ def main(argv: list[str]) -> int:
     )
     release = "--release" in argv
     lines, code = evaluate(
-        b_records(ROOT),
+        b_records(ROOT, registry),
         runs,
         intervals,
         require_calibrated=release or "--require-calibrated" in argv,

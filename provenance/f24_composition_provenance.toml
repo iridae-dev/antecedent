@@ -1,0 +1,19 @@
+feature_id = "f24_composition_provenance"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A lineage-integrity contract, not an estimator: each link digest is a BLAKE3
+# hash of its identity, stage and ordered predecessor digests, so a chain is
+# validated by recomputation and never by trusting a display label.
+papers = []
+implementation_deviations = [
+  "No scientific algorithm: the chain records ordered predecessor digests from causal contract through snapshot, provider, artifact, transform and decision, and refuses a missing stage, unresolved parent or digest mismatch.",
+  "The digest chain proves lineage integrity only. It grants no causal, identification or interval claim and does not verify any provider's numerical values.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/tests/composition_provenance.rs",
+]

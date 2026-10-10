@@ -82,11 +82,28 @@ pub mod validate;
 
 // --- Day-1 crate-root surface (stage depth lives under modules) ---
 pub use accepted::{AcceptedGraph, GraphClass, IntoAccepted};
+#[doc(hidden)]
+pub use analysis::temporal_dependent_interval_candidate;
 pub use analysis::{
     ActionConstraint, ActionOutcome, ActionSpec, ActionStatus, EnumeratedStatus, ForwardEvaluation,
     ForwardInterval, INVERSE_SCOPE_NOTE, IntervalMeta, IntervalScope, InverseOutcomeError,
     InverseOutcomeReport, InverseQuery, MAX_INVERSE_ACTIONS, MAX_INVERSE_FORWARD_POINTS,
     SupportBasis, TargetDirection, classify_inverse_outcome,
+};
+/// The decision contract beside [`CausalContract`]: admissibility, support and
+/// uncertainty requirements, claim adapters, robustness verdicts and the durable
+/// artifacts with external-callback receipts.
+pub use analysis::{
+    ActionRobustness, AdaptedClaims, AdaptedDecision, AdapterError, AdmissibilityError,
+    AdmissibilityRules, AdmissibleContractArtifact, AdmissibleDecisionContract, AtomSupport,
+    BoundDecisionContract, ClaimProbability, ClaimProfile, DecisionClaimKind,
+    DecisionDeclaredExclusion, DecisionFacadeRefusal, DecisionSupportRule, DecisionUncertaintyKind,
+    ExternalCallbackReceipt, ExternalTrustLimit, IdentifiedActionRange, IdentifiedSetDecision,
+    IdentifiedUtility, IdentifiedVerdict, InputSupport, ReplayReceipt, RobustDecisionResult,
+    RobustResultArtifact, RobustVerdict, RobustnessError, SuppliedClaim, SupportShortfall,
+    UncertaintyRequirement, adapt_finite_scenarios, adapt_graph_dependent_claims,
+    adapt_point_claim, adapt_weighted_graph_atoms, assess_robustness, evaluate_adapted,
+    evaluate_identified_sets, evaluate_robust, utility_interval,
 };
 pub use analysis::{
     AdmgConditionalResult, PreparedAdmgConditionalTransport,
@@ -129,6 +146,11 @@ pub use analysis::{
     check_derived_treatment, estimate_derived_joint_cells,
 };
 pub use analysis::{
+    IntervalEstimand, TemporalInitialState, TemporalWindow,
+    consume_temporal_initial_state_artifact, consume_temporal_refresh_artifact,
+    temporal_dependent_interval,
+};
+pub use analysis::{
     JOINT_SENSITIVITY_ARTIFACT_VERSION, JointFactorWire, JointOutcomeWire, JointPerturbationWire,
     JointProvenanceWire, JointReceiptWire, JointSamplingWire, JointSensitivityArtifactWire,
     JointSensitivityBodyWire, JointSensitivityConsumeLimits, JointTippingWire,
@@ -140,6 +162,10 @@ pub use analysis::{MixedSourceResult, PreparedMixedSource, consume_mixed_source_
 pub use analysis::{MzTransportResult, PreparedMzTransport, consume_mz_transport_artifact};
 pub use analysis::{
     ObservationRecoveryResult, PreparedObservationRecovery, consume_observation_recovery_artifact,
+};
+pub use analysis::{
+    PreparedCpdagCompletionScenarios, consume_cpdag_scenarios_artifact,
+    consume_scenario_covariance_artifact, export_scenario_covariance,
 };
 pub use analysis::{PreparedSmoothedDose, SmoothedDoseResult, consume_smoothed_dose_artifact};
 pub use analysis::{PreparedTemporalTransport, consume_temporal_transport_artifact};

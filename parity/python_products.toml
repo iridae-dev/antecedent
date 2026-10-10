@@ -1135,3 +1135,40 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_controls_reaches_plan"
 
+
+# Declared response metadata is sealed into the result-body digest and claim ID,
+# while program/data identities and numerical fits remain unchanged.
+
+[[parameter]]
+name = "outcome_units"
+entry_points = ["analyze"]
+binding = "contract"
+contract_key = "claim.claim_id"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_outcome_units_reaches_plan"
+
+[[parameter]]
+name = "quantity_population"
+entry_points = ["analyze"]
+binding = "contract"
+contract_key = "claim.claim_id"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_quantity_population_reaches_plan"
+
+[[parameter]]
+name = "quantity_transform"
+entry_points = ["analyze"]
+binding = "contract"
+contract_key = "claim.claim_id"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_quantity_transform_reaches_plan"
+
+# Dose units bind the retained scientific response request, not the numerical
+# prepared program or its portable execution claim. The test observes the
+# declared binding and the ensuing native decision-source check directly.
+[[parameter]]
+name = "dose_units"
+entry_points = ["analyze"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_dose_units_reaches_plan"

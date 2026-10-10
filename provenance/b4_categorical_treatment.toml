@@ -1,0 +1,32 @@
+feature_id = "b4_categorical_treatment"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Dummy-coded categorical treatment on the joint vector-treatment regression: level-versus-
+# reference and pairwise contrasts with variances from the full covariance, an omnibus Wald
+# test, Holm adjustment across the declared family, and (for ordered levels) a conservative
+# union-intersection monotonicity test. DOIs are omitted because they were not resolved here.
+papers = [
+  { title = "A Simple Sequentially Rejective Multiple Test Procedure (Scandinavian Journal of Statistics 6(2), 1979)", sections = ["The step-down procedure used for Holm-adjusted level and pairwise contrast p-values"] },
+  { title = "Multiparameter Hypothesis Testing and Acceptance Sampling (Technometrics 24(4), 1982)", sections = ["Intersection-union tests: the null that some adjacent step is not in the required direction is a union of one-sided nulls, rejected only when every one-sided test rejects, at a level no larger than the common level"] },
+  { title = "Tests of Statistical Hypotheses Concerning Several Parameters When the Number of Observations Is Large (Transactions of the American Mathematical Society 54(3), 1943)", sections = ["The Wald statistic used for the omnibus test that every level contrast is zero"] },
+]
+
+implementation_deviations = [
+  "Claim policy: the licensed claim is the POINT values (level coefficients and contrast estimates). Every standard error, Wald statistic, raw and Holm p-value and monotonicity p-value is a reported diagnostic with calibration coordinate 'unmeasured'; Type I error and power are not collected in 2.3, no interval is produced and no coverage record is allocated.",
+  "The monotonicity test is the null that the effect across the declared ordered levels is non-decreasing (or non-increasing). The reported statistic is the minimum (maximum) standardised adjacent step difference and its p-value is min(1, 2 Phi(.)) of that extreme step, a conservative bound stated as such (conservative = true) rather than an exact union-intersection size; a single-step test is the exact one-sided test. The intersection-union argument is cited for the rejection rule only; the conservativeness here is the implementation's own and is not claimed to be measured.",
+  "Holm adjustment is applied across the declared family (level contrasts and declared pairs) with asymptotic normal p-values; the family-wise error is not claimed beyond the normal approximation.",
+  "Absent, sparse (below the declared minimum rows) and undeclared levels refuse with the level named; nothing is dropped or merged. Unordered levels are sorted by label before any arithmetic so the result is invariant to input order; ordered levels keep the declared order as part of the estimand.",
+  "Artifact replay limits: a model-based fit replays from the embedded compact design summary; a robust (HC) covariance embeds the rows, capped at 4096 (categorical_treatment.hc_replay_row_cap_exceeded). The covariance engine is the joint vector-treatment fit.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/categorical_treatment.rs",
+  "crates/antecedent-io/tests/categorical_treatment_artifact.rs",
+  "python/tests/test_categorical_treatment.py",
+]

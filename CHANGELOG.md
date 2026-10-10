@@ -1,5 +1,28 @@
 # Changelog
 
+## 2.3.0
+
+Changes since 2.2.0. The [release notes](docs/release-notes/v2.3.0.md) describe the new workflows, validated method scopes and refusals.
+
+### Added
+
+- Named causal quantities and aligned joint distributions carry units, support, provenance and declared uncertainty into compatible decisions and inverse queries.
+- Typed decision contracts and study-ranking objectives support checked native and external handoffs, prior-to-signal adaptation, utility and cost declarations, and independently replayed artifacts.
+- Selective recalculation retains adjusted models, doubly robust scores and predictors, finite response/transport factors, Bayesian posterior rows, temporal mechanisms and design-specific fits. Receipts report actual work, compatible reuse and refusals; failed updates preserve the last successful scientific state.
+- Measured scalar uncertainty is available for joint Bayesian transport, learned joint transport, nested-Markov Bayesian and Fisher effects, dependent temporal intervals and sampled observation recovery, each at its separately validated scope. Nested-Markov fitting requires a checked causal-identification graph.
+- Bounded external mean callbacks declare provider, environment, seed and execution policy; idempotency keys bind the complete request. Combined native/two-provider decisions share an execution receipt and preserve the external evidence's declared trust.
+- Effect-constancy results support transport review, advisory prior-source ranking and per-partition affine policy comparisons. Rollout and proposal artifacts retain source laws, priors, terminal contracts and delivered evidence.
+- Native execution observations expose attempted, completed and failed component work without changing the original result or error.
+
+### Changed
+
+- Python adds `decision.Contract.evaluate` and expands `design.rank_designs` with typed objectives and one result vocabulary. Existing design helpers remain available; specialized workflows live on their stage modules and the root namespace retains the ordinary analysis verbs.
+- Portable decision, ranking and composition artifacts preserve source identities, semantic coordinates and diagnostic scopes. Independent consumers verify the original source; caller metadata cannot issue native authority.
+
+### Scope
+
+The new interval licenses apply only to named scalars under the measured protocol; diagnostic standard errors and posterior summaries retain their stated meaning. The callback executor supports attested finite means. Broader discovery, adaptive-policy, arbitrary callback and cross-world recalculation are outside this release. See the [release notes](docs/release-notes/v2.3.0.md) for supported inputs and refusals.
+
 ## 2.2.0
 
 Changes since 2.1.1. The [release notes](docs/release-notes/v2.2.0.md) explain the user workflows, claim scopes, and refusals; this section records the software delta.

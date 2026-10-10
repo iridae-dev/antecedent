@@ -1766,7 +1766,9 @@ impl super::Study {
                 },
                 diagnostics: Vec::new(),
                 warnings: Vec::new(),
-                point_status: None,
+                // One scalar answers the whole joint arm: one coordinate, one label (the
+                // summary itself).
+                point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
             },
             assumptions: identification.required_assumptions.clone(),
             provenance_id: Arc::from("estimate.cell.aipw"),
@@ -3081,6 +3083,7 @@ pub(super) fn estimate_general_id_response(
                                  interval from the front-door plug-in bootstrap SE \
                                  [requested replicates, successful replicates]",
                             ),
+                            scope: antecedent_core::DiagnosticScope::Global,
                         });
                     }
                 }

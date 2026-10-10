@@ -7,14 +7,16 @@ structural identification are the same status.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from math import isfinite, isnan
-from typing import Any, ClassVar, Literal, Self, get_args
+from typing import Annotated, Any, ClassVar, Literal, Self, get_args
 
-from pydantic import Field, PrivateAttr, model_validator
+from pydantic import BeforeValidator, Field, PrivateAttr, model_validator
 
 from .._verdict import describe_status
 from ..errors import CausalValueError
+from ..joint_distribution import ScientificQuantity
 from ._execution import ResultAPI
 from ._format import fmt_float, fmt_pct
 from ._report import ResultModel
@@ -32,6 +34,17 @@ UncertaintyKind = Literal["none", "pointwise", "simultaneous", "identified_set",
 #: ``"credible"``. A credible interval's ``standard_error`` is a posterior standard
 #: deviation, and neither reading transfers to the other.
 IntervalInterpretation = Literal["confidence", "credible"]
+
+
+def _support_status(value: Any) -> Any:
+    # Validate before Literal's schema so malformed native and user inputs keep
+    # the same public causal exception as the other semantic result checks.
+    if not isinstance(value, str) or value not in get_args(SupportStatus):
+        raise CausalValueError(f"unknown support status {value!r}")
+    return value
+
+
+_SupportStatus = Annotated[SupportStatus, BeforeValidator(_support_status)]
 
 
 class ResponseView(ResultModel):
@@ -203,11 +216,17 @@ class SupportDiagnostic(ResultModel):
     id: str
     values: Sequence[float]
     detail: str
+    # ``per_coordinate``: values[i] describes requested coordinate i. ``global``:
+    # the values describe the whole fit or query and must not be read as local
+    # support. ``inapplicable``: no meaningful value for this route's grid.
+    scope: str = "global"
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
         if not self.id.strip():
             raise CausalValueError("diagnostic name must be a non-empty string")
+        if self.scope not in {"per_coordinate", "global", "inapplicable"}:
+            raise CausalValueError(f"unknown diagnostic scope {self.scope!r}")
         if not all(isfinite(value) for value in self.values):
             raise CausalValueError("diagnostic values must be finite")
         return self
@@ -224,21 +243,14 @@ class SupportReport(ResultModel):
     labels share the mean-surface layout (dose-major).
     """
 
-    status: str
+    status: _SupportStatus
     query_region: Mapping[str, tuple[float, float]]
     diagnostics: Sequence[SupportDiagnostic] = ()
     warnings: Sequence[str] = ()
-    point_status: Sequence[str] | None = None
+    point_status: Sequence[_SupportStatus] | None = None
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        allowed = set(get_args(SupportStatus))
-        if self.status not in allowed:
-            raise CausalValueError(f"unknown support status {self.status!r}")
-        if self.point_status is not None:
-            for status in self.point_status:
-                if status not in allowed:
-                    raise CausalValueError(f"unknown support status {status!r}")
         for variable, bounds in self.query_region.items():
             if (
                 not variable.strip()
@@ -375,7 +387,12 @@ class SimultaneousBand(ResultModel):
 
     @classmethod
     def from_support(cls, support: SupportReport) -> SimultaneousBand | None:
-        """Rebuild the band from its support diagnostics, or ``None`` if none was published."""
+        """Rebuild the band from its support diagnostics, or ``None`` if none was published.
+
+        Raises:
+            CausalValueError: the published diagnostics do not describe an ordered,
+                aligned band (level outside (0, 1), unordered or misaligned rows).
+        """
         by_id = {diagnostic.id: diagnostic for diagnostic in support.diagnostics}
         lower = by_id.get(SIMULTANEOUS_BAND_LOWER)
         upper = by_id.get(SIMULTANEOUS_BAND_UPPER)
@@ -431,8 +448,54 @@ class CausalResponseView(ResultModel, ResultAPI):
     data_snapshot_id: str | None = None
     #: T5–T9 transport lineage when the estimand was ``transport.Transport``.
     transport: Any = None
+    #: Optional scientific coordinate of each response value, in value order.
+    #: Identify a value by its descriptor, never by grid position or label.
+    #: See ``antecedent.results.coordinates.response_coordinates``.
+    quantities: tuple[ScientificQuantity, ...] | None = None
+    #: Declared scientific binding retained by analyze(outcome_units=..., dose_units=...).
+    #: This is metadata checked against original native execution, never execution authority.
+    program_binding: Any = Field(default=None, exclude=True)
     _prepared: Any = PrivateAttr(default=None)
     _execution: Any = PrivateAttr(default=None)
+    #: The native response payload this view was projected from, when there is one.
+    _raw: Any = PrivateAttr(default=None)
+
+    @property
+    def program_identification(self) -> Any:
+        """Actual native identification for matching external scientific contracts."""
+        from ..program_claims import _identification_from_response
+
+        return _identification_from_response(self)
+
+    def response_coordinates(
+        self, *, outcome_units: str, population: str = "target", transform: str = "identity"
+    ) -> tuple[ScientificQuantity, ...]:
+        """Scientific coordinate of every response value, derived natively by Rust.
+
+        Each value is identified by its descriptor, never by grid position. The
+        outcome, intervention regime, horizon and functional come from the native
+        response itself; ``outcome_units`` is required because the response cannot
+        know it, and units are never inferred or converted. A response that cannot
+        be given one coordinate per value (a derivative, a Jacobian, a stochastic or
+        sequenced intervention) refuses with a typed ``coordinate_support.*``
+        :class:`~antecedent.external.ExternalRefusal` instead of being scalarized.
+
+        Raises:
+            CausalValueError: the view carries no native response payload.
+            ExternalRefusal: the response cannot be given one coordinate per value
+                (``coordinate_support.*``).
+        """
+        native = getattr(self._raw, "response_coordinates", None)
+        if native is None:
+            raise CausalValueError(
+                "this response view carries no native response payload to derive coordinates from"
+            )
+        quantities, refusal = native(outcome_units, population, transform)
+        if refusal is not None:
+            from ..external import ExternalRefusal
+
+            raise ExternalRefusal(json.loads(refusal))
+        return tuple(ScientificQuantity._from_wire(wire) for wire in json.loads(quantities))
 
     @property
     def simultaneous_band(self) -> SimultaneousBand | None:
@@ -482,6 +545,7 @@ class CausalResponseView(ResultModel, ResultAPI):
         )
 
     def rendering_limitation(self) -> str | None:
+        """Why this view must not be rendered as a plain point answer, or ``None``."""
         if self.reasoning is not None:
             limit = self.reasoning.rendering_limitation()
             if limit is not None:

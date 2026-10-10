@@ -2203,6 +2203,18 @@ pub(crate) fn ate_result_from_analysis(
     result: antecedent::StudyResult,
     include_posterior_artifact: bool,
 ) -> PyResult<AteAnalysisResult> {
+    let effect_authority =
+        result.identification.average_effect().zip(result.estimate.as_effect()).map(
+            |(query, effect)| crate::scalar_decision_api::NativeEffectAuthority {
+                names: names.to_vec(),
+                query: query.clone(),
+                status: result.identification.status,
+                ate: effect.ate,
+                has_structural_response: result.structural_response.is_some(),
+                support_status: result.support_status,
+                executed_contract: result.executed_contract,
+            },
+        );
     let effect = result.estimate.as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(&result, names)?;
     let estimator_id = result.logical_plan.estimator.as_deref().unwrap_or("").to_string();
@@ -2490,6 +2502,7 @@ pub(crate) fn ate_result_from_analysis(
         evidence_status,
         allowlist_reason,
         allowlist_parent,
+        effect_authority,
     })
 }
 

@@ -37,7 +37,7 @@ use crate::transport_common::{error, serialization_error};
 use crate::{CausalIdentifyError, columns_to_batch, detach_catch, py_err};
 
 #[pyclass(skip_from_py_object)]
-struct TransportIdentificationResult {
+pub(crate) struct TransportIdentificationResult {
     #[pyo3(get)]
     transportable: bool,
     #[pyo3(get)]
@@ -85,6 +85,7 @@ struct TransportIdentificationResult {
     // than a value a caller could set from Python (this pyclass has no `#[new]` and no
     // setters, so a Python caller cannot forge or mutate one either).
     identification: TransportIdentification,
+    original_populations: (String, String),
 }
 
 #[pyclass(skip_from_py_object)]
@@ -336,6 +337,14 @@ fn verify_program_matches_identification(
         ));
     }
     Ok(())
+}
+
+impl TransportIdentificationResult {
+    pub(crate) fn original_joint_inputs(
+        &self,
+    ) -> (&TransportIdentification, &Admg, &(String, String)) {
+        (&self.identification, &self.graph, &self.original_populations)
+    }
 }
 
 #[pymethods]
@@ -735,7 +744,12 @@ fn identify_transport(
     let result = TransportIdentifier::new()
         .identify(&diagram, &query)
         .map_err(|error| CausalIdentifyError::new_err(error.to_string()))?;
-    transport_result(result, &graph, original_catalog)
+    transport_result(
+        result,
+        &graph,
+        original_catalog,
+        (query.source_population.to_string(), query.target_population.to_string()),
+    )
 }
 
 pub(crate) fn parse_catalog(
@@ -967,6 +981,7 @@ fn transport_result(
     result: TransportIdentification,
     graph: &Admg,
     original_catalog: Option<antecedent_core::EvidenceCatalog>,
+    original_populations: (String, String),
 ) -> PyResult<TransportIdentificationResult> {
     let names = &graph.names;
     let mut out = TransportIdentificationResult {
@@ -994,6 +1009,7 @@ fn transport_result(
         original_catalog,
         identification_arena: None,
         identification: result.clone(),
+        original_populations,
     };
     match result {
         TransportIdentification::NotCertified(certificate) => {

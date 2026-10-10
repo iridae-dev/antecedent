@@ -9,8 +9,8 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    Diagnostic, DiagnosticKind, DiagnosticSeverity, SupportDiagnostic, SupportRegion,
-    SupportReport, SupportStatus,
+    Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_stats::{
     LocalQuadraticWorkspace, QuantileRule, gaussian_local_quadratic_influence_prechecked,
@@ -73,6 +73,7 @@ pub(super) fn push_outcome_tail_diagnostic(support: &mut SupportReport, outcome:
         detail: Arc::from(
             "max |Y - median| / (1.4826 MAD) of the retained outcome, then the warning bound",
         ),
+        scope: DiagnosticScope::Global,
     });
     if ratio > OUTCOME_TAIL_RATIO_BOUND {
         support.warnings.push(Diagnostic::new(
@@ -120,6 +121,7 @@ pub(super) fn push_pseudo_outcome_winsor_shift(
         detail: Arc::from(
             "absolute shift of the fitted level after 1%/99% pseudo-outcome winsorization; one value per grid point",
         ),
+        scope: DiagnosticScope::PerCoordinate,
     });
     let fitted_range = mean.iter().copied().fold(f64::NEG_INFINITY, f64::max)
         - mean.iter().copied().fold(f64::INFINITY, f64::min);
@@ -180,6 +182,23 @@ pub(super) fn support_report(
             "at least one row hit the conditional treatment-density floor; the doubly robust weight for those rows is bounded by the floor, not estimated from data",
         ));
     }
+    // One label per requested coordinate; `status` above is their worst value.
+    let point_status = (points.len() == ess.len() && !points.is_empty()).then(|| {
+        let labels: Vec<SupportStatus> = points
+            .iter()
+            .zip(ess)
+            .map(|(point, local_ess)| {
+                if *point < minimum || *point > maximum {
+                    SupportStatus::OutsideEmpiricalSupport
+                } else if *local_ess < minimum_ess || clamped {
+                    SupportStatus::WeakOverlap
+                } else {
+                    SupportStatus::Supported
+                }
+            })
+            .collect();
+        Arc::from(labels)
+    });
     SupportReport {
         status,
         query_region: SupportRegion {
@@ -191,11 +210,13 @@ pub(super) fn support_report(
                 id: Arc::from("response.local_ess"),
                 values: Arc::from(ess.to_vec()),
                 detail: Arc::from("Kish effective sample size of Gaussian local weights"),
+                scope: DiagnosticScope::PerCoordinate,
             },
             SupportDiagnostic {
                 id: Arc::from("response.local_density"),
                 values: Arc::from(density),
                 detail: Arc::from("Gaussian-kernel marginal treatment-density estimate"),
+                scope: DiagnosticScope::PerCoordinate,
             },
             SupportDiagnostic {
                 id: Arc::from("response.conditional_density_floor_rows"),
@@ -203,10 +224,11 @@ pub(super) fn support_report(
                 detail: Arc::from(
                     "rows whose fitted conditional treatment density hit the positivity floor",
                 ),
+                scope: DiagnosticScope::Global,
             },
         ],
         warnings,
-        point_status: None,
+        point_status,
     }
 }
 
@@ -214,6 +236,7 @@ pub(super) fn multivariate_support(
     at: &[f64],
     treatment_matrix: &[f64],
     dimensions: usize,
+    value_len: usize,
 ) -> SupportReport {
     let n = treatment_matrix.len() / dimensions;
     let mut minima = Vec::with_capacity(dimensions);
@@ -225,12 +248,10 @@ pub(super) fn multivariate_support(
         maxima.push(hi);
         outside |= point < lo || point > hi;
     }
+    let status =
+        if outside { SupportStatus::OutsideEmpiricalSupport } else { SupportStatus::Extrapolative };
     SupportReport {
-        status: if outside {
-            SupportStatus::OutsideEmpiricalSupport
-        } else {
-            SupportStatus::Extrapolative
-        },
+        status,
         query_region: SupportRegion {
             minima: Arc::from(at.to_vec()),
             maxima: Arc::from(at.to_vec()),
@@ -241,8 +262,12 @@ pub(super) fn multivariate_support(
             detail: Arc::from(
                 "per-treatment minima followed by maxima; joint support is not established",
             ),
+            scope: DiagnosticScope::Global,
         }],
-        point_status: None,
+        // One joint query point answers the whole vector-valued derivative, so
+        // every component of the value shares that point's label; the summary
+        // `status` is therefore their worst value by construction.
+        point_status: (value_len > 0).then(|| Arc::from(vec![status; value_len])),
         warnings: {
             let mut warnings = vec![Diagnostic::new(
                 "response.plugin_jacobian_model_dependent",
@@ -264,5 +289,145 @@ pub(super) fn multivariate_support(
             }
             warnings
         },
+    }
+}
+
+#[cfg(test)]
+mod point_status_tests {
+    use super::*;
+
+    #[test]
+    fn joint_derivative_labels_every_value_component_with_the_joint_status() {
+        // Two treatments, four rows each (column-major).
+        let matrix = [0.0, 1.0, 2.0, 3.0, 0.0, 1.0, 2.0, 3.0];
+        let inside = multivariate_support(&[1.0, 1.0], &matrix, 2, 4);
+        assert_eq!(inside.point_status.as_deref().map(<[_]>::len), Some(4));
+        assert!(inside.point_status.as_deref().unwrap().iter().all(|s| *s == inside.status));
+        let outside = multivariate_support(&[1.0, 9.0], &matrix, 2, 1);
+        assert_eq!(outside.status, SupportStatus::OutsideEmpiricalSupport);
+        assert_eq!(
+            outside.point_status.as_deref(),
+            Some(&[SupportStatus::OutsideEmpiricalSupport][..])
+        );
+        assert!(multivariate_support(&[1.0, 1.0], &matrix, 2, 0).point_status.is_none());
+    }
+
+    #[test]
+    fn static_curve_labels_each_coordinate_and_summarizes_to_the_worst() {
+        let observed = [0.0, 1.0, 2.0, 3.0];
+        let report =
+            support_report(&[1.0, 2.0, 9.0], &observed, &[50.0, 2.0, 50.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            report.point_status.as_deref(),
+            Some(
+                &[
+                    SupportStatus::Supported,
+                    SupportStatus::WeakOverlap,
+                    SupportStatus::OutsideEmpiricalSupport
+                ][..]
+            )
+        );
+        let worst = report.point_status.as_ref().unwrap().iter().max_by_key(|s| s.severity());
+        assert_eq!(worst.copied(), Some(report.status));
+        // Only per-coordinate diagnostics align with the grid; a row count of
+        // floored densities is global and must not read as local support.
+        for diagnostic in &report.diagnostics {
+            match diagnostic.scope {
+                DiagnosticScope::PerCoordinate => {
+                    assert_eq!(diagnostic.values.len(), 3, "{}", diagnostic.id);
+                }
+                DiagnosticScope::Global => {
+                    assert_eq!(&*diagnostic.id, "response.conditional_density_floor_rows");
+                }
+                DiagnosticScope::Inapplicable => panic!("{}", diagnostic.id),
+            }
+        }
+        let floored = support_report(&[1.0], &observed, &[50.0], vec![0.1], 10.0, 3);
+        assert_eq!(floored.point_status.as_deref(), Some(&[SupportStatus::WeakOverlap][..]));
+        assert_eq!(floored.status, SupportStatus::WeakOverlap);
+    }
+
+    fn local_ess_values(report: &SupportReport) -> (Vec<f64>, DiagnosticScope) {
+        let diagnostic = report
+            .diagnostics
+            .iter()
+            .find(|d| &*d.id == "response.local_ess")
+            .expect("local ESS diagnostic");
+        (diagnostic.values.to_vec(), diagnostic.scope)
+    }
+
+    #[test]
+    fn three_doses_exclude_only_the_middle_and_keep_local_ess_aligned() {
+        let observed = [0.0, 1.0, 2.0, 3.0];
+        let doses = [0.5, 1.5, 2.5];
+        let report = support_report(&doses, &observed, &[40.0, 0.0, 35.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            report.point_status.as_deref(),
+            Some(
+                &[SupportStatus::Supported, SupportStatus::WeakOverlap, SupportStatus::Supported][..]
+            )
+        );
+        assert_eq!(report.status, SupportStatus::WeakOverlap);
+        let (ess, scope) = local_ess_values(&report);
+        assert_eq!(scope, DiagnosticScope::PerCoordinate);
+        assert_eq!(ess.len(), 3);
+        for (got, want) in ess.iter().zip([40.0, 0.0, 35.0]) {
+            assert!((got - want).abs() < 1e-12, "{got} vs {want}");
+        }
+
+        // Relabeling: reversing the dose order reverses labels and ESS together.
+        let reversed = [2.5, 1.5, 0.5];
+        let flipped =
+            support_report(&reversed, &observed, &[35.0, 0.0, 40.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            flipped.point_status.as_deref(),
+            Some(
+                &[SupportStatus::Supported, SupportStatus::WeakOverlap, SupportStatus::Supported][..]
+            )
+        );
+        let (flipped_ess, _) = local_ess_values(&flipped);
+        for (got, want) in flipped_ess.iter().zip([35.0, 0.0, 40.0]) {
+            assert!((got - want).abs() < 1e-12, "{got} vs {want}");
+        }
+
+        // Moving the weak dose to the front moves its label with it.
+        let front =
+            support_report(&[1.5, 0.5, 2.5], &observed, &[0.0, 40.0, 35.0], vec![0.1; 3], 10.0, 0);
+        assert_eq!(
+            front.point_status.as_deref(),
+            Some(
+                &[SupportStatus::WeakOverlap, SupportStatus::Supported, SupportStatus::Supported][..]
+            )
+        );
+    }
+
+    #[test]
+    fn zero_overlap_is_a_support_label_and_never_missing_evidence() {
+        let observed = [0.0, 1.0, 2.0, 3.0];
+        // Zero local ESS and an out-of-range dose are both supplied-evidence
+        // failures; neither may be relabeled as a missing evidence factor.
+        let report =
+            support_report(&[0.5, 1.5, 9.0], &observed, &[40.0, 0.0, 35.0], vec![0.1; 3], 10.0, 0);
+        let labels = report.point_status.as_deref().expect("point status");
+        assert!(labels.iter().all(|s| *s != SupportStatus::MissingEvidence));
+        assert_eq!(labels[1], SupportStatus::WeakOverlap);
+        assert_eq!(labels[2], SupportStatus::OutsideEmpiricalSupport);
+        assert_ne!(report.status, SupportStatus::MissingEvidence);
+
+        // Missing evidence is a distinct label, spelling and severity: the weakest summary.
+        let missing = SupportStatus::MissingEvidence;
+        assert_eq!(missing.as_str(), "missing_evidence");
+        assert_eq!(missing.severity(), 4);
+        for other in [
+            SupportStatus::Supported,
+            SupportStatus::WeakOverlap,
+            SupportStatus::Extrapolative,
+            SupportStatus::OutsideEmpiricalSupport,
+        ] {
+            assert_ne!(missing, other);
+            assert!(missing.severity() > other.severity());
+        }
+        assert_eq!(SupportStatus::OutsideEmpiricalSupport.severity(), 3);
+        assert_eq!(SupportStatus::WeakOverlap.severity(), 1);
     }
 }

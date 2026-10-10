@@ -5,8 +5,8 @@ use std::sync::Arc;
 use antecedent::support::{StructureSource, refuse_if_not_applicable, support_cell};
 use antecedent::{AcceptedGraph, GraphClass, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, GridSpec,
-    IdentificationStatus, IntervalInterpretation, Intervention, InterventionSequence,
+    AverageEffectQuery, CausalQuery, DerivativeScale, DerivativeWeighting, DiagnosticScope,
+    GridSpec, IdentificationStatus, IntervalInterpretation, Intervention, InterventionSequence,
     MechanismOverride, ResponseFunctional, ResponseIdentification, ResponseQuery,
     ResponseUncertainty, ResponseValue, SequencedIntervention, StochasticPolicy, SupportStatus,
     TemporalPolicy, TemporalResponseSpec, Value, VariableId,
@@ -24,6 +24,7 @@ use crate::{
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ResponseAnalysisResult {
+    pub(crate) authority: Option<Arc<NativeResponseAuthority>>,
     #[pyo3(get)]
     certificate_json: Option<String>,
     #[pyo3(get)]
@@ -70,6 +71,8 @@ pub(crate) struct ResponseAnalysisResult {
     diagnostic_values: Vec<Vec<f64>>,
     #[pyo3(get)]
     diagnostic_details: Vec<String>,
+    #[pyo3(get)]
+    diagnostic_scopes: Vec<String>,
     #[pyo3(get)]
     warnings: Vec<String>,
     #[pyo3(get)]
@@ -127,6 +130,141 @@ pub(crate) struct ResponseAnalysisResult {
     /// Logical-plan identifier when the result came through Study prepare/estimate.
     #[pyo3(get)]
     identifier: Option<String>,
+    /// What the native response fixes about each value coordinate (regime, horizon,
+    /// functional), or the typed refusal that says why it has none. Units, population
+    /// and scale are declared by the caller of [`Self::response_coordinates`].
+    coordinates: CoordinateSkeleton,
+}
+
+pub(crate) struct NativeResponseAuthority {
+    pub(crate) response: antecedent_core::CausalResponse,
+    pub(crate) prepared: Arc<antecedent::PreparedStudy>,
+    pub(crate) schema: antecedent_core::CausalSchema,
+    pub(crate) result: Arc<antecedent::StudyResult>,
+    pub(crate) context: antecedent_core::ExecutionContext,
+}
+
+impl ResponseAnalysisResult {
+    pub(crate) fn claim_projection(&self) -> serde_json::Value {
+        serde_json::json!({
+            "treatment": self.treatments.first(), "outcome": self.outcomes.first(),
+            "grid": self.points.iter().filter_map(|p| p.first()).collect::<Vec<_>>(),
+            "means": self.values.iter().filter_map(|v| v.first()).collect::<Vec<_>>(),
+            "identification": self.authority.as_ref().map(|a| a.response.identification_status.as_str()),
+            "has_envelope": self.identified_mass.is_some(), "support_status": self.support_status,
+            "point_status": if self.support_point_status.is_empty() {None} else {Some(&self.support_point_status)},
+            "provenance_id": self.provenance_id,
+            "data_snapshot_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).map(|c| c.identities.data_snapshot.to_hex()),
+            "program_id": self.authority.as_ref().and_then(|a| a.result.executed_contract.as_ref()).and_then(|c| c.identities.program).map(|id| id.to_hex()),
+            "uncertainty": {"kind": self.uncertainty_kind, "lower": self.lower, "upper": self.upper,
+                "level": self.level, "standard_error": self.standard_error, "replicates": self.replicates,
+                "artifact_id": self.artifact_id, "interpretation": self.interval_interpretation},
+        })
+    }
+
+    pub(crate) fn with_authority(
+        mut self,
+        prepared: &antecedent::PreparedStudy,
+        schema: &antecedent_core::CausalSchema,
+        result: &antecedent::StudyResult,
+        context: &antecedent_core::ExecutionContext,
+    ) -> Self {
+        if let (Some(response), Some(_)) = (&result.response, &result.executed_contract) {
+            self.authority = Some(Arc::new(NativeResponseAuthority {
+                response: response.clone(),
+                prepared: Arc::new(prepared.clone()),
+                schema: schema.clone(),
+                result: Arc::new(result.clone()),
+                context: context.clone(),
+            }));
+        }
+        self
+    }
+}
+
+type CoordinateSkeleton =
+    Result<Vec<antecedent_core::ResponseCoordinateSkeleton>, antecedent_core::ExternalRefusal>;
+
+#[pymethods]
+impl ResponseAnalysisResult {
+    fn program_basis_json(&self) -> PyResult<Option<String>> {
+        let Some(authority) = &self.authority else {
+            return Ok(None);
+        };
+        let Some(contract) = &authority.result.executed_contract else {
+            return Ok(None);
+        };
+        let antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } =
+            &authority.response.estimand
+        else {
+            return Ok(None);
+        };
+        let grid =
+            treatment.grid.values().map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let named =
+            |id| authority.schema.get(id).map(|v| v.name.to_string()).map_err(crate::py_err);
+        Ok(Some(
+            serde_json::json!({
+                "graph_id": format!("graph:{}", contract.identities.identification),
+                "status": authority.response.identification_status.as_str(),
+                "treatment": named(treatment.variable)?, "outcome": named(*outcome)?, "grid": grid,
+                "snapshot_id": contract.identities.data_snapshot.to_hex(),
+                "program_id": contract.identities.program.map(|id| id.to_hex()),
+                "rng_id": format!("native:seed:{}", authority.context.rng.master_seed()),
+                "statement": "checked native response identification",
+            })
+            .to_string(),
+        ))
+    }
+
+    /// The scientific coordinates of the response values, derived natively.
+    ///
+    /// Returns `(quantities_json, refusal_json)`: exactly one is `None`. The
+    /// quantities are the `ScientificQuantityWire` objects, one per value in value
+    /// order. Units are never inferred: blank units, population or scale refuse.
+    #[pyo3(signature = (outcome_units, population="target", transform="identity"))]
+    fn response_coordinates(
+        &self,
+        outcome_units: &str,
+        population: &str,
+        transform: &str,
+    ) -> PyResult<(Option<String>, Option<String>)> {
+        let labels = antecedent_core::ResponseCoordinateLabels {
+            outcome_units,
+            population_id: population,
+            transform_id: transform,
+        };
+        let labelled = self
+            .coordinates
+            .clone()
+            .and_then(|cells| antecedent_core::label_coordinates(&cells, &labels));
+        match labelled {
+            Ok(quantities) => {
+                let wires: Vec<antecedent_io::quantity_wire::ScientificQuantityWire> =
+                    quantities.iter().map(Into::into).collect();
+                let json = serde_json::to_string(&wires)
+                    .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                Ok((Some(json), None))
+            }
+            Err(refusal) => {
+                let json = serde_json::to_string(
+                    &antecedent_io::external_binding_wire::RefusalWire::from(refusal),
+                )
+                .map_err(|error| PyValueError::new_err(error.to_string()))?;
+                Ok((None, Some(json)))
+            }
+        }
+    }
+}
+
+/// Coordinates a native response fixes, named with the caller's variable names.
+// The refusal is the cold path of a once-per-refusal check; boxing would not pay.
+#[allow(clippy::result_large_err)]
+fn coordinate_skeleton(
+    response: &antecedent_core::CausalResponse,
+    names: &[String],
+) -> CoordinateSkeleton {
+    antecedent_core::response_coordinate_skeleton(response, &|id| names.get(id.as_usize()).cloned())
 }
 
 #[pyfunction]
@@ -212,7 +350,7 @@ fn analyze_response(
         let ctx = py_execution_context(seed, crate::resolve_user_threads(None));
         let prepared = study.prepare(&ctx).map_err(py_err)?;
         let result = prepared.estimate(&data, &ctx).map_err(py_err)?;
-        crate::prepared_api::response_from_study(&names, &result)
+        crate::prepared_api::response_from_study(&names, &result, &prepared, &ctx)
     })
 }
 
@@ -275,6 +413,7 @@ fn analyze_response_pag(
         let mut diagnostic_ids = Vec::new();
         let mut diagnostic_values = Vec::new();
         let mut diagnostic_details = Vec::new();
+        let mut diagnostic_scopes = Vec::new();
         let mut warnings = Vec::new();
         for (case_index, case) in envelope.cases.iter().enumerate() {
             if !matches!(
@@ -312,6 +451,16 @@ fn analyze_response_pag(
                 diagnostic_values.push(diagnostic.values.to_vec());
                 diagnostic_details
                     .push(format!("MAG completion {case_index}: {}", diagnostic.detail));
+                // Completion values are per completion, never per requested coordinate.
+                diagnostic_scopes.push(
+                    if diagnostic.scope == DiagnosticScope::Inapplicable {
+                        DiagnosticScope::Inapplicable
+                    } else {
+                        DiagnosticScope::Global
+                    }
+                    .as_str()
+                    .to_owned(),
+                );
             }
             warnings.extend(response.support.warnings.iter().map(|warning| {
                 format!("completion.{case_index}.{}: {}", warning.code, warning.message)
@@ -355,6 +504,7 @@ fn analyze_response_pag(
         let upper_rows = upper.iter().map(|value| vec![*value]).collect();
         let support_status = support_status_name(worst_support).to_owned();
         Ok(ResponseAnalysisResult {
+            authority: None,
             certificate_json: None,
             treatments: vec![treatment],
             outcomes: vec![outcome],
@@ -377,6 +527,7 @@ fn analyze_response_pag(
             diagnostic_ids,
             diagnostic_values,
             diagnostic_details,
+            diagnostic_scopes,
             warnings,
             identification: format!("{:?}", envelope.status),
             adjustment_set: Vec::new(),
@@ -409,6 +560,7 @@ fn analyze_response_pag(
             allowlist_parent: None,
             diagnostics: Vec::new(),
             identifier: Some("generalized.adjustment".into()),
+            coordinates: coordinate_skeleton(&first, &names),
         })
     })
 }
@@ -669,6 +821,7 @@ pub(crate) fn response_result(
     evidence: Option<antecedent::CellStatus>,
 ) -> PyResult<ResponseAnalysisResult> {
     let horizon_adjustment_sets = named_horizon_adjustments(&response, names);
+    let coordinates = coordinate_skeleton(&response, names);
     if let Some(first) = first_horizon_template_names(&response, names) {
         adjustment_set = first;
     }
@@ -739,6 +892,7 @@ pub(crate) fn response_result(
         }
     }
     Ok(ResponseAnalysisResult {
+        authority: None,
         certificate_json: None,
         treatments: unique_treatments,
         outcomes,
@@ -780,6 +934,12 @@ pub(crate) fn response_result(
             .diagnostics
             .iter()
             .map(|diagnostic| diagnostic.detail.to_string())
+            .collect(),
+        diagnostic_scopes: response
+            .support
+            .diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.scope.as_str().to_owned())
             .collect(),
         warnings: response
             .support
@@ -830,6 +990,7 @@ pub(crate) fn response_result(
         allowlist_parent,
         diagnostics: Vec::new(),
         identifier: None,
+        coordinates,
     })
 }
 

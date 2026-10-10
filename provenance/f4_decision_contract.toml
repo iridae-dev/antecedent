@@ -1,0 +1,23 @@
+feature_id = "f4_decision_contract"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A durable decision declaration evaluated by finite expected utility over aligned
+# joint rows; the standard expected-utility definition, with no paper algorithm.
+papers = []
+implementation_deviations = [
+ "The Python Contract.evaluate / ScientificQuantity.from_effect bridge reads only an unchanged original retained native static mean ATE as one mean_difference contrast coordinate. Affine expectation can consume that point; it supplies neither absolute outcome means nor a joint law or a utility confidence interval. Original execution, support, diagnostics and original effect uncertainty remain separately inspectable, subject to actual native source/support checks.",
+ "Response results may retain explicitly declared program units/population or use the contract's unambiguous declarations. Undeclared dose units mean native_numeric_scale, with no physical-unit inference or conversion.",
+
+  "Expected utility is the weighted mean of a declared utility expression over aligned joint rows of the supplied distribution; a hard constraint excludes an action from the admissible set and never adds a penalty, and an empty admissible set is reported explicitly.",
+  "The contract grants no causal identification, interval or calibration claim; supplied distribution sources remain unverified inputs. Decision functionals and structural policies are separately scoped records.",
+]
+upstream_implementations_observed = []
+test_sources = [
+ "python/tests/test_decision_flow_bridge.py (test_scalar_effect_evaluates_only_its_original_contrast_coordinate, test_scalar_effect_rejects_changed_value_and_joint_law_criteria, test_analyze_retains_declared_program_for_decision, test_result_evaluate_uses_contract_declared_units_and_original_numeric_scale)",
+
+  "crates/antecedent-design/tests/decision_acceptance.rs",
+]

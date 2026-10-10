@@ -369,46 +369,52 @@ pub(crate) fn aipw_score_table(
     learners: [LearnerSpec; 2],
     route: &str,
 ) -> Result<ScoreTable, EstimationError> {
-    let (mu0, mu1, raw_e, treat) = nuisance;
-    let n = problem.nrows;
-    let clip = clip_of(problem.overlap);
-    let mut ehat = raw_e.clone();
-    clip_propensity(&mut ehat, clip);
-    let mut scores = vec![0.0; 2 * n];
-    let mut propensities = vec![0.0; 2 * n];
-    for i in 0..n {
-        let (t, y, e) = (problem.treatment[i], problem.outcome[i], ehat[i]);
-        scores[i] = mu0[i] + ((1.0 - t) / (1.0 - e)) * (y - mu0[i]);
-        scores[n + i] = mu1[i] + (t / e) * (y - mu1[i]);
-        propensities[i] = 1.0 - raw_e[i];
-        propensities[n + i] = raw_e[i];
-    }
-    if scores.iter().any(|v| !v.is_finite()) {
-        return Err(EstimationError::data_msg("AIPW score table requires finite scores"));
-    }
-    Ok(ScoreTable {
-        observed_arm: problem.treatment.iter().map(|t| u32::from(*t > 0.5)).collect(),
-        propensities: propensities.into(),
-        observed_outcome: Arc::clone(&problem.outcome),
-        n_rows: n,
-        row_index: Arc::clone(&problem.row_index),
-        fold_ids: treat.fold_assignment.iter().map(|&f| u32::from(f)).collect(),
-        n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
-        scores: scores.into(),
-        columns: Arc::from([
-            ScoreColumn { arm: 0, threshold: None },
-            ScoreColumn { arm: 1, threshold: None },
-        ]),
-        adjustment_set: Arc::clone(&problem.adjustment_set),
-        nuisance_provenance: Arc::from(format!(
-            "{DML_CROSSFIT_PROVENANCE};route={route};outcome={};treatment={}",
-            learners[0].identity(),
-            learners[1].identity()
-        )),
-        propensity_clip: clip,
-        treatment: problem.treatment_id,
-        intervened: Arc::from([]),
-    })
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::ScoreConstruction,
+        || {
+            let (mu0, mu1, raw_e, treat) = nuisance;
+            let n = problem.nrows;
+            let clip = clip_of(problem.overlap);
+            let mut ehat = raw_e.clone();
+            clip_propensity(&mut ehat, clip);
+            let mut scores = vec![0.0; 2 * n];
+            let mut propensities = vec![0.0; 2 * n];
+            for i in 0..n {
+                let (t, y, e) = (problem.treatment[i], problem.outcome[i], ehat[i]);
+                scores[i] = mu0[i] + ((1.0 - t) / (1.0 - e)) * (y - mu0[i]);
+                scores[n + i] = mu1[i] + (t / e) * (y - mu1[i]);
+                propensities[i] = 1.0 - raw_e[i];
+                propensities[n + i] = raw_e[i];
+            }
+            if scores.iter().any(|v| !v.is_finite()) {
+                return Err(EstimationError::data_msg("AIPW score table requires finite scores"));
+            }
+            AIPW_SCORE_BUILDS.with(|count| count.set(count.get().saturating_add(1)));
+            Ok(ScoreTable {
+                observed_arm: problem.treatment.iter().map(|t| u32::from(*t > 0.5)).collect(),
+                propensities: propensities.into(),
+                observed_outcome: Arc::clone(&problem.outcome),
+                n_rows: n,
+                row_index: Arc::clone(&problem.row_index),
+                fold_ids: treat.fold_assignment.iter().map(|&f| u32::from(f)).collect(),
+                n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
+                scores: scores.into(),
+                columns: Arc::from([
+                    ScoreColumn { arm: 0, threshold: None },
+                    ScoreColumn { arm: 1, threshold: None },
+                ]),
+                adjustment_set: Arc::clone(&problem.adjustment_set),
+                nuisance_provenance: Arc::from(format!(
+                    "{DML_CROSSFIT_PROVENANCE};route={route};outcome={};treatment={}",
+                    learners[0].identity(),
+                    learners[1].identity()
+                )),
+                propensity_clip: clip,
+                treatment: problem.treatment_id,
+                intervened: Arc::from([]),
+            })
+        },
+    )
 }
 
 fn require_binary_treatment(problem: &PreparedPropensityProblem) -> Result<(), EstimationError> {
@@ -674,6 +680,51 @@ mod tests {
             jobs.into_iter().map(|job| job.join().unwrap()).collect::<Vec<_>>()
         });
         assert!(bundles.iter().all(|bundle| Arc::ptr_eq(bundle, &bundles[0])));
+        // A caller can alter fold metadata after physical preparation sharing. These
+        // clones deliberately share learner_cache, so its own bundle key must separate
+        // every fold input, not rely on the preparation-cache equality guard.
+        for coordinate in 0..3 {
+            let mut changed = problem.clone();
+            match coordinate {
+                0 => changed.fold_seed = 91,
+                1 => {
+                    changed.fold_units =
+                        Some((0..problem.nrows).map(|i| i as u32).collect::<Vec<_>>().into())
+                }
+                _ => changed.fold_unit_kind = crate::cluster_dml_aipw::IndependenceUnit::Dyad,
+            }
+            let (bundle, fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
+                cached_aipw_nuisances(&changed, estimator.outcome, estimator.treatment, 5, &ctx)
+                    .unwrap()
+            });
+            assert_eq!(
+                fits, 15,
+                "changed fold metadata rebuilds all three nuisances in five folds"
+            );
+            assert!(!Arc::ptr_eq(&bundle, &bundles[0]));
+            let (again, fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
+                cached_aipw_nuisances(&changed, estimator.outcome, estimator.treatment, 5, &ctx)
+                    .unwrap()
+            });
+            assert_eq!(fits, 0);
+            assert!(Arc::ptr_eq(&bundle, &again));
+        }
+        // Hold every entry as concurrent callers would during initialization. An
+        // additional key must fit correctly without expanding retained capacity.
+        let active_entries = problem.learner_cache.lock().unwrap().clone();
+        let busy = Arc::clone(&active_entries[0]);
+        *problem.learner_cache.lock().unwrap() = vec![Arc::clone(&busy); 8];
+        let mut uncached = problem.clone();
+        uncached.fold_seed = 999;
+        for _ in 0..2 {
+            let (_, fits) = antecedent_learn::fit_counts::observe_resolved_fits(|| {
+                cached_aipw_nuisances(&uncached, estimator.outcome, estimator.treatment, 5, &ctx)
+                    .unwrap()
+            });
+            assert_eq!(fits, 15, "full in-flight cache computes extra keys without retaining them");
+            assert_eq!(problem.learner_cache.lock().unwrap().len(), 8);
+        }
+        problem.learner_cache.lock().unwrap().clear();
         let mut reassigned = problem.clone();
         let assignments: Arc<[u32]> =
             (0..problem.nrows).map(|i| ((i / 2) % 5) as u32).collect::<Vec<_>>().into();
@@ -954,4 +1005,12 @@ mod tests {
             );
         }
     }
+}
+
+thread_local! { static AIPW_SCORE_BUILDS:std::cell::Cell<u64>=const {std::cell::Cell::new(0)}; }
+/// Observe actual successful AIPW score table constructions, including nested scopes.
+pub fn count_aipw_score_builds<R>(work: impl FnOnce() -> R) -> (R, u64) {
+    let before = AIPW_SCORE_BUILDS.with(std::cell::Cell::get);
+    let result = work();
+    (result, AIPW_SCORE_BUILDS.with(std::cell::Cell::get).saturating_sub(before))
 }

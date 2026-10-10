@@ -1,0 +1,25 @@
+feature_id = "x8_temporal_fixed_population_counterfactual"
+implementation_crate = "antecedent-counterfactual"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Causality: Models, Reasoning, and Inference", doi = "10.1017/CBO9780511803161", sections = ["Chapter 7 (structural counterfactuals and the abduction-action-prediction procedure)"] },
+]
+
+implementation_deviations = [
+ "Derived from this construction, not the exact procedure analysed in the book: the abduction-action-prediction steps are applied exactly to one fixed, fully observed, Markovian two-slice DAG L0 -> A0 -> L1 -> A1 -> Y with additive-noise linear mechanisms, where the exogenous history of a unit is recovered exactly as a residual (an invertible model). No integration over an exogenous posterior is needed or performed, and no latent confounding, non-additive or non-invertible mechanism is supported.",
+ "The Gaussian family is never used numerically; an optional per-node noise halfwidth declares a bounded noise support so a factual history outside it is a refusing witness (refuting_history), not a probability statement.",
+ "Horizon 2, at most 100000 units and exactly two named action histories (worlds); the estimand is per-unit outcomes and the sample mean contrast. Point-only: no interval and no sampling uncertainty in the supplied mechanism fit.",
+ "The shared-abduction receipt records one draw digest per unit shared by both worlds. Digests are non-cryptographic 128-bit FNV-1a fingerprints and the artifact spec_id is a blake3 hash; neither is a security seal, and a coherently resealed artifact replays unless the consumer retains an independent expected identity.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-counterfactual/tests/temporal_cross_world.rs",
+ "crates/antecedent-io/tests/temporal_counterfactual_artifact.rs",
+ "python/tests/test_temporal_counterfactual.py",
+]

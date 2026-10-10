@@ -26,11 +26,11 @@ use std::sync::Arc;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, CausalRng, CredibleDraws, DerivativeScale,
-    DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticSeverity, IdentificationStatus,
-    Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec, ParametricAssumption,
-    ResponseFunctional, ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue,
-    StreamDomain, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation,
-    VariableId,
+    DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
+    IdentificationStatus, Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec,
+    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, StreamDomain, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus, TargetPopulation, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
@@ -587,9 +587,16 @@ impl ContinuousResponseEstimator {
             self.options.minimum_local_ess,
             0,
         );
+        // A shifted-policy query is assessed over its shifted range, not at the
+        // response grid, so it has no one-label-per-grid-coordinate evidence.
+        let per_grid = support_grid.is_none();
+        if !per_grid {
+            support.point_status = None;
+        }
         if treatments.len() > 1 {
             support.status = SupportStatus::Extrapolative;
-            support.point_status = None;
+            support.point_status =
+                per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
             support.query_region = SupportRegion {
                 minima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).0).collect(),
                 maxima: (0..treatments.len()).map(|i| sample.treatment_column_range(i).1).collect(),
@@ -601,11 +608,18 @@ impl ContinuousResponseEstimator {
         }
         if stochastic {
             support.status = SupportStatus::Extrapolative;
-            support.point_status = None;
+            support.point_status =
+                per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
             support.warnings.push(Diagnostic::new(
                 "response.stochastic_policy_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
                 "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
             ));
+        }
+        if !per_grid && scalar {
+            // A shifted-policy query answers one scalar at the shifted mean and is
+            // assessed over the shifted range; its single label is that range's
+            // (worst-endpoint) summary, never a per-grid-point claim.
+            support.point_status = Some(Arc::from([support.status]));
         }
         assumptions.entries.extend(posterior.assumptions.entries);
         assumptions.push(AssumptionRecord {
@@ -1253,11 +1267,13 @@ impl ContinuousResponseEstimator {
                     sample.keep.iter().map(|&index| index as f64).collect::<Vec<_>>(),
                 ),
                 detail: Arc::from("original dataframe row index of each retained complete row"),
+                scope: DiagnosticScope::Global,
             });
             support.diagnostics.push(SupportDiagnostic {
                 id: Arc::from("response.row_pseudo_outcome"),
                 values: Arc::from(pseudo),
                 detail: Arc::from("cross-fitted Kennedy pseudo-outcome per retained row"),
+                scope: DiagnosticScope::Global,
             });
             support.diagnostics.push(SupportDiagnostic {
                 id: Arc::from("response.row_influence"),
@@ -1266,6 +1282,7 @@ impl ContinuousResponseEstimator {
                     "row-major by grid point, grid_len={}, n={n}: value[g*N + i]",
                     grid.len()
                 )),
+                scope: DiagnosticScope::Global,
             });
         }
         let uncertainty = if let Some(replicates) = self.options.simultaneous_replicates {
@@ -1386,9 +1403,12 @@ impl ContinuousResponseEstimator {
                     detail: Arc::from(
                         "observed minima followed by maxima; policy support is not certified",
                     ),
+                    scope: DiagnosticScope::Global,
                 }],
                 warnings: intervention_plugin_warnings(target_fallback.as_deref()),
-                point_status: None,
+                // One scalar answers the whole (possibly joint) regime, so it has exactly
+                // one coordinate and one label: the summary itself, never a per-treatment claim.
+                point_status: Some(Arc::from([SupportStatus::Extrapolative])),
             },
             scores,
         ))
@@ -1599,6 +1619,7 @@ impl ContinuousResponseEstimator {
                 detail: Arc::from(
                     "Kish effective sample size of the Riesz representer, then complete rows",
                 ),
+                scope: DiagnosticScope::Global,
             }],
             warnings: if weak {
                 vec![Diagnostic::new(
@@ -1649,7 +1670,8 @@ impl ContinuousResponseEstimator {
                 values.push(transform_derivative(raw, at[j], *level, scale)?);
             }
         }
-        let mut support = multivariate_support(at, &run.all_treatments, treatments.len());
+        let mut support =
+            multivariate_support(at, &run.all_treatments, treatments.len(), values.len());
         support.warnings.push(plugin_gradient_interval_withheld());
         Ok((
             ResponseValue::Jacobian {
@@ -1683,7 +1705,8 @@ impl ContinuousResponseEstimator {
             .iter()
             .map(|gradient| gradient.iter().zip(direction).map(|(a, b)| a * b).sum())
             .collect();
-        let mut support = multivariate_support(at, &run.all_treatments, treatments.len());
+        let mut support =
+            multivariate_support(at, &run.all_treatments, treatments.len(), values.len());
         support.warnings.push(plugin_gradient_interval_withheld());
         Ok((ResponseValue::Vector(Arc::from(values)), ResponseUncertainty::None, support))
     }

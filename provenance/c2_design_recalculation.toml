@@ -1,0 +1,11 @@
+feature_id = "c2_design_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+# Original retention and source-backed artifact verification over existing checked IV, sharp RD and linear front-door study engines; no new statistical estimator.
+papers = []
+implementation_deviations = ["Instrument, exclusion, mediator and RD cutoff/window declarations bind checked identification; data refresh refits the existing engines. Compatible utility changes reuse immutable checked estimates.", "Executing successful least-squares counters include the actual IV stages and Anderson-Rubin auxiliary fits; law summaries are distinct from frozen-score reweighting. Failed fits and cancellations preserve prior successful state.", "Weak-IV decision refusal follows the actual Anderson-Rubin confidence-set boundary, with inspectable point and diagnostics. No arbitrary first-stage F threshold or invented Wald standard error.", "Independent supplied-data consumption verifies exact artifact contracts and scientific bodies using fresh checked execution, including the sharp-RD checked operation. Historical dependency-only readers are unchanged; missing raw data cannot invent a verified fit."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/recalc_design.rs", "python/tests/test_recalc_design.py"]

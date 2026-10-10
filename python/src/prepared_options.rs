@@ -50,7 +50,7 @@ pub(crate) struct InferenceSpec {
 }
 
 impl InferenceSpec {
-    fn parse(dict: &Bound<'_, PyDict>) -> PyResult<Self> {
+    pub(crate) fn parse(dict: &Bound<'_, PyDict>) -> PyResult<Self> {
         let item = |key: &str| -> PyResult<Option<Bound<'_, PyAny>>> {
             Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
         };

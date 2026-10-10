@@ -178,8 +178,8 @@ predictions carry no pointwise intervals. Robinson PLR
 requires a constant conditional effect to interpret its slope as the ATE.
 The initial known-truth fixture in `conformance/estimate/learner_ate/fixture.json`
 covers a binary-treatment linear SCM at one sample size; it does not license
-nonlinear-provider or CATE interval calibration. Full 2.0 calibration remains
-unattested pending the separate measurement sweep.
+nonlinear-provider or CATE interval calibration. Read each result's calibration status and matching coverage record;
+coverage for a marginal ATE does not license pointwise CATE intervals.
 
 That is not a 12-estimator EconML clone:
 learners never choose the adjustment set, and the EconML handoff remains
@@ -195,7 +195,7 @@ results refuse rather than pretending they are a set. The adapter does not
 wrap EconML learners or absorb an external CATE.
 
 A worked handoff is in
-[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/econml_cate_handoff.py):
+[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/econml_cate_handoff.py):
 Antecedent identifies and estimates ATE, then the caller optionally fits
 EconML `LinearDML` on `spec.columns(data)` when `econml` is installed.
 

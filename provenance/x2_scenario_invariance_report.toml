@@ -1,0 +1,32 @@
+feature_id = "x2_scenario_invariance_report"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A report over the already verified 2.2 classical catalog derivation, not a new
+# identification algorithm. The selection-diagram vocabulary (selection nodes,
+# S-admissibility, source factors against target factors) is the cited one; the
+# extraction of the invariances from the derivation's own proof steps is original
+# engineering. The sections are those already cited by provenance/identify.transport_sid.toml.
+papers = [
+ { title = "A General Algorithm for Deciding Transportability of Experimental Results", doi = "10.1515/jci-2012-0004", sections = ["Section 3: direct transportability", "Section 5, Figure 5: c-component decomposition and source/target factor selection"] },
+ { title = "External Validity: From Do-Calculus to Transportability Across Populations", doi = "10.1214/14-STS486", sections = ["Section 3, Definition 5: S-admissibility", "Section 3, Theorem 2 and equation (3.5): covariate-specific transportability and standardization"] },
+]
+
+implementation_deviations = [
+ "Derived from this construction, not the exact procedure of either paper: neither paper defines an invariance report. The report reads the distribution leaves under the root expression of the checked ClassicalTransportDerivation, partitions them by population, and attributes each source leaf to the reachable leaf-producing proof step (sid.line10, transport.direct or transport.pretreatment_standardize) whose output contains it. A source leaf that no step produced is refused as scenario_invariance.derivation_inconsistent.",
+ "Nothing is re-decided: S-admissibility was established by the checker (run by two independent implementations) before the report is built, so a factor's mechanisms are reported as assumed shared between source and target, not re-proved. The only graph computation is descriptive (the selection targets inside a factor's bidirected district).",
+ "The report states what an answer rests on and never that the assumptions hold. A scenario that is not identified reports its structural s-hedge or witness variables instead of an invariance list, and a scenario with missing evidence reports its undecided status and obligations.",
+ "Scope is the 2.2 classical catalog scenarios (static fully observed nodes with directed and bidirected edges and selection targets); a non-static node refuses as scenario_invariance.non_static_node, and no completeness claim beyond the 2.2 route is made.",
+ "The report is derived and has no artifact of its own; its inv.v1.<blake3> identity over a canonical text is a recomputation check, not a security seal.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-identify/tests/scenario_invariance.rs",
+ "crates/antecedent-estimate/tests/scenario_invariance_report.rs",
+ "python/tests/test_scenario_invariance.py",
+]

@@ -956,6 +956,7 @@ surface_internal = [
   { name = "recovery_io_error", why = "Pure conversion of a RecoveryError into an io refusal that keeps its reason code; not an executing route. Must stay pub: the antecedent facade maps refusals through it." },
   { name = "consume_typed", why = "The routed RecoveryArtifactWire.consume_with_limits with the typed refusal kind instead of IoError (same checks); the facade mutation tests match the kind. Must stay pub for those integration tests." },
   { name = "identify_observation_recovery_stage", why = "Native pyfunction backing the routed Python identify_observation_recovery (antecedent.transport.advanced), reached only through that wrapper; the Python route owns its evidence." },
+  { name = "consume_sampled_recovery_candidate", why = "Hidden calibration-internal consumer for the separately owned 2.3 whole-row candidate; absent from normal builds and not a retained 2.2 recovery capability." },
   { name = "m_graph_signature", why = "Pure function spelling the m-graph identity a derivation record stores; the facade's PreparedObservationRecovery::from_derivation compares it so a surface holding a decision prepares only on the graph it was decided on (no second decision). Must stay pub for that comparison; not an executing route." },
 ]
 bounds = { max_partially_observed = 3, max_fully_observed = 2, max_observed_cells = 864, max_search_operations = 50000, max_depth = 32, cancellation = true, contract = "antecedent_core::SearchBudget", operation_limit = "SearchLimits.operations", depth_limit = "SearchLimits.depth", memory_limit = "SearchBudget memory cap, never absent: min(ExecutionContext.memory.hard_limit_bytes, 512 MiB default), cumulative live-state bytes across the class check, formula lowering, witness enumeration and the downstream target ID of one decision" }
@@ -2153,6 +2154,7 @@ coverage_records = []
 search = false
 bounds = { cancellation = true, work = "one cross-fitted nuisance bundle (cancellation polled by the existing fit) and O(n) score arithmetic" }
 refusals = [
+  { code = "arm_not_populated", detail = "dml.arm_not_populated", when = "Complete-case selection leaves a binary treatment arm empty; the original nuisance engine refuses before fitting." },
   { code = "cancelled_no_claim", detail = "dml.cancelled", when = "The context was cancelled before a cross-fitted nuisance fold was fit (the AIPW score, DR-Learner and CausalForest nuisance bundle, and each partially linear nuisance); no estimate or score table is reported and the stop is not a verdict on the data." },
 ]
 routes = [
@@ -2163,6 +2165,7 @@ routes = [
   { name = "antecedent_estimate.DmlAte.trimmed_scores", stage = "evaluate", status = "closed", permanent_in_release = true, reason_code = "score_table_unavailable", refusal_test = "crates/antecedent/tests/dml_scores_retarget.rs", refusal_assertion = "a_dml_fit_without_scores_refuses_the_retarget" },
 ]
 fixtures = [
+  { id = "e3.dml_populated_arms.negative", role = "negative", intent = "The original nuisance engine refuses empty treatment arms after row selection and preserves the successful retained state.", evidence_test = "crates/antecedent/tests/recalc_dr.rs", evidence_assertion = "dr_plr_target_cancellation_and_invalid_refits_cannot_reuse_an_aipw_law" },
   { id = "e3.dml_score_mean.truth", role = "truth", intent = "The DML score table's contrast mean equals the fitted ATE, its iid contrast standard error equals sums written in the test and the published se_analytic, propensity columns are complementary and the table is the route's own cached nuisance bundle.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "the_dml_score_table_averages_to_the_fitted_ate_with_the_iid_score_covariance" },
   { id = "e3.dml_hand_bundle.truth", role = "truth", intent = "On a fixed nuisance bundle (mu0 = 1, mu1 = 3, e = 0.5) the per-arm scores, the contrast mean and its covariance equal a hand calculation.", evidence_test = "crates/antecedent-estimate/src/dml.rs", evidence_assertion = "the_score_table_formulas_match_a_hand_calculation_on_a_fixed_bundle" },
   { id = "e3.dml_retarget.positive", role = "positive", intent = "A DML batch retargets its own estimate's scores: uniform weights return the DML ate and se, tilted weights, claim covariances and the cross-plan covariance equal independent sums over the raw score columns, and the prepare-time table equals the estimate's.", evidence_test = "crates/antecedent/tests/dml_scores_retarget.rs", evidence_assertion = "a_dml_batch_retargets_its_own_scores_with_the_joint_covariance" },

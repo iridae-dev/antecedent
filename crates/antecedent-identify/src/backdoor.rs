@@ -202,39 +202,47 @@ impl BackdoorIdentifier {
         query: &CausalQuery,
         workspace: &mut IdentificationWorkspace,
     ) -> Result<IdentificationResult, IdentificationError> {
-        let CausalQuery::AverageEffect(ate) = query else {
-            return Err(IdentificationError::UnsupportedQuery {
-                message: match query {
-                    CausalQuery::Distribution(_) => {
-                        "backdoor does not identify Distribution queries; use IdIdentifier / IdcIdentifier / AutoIdentifier"
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::Identification,
+            || {
+                crate::execution_counts::note_check();
+                let CausalQuery::AverageEffect(ate) = query else {
+                    return Err(IdentificationError::UnsupportedQuery {
+                        message: match query {
+                            CausalQuery::Distribution(_) => {
+                                "backdoor does not identify Distribution queries; use IdIdentifier / IdcIdentifier / AutoIdentifier"
+                            }
+                            CausalQuery::PathSpecific(_) => {
+                                "backdoor does not identify PathSpecific queries; use PathSpecificIdentifier / AutoIdentifier"
+                            }
+                            _ => "backdoor only supports AverageEffect",
+                        },
+                    });
+                };
+                ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
+                    message: "invalid average-effect query",
+                })?;
+                let mut result = match self.identify_ate(prepared, ate, query.clone(), workspace) {
+                    Ok(result) => result,
+                    Err(IdentificationError::NotCertified { .. })
+                        if !ate.effect_modifiers.is_empty() =>
+                    {
+                        crate::generalized::not_identified(
+                            query.clone(),
+                            "marginal search capped; attempting modifier-constrained search",
+                        )
                     }
-                    CausalQuery::PathSpecific(_) => {
-                        "backdoor does not identify PathSpecific queries; use PathSpecificIdentifier / AutoIdentifier"
-                    }
-                    _ => "backdoor only supports AverageEffect",
-                },
-            });
-        };
-        ate.validate().map_err(|_| IdentificationError::UnsupportedQuery {
-            message: "invalid average-effect query",
-        })?;
-        let mut result = match self.identify_ate(prepared, ate, query.clone(), workspace) {
-            Ok(result) => result,
-            Err(IdentificationError::NotCertified { .. }) if !ate.effect_modifiers.is_empty() => {
-                crate::generalized::not_identified(
-                    query.clone(),
-                    "marginal search capped; attempting modifier-constrained search",
-                )
-            }
-            Err(error) => return Err(error),
-        };
-        crate::generalized::validate_dag_conditional_adjustment(
-            prepared.dag(),
-            ate,
-            &mut result,
-            &self.config,
-        )?;
-        Ok(result)
+                    Err(error) => return Err(error),
+                };
+                crate::generalized::validate_dag_conditional_adjustment(
+                    prepared.dag(),
+                    ate,
+                    &mut result,
+                    &self.config,
+                )?;
+                Ok(result)
+            },
+        )
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1084,4 +1092,103 @@ mod tests {
         assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert_eq!(res.estimands[0].adjustment_set.as_ref(), &[VariableId::from_raw(2)]);
     }
+}
+
+/// Checked sufficient joint-backdoor certificate for an explicitly declared adjustment set.
+/// This certificate retains the graph and role ids, independent of numerical row data.
+#[derive(Clone, Debug)]
+pub struct CheckedJointAdjustment {
+    graph: Dag,
+    treatments: Arc<[VariableId]>,
+    outcome: VariableId,
+    adjustment: Arc<[VariableId]>,
+}
+impl CheckedJointAdjustment {
+    /// Graph whose joint backdoor paths were checked.
+    #[must_use]
+    pub fn graph(&self) -> &Dag {
+        &self.graph
+    }
+    /// Joint intervention roles in declared order.
+    #[must_use]
+    pub fn treatments(&self) -> &[VariableId] {
+        &self.treatments
+    }
+    /// Outcome role.
+    #[must_use]
+    pub const fn outcome(&self) -> VariableId {
+        self.outcome
+    }
+    /// Validated common adjustment roles.
+    #[must_use]
+    pub fn adjustment(&self) -> &[VariableId] {
+        &self.adjustment
+    }
+}
+/// Check a declared common adjustment set using the joint sufficient backdoor criterion.
+/// Returns `None` when a forbidden descendant or an unblocked backdoor path is found.
+/// Unlike subset enumeration, this evaluates the complete supplied set, including valid
+/// nonminimal sets, and has no combinatorial search budget.
+pub fn check_joint_adjustment(
+    graph: &Dag,
+    treatments: &[VariableId],
+    outcome: VariableId,
+    adjustment: &[VariableId],
+) -> Result<Option<CheckedJointAdjustment>, IdentificationError> {
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::Identification,
+        || {
+            let valid = |id: VariableId| (id.raw() as usize) < graph.node_count();
+            let treatment_set: std::collections::BTreeSet<_> = treatments.iter().copied().collect();
+            let adjustment_set: std::collections::BTreeSet<_> =
+                adjustment.iter().copied().collect();
+            if treatments.is_empty()
+                || treatment_set.len() != treatments.len()
+                || adjustment_set.len() != adjustment.len()
+                || !valid(outcome)
+                || treatments.iter().chain(adjustment).any(|id| !valid(*id))
+                || treatments.contains(&outcome)
+                || adjustment.iter().any(|id| treatments.contains(id) || *id == outcome)
+            {
+                return Err(IdentificationError::InvalidQuery {
+                    message: "invalid joint adjustment roles".into(),
+                });
+            }
+            let mut downstream = std::collections::BTreeSet::new();
+            let mut stack: Vec<_> =
+                treatments.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
+            while let Some(node) = stack.pop() {
+                for child in graph.children(node) {
+                    if downstream.insert(*child) {
+                        stack.push(*child);
+                    }
+                }
+            }
+            if adjustment.iter().any(|id| downstream.contains(&DenseNodeId::from_raw(id.raw()))) {
+                return Ok(None);
+            }
+            let nodes: Vec<_> =
+                treatments.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
+            let mutilated = remove_outgoing_set(graph, &nodes)?;
+            let z: Vec<_> = adjustment.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
+            let mut ws = DSeparationWorkspace::default();
+            for t in nodes {
+                if !is_backdoor_adjustment(
+                    &mutilated,
+                    t,
+                    DenseNodeId::from_raw(outcome.raw()),
+                    &z,
+                    &mut ws,
+                )? {
+                    return Ok(None);
+                }
+            }
+            Ok(Some(CheckedJointAdjustment {
+                graph: graph.clone(),
+                treatments: Arc::from(treatments),
+                outcome,
+                adjustment: Arc::from(adjustment),
+            }))
+        },
+    )
 }

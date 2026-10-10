@@ -19,6 +19,7 @@ pub mod graph_refute;
 pub mod joint_mechanism_sensitivity;
 pub mod mechanism_sensitivity;
 pub mod mediation;
+pub mod msm_sensitivity;
 pub mod overlap;
 pub mod overlap_rule;
 mod panel_slice;
@@ -72,6 +73,11 @@ pub use mechanism_sensitivity::{
     z_transport_mechanism_sensitivity,
 };
 pub use mediation::QueryRefutationPlan;
+pub use msm_sensitivity::{
+    MsmOutcomeLaw, MsmPoint, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
+    MsmSensitivityUncertainty, MsmStratum, MsmTipping, MsmTippingDirection, msm_ate_bounds_at,
+    msm_ate_sensitivity,
+};
 pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;
 pub use panel_slice::PanelSliceTemplate;

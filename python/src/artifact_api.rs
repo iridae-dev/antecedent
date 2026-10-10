@@ -64,9 +64,10 @@ fn parse_payload(kind: &str, payload_json: &str) -> PyResult<CausalPayloadWire> 
             let wire = parse::<CausalResponseWire>(payload_json)?;
             let domain =
                 antecedent_io::causal_response_from_wire(&wire).map_err(serialization_error)?;
-            CausalPayloadWire::ResponseResult(Box::new(
-                antecedent_io::causal_response_to_wire(&domain).map_err(serialization_error)?,
-            ))
+            let mut canonical =
+                antecedent_io::causal_response_to_wire(&domain).map_err(serialization_error)?;
+            canonical.coordinates = wire.coordinates;
+            CausalPayloadWire::ResponseResult(Box::new(canonical))
         }
         "transport_identification" => {
             let wire = parse::<TransportIdentificationWire>(payload_json)?;
@@ -110,16 +111,30 @@ fn payload_json(payload: &CausalPayloadWire) -> PyResult<String> {
 }
 
 #[pyfunction]
+#[pyo3(signature = (payload_kind, variable_names, payload_json, artifact_id, contract_json=None))]
 fn encode_causal_artifact<'py>(
     py: Python<'py>,
     payload_kind: &str,
     variable_names: Vec<String>,
     payload_json: &str,
     artifact_id: &str,
+    contract_json: Option<&str>,
 ) -> PyResult<Bound<'py, PyBytes>> {
+    if contract_json.is_some() && payload_kind != "analysis_result" {
+        return Err(CausalSerializationError::new_err(
+            "a contract belongs to an analysis_result artifact",
+        ));
+    }
     let artifact = if payload_kind == "analysis_result" {
         let result = parse::<antecedent_io::AnalysisResultWire>(payload_json)?;
-        antecedent_io::encode_analysis_result_artifact(&result, variable_names, artifact_id)
+        let contract =
+            contract_json.map(parse::<antecedent_io::AnalysisResultContractWire>).transpose()?;
+        antecedent_io::encode_analysis_result_artifact_with_contract(
+            &result,
+            variable_names,
+            artifact_id,
+            contract.as_ref(),
+        )
     } else {
         let payload = parse_payload(payload_kind, payload_json)?;
         encode_causal_payload_artifact(&payload, variable_names, artifact_id)

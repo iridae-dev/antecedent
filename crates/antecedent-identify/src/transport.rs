@@ -163,22 +163,36 @@ impl TransportIdentifier {
         diagram: &SelectionDiagram,
         query: &TransportQuery,
     ) -> Result<TransportIdentification, IdentificationError> {
-        let result = Self::identify_structural(diagram, query)?;
-        let bound = bind_catalog(result, query);
-        if matches!(bound, TransportIdentification::MissingEvidence(_))
-            && diagram.causal_graph().district_count() == diagram.causal_graph().node_count()
-        {
-            // The target-only fallback is the truncated factorization itself;
-            // it needs no second standardizer search.
-            let prepared = PreparedAdmg::new(diagram.causal_graph().clone())?;
-            let (outcomes, treatments) = response_variables(query)?;
-            let ancestors = outcome_ancestors(diagram, &prepared, &outcomes, &treatments)?;
-            return Ok(bind_catalog(
-                target_g_formula(diagram, &prepared, query, &outcomes, &treatments, &ancestors)?,
-                query,
-            ));
-        }
-        Ok(bound)
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::Identification,
+            || {
+                crate::execution_counts::note_check();
+                let result = Self::identify_structural(diagram, query)?;
+                let bound = bind_catalog(result, query);
+                if matches!(bound, TransportIdentification::MissingEvidence(_))
+                    && diagram.causal_graph().district_count()
+                        == diagram.causal_graph().node_count()
+                {
+                    // The target-only fallback is the truncated factorization itself;
+                    // it needs no second standardizer search.
+                    let prepared = PreparedAdmg::new(diagram.causal_graph().clone())?;
+                    let (outcomes, treatments) = response_variables(query)?;
+                    let ancestors = outcome_ancestors(diagram, &prepared, &outcomes, &treatments)?;
+                    return Ok(bind_catalog(
+                        target_g_formula(
+                            diagram,
+                            &prepared,
+                            query,
+                            &outcomes,
+                            &treatments,
+                            &ancestors,
+                        )?,
+                        query,
+                    ));
+                }
+                Ok(bound)
+            },
+        )
     }
 
     fn identify_structural(
