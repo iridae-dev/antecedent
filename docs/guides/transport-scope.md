@@ -202,7 +202,7 @@ interval.
 perturbs the surrogate formula's outcome kernel and shared parent marginal together,
 each within its own fraction bound (a box; a coupled total budget refuses with
 `joint_sensitivity.budget_coupling`). It reports the exact joint assumption range,
-the axis tipping points (equal to the 2.1 one-factor values) and a tipping frontier
+the axis tipping points (equal to the one-factor values) and a tipping frontier
 of bisection brackets (certified against the floating-point evaluation of the range)
 under one shared search budget. Fixed-graph parent
 or conditional-mechanism perturbations, the treatment mechanism, more than two
@@ -306,7 +306,7 @@ it without refitting the learners.
   withholds the interval under the strict replicate policy), and only the point run is
   gated on membership overlap (a replicate whose resampled out-of-fold membership falls
   below the threshold still contributes its value; the shared estimator also serves the
-  2.1 learned-trial cells, whose seeded results must not change).
+  learned-trial cells, whose seeded results must not change).
 - **Artifact consumer.** An independent consumer replays the certificate, the folds
   and the score; it does **not** replay the nuisance fits. Stored out-of-fold
   predictions and provider versions are producer evidence: they cannot be verified
@@ -754,7 +754,7 @@ then feeds it to the ordinary target ID stage of sID for a causal effect.
   (`supplies_population_law` requires a measured origin) and satisfies no
   catalog-route factor; the mixed-source proof search excludes it as `recovered_law`.
   The catalog wire carries it in an additive `recovered_derivation` field (absent
-  for every other origin, so 2.1 catalogs are byte-identical; a 2.1 reader refuses
+  for every other origin, so catalogs without it are byte-identical; a reader that predates the field refuses
   it) and round-trips its identity exactly. The exact table's snapshot identity is
   `recovered:<derivation identity>`, never the observed snapshot, so it is refused
   if offered back as the observed law; the table itself keeps the observed regime

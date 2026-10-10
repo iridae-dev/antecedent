@@ -215,7 +215,8 @@ fn admissibility_contract(constraints: Vec<HardConstraint>) -> DecisionContract 
 
 #[test]
 fn two_actions_nonlinear_utility_joint_rows_choose_b() {
-    let result = evaluate_contract(&admissibility_contract(vec![]), &admissibility_source()).unwrap();
+    let result =
+        evaluate_contract(&admissibility_contract(vec![]), &admissibility_source()).unwrap();
     // A: x*y = 0*2 = 0 and 2*0 = 0, so E[U_A] = 0. B: the constant 1.
     assert!(near(result.actions[0].expected_utility, 0.0));
     assert!(near(result.actions[1].expected_utility, 1.0));
@@ -238,7 +239,8 @@ fn two_actions_nonlinear_utility_joint_rows_choose_b() {
 fn wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_explicit() {
     // A constraint on B (k = 5 is never <= 4) excludes B although B's expected
     // utility 1 beats A's 0: the exclusion is not a penalty and B's number stays.
-    let excluded_b = admissibility_contract(vec![constraint("k-cap", UtilityExpr::Input(0), 4.0, &["B"])]);
+    let excluded_b =
+        admissibility_contract(vec![constraint("k-cap", UtilityExpr::Input(0), 4.0, &["B"])]);
     let result = evaluate_contract(&excluded_b, &admissibility_source()).unwrap();
     let b = &result.actions[1];
     assert!(!b.admissible);
@@ -252,7 +254,8 @@ fn wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_expl
     assert_eq!(result.verdict, Verdict::UniquelyOptimal("A".into()));
 
     // y <= 1 holds in one of two equally likely rows, so it holds with 1/2 < 1.
-    let excluded_a = admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
+    let excluded_a =
+        admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
     let result = evaluate_contract(&excluded_a, &admissibility_source()).unwrap();
     assert!(!result.actions[0].admissible);
     assert!(near(result.actions[0].exclusions[0].probability, 0.5));
@@ -261,7 +264,8 @@ fn wrong_contract_hard_constraint_excludes_without_penalty_and_empty_set_is_expl
 
     // A bound nothing satisfies, applied to every action: no admissible action
     // is an explicit verdict, with no perfect-information value.
-    let none = admissibility_contract(vec![constraint("floor", UtilityExpr::Input(0), -100.0, &[])]);
+    let none =
+        admissibility_contract(vec![constraint("floor", UtilityExpr::Input(0), -100.0, &[])]);
     let result = evaluate_contract(&none, &admissibility_source()).unwrap();
     assert_eq!(result.verdict, Verdict::NoAdmissibleAction);
     assert!(result.evpi.is_none());
@@ -337,7 +341,8 @@ fn artifact_refuses_a_stored_number_or_constraint_changed_under_the_same_identit
     assert!(DecisionResultArtifact::new(flipped, &source).replay(&contract, &source).is_err());
 
     // A different constraint is a different contract: the stored result is not its answer.
-    let tighter = admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
+    let tighter =
+        admissibility_contract(vec![constraint("y-cap", UtilityExpr::Input(1), 1.0, &["A"])]);
     assert_ne!(tighter.identity().unwrap(), contract.identity().unwrap());
     assert!(artifact.replay(&tighter, &source).is_err());
 }
@@ -379,14 +384,17 @@ fn functional_contract(criterion: DecisionCriterion) -> DecisionContract {
 }
 
 fn value(criterion: DecisionCriterion) -> f64 {
-    evaluate_contract(&functional_contract(criterion), &functional_source()).unwrap().actions[0].value
+    evaluate_contract(&functional_contract(criterion), &functional_source()).unwrap().actions[0]
+        .value
 }
 
 #[test]
 fn positive_expectation_and_variance_identity_on_the_finite_law() {
-    let result =
-        evaluate_contract(&functional_contract(DecisionCriterion::PosteriorExpectedUtility), &functional_source())
-            .unwrap();
+    let result = evaluate_contract(
+        &functional_contract(DecisionCriterion::PosteriorExpectedUtility),
+        &functional_source(),
+    )
+    .unwrap();
     // E[Y] = 0 * 1/4 + 2 * 3/4 = 3/2 and E[Y^2] = 0 * 1/4 + 4 * 3/4 = 3.
     let mean = result.actions[0].expected_utility;
     let second_moment = result.actions[1].expected_utility;
@@ -401,16 +409,22 @@ fn positive_expectation_and_variance_identity_on_the_finite_law() {
     // The direct evaluators agree with the hand enumeration and the identity.
     let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let expectation =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &functional_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &functional_source())
+            .unwrap();
     assert!(near(expectation.value, 1.5));
     assert!(near(expectation.standard_error.unwrap(), 0.0));
     assert_eq!(expectation.source_mode.representation, SourceRepresentation::JointDraws);
-    let utility =
-        evaluate_functional(&contract, "Y", DecisionFunctional::ExpectedUtility, &functional_source())
-            .unwrap();
+    let utility = evaluate_functional(
+        &contract,
+        "Y",
+        DecisionFunctional::ExpectedUtility,
+        &functional_source(),
+    )
+    .unwrap();
     assert!(near(utility.value, 1.5));
     let variance =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &functional_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &functional_source())
+            .unwrap();
     assert!(near(variance.value, 0.75));
     assert!(near(variance.value, identity_variance));
     // E[Y^2] = 3 through the direct route as well.
@@ -464,9 +478,14 @@ fn positive_quantile_is_the_left_inverse_of_the_cdf() {
     // F(0) = 1/4 reaches u = 1/4 exactly, so the quantile is exactly 0.
     let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let quantile = |p: f64| {
-        evaluate_functional(&contract, "Y", DecisionFunctional::Quantile { p }, &functional_source())
-            .unwrap()
-            .value
+        evaluate_functional(
+            &contract,
+            "Y",
+            DecisionFunctional::Quantile { p },
+            &functional_source(),
+        )
+        .unwrap()
+        .value
     };
     assert!(near(quantile(0.5), 2.0));
     assert_eq!(quantile(0.25).to_bits(), 0.0_f64.to_bits());
@@ -577,10 +596,12 @@ fn evaluate_functional_refuses_unknown_action_bad_parameters_and_marginals() {
 fn exact_law_has_zero_standard_error_and_a_sample_does_not() {
     let contract = functional_contract(DecisionCriterion::PosteriorExpectedUtility);
     let exact =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &functional_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Expectation, &functional_source())
+            .unwrap();
     assert!(near(exact.standard_error.unwrap(), 0.0));
     let exact_variance =
-        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &functional_source()).unwrap();
+        evaluate_functional(&contract, "Y", DecisionFunctional::Variance, &functional_source())
+            .unwrap();
     assert!(near(exact_variance.standard_error.unwrap(), 0.0));
 
     // The same rows as a draw sample (calibration unmeasured), repeated so the
@@ -824,7 +845,8 @@ fn positive_maximin_chooses_b_with_worst_cases_zero_against_minus_one() {
         (DecisionCriterion::MaximinOverStructures, StructuralPolicy::ReportOnly),
     ];
     for (criterion, policy) in policies {
-        let result = evaluate_structural(&structural_contract(criterion, policy), &atoms()).unwrap();
+        let result =
+            evaluate_structural(&structural_contract(criterion, policy), &atoms()).unwrap();
         assert_eq!(result.verdict, StructuralVerdict::WorstCaseChoice("B".into()));
         // A: (2, -1) has minimum -1; B: (0, 1) has minimum 0.
         assert_eq!(result.actions[0].per_atom, vec![Some(2.0), Some(-1.0)]);
@@ -839,8 +861,10 @@ fn positive_maximin_chooses_b_with_worst_cases_zero_against_minus_one() {
 
 #[test]
 fn positive_report_only_shows_graph_dependence_and_no_weighted_winner() {
-    let contract =
-        structural_contract(DecisionCriterion::PosteriorExpectedUtility, StructuralPolicy::ReportOnly);
+    let contract = structural_contract(
+        DecisionCriterion::PosteriorExpectedUtility,
+        StructuralPolicy::ReportOnly,
+    );
     let result = evaluate_structural(&contract, &atoms()).unwrap();
     assert_eq!(result.verdict, StructuralVerdict::ReportOnly);
     assert!(result.actions.iter().all(|a| a.weighted_value.is_none()));

@@ -409,7 +409,7 @@ fn chain_head(
         (false, true) => Ok(1),
         _ => Err(refuse(
             ChainRecoveryDetail::UnsupportedMechanism,
-            "this row needs exactly one response edge R -> R; a graph without it belongs to the 2.2 observation-recovery route",
+            "this row needs exactly one response edge R -> R; a graph without it belongs to the observation-recovery route",
         )),
     }
 }

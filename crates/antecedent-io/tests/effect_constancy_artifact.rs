@@ -62,7 +62,7 @@ fn dependent_request() -> EffectConstancyRequestWire {
 
 fn export(request: &EffectConstancyRequestWire) -> (EffectConstancyArtifact, Vec<u8>) {
     let artifact = EffectConstancyArtifact::seal(request).unwrap();
-    let bytes = artifact.to_bytes("f18-test").unwrap();
+    let bytes = artifact.to_bytes("constancy-test").unwrap();
     (artifact, bytes)
 }
 

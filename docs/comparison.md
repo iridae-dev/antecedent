@@ -76,7 +76,7 @@ Compared to a typical causal influence library:
 The [support matrix](support-matrix.md) is authoritative. A capability present
 in the codebase is not necessarily a licensed `analyze()` combination.
 
-The active 2.0 preparation matrix composes **463 licensed combinations** of
+The active preparation matrix composes **463 licensed combinations** of
 1403 meaningful cells into an inspectable, reusable execution workflow. Each combination
 fixes the question, graph class, structure source, inference method, and
 validation level. Licensed does not mean interval coverage was measured: the

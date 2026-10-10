@@ -219,7 +219,7 @@ query_bytes = source.study.export_artifact(payload="query")
 ```
 
 The lower-level `PreparedAnalysis.export_artifact()` exports the last fitted scalar Bayesian
-posterior, response result, or static 1.3 result (mediation contrast or unit
+posterior, response result, or static result (mediation contrast or unit
 ITE) without refitting. Use
 `export_artifact(payload="query")` for the frozen original query, including its
 query kind and original schema variable IDs rather than an identification-time

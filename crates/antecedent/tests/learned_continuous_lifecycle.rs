@@ -1052,7 +1052,7 @@ fn a_resealed_source_relabel_changes_the_consumed_identity() {
     assert_eq!(forged.check_population_names(&source, &target), Err(Refusal::NamesMismatch));
 }
 
-/// Cross-format: a 2.2 learned-continuous artifact is never read as a 2.1
+/// Cross-format: a learned-continuous artifact is never read as a
 /// learned-trial artifact or as a smoothed-dose grid, nor the reverse.
 #[test]
 fn a_learned_continuous_artifact_is_refused_by_other_trial_consumers() {

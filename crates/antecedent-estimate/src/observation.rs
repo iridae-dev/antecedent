@@ -493,7 +493,7 @@ impl ObservationMechanismEstimator {
         Ok(response)
     }
 
-    /// Observation correction on a temporal curve: same 1.3 primitives, with
+    /// Observation correction on a temporal curve: same static primitives, with
     /// nonempty `IndependentGiven` / `OutcomeIndependentGiven` lag-aligned at the
     /// policy treatment offset.
     ///

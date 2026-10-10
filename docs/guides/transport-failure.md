@@ -43,7 +43,7 @@ each stage and identification, the `identification_status` key of each
 `decision()` and scenario row, and `certificate["identification_status"]` on
 `ant.identify`.
 
-The spellings used before 2.2 are kept where they are serialized or public and
+The earlier spellings are kept where they are serialized or public and
 are deprecated:
 
 | Earlier spelling | Where | Canonical |

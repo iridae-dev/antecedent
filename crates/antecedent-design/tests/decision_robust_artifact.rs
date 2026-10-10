@@ -316,20 +316,21 @@ fn resealed_rule_edit_is_refused_under_the_retained_identity() {
 }
 
 #[test]
-fn contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
+fn contract_without_rules_keeps_original_bytes_and_kinds_do_not_cross() {
     let plain = base(StructuralPolicy::ReportOnly);
-    let a0 = DecisionContractArtifact::new(plain.clone()).unwrap();
-    let a0_bytes = a0.to_bytes("contract").unwrap();
+    let plain_artifact = DecisionContractArtifact::new(plain.clone()).unwrap();
+    let original_bytes = plain_artifact.to_bytes("contract").unwrap();
     // The path without rules is untouched: same kind, deterministic bytes, no rules field.
     assert_eq!(
-        a0_bytes,
+        original_bytes,
         DecisionContractArtifact::new(plain.clone()).unwrap().to_bytes("contract").unwrap()
     );
-    let reader = ArtifactReader::open_seek(std::io::Cursor::new(&a0_bytes[..])).unwrap();
+    let reader = ArtifactReader::open_seek(std::io::Cursor::new(&original_bytes[..])).unwrap();
     assert_eq!(reader.manifest().artifact_kind, ArtifactKind::Other("decision_contract_v1".into()));
     let json = contract_to_json(&plain).unwrap();
     assert!(!json.contains("rules") && !json.contains("admissib"));
-    let loaded = DecisionContractArtifact::from_bytes(&a0_bytes, a0.identity()).unwrap();
+    let loaded =
+        DecisionContractArtifact::from_bytes(&original_bytes, plain_artifact.identity()).unwrap();
     assert_eq!(loaded.contract(), &plain);
 
     // Rules write a different artifact kind, so neither loader reads the other's
@@ -341,7 +342,9 @@ fn contract_without_rules_keeps_a0_bytes_and_kinds_do_not_cross() {
         DecisionContractArtifact::from_bytes(&rules_bytes, &c.contract.identity().unwrap())
             .is_err()
     );
-    assert!(AdmissibleContractArtifact::from_bytes(&a0_bytes, &c.identity().unwrap()).is_err());
+    assert!(
+        AdmissibleContractArtifact::from_bytes(&original_bytes, &c.identity().unwrap()).is_err()
+    );
 }
 
 #[test]

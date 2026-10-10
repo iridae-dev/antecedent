@@ -1,4 +1,4 @@
-//! Planning-time cost counts of the 2.2 fit routes (cost and cancellation checks): penalized
+//! Planning-time cost counts of the fit routes (cost and cancellation checks): penalized
 //! AIPW, clustered DML, the DML score route, batch retarget and the factorized joint cells.
 //!
 //! Every expectation is a hand count from the declared configuration (grid x (inner folds + 1)

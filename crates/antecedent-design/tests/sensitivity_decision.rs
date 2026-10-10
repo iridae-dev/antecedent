@@ -97,7 +97,7 @@ fn parts(
         uncertainty: withheld(),
         provenance: SensitivityProvenance {
             source_kind: "supplied_surface".into(),
-            query_binding: "f17-test".into(),
+            query_binding: "sensitivity-test".into(),
             provider_snapshot: "snapshot-1".into(),
             source_regime: "regime:1".into(),
             method: "hand-derived surface".into(),
@@ -544,7 +544,7 @@ fn adopt_against(status_quo: f64) -> Vec<ActionUtility> {
 }
 
 #[test]
-fn a_2_2_joint_sensitivity_result_feeds_a_decision_contract() {
+fn a_joint_sensitivity_result_feeds_a_decision_contract() {
     // One factor, contamination fraction up to 0.4; baseline 0.5; extrema -0.1 and 1.1.
     // The range is linear in the fraction: lower = 0.5 - 0.6 t, upper = 0.5 + 0.6 t with
     // t = fraction / 0.4, so at 0, 0.1, 0.2, 0.3, 0.4 it is 0.5, 0.35, 0.2, 0.05, -0.1 below
@@ -568,7 +568,7 @@ fn a_2_2_joint_sensitivity_result_feeds_a_decision_contract() {
     for (actual, expected) in surface.upper.iter().zip([0.5, 0.65, 0.8, 0.95, 1.1]) {
         assert_close(*actual, expected);
     }
-    assert_eq!(artifact.provenance().source_kind, "joint_mechanism_sensitivity_2_2");
+    assert_eq!(artifact.provenance().source_kind, "joint_mechanism_sensitivity");
     assert_eq!(artifact.provenance().source_tipping[0].factor, "outcome_kernel");
     let decided = evaluate(&artifact);
     assert_eq!(decided.outcome, SensitivityOutcome::InvariantAction { action: "adopt".into() });

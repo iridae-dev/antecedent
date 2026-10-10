@@ -12,7 +12,7 @@
 //! variable ids, so node and edge insertion order cannot move it), and orders
 //! them by identity. Every completion is then one scenario of the existing
 //! [`TransportScenarioSet`] and is decided by the same classical catalog route
-//! as the 2.2 supplied-scenario row. Evidence is bound per completion
+//! as the supplied-scenario row. Evidence is bound per completion
 //! ([`CpdagEvidence`]): a catalog bound to one completion's identity never
 //! satisfies another's, and a binding that names a different identity is
 //! refused (`cpdag_scenarios.evidence_identity_mismatch`).
@@ -541,7 +541,7 @@ pub fn enumerate_cpdag_completions(
     }
 }
 
-/// Bytes one entered completion scenario holds: the same shape the 2.2 set charges.
+/// Bytes one entered completion scenario holds: the same shape the supplied-scenario set charges.
 fn scenario_bytes(variables: usize) -> u64 {
     u64::try_from(variables.saturating_mul(variables).saturating_mul(64).saturating_add(512))
         .unwrap_or(u64::MAX)
@@ -749,7 +749,7 @@ fn decide_set(
 }
 
 /// Enumerate every DAG completion of `input`, bind evidence to each, and decide
-/// each through the 2.2 classical catalog route on one shared budget.
+/// each through the classical catalog route on one shared budget.
 ///
 /// Statuses are those of the supplied-scenario row (`identified`,
 /// `structurally_unidentified`, `missing_evidence`, `not_certified`,

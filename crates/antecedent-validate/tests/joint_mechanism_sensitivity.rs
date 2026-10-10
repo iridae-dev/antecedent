@@ -479,7 +479,7 @@ fn zero_deviation_reproduces_the_baseline_exactly() {
 }
 
 #[test]
-fn a_single_kernel_factor_is_bit_equal_to_the_2_1_route() {
+fn a_single_kernel_factor_is_bit_equal_to_the_one_factor_route() {
     let mut rng = Rng(5);
     for case in 0..30 {
         let model = rng.model(1 + case % 4, 2 + case % 3);
@@ -548,7 +548,7 @@ fn nested_boxes_give_nested_ranges() {
 }
 
 #[test]
-fn axis_tipping_points_match_the_2_1_analytic_values() {
+fn axis_tipping_points_match_the_one_factor_analytic_values() {
     let model = fixed_model();
     let (kernel, parent) = (0.6, 0.7);
     let baseline = run(&model, &spec(Some(0.0), None)).unwrap().baseline;
@@ -1259,7 +1259,7 @@ fn factor_normalization_is_enforced_and_every_stage_reads_one_scale() {
 }
 
 #[test]
-fn the_2_1_route_enforces_unit_parent_mass_like_the_joint_route() {
+fn the_one_factor_route_enforces_unit_parent_mass_like_the_joint_route() {
     let model = fixed_model();
     let run_on = |data: &ExactTransportData| {
         z_transport_mechanism_sensitivity(

@@ -323,7 +323,7 @@ when any cell reads fewer than 15 effective rows.
   Set / Shift designs; there a lagged outcome in the adjustment set would need
   outcome ancestry that repeats at every earlier slice, which temporal backdoor
   identification does not certify, so it refuses first. No replicate row pairs values
-  across a block junction. The raw-series replicate that 1.8 used for Sequence
+  across a block junction. The raw-series replicate that an earlier release used for Sequence
   overlays measured 31–81% coverage for a nominal 95% band and is gone.
 - **Bayesian.** The simultaneous credible band uses posterior draws of the
   grid around the posterior mean: joint Gibbs draws for
@@ -490,7 +490,7 @@ validation `none`, under Frequentist and Bayesian inference; see the
 [support matrix](support-matrix.md), which carries each cell's evidence.
 PAG/ADMG/CPDAG derivative, graph-posterior, observation-adjusted, and
 cheap/full coordinates remain refused. Mean curves on `Cpdag` / `Pag` are a
-separate 1.4 cell, not a derivative license. The definitions below are the
+separate class-aware cell, not a derivative license. The definitions below are the
 licensed forms, not a license to run every constructor argument. Repeated-
 sampling coverage of every published derivative interval is gated in
 `crates/antecedent/tests/derivative_calibration.rs`.

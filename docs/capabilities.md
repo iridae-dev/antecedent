@@ -1404,7 +1404,7 @@ Estimate validation:
 * E-values;
 * graph refutation.
 
-The 1.2 functional suites refit path-specific effects on row subsets and compare
+The functional suites refit path-specific effects on row subsets and compare
 entire interventional-distribution tables, including conditional strata.
 Temporal mediation uses mediator-placebo and contrast-specific stability checks.
 Static `MediationEffect` cheap/full uses a mediation-native suite: placebo

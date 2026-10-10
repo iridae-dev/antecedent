@@ -3,7 +3,7 @@
 //! # The one model
 //!
 //! This module is a **model provider**, not a posterior wrapper on a frequentist point.
-//! It reads one already identified 2.2 transport row (the learned continuous trial
+//! It reads one already identified transport row (the learned continuous trial
 //! transport of [`crate::learned_continuous`]): a certified direct or
 //! baseline-standardization derivation ([`TransportIdentification`]) over a fixed DAG,
 //! a randomized binary source treatment `A`, certified covariates `X` (the

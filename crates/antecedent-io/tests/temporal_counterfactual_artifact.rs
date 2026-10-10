@@ -104,7 +104,7 @@ fn export(
     request: &TemporalCounterfactualRequestWire,
 ) -> (TemporalCounterfactualArtifact, Vec<u8>) {
     let artifact = TemporalCounterfactualArtifact::seal(request, &ctx()).unwrap();
-    let bytes = artifact.to_bytes("x8-test").unwrap();
+    let bytes = artifact.to_bytes("temporal-counterfactual-test").unwrap();
     (artifact, bytes)
 }
 

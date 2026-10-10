@@ -27,7 +27,7 @@
 //!   bandwidth is declared by the caller and must lie in a caller-declared range; it
 //!   is never data-selected here, so no selection variability is hidden.
 //! * **Dependence.** Independent rows. Clustered, serial or linked rows are outside
-//!   this row; the 2.2 clustered DML AIPW cell does not license them.
+//!   this row; the clustered DML AIPW cell does not license them.
 //! * **Support.** Per requested dose: `OutsideEmpiricalSupport` when the dose lies
 //!   outside the observed dose range, `WeakOverlap` when the Kish effective sample
 //!   size of the Gaussian local weights is below the declared minimum, else

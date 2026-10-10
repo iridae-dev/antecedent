@@ -241,7 +241,7 @@ fn oracle(sources: &[SourceData]) -> (Vec<f64>, Vec<Vec<f64>>) {
 // ---------------------------------------------------------------- tests
 
 #[test]
-fn a2_learned_artifact_replays_value_for_value_against_the_exact_oracle() {
+fn learned_joint_artifact_replays_value_for_value_against_the_exact_oracle() {
     let (wire, fit) = built();
     let bytes = wire.export().expect("export");
     let (loaded, replayed) = consume(&bytes).expect("a faithful artifact replays");
@@ -282,7 +282,7 @@ fn a2_learned_artifact_replays_value_for_value_against_the_exact_oracle() {
 }
 
 #[test]
-fn a2_learned_artifact_records_the_learn_provider_row_and_basis_rank() {
+fn learned_joint_artifact_records_the_learn_provider_row_and_basis_rank() {
     let (wire, fit) = built();
     let provider = &wire.result.provider;
     assert_eq!(provider.provider, "antecedent-learn");
@@ -298,7 +298,7 @@ fn a2_learned_artifact_records_the_learn_provider_row_and_basis_rank() {
 }
 
 #[test]
-fn a2_learned_artifact_enforces_an_expected_identity() {
+fn learned_joint_artifact_enforces_an_expected_identity() {
     let (wire, _) = built();
     let bytes = wire.export().expect("export");
     let expected = LearnedJointExpectation {
@@ -341,7 +341,7 @@ fn a2_learned_artifact_enforces_an_expected_identity() {
 type Mutation = (&'static str, fn(&mut LearnedJointArtifactWire));
 
 #[test]
-fn a2_learned_artifact_refuses_resealed_semantic_mutations() {
+fn learned_joint_artifact_refuses_resealed_semantic_mutations() {
     let (wire, _) = built();
     let mutations: [Mutation; 13] = [
         ("prior mean", |w| w.model.invariant_prior.mean[0] = 0.75),
@@ -395,7 +395,7 @@ fn a2_learned_artifact_refuses_resealed_semantic_mutations() {
 }
 
 #[test]
-fn a2_learned_artifact_refuses_prior_bank_and_likelihood_double_use() {
+fn learned_joint_artifact_refuses_prior_bank_and_likelihood_double_use() {
     let overlapping = PriorProvenance::Bank {
         bank_id: "bank-1".into(),
         consumed: vec![DataIdentity { snapshot_digest: "snap-s1".into(), datum_ids: vec![] }],
@@ -448,7 +448,7 @@ fn a2_learned_artifact_refuses_prior_bank_and_likelihood_double_use() {
 }
 
 #[test]
-fn a2_learned_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
+fn learned_joint_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
     let (wire, _) = built();
     let mut future = wire.clone();
     future.version = 7;
@@ -469,7 +469,7 @@ fn a2_learned_artifact_refuses_an_unknown_version_foreign_feature_and_claim() {
 }
 
 #[test]
-fn a2_learned_artifact_refuses_stored_sizes_above_the_consumer_limits() {
+fn learned_joint_artifact_refuses_stored_sizes_above_the_consumer_limits() {
     let (wire, _) = built();
     let bytes = wire.export().expect("export");
     let tight = [

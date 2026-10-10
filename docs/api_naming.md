@@ -23,8 +23,8 @@ Version 1.7 added `ClassPrior` to the 49-name 1.0 contract; 1.9 added
 `AnomalyAttribution` and `ChangeAttribution` so the query axis and root
 `__all__` stay aligned. Both types exist for the axis; `analyze()` refuses
 them — the licensed cells are Rust `Study` only. Version 1.10 added `prepare` and `load`,
-and the design query `InterferenceQuery`. 2.1 adds `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
-modules, plus point-only randomized experiment, factorial, held-out policy,
+and the design query `InterferenceQuery`. The `experiment`, `factorial`, `policy`, `quasi`, and `survival` stage
+modules add point-only randomized experiment, factorial, held-out policy,
 DiD, staggered event-study, switchback, and survival utilities. `SwitchbackDesign` and
 `SwitchbackEffect` describe unit-period assignments with known marginal
 probabilities. Their native ITT estimator allows arbitrary dependence within
@@ -54,7 +54,7 @@ The same native fit is available through retained `prepare` / `analyze` via
 `RandomizedEffect(..., ancova_covariates=("x1", "x2"))`; its query and
 artifact retain the covariate identities and report point-only HC0 uncertainty.
 The licensed trial-IPW cell is
-`antecedent.transport.advanced.TransportQuery`; the 2.0 compiler is
+`antecedent.transport.advanced.TransportQuery`; the structural transport compiler is
 `antecedent.transport.Transport` and is not a root export.
 See [the Python workflow](python-workflow.md) for lifetime and report semantics.
 The set is: the five verbs
@@ -215,8 +215,8 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Measured scalar adapters | Source-bound `MeasuredInference` / checked method-specific producers and independent consumers (`antecedent-io`) | `transport.advanced` joint Bayesian, learned joint, binary nested-Markov Bayesian/Fisher, dependent temporal and sampled-recovery methods return `inference.MeasuredInference` at their [exact measured scopes](population-time-uncertainty.md); `MeasuredInference.load` requires the retained source identity. |
 | Provider trust (shared) | `ExternalTrustState` (`NativeLicensed` / `ExternallyAttested` / `ExactRequestVerified`) | `ProviderTrust` (`native_licensed` / `externally_attested` / `verified_extension`); a bound external claim is never `native_licensed` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
-| Structural transport (2.0 compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
-| Structural transport (1.10 trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the 2.0 compiler |
+| Structural transport (compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |
+| Structural transport (trial-IPW cell) | `TransportQuery` + `SelectionDiagram` + `StudyBuilder::{selection_targets, transport_trial}` | `transport.advanced.TransportQuery(response, SelectionDiagram(...), source_experiments, trial=, selection_probability=, treatment_probability=)` on `analyze(data, graph=Admg, query=...)` — licensed cell, not the compiler |
 | Randomized interference | `InterferenceQuery` + `AssignmentDesign` + `ExposureMapping` + `StudyBuilder::interference` | `InterferenceQuery(design, exposure, contrast, network=, realized_assignment=)` on `analyze(data, graph=Dag or edges, query=...)`; designs and mappings in `antecedent.interference` |
 | Longitudinal regime value | `LongitudinalRegime` + known sequential randomization on one outcome row per subject | `regimes.LongitudinalRegime(outcome, treatment_history, actions, treatment_probabilities, subject_ids, ...)` on graphless `analyze` / `prepare`; point-only and off the support-matrix axis |
 | Temporal pulse / sustained | `TemporalEffectQuery` | `PulseEffect` / `SustainedEffect` |

@@ -15,7 +15,7 @@
 //!
 //! [`repair_with_artifact`] also seals the finished report as a portable
 //! `repair_search_receipt_v1` artifact that [`consume_repair_artifact`] replays
-//! independently. The 2.2 specialized planners ([`crate::design::StudyPlanResult`]
+//! independently. The specialized planners ([`crate::design::StudyPlanResult`]
 //! and the transport and z-transport planners) are untouched.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0

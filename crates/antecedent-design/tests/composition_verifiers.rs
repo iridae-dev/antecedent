@@ -440,8 +440,7 @@ fn verifiers_joint_decision_verifies_every_node_and_reads_the_hand_computed_valu
 }
 
 #[test]
-fn verifiers_external_mean_decision_is_point_only_attested_with_verification_only_when_retained()
-{
+fn verifiers_external_mean_decision_is_point_only_attested_with_verification_only_when_retained() {
     let attested = claim(&ClaimSpec::default());
     let nodes = |claim_artifact: &ExternalClaimArtifact| {
         vec![
@@ -472,7 +471,7 @@ fn verifiers_external_mean_decision_is_point_only_attested_with_verification_onl
 
 #[test]
 fn verifiers_mean_decision_helper_matches_direct_evaluation_and_refuses_what_a_mean_cannot_answer()
- {
+{
     let artifact = claim(&ClaimSpec::default());
     let claim_bytes = artifact.to_bytes("claim").unwrap();
     let helper = mean_decision_bytes(&mean_contract(), &claim_bytes, "mean-result").unwrap();

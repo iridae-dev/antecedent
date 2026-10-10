@@ -1,7 +1,7 @@
 """Mechanical Rust↔Python parity for the identifier and estimator wire-id mirrors.
 
 ``antecedent.ids.Identifier`` / ``Estimator`` are hand-written Python mirrors of the
-Rust ``IdentifierId`` / ``EstimatorId`` wire ids. Nothing stopped them drifting: 2.1
+Rust ``IdentifierId`` / ``EstimatorId`` wire ids. Nothing stopped them drifting: one release
 added 26 Rust estimator ids and only 4 reached ``ids.py``, so
 ``Estimator(result.estimate.estimator_id)`` raised on ids the result itself reported.
 This test derives the authoritative sets from the Rust source and fails if either

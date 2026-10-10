@@ -14,7 +14,7 @@
 //! another. A continuous sample never claims global feasibility. Nothing here makes a
 //! coverage or calibration claim.
 //!
-//! The 2.2 enumeration query of [`super::InverseQuery`] is a separate, unchanged
+//! The enumeration query of [`super::InverseQuery`] is a separate, unchanged
 //! route; this module's names are reached by path
 //! (`antecedent::analysis::inverse_query`).
 //!

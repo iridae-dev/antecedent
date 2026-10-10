@@ -2,7 +2,7 @@
 
 **Suite path:** `conformance/bayesian/temporal_class_prior_transfer`
 
-Same-design and mapped mechanism-prior transfer onto licensed 1.7 Bayesian
+Same-design and mapped mechanism-prior transfer onto licensed Bayesian
 cells on `TemporalCpdag`. The prior binds separately against each
 completion's design through the existing `PriorCatalog.filter_compatible`
 filter. It is a mechanism prior, not a class prior: it cannot upgrade

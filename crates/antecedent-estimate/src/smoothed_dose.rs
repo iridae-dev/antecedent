@@ -1771,7 +1771,7 @@ pub fn smoothed_dose_estimator_menu(
             "group-level exchangeability of the dose within one population",
             "none: the dose density is supplied and group means are kernel-weighted",
             "local support in every group-dose cell",
-            "the 2.1 conditional continuous-dose response; not calibrated by this cell",
+            "the conditional continuous-dose response; not calibrated by this cell",
             menu_refusal(
                 antecedent_core::reason_code!("route_not_supported"),
                 None,

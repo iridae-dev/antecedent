@@ -726,7 +726,7 @@ fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
 }
 
 #[test]
-fn the_v2_sensitivity_artifact_is_unchanged_and_rejects_v3() {
+fn the_one_factor_sensitivity_artifact_is_unchanged_and_refuses_the_joint_format() {
     let built = builder();
     let prepared = prepare(&built);
     let ctx = ExecutionContext::for_tests(1);
@@ -761,8 +761,8 @@ fn the_v2_sensitivity_artifact_is_unchanged_and_rejects_v3() {
     );
 }
 
-/// Cross-format: a 2.1 z-transport point artifact (version 2) is refused by the
-/// 2.2 mz-transport consumer (version 1) by version, before its payload is read.
+/// Cross-format: a z-transport point artifact (version 2) is refused by the
+/// mz-transport consumer (version 1) by version, before its payload is read.
 #[test]
 fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
     let built = builder();

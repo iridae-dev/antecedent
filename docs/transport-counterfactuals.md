@@ -9,7 +9,7 @@ honest about where they stop:
 | Selection differences and invariances behind each scenario answer | `antecedent.scenario_invariance` | derived report, nothing sealed |
 | Learned joint source-target transport | `antecedent.transport.advanced.learned_joint_transport` | measured scalar carrier only at a current, matching record; underlying posterior remains model-conditional |
 
-For the ordinary 2.0 transport compiler (`transport.Transport(...)`) see
+For the ordinary transport compiler (`transport.Transport(...)`) see
 [transport and interference](transport-interference.md) and
 [transport failures](guides/transport-failure.md). This page covers the transported-counterfactual and scenario routes.
 

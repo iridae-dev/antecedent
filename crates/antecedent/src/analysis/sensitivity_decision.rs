@@ -43,7 +43,7 @@ impl PreparedZTransport {
     ///
     /// With one declared factor the surface is exact on `grid_points` equally spaced
     /// contamination fractions; with two factors only the unperturbed point and the
-    /// declared box are exact, so `grid_points` must be 2. The 2.2 withheld sampling
+    /// declared box are exact, so `grid_points` must be 2. The withheld sampling
     /// status is carried unchanged: the range stays an assumption range.
     ///
     /// # Errors

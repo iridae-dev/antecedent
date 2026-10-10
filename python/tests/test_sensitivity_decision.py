@@ -40,7 +40,7 @@ def _quantity(name: str, units: str = "utils") -> ScientificQuantity:
 def _provenance() -> sd.SurfaceProvenance:
     return sd.SurfaceProvenance(
         source_kind="supplied_surface",
-        query_binding="f17-test",
+        query_binding="sensitivity-test",
         provider_snapshot="snapshot-1",
         source_regime="regime:1",
         method="hand-derived surface",
@@ -450,7 +450,7 @@ def test_joint_sensitivity_result_feeds_a_decision_contract():
     # The withheld sampling status is carried unchanged: still an assumption range.
     assert isinstance(artifact.uncertainty.sampling, sd.SamplingWithheld)
     assert artifact.uncertainty.sampling.reason_code == "cell_not_licensed"
-    assert artifact.provenance.source_kind == "joint_mechanism_sensitivity_2_2"
+    assert artifact.provenance.source_kind == "joint_mechanism_sensitivity"
     # Adopting is best only if the effect clears 0.45. The unperturbed baseline (0.37) does
     # not, and the range's upper end (0.37 + 0.63 t) clears it for t > 0.127, so the best
     # action depends on where in the range the surface lies at fractions 0.15, 0.175, 0.2.

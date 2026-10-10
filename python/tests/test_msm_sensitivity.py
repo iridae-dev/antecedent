@@ -351,7 +351,7 @@ def test_msm_artifact_is_a_lambda_surface_with_withheld_sampling():
     assert artifact.uncertainty.sampling.detail == "msm_sensitivity.interval_withheld"
     assert artifact.uncertainty.identified_bound is None
     assert "not a confidence interval" in artifact.uncertainty.assumption_range
-    assert artifact.provenance.source_kind == "msm_sensitivity_2_3"
+    assert artifact.provenance.source_kind == "marginal_sensitivity_model"
     assert artifact.provenance.causal_contract_id == "checked-contract"
 
 

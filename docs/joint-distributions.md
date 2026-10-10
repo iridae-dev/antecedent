@@ -61,9 +61,9 @@ are separate trust labels. Loading preserves the label; it never upgrades one
 label to another. The artifact does not by itself certify a provider, an
 identified causal estimand or an inferential guarantee.
 
-## 2.2 posterior conversion
+## Posterior conversion
 
-The 2.2 `CausalPosterior` remains a separate artifact kind. The checked Rust
+The `CausalPosterior` remains a separate artifact kind. The checked Rust
 converter accepts its column-major draws only when the source artifact ID
 matches the independently retained expected identity and every coefficient
 has a stable name with an explicit one-to-one target quantity binding. It
@@ -79,7 +79,7 @@ For an unweighted parameter or causal-functional posterior, an equal-tailed
 interval can be recomputed from loaded draws with the type-7 quantile
 rule. That interval describes posterior draw mass, not coverage.
 The converted artifact is marked `unverified` and `unmeasured`; the conversion
-cannot inherit a 2.2 provider or interval license. The 2.2 wire does not carry
+cannot inherit a `CausalPosterior` provider or interval license. The `CausalPosterior` wire does not carry
 population, regime or snapshot identities, so the caller must establish those
 in the independently retained causal contract before conversion.
 
@@ -95,7 +95,7 @@ It checks units, population, regime, horizon, conditioning, role and transform
 for every mapped coefficient. It requires one constant residual-variance
 coordinate equal to the target prior's known variance, no unsupported or
 weighted coordinates, and no extra parameters. It computes the source's full
-finite-draw covariance and passes it to the existing 2.2 dense covariance
+finite-draw covariance and passes it to the existing dense covariance
 hydration, permuted into target order. An old posterior must first pass the
 explicit checked conversion above. Positional or partial mappings refuse.
 

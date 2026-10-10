@@ -327,11 +327,11 @@ mod tests {
         assert!(bad.verify().is_err());
     }
 
-    /// Cross-format: a 2.1 learned-trial artifact is never read as a 2.2
+    /// Cross-format: a learned-trial artifact is never read as a
     /// learned-continuous or smoothed-dose artifact (each checks its own
     /// version and feature marker first).
     #[test]
-    fn a_learned_trial_artifact_is_refused_by_the_2_2_continuous_consumers() {
+    fn a_learned_trial_artifact_is_refused_by_the_learned_continuous_consumers() {
         let (diagram, query, input, options) = fixture();
         let ctx = ExecutionContext::for_tests(8);
         let study =

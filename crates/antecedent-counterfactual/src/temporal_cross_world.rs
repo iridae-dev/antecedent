@@ -12,7 +12,7 @@
 //! action histories are replayed against that **same** history (action), and the
 //! final outcome of each world is computed from it (prediction). The per-unit
 //! counterfactual final outcome is `Y_h(u)` and the estimand is the sample mean of
-//! `Y_plus - Y_minus`. The 2.2 static edge-intervention proof does not identify
+//! `Y_plus - Y_minus`. The static edge-intervention proof does not identify
 //! this quantity; drawing fresh noise per world would answer a different question
 //! (an interventional, not a counterfactual, one).
 //!

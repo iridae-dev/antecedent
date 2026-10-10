@@ -119,7 +119,7 @@ pub fn unaccounted_after(identified: f64) -> f64 {
 /// `search.cancelled`) is carried beside it.
 pub const SCENARIO_UNEVALUATED_DETAIL: &str = "scenarios.unevaluated_budget";
 /// Registered runtime-refusal code of an unevaluated scenario: the same
-/// `transport_budget_cancel` every 2.2 transport search reports for a budget
+/// `transport_budget_cancel` every transport search reports for a budget
 /// or cancellation stop, never a verdict about the scenario.
 pub const SCENARIO_UNEVALUATED_CODE: &str = reason_code!("transport_budget_cancel");
 

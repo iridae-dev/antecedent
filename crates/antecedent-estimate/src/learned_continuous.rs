@@ -45,7 +45,7 @@
 //! whose fold lacks a role fails and is counted; any failure withholds the interval), and
 //! only the point run is gated on membership overlap ([`check_membership_overlap`]) - a
 //! replicate whose out-of-fold membership falls below the threshold still contributes.
-//! The shared bootstrap also serves the 2.1 learned-trial cells, whose seeded results must
+//! The shared bootstrap also serves the learned-trial cells, whose seeded results must
 //! not change. `fit_point` applies no preprocessing beyond an intercept column, so
 //! "preprocessing inside folds" holds trivially today.
 use crate::learned_trial::{

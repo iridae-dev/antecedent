@@ -1,4 +1,4 @@
-"""Bayesian remainder: staged cells and prior-catalog refusals."""
+"""Bayesian staged routes: staged cells and prior-catalog refusals."""
 
 from __future__ import annotations
 

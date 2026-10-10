@@ -104,7 +104,7 @@ fn known_gaussian_null_power_and_holm_grid() {
                 let (size, fwer, reference_fwer, power) =
                     (rate(rejected), rate(family_rejected), rate(reference_rejected), rate(power));
                 println!(
-                    "f18-gaussian n={n} k={k} rho={rho:.6} replicates={REPLICATES} type_i={size:.4} holm_all={fwer:.4} holm_reference={reference_fwer:.4} power={power:.4}"
+                    "constancy-gaussian n={n} k={k} rho={rho:.6} replicates={REPLICATES} type_i={size:.4} holm_all={fwer:.4} holm_reference={reference_fwer:.4} power={power:.4}"
                 );
                 // Fixed in advance: alpha=.05, roughly five binomial SEs at
                 // 2000 simulations. Holm may be conservative as k increases.

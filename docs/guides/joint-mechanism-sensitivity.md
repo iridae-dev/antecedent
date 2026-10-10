@@ -18,20 +18,20 @@ The derivation is our own; it is not taken from a source.
 
 ## Scope
 
-The only formula is the registered surrogate z formula, the one 2.1
+The only formula is the registered surrogate z formula, the one-factor
 `z_transport_mechanism_sensitivity` accepts:
 
     psi = sum_w P_W(w) [m(w, 1) - m(w, 0)],   m(w, x) = sum_y y P_Y(y | w, x, do(z)),
 
 with one outcome, one binary treatment, one shared parent `W` and one cited
 source regime. Two factors can deviate: the outcome kernel `P_Y` (contaminated
-per `(w, x)` stratum, as in 2.1) and the shared parent marginal `P_W`. The
+per `(w, x)` stratum, as in the one-factor route) and the shared parent marginal `P_W`. The
 treatment is set by intervention and is never a factor.
 
 Refused by design, each with a `joint_sensitivity.*` detail:
 
 - a total budget coupling the fractions (`sum eps <= B`): `budget_coupling`;
-- a fixed-graph parent-mechanism perturbation: `fixed_graph_parent`. The 2.1
+- a fixed-graph parent-mechanism perturbation: `fixed_graph_parent`. The one-factor
   fixed-graph route requires the supplied target parent law, so perturbing it
   would contradict supplied target evidence;
 - the fixed-graph conditional-mechanism joint problem: `fixed_graph_conditional`;
@@ -63,7 +63,7 @@ and `R_Y` is free separately in each `(w, x)` stratum.
 
 **Factor normalization is enforced, not repaired.** The class is defined only on
 distributions. Each kernel row is a conditional of the law, normalized by its
-stratum mass and re-checked by the 2.1 evaluator (`|sum - 1| <= 1e-10`). The
+stratum mass and re-checked by the one-factor evaluator (`|sum - 1| <= 1e-10`). The
 shared parent marginal is the law's own mass, which a caller's loose
 `LawTolerance` can leave far from one; it must have unit mass within `1e-10`, or
 the route refuses (`transport_support_failure` /
@@ -100,11 +100,11 @@ and then the parent optimum puts `R_W` on `argmax_w D+(w)`:
 
 The lower end is symmetric, with `D-(w) = (1 - e_Y) Delta(w) - e_Y (y_max - y_min)`
 and a min over `w`. The cost is O(strata x categories). The code computes the
-kernel stage with the unchanged 2.1 `DiscreteKernelSensitivity` evaluator, which
+kernel stage with the unchanged one-factor `DiscreteKernelSensitivity` evaluator, which
 gives `A = sum_w P_W(w) D+(w)`, and then `U = A + e_W max(max_w D+(w) - A, 0)`.
 The clamp only removes rounding, since `max >= average` holds exactly. At
 `e_W = 0` the kernel stage is returned unchanged, so a single kernel factor is
-bit-equal to the 2.1 output on every law the route accepts (the 2.1 route also
+bit-equal to the one-factor output on every law the route accepts (the one-factor route also
 evaluates a law whose parent mass is far from one, which this route refuses).
 
 **Numerical check (not a proof).** The rule was checked in a throwaway script
@@ -144,11 +144,11 @@ certified in exact arithmetic. When the true crossing lies within a few
 rounding errors of `lower` or `upper`, exact arithmetic could place it just
 outside the bracket.
 
-On the axes the 2.1 one-factor analytic values are reported:
+On the axes the one-factor analytic values are reported:
 
 - the kernel axis uses `DiscreteKernelSensitivity` on the kernel;
 - the parent axis uses it on `P_W` with the outcome values `Delta(w)`, which is
-  the 2.1 root-mechanism construction.
+  the one-factor root-mechanism construction.
 
 Tests check that each value lies in its bracket, and that each frontier bracket
 is certified by brute-force vertex enumeration as well as by the closed form
@@ -185,7 +185,7 @@ cancelled frontier is not exported, because it does not replay.
   every value in it is attained and nothing outside it is. It is an assumption
   range. It is not a sharp identification claim beyond those assumptions, and it
   is never a confidence interval.
-- The claim is conditional on the 2.1 checked z derivation and catalog binding,
+- The claim is conditional on the one-factor checked z derivation and catalog binding,
   which the existing route verifies.
 - The guarantee `exact_range_complete_within_declared_contamination_class`
   covers the range only. Sampling uncertainty is not offered by the range
@@ -204,7 +204,7 @@ There is one composition: the percentile bootstrap of the exact endpoints,
     [ q_{(1-a)/2}(L*_b),  q_{(1+a)/2}(U*_b) ],
 
 where each replicate is an iid row bootstrap of the cited count table, on the
-same stream as the 2.1 nominal z interval, and gets its own exact range.
+same stream as the one-factor nominal z interval, and gets its own exact range.
 
 Fix any true deviation `delta0` in the box. On every replicate,
 `L*_b <= psi*_b(delta0) <= U*_b`. So the interval contains the pointwise

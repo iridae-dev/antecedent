@@ -302,7 +302,7 @@ on the machine you plan for.
 
 ## Current behavior (E0 reproducers)
 
-Recorded on branch 2.2.0 (crates 2.1.1) by the synthetic, bounded tests in
+Recorded by the synthetic, bounded tests in
 `crates/antecedent/tests/preflight_reproducers.rs` and `python/tests/test_preflight.py`,
 from reading the code paths they exercise.
 

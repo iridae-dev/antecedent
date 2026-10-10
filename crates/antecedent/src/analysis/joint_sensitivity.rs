@@ -125,7 +125,7 @@ pub struct JointTippingWire {
     pub parent_fraction: Option<f64>,
     /// Factor searched.
     pub factor: String,
-    /// 2.1 analytic value on an axis.
+    /// One-factor analytic value on an axis.
     pub analytic: Option<f64>,
     /// Search status.
     pub status: String,

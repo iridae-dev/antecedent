@@ -557,7 +557,7 @@ struct Engine<'a> {
     proof: Vec<ProofStep>,
     memo: HashMap<(State, bool), Option<usize>>,
     limits: SidLimits,
-    /// The shared 2.2 budget this engine charges, when it runs under one;
+    /// The shared transport-search budget this engine charges, when it runs under one;
     /// `None` keeps the engine's own [`SidLimits`] accounting.
     shared: Option<&'a mut (dyn SearchCharge + 'a)>,
     /// Depth of this engine's root within the enclosing search, so a nested

@@ -1,7 +1,7 @@
-//! Typed conversions from the 2.2 estimate-crate claim types into decision atoms.
+//! Typed conversions from the estimate-crate claim types into decision atoms.
 //!
 //! The design crate cannot depend on the estimate crate, so the conversions live
-//! here, beside [`BoundDecisionContract`]. Each reads a real 2.2 result and
+//! here, beside [`BoundDecisionContract`]. Each reads a real estimate-crate result and
 //! produces what the design adapters consume:
 //!
 //! - a [`ScenarioSetReport`] becomes one structural atom per scenario, keeping
@@ -66,7 +66,7 @@ pub const NOT_ENUMERATED_ATOM: &str = "cpdag.not_enumerated";
 /// Why a conversion refused.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ClaimError {
-    /// The 2.2 result cannot be read as the requested claim.
+    /// The result cannot be read as the requested claim.
     UnsupportedClaimShape(&'static str),
     /// An action input has no bound outcome or range to read a utility from.
     MissingScenarioUtility {
@@ -172,7 +172,7 @@ pub struct OutcomeBinding {
     pub quantity: ScientificQuantity,
 }
 
-/// What the conversion needs beyond the 2.2 report: the quantity each outcome
+/// What the conversion needs beyond the report: the quantity each outcome
 /// answers, the lineage of the laws, and the support of each scenario.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScenarioClaimBinding {
@@ -962,7 +962,7 @@ pub enum IntervalReading {
     CoverageInterval,
 }
 
-/// Interval of each action's utility from one 2.2 identified-set interval per
+/// Interval of each action's utility from one identified-set interval per
 /// input quantity.
 ///
 /// # Errors

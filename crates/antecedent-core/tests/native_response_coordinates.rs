@@ -55,7 +55,7 @@ fn response(
             point_status: None,
         },
         assumptions: AssumptionSet::new(),
-        provenance_id: Arc::from("a0r.test"),
+        provenance_id: Arc::from("coordinate.test"),
         horizon_identification: horizons.map(|steps| {
             steps
                 .into_iter()

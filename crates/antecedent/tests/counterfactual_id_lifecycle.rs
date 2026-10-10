@@ -236,7 +236,7 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
         edges.iter().map(|&(a, b)| (v(a), v(b))).collect();
     let total =
         CrossWorldQuery::path_specific(v(0), v(2), 0.0, 1.0, &graph_edges, &graph_edges).unwrap();
-    let a5 = evaluate_cross_world_effect(
+    let sampled = evaluate_cross_world_effect(
         dag.clone(),
         &data,
         &total,
@@ -245,10 +245,11 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
     )
     .unwrap();
     let untreated: Vec<usize> = (0..xs.len()).filter(|&i| xs[i] == 0.0).collect();
-    let a5_effect =
-        untreated.iter().map(|&i| a5.unit_effects[i]).sum::<f64>() / untreated.len() as f64;
-    let a5_counterfactual =
-        untreated.iter().map(|&i| ys[i] + a5.unit_effects[i]).sum::<f64>() / untreated.len() as f64;
+    let sampled_effect =
+        untreated.iter().map(|&i| sampled.unit_effects[i]).sum::<f64>() / untreated.len() as f64;
+    let sampled_counterfactual =
+        untreated.iter().map(|&i| ys[i] + sampled.unit_effects[i]).sum::<f64>()
+            / untreated.len() as f64;
     // The same law as a finite-discrete joint (Y levels -1..2).
     let y_levels = vec![-1.0, 0.0, 1.0, 2.0];
     let cards = [2usize, 3, 4];
@@ -286,15 +287,19 @@ fn the_markovian_ett_equals_the_edge_contrast_restricted_to_the_untreated() {
         &ctx(),
     )
     .unwrap();
-    let b5 = prepared.evaluate(&law, &ctx()).unwrap();
+    let discrete = prepared.evaluate(&law, &ctx()).unwrap();
     assert_eq!(cards.len(), 3);
-    assert!((b5.effect.unwrap() - a5_effect).abs() < 1e-9, "{:?} vs {a5_effect}", b5.effect);
     assert!(
-        (b5.counterfactual_mean.unwrap() - a5_counterfactual).abs() < 1e-9,
-        "{:?} vs {a5_counterfactual}",
-        b5.counterfactual_mean
+        (discrete.effect.unwrap() - sampled_effect).abs() < 1e-9,
+        "{:?} vs {sampled_effect}",
+        discrete.effect
     );
-    assert!((a5_effect - 1.0).abs() < 1e-9, "the structural total effect is 1");
+    assert!(
+        (discrete.counterfactual_mean.unwrap() - sampled_counterfactual).abs() < 1e-9,
+        "{:?} vs {sampled_counterfactual}",
+        discrete.counterfactual_mean
+    );
+    assert!((sampled_effect - 1.0).abs() < 1e-9, "the structural total effect is 1");
 }
 
 // ---------------------------------------------------------------- artifact
@@ -657,11 +662,12 @@ fn the_two_cross_world_formats_refuse_each_other() {
         dag.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
     }
     let query = CrossWorldQuery::natural_direct(v(0), v(1), v(2), 0.0, 1.0).unwrap();
-    let a5 = evaluate_cross_world_effect(dag, &data, &query, CrossWorldOptions::default(), &ctx())
-        .unwrap();
-    let a5_bytes = a5.export_artifact().unwrap();
+    let sampled =
+        evaluate_cross_world_effect(dag, &data, &query, CrossWorldOptions::default(), &ctx())
+            .unwrap();
+    let sampled_bytes = sampled.export_artifact().unwrap();
     let error = consume_counterfactual_id_artifact(
-        &a5_bytes,
+        &sampled_bytes,
         CounterfactualIdConsumeLimits::default(),
         &ctx(),
     )

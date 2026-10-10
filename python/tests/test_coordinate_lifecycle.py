@@ -14,8 +14,8 @@ Lineage ids are the literal strings the Rust ``provenance_chain`` writes; the di
 surfaces come from the same native chain function, so equal rows mean equal digests.
 
 Fixture hooks (skipped until the files exist, written only on request):
-``A0R_WRITE_FIXTURES=1 python -m pytest python/tests/test_coordinate_lifecycle.py -k
-a0r_regenerate_python_fixtures`` writes ``conformance/cross_surface/py_a0r_*``; the Rust twin is
+``ANTECEDENT_WRITE_FIXTURES=1 python -m pytest python/tests/test_coordinate_lifecycle.py -k
+regenerate_python_fixtures`` writes ``conformance/cross_surface/py_*``; the Rust twin is
 ``ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test coordinate_parity -- --ignored
 regenerate_rust_fixtures``.
 """
@@ -49,8 +49,8 @@ from test_repair import backdoor
 _E = TypeVar("_E", bound=BaseException)
 FIXTURE_DIR = Path(__file__).resolve().parents[2] / "conformance" / "cross_surface"
 REGENERATE_PY = (
-    "A0R_WRITE_FIXTURES=1 python -m pytest python/tests/test_coordinate_lifecycle.py "
-    "-k a0r_regenerate_python_fixtures"
+    "ANTECEDENT_WRITE_FIXTURES=1 python -m pytest python/tests/test_coordinate_lifecycle.py "
+    "-k regenerate_python_fixtures"
 )
 REGENERATE_RUST = (
     "ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test coordinate_parity "
@@ -439,7 +439,7 @@ def _surface(
         ],
         provenance=sd.SurfaceProvenance(
             source_kind="supplied_surface",
-            query_binding="a0r-test",
+            query_binding="coordinate-test",
             provider_snapshot=snapshot,
             source_regime="regime:1",
             method="hand-derived surface",
@@ -670,7 +670,7 @@ def test_obligation_facade_exposes_the_rust_fields_and_identity_shape():
     assert obligation.proof_step == "backdoor.adjustment_set:0,1,2,3"
     assert obligation.satisfiable_by_study is True
     # `eo1:<kind>:` and the first 32 hex digits of BLAKE3 over the canonical content, which
-    # Rust recomputes in `a0r_backdoor_obligation_has_the_derived_identity_*`.
+    # Rust recomputes in `backdoor_obligation_has_the_derived_identity_and_the_python_visible_fields`.
     assert re.fullmatch(r"eo1:provide_joint_law:[0-9a-f]{32}", obligation.id)
     # The identity is stable across independently built contracts and reorderings.
     (again,) = repair.obligations(backdoor())
@@ -706,7 +706,7 @@ def _obligation_fixture_text() -> str:
 
 
 def test_regenerate_python_fixtures():
-    if os.environ.get("A0R_WRITE_FIXTURES") != "1":
+    if os.environ.get("ANTECEDENT_WRITE_FIXTURES") != "1":
         pytest.skip(f"fixture writer; run {REGENERATE_PY}")
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
     (FIXTURE_DIR / "py_design_ranking.bin").write_bytes(_guess_ranking().export())

@@ -164,7 +164,7 @@ ranged surface refuse. A `SensitivityArtifact` exports, and
 it and refuses a resealed or foreign artifact. It can be embedded in a
 [composition bundle](composition.md) as a `sensitivity` node.
 
-A 2.2 joint mechanism sensitivity enters the same way through
+A joint mechanism sensitivity enters the same way through
 `SensitivityArtifact.from_joint_sensitivity(...)`; `from_surface(...)` takes a
 hand-supplied surface (the tests derive their oracles by hand: a gamma grid
 `{0, 1, 2}` with action A worth `2 - gamma` against B worth 1 leads A, ties at 1

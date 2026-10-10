@@ -18,8 +18,8 @@
 //!
 //! * Rust-built: `ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design --test
 //!   coordinate_parity -- --ignored regenerate_rust_fixtures`
-//! * Python-built: `A0R_WRITE_FIXTURES=1 python -m pytest
-//!   python/tests/test_coordinate_lifecycle.py -k a0r_regenerate_python_fixtures`
+//! * Python-built: `ANTECEDENT_WRITE_FIXTURES=1 python -m pytest
+//!   python/tests/test_coordinate_lifecycle.py -k regenerate_python_fixtures`
 //! * Rust consumer of the Python-built files: `cargo test -p antecedent-design --test
 //!   coordinate_parity -- --ignored consume_python_fixtures`
 #![allow(clippy::float_cmp, reason = "exact hand-derived values")]
@@ -376,7 +376,7 @@ fn design_ranking_chain_digests_move_with_every_upstream_identity() {
 fn a_consumer_derives_the_same_chain_from_the_exported_bytes() {
     let wire = seal_guess();
     let chain = wire.provenance_chain().unwrap();
-    let bytes = wire.to_bytes("a0r-ranking").unwrap();
+    let bytes = wire.to_bytes("coordinate-ranking").unwrap();
     let expectation = ConsumeExpectation {
         artifact_identity: Some(wire.digest.clone()),
         decision_contract_identity: Some("contract-1".into()),
@@ -472,7 +472,7 @@ fn invariant_parts() -> SensitivityParts {
         },
         provenance: SensitivityProvenance {
             source_kind: "supplied_surface".into(),
-            query_binding: "a0r-test".into(),
+            query_binding: "coordinate-test".into(),
             provider_snapshot: "snapshot-1".into(),
             source_regime: "regime:1".into(),
             method: "hand-derived surface".into(),
@@ -884,7 +884,7 @@ fn obligation_fixture_json(obligation: &EvidenceObligation) -> String {
 }
 
 #[test]
-#[ignore = "writes conformance/cross_surface/rust_a0r_*; run with ANTECEDENT_WRITE_FIXTURES=1"]
+#[ignore = "writes conformance/cross_surface/rust_*; run with ANTECEDENT_WRITE_FIXTURES=1"]
 fn regenerate_rust_fixtures() {
     assert_eq!(
         std::env::var("ANTECEDENT_WRITE_FIXTURES").as_deref(),
@@ -893,11 +893,9 @@ fn regenerate_rust_fixtures() {
     );
     let dir = fixture_dir();
     let ranking = seal_guess();
-    std::fs::write(
-        dir.join("rust_design_ranking.bin"),
-        ranking.to_bytes("a0r-ranking").unwrap(),
-    )
-    .unwrap();
+    // The artifact id is part of the committed fixture bytes; keep it unchanged.
+    std::fs::write(dir.join("rust_design_ranking.bin"), ranking.to_bytes("a0r-ranking").unwrap())
+        .unwrap();
     std::fs::write(
         dir.join("rust_coordinate_obligation.identity.json"),
         obligation_fixture_json(&backdoor_obligation()),
@@ -906,7 +904,7 @@ fn regenerate_rust_fixtures() {
 }
 
 #[test]
-#[ignore = "needs py_a0r_* from `A0R_WRITE_FIXTURES=1 python -m pytest python/tests/test_coordinate_lifecycle.py -k a0r_regenerate_python_fixtures`"]
+#[ignore = "needs py_* from `ANTECEDENT_WRITE_FIXTURES=1 python -m pytest python/tests/test_coordinate_lifecycle.py -k regenerate_python_fixtures`"]
 fn consume_python_fixtures() {
     let dir = fixture_dir();
     // The Python-built design ranking (same hand constants) is consumed by recomputation.

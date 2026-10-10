@@ -409,8 +409,8 @@ def test_provider_refused_on_ordinary_query():
         "identify",
     ],
 )
-def test_names_moved_in_2_0_point_at_advanced(name):
-    # The 1.11 spelling is gone, the 2.0 spelling exists, and the error says where.
+def test_names_moved_to_advanced_point_at_advanced(name):
+    # The old spelling is gone, the advanced spelling exists, and the error says where.
     with pytest.raises(AttributeError, match=f"transport.advanced.{name}"):
         getattr(transport, name)
     assert hasattr(transport.advanced, name)

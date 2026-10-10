@@ -243,10 +243,7 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
     );
     let mut w = original.clone();
     w.laws[0].snapshot = "renamed".into();
-    assert_eq!(
-        refusal(&w.export().unwrap()),
-        AdmgConditionalArtifactError::DataIdentityMismatch
-    );
+    assert_eq!(refusal(&w.export().unwrap()), AdmgConditionalArtifactError::DataIdentityMismatch);
     let mut w = original.clone();
     let target = w.laws.iter().position(|law| law.population == "target").unwrap();
     w.laws[target].probabilities.reverse();
@@ -270,7 +267,10 @@ fn story_admg_conditional_transport_against_enumerated_truth_with_typed_refusals
     );
     let mut w = original.clone();
     w.uncertainty = "percentile_bootstrap".into();
-    assert_eq!(refusal(&conditional_reseal(&mut w)), AdmgConditionalArtifactError::IntervalWithheld);
+    assert_eq!(
+        refusal(&conditional_reseal(&mut w)),
+        AdmgConditionalArtifactError::IntervalWithheld
+    );
 
     // A non-transportable diagram (selection on Y): the decision never
     // identifies (not certified, or proven non-transportable when an exact
@@ -585,9 +585,7 @@ fn spec() -> JointDeviationSpec {
     spec
 }
 
-fn consume(
-    wire: &JointSensitivityArtifactWire,
-) -> Result<JointSensitivityArtifactWire, IoError> {
+fn consume(wire: &JointSensitivityArtifactWire) -> Result<JointSensitivityArtifactWire, IoError> {
     JointSensitivityArtifactWire::consume(&wire.export().unwrap(), &ExecutionContext::for_tests(1))
 }
 

@@ -49,8 +49,11 @@ fn original(effects: &[f64]) -> EffectConstancy {
     .unwrap()
 }
 fn consumer(original: &EffectConstancy) -> ConstancyConsumers {
-    ConstancyConsumers::consume(&original.export("f18-downstream").unwrap(), original.identity())
-        .unwrap()
+    ConstancyConsumers::consume(
+        &original.export("constancy-downstream").unwrap(),
+        original.identity(),
+    )
+    .unwrap()
 }
 fn effect() -> ScientificQuantity {
     ScientificQuantity {

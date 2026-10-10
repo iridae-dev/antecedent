@@ -445,11 +445,8 @@ fn cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits()
     assert_eq!(artifact.input_rows(), N as u64);
     let again = session.export_scores().unwrap();
     assert_eq!(again.identity(), identity, "an export is deterministic");
-    assert_eq!(
-        again.to_bytes("c2-cell-scores").unwrap(),
-        artifact.to_bytes("c2-cell-scores").unwrap()
-    );
-    let bytes = artifact.to_bytes("c2-cell-scores").unwrap();
+    assert_eq!(again.to_bytes("cell-scores").unwrap(), artifact.to_bytes("cell-scores").unwrap());
+    let bytes = artifact.to_bytes("cell-scores").unwrap();
 
     // In-process retarget of the live session: the reference.
     let mut changed = base.clone();
@@ -727,7 +724,7 @@ fn cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
     go(&mut session, &base, SEED);
     let artifact = session.export_scores().unwrap();
     let identity = artifact.identity().to_owned();
-    let bytes = artifact.to_bytes("c2-cell-scores").unwrap();
+    let bytes = artifact.to_bytes("cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&bytes, Some(&identity)).is_ok());
 
     // Another run's artifact, consistently sealed, under the identity this consumer retained.
@@ -735,7 +732,7 @@ fn cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
     other.columns = columns(1.0);
     let mut other_session = CellSession::new();
     go(&mut other_session, &other, SEED);
-    let foreign = other_session.export_scores().unwrap().to_bytes("c2-cell-scores").unwrap();
+    let foreign = other_session.export_scores().unwrap().to_bytes("cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&foreign, None).is_ok());
     assert!(ScoreResumeSession::resume_from_score_bytes(&foreign, Some(&identity)).is_err());
 
@@ -743,12 +740,12 @@ fn cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
     let mut meta = decode_parts(&bytes).unwrap();
     meta.table.scores[0] += 0.25;
     FrozenScoreTable::reseal_identity(&mut meta).unwrap();
-    let resealed = encode_parts(&meta, "c2-cell-scores").unwrap();
+    let resealed = encode_parts(&meta, "cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&resealed, Some(&identity)).is_err());
     // An unresealed edit is refused by recomputation alone.
     let mut stale = decode_parts(&bytes).unwrap();
     stale.table.scores[0] += 0.25;
-    let stale_bytes = encode_parts(&stale, "c2-cell-scores").unwrap();
+    let stale_bytes = encode_parts(&stale, "cell-scores").unwrap();
     assert!(ScoreResumeSession::resume_from_score_bytes(&stale_bytes, None).is_err());
 }
 

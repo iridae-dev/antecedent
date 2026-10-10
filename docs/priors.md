@@ -127,10 +127,10 @@ sources on full matrices and pass the composed correlation on.
 
 The `V0` conversion needs the source's σ². A Gaussian posterior with an unknown
 σ² records it as its `residual_variance` draws; a known-σ² Gaussian fit records
-its fixed σ² as a constant `residual_variance` quantity (2.2 and later), so
+its fixed σ² as a constant `residual_variance` quantity, so
 hydration converts with the source's σ². A source with no residual-variance
 quantity (a GLM, a summary built without one, or a known-σ² artifact written
-before 2.2) keeps the earlier behaviour rather than being refused: the hydrated
+without it) keeps the earlier behaviour rather than being refused: the hydrated
 prior keeps the **absolute** SD² and marks it
 (`absolute_coefficient_scale:<indices>` in the prior's restrictions). A Gaussian
 target fit then plugs in its own residual variance, `V0 = SD² / σ̂²` with the
@@ -151,7 +151,7 @@ they produce. On such a target:
   (same lags, same covariates, same order);
 - effect-functional transfer requires the source to carry the target's
   treatment coefficient (same variable at the same lag);
-- a source artifact without coefficient names (written before 1.9) is refused;
+- a source artifact without coefficient names (written by an older writer) is refused;
 - an explicit `NamedParameters` mapping is the declared bridge between
   different lags and is always honoured (names are validated at hydrate).
 
@@ -163,7 +163,7 @@ The catalog offers an additional, **opt-in** check:
 `EstimandFingerprint.temporal` (`TemporalCoordinates`: treatment lags,
 horizon, optional coefficient names). When the *target* fingerprint carries
 temporal coordinates, `compatible_with` rejects a source whose metadata has
-none (`temporal_coordinates_missing`, the case for pre-1.9 metadata) or
+none (`temporal_coordinates_missing`, the case for older metadata) or
 different ones (`temporal_coordinates_mismatch`) unless the source declares a
 `NamedParameters` mapping. Nothing in the library populates these
 coordinates: analyses do not attach them to the posteriors they produce, and
