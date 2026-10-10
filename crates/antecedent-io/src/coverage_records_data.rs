@@ -26195,6 +26195,20 @@ pub static RECORDS: &[CoverageRecord] = &[
     }
 ];
 
+/// Exact identity-only migrations with reviewed original-engine replay evidence.
+/// All other construction axes, measured bounds and attestation remain mandatory.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FunctionalIdentityAlias {
+    pub(crate) record_id: &'static str,
+    pub(crate) measurement_sha: &'static str,
+    pub(crate) original_functional: &'static str,
+    pub(crate) canonical_functional: &'static str,
+}
+
+pub(crate) static FUNCTIONAL_IDENTITY_ALIASES: &[FunctionalIdentityAlias] = &[
+
+];
+
 /// Ids of the records in [`RECORDS`] that attest the tree this file was generated
 /// from (`scripts/calibration_facets.py`: no facet drifted since the record's
 /// `calibration_sha`, or a valid replay waiver covers it). Regenerated with the

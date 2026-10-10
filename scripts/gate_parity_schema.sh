@@ -1005,6 +1005,14 @@ import external_evidence  # noqa: E402
 
 problems.extend(f"external evidence: {p}" for p in external_evidence.check())
 
+# Identity-only migrations cannot rewrite their original measurements or become
+# active merely because a metadata status is changed.
+import calibration_key_aliases
+try:
+    calibration_key_aliases.validated_aliases(root)
+except (ValueError, KeyError, StopIteration, OSError, subprocess.CalledProcessError) as exc:
+    problems.append(f"calibration identity mapping: {exc}")
+
 # ---- [gates] publishing requires calibration attestation ----
 # A tag must not ship calibration labels from a registry that no longer
 # matches the code: the publish workflow attests before any build or upload.

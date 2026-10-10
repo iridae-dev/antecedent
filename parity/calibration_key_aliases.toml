@@ -1,0 +1,11 @@
+# Identity-only mapping for the original BCa recovery measurement.
+# Pending entries never generate runtime aliases. The original record is not rewritten.
+version = 1
+
+[[alias]]
+record_id = "cov.recovered_effect.m_graph.frequentist.bootstrap_bca.l95.binary_missingness_whole_row_recovery_bca_l95"
+measurement_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
+collection_sha = "e4bc216c0f01bf913f373df721863e0730e0ed14"
+original_record_sha256 = "9302ebf37b4ce12679561198caf2c2cf0319b826e0cf3b37d08de53d5ccdffaa"
+original_functional_sha256 = "0067df569dc7b83db8c7f9b8a465e35ab298b4c750a25af619870026a0a0f33a"
+status = "pending_identity_replay"

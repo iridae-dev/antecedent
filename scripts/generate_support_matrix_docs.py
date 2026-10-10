@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import external_evidence  # noqa: E402
+import calibration_key_aliases  # noqa: E402
 
 OUT = ROOT / "docs" / "support-matrix.md"
 RUST_OUT = ROOT / "crates" / "antecedent" / "src" / "support_matrix_data.rs"
@@ -656,6 +657,14 @@ def render_coverage_records() -> str:
         for variant, name in methods
     )
     block = ",\n".join(items) if items else ""
+    aliases = calibration_key_aliases.validated_aliases(ROOT)
+    alias_items = "\n".join(
+        "    FunctionalIdentityAlias { "
+        + ", ".join(f'{key}: "{rust_escape(row[key])}"' for key in (
+            "record_id", "measurement_sha", "original_functional", "canonical_functional",
+        ))
+        + " }," for row in aliases
+    )
     attesting = "".join(f'    "{rust_escape(rid)}",\n' for rid in attesting_record_ids())
     return f"""//! Generated from `parity/coverage_records.toml` by
 //! `scripts/generate_support_matrix_docs.py`. Do not edit.
@@ -717,6 +726,20 @@ pub struct CoverageGridPoint {{
 
 pub static RECORDS: &[CoverageRecord] = &[
 {block}
+];
+
+/// Exact identity-only migrations with reviewed original-engine replay evidence.
+/// All other construction axes, measured bounds and attestation remain mandatory.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FunctionalIdentityAlias {{
+    pub(crate) record_id: &'static str,
+    pub(crate) measurement_sha: &'static str,
+    pub(crate) original_functional: &'static str,
+    pub(crate) canonical_functional: &'static str,
+}}
+
+pub(crate) static FUNCTIONAL_IDENTITY_ALIASES: &[FunctionalIdentityAlias] = &[
+{alias_items}
 ];
 
 /// Ids of the records in [`RECORDS`] that attest the tree this file was generated
