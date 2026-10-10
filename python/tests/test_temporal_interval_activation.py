@@ -18,7 +18,9 @@ import numpy as np
 import pytest
 from antecedent import _native
 from antecedent.errors import CausalTypeError, CausalUnsupportedError
-from antecedent.transport._temporal_extensions import _temporal_dependent_interval_candidate as temporal_dependent_interval
+from antecedent.transport._temporal_extensions import (
+    _temporal_dependent_interval_candidate as temporal_dependent_interval,
+)
 from antecedent.transport.advanced import (
     InitialStateLaw,
     TemporalIntervalCandidate,
@@ -139,14 +141,16 @@ def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh
     low, high = np.quantile(draws, [0.025, 0.975], method="linear")
     if method == "studentized":
         original_se = 0.2 / np.sqrt(99)
-        resample_se = np.sqrt((0.04 - (np.array(draws) - 0.49)**2) / 99)
+        resample_se = np.sqrt((0.04 - (np.array(draws) - 0.49) ** 2) / 99)
         pivots = (np.array(draws) - 0.49) / resample_se
         qlow, qhigh = np.quantile(pivots, [0.025, 0.975], method="linear")
-        bounds = (0.49 - qhigh*original_se, 0.49 - qlow*original_se)
+        bounds = (0.49 - qhigh * original_se, 0.49 - qlow * original_se)
         receipt = payload["result"]["studentization"]
         assert receipt["standard_error"] == pytest.approx(original_se, abs=1e-12)
-        np.testing.assert_allclose(receipt["replicate_standard_errors"],resample_se,atol=1e-12,rtol=0)
-        np.testing.assert_allclose(receipt["pivots"],pivots,atol=1e-11,rtol=0)
+        np.testing.assert_allclose(
+            receipt["replicate_standard_errors"], resample_se, atol=1e-12, rtol=0
+        )
+        np.testing.assert_allclose(receipt["pivots"], pivots, atol=1e-11, rtol=0)
     else:
         bounds = (low, high) if method == "percentile" else (0.98 - high, 0.98 - low)
     assert (result.lower, result.upper) == pytest.approx(bounds, abs=1e-12)
@@ -199,11 +203,14 @@ def test_temporal_candidate_keeps_unknown_units_and_incompatible_history_refusal
 
 
 @_CANDIDATE
-@pytest.mark.parametrize(("method", "expected"), [
-    ("percentile", "3b274fe3d1a6f9e4a9a06b0e09856ad46d27f88d54a05e6542ab9217911d73c6"),
-    ("basic", "fc79b2d1c0ff69e827cabbf986fd93edf118c5eb7ef887759f262ff31e354519"),
-])
-def test_historical_temporal_candidate_artifact_remains_bit_identical(method,expected):
+@pytest.mark.parametrize(
+    ("method", "expected"),
+    [
+        ("percentile", "3b274fe3d1a6f9e4a9a06b0e09856ad46d27f88d54a05e6542ab9217911d73c6"),
+        ("basic", "fc79b2d1c0ff69e827cabbf986fd93edf118c5eb7ef887759f262ff31e354519"),
+    ],
+)
+def test_historical_temporal_candidate_artifact_remains_bit_identical(method, expected):
     # Captured from the installed original 623f16dd native producer before the
     # studentized implementation. This is compatibility evidence, not calibration.
     assert hashlib.sha256(produce(method).export()).hexdigest() == expected
