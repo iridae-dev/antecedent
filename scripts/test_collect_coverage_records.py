@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +11,103 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collect_coverage_records as collector  # noqa: E402
+
+
+class DelegatedIntervalCarrierTest(unittest.TestCase):
+    def test_rust_private_builder_is_not_public_but_unrestricted_wrapper_is(self) -> None:
+        import check_interval_coordinates as intervals
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.rs"
+            source.write_text("pub(crate) fn candidate_interval_replay() {}\n"
+                              "pub fn candidate_interval_internal() {}\n")
+            with patch.object(intervals, "ROOT", root), patch.object(intervals.cai, "ROOT", root), \
+                    patch.object(intervals, "RELEASE", "2.3"):
+                self.assertEqual(intervals.surface_interval_findings("source.rs"),
+                                 [(2, "candidate_interval_internal")])
+
+    def test_exact_projection_delegates_only_to_owned_method_with_factory_proof(self) -> None:
+        import check_interval_coordinates as intervals
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "carrier.py"
+            source.write_text("class Scalar:\n    @property\n    def interval(self):\n"
+                              "        return float(self._body['lower']), float(self._body['upper'])\n")
+            field = {"name": "interval", "source": "carrier.py", "class": "Scalar",
+                     "method_records": ["method"], "authority_fixture": "factory-proof",
+                     "why": "Original authorized endpoint projection"}
+            record = {"id": "carrier", "prerequisite_records": ["method"],
+                      "fixtures": [{"id": "factory-proof", "role": "negative", "evidence_assertion": "reject_forgery"}],
+                      "delegated_interval_fields": [field]}
+            owners = {"method": {"coverage_records": ["actual-method"],
+                                  "inference_outputs": [{"allocated_coverage_records": ["actual-method"]}]}}
+            findings = [("carrier.py", 3, "interval")]
+            with patch.object(intervals, "ROOT", root):
+                errors = []
+                self.assertEqual(intervals.delegated_interval_findings(record, findings, owners, errors), [])
+                self.assertEqual(errors, [])
+                for altered_field in ({**field, "method_records": ["foreign"]},
+                                      {**field, "authority_fixture": "absent"},
+                                      {**field, "name": "new_interval"},
+                                      {**field, "method_records": []}):
+                    errors = []
+                    altered = {**record, "delegated_interval_fields": [altered_field]}
+                    self.assertEqual(intervals.delegated_interval_findings(altered, findings, owners, errors), findings)
+                    self.assertTrue(errors)
+                errors = []
+                self.assertEqual(intervals.delegated_interval_findings(record, findings, {"method": {}}, errors), findings)
+                self.assertTrue(errors)
+                source.write_text("class Scalar:\n    @property\n    def interval(self):\n"
+                                  "        return float(self._body['lower']) - 1, float(self._body['upper']) + 1\n")
+                errors = []
+                self.assertEqual(intervals.delegated_interval_findings(record, findings, owners, errors), findings)
+                self.assertTrue(errors, "Numerically recomputed interval cannot borrow delegated evidence")
+
+
+class ArchivedSupersededMeasurementTest(unittest.TestCase):
+    def test_retired_emitter_binds_immutable_history_and_selected_replacement(self) -> None:
+        import check_interval_coordinates as intervals
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "crates/fixture/tests/calibration.rs"
+            source.parent.mkdir(parents=True)
+            old = "cov.fixture.dag.frequentist.l95.old_method"
+            replacement = "cov.fixture.dag.frequentist.l95.corrected_method"
+            source.write_text(f'#[test] #[ignore] fn old_method() {{ emit("{old}"); }}')
+            subprocess.run(["git", "init", "-q", directory], check=True)
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
+                            "commit", "-q", "-m", "fixture"], cwd=root, check=True)
+            sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            source.unlink()  # Retirement removes the live emitter; immutable history remains.
+            entry = {"id": old, "harness": "crates/fixture/tests/calibration.rs", "test": "old_method",
+                     "status": "failed", "measurement_commit": sha, "failure": "below unchanged floor",
+                     "disposition": "retired_superseded", "replacement_coverage_id": replacement}
+            record = {"id": "fixture", "historical_coverage_records": [entry], "inference_outputs": []}
+            with patch.object(intervals, "ROOT", root):
+                errors = []
+                self.assertEqual(intervals.historical_allocations(record, [replacement], set(), errors), {old})
+                self.assertEqual(errors, [])
+                for field, value, expected in (
+                    ("test", "invented", "no original ignored harness emitter"),
+                    ("measurement_commit", "0" * 40, "no original ignored harness emitter"),
+                    ("replacement_coverage_id", old, "selected replacement"),
+                    ("status", "passed", "needs failed status"),
+                ):
+                    altered = {**record, "historical_coverage_records": [{**entry, field: value}]}
+                    errors = []
+                    intervals.historical_allocations(altered, [replacement], set(), errors)
+                    self.assertTrue(any(expected in error for error in errors), errors)
+                errors = []
+                intervals.historical_allocations(record, [replacement], {old}, errors)
+                self.assertTrue(any("passing licensed record" in error for error in errors))
+                allocated = {**record, "inference_outputs": [{"allocated_coverage_records": [old]}]}
+                errors = []
+                intervals.historical_allocations(allocated, [replacement], set(), errors)
+                self.assertTrue(any("active inference output" in error for error in errors))
 
 
 class ConditionalDgpReferenceTest(unittest.TestCase):

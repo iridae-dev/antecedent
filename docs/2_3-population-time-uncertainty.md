@@ -169,7 +169,7 @@ direct panel. Fresh consumption replays that checked source rather than
 substituting a plain panel artifact. Arbitrary temporal callbacks or incomplete
 histories receive no studentization certificate.
 
-Historical percentile/basic response failures remain failed. Previously passing
+Failed percentile/basic response implementations are retired; their measurements remain archived. Previously passing
 paired-effect constructions remain separate methods; neither supplies evidence
 for a studentized interval. See [prepared recalculation](2_3-recalculation-capabilities.md).
 
@@ -270,7 +270,7 @@ original derivation/method basis resolves to a current record. Independent
 consumption rechecks the recovery proof and every bootstrap/jackknife receipt;
 correct missingness premises and independent observations remain declarations.
 The original B500 percentile failure (1874/2000 coverage in its recheck) and
-version-2 artifact remain distinct and unlicensed. They are not BCa evidence.
+version-2 evidence remain archived. The percentile estimator and version-2 runtime are retired, not pending release work. They are not BCa evidence.
 See the [BCa scientific design](sampled-recovery-bca.md).
 
 The CPDAG search charges completion storage as well as orientation attempts. A

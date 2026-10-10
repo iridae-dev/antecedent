@@ -193,7 +193,12 @@ def per_output_inference(records: list[dict]) -> list[str]:
         for entry in record.get("historical_coverage_records", []):
             matching = [output for output in outputs
                         if entry["id"] in output["allocated_coverage_records"]]
-            if entry.get("status") != "failed" or not matching or any(
+            if entry.get("status") != "failed":
+                raise ValueError(f"{record['id']}: historical allocation must retain failed output standing")
+            if entry.get("disposition") == "retired_superseded":
+                if matching or entry.get("replacement_coverage_id") not in allocated:
+                    raise ValueError(f"{record['id']}: retired history needs selected replacement and no active output")
+            elif not matching or any(
                 output.get("allocation_status") != "historical_measurement_failed_route_closed"
                 for output in matching
             ):
@@ -385,6 +390,16 @@ def self_test() -> None:
     records = tomllib.loads(PROMOTION.read_text())["record"]
     source = next(record for record in records if record.get("historical_coverage_records"))
     per_output_inference([source])
+    # Keep generic historical-allocation guards independent of retired live methods.
+    source = deepcopy(source)
+    for entry in source["historical_coverage_records"]:
+        entry.pop("disposition", None)
+        entry.pop("replacement_coverage_id", None)
+    historical_output = deepcopy(source["inference_outputs"][0])
+    historical_output["id"] = "synthetic.historical"
+    historical_output["allocation_status"] = "historical_measurement_failed_route_closed"
+    historical_output["allocated_coverage_records"] = [e["id"] for e in source["historical_coverage_records"]]
+    source["inference_outputs"].append(historical_output)
     historical_id = source["historical_coverage_records"][0]["id"]
     overlap = deepcopy(source)
     overlap.setdefault("coverage_records", []).append(historical_id)

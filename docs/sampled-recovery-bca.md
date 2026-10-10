@@ -1,9 +1,7 @@
 # Whole-row sampled recovery: BCa candidate protocol
 
 The original 500-draw percentile procedure did not earn a coverage license: its
-2,000-repetition recheck observed 0.937 coverage. The archived records and the
-version-2 percentile artifact retain that method identity. They are not evidence
-for the new procedure described here.
+2,000-repetition recheck observed 0.937 coverage. Its failed measurements are retained as historical evidence. The percentile estimator and version-2 runtime path are retired; BCa replaces them rather than leaving a pending release method. Those measurements are not evidence for BCa.
 
 The new `bootstrap_bca` candidate uses 2,000 whole-row bootstrap draws and the
 bias-corrected and accelerated transformation of
@@ -42,8 +40,7 @@ The version-3 artifact binds this method, the exact tie/quantile/jackknife
 convention, bias correction, acceleration, adjusted probabilities, every grouped
 delete-one record, original rows and identities, and every attempted bootstrap
 draw. Its consumer rechecks identification and reruns the complete calculation
-under caller-retained identities and bounds. Version-2 percentile artifacts remain
-replayable with their original digests and scientific meaning.
+under caller-retained identities and bounds. Historical version-2 percentile evidence remains archived at its original commit; it is not accepted by the BCa consumer.
 
 The distinct ignored calibration fixture is
 `binary_missingness_whole_row_recovery_bca_l95`, emitting

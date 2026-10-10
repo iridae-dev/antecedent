@@ -50,6 +50,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import tomllib
@@ -77,8 +78,15 @@ def load(rel: str) -> dict:
 
 
 def surface_interval_findings(rel: str) -> list[tuple[int, str]]:
-    if RELEASE != "2.3" or not rel.endswith(".py"):
+    if RELEASE != "2.3":
         return cai.interval_findings(rel)
+    if not rel.endswith(".py"):
+        lines = (ROOT / rel).read_text().splitlines()
+        # Crate/module-private builders are not public producers. Rust forbids
+        # widening their visibility through a public reexport; actual public
+        # interval declarations still require their own route or feature gate.
+        return [(line, name) for line, name in cai.interval_findings(rel)
+                if not re.match(r"\s*pub\((?:crate|super|self)\)\s+", lines[line - 1])]
     # Python keyword arguments are uses, not new public interval declarations.
     found = []
     def declarations(nodes):
@@ -226,6 +234,76 @@ def registration_owns_id(registration: dict, literals: set[str], coverage_id: st
 
 
 
+def delegated_interval_findings(record: dict, findings: list, records: dict, errors: list[str]) -> list:
+    """A verified scalar carrier exposes original endpoints, never a new estimator.
+
+    Delegation names the exact prerequisite method owners; each still undergoes
+    its own allocation, route, current attestation and producer/consumer gates.
+    """
+    remaining = list(findings)
+    for item in record.get("delegated_interval_fields", []):
+        if not isinstance(item, dict) or set(item) != {"name", "source", "class", "method_records", "authority_fixture", "why"}:
+            errors.append(f"{record['id']}: delegated interval requires exact source/method/authority fields")
+            continue
+        if any(not isinstance(item[key], str) or not item[key].strip()
+               for key in ("name", "source", "class", "authority_fixture", "why")):
+            errors.append(f"{record['id']}: delegated interval needs nonempty source/method/authority fields")
+            continue
+        methods = item["method_records"]
+        fixtures = {f["id"]: f for f in record.get("fixtures", [])}
+        authority = fixtures.get(item["authority_fixture"], {})
+        valid = (isinstance(methods, list) and bool(methods)
+                 and all(isinstance(x, str) for x in methods)
+                 and len(methods) == len(set(methods))
+                 and set(methods) == set(record.get("prerequisite_records", []))
+                 and authority.get("role") == "negative"
+                 and bool(authority.get("evidence_assertion"))
+                 and isinstance(item["why"], str) and bool(item["why"].strip()))
+        for method in methods if isinstance(methods, list) else []:
+            owner = records.get(method, {}) if isinstance(method, str) else {}
+            allocated = set(owner.get("coverage_records", [])) | set(owner.get("candidate_coverage_records", []))
+            outputs = owner.get("inference_outputs", [])
+            if not allocated or not any(set(output.get("allocated_coverage_records", [])) & allocated
+                                        for output in outputs):
+                valid = False
+        source = item["source"]
+        matches = [row for row in remaining if row[0] == source and row[2] == item["name"]]
+        try:
+            tree = ast.parse((ROOT / source).read_text(encoding="utf-8"))
+            cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == item["class"])
+            field = next(node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == item["name"])
+            # Exact original native report endpoint projection; no interval arithmetic,
+            # fitting or caller callbacks can be disguised as inherited uncertainty.
+            valid &= (len(matches) == 1 and len(field.body) == 1
+                      and isinstance(field.body[0], ast.Return)
+                      and ast.unparse(field.body[0].value) == "(float(self._body['lower']), float(self._body['upper']))"
+                      and any(isinstance(d, ast.Name) and d.id == "property" for d in field.decorator_list))
+        except (OSError, SyntaxError, StopIteration, TypeError):
+            valid = False
+        if not valid:
+            errors.append(f"{record['id']}: delegated interval lacks original endpoint projection, exact method ownership or authority evidence")
+        else:
+            remaining = [row for row in remaining if row not in matches]
+    return remaining
+
+
+def archived_emitter_literals(entry: dict) -> list[str]:
+    """Read failed emitter evidence from its immutable original Git revision."""
+    source = entry["harness"]
+    if Path(source).is_absolute() or ".." in Path(source).parts:
+        return []
+    result = subprocess.run(
+        ["git", "show", f"{entry['measurement_commit']}:{source}"],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    if result.returncode:
+        return []
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "archived_emitter.rs"
+        path.write_text(result.stdout, encoding="utf-8")
+        return ignored_test_literals(path).get(entry["test"], [])
+
+
 def historical_allocations(record: dict, selected: list[str], present: set[str], errors: list[str]) -> set[str]:
     """Own failed original emitters without selecting or licensing their intervals."""
     historical = set()
@@ -251,7 +329,14 @@ def historical_allocations(record: dict, selected: list[str], present: set[str],
             errors.append(f"{rid}: historical coverage needs failed status, original source/test, commit and failure")
             continue
         path = ROOT / source
-        literals = ignored_test_literals(path).get(test, []) if path.is_file() else []
+        retired = entry.get("disposition") == "retired_superseded"
+        if retired:
+            replacement = entry.get("replacement_coverage_id")
+            if replacement not in selected:
+                errors.append(f"{rid}: retired history needs its selected replacement coverage id")
+            literals = archived_emitter_literals(entry)
+        else:
+            literals = ignored_test_literals(path).get(test, []) if path.is_file() else []
         if not registration_owns_id({"name": test}, literals, cid):
             errors.append(f"{rid}: historical coverage id {cid} has no original ignored harness emitter")
             continue
@@ -261,8 +346,11 @@ def historical_allocations(record: dict, selected: list[str], present: set[str],
             errors.append(f"{rid}: failed historical coverage cannot be a passing licensed record")
         matching_outputs = [output for output in record.get("inference_outputs", [])
                             if cid in output.get("allocated_coverage_records", [])]
-        if not matching_outputs or any(output.get("allocation_status") != "historical_measurement_failed_route_closed"
-                                       for output in matching_outputs):
+        if retired:
+            if matching_outputs:
+                errors.append(f"{rid}: retired history cannot allocate an active inference output")
+        elif not matching_outputs or any(output.get("allocation_status") != "historical_measurement_failed_route_closed"
+                                        for output in matching_outputs):
             errors.append(f"{rid}: historical coverage needs an explicitly failed output allocation")
         historical.add(cid)
     return historical
@@ -521,6 +609,7 @@ def check() -> dict:
             if not matches:
                 errors.append(f"{rid}: internal interval {name!r} lacks its explicit hidden calibration-only gate")
             findings = [row for row in findings if row not in matches]
+        findings = delegated_interval_findings(record, findings, {r["id"]: r for r in records}, errors)
         inherited = set(record.get("inherited_interval_fields") or [])
         if inherited:
             seen = {name for _, _, name in findings}

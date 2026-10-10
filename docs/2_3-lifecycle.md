@@ -407,10 +407,10 @@ they are not a fallback for unsupported measured requests.
 
 | Internal acceptance producer family | Historical candidate | Fresh-process consumer |
 | --- | --- | --- |
-| `binary_nested_markov(..., prior=NestedMarkovPrior(...), seed=...)` | `NestedMarkovPosteriorCandidate` | `NestedMarkovPosteriorCandidate.load(bytes, expected_identity=...)` |
-| `binary_nested_markov_fisher_interval(...)` | `NestedFisherCandidate` | `NestedFisherCandidate.load(bytes, expected_identity=...)` |
-| `temporal_dependent_interval(...)` | `TemporalIntervalCandidate` | `TemporalIntervalCandidate.load(bytes, expected_identity=...)` |
-| `sampled_observation_recovery(...)` | `SampledRecoveryCandidate` | `SampledRecoveryCandidate.load(bytes, expected_identity=...)` |
+| `transport._closed_pilots._nested_posterior_candidate(...)` (private acceptance helper) | `NestedMarkovPosteriorCandidate` | `NestedMarkovPosteriorCandidate.load(bytes, expected_identity=...)` |
+| `transport._closed_pilots._nested_fisher_candidate(...)` (private acceptance helper) | `NestedFisherCandidate` | `NestedFisherCandidate.load(bytes, expected_identity=...)` |
+| `transport._temporal_extensions._temporal_dependent_interval_candidate(...)` (private acceptance helper) | `TemporalIntervalCandidate` | `TemporalIntervalCandidate.load(bytes, expected_identity=...)` |
+| `transport._closed_pilots._sampled_observation_recovery_candidate(...)` (private acceptance helper) | `SampledRecoveryCandidate` | `SampledRecoveryCandidate.load(bytes, expected_identity=...)` |
 
 Each candidate supplies `export()`. Retain its expected identity independently of
 the exported artifact: `identity` for the nested and temporal objects,
@@ -453,8 +453,7 @@ the harness's allocation nor deterministic posterior agreement is measurement.
 The Fisher candidate is a distinct expected-information/full-delta frequentist
 method for the same interior IID model, at frozen nominal levels 90% and 95%.
 Temporal intervals instead resample complete independent unit histories, retaining
-panel, unit, time, estimator and seed identities; percentile and basic methods
-have separate frozen coordinates. Sampled recovery resamples complete raw rows
+panel, unit, time, estimator and seed identities. Direct and checked response use studentized intervals; checked paired effects retain separately measured studentized, percentile and basic methods. Failed response percentile/basic implementations are retired. Sampled recovery resamples complete raw rows
 through the original recovery estimator, retaining query-role mapping, recovered
 law covariance and original data/premise identities. Its preparation interface
 bounds six binary roles, 100000 rows and 2000 replicates; this is narrower than
