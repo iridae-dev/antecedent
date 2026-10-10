@@ -1,8 +1,9 @@
-"""Public activation preparation, not coverage or released-positive evidence.
+"""Private candidate producer/consumer checks, with no coverage claim.
 
-Run on an installed calibration-internal wheel. Default wheels retain frozen
-refusals; positive cases must be rerun on the normal wheel after actual activation.
-The finite SCM uses the exact frozen target law and shared-unit-shock design.
+These tests exercise the explicit internal original-source math hook, which is
+absent from normal wheels. Public measured studentized inference and independent
+normal-wheel replay are covered in test_measured_temporal_public.py. The finite
+SCM uses the frozen target law and shared-unit-shock design.
 """
 
 from __future__ import annotations
@@ -106,7 +107,7 @@ def test_temporal_candidate_requires_original_factory():
         TemporalIntervalCandidate._from_native(SimpleNamespace(payload=lambda: "{}"))
 
 
-@pytest.mark.skipif(_INTERNAL, reason="normal released wheel refusal boundary")
+@pytest.mark.skipif(_INTERNAL, reason="normal wheels omit the private internal candidate hook")
 @pytest.mark.parametrize("method", ["studentized"])
 def test_temporal_default_route_remains_frozen(method):
     with pytest.raises(CausalUnsupportedError) as caught:
