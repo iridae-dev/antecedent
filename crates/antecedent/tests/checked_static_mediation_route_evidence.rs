@@ -43,44 +43,48 @@ fn bayesian_data() -> TabularData {
 
 #[test]
 fn static_mediation_preserves_declared_nonbinary_levels_and_default_validation() {
-    let base = data(0.0);
-    let context = ExecutionContext::for_tests(204);
-    for (contrast, unit_truth) in [
-        (MediationContrast::Total, 0.7),
-        (MediationContrast::Direct, 0.4),
-        (MediationContrast::Mediated, 0.3),
-        (MediationContrast::NaturalDirect, 0.4),
-        (MediationContrast::NaturalIndirect, 0.3),
-    ] {
-        let mut query = MediationQuery::binary(v(0), v(2), [v(1)], contrast);
-        query.control = Intervention::set(v(0), Value::f64(0.2));
-        query.active = Intervention::set(v(0), Value::f64(0.8));
-        let builder = Study::tabular(base.clone())
-            .graph(graph())
-            .query(CausalQuery::Mediation(query.clone()))
-            .bootstrap_replicates(0)
-            .build()
-            .unwrap();
-        let mut prepared = builder.prepare(&context).unwrap();
-        drop(builder);
-        let plan = prepared.checked_static_mediation_info().unwrap();
-        assert_eq!(plan.query, query);
-        assert_eq!(plan.validation, RefuteSuite::PlaceboAndRcc);
-        let result = prepared.estimate(&base, &context).unwrap();
-        assert!((result.estimate.ate - 0.6 * unit_truth).abs() < 1e-10);
-        assert!(!result.refutations.is_empty());
-        let refreshed = prepared.refresh(data(0.15), &context).unwrap();
-        let direct_delta = if matches!(
-            contrast,
-            MediationContrast::Total | MediationContrast::Direct | MediationContrast::NaturalDirect
-        ) {
-            0.15
-        } else {
-            0.0
-        };
-        assert!((refreshed.estimate.ate - 0.6 * (unit_truth + direct_delta)).abs() < 1e-10);
-        assert_eq!(prepared.checked_static_mediation_info().unwrap().query, query);
-    }
+    run_on_large_stack(|| {
+        let base = data(0.0);
+        let context = ExecutionContext::for_tests(204);
+        for (contrast, unit_truth) in [
+            (MediationContrast::Total, 0.7),
+            (MediationContrast::Direct, 0.4),
+            (MediationContrast::Mediated, 0.3),
+            (MediationContrast::NaturalDirect, 0.4),
+            (MediationContrast::NaturalIndirect, 0.3),
+        ] {
+            let mut query = MediationQuery::binary(v(0), v(2), [v(1)], contrast);
+            query.control = Intervention::set(v(0), Value::f64(0.2));
+            query.active = Intervention::set(v(0), Value::f64(0.8));
+            let builder = Study::tabular(base.clone())
+                .graph(graph())
+                .query(CausalQuery::Mediation(query.clone()))
+                .bootstrap_replicates(0)
+                .build()
+                .unwrap();
+            let mut prepared = builder.prepare(&context).unwrap();
+            drop(builder);
+            let plan = prepared.checked_static_mediation_info().unwrap();
+            assert_eq!(plan.query, query);
+            assert_eq!(plan.validation, RefuteSuite::PlaceboAndRcc);
+            let result = prepared.estimate(&base, &context).unwrap();
+            assert!((result.estimate.ate - 0.6 * unit_truth).abs() < 1e-10);
+            assert!(!result.refutations.is_empty());
+            let refreshed = prepared.refresh(data(0.15), &context).unwrap();
+            let direct_delta = if matches!(
+                contrast,
+                MediationContrast::Total
+                    | MediationContrast::Direct
+                    | MediationContrast::NaturalDirect
+            ) {
+                0.15
+            } else {
+                0.0
+            };
+            assert!((refreshed.estimate.ate - 0.6 * (unit_truth + direct_delta)).abs() < 1e-10);
+            assert_eq!(prepared.checked_static_mediation_info().unwrap().query, query);
+        }
+    });
 }
 
 #[test]
