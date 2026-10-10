@@ -1,4 +1,4 @@
-//! Bounded Python bridge for F17: an assumption-sensitivity surface consumed by a
+//! Bounded Python bridge for the sensitivity decision: an assumption-sensitivity surface consumed by a
 //! decision contract.
 //!
 //! Python builds the declarations (a surface, a contract, a coordinate sub-range);
@@ -479,7 +479,7 @@ fn parse_factors(factors: Vec<(String, f64)>) -> Result<Vec<JointFactorBound>, S
         .collect()
 }
 
-/// Run the 2.2 joint mechanism sensitivity of a prepared z stage and adapt its
+/// Run the joint mechanism sensitivity of a prepared z stage and adapt its
 /// assumption range into a composition-ready artifact.
 #[pyfunction]
 #[pyo3(signature=(stage, factors, effect_json, grid_points, actions_json, causal_contract_id, *, decision_threshold=None, total_budget=None, tolerance=1e-9, frontier_points=17, max_operations=100_000, max_depth=64, max_memory_bytes=67_108_864, memory_bytes=None, cancel=None))]

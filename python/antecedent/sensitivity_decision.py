@@ -1,6 +1,6 @@
-"""Consume an assumption-sensitivity result in a durable decision (F17).
+"""Consume an assumption-sensitivity result in a durable decision.
 
-A 2.2 joint mechanism sensitivity answers "what could the effect be if the
+A joint mechanism sensitivity answers "what could the effect be if the
 assumption holds anywhere inside this declared range?". This module carries that
 answer into a decision: the surface becomes a :class:`SensitivityArtifact`
 (assumption coordinate, effect surface, tipping coordinates, coordinate support,
@@ -552,7 +552,7 @@ class SensitivityArtifact:
         memory_bytes: int | None = None,
         cancel: Any = None,
     ) -> SensitivityArtifact:
-        """Adapt the 2.2 joint mechanism sensitivity of a prepared z stage.
+        """Adapt the joint mechanism sensitivity of a prepared z stage.
 
         ``stage`` and ``deviation`` are exactly what
         :func:`antecedent.transport.joint_mechanism_sensitivity` takes (a prepared
@@ -560,7 +560,7 @@ class SensitivityArtifact:
         exact range is evaluated on the stage's retained laws and filled on
         ``grid_points`` equally spaced contamination fractions (one declared factor,
         default 9) or at the two exact points of the declared box (two factors,
-        which must use 2). The 2.2 withheld sampling status is carried unchanged: the
+        which must use 2). The withheld sampling status is carried unchanged: the
         range stays an assumption range, never a confidence interval.
         """
         from .transport._impl import _optional_non_negative

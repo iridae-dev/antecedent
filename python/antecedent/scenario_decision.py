@@ -1,4 +1,4 @@
-"""Decide over the claims of a real 2.2 scenario set or CPDAG-completion result.
+"""Decide over the claims of a real scenario set or CPDAG-completion result.
 
 A finite transport scenario set (:func:`antecedent.transport.advanced.prepare_transport_scenarios`)
 or the DAG completions of a CPDAG
@@ -101,7 +101,7 @@ class OutcomeBinding:
 class ScenarioAtom:
     """One scenario (or completion) as an atom.
 
-    ``status`` is the 2.2 scenario status; ``kind`` is what the decision made of it
+    ``status`` is the scenario status; ``kind`` is what the decision made of it
     (``evaluated``, ``unidentified`` or ``unevaluated``). ``weight`` is the declared
     weight (``None`` when unweighted); ``values`` maps each action to its criterion
     value under this atom (empty unless evaluated), and ``leaders`` are the actions

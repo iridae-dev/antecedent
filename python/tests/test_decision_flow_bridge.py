@@ -5,7 +5,7 @@ Hand oracles:
 * ``E[Y | do(a)] = 2a`` on the grid ``-0.5, 0, 0.5`` (the simulated slope is 2 with small noise),
   so with utility = the mean the action reading ``do(a = 0.5)`` (about +1) beats the one reading
   ``do(a = -0.5)`` (about -1);
-* the frozen F14 guess decision (binary state, prior 1/2): ``wait = 1 - theta``, ``treat =
+* the frozen guess decision (binary state, prior 1/2): ``wait = 1 - theta``, ``treat =
   theta``; signals of accuracy 3/4 and 5/8 have ``EVSI = 1/4`` and ``1/8`` and, with a utility-unit
   cost 1/10, net values ``3/20`` and ``1/40``;
 * the marginal sensitivity strata of the module docstring: identified ATE

@@ -1,6 +1,6 @@
-"""Ordered-response observation recovery (2.3 B2): a response chain ``R -> R``.
+"""Ordered-response observation recovery: a response chain ``R -> R``.
 
-A second, separate observation-recovery row. The 2.2 route
+A second, separate observation-recovery row. The single-response route
 (:mod:`antecedent.transport` ``identify_observation_recovery``) refuses every response-to-response
 edge; this row is exactly the graphs it refuses because of **one** response chain, with a
 different identifying order: the head response first, then the tail response given the head.

@@ -1,4 +1,4 @@
-"""Original F18 evidence feeds actual downstream engines without inference promotion."""
+"""Original effect-constancy evidence feeds actual downstream engines without inference promotion."""
 
 from __future__ import annotations
 

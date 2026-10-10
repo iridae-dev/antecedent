@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the 2.3 aligned distribution artifact.
+//! Bounded Python bridge for the aligned distribution artifact.
 
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, DistributionMetadata, DistributionTrust,

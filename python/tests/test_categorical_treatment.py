@@ -1,4 +1,4 @@
-"""B4 categorical treatments through the Python facade.
+"""Categorical treatments through the Python facade.
 
 Frozen dataset A (rows interleaved on purpose): ``a = [1,3]`` (mean 2), ``b = [4,6,5]`` (mean 5),
 ``c = [9,7,11,9]`` (mean 9); ``RSS = 12``, ``sigma^2 = 2``. With reference ``a``: ``b_b = 3``,
@@ -66,7 +66,7 @@ def monotone(**kwargs):
     return categorical_effects(MONO_OUTCOME, MONO_LEVELS, **kwargs)
 
 
-def test_b4_categorical_dummy_regression_matches_group_mean_algebra() -> None:
+def test_categorical_dummy_regression_matches_group_mean_algebra() -> None:
     result = abc()
     assert result.reference == "a"
     assert result.ordered is False
@@ -88,7 +88,7 @@ def test_b4_categorical_dummy_regression_matches_group_mean_algebra() -> None:
         result.effect("a")  # the reference's effect is zero by definition
 
 
-def test_b4_categorical_omnibus_and_holm_family_match_closed_forms() -> None:
+def test_categorical_omnibus_and_holm_family_match_closed_forms() -> None:
     result = abc(pairs=[("b", "c")])
     statistic = 319.0 / 9.0
     assert result.omnibus.statistic == pytest.approx(statistic, abs=1e-9)
@@ -111,7 +111,7 @@ def test_b4_categorical_omnibus_and_holm_family_match_closed_forms() -> None:
     assert result.effect("b").p_holm == pytest.approx(holm_b, abs=1e-9)
 
 
-def test_b4_categorical_unordered_level_permutation_is_invariant() -> None:
+def test_categorical_unordered_level_permutation_is_invariant() -> None:
     forward = abc()
     permuted = abc(categories=["c", "a", "b"])
     assert permuted.level_order == ("a", "b", "c")
@@ -120,7 +120,7 @@ def test_b4_categorical_unordered_level_permutation_is_invariant() -> None:
     assert permuted.effects == forward.effects
 
 
-def test_b4_categorical_ordered_scale_is_part_of_the_estimand() -> None:
+def test_categorical_ordered_scale_is_part_of_the_estimand() -> None:
     unordered = abc()
     ordered = abc(ordered=True)
     reversed_scale = abc(ordered=True, categories=["c", "b", "a"])
@@ -132,7 +132,7 @@ def test_b4_categorical_ordered_scale_is_part_of_the_estimand() -> None:
         categorical_effects(OUTCOME, LEVELS, ordered=True)  # the order is the scale
 
 
-def test_b4_categorical_monotonicity_test_and_its_null() -> None:
+def test_categorical_monotonicity_test_and_its_null() -> None:
     result = monotone()
     mono = result.monotonicity
     assert mono is not None
@@ -158,7 +158,7 @@ def test_b4_categorical_monotonicity_test_and_its_null() -> None:
     assert flipped.p_value == pytest.approx(1.0, abs=1e-9)
 
 
-def test_b4_categorical_calibration_is_unmeasured_and_says_so() -> None:
+def test_categorical_calibration_is_unmeasured_and_says_so() -> None:
     result = abc()
     assert result.calibration == "unmeasured"
     assert result.inference_claim == "asymptotic_wald_calibration_unmeasured"
@@ -171,7 +171,7 @@ def test_b4_categorical_calibration_is_unmeasured_and_says_so() -> None:
     assert categorical_treatment.__doc__ is not None
 
 
-def test_b4_categorical_sparse_absent_and_undeclared_levels_refuse() -> None:
+def test_categorical_sparse_absent_and_undeclared_levels_refuse() -> None:
     with pytest.raises(CategoricalTreatmentRefusal) as absent:
         abc(categories=["a", "b", "c", "d"])
     assert isinstance(absent.value, CausalUnsupportedError)
@@ -204,7 +204,7 @@ def test_b4_categorical_sparse_absent_and_undeclared_levels_refuse() -> None:
     assert pair.value.detail == "categorical_treatment.unknown_level"
 
 
-def test_b4_categorical_input_validation_is_typed() -> None:
+def test_categorical_input_validation_is_typed() -> None:
     with pytest.raises(CausalTypeError):
         categorical_effects(OUTCOME, "abc")  # type: ignore[arg-type]
     with pytest.raises(CausalValueError):
@@ -217,7 +217,7 @@ def test_b4_categorical_input_validation_is_typed() -> None:
         consume_categorical_effects("not bytes")  # type: ignore[arg-type]
 
 
-def test_b4_categorical_artifact_round_trip_recomputes_everything() -> None:
+def test_categorical_artifact_round_trip_recomputes_everything() -> None:
     result = monotone(pairs=[("lo", "hi")])
     again = consume_categorical_effects(result.export(), expected_identity=result.identity)
     assert again.effects == result.effects
@@ -233,7 +233,7 @@ def test_b4_categorical_artifact_round_trip_recomputes_everything() -> None:
     assert mapped.identity == result.identity
 
 
-def test_b4_categorical_robust_covariance_embeds_the_rows_and_replays() -> None:
+def test_categorical_robust_covariance_embeds_the_rows_and_replays() -> None:
     model = abc()
     robust = abc(covariance="hc1")
     assert robust.replay == "rows"
@@ -243,7 +243,7 @@ def test_b4_categorical_robust_covariance_embeds_the_rows_and_replays() -> None:
     assert np.array_equal(again.covariance, robust.covariance)
 
 
-def test_b4_categorical_robust_replay_above_the_row_cap_is_refused() -> None:
+def test_categorical_robust_replay_above_the_row_cap_is_refused() -> None:
     n = 4097
     index = np.arange(n)
     labels = np.array(["a", "b", "c"])[index % 3]
@@ -255,7 +255,7 @@ def test_b4_categorical_robust_replay_above_the_row_cap_is_refused() -> None:
     assert categorical_effects(outcome, labels, reference="a").replay == "summary"
 
 
-def test_b4_categorical_resealed_change_is_refused_against_the_retained_identity() -> None:
+def test_categorical_resealed_change_is_refused_against_the_retained_identity() -> None:
     original = monotone()
     cases = {
         "level_scale": monotone(reference="mid"),
@@ -272,7 +272,7 @@ def test_b4_categorical_resealed_change_is_refused_against_the_retained_identity
         assert_registered_refusal(refused.value)
 
 
-def test_b4_categorical_corrupt_artifact_raises_a_serialization_error() -> None:
+def test_categorical_corrupt_artifact_raises_a_serialization_error() -> None:
     data = bytearray(abc().export())
     data[len(data) // 2] ^= 0xFF
     with pytest.raises(CausalSerializationError):

@@ -1,4 +1,4 @@
-"""2.2 A exit gate: the six end-to-end user stories through the Python surfaces.
+"""Composition exit gate: the six end-to-end user stories through the Python surfaces.
 
 Each story runs start to finish in one test and builds its own graph, catalog and evidence
 from scratch (independent of the unit tests' fixtures): prepare once, estimate, refresh where
@@ -488,7 +488,7 @@ def test_story_3_learned_continuous_transport_estimate_with_overlap_refusal(desi
 
 
 # --------------------------------------------------------------------------------------
-# Story 4 (X5): two-step discrete temporal transported intervention, history-support refusal.
+# Story 4: two-step discrete temporal transported intervention, history-support refusal.
 # --------------------------------------------------------------------------------------
 
 S4_NAMES = ["b", "l1", "a1", "l2", "a2", "y"]
@@ -666,7 +666,7 @@ def test_story_4_two_step_temporal_transport_with_history_support_refusal():
 
 
 # --------------------------------------------------------------------------------------
-# Story 5 (X8): second fixed-DAG cross-world query: shared abduction and typed refusal.
+# Story 5: second fixed-DAG cross-world query: shared abduction and typed refusal.
 # --------------------------------------------------------------------------------------
 
 S5_EDGES = [("x", "m"), ("x", "y"), ("m", "y")]
@@ -752,7 +752,7 @@ def test_story_5_second_fixed_dag_cross_world_query_with_shared_abduction_and_ty
 
 
 # --------------------------------------------------------------------------------------
-# Story 6 (X9): mixed-source proof by bounded search; incomplete search stays unresolved.
+# Story 6: mixed-source proof by bounded search; incomplete search stays unresolved.
 # --------------------------------------------------------------------------------------
 
 S6_NAMES = ["x", "z", "y"]

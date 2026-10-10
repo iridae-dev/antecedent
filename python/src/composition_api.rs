@@ -1,5 +1,5 @@
-//! Bounded Python bridge for the 2.3 composition boundary (C1), the decision
-//! adapters over real 2.2 scenario claims (B) and the X6 per-proposal receipt.
+//! Bounded Python bridge for the composition boundary, the decision
+//! adapters over real scenario claims and the per-proposal receipt.
 //!
 //! Python builds declarations and hands over library-produced objects; every
 //! identity, trust decision, support decision and refusal rule is Rust's. A
@@ -950,7 +950,7 @@ fn composition_check_atoms(atoms_json: &str, combination: &str) -> PyResult<Pair
 }
 
 // ---------------------------------------------------------------------------
-// Decisions over real 2.2 scenario and CPDAG-completion claims.
+// Decisions over real scenario and CPDAG-completion claims.
 // ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
@@ -1219,7 +1219,7 @@ fn robust_verdict_json(verdict: &RobustVerdict) -> Value {
     }
 }
 
-/// Decide over the claims of a real 2.2 scenario or CPDAG-completion result.
+/// Decide over the claims of a real scenario or CPDAG-completion result.
 ///
 /// `kind` is `transport` (a prepared scenario stage after `estimate()`) or
 /// `cpdag` (a completion run). `weights_json`, when given, is the
@@ -1350,7 +1350,7 @@ fn check_causal(binding: &ScenarioClaimBinding, expected: Option<&str>) -> Resul
 }
 
 // ---------------------------------------------------------------------------
-// X6 per-proposal receipt.
+// Per-proposal receipt.
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize)]

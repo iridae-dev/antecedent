@@ -1,4 +1,4 @@
-"""Typed, bounded 2.3 aligned distribution artifacts.
+"""Typed, bounded aligned distribution artifacts.
 
 ``numpy.asarray(artifact)`` makes one bounded copy into NumPy-owned row-major
 storage. The array never aliases the validated Rust artifact. Loading requires

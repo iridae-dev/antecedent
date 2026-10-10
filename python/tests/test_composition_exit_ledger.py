@@ -1,10 +1,10 @@
-"""2.3 A exit gate, box 1: the A evidence ledger.
+"""Composition exit gate: the evidence ledger.
 
-The test reads only committed registries (``parity/promotion_2_3.toml``,
-``parity/2_3_evidence_ledger.toml``, ``parity/coverage_records.toml``,
+The test reads only committed registries (``parity/promotion.toml``,
+``parity/evidence_ledger.toml``, ``parity/coverage_records.toml``,
 ``parity/reason_codes.toml``) and ``provenance/*.toml``; it never runs a gate script.
 
-For every milestone-A record it asserts:
+For every promotion record it asserts:
 
 * a ``promoted`` record has a ledger cell naming provenance files that exist and parse, a
   positive, a negative and an artifact fixture whose evidence tests exist as files and name
@@ -55,18 +55,21 @@ def load_toml(relative: str) -> dict[str, Any]:
         return tomllib.load(handle)
 
 
-PROMOTION = load_toml("parity/promotion_2_3.toml")
-LEDGER = load_toml("parity/2_3_evidence_ledger.toml")
+PROMOTION = load_toml("parity/promotion.toml")
+LEDGER = load_toml("parity/evidence_ledger.toml")
 COVERAGE_IDS = {r["id"] for r in load_toml("parity/coverage_records.toml").get("record", [])}
 RUNTIME_CODES = {
     c["id"]
     for c in load_toml("parity/reason_codes.toml")["code"]
     if "runtime_refusal" in c.get("applies_to", [])
 }
-A_RECORDS: list[Record] = [r for r in PROMOTION["record"] if r["milestone"] == "A"]
 CELLS_BY_ID: dict[str, list[Record]] = {}
 for _cell in LEDGER["cell"]:
     CELLS_BY_ID.setdefault(_cell["id"], []).append(_cell)
+#: Records the ledger covers, plus every record carried forward closed.
+A_RECORDS: list[Record] = [
+    r for r in PROMOTION["record"] if r["id"] in CELLS_BY_ID or r["status"] == "carried_forward"
+]
 
 PROMOTED = [r for r in A_RECORDS if r["status"] == "promoted"]
 INFERENTIAL = [r for r in A_RECORDS if r["inference_claim"] not in NOT_INFERENTIAL]
@@ -78,7 +81,7 @@ def ids(records: list[Record]) -> list[str]:
 
 
 def test_ledger_covers_every_a_record_once() -> None:
-    assert A_RECORDS, "no milestone A records"
+    assert A_RECORDS, "no ledger-covered records"
     assert len({r["id"] for r in A_RECORDS}) == len(A_RECORDS)
     assert {r["status"] for r in A_RECORDS} <= {"promoted", "carried_forward"}
     # Records with no ledger cell cannot be promoted.
@@ -94,7 +97,7 @@ def test_ledger_promoted_record_has_provenance_fixtures_and_ledger_cell(
     routes = {route["name"] for route in record["routes"]}
     for cell in cells:
         assert cell["route"] in routes, (record["id"], cell["route"])
-        assert cell["parity_registry"] == "parity/promotion_2_3.toml"
+        assert cell["parity_registry"] == "parity/promotion.toml"
         # Correct parity evidence kind: a registered independent oracle, never a pending one.
         assert cell["oracle_kind"] in ORACLE_KINDS, (record["id"], cell["oracle_kind"])
         assert cell["algorithm_provenance"], record["id"]

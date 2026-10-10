@@ -1,4 +1,4 @@
-"""Selective recalculation on the cell-AIPW route, with portable score resume (2.3 C2).
+"""Selective recalculation on the cell-AIPW route, with portable score resume.
 
 This module extends :mod:`antecedent.recalc` without changing it. The plan, the receipt, the
 stages and the structured refusals are that module's types; what is added is the route and the

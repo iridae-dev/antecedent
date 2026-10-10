@@ -49,7 +49,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _registry() -> dict[str, dict[str, Any]]:
-    with (ROOT / "parity" / "promotion_2_3.toml").open("rb") as handle:
+    with (ROOT / "parity" / "promotion.toml").open("rb") as handle:
         records = tomllib.load(handle)["record"]
     return {r["id"]: r for r in records}
 

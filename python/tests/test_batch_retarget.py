@@ -1,4 +1,4 @@
-"""2.2 E3: configured batches and batch retarget through the Python surface.
+"""Configured batches and batch retarget through the Python surface.
 
 The numerical oracle for the joint covariance, the contrasts and the closed interval is the
 Rust integration test ``crates/antecedent/tests/batch_retarget.rs`` (an independent calculation

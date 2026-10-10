@@ -1,4 +1,4 @@
-"""The transported static path-specific counterfactual, narrow class (2.3.0 A5).
+"""The transported static path-specific counterfactual, narrow class.
 
 Two populations, a source and a target, share one structural model
 

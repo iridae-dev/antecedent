@@ -1,4 +1,4 @@
-"""B4 latent-class (finite mixture) regime effects.
+"""Latent-class (finite mixture) regime effects.
 
 The population is a mixture of ``K`` latent regimes (``2 <= K <= 4``, declared, never
 selected). Within class ``k`` the outcome follows a Gaussian linear model in the treatment ``A``

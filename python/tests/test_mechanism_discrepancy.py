@@ -1,4 +1,4 @@
-"""2.3 B3: the source-target mechanism discrepancy diagnostic.
+"""The source-target mechanism discrepancy diagnostic.
 
 Hand datasets mirror ``crates/antecedent-estimate/tests/mechanism_discrepancy.rs``.
 
@@ -88,7 +88,7 @@ def _refusal(call, code: str, detail: str) -> md.MechanismDiscrepancyRefusal:
 # ------------------------------------------------------------- fits and statistic
 
 
-def test_b3_discrepancy_ols_fits_and_standard_errors_match_hand_algebra():
+def test_discrepancy_ols_fits_and_standard_errors_match_hand_algebra():
     result = _run(YS, YT_BOTH)
     assert result.coefficient_names == ("(intercept)", "x")
     assert result.source.coefficients == pytest.approx((1.3, 0.8), abs=1e-9)
@@ -106,7 +106,7 @@ def test_b3_discrepancy_ols_fits_and_standard_errors_match_hand_algebra():
     assert result.measurement.parents == (("x", "cm"),)
 
 
-def test_b3_discrepancy_identical_fits_give_statistic_zero_exactly():
+def test_discrepancy_identical_fits_give_statistic_zero_exactly():
     same = _run(YS, YS)
     assert same.statistic == 0.0
     assert same.p_value == 1.0
@@ -122,7 +122,7 @@ def test_b3_discrepancy_identical_fits_give_statistic_zero_exactly():
     assert result.p_value == 1.0
 
 
-def test_b3_discrepancy_slope_shift_matches_df1_closed_form():
+def test_discrepancy_slope_shift_matches_df1_closed_form():
     result = _run(YS, YT_SLOPE, compare_intercept=False)
     # delta = 0.5, v_s + v_t = 0.36: W = delta^2 / 0.36.
     w = 0.25 / 0.36
@@ -144,7 +144,7 @@ def test_b3_discrepancy_slope_shift_matches_df1_closed_form():
     assert result.compare_intercept is False
 
 
-def test_b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form():
+def test_discrepancy_intercept_and_slope_shift_matches_df2_closed_form():
     result = _run(YS, YT_BOTH)
     # d = (0.5, 0.5); W = d' (2V)^-1 d = 0.25 (0.36 + 2 * 0.54 + 1.26) / 0.162 = 25 / 6.
     assert result.statistic == pytest.approx(25.0 / 6.0, abs=1e-9)
@@ -161,7 +161,7 @@ def test_b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form():
     assert intercept.p_holm == pytest.approx(max(slope.p_holm, intercept.p_value), abs=1e-12)
 
 
-def test_b3_discrepancy_two_parent_statistic_matches_slope_block_algebra():
+def test_discrepancy_two_parent_statistic_matches_slope_block_algebra():
     source, measurement = _two_parents("source", Y6)
     target, _ = _two_parents("target", Y6_TARGET)
     result = md.diagnose_mechanism_discrepancy(
@@ -179,7 +179,7 @@ def test_b3_discrepancy_two_parent_statistic_matches_slope_block_algebra():
     )
 
 
-def test_b3_discrepancy_parent_order_is_irrelevant():
+def test_discrepancy_parent_order_is_irrelevant():
     source, measurement = _two_parents("source", Y6)
     target, _ = _two_parents("target", Y6_TARGET)
     base = md.diagnose_mechanism_discrepancy(source=source, target=target, measurement=measurement)
@@ -212,7 +212,7 @@ def test_b3_discrepancy_parent_order_is_irrelevant():
 # ----------------------------------------------------------------- power limit
 
 
-def test_b3_discrepancy_minimal_detectable_difference_uses_normal_quantiles():
+def test_discrepancy_minimal_detectable_difference_uses_normal_quantiles():
     result = _run(YS, YT_BOTH)
     factor = 1.959_964 + 0.841_621
     assert result.alpha == 0.05
@@ -235,7 +235,7 @@ def test_b3_discrepancy_minimal_detectable_difference_uses_normal_quantiles():
 # ----------------------------------------------------- never certifies invariance
 
 
-def test_b3_discrepancy_non_rejection_never_certifies_invariance():
+def test_discrepancy_non_rejection_never_certifies_invariance():
     result = _run(YS, YT_SLOPE, compare_intercept=False)
     assert result.conclusion == "not_rejected"
     assert result.non_rejection_certifies_invariance is False
@@ -271,7 +271,7 @@ def test_b3_discrepancy_non_rejection_never_certifies_invariance():
 # ---------------------------------------------------------- summary-statistics input
 
 
-def test_b3_discrepancy_summary_statistics_replay_the_raw_data_result():
+def test_discrepancy_summary_statistics_replay_the_raw_data_result():
     raw = _run(YS, YT_BOTH)
     # X'X = [[4, 6], [6, 14]], X'y = [10, 19], y'y = 30 for the source; the target adds 0.5 + 0.5 x.
     source = md.Sample.from_summary("source", n=4, xtx=[[4, 6], [6, 14]], xty=[10, 19], yty=30.0)
@@ -295,7 +295,7 @@ def test_b3_discrepancy_summary_statistics_replay_the_raw_data_result():
     )
 
 
-def test_b3_discrepancy_accepts_numpy_arrays():
+def test_discrepancy_accepts_numpy_arrays():
     np = pytest.importorskip("numpy")
     result = md.diagnose_mechanism_discrepancy(
         source=md.Sample("source", outcome=np.array(YS), parents={"x": np.array(X)}),
@@ -313,7 +313,7 @@ def test_b3_discrepancy_accepts_numpy_arrays():
 # --------------------------------------------------------------------- refusals
 
 
-def test_b3_discrepancy_incomparable_measurements_refuse():
+def test_discrepancy_incomparable_measurements_refuse():
     source = _one_parent("source", YS)
     extra_column = [1.0, 0.0, 2.0, 5.0]
     cases = {
@@ -365,7 +365,7 @@ def test_b3_discrepancy_incomparable_measurements_refuse():
         assert error.message, name
 
 
-def test_b3_discrepancy_dependence_must_be_declared_independent():
+def test_discrepancy_dependence_must_be_declared_independent():
     for dependence in ("unknown", "shared_units"):
         _refusal(
             lambda dependence=dependence: _run(YS, YT_BOTH, dependence=dependence),
@@ -392,7 +392,7 @@ def test_b3_discrepancy_dependence_must_be_declared_independent():
     assert result.dependence == "independent"
 
 
-def test_b3_discrepancy_degenerate_inputs_refuse():
+def test_discrepancy_degenerate_inputs_refuse():
     invalid = "invalid_argument"
     source = _one_parent("source", YS)
 
@@ -443,7 +443,7 @@ def test_b3_discrepancy_degenerate_inputs_refuse():
     )
 
 
-def test_b3_discrepancy_validates_its_arguments_as_typed_errors():
+def test_discrepancy_validates_its_arguments_as_typed_errors():
     measurement = _measurement()
     source = _one_parent("source", YS)
     with pytest.raises(CausalTypeError):
@@ -495,7 +495,7 @@ def test_b3_discrepancy_validates_its_arguments_as_typed_errors():
 # ---------------------------------------------------------------------- artifact
 
 
-def test_b3_discrepancy_artifact_round_trips_by_recomputation():
+def test_discrepancy_artifact_round_trips_by_recomputation():
     result = _run(YS, YT_BOTH)
     data = result.export()
     assert isinstance(data, bytes)
@@ -520,7 +520,7 @@ def test_b3_discrepancy_artifact_round_trips_by_recomputation():
     assert again.identity == result.identity
 
 
-def test_b3_discrepancy_artifact_refuses_a_resealed_mutation_and_corruption():
+def test_discrepancy_artifact_refuses_a_resealed_mutation_and_corruption():
     result = _run(YS, YT_BOTH)
     other = _run(YS, YT_BIG)
     assert other.identity != result.identity

@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the X8 fixed-population temporal counterfactual and the closed
+//! Bounded Python bridge for the fixed-population temporal counterfactual and the closed
 //! transported path-specific route.
 //!
 //! Python builds the declaration (graph, mechanism fit, factual unit histories, two named action

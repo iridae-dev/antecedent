@@ -19,7 +19,7 @@ What a result is:
   action that was not enumerated, or that is off the evaluated grid, is
   unresolved, never excluded or interpolated.
 * A mean threshold is not a chance constraint ``P(Y^do(a) >= y) >= q``, and a
-  target quantile needs the interventional distribution (2.3B); an observational
+  target quantile needs the interventional distribution; an observational
   ``P(X | Y)`` is not an action. All three refuse with ``cell_not_licensed``.
 
 Missing-evidence study options (the study planner's output) and sensitivity
@@ -107,7 +107,7 @@ class ChanceConstraint:
 
 @dataclass(frozen=True, slots=True)
 class TargetQuantile:
-    """A target quantile of ``Y^do(a)``: always refused (``cell_not_licensed``, 2.3B)."""
+    """A target quantile of ``Y^do(a)``: always refused (``cell_not_licensed``)."""
 
     level: float
     threshold: float

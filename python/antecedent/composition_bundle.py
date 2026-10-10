@@ -1,4 +1,4 @@
-"""Portable composed result: build, export and independently consume a bundle (C3).
+"""Portable composed result: build, export and independently consume a bundle.
 
 A bundle links the parts of a composed decision as a typed directed graph: the
 artifacts embedded from their bytes (a joint distribution, an external claim, a

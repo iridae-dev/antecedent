@@ -1,4 +1,4 @@
-//! Python bindings for ADMG conditional transport (2.2B B1, X2).
+//! Python bindings for ADMG conditional transport.
 use crate::transport_common::{
     RegimeCheck, assignment_from_pairs, error, execution_context, frame_named_artifact, parse_laws,
     resolve, serialization_error, unframe_named_artifact,

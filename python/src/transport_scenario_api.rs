@@ -285,7 +285,7 @@ impl PreparedTransportScenariosStage {
 /// scenario or none. `laws` are supplied exact laws or `StatisticalTransportData`
 /// for empirical plug-in points. A non-empty `conditioned_on` asks the
 /// conditional question `P*(y | do(x), w)` of the bounded ADMG conditional row
-/// (2.2B B1) in every scenario; it takes exact laws only.
+/// in every scenario; it takes exact laws only.
 #[pyfunction]
 #[pyo3(signature=(scenarios, coordinates, outcomes, treatments, source, target, catalog, laws, assignments, *, conditioned_on=Vec::new(), max_steps=100_000, max_depth=256, max_operations=10_000_000, max_evaluation_depth=256, max_support_rows=1_000_000, memory_bytes=None, cancel=None))]
 #[allow(clippy::too_many_arguments)]

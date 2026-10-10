@@ -1,5 +1,5 @@
-//! Python bindings for the temporal extensions of the finite two-step sequence
-//! (2.3A, X5): the uncertain initial state and the new-period refresh (both point
+//! Python bindings for the temporal extensions of the finite two-step sequence:
+//! the uncertain initial state and the new-period refresh (both point
 //! only and licensed), and measured dependent intervals.
 //!
 //! Python builds the declarations; every identity, check and refusal rule is Rust's.

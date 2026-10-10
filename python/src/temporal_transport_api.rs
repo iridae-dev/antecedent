@@ -211,7 +211,7 @@ impl PreparedTemporalTransportStage {
         .to_string())
     }
 
-    /// An interval is not licensed (2.3A); always refuses.
+    /// An interval is not licensed; always refuses.
     fn interval(&self) -> PyResult<()> {
         self.inner.interval().map_err(error)
     }

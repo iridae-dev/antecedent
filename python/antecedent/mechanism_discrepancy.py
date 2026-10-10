@@ -1,4 +1,4 @@
-"""Source-target mechanism discrepancy diagnostic (2.3 B3).
+"""Source-target mechanism discrepancy diagnostic.
 
 A Wald test of the null that the conditional mechanism of one node ``V`` given its parents is
 the same in a source and a target population, from comparable measurements::

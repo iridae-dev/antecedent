@@ -1,4 +1,4 @@
-"""2.3.0 A1: selection differences and invariances behind each scenario answer.
+"""Selection differences and invariances behind each scenario answer.
 
 The fixture is the one of ``test_transport_scenarios``: every scenario shares ``z -> x``,
 ``z -> y``, ``x -> y`` and ``x <-> y``; the source holds the experiment ``do(x)`` over
@@ -110,7 +110,7 @@ def report_of(result, name):
     return entry.report
 
 
-def test_a1_invariance_standardize_relies_on_the_source_conditional_and_target_marginal():
+def test_invariance_standardize_relies_on_the_source_conditional_and_target_marginal():
     report = report_of(invariance_report(estimated()), "standardize")
     assert isinstance(report, InvarianceReport)
     assert (report.status, report.kind) == ("identified", "identified")
@@ -137,7 +137,7 @@ def test_a1_invariance_standardize_relies_on_the_source_conditional_and_target_m
     assert report.conditional is None and report.obstruction is None
 
 
-def test_a1_invariance_no_selection_relies_on_the_direct_source_experiment_alone():
+def test_invariance_no_selection_relies_on_the_direct_source_experiment_alone():
     report = report_of(invariance_report(estimated()), "direct")
     assert report.status == "identified"
     assert report.selection.targets == ()
@@ -151,7 +151,7 @@ def test_a1_invariance_no_selection_relies_on_the_direct_source_experiment_alone
     assert report.target_factors == ()
 
 
-def test_a1_invariance_selection_on_the_outcome_is_an_obstruction_without_an_invariance_list():
+def test_invariance_selection_on_the_outcome_is_an_obstruction_without_an_invariance_list():
     report = report_of(invariance_report(estimated()), "outcome_shift")
     assert (report.status, report.kind) == ("structurally_unidentified", "obstructed")
     assert report.invariances is None and report.target_factors is None
@@ -163,7 +163,7 @@ def test_a1_invariance_selection_on_the_outcome_is_an_obstruction_without_an_inv
     assert witness.selection_targets_in_larger == ("y",)
 
 
-def test_a1_invariance_envelope_extremes_carry_the_report_of_the_scenario_behind_them():
+def test_invariance_envelope_extremes_carry_the_report_of_the_scenario_behind_them():
     result = invariance_report(estimated())
     assert isinstance(result, ScenarioSetInvarianceReport)
     assert {s.name for s in result.scenarios} == {"direct", "outcome_shift", "standardize"}
@@ -180,7 +180,7 @@ def test_a1_invariance_envelope_extremes_carry_the_report_of_the_scenario_behind
     assert result.extreme("nope", "lower") is None
 
 
-def test_a1_invariance_a_scenario_with_unsupported_laws_still_reports_its_formula():
+def test_invariance_a_scenario_with_unsupported_laws_still_reports_its_formula():
     # The target regime is in the catalog but its law is not supplied: the evaluated result is
     # unsupported_provider, while the invariances are those of the identified formula.
     result = invariance_report(estimated(data=laws(with_target=False)))
@@ -191,7 +191,7 @@ def test_a1_invariance_a_scenario_with_unsupported_laws_still_reports_its_formul
     assert entry.report.invariances is not None
 
 
-def test_a1_invariance_identity_ignores_edge_order_and_scenario_name():
+def test_invariance_identity_ignores_edge_order_and_scenario_name():
     first = invariance_report(estimated(scenarios(("a", ["z"]))))
     reordered = transport.TransportScenarioSet(
         [
@@ -212,7 +212,7 @@ def test_a1_invariance_identity_ignores_edge_order_and_scenario_name():
     assert other.identity != one.identity
 
 
-def test_a1_invariance_is_derived_and_leaves_the_stage_and_artifact_unchanged():
+def test_invariance_is_derived_and_leaves_the_stage_and_artifact_unchanged():
     stage = estimated()
     before = stage.export()
     first = invariance_report(stage)
@@ -226,7 +226,7 @@ def test_a1_invariance_is_derived_and_leaves_the_stage_and_artifact_unchanged():
     assert "invariance" not in json.dumps(json.loads(stage.estimate()))
 
 
-def test_a1_invariance_requires_an_estimated_scenario_stage():
+def test_invariance_requires_an_estimated_scenario_stage():
     stage = prepare(scenarios(("direct", [])))
     with pytest.raises(ScenarioInvarianceRefusal) as raised:
         invariance_report(stage)

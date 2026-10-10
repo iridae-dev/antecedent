@@ -1,4 +1,4 @@
-//! Python bindings for X6 study planning over the X1 (mz) and X9 (mixed-source)
+//! Python bindings for study planning over the mz and mixed-source
 //! catalogs.
 use crate::transport_common::{
     execution_context, frame_named_artifact, resolve, serialization_error, unframe_named_artifact,
@@ -243,7 +243,7 @@ impl StudyPlanStage {
             },
         };
         let mut payload = payload;
-        // The collapsed `not_identified` outcome is kept for 2.1 callers; the
+        // The collapsed `not_identified` outcome is kept for callers of the earlier spelling; the
         // canonical status says which kind of non-identification it was.
         payload["identification_status"] = match &arrival.decision {
             StudyArrivalDecision::Mz(decision) => decision.identification_status(),
@@ -306,7 +306,7 @@ fn relabel(
 }
 
 /// Plan the cheapest subset of at most three declared studies that would make
-/// a failed X1 (`route="mz"`) or X9 (`route="mixed"`) decision identify.
+/// a failed `route="mz"` or `route="mixed"` decision identify.
 #[pyfunction]
 #[doc(hidden)]
 #[pyo3(signature = (graph, route, target, outcomes, treatments, sources, catalog, candidates, *, max_operations, max_depth, memory_bytes=None, cancel=None))]

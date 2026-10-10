@@ -1,5 +1,5 @@
 //! Python bindings for counterfactual identification of the effect of
-//! treatment on the treated on a bounded ADMG (2.2B X8).
+//! treatment on the treated on a bounded ADMG.
 //!
 //! The Python layer owns names and argument shapes; identification, evaluation
 //! and the artifact consumer are the Rust route's, so a Python answer is the

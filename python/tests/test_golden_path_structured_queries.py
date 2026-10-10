@@ -1,11 +1,11 @@
-"""Golden-path coverage for the 2.1 graphless / structured query families.
+"""Golden-path coverage for the graphless / structured query families.
 
 The five-line lifecycle must hold for every query family, not only the graph
 routes in ``test_golden_path.py``. Design-carrying queries freeze their design in
 the query, so ``refresh`` re-reads outcomes for the *same* rows (``refresh="same"``)
 or is refused by construction (``refresh="refused"``); either way the other four
 verbs work and, critically, ``load(result.export()).answer == result.answer`` --
-the invariant that regressed silently in 2.1 because no case exercised it.
+the invariant that regressed silently because no case exercised it.
 """
 
 from __future__ import annotations
@@ -162,7 +162,7 @@ CASES = [
 
 
 @pytest.mark.parametrize("case", CASES, ids=[c.name for c in CASES])
-def test_golden_path_2_1(case: Case) -> None:
+def test_golden_path_structured_queries(case: Case) -> None:
     data = case.make(1)
     data = {k: v for k, v in data.items() if not k.startswith("_")}
 
@@ -178,7 +178,7 @@ def test_golden_path_2_1(case: Case) -> None:
         json.dumps(report, allow_nan=False)
 
         # 3. export -> load round-trips, and the loaded answer equals the live answer
-        #    (the invariant that silently regressed in 2.1).
+        #    (the invariant that silently regressed).
         loaded = ant.load(result.export())
         loaded_report = loaded.inspect().to_dict()
         json.dumps(loaded_report, allow_nan=False)

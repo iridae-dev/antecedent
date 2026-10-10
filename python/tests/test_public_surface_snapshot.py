@@ -360,7 +360,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "transport",
         "learners",
         "validation",
-        # Lazy 2.3 stage modules (`_LAZY_MODULES`): listed by ``dir``, imported on first access
+        # Lazy stage modules (`_LAZY_MODULES`): listed by ``dir``, imported on first access
         # (`joint_distribution` and `preflight` above are also in this family)
         "effect_constancy_review",
         "execution_attempt",
@@ -492,7 +492,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "refresh",
         "inspect",
         "preflight",
-        # Data-reading diagnostics, cost counts and the opt-in rank-drop plan (2.2 E1)
+        # Data-reading diagnostics, cost counts and the opt-in rank-drop plan
         "diagnose",
         "diagnose_fit",
         "plan_rank_drop",

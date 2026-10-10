@@ -1,4 +1,4 @@
-"""Per-proposal receipts linking identification repair and design ranking (X6).
+"""Per-proposal receipts linking identification repair and design ranking.
 
 A failed contract owes evidence (:mod:`antecedent.repair`); a candidate study is
 valued for the decision it would inform (:mod:`antecedent.design`). A

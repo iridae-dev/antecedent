@@ -1,4 +1,4 @@
-//! Bounded Python bridge for F11/F12/F14: candidate signals, EVSI with a cost mapping and the
+//! Bounded Python bridge for candidate signals, EVSI with a cost mapping and the
 //! durable design-ranking artifact.
 //!
 //! Python builds the declaration (decision, candidates, signal providers with attested values and
@@ -225,7 +225,7 @@ fn consume_design_ranking(
     })
 }
 
-/// The 2.2 structural ordering when no probabilistic model is licensed:
+/// The structural ordering when no probabilistic model is licensed:
 /// `(ranking json, refusal json)`.
 #[pyfunction]
 fn rank_structural_designs(candidates_json: &str) -> PyResult<ConsumePayload> {

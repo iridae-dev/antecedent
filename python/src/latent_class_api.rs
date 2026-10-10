@@ -1,4 +1,4 @@
-//! Bounded Python bridge for B4 latent-class (finite mixture) regime effects.
+//! Bounded Python bridge for latent-class (finite mixture) regime effects.
 //!
 //! Python supplies the analysis columns and the declared configuration (class count, seed,
 //! randomization declaration); the EM fit, the canonical class order, the label-aligned

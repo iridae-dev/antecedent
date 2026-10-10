@@ -1,4 +1,4 @@
-"""Shared fixtures of the 2.3 C4 multi-source acceptance story.
+"""Shared fixtures of the multi-source acceptance story.
 
 The story, its hand derivation and every asserted value are written out in the header of
 ``test_multi_source_acceptance.py``; this module only builds the objects. Nothing here computes an

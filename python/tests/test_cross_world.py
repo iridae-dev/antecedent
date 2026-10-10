@@ -1,4 +1,4 @@
-"""Cross-world edge contrasts on a fixed Markovian DAG (2.2 A5, X8).
+"""Cross-world edge contrasts on a fixed Markovian DAG.
 
 The mediation SCM is ``M = 0.8 X + U_M`` and ``Y = 1.7 X + 4 M (+ U_Y)`` with the
 disturbances orthogonal to their regressors, so every coefficient is recovered

@@ -1,4 +1,4 @@
-"""2.2 E5: derived treatments and factorized joint cells through the Python surface.
+"""Derived treatments and factorized joint cells through the Python surface.
 
 Truth is a hand-enumerated joint law: ``P(cell | z)`` is written down as a table, the data
 are drawn from it, and ``Y = 0.4 cell + 1{cell = 3} + 0.5 z + 0.3 N(0, 1)`` gives the true

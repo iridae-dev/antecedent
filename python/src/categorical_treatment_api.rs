@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the B4 categorical-treatment fit.
+//! Bounded Python bridge for the categorical-treatment fit.
 //!
 //! Python supplies the outcome, adjustment columns, level labels and a small JSON declaration
 //! (snapshot, adjustment names, level set, scale, reference, minimum level rows, pairs,

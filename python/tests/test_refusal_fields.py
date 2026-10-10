@@ -1,4 +1,4 @@
-"""Structured ``refusal_fields`` at the existing refusal sites (2.2 preflight cell, completion).
+"""Structured ``refusal_fields`` at the existing refusal sites (preflight, completion).
 
 Mirrors ``crates/antecedent-estimate/tests/refusal_fields_existing_sites.rs`` and
 ``crates/antecedent/tests/refusal_fields_existing_sites.rs`` through the Python surface. Each site

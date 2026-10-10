@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the B4 compact runtime export.
+//! Bounded Python bridge for the compact runtime export.
 //!
 //! Python declares the coefficient vector, covariance, basis, per-input support and refusal mask
 //! as JSON; the validation, canonical ordering, the identity, the container, the independent

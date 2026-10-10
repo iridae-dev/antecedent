@@ -1,4 +1,4 @@
-//! Python bridge of the 2.3 B3 source-target mechanism discrepancy diagnostic.
+//! Python bridge of the source-target mechanism discrepancy diagnostic.
 //!
 //! Python declares the two populations (a measurement contract and either raw rows or summary
 //! statistics); the OLS fits, the Wald statistic, the p-value, the Holm breakdown, the minimal

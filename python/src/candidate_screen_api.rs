@@ -1,4 +1,4 @@
-//! Python binding for the deterministic screen/estimate split from declared ownership (2.2 E4).
+//! Python binding for the deterministic screen/estimate split from declared ownership.
 use antecedent::{CandidateProcedure, CandidateScreen, ScreenUnits};
 use pyo3::prelude::*;
 

@@ -1,4 +1,4 @@
-"""Generalized finite inverse decision query (F7).
+"""Generalized finite inverse decision query.
 
 "Which of these declared actions satisfy these constraints?" over a finite, ordered
 action grid. Target-mean, target-quantile and probability-threshold constraints all
@@ -786,7 +786,7 @@ def finite_enumeration_baseline(
     direction: Direction = "at_least",
     tolerance: float = 0.0,
 ) -> dict[str, Feasibility]:
-    """The 2.2 finite-enumeration baseline: classify each enumerated action by its forward
+    """The finite-enumeration baseline: classify each enumerated action by its forward
     mean against ``target``.
 
     An action off the evaluated grid is ``unevaluated`` (never interpolated) and an

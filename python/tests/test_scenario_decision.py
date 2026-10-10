@@ -1,4 +1,4 @@
-"""B: decisions over the claims of real 2.2 scenario sets and CPDAG completions.
+"""Decisions over the claims of real scenario sets and CPDAG completions.
 
 Oracles are derived by hand from the laws, as in ``crates/antecedent/tests/decision_claims.rs``.
 

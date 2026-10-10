@@ -1,4 +1,4 @@
-"""C1: the composition boundary through the Python surface.
+"""The composition boundary through the Python surface.
 
 Oracles are hand-derived and mirror ``crates/antecedent-design/tests/composition_boundary.rs``.
 
@@ -161,7 +161,7 @@ def near(value: float | None, expected: float) -> bool:
 # ---------------------------------------------------------------- trust carriage
 
 
-def test_c1_boundary_caller_native_constructor_refuses_before_coercion() -> None:
+def test_composition_boundary_caller_native_constructor_refuses_before_coercion() -> None:
     from antecedent.errors import CausalValueError
 
     # A poison object proves refusal precedes NumPy coercion or data access.
@@ -176,7 +176,7 @@ def test_c1_boundary_caller_native_constructor_refuses_before_coercion() -> None
     assert "native_distribution.authority_required" in str(refused.value)
 
 
-def test_c1_boundary_metadata_only_exact_artifact_is_refused_as_native() -> None:
+def test_composition_boundary_metadata_only_exact_artifact_is_refused_as_native() -> None:
     path = (
         Path(__file__).resolve().parents[2]
         / "conformance/composition/metadata_only_native/legacy.art"
@@ -212,7 +212,9 @@ def test_c1_boundary_metadata_only_exact_artifact_is_refused_as_native() -> None
     assert plain.value.detail == "composition_boundary.native_required"
 
 
-def test_c1_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() -> None:
+def test_composition_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unused() -> (
+    None
+):
     labelled = comp.DecisionInput.from_distribution("native", joint(**LABELLED_NATIVE))
     provenance = labelled.provenance
     assert provenance.provider_kind == "external_attested"
@@ -235,7 +237,7 @@ def test_c1_boundary_unbacked_label_is_stored_unverified_and_its_exact_claim_unu
     assert attested.provenance.lineage_digest != provenance.lineage_digest
 
 
-def test_c1_boundary_python_cannot_assert_a_native_or_verified_provider() -> None:
+def test_composition_boundary_python_cannot_assert_a_native_or_verified_provider() -> None:
     assert comp.TrustEvidence.none().kind == "none"
     assert comp.TrustEvidence.attested("lab").kind == "externally_attested"
     # Only library-produced evidence is accepted, and no constructor names native.
@@ -247,7 +249,7 @@ def test_c1_boundary_python_cannot_assert_a_native_or_verified_provider() -> Non
         comp.DecisionInput("native")  # type: ignore[arg-type]
 
 
-def test_c1_boundary_exact_request_verification_needs_a_matching_receipt() -> None:
+def test_composition_boundary_exact_request_verification_needs_a_matching_receipt() -> None:
     claimed = joint("lab", "snap-x", trust="verified_extension", calibration="exact")
     for evidence in (None, comp.TrustEvidence.none(), comp.TrustEvidence.attested("lab")):
         with pytest.raises(comp.UnverifiedTrustRefusal) as refused:
@@ -262,7 +264,7 @@ def test_c1_boundary_exact_request_verification_needs_a_matching_receipt() -> No
 # ----------------------------------------------------------- per-action support
 
 
-def test_c1_boundary_one_missing_coordinate_beside_a_supported_action() -> None:
+def test_composition_boundary_one_missing_coordinate_beside_a_supported_action() -> None:
     grid = mean_input("grid", "snap-x", [("do(a=0)", 1.0), ("do(a=1)", 3.0)])
     decided = comp.evaluate_with_support(mean_contract(), [grid])
     assert [o.id for o in decided.outcomes] == ["wait", "treat"]
@@ -288,7 +290,9 @@ def test_c1_boundary_one_missing_coordinate_beside_a_supported_action() -> None:
     assert_registered_refusal(refused.value)
 
 
-def test_c1_boundary_one_masked_coordinate_beside_a_supported_action_joint_source() -> None:
+def test_composition_boundary_one_masked_coordinate_beside_a_supported_action_joint_source() -> (
+    None
+):
     law = joint_input("law", supported=(True, True, False))
     decided = comp.evaluate_with_support(joint_contract(), [law])
     assert near(decided.outcome("wait").expected_utility, 2.0)
@@ -304,7 +308,7 @@ def test_c1_boundary_one_masked_coordinate_beside_a_supported_action_joint_sourc
         comp.evaluate_with_support(joint_contract(), [law], comp.SupportPolicy.require_all())
 
 
-def test_c1_boundary_a_missing_evidence_status_excludes_only_that_action() -> None:
+def test_composition_boundary_a_missing_evidence_status_excludes_only_that_action() -> None:
     grid = mean_input(
         "grid", "snap-x", [("do(a=0)", 1.0), ("do(a=1)", 3.0)], ["supported", "missing_evidence"]
     )
@@ -318,7 +322,7 @@ def test_c1_boundary_a_missing_evidence_status_excludes_only_that_action() -> No
     assert decided.disposition("treat").status == "unsupported"
 
 
-def test_c1_boundary_weak_overlap_is_admitted_only_when_the_policy_allows_it() -> None:
+def test_composition_boundary_weak_overlap_is_admitted_only_when_the_policy_allows_it() -> None:
     def make() -> comp.DecisionInput:
         return mean_input(
             "grid", "snap-x", [("do(a=0)", 1.0), ("do(a=1)", 3.0)], ["weak_overlap", "supported"]
@@ -333,7 +337,7 @@ def test_c1_boundary_weak_overlap_is_admitted_only_when_the_policy_allows_it() -
     assert len(lenient.outcomes) == 2
 
 
-def test_c1_boundary_all_actions_unsupported_is_a_state_not_an_error() -> None:
+def test_composition_boundary_all_actions_unsupported_is_a_state_not_an_error() -> None:
     grid = mean_input("grid", "snap-x", [("do(a=9)", 7.0)])
     decided = comp.evaluate_with_support(mean_contract(), [grid])
     assert decided.verdict.kind == "no_supported_action"
@@ -354,7 +358,7 @@ def test_c1_boundary_all_actions_unsupported_is_a_state_not_an_error() -> None:
     assert refused.value.offending == "wait,treat,extend"
 
 
-def test_c1_boundary_actions_answered_by_different_inputs_compare_by_value_only() -> None:
+def test_composition_boundary_actions_answered_by_different_inputs_compare_by_value_only() -> None:
     first = mean_input("first", "snap-1", [("do(a=0)", 1.0)])
     second = mean_input("second", "snap-2", [("do(a=1)", 3.0)])
     decided = comp.evaluate_with_support(mean_contract(), [first, second])
@@ -381,7 +385,7 @@ def test_c1_boundary_actions_answered_by_different_inputs_compare_by_value_only(
 # ------------------------------------------------ mean versus outcome law versus joint
 
 
-def test_c1_boundary_a_probability_is_never_answered_from_a_mean() -> None:
+def test_composition_boundary_a_probability_is_never_answered_from_a_mean() -> None:
     mean_only = contract(
         [
             action("wait", "do(a=0)", "mean", decision.x(0)),
@@ -419,7 +423,7 @@ def test_c1_boundary_a_probability_is_never_answered_from_a_mean() -> None:
         )
 
 
-def test_c1_boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot() -> None:
+def test_composition_boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot() -> None:
     outcome_only = contract(
         [
             action("wait", "do(a=0)", "outcome", decision.x(0)),
@@ -439,7 +443,9 @@ def test_c1_boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot(
     assert expectation.standard_error is None, "no exactness without a native record"
 
 
-def test_c1_boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated() -> None:
+def test_composition_boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_unevaluated() -> (
+    None
+):
     grid = mean_input("grid", "snap-x", [("do(a=0)", 1.0), ("do(a=1)", 3.0)])
     risky = decision.Action(
         "risky",
@@ -487,7 +493,7 @@ def test_c1_boundary_mean_sources_leave_nonlinear_and_outcome_law_actions_uneval
     )
 
 
-def test_c1_boundary_a_mean_source_cannot_supply_paired_draws() -> None:
+def test_composition_boundary_a_mean_source_cannot_supply_paired_draws() -> None:
     with pytest.raises(comp.CompositionRefusal) as refused:
         comp.check_paired_draws(
             [joint_input("native"), mean_input("grid", "snap-x", [("do(a=0)", 1.0)])], []
@@ -512,7 +518,7 @@ def native_and_external_mean() -> list[comp.DecisionInput]:
     ]
 
 
-def test_c1_boundary_shared_data_refuses_independent_pooling() -> None:
+def test_composition_boundary_shared_data_refuses_independent_pooling() -> None:
     with pytest.raises(comp.DependenceRefusal) as refused:
         comp.check_composition(
             native_and_external_mean(),
@@ -525,7 +531,7 @@ def test_c1_boundary_shared_data_refuses_independent_pooling() -> None:
     assert_registered_refusal(refused.value)
 
 
-def test_c1_boundary_shared_data_refuses_paired_draws_without_a_licensed_route() -> None:
+def test_composition_boundary_shared_data_refuses_paired_draws_without_a_licensed_route() -> None:
     pair = [joint_input("native"), joint_input("external", "lab", "snap-x")]
     with pytest.raises(comp.DependenceRefusal):
         comp.check_paired_draws(pair, [shared_data("native", "external")])
@@ -545,7 +551,7 @@ def test_c1_boundary_shared_data_refuses_paired_draws_without_a_licensed_route()
     assert receipt.routes == ("cov-1",)
 
 
-def test_c1_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() -> None:
+def test_composition_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() -> None:
     inputs = native_and_external_mean()
     for route in (
         comp.DependenceRoute("covariance", "cov-1", "external"),  # a mean has no covariance
@@ -561,7 +567,7 @@ def test_c1_boundary_a_route_must_be_an_aligned_joint_law_of_the_pair() -> None:
     comp.check_composition(inputs, [shared_data("native", "external", ok)], "statistical_pooling")
 
 
-def test_c1_boundary_declared_independence_is_overridden_by_a_shared_snapshot() -> None:
+def test_composition_boundary_declared_independence_is_overridden_by_a_shared_snapshot() -> None:
     first = mean_input("first", "same-snapshot", [("do(a=0)", 1.0)])
     second = mean_input("second", "same-snapshot", [("do(a=0)", 1.0)])
     relation = comp.PairRelation("first", "second", comp.EvidenceRelation.independent())
@@ -570,7 +576,7 @@ def test_c1_boundary_declared_independence_is_overridden_by_a_shared_snapshot() 
     assert refused.value.detail == "composition_boundary.shared_evidence_not_independent"
 
 
-def test_c1_boundary_unknown_dependence_is_never_independence() -> None:
+def test_composition_boundary_unknown_dependence_is_never_independence() -> None:
     inputs = native_and_external_mean()
     unknown = comp.PairRelation("native", "external", comp.EvidenceRelation.unknown())
     for operation in comp.OPERATIONS:
@@ -585,7 +591,7 @@ def test_c1_boundary_unknown_dependence_is_never_independence() -> None:
         assert silent.value.detail == refused.value.detail
 
 
-def test_c1_boundary_an_undeclared_operation_is_refused() -> None:
+def test_composition_boundary_an_undeclared_operation_is_refused() -> None:
     inputs = native_and_external_mean()
     independent = comp.PairRelation("native", "external", comp.EvidenceRelation.independent())
     with pytest.raises(comp.DependenceRefusal) as refused:
@@ -605,7 +611,7 @@ def test_c1_boundary_an_undeclared_operation_is_refused() -> None:
     assert alone.value.detail == "composition_boundary.invalid_input"
 
 
-def test_c1_boundary_operations_are_declared_separately() -> None:
+def test_composition_boundary_operations_are_declared_separately() -> None:
     inputs = native_and_external_mean()
 
     def relation(kind: comp.EvidenceRelation) -> list[comp.PairRelation]:
@@ -641,7 +647,7 @@ def test_c1_boundary_operations_are_declared_separately() -> None:
 # ------------------------------------------------------------ conflicting atoms
 
 
-def test_c1_boundary_conflicting_atoms_never_become_a_silent_average() -> None:
+def test_composition_boundary_conflicting_atoms_never_become_a_silent_average() -> None:
     atoms = [comp.StructuralAtom("graph-a"), comp.StructuralAtom("graph-b")]
     with pytest.raises(comp.DependenceRefusal) as refused:
         comp.check_atom_combination(atoms, "weighted_by_declared_probabilities")

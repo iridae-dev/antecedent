@@ -12,7 +12,7 @@ The root namespace is deliberately small: it holds the analysis verbs (:func:`an
 :func:`identify`, :func:`estimate`) and :func:`load`, the accepted-structure and result types,
 the first-class typed queries, the five graph classes, the inference / identifier /
 estimator selectors, and the two error names most callers catch. The specialized
-2.1 families — randomized and factorial experiments, held-out policy value,
+families — randomized and factorial experiments, held-out policy value,
 difference-in-differences and other quasi-experimental designs, survival, and
 longitudinal regimes — live on their stage modules (``antecedent.experiment.RandomizedEffect``,
 ``antecedent.quasi.SyntheticControl``, ``antecedent.policy.PolicyValue``,
@@ -34,7 +34,7 @@ Narrower modules imported eagerly, reachable but deliberately outside ``__all__`
 ``matched``, ``model``, ``observation``, ``population``, ``prediction``, ``query``,
 ``results``, and ``transport``.
 
-The 2.3 stage modules are loaded on first attribute access (``antecedent.recalc_cell`` imports
+The stage modules listed in ``_LAZY_MODULES`` are loaded on first attribute access (``antecedent.recalc_cell`` imports
 the module then, so ``import antecedent`` pays nothing for them) and are listed by
 ``dir(antecedent)``; none is in ``__all__``. The full tuple is ``_LAZY_MODULES``. They are
 grouped here by workflow stage.
@@ -325,7 +325,7 @@ except ImportError:  # pragma: no cover - extension not built
 #
 # --- Lazy stage modules (PEP 562) ----------------------------------------------------
 #
-# The 2.3 stage modules are public (their classes and functions are documented in each
+# The lazy stage modules are public (their classes and functions are documented in each
 # module's docstring) but none is in ``__all__`` and importing them all would put the whole
 # family on the cost of ``import antecedent``. ``__getattr__`` imports one on first access and
 # caches it on the package, ``__dir__`` lists them so tab completion finds them, and neither

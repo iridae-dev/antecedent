@@ -1,4 +1,4 @@
-"""Compact runtime export of a fitted linear-in-coefficients effect model (B4).
+"""Compact runtime export of a fitted linear-in-coefficients effect model .
 
 The export stores a coefficient vector, its full covariance, a finite basis (intercept, linear,
 polynomial and one-hot terms of named quantities), the declared support of every input and a
@@ -44,10 +44,10 @@ from typing import Any
 
 import numpy as np
 
-from ._b4_refusal import StructuredRefusal
 from ._native import build_compact_export as _build
 from ._native import consume_compact_export as _consume
 from ._native import evaluate_compact_export as _evaluate
+from ._refusal import StructuredRefusal
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [

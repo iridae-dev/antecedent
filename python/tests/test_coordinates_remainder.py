@@ -1,4 +1,4 @@
-"""A0 remainder: native response coordinates, one label per policy, scoped transport diagnostics.
+"""Native response coordinates, one label per policy, scoped transport diagnostics.
 
 Hand examples. A response curve over ``grid = [-0.5, 0, 0.5]`` has the coordinates
 ``do(a=-0.5)``, ``do(a=0)``, ``do(a=0.5)`` (the ``:g`` rendering Python derives), one

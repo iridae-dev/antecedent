@@ -1,4 +1,4 @@
-//! Python bridge for the 2.3.0 A1 selection-invariance report.
+//! Python bridge for the selection-invariance report.
 //!
 //! The report is derived, never stored: it is a function of the decided scenario set
 //! (read from each checked derivation) and the estimated report, so it is recomputed

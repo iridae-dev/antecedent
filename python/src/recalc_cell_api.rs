@@ -1,5 +1,4 @@
-//! Bounded Python bridge for the cell-AIPW recalculation session and portable score resume
-//! (2.3 C2 remainder).
+//! Bounded Python bridge for the cell-AIPW recalculation session and portable score resume.
 //!
 //! Rust owns the stage model, the planner, the instrumented executors, the receipt counts, the
 //! frozen score artifact and every refusal. Python hands over numpy columns and reads back JSON

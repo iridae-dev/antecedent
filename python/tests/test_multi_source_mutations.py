@@ -1,4 +1,4 @@
-"""2.3 C4 mutation table: what each change to the multi-source story must do.
+"""Mutation table: what each change to the multi-source story must do.
 
 Every row mutates one thing of the story in ``test_multi_source_acceptance.py`` (program, sources, law,
 support, snapshot, provider, evidence overlap, utility) and asserts the expected receipt:
@@ -325,7 +325,7 @@ def test_mutation_law_a_mean_a_marginal_or_another_meaning_never_stands_in() -> 
     # A mean-only claim added upstream of a joint decision that still has its aligned law
     # upstream does not invalidate the decision, but the label drops to the conservative
     # point-only one and the unrelated ranking branch stays verified. (A joint-requiring decision
-    # over a mean-only claim ALONE fails as `unsupported_law`: the C3 verifier test.)
+    # over a mean-only claim ALONE fails as `unsupported_law`: the composition-bundle verifier test.)
     unsupported = fx.composed_builder().connect("e2claim", "result_j").build()
     consumed = cb.consume_bundle(unsupported.export(), expected_identity=unsupported.identity)
     assert consumed.node("result_j").verified
@@ -738,9 +738,7 @@ def test_mutation_utility_recomputes_only_the_decision_with_no_fit_work() -> Non
     assert second.decision.net_benefit == pytest.approx(3.0 * first.law.ate - 0.1, abs=1e-12)
 
 
-def test_mutation_target_weights_reuse_frozen_scores_and_the_dose_grid_refuses_off_grid() -> (
-    None
-):
+def test_mutation_target_weights_reuse_frozen_scores_and_the_dose_grid_refuses_off_grid() -> None:
     request = session_request()
     session = RecalcSession()
     first = session.execute(request, seed=SEED)

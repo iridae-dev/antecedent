@@ -1,4 +1,4 @@
-//! Original F18 artifact consumption feeding the original bank and point decision engines.
+//! Original effect-constancy artifact consumption feeding the original bank and point decision engines.
 use std::collections::BTreeMap;
 
 use antecedent::analysis::effect_constancy::EffectConstancyIdentity;

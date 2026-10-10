@@ -1,4 +1,4 @@
-//! Bounded Python bridge for B4 nonlinear continuous-mediator mediation.
+//! Bounded Python bridge for nonlinear continuous-mediator mediation.
 //!
 //! Python supplies the analysis columns, the declared premises and the configuration; the
 //! estimand check, the premise refusals, the Gauss-Hermite integration with its `n` versus `2n`

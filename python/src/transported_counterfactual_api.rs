@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the 2.3.0 A5 transported static path-specific counterfactual.
+//! Bounded Python bridge for the transported static path-specific counterfactual.
 //!
 //! Python builds the declaration (the additive-noise structural equations, the source and
 //! target covariate laws, the selection diagram, the edge assignment, the declared premises and

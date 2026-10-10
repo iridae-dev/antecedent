@@ -1,4 +1,4 @@
-"""2.3 C4: one public multi-source story, from graph to a consumed composition bundle.
+"""One public multi-source story, from graph to a consumed composition bundle.
 
 The story uses only public Python modules. An explicit graph ``x -> a``, ``x -> y``, ``a -> y``
 identifies the dose response ``E[y | do(a = d)]`` (mmHg) for ``d in {0, 1, 2}`` mg in the
@@ -639,7 +639,7 @@ def test_the_point_only_decision_is_exported_as_an_attested_result_and_consumed_
 
     # A mean-only claim added upstream of a joint decision does not invalidate it, because the
     # aligned law it needs is still upstream; the label becomes the conservative one. (The
-    # refusal of a joint-requiring decision over a mean-only claim ALONE is the C3 verifier
+    # refusal of a joint-requiring decision over a mean-only claim ALONE is the composition-bundle verifier
     # test `unsupported_law`.)
     law_bundle = _composed_builder().connect("e2claim", "result_j").build()
     consumed = cb.consume_bundle(law_bundle.export(), expected_identity=law_bundle.identity)

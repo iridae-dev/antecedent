@@ -1,6 +1,6 @@
-//! Python bindings of the three closed 2.3A calibrated-interval pilot routes: joint
-//! Bayesian transport (A2), the binary nested-Markov pilot (A3) and sampled observation
-//! recovery (A6). Each function validates its request against the pilot's scope through
+//! Python bindings of the three closed calibrated-interval pilot routes: joint
+//! Bayesian transport, the binary nested-Markov pilot and sampled observation
+//! recovery. Each function validates its request against the pilot's scope through
 //! the Rust core and always raises: the engine's scope refusal for a request outside the
 //! pilot, otherwise `cell_not_licensed` with the route-frozen detail. Calibration is
 //! measured only at the release cut, so no interval is published. Each backs one routed

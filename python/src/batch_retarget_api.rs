@@ -1,4 +1,4 @@
-//! Python execution boundary for the batch retarget (E3).
+//! Python execution boundary for the batch retarget.
 //!
 //! The Rust [`BatchRetargetReport`] crosses as a dictionary (points, joint covariance,
 //! contrasts, failed members, the max-t simultaneous interval, and the tidy rows) and the

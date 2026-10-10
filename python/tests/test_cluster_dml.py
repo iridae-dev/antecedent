@@ -1,4 +1,4 @@
-"""2.2 E4: cluster-aware cross-fitted ``Aipw`` and the entity-owned screen split.
+"""Cluster-aware cross-fitted ``Aipw`` and the entity-owned screen split.
 
 The route publishes a cross-fitted point, the score table and the cluster-sandwich SE; few clusters,
 unsupported dyadic structures and cluster options on flexible-learner estimators are closed with

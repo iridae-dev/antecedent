@@ -1,9 +1,9 @@
-"""2.3 A exit gate, boxes 3 and 4: the aligned joint draw and the external finite response.
+"""Composition exit gate, the aligned joint draw and the external finite response.
 
 Both boxes read ONLY the committed cross-surface fixtures in ``conformance/cross_surface/``
 (``py_*`` built by ``generate_cross_surface_fixtures.py``, ``rust_*`` built by the ignored Rust
 regeneration tests) and public modules. A missing fixture fails loudly. The Rust twins are
-``crates/antecedent-io/tests/composition_exit_cross_surface.rs`` (``a_exit_joint_*``, ``a_exit_external_*``)
+``crates/antecedent-io/tests/composition_cross_surface.rs`` (``a_exit_joint_*``, ``a_exit_external_*``)
 and the existing ``cross_surface_*.rs`` tests; this file composes ``test_cross_surface.py``,
 ``test_joint_distribution_artifact.py`` and ``test_external_binding.py`` into one gate-shaped test
 per box.

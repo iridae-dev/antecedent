@@ -1,5 +1,5 @@
-//! Python bridge of the 2.3 B3 marginal sensitivity model (MSM): sharp assumption-range
-//! bounds of a stratified ATE, a tipping point and the F17 sensitivity artifact.
+//! Python bridge of the marginal sensitivity model (MSM): sharp assumption-range
+//! bounds of a stratified ATE, a tipping point and the sensitivity artifact.
 //!
 //! Python declares the strata, the analysis settings and (for the artifact) the effect
 //! coordinate and the compared actions; the bounds, the tipping bracket, the artifact and
@@ -158,7 +158,7 @@ fn quantity_of(wire: ScientificQuantityWire) -> Result<ScientificQuantity, Strin
     ScientificQuantity::try_from(wire).map_err(String::from)
 }
 
-/// The F17 sensitivity artifact of an MSM analysis as container bytes; Python consumes the
+/// The sensitivity artifact of an MSM analysis as container bytes; Python consumes the
 /// bytes into a `SensitivityArtifact` (recomputing its identity and decision outcome).
 #[pyfunction]
 #[pyo3(signature = (

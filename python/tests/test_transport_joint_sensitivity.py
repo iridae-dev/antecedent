@@ -1,4 +1,4 @@
-"""2.2B X3: joint mechanism deviations of the registered surrogate z formula (Python surface)."""
+"""Joint mechanism deviations of the registered surrogate z formula (Python surface)."""
 
 import json
 
@@ -111,7 +111,7 @@ def test_joint_sensitivity_executes_the_retained_plan_after_builder_disposal():
     assert [f["factor"] for f in joint["factors"]] == ["outcome_kernel", "shared_parent_marginal"]
     assert len(joint["frontier"]) == 9
     assert joint["receipt"]["stop"] is None
-    # The kernel axis is the 2.1 one-factor tipping point of the same stage.
+    # The kernel axis is the one-factor tipping point of the same stage.
     one_factor = prepared.mechanism_sensitivity(0.2, 0.45)
     kernel_only = transport.joint_mechanism_sensitivity(
         prepared, transport.JointDeviation({"outcome_kernel": 0.2}, decision_threshold=0.45)

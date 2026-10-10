@@ -1,4 +1,4 @@
-//! Python bindings for the smoothed dose-response transport grid (2.2B cell X4).
+//! Python bindings for the smoothed dose-response transport grid.
 use crate::transport_common::{
     error, execution_context, frame_named_artifact, serialization_error, unframe_named_artifact,
 };

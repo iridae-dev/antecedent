@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the B4 joint vector-treatment fit.
+//! Bounded Python bridge for the joint vector-treatment fit.
 //!
 //! Python supplies the numeric columns and a small JSON declaration (snapshot, adjustment names,
 //! per-treatment adjustment set and snapshot, covariance kind, contrasts); the joint regression,

@@ -1,4 +1,4 @@
-//! Python bindings for 2.2B X3 joint mechanism deviations of the registered
+//! Python bindings for joint mechanism deviations of the registered
 //! surrogate z formula. Every function here backs one routed wrapper in
 //! `antecedent.transport._joint_sensitivity` and is reached only through it.
 use antecedent::{JointSensitivityArtifactWire, JointSensitivityConsumeLimits};

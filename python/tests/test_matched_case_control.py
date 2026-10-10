@@ -1,4 +1,4 @@
-"""2.2 E7: conditional odds ratio of matched case-control sets through the Python surface.
+"""Conditional odds ratio of matched case-control sets through the Python surface.
 
 Truth is hand-enumerated: with 1:1 matching the conditional MLE is the discordant-pair
 ratio b / c, and a single type of 1:2 set has theta = 2a / (m - a). The profile-likelihood

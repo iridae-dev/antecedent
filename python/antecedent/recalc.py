@@ -54,7 +54,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from . import _native
-from ._b4_refusal import StructuredRefusal
+from ._refusal import StructuredRefusal
 from .errors import CausalSerializationError, CausalValueError
 
 ARTIFACT_KIND = "recalc_receipt_v1"

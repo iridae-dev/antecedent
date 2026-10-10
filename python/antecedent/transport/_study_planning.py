@@ -1,4 +1,4 @@
-"""Study planning over the X1 (mz) and X9 (mixed-source) catalogs.
+"""Study planning over the mz and mixed-source catalogs.
 
 Given a query that the multi-source (``route="mz"``) or mixed-source
 (``route="mixed"``) route cannot identify from its catalog, and a declared

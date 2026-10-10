@@ -1,4 +1,4 @@
-"""F25: the structured refusal fields survive the Rust-to-Python bridge unchanged.
+"""The structured refusal fields survive the Rust-to-Python bridge unchanged.
 
 `crates/antecedent-design/tests/structured_refusals.rs` asserts the same strings on
 the Rust side for the same case: a decision asks for a utility over two outcomes
@@ -63,7 +63,7 @@ def _marginals() -> JointDistributionArtifact:
     return JointDistributionArtifact(identity, draws, calibration="exact")
 
 
-def test_f25_decision_refusal_fields_survive_the_bridge():
+def test_decision_refusal_fields_survive_the_bridge():
     with pytest.raises(decision.DecisionRefusal) as caught:
         _contract().evaluate(_marginals())
     refusal = caught.value
@@ -78,7 +78,7 @@ def test_f25_decision_refusal_fields_survive_the_bridge():
     assert "joint draws" in refusal.remedy
 
 
-def test_f25_unit_and_capability_style_mistakes_stay_distinct_across_families():
+def test_unit_and_capability_style_mistakes_stay_distinct_across_families():
     """The same four-way distinctness the Rust test asserts, through the Python facades."""
     wrong_population = decision.Contract(
         actions=_contract().actions,

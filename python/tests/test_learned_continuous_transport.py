@@ -1,4 +1,4 @@
-"""Learned continuous-outcome trial transport with an estimator menu (2.2A cell X4)."""
+"""Learned continuous-outcome trial transport with an estimator menu."""
 
 import dataclasses
 

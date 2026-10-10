@@ -1,4 +1,4 @@
-//! Python bindings for learned continuous-outcome trial transport (2.2A cell X4).
+//! Python bindings for learned continuous-outcome trial transport.
 use crate::transport_common::{
     error, execution_context, frame_named_artifact, serialization_error, unframe_named_artifact,
 };

@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the 2.3 B2 ordered-response recovery row.
+//! Bounded Python bridge for the ordered-response recovery row.
 //!
 //! Python names the m-graph (nodes, directed edges, bidirected edges, which a refusal
 //! reports) and the roles of the two partially observed variables. The decision, the

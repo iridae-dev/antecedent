@@ -1,4 +1,4 @@
-"""B4 nonlinear continuous-mediator mediation: natural direct, indirect and total effects.
+"""Nonlinear continuous-mediator mediation: natural direct, indirect and total effects.
 
 A binary treatment ``A`` acts on an outcome ``Y`` directly and through a continuous mediator
 ``M``. This module estimates the **natural** effects, averaged over the observed covariate rows::

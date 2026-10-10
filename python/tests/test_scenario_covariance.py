@@ -1,4 +1,4 @@
-"""Shared-data covariance of scenario estimates over one row sample (2.3A X2).
+"""Shared-data covariance of scenario estimates over one row sample.
 
 The units are six complete rows ``(z, x, y)`` of a tiny discrete SCM sample. Every
 scenario estimator is a plug-in functional of the resampled rows' cell proportions.
@@ -130,7 +130,7 @@ def refusal(call):
     return refused.value.reason_code, refused.value.detail
 
 
-def test_x2_shared_rows_exact_covariance_matches_closed_form_and_is_point_only():
+def test_shared_rows_exact_covariance_matches_closed_form_and_is_point_only():
     result = exact(family("a", "b"))
     assert result.method == "exact_enumeration" and result.claim == "point_only"
     assert result.scope == "shared_row_covariance_point_only"
@@ -159,7 +159,7 @@ def test_x2_shared_rows_exact_covariance_matches_closed_form_and_is_point_only()
     assert refused.value.detail == "scenarios.shared_data_aggregate"
 
 
-def test_x2_bootstrap_shares_one_replicate_selection_across_scenarios():
+def test_bootstrap_shares_one_replicate_selection_across_scenarios():
     result = bootstrap(family("a", "b"))
     assert result.method == "shared_row_bootstrap" and result.seed == 20_260_101
     assert result.replicates_total == 2000 and result.failed_replicates == 0
@@ -178,7 +178,7 @@ def test_x2_bootstrap_shares_one_replicate_selection_across_scenarios():
     assert other.replicate_digest != result.replicate_digest
 
 
-def test_x2_adjustment_pair_with_joint_dropping_matches_tuple_enumeration():
+def test_adjustment_pair_with_joint_dropping_matches_tuple_enumeration():
     oracle, failed_fraction = enumerate_tuples()
     assert failed_fraction > 0
     result = exact(family("adjusted", "crude"), max_failure_mass=0.9)
@@ -192,7 +192,7 @@ def test_x2_adjustment_pair_with_joint_dropping_matches_tuple_enumeration():
     assert abs(result.entry("adjusted", "crude")) > 1e-4
 
 
-def test_x2_scenario_permutation_reorders_rows_and_columns_identically():
+def test_scenario_permutation_reorders_rows_and_columns_identically():
     first = exact(family("a", "b", "c"))
     second = exact(family("c", "a", "b"))
     assert first.scenario_ids == ("a", "b", "c") and second.scenario_ids == ("c", "a", "b")
@@ -211,7 +211,7 @@ def test_x2_scenario_permutation_reorders_rows_and_columns_identically():
             assert boot_a.entry(x, y) == pytest.approx(boot_b.entry(x, y), abs=1e-15)
 
 
-def test_x2_independent_or_incompatible_rows_refuse_unknown_dependence():
+def test_independent_or_incompatible_rows_refuse_unknown_dependence():
     unknown = ("route_not_supported", "scenario_covariance.unknown_dependence")
     different_snapshot = [estimator("a", snapshot="snap:one"), estimator("b", snapshot="snap:two")]
     assert refusal(lambda: exact(different_snapshot)) == unknown
@@ -235,7 +235,7 @@ def test_x2_independent_or_incompatible_rows_refuse_unknown_dependence():
     assert labelled.replicate_digest != exact(family("a", "b")).replicate_digest
 
 
-def test_x2_bounds_arguments_and_failures_refuse_with_typed_details():
+def test_bounds_arguments_and_failures_refuse_with_typed_details():
     two = family("a", "b")
     over = refusal(lambda: bootstrap(two, replicates=2001))
     assert over == ("cell_not_licensed", "scenario_covariance.too_many_replicates")
@@ -283,7 +283,7 @@ def test_x2_bounds_arguments_and_failures_refuse_with_typed_details():
     )
 
 
-def test_x2_inputs_are_typed_before_native_code():
+def test_inputs_are_typed_before_native_code():
     with pytest.raises(CausalTypeError):
         transport.scenario_shared_covariance("rows", family("a"))
     with pytest.raises(CausalTypeError):
@@ -300,7 +300,7 @@ def test_x2_inputs_are_typed_before_native_code():
     assert columns.unit_ids == ("u0", "u1") and columns.rows == ((0, 1), (1, 0))
 
 
-def test_x2_export_and_fresh_consume_reproduce_the_matrix():
+def test_export_and_fresh_consume_reproduce_the_matrix():
     result = bootstrap(family("a", "b"), replicates=300)
     artifact = result.export()
     assert artifact.startswith(PREFIX)
@@ -320,7 +320,7 @@ def test_x2_export_and_fresh_consume_reproduce_the_matrix():
     assert b"u5" in artifact
 
 
-def test_x2_tampered_covariance_artifacts_refuse_with_typed_details():
+def test_tampered_covariance_artifacts_refuse_with_typed_details():
     result = exact(family("a", "b"))
     artifact = result.export()
     # A changed unit id is part of the stored row snapshot: the data digest refuses.

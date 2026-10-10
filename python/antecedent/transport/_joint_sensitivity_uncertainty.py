@@ -1,9 +1,8 @@
 """Sampling uncertainty of the joint mechanism sensitivity range: closed until measured.
 
-Record ``sensitivity.joint_uncertainty`` (in progress). The one
-declared composition, the conservative endpoint percentile bootstrap, has a
-one-sided coverage target. Its coverage is wired but not measured until the
-2.2 cut, so the interval is not offered and
+Claim ``sensitivity.joint_uncertainty``. The one declared composition, the
+conservative endpoint percentile bootstrap, has a one-sided coverage target.
+Its coverage is wired but unmeasured, so the interval is not offered and
 :func:`joint_mechanism_sensitivity_interval` always refuses with
 ``cell_not_licensed``. The joint assumption range itself is
 ``joint_mechanism_sensitivity`` (``_joint_sensitivity``).
@@ -31,7 +30,7 @@ def joint_mechanism_sensitivity_interval(
 
     Always raises with ``reason_code == "cell_not_licensed"``; the assumption
     range is not a confidence interval and sampling uncertainty is not offered
-    in 2.2.
+    offered.
     """
     deviation = _deviation(deviation)
     _joint_interval(

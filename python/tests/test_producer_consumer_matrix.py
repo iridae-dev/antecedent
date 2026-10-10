@@ -1,4 +1,4 @@
-"""C1: the producer/consumer matrix, executed (``docs/producer-consumer-matrix.md``).
+"""The producer/consumer matrix, executed (``docs/producer-consumer-matrix.md``).
 
 Rows are the producers of a scientific object, columns the consumers that could take it.
 Each cell is ``DIRECT`` (a licensed route takes the object), ``ADAPTER`` (a named,
@@ -305,7 +305,7 @@ def _frozen_sensitivity() -> sd.SensitivityArtifact:
         ],
         provenance=sd.SurfaceProvenance(
             source_kind="supplied_surface",
-            query_binding="c1-matrix",
+            query_binding="producer-consumer-matrix",
             provider_snapshot="snapshot-1",
             source_regime="regime:1",
             method="hand-derived surface",
@@ -1331,7 +1331,7 @@ def _run_cell(producer: str, consumer: str, o: Objs) -> None:
 # ----------------------------------------------------------------------- the table is complete
 
 
-def test_c1_matrix_declares_every_cell_once_and_counts_them() -> None:
+def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> None:
     assert set(STATUS) == set(PRODUCERS)
     assert all(len(row) == len(CONSUMERS) for row in STATUS.values())
     cells = [status for row in STATUS.values() for status in row]
@@ -1350,7 +1350,7 @@ def test_c1_matrix_declares_every_cell_once_and_counts_them() -> None:
         assert _status(producer, consumer) != "REFUSED", (producer, consumer)
 
 
-def test_c1_matrix_document_agrees_with_the_executable_table() -> None:
+def test_producer_consumer_matrix_document_agrees_with_the_executable_table() -> None:
     path = Path(__file__).resolve().parents[2] / "docs" / "producer-consumer-matrix.md"
     lines = path.read_text(encoding="utf-8").splitlines()
     rows: dict[str, tuple[str, ...]] = {}
@@ -1365,19 +1365,19 @@ def test_c1_matrix_document_agrees_with_the_executable_table() -> None:
             )
     assert rows == STATUS
     text = path.read_text(encoding="utf-8")
-    assert "test_c1_matrix_" in text
+    assert "test_producer_consumer_matrix_" in text
 
 
 # ------------------------------------------------------------------------- one test per row
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_native_response_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_native_response_row(consumer: str, objs: Objs) -> None:
     _run_cell("native_response", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_fitted_effect_model_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_fitted_effect_model_row(consumer: str, objs: Objs) -> None:
     _run_cell("fitted_effect_model", consumer, objs)
     # Its own consumer is the only thing that evaluates it, with a model-based SE and no more.
     estimate = objs.compact.evaluate({"x": 2.0})
@@ -1386,54 +1386,56 @@ def test_c1_matrix_fitted_effect_model_row(consumer: str, objs: Objs) -> None:
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_retargeted_batch_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_retargeted_batch_row(consumer: str, objs: Objs) -> None:
     _run_cell("retargeted_batch", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_external_claim_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_external_claim_row(consumer: str, objs: Objs) -> None:
     _run_cell("external_claim", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_joint_draws_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_joint_draws_row(consumer: str, objs: Objs) -> None:
     _run_cell("joint_draws", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_bayesian_prior_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_bayesian_prior_row(consumer: str, objs: Objs) -> None:
     _run_cell("bayesian_prior", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_identified_scenarios_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_identified_scenarios_row(consumer: str, objs: Objs) -> None:
     _run_cell("identified_scenarios", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_sensitivity_artifact_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_sensitivity_artifact_row(consumer: str, objs: Objs) -> None:
     _run_cell("sensitivity_artifact", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_decision_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_decision_row(consumer: str, objs: Objs) -> None:
     _run_cell("decision", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_study_ranking_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_study_ranking_row(consumer: str, objs: Objs) -> None:
     _run_cell("study_ranking", consumer, objs)
 
 
 @pytest.mark.parametrize("consumer", CONSUMERS)
-def test_c1_matrix_failed_contract_row(consumer: str, objs: Objs) -> None:
+def test_producer_consumer_matrix_failed_contract_row(consumer: str, objs: Objs) -> None:
     _run_cell("failed_contract", consumer, objs)
 
 
 # ------------------------------------------------------------------------ cross-cutting rules
 
 
-def test_c1_matrix_every_boundary_rejects_neighbours_with_typed_errors(objs: Objs) -> None:
+def test_producer_consumer_matrix_every_boundary_rejects_neighbours_with_typed_errors(
+    objs: Objs,
+) -> None:
     """Every refused producer reaches a checked boundary, including exporter protocols."""
     for producer in PRODUCERS:
         for consumer in FEEDERS:
@@ -1446,7 +1448,7 @@ def test_c1_matrix_every_boundary_rejects_neighbours_with_typed_errors(objs: Obj
                     feed(payload)
 
 
-def test_c1_matrix_invalid_export_signatures_are_typed_but_callback_errors_propagate(
+def test_producer_consumer_matrix_invalid_export_signatures_are_typed_but_callback_errors_propagate(
     objs: Objs,
 ) -> None:
     # The fitted export's no-argument callback is outside the bundle exporter
@@ -1463,7 +1465,9 @@ def test_c1_matrix_invalid_export_signatures_are_typed_but_callback_errors_propa
     assert type(caught.value) is TypeError
 
 
-def test_c1_matrix_a_mean_never_answers_a_probability_a_quantile_or_a_law(objs: Objs) -> None:
+def test_producer_consumer_matrix_a_mean_never_answers_a_probability_a_quantile_or_a_law(
+    objs: Objs,
+) -> None:
     contract = _mean_contract(objs.claim)
     mean_input = comp.DecisionInput.from_claim("claim", objs.claim)
     law_input = comp.DecisionInput.from_distribution("law", objs.law)

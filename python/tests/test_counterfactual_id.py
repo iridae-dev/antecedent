@@ -1,4 +1,4 @@
-"""2.2B X8: the effect of treatment on the treated on a bounded ADMG, Python surface.
+"""The effect of treatment on the treated on a bounded ADMG, Python surface.
 
 The Python layer calls the Rust route; these tests check it against an exact
 enumerated latent-variable structural model written here, the artifact round

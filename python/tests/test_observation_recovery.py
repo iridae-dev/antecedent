@@ -1,4 +1,4 @@
-"""Exact binary observation recovery (2.2B X10) from Python.
+"""Exact binary observation recovery from Python.
 
 The observed pattern law and the truth are enumerated here from binary
 structural mechanisms, independently of the library. Treatment ``t`` and outcome

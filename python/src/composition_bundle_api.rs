@@ -1,4 +1,4 @@
-//! Bounded Python bridge for C3: the portable composed result.
+//! Bounded Python bridge for the portable composed result.
 //!
 //! Python hands over artifact bytes, references and dependency edges; the bundle
 //! graph, the Merkle digests, every per-kind verifier and every refusal are Rust's.

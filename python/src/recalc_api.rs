@@ -1,4 +1,4 @@
-//! Bounded Python bridge for selective recalculation with a visible receipt (2.3 C2).
+//! Bounded Python bridge for selective recalculation with a visible receipt.
 //!
 //! Rust owns the stage model, the planner, the instrumented execution of the cross-fitted
 //! AIPW route, the receipt counts, the portable receipt artifact and every refusal. Python

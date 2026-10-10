@@ -1,4 +1,4 @@
-"""Effect constancy across a declared time or region partition (F18).
+"""Effect constancy across a declared time or region partition.
 
 One question: does *the same defined effect* take the same value in every declared partition?
 You supply one effect estimate and standard error per partition (disjoint periods or regions),

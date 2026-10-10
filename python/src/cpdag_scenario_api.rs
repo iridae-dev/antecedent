@@ -1,5 +1,5 @@
 //! Python bindings for the DAG completions of a CPDAG and the shared-data
-//! covariance of scenario estimates (2.3A X2).
+//! covariance of scenario estimates.
 //!
 //! Python builds the declarations; every identity, check and refusal rule is
 //! Rust's. A coded refusal comes back as structured JSON

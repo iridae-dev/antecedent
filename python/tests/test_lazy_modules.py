@@ -1,4 +1,4 @@
-"""The 2.3 stage modules resolve lazily on the package root and are listed by ``dir``.
+"""The stage modules resolve lazily on the package root and are listed by ``dir``.
 
 ``import antecedent as at; at.recalc_cell`` works without an explicit submodule import (PEP 562
 ``__getattr__``), ``dir(at)`` lists every lazy module for tab completion, and none of them

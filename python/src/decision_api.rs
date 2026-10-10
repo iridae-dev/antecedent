@@ -1,4 +1,4 @@
-//! Bounded Python bridge for 2.3 decision contracts.
+//! Bounded Python bridge for decision contracts.
 //!
 //! Python builds the contract declaration; the identity, validation, evaluation,
 //! artifacts and refusals are Rust's. A refusal comes back as structured JSON
@@ -257,7 +257,7 @@ fn decision_source_digest(source: &PyJointDistributionArtifact) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Admissible contracts, robustness, adapters and identified sets (2.3 B0).
+// Admissible contracts, robustness, adapters and identified sets.
 // ---------------------------------------------------------------------------
 
 /// Refusal JSON for a malformed bridge argument that never reached Rust validation.

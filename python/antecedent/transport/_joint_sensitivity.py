@@ -6,10 +6,10 @@ perturb two of its factors together: the outcome kernel (``"outcome_kernel"``) a
 the shared parent marginal (``"shared_parent_marginal"``). Each is contaminated
 independently within its own fraction bound (a box, never a total budget). The
 result is the exact assumption range over that box, the axis tipping points (the
-2.1 one-factor values), and a tipping frontier with certified brackets.
+one-factor values), and a tipping frontier with certified brackets.
 
 The range is an assumption range, never a confidence interval. Sampling
-uncertainty is not offered in 2.2: its one declared composition (the
+uncertainty is not offered: its one declared composition (the
 conservative endpoint percentile bootstrap) is closed, and
 ``joint_mechanism_sensitivity_interval`` (in ``_joint_sensitivity_uncertainty``)
 always refuses with ``cell_not_licensed``.

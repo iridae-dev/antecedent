@@ -1,4 +1,4 @@
-"""Marginal sensitivity model (MSM) bounds, tipping point and sensitivity artifact (2.3 B3).
+"""Marginal sensitivity model (MSM) bounds, tipping point and sensitivity artifact.
 
 The Tan (2006) / Zhao-Small-Bhattacharya (2019) marginal sensitivity model asks how far an
 inverse-propensity-weighted average treatment effect (ATE) could move if unmeasured
@@ -379,7 +379,7 @@ class MsmResult:
         causal_contract_id: str,
         point_quantities: Sequence[tuple[ScientificQuantity, Sequence[float]]] = (),
     ) -> SensitivityArtifact:
-        """The F17 :class:`~antecedent.sensitivity_decision.SensitivityArtifact` of this result.
+        """The :class:`~antecedent.sensitivity_decision.SensitivityArtifact` of this result.
 
         The assumption coordinate is ``Lambda`` (scale ``odds_ratio_bound``, range
         ``[1, lambda_max]``); the one ranged surface quantity is ``effect`` with the sharp ATE

@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the 2.3 B1 dose-grid functional row.
+//! Bounded Python bridge for the dose-grid functional row.
 //!
 //! Python declares the request (design, one named functional, grid, bandwidth and its
 //! range, minimum local effective sample size, claims) and passes the dose/outcome table.

@@ -23,7 +23,7 @@ from ._report import ResultModel
 from ._slots import ReasoningSlots, mass_limitation
 from ._views import IdentificationView
 
-#: Empirical support labels, weakest last. ``missing_evidence`` (2.2) marks a coordinate
+#: Empirical support labels, weakest last. ``missing_evidence`` marks a coordinate
 #: whose required evidence (a supplied law, provider or declared domain) is absent; it is
 #: not a verdict about supplied evidence, which stays ``outside_empirical_support``.
 SupportStatus = Literal[

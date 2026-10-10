@@ -1,4 +1,4 @@
-//! Python bindings for the E1 preflight, rank-drop and cost surface.
+//! Python bindings for the preflight, rank-drop and cost surface.
 //!
 //! Reports cross the boundary as JSON text (the Rust report types are `Serialize`) and the
 //! Python wrapper parses them into frozen dataclasses, so the two languages share one shape.

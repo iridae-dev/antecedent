@@ -1,4 +1,4 @@
-"""2.2 E7: descriptive raw-versus-adjusted comparison and reporting-scale transforms.
+"""Descriptive raw-versus-adjusted comparison and reporting-scale transforms.
 
 The oracles are hand arithmetic and a pure-Python central-difference Jacobian; nothing here
 calls the Rust delta-method code to check itself.

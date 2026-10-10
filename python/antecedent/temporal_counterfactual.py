@@ -1,4 +1,4 @@
-"""Fixed-population temporal counterfactual and the closed transported route (2.3 X8).
+"""Fixed-population temporal counterfactual and the closed transported route.
 
 The graph is one fixed, fully observed, Markovian two-slice DAG over the nodes
 ``covariate_0 -> action_0 -> covariate_1 -> action_1 -> outcome`` (a covariate and an action

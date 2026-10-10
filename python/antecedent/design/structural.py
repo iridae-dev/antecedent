@@ -47,7 +47,7 @@ class StructuralEntry:
 
 @dataclass(frozen=True, slots=True)
 class StructuralRanking:
-    """The preserved 2.2 ordering: verified sufficiency, then cost units, budget, id."""
+    """The structural ordering: verified sufficiency, then cost units, budget, id."""
 
     entries: tuple[StructuralEntry, ...]
     identity: str

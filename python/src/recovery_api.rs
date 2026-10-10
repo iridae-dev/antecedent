@@ -1,4 +1,4 @@
-//! Python bindings for exact binary observation recovery (2.2B X10):
+//! Python bindings for exact binary observation recovery:
 //! graph-licensed recovery, not MAR/IPCW.
 use crate::graphs::Admg;
 use crate::transport_common::{
@@ -613,7 +613,7 @@ impl ObservationRecoveryStage {
         })
     }
 
-    /// Counted laws are not licensed on this route (a sampled provider is 2.3A):
+    /// Counted laws are not licensed on this route (a sampled provider is not licensed):
     /// preparation refuses.
     #[pyo3(signature=(law, requests=None, *, max_operations=10_000_000, max_depth=256, seed=0, cancel=None))]
     #[allow(clippy::too_many_arguments, clippy::unused_self, unused_variables)]

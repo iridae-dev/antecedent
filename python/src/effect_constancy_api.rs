@@ -1,4 +1,4 @@
-//! Bounded Python bridge for the F18 `EffectConstancy` test.
+//! Bounded Python bridge for the `EffectConstancy` test.
 //!
 //! Python builds the declaration (partitions, dependence, multiplicity family, level); the
 //! frozen null, the shared-estimand check, the heterogeneity statistic, the Holm adjustment, the

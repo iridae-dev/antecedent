@@ -1,4 +1,4 @@
-"""2.3 C2 remainder: cell-AIPW score reuse and portable score resume, through the Python facade.
+"""Cell-AIPW score reuse and portable score resume, through the Python facade.
 
 The route is the cell-saturated AIPW interaction contrast over two binary treatments. Each
 mutation asserts the whole per-stage status table, the work that actually ran (cell-model fits
@@ -43,7 +43,7 @@ from _refusal import assert_registered_refusal
 
 N = 1200
 # Seed 71 at this size draws a fold on which the multinomial propensity fit does not converge
-# (an estimator-robustness edge, recorded in TODO.md); this seed converges on every fold.
+# (an estimator-robustness edge); this seed converges on every fold.
 SEED = 72
 FIRST_RUN_FITS = 25
 VARIABLES = ("a", "d", "y", "z", "w", "y2")
@@ -150,7 +150,7 @@ def live_scores(session: CellSession) -> dict[int, np.ndarray]:
     return scores
 
 
-def test_c2_cell_first_run_counts_the_cell_fits_and_matches_a_plain_sum_oracle() -> None:
+def test_cell_first_run_counts_the_cell_fits_and_matches_a_plain_sum_oracle() -> None:
     req = request()
     session = CellSession()
     first = session.execute(req, seed=SEED)
@@ -177,7 +177,7 @@ def test_c2_cell_first_run_counts_the_cell_fits_and_matches_a_plain_sum_oracle()
     assert again.receipt.identity == first.receipt.identity
 
 
-def test_c2_cell_utility_only_change_recomputes_the_decision_with_zero_fits() -> None:
+def test_cell_utility_only_change_recomputes_the_decision_with_zero_fits() -> None:
     base = request()
     session = CellSession()
     first = session.execute(base, seed=SEED)
@@ -201,7 +201,7 @@ def test_c2_cell_utility_only_change_recomputes_the_decision_with_zero_fits() ->
     assert second.decision.net_benefit == pytest.approx(3.0 * first.law.ate - 0.1, abs=1e-12)
 
 
-def test_c2_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() -> None:
+def test_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() -> None:
     base = request()
     session = CellSession()
     first = session.execute(base, seed=SEED)
@@ -229,7 +229,7 @@ def test_c2_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores()
     assert second.decision.net_benefit == pytest.approx(fresh.decision.net_benefit, abs=1e-12)
 
 
-def test_c2_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
+def test_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() -> None:
     base = request()
     session = CellSession()
     first = session.execute(base, seed=SEED)
@@ -264,7 +264,7 @@ def test_c2_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() ->
     assert outcomes.law.ate == pytest.approx(rerun(other, SEED + 1).law.ate, abs=1e-12)
 
 
-def test_c2_cell_graph_or_query_change_reidentifies_and_refits() -> None:
+def test_cell_graph_or_query_change_reidentifies_and_refits() -> None:
     base = request()
     session = CellSession()
     first = session.execute(base, seed=SEED)
@@ -299,7 +299,7 @@ def test_c2_cell_graph_or_query_change_reidentifies_and_refits() -> None:
     assert abs(requeried.law.ate - first.law.ate) > 0.5, "another outcome, another law"
 
 
-def test_c2_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
+def test_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() -> None:
     base = request()
     session = CellSession(retarget="not_declared")
     session.execute(base, seed=SEED)
@@ -326,7 +326,7 @@ def test_c2_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() -> No
     assert_registered_refusal(info.value)
 
 
-def test_c2_cell_refusals_run_no_work_and_leave_the_session_usable() -> None:
+def test_cell_refusals_run_no_work_and_leave_the_session_usable() -> None:
     base = request()
 
     # A descendant of a treatment is not an adjustment set: nothing is fitted or kept.
@@ -368,7 +368,7 @@ def _z_retarget_inputs() -> tuple[CellRequest, CellRequest]:
     return base, replace(base, target=z_weights(base))
 
 
-def test_c2_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_zero_fits(
+def test_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_zero_fits(
     tmp_path: Path,
 ) -> None:
     base, changed = _z_retarget_inputs()
@@ -472,7 +472,7 @@ def test_c2_cell_resume_in_a_fresh_interpreter_retargets_exported_scores_with_ze
     assert report["later_net"] == pytest.approx(4.0 * report["ate"] - 0.2, abs=1e-12)
 
 
-def test_c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() -> None:
+def test_cell_resume_with_an_unchanged_request_reproduces_the_first_run() -> None:
     base = request()
     session = CellSession()
     first = session.execute(base, seed=SEED)
@@ -502,7 +502,7 @@ def test_c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() -> 
         out.receipt.export()
 
 
-def test_c2_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None:
+def test_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None:
     base = request()
     session = CellSession()
     session.execute(base, seed=SEED)
@@ -574,7 +574,7 @@ def test_c2_cell_resume_refuses_every_request_that_needs_data_or_a_fit() -> None
     assert work(good) == (1, 0, 0, 1, 1)
 
 
-def test_c2_cell_resume_refuses_resealed_foreign_or_corrupt_artifact_bytes() -> None:
+def test_cell_resume_refuses_resealed_foreign_or_corrupt_artifact_bytes() -> None:
     base = request()
     session = CellSession()
     session.execute(base, seed=SEED)
@@ -619,7 +619,7 @@ def crossfit_columns() -> dict[str, np.ndarray]:
     return {"t": t, "y": y, "z": z}
 
 
-def test_c2_cell_crossfit_scores_resume_the_same_way() -> None:
+def test_cell_crossfit_scores_resume_the_same_way() -> None:
     edges = (("z", "t"), ("z", "y"), ("t", "y"))
     base = RecalcRequest(
         data=crossfit_columns(), edges=edges, treatment="t", outcome="y", utility=UTILITY

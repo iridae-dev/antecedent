@@ -1,4 +1,4 @@
-"""Dose-grid functional row (2.3 B1): a named functional of a randomized-dose response curve.
+"""Dose-grid functional row: a named functional of a randomized-dose response curve.
 
 One complete response-grid row. For a continuous dose ``D`` and outcome ``Y`` of a
 *randomized* dose design, the dose response is ``m(d) = E[Y(d)] = E[Y | D = d]``. Exactly one

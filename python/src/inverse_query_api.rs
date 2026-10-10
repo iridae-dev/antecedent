@@ -1,4 +1,4 @@
-//! Bounded Python bridge for F7: the generalized finite inverse decision query.
+//! Bounded Python bridge for the generalized finite inverse decision query.
 //!
 //! Python builds the declarations (a decision contract, a query, forward claims);
 //! the typed functional engine, the feasibility fields, the artifact and every
@@ -421,7 +421,7 @@ struct BaselinePointIn {
     supported: bool,
 }
 
-/// The 2.2 finite-enumeration baseline: classify each enumerated action by its
+/// The finite-enumeration baseline: classify each enumerated action by its
 /// forward mean against `target`. Returns `[[id, status], ...]` JSON or a refusal.
 #[pyfunction]
 fn inverse_query_baseline(

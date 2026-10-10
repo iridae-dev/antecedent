@@ -1,4 +1,4 @@
-"""Learned continuous-outcome trial transport with an estimator menu (2.2A cell X4).
+"""Learned continuous-outcome trial transport with an estimator menu.
 
 One cell: a randomized binary source treatment with known probabilities, a
 continuous outcome, complete baseline covariates equal to the certified

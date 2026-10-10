@@ -1,4 +1,4 @@
-"""2.3 A exit gate, box 2: the F-substrate is used by the A scientific paths.
+"""Composition exit gate: the typed-result substrate is used by the scientific paths.
 
 One NATIVE result and one EXTERNAL result are each shown to carry typed quantities
 (``ScientificQuantity`` coordinates), per-coordinate support, a trust label, provenance and a
@@ -6,19 +6,19 @@ portable artifact that a fresh interpreter consumes without the producer's objec
 
 Native results exercised
 ------------------------
-* ``program_claims.native_claim`` (C1 over the A response path): typed coordinates, per-coordinate
+* ``program_claims.native_claim`` (over the response path): typed coordinates, per-coordinate
   support (the dose-2 coordinate is outside empirical support and is *withheld*), trust
   ``native_licensed``, calibration ``point_only`` and a provenance id. Consumed downstream by the
   support-aware decision evaluation (``composition.evaluate_with_support``).
-* The A joint-draw artifact (F1/F15), committed as ``conformance/cross_surface/py_joint_law.bin``:
+* The joint-draw artifact, committed as ``conformance/cross_surface/py_joint_law.bin``:
   typed quantities, trust ``unverified``, calibration ``exact``, identity provenance
   (source/provider/snapshot/contract ids); consumed in a fresh process under constants.
-* The A CPDAG-completion report (X2), exported and consumed in a fresh process: counts, per
+* The CPDAG-completion report, exported and consumed in a fresh process: counts, per
   completion status and the structural envelope survive the artifact.
 
 External result exercised
 -------------------------
-* ``external.response`` bound claim (F3), the Python-built and the Rust-built committed
+* ``external.response`` bound claim, the Python-built and the Rust-built committed
   fixtures: typed quantities, per-coordinate support, trust ``externally_attested``, a Merkle
   lineage, consumed in a fresh process under an identity written from constants.
 

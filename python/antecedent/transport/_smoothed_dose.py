@@ -1,4 +1,4 @@
-"""Smoothed dose-response transport grid (2.2B cell X4).
+"""Smoothed dose-response transport grid.
 
 One cell: a randomized continuous source dose with a **known** conditional density
 ``pi(a | x)`` on a declared support, a continuous outcome, complete baseline

@@ -2,9 +2,9 @@
 //!
 //! The wheel is a cdylib. On macOS it must allow unresolved Python symbols
 //! (`-undefined dynamic_lookup`); the interpreter that loads it provides them.
-//! `cargo test` builds a standalone harness of the same crate. 2.0's harness
-//! dropped unused Python calls. 2.1 keeps `PyInit__native` live, so the harness
-//! has to link libpython. `#[link]` under `cfg(test)` does that without
+//! `cargo test` builds a standalone harness of the same crate. A harness that
+//! drops unused Python calls would not link; `PyInit__native` is kept live, so the
+//! harness has to link libpython. `#[link]` under `cfg(test)` does that without
 //! recording the dependency on the cdylib. `rustc-link-arg-tests` does not
 //! apply to a cdylib's lib-test harness, so the rpath (Homebrew and framework
 //! builds install libpython as `@rpath/...`) is a normal link arg.

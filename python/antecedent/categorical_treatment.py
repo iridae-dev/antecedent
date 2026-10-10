@@ -1,4 +1,4 @@
-"""Categorical treatments: ordered and unordered regimes with a declared reference (B4).
+"""Categorical treatments: ordered and unordered regimes with a declared reference.
 
 One question: what is the adjusted effect of each declared level of a categorical treatment
 against a declared reference level, and, when the levels are ordered, do the adjusted level
@@ -55,9 +55,9 @@ from typing import Any
 
 import numpy as np
 
-from ._b4_refusal import StructuredRefusal
 from ._native import consume_categorical_treatment_artifact as _consume
 from ._native import evaluate_categorical_treatment as _evaluate
+from ._refusal import StructuredRefusal
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = [

@@ -1,4 +1,4 @@
-//! Python bindings for the identification-repair facade (B0.1: F9/F10/F13).
+//! Python bindings for the identification-repair facade.
 //!
 //! Python builds the declarations (a failed transport or back-door contract and
 //! durable study candidates, all spelled in variable names); the evidence

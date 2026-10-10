@@ -1,4 +1,4 @@
-//! Python bindings for derived treatments and factorized joint cells (2.2 E5).
+//! Python bindings for derived treatments and factorized joint cells.
 //!
 //! Results cross the boundary as JSON text and the Python wrapper parses them into frozen
 //! dataclasses. A refusal keeps its registered reason code and structured fields; an interval

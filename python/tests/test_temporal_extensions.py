@@ -1,4 +1,4 @@
-"""2.3A X5 temporal extensions: uncertain initial state, new-period refresh, closed interval.
+"""Temporal extensions: uncertain initial state, new-period refresh, closed interval.
 
 The truth is the enumerated two-step dynamic SCM the Rust core tests use: for the sequence
 ``(0, 0)`` the response given ``s0`` is ``0.33`` at ``s0 = 0`` and ``0.46`` at ``s0 = 1``; the
@@ -113,7 +113,7 @@ def refusal_of(call) -> TemporalExtensionRefusal:
 # --- uncertain initial state -------------------------------------------------------------
 
 
-def test_x5_initial_state_marginalizes_over_the_target_law_not_the_fixed_mode():
+def test_initial_state_marginalizes_over_the_target_law_not_the_fixed_mode():
     result = held()
     assert result.value == pytest.approx(0.421, abs=1e-12)
     assert result.label == "marginalized_initial_state"
@@ -132,7 +132,7 @@ def test_x5_initial_state_marginalizes_over_the_target_law_not_the_fixed_mode():
     assert abs(result.value - result.fixed.value) > 0.03
 
 
-def test_x5_initial_state_fixed_and_marginalized_are_never_relabeled():
+def test_initial_state_fixed_and_marginalized_are_never_relabeled():
     result = held()
     assert result.label != result.fixed.label
     assert result.label == advanced_label("MARGINALIZED_LABEL")
@@ -153,7 +153,7 @@ def advanced_label(name: str) -> str:
     return getattr(_temporal_extensions, name)
 
 
-def test_x5_initial_state_follows_the_law_and_its_snapshot():
+def test_initial_state_follows_the_law_and_its_snapshot():
     even = temporal_initial_state(
         make_panel("snap_old"),
         sequence=SEQUENCE,
@@ -165,7 +165,7 @@ def test_x5_initial_state_follows_the_law_and_its_snapshot():
     assert even.state_law_digest != held().state_law_digest
 
 
-def test_x5_initial_state_export_consumes_independently():
+def test_initial_state_export_consumes_independently():
     result = held()
     blob = result.export()
     assert isinstance(blob, bytes)
@@ -185,7 +185,7 @@ def test_x5_initial_state_export_consumes_independently():
     assert [c.state for c in consumed.contributions] == [0, 1]
 
 
-def test_x5_initial_state_consumer_refuses_tampered_or_foreign_bytes():
+def test_initial_state_consumer_refuses_tampered_or_foreign_bytes():
     blob = bytearray(held().export())
     blob[-3] ^= 0x55
     with pytest.raises(CausalSerializationError):
@@ -197,7 +197,7 @@ def test_x5_initial_state_consumer_refuses_tampered_or_foreign_bytes():
         consume_temporal_initial_state_artifact(refreshed.export())
 
 
-def test_x5_source_state_only_refuses_a_source_law_and_a_point_state():
+def test_source_state_only_refuses_a_source_law_and_a_point_state():
     source = InitialStateLaw("source-state", {0: 0.5, 1: 0.5}, population="source")
     for law in (source, 1):
         error = refusal_of(
@@ -210,7 +210,7 @@ def test_x5_source_state_only_refuses_a_source_law_and_a_point_state():
         assert "initial_state.target_law_missing" in str(error)
 
 
-def test_x5_source_state_only_refuses_support_gaps_and_bad_premises():
+def test_source_state_only_refuses_support_gaps_and_bad_premises():
     gap = InitialStateLaw("target-state", {0: 0.5, 7: 0.5})
     error = refusal_of(
         lambda: temporal_initial_state(
@@ -246,7 +246,7 @@ def test_x5_source_state_only_refuses_support_gaps_and_bad_premises():
 # --- new-period refresh ------------------------------------------------------------------
 
 
-def test_x5_period_replace_re_evaluates_and_a_stale_interval_never_survives():
+def test_period_replace_re_evaluates_and_a_stale_interval_never_survives():
     prior = held()
     refreshed = temporal_new_period_refresh(
         prior, new_panel(), window=window((1000, 2000)), interval_existed=True
@@ -275,13 +275,13 @@ def test_x5_period_replace_re_evaluates_and_a_stale_interval_never_survives():
     assert refreshed.result.fixed.value == pytest.approx(0.56, abs=1e-12)
 
 
-def test_x5_period_replace_without_a_prior_interval_records_none():
+def test_period_replace_without_a_prior_interval_records_none():
     refreshed = temporal_new_period_refresh(held(), new_panel(), window=window((1000, 2000)))
     assert refreshed.interval_invalidated is False
     assert refreshed.receipt.interval_invalidated is False
 
 
-def test_x5_period_replace_chains_and_exports_an_independent_artifact():
+def test_period_replace_chains_and_exports_an_independent_artifact():
     first = temporal_new_period_refresh(held(), new_panel(), window=window((1000, 2000)))
     second = temporal_new_period_refresh(
         first,
@@ -322,7 +322,7 @@ def test_x5_period_replace_chains_and_exports_an_independent_artifact():
         ({"selection_targets": ["s_t1"]}, "temporal_refresh.premises_changed"),
     ],
 )
-def test_x5_third_period_invalidates_with_a_typed_refusal(overrides, detail):
+def test_third_period_invalidates_with_a_typed_refusal(overrides, detail):
     error = refusal_of(
         lambda: temporal_new_period_refresh(
             held(), new_panel(), window=window((1000, 2000), **overrides), interval_existed=True
@@ -333,7 +333,7 @@ def test_x5_third_period_invalidates_with_a_typed_refusal(overrides, detail):
     assert detail in str(error)
 
 
-def test_x5_third_period_a_replacement_that_is_not_new_is_stale():
+def test_third_period_a_replacement_that_is_not_new_is_stale():
     same_snapshot = new_panel(snapshot="snap_old")
     error = refusal_of(
         lambda: temporal_new_period_refresh(held(), same_snapshot, window=window((1000, 2000)))
@@ -347,7 +347,7 @@ def test_x5_third_period_a_replacement_that_is_not_new_is_stale():
     assert error.detail == "temporal_refresh.stale_snapshot"
 
 
-def test_x5_third_period_invalid_replacements_and_missing_windows_refuse():
+def test_third_period_invalid_replacements_and_missing_windows_refuse():
     # A period that does not cover the panel's time ids.
     error = refusal_of(
         lambda: temporal_new_period_refresh(held(), new_panel(), window=window((1000, 1500)))
@@ -371,7 +371,7 @@ def test_x5_third_period_invalid_replacements_and_missing_windows_refuse():
     assert error.detail == "temporal_refresh.no_refresh"
 
 
-def test_x5_period_reseal_consumer_refuses_tampered_refresh_bytes():
+def test_period_reseal_consumer_refuses_tampered_refresh_bytes():
     blob = bytearray(
         temporal_new_period_refresh(held(), new_panel(), window=window((1000, 2000))).export()
     )
@@ -398,7 +398,7 @@ def interval_panel(units: int = 24) -> TemporalUnitPanel:
     return TemporalUnitPanel.from_rows("interval-panel", rows)
 
 
-def test_x5_internal_candidate_route_is_closed_after_real_validation():
+def test_internal_candidate_route_is_closed_after_real_validation():
     error = refusal_of(
         lambda: _temporal_dependent_interval_candidate(
             interval_panel(), sequence=SEQUENCE, replicates=40
@@ -420,7 +420,7 @@ def test_x5_internal_candidate_route_is_closed_after_real_validation():
         assert error.detail == "temporal_interval.route_frozen"
 
 
-def test_x5_dependent_interval_validates_its_arguments_before_closing():
+def test_dependent_interval_validates_its_arguments_before_closing():
     error = refusal_of(
         lambda: temporal_dependent_interval(
             TemporalUnitPanel("interval-panel", None),
@@ -468,8 +468,8 @@ def test_x5_dependent_interval_validates_its_arguments_before_closing():
     assert error.detail == "temporal_interval.unsupported_history"
 
 
-def test_x5_the_two_step_sequence_route_is_unchanged():
-    # The 2.2 point-only sequence route keeps its own symbols (and its interval refusal).
+def test_the_two_step_sequence_route_is_unchanged():
+    # The point-only sequence route keeps its own symbols (and its interval refusal).
     assert callable(advanced.prepare_temporal_transport_sequence)
     assert callable(advanced.consume_temporal_transport_artifact)
     assert advanced.TemporalSequenceSpec.__name__ == "TemporalSequenceSpec"

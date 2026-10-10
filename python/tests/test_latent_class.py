@@ -1,4 +1,4 @@
-"""B4 latent-class (finite mixture) regime effects through the Python facade.
+"""Latent-class (finite mixture) regime effects through the Python facade.
 
 Oracle (the same dataset as ``crates/antecedent-estimate/tests/latent_class_effects.rs``): a
 deterministic, exactly balanced two-class design whose classes are so far apart that every
@@ -63,7 +63,7 @@ def fit(d: dict[str, np.ndarray] | None = None, **kwargs):
     return latent_class_effects(d["y"], d["a"], {"x": d["x"]}, **kwargs)
 
 
-def test_b4_latent_recovers_hand_derived_two_class_fixed_point() -> None:
+def test_latent_recovers_hand_derived_two_class_fixed_point() -> None:
     result = fit()
     q, p = result.classes
     assert q.effect == pytest.approx(-2.0, abs=1e-8)
@@ -85,7 +85,7 @@ def test_b4_latent_recovers_hand_derived_two_class_fixed_point() -> None:
     assert all(c.raw_index == result.class_order[c.index] for c in result.classes)
 
 
-def test_b4_latent_responsibilities_are_the_exact_class_indicators() -> None:
+def test_latent_responsibilities_are_the_exact_class_indicators() -> None:
     d = build()
     result = fit(d)
     assert result.responsibilities.shape == (len(d["y"]), 2)
@@ -100,7 +100,7 @@ def test_b4_latent_responsibilities_are_the_exact_class_indicators() -> None:
     assert result.responsibilities_summary.class_means == pytest.approx((0.4, 0.6), abs=1e-12)
 
 
-def test_b4_latent_log_likelihood_is_non_decreasing_from_a_contaminated_start() -> None:
+def test_latent_log_likelihood_is_non_decreasing_from_a_contaminated_start() -> None:
     d = build()
     labels = [int(1 - c) if i % 4 == 3 else int(c) for i, c in enumerate(d["cls"])]
     result = fit(d, seed=5, initial_labels=labels)
@@ -113,7 +113,7 @@ def test_b4_latent_log_likelihood_is_non_decreasing_from_a_contaminated_start() 
     assert result.classes[1].weight == pytest.approx(0.6, abs=1e-12)
 
 
-def test_b4_latent_label_permutation_gives_identical_canonical_output() -> None:
+def test_latent_label_permutation_gives_identical_canonical_output() -> None:
     d = build()
     truth = [int(c) for c in d["cls"]]
     swapped = [1 - c for c in truth]
@@ -132,7 +132,7 @@ def test_b4_latent_label_permutation_gives_identical_canonical_output() -> None:
     np.testing.assert_array_equal(a.hard_assignment, b.hard_assignment)
 
 
-def test_b4_latent_seeds_and_row_order_do_not_change_the_canonical_result() -> None:
+def test_latent_seeds_and_row_order_do_not_change_the_canonical_result() -> None:
     d = build()
     baseline = fit(d, seed=1)
     for seed in (2, 3, 7, 12345):
@@ -147,7 +147,7 @@ def test_b4_latent_seeds_and_row_order_do_not_change_the_canonical_result() -> N
     np.testing.assert_allclose(baseline.responsibilities, rev.responsibilities[::-1], atol=1e-9)
 
 
-def test_b4_latent_mixture_effect_is_the_weighted_sum_of_class_effects() -> None:
+def test_latent_mixture_effect_is_the_weighted_sum_of_class_effects() -> None:
     result = fit(seed=2)
     weighted = sum(c.weight * c.effect for c in result.classes)
     assert result.mixture_effect == pytest.approx(weighted, abs=1e-12)
@@ -155,7 +155,7 @@ def test_b4_latent_mixture_effect_is_the_weighted_sum_of_class_effects() -> None
     assert weighted == pytest.approx(0.6 - 0.4 * 2.0, abs=1e-8)
 
 
-def test_b4_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
+def test_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
     first = fit(seed=7, bootstrap_replicates=60)
     second = fit(seed=7, bootstrap_replicates=60)
     assert first.to_dict() == second.to_dict(), "the same seed replays bit-identically"
@@ -180,7 +180,7 @@ def test_b4_latent_bootstrap_is_seeded_label_aligned_and_unmeasured() -> None:
     assert status["class_weight_and_separation"] == "checked"
 
 
-def test_b4_latent_weak_class_weight_refuses() -> None:
+def test_latent_weak_class_weight_refuses() -> None:
     with pytest.raises(LatentClassRefusal) as caught:
         fit(min_class_weight=0.5)  # the smaller class has weight 0.4
     assert caught.value.detail == "latent_class.weak_class"
@@ -189,7 +189,7 @@ def test_b4_latent_weak_class_weight_refuses() -> None:
     assert_registered_refusal(caught.value)
 
 
-def test_b4_latent_single_and_noise_free_regimes_are_degenerate() -> None:
+def test_latent_single_and_noise_free_regimes_are_degenerate() -> None:
     with pytest.raises(LatentClassRefusal) as caught:
         fit(classes=1)
     assert caught.value.detail == "latent_class.degenerate_class"
@@ -207,7 +207,7 @@ def test_b4_latent_single_and_noise_free_regimes_are_degenerate() -> None:
     assert caught.value.reason_code == "population_not_estimable"
 
 
-def test_b4_latent_premise_and_configuration_refusals() -> None:
+def test_latent_premise_and_configuration_refusals() -> None:
     d = build()
     with pytest.raises(LatentClassRefusal) as caught:
         latent_class_effects(d["y"], d["a"], {"x": d["x"]}, classes=2, seed=1)
@@ -229,7 +229,7 @@ def test_b4_latent_premise_and_configuration_refusals() -> None:
     assert caught.value.reason_code == "mechanism_fit_not_converged"
 
 
-def test_b4_latent_artifact_round_trips_with_a_bit_for_bit_refit() -> None:
+def test_latent_artifact_round_trips_with_a_bit_for_bit_refit() -> None:
     result = fit(seed=7, bootstrap_replicates=10)
     again = consume_latent_class_artifact(result.export(), expected_identity=result.identity)
     assert again.to_dict() == result.to_dict()
@@ -243,7 +243,7 @@ def test_b4_latent_artifact_round_trips_with_a_bit_for_bit_refit() -> None:
     assert from_mapping.identity == result.identity
 
 
-def test_b4_latent_artifact_refuses_a_resealed_change_against_retained_identity() -> None:
+def test_latent_artifact_refuses_a_resealed_change_against_retained_identity() -> None:
     original = fit()
     d = build()
     d["y"] = d["y"].copy()
@@ -258,7 +258,7 @@ def test_b4_latent_artifact_refuses_a_resealed_change_against_retained_identity(
     assert_registered_refusal(caught.value)
 
 
-def test_b4_latent_artifact_corruption_and_type_errors() -> None:
+def test_latent_artifact_corruption_and_type_errors() -> None:
     result = fit()
     corrupt = bytearray(result.export())
     corrupt[len(corrupt) // 2] ^= 0xFF

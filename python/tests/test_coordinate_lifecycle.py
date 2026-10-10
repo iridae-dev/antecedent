@@ -1,11 +1,11 @@
-"""A0 remainders (Python half): the full lifecycle, lineage of the study-ranking provider and
+"""The full lifecycle, lineage of the study-ranking provider and
 of sensitivity inputs, refusal families across the bridge, and cross-surface parity.
 
 Oracles are written by hand and mirror ``crates/antecedent-design/tests/coordinate_parity.rs``:
 
 * closed-form response ``E[Y | do(a)] = 1 + 2a`` on the grid ``0, 1, 2`` (values 1, 3, 5), the
   utility ``2 * mean - 1`` (EU(wait) = 1, EU(treat) = 9);
-* the frozen F14 guess decision: binary state, prior 1/2, signals of accuracy 3/4 and 5/8 have
+* the frozen guess decision: binary state, prior 1/2, signals of accuracy 3/4 and 5/8 have
   ``EVSI = 1/4`` and ``1/8``, ``EVPI = 1/2``, and with an identical utility-unit cost 1/10 the net
   values are ``3/20`` and ``1/40``;
 * the invariant sensitivity surface: A is ``5 - gamma`` (5, 4, 3) against B = 1.
@@ -709,7 +709,7 @@ def test_regenerate_python_fixtures():
     if os.environ.get("A0R_WRITE_FIXTURES") != "1":
         pytest.skip(f"fixture writer; run {REGENERATE_PY}")
     FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
-    (FIXTURE_DIR / "py_a0r_design_ranking.bin").write_bytes(_guess_ranking().export())
+    (FIXTURE_DIR / "py_design_ranking.bin").write_bytes(_guess_ranking().export())
     (FIXTURE_DIR / "py_coordinate_obligation.identity.json").write_text(_obligation_fixture_text())
 
 
@@ -722,7 +722,7 @@ def _fixture(name: str) -> bytes:
 
 def test_rust_built_design_ranking_and_obligation_are_consumed_by_python():
     ranked = dr.consume(
-        _fixture("rust_a0r_design_ranking.bin"),
+        _fixture("rust_design_ranking.bin"),
         expected_identity=dr.Expectation(
             decision_contract_identity="contract-1",
             source_digests=("digest-a", "digest-b"),
@@ -735,4 +735,6 @@ def test_rust_built_design_ranking_and_obligation_are_consumed_by_python():
     assert ranked.calibration == "unmeasured"
     assert not any(entry.natively_replayed for entry in ranked.entries)
     # Python derives the identity of the same hand contract Rust wrote.
-    assert _fixture("rust_coordinate_obligation.identity.json").decode() == _obligation_fixture_text()
+    assert (
+        _fixture("rust_coordinate_obligation.identity.json").decode() == _obligation_fixture_text()
+    )

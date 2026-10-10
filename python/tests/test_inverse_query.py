@@ -1,4 +1,4 @@
-"""F7: the generalized finite inverse decision query.
+"""The generalized finite inverse decision query.
 
 Ordered actions ``a0, a1, a2`` have outcome laws Bernoulli(1/4, 1/2, 3/4), realized as four
 equiprobable aligned rows (the fixture of ``crates/antecedent-design/tests/inverse_query.rs``)::
@@ -103,7 +103,7 @@ def _values(result: iq.InverseResult) -> list[float | None]:
     return [action.point_values[0].value for action in result.actions]
 
 
-def test_f7_forward_inverse_round_trip():
+def test_forward_inverse_round_trip():
     law = _law()
     # Forward: by hand a1 realizes 1,1,0,0 with weight 1/4 each, so E[Y] = 2/4 = 1/2.
     forward = _contract().evaluate(law)
@@ -128,7 +128,7 @@ def test_f7_forward_inverse_round_trip():
     assert "'a1' is selected" in result.explain()
 
 
-def test_f7_target_mean_target_quantile_and_probability_threshold_share_one_engine():
+def test_target_mean_target_quantile_and_probability_threshold_share_one_engine():
     law = _law()
     mean = _query(iq.target_mean(0.5)).evaluate(law)
     # Means by hand: 1/4, 2/4, 3/4.
@@ -173,7 +173,7 @@ def test_f7_target_mean_target_quantile_and_probability_threshold_share_one_engi
     assert reversed_grid.evaluate(law).selected == "a2", "grid order, not an id sort"
 
 
-def test_f7_a_mean_never_answers_a_probability_or_quantile():
+def test_a_mean_never_answers_a_probability_or_quantile():
     means = iq.MeanClaim(
         coordinates=tuple(_q(regime, "mean") for regime in REGIMES),
         means=(0.25, 0.5, 0.75),
@@ -200,7 +200,7 @@ def test_f7_a_mean_never_answers_a_probability_or_quantile():
         assert refused.value.detail == "decision_evaluation.mean_source_insufficient"
 
 
-def test_f7_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_marginals():
+def test_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_marginals():
     p, q = _q("do(a=1)", variable="p"), _q("do(a=1)", variable="q")
     safe = _q("do(a=0)", variable="safe")
     contract = decision.Contract(
@@ -233,7 +233,7 @@ def test_f7_nonlinear_utility_inverts_on_a_joint_law_and_refuses_independent_mar
     assert marginals.value.expected == "joint"
 
 
-def test_f7_unsupported_and_absent_coordinates_are_per_action_statuses():
+def test_unsupported_and_absent_coordinates_are_per_action_statuses():
     masked = _query(iq.target_mean(0.5)).evaluate(_law(supported=(True, True, False)))
     assert _points(masked) == ["infeasible", "feasible", "unsupported"]
     assert masked.selected == "a1"
@@ -252,7 +252,7 @@ def test_f7_unsupported_and_absent_coordinates_are_per_action_statuses():
     assert not absent.grid_fully_decided
 
 
-def test_f7_conflicting_scenarios_are_structurally_ambiguous_and_fields_stay_distinct():
+def test_conflicting_scenarios_are_structurally_ambiguous_and_fields_stay_distinct():
     # In scenario "high" a1's mean is 3/4; in "low" it is 1/4: conflicting answers for >= 1/2.
     high = _law([1.0, 1.0, 1.0, 0.0], snapshot="high")
     low = _law([1.0, 0.0, 0.0, 0.0], snapshot="low")
@@ -303,7 +303,7 @@ def test_f7_conflicting_scenarios_are_structurally_ambiguous_and_fields_stay_dis
     )
 
 
-def test_f7_one_found_continuous_point_is_not_global_feasibility():
+def test_one_found_continuous_point_is_not_global_feasibility():
     law = _law()
     sampled = _query(iq.target_mean(0.5), scope="continuous_sample").evaluate(law)
     assert sampled.existence == "found_feasible_action", "a witness point"
@@ -322,7 +322,7 @@ def test_f7_one_found_continuous_point_is_not_global_feasibility():
     assert finite.exhaustive
 
 
-def test_f7_evaluation_budget_leaves_candidates_unevaluated():
+def test_evaluation_budget_leaves_candidates_unevaluated():
     limited = _query(iq.target_mean(0.5), max_evaluations=2).evaluate(_law())
     assert limited.budget_exhausted
     assert limited.evaluations_used == 2
@@ -331,7 +331,7 @@ def test_f7_evaluation_budget_leaves_candidates_unevaluated():
     assert not limited.exhaustive
 
 
-def test_f7_malformed_queries_refuse_with_inverse_query_details():
+def test_malformed_queries_refuse_with_inverse_query_details():
     with pytest.raises(iq.InverseQueryRefusal) as no_evidence:
         _query(iq.target_mean(0.5)).evaluate()
     assert no_evidence.value.detail == "inverse_query.no_forward_evidence"
@@ -360,7 +360,7 @@ def test_f7_malformed_queries_refuse_with_inverse_query_details():
         iq.InverseQuery(_contract(), IDS, ("mean >= 0.5",))  # type: ignore[arg-type]
 
 
-def test_f7_finite_enumeration_baseline_agrees_with_the_engine():
+def test_finite_enumeration_baseline_agrees_with_the_engine():
     points = [
         iq.EnumeratedPoint("a0", 0.25),
         iq.EnumeratedPoint("a1", 0.5),
@@ -384,7 +384,7 @@ def test_f7_finite_enumeration_baseline_agrees_with_the_engine():
     }
 
 
-def test_f7_result_is_exported_replayed_and_refuses_a_resealed_mutation():
+def test_result_is_exported_replayed_and_refuses_a_resealed_mutation():
     result = _query(iq.target_quantile(0.5, 1.0)).evaluate(_law())
     data = result.export()
     consumed = iq.consume(data, expected_identity=result.identity)
@@ -421,7 +421,7 @@ def test_f7_result_is_exported_replayed_and_refuses_a_resealed_mutation():
         iq.consume("not bytes")  # type: ignore[arg-type]
 
 
-def test_f7_a_continuous_sample_artifact_stays_a_witness_not_a_global_claim():
+def test_a_continuous_sample_artifact_stays_a_witness_not_a_global_claim():
     sampled = _query(iq.target_mean(0.9), scope="continuous_sample").evaluate(_law())
     consumed = iq.consume(sampled.export(), expected_identity=sampled.identity)
     assert consumed.query.scope == "continuous_sample"
