@@ -107,9 +107,11 @@ Antecedent keeps identification, empirical support and uncertainty separate:
 
 - The graph, design and evidence determine whether the causal question is identified. More observations cannot repair a missing causal assumption.
 - Diagnostics describe the observed data and estimator fit. Passing diagnostics does not prove the causal model.
-- Calibration applies to a named method and execution scope. `result.calibration` reports whether matching coverage evidence exists and still applies; an implemented interval is not automatically calibrated.
+- Calibration applies to a named method and execution scope. In `result.calibration`, `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. An implemented interval is not automatically calibrated.
 - Structural and sensitivity ranges describe variation over declared assumptions. They are not sampling confidence intervals. CATE predictions likewise do not imply pointwise confidence intervals.
 - Exported artifacts retain identities and provenance. Their acceptance reports distinguish what an independent consumer verified from what remains declared or cannot be replayed.
+
+Support does not imply measured coverage: of the 472 licensed cells, 40 have no coverage measurement for their estimator and 4 report no interval. The [support matrix](docs/support-matrix.md) records those distinctions.
 
 Unsupported combinations refuse with a reason or return an explicitly partial or unavailable answer. See [guarantees and support](docs/guarantees.md) and [refusals](docs/refusal-and-partial-knowledge.md) for how to interpret those outcomes.
 
