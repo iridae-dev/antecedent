@@ -16,29 +16,23 @@ flowchart LR
     Q --> C --> E --> R --> O
 ```
 
-This README describes **2.3.0 on `main`**. The package badges and [GitHub releases](https://github.com/iridae-dev/antecedent/releases) identify the published versions. See the [2.3.0 release notes](docs/release-notes/v2.3.0.md) for the changes from 2.2.0.
+See the [2.3.0 release notes](docs/release-notes/v2.3.0.md) for the changes from 2.2.0.
 
 ## Install
 
-For the latest published Python release, use Python **3.11 or later**:
+Install for Python **3.11 or later**:
 
 ```bash
 python -m pip install --upgrade antecedent
 ```
 
-For the latest published Rust crate:
+Install for Rust **1.85 or later**:
 
 ```bash
 cargo add antecedent
 ```
 
-To use the APIs on `main` before they are published, build from source with Rust **1.85 or later** and Git:
-
-```bash
-python -m pip install 'git+https://github.com/iridae-dev/antecedent.git@main#subdirectory=python'
-```
-
-The [contributing guide](CONTRIBUTING.md) covers the repository toolchain and development conventions. The Python installation includes NumPy and the CPU-native neural nuisance learner; optional Rust learner features are described in the [capability guide](docs/capabilities.md).
+The [contributing guide](CONTRIBUTING.md) covers source builds, the repository toolchain and development conventions. The Python installation includes NumPy and the CPU-native neural nuisance learner; optional Rust learner features are described in the [capability guide](docs/capabilities.md).
 
 ## Run an analysis
 
