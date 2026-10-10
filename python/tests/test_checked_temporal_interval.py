@@ -206,8 +206,15 @@ INTERNAL = hasattr(_native, "consume_checked_temporal_interval_candidate")
 @pytest.mark.skipif(
     not INTERNAL, reason="original checked lifecycle requires isolated calibration-internal wheel"
 )
-@pytest.mark.parametrize("functional", [TemporalResponse((0, 0)), TemporalEffect((1, 1), (0, 0))])
-@pytest.mark.parametrize("method", ["percentile", "basic", "studentized"])
+@pytest.mark.parametrize(
+    ("functional", "method"),
+    [
+        (TemporalResponse((0, 0)), "studentized"),
+        (TemporalEffect((1, 1), (0, 0)), "studentized"),
+        (TemporalEffect((1, 1), (0, 0)), "percentile"),
+        (TemporalEffect((1, 1), (0, 0)), "basic"),
+    ],
+)
 def test_original_checked_source_score_draws_intervals_and_fresh_consumer(
     functional, method, tmp_path
 ):

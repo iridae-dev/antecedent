@@ -3,7 +3,9 @@
 //! latent unit shock induces dependence; outcomes are Bernoulli with means
 //! .3+.1L2+.1S0+.2S0L2+.05(A1+A2)+shock. Target P(S0=1)=.7 is fixed.
 //! Original checked identification/fit precedes actual whole-unit resample/refit.
-//! Public inference remains closed; these ignored measurements run only at final cut.
+//! These ignored measurements validate the selected public response/effect protocols.
+//! Response intervals use studentization; percentile/basic remain paired-effect methods.
+#![cfg(feature = "calibration-internal")]
 #![allow(clippy::cast_precision_loss, reason = "bounded unit/history simulation")]
 #[path = "common/calibration.rs"]
 mod calibration;
@@ -113,28 +115,6 @@ fn measure(
     }
     assert_eq!(tally.record_id().as_deref(), Some(id));
     tally.assert();
-}
-#[test]
-#[ignore = "calibration: final measurement only"]
-fn temporal_checked_response_percentile_l95() {
-    measure(
-        "temporal_checked_response_percentile_l95",
-        "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_checked_response_percentile_l95",
-        &TemporalFunctional::Response { sequence: [0, 0] },
-        IntervalMethod::Percentile,
-        0.49,
-    );
-}
-#[test]
-#[ignore = "calibration: final measurement only"]
-fn temporal_checked_response_basic_l95() {
-    measure(
-        "temporal_checked_response_basic_l95",
-        "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_checked_response_basic_l95",
-        &TemporalFunctional::Response { sequence: [0, 0] },
-        IntervalMethod::Basic,
-        0.49,
-    );
 }
 #[test]
 #[ignore = "calibration: final measurement only"]

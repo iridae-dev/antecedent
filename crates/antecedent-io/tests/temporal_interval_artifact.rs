@@ -52,14 +52,16 @@ fn panel() -> TemporalUnitPanel {
                 for a2 in 0..2_u32 {
                     let level =
                         (unit * 7 + u64::from(s0) * 3 + u64::from(l2) * 5 + u64::from(a2)) % 10;
-                    histories.push(SequenceHistory {
-                        time_id: histories.len() as u64,
-                        s0,
-                        a1: 0,
-                        l2,
-                        a2,
-                        y: level as f64 / 10.0,
-                    });
+                    for a1 in 0..2 {
+                        histories.push(SequenceHistory {
+                            time_id: histories.len() as u64,
+                            s0,
+                            a1,
+                            l2,
+                            a2,
+                            y: level as f64 / 10.0,
+                        });
+                    }
                 }
             }
         }
@@ -83,11 +85,12 @@ fn marginalized() -> MarginalizedQuery {
 }
 
 fn artifact_for(
-    estimator: &dyn TemporalEstimator,
+    _estimator: &dyn TemporalEstimator,
     wire: IntervalEstimatorWire,
 ) -> TemporalIntervalArtifactWire {
     let p = panel();
-    let interval = dependent_unit_interval(&p, estimator, &config(), &ctx()).unwrap();
+    let estimator = wire.to_estimator().unwrap();
+    let interval = dependent_unit_interval(&p, &*estimator, &config(), &ctx()).unwrap();
     TemporalIntervalArtifactWire::checked(&p, wire, &config(), &interval, None, &ctx()).unwrap()
 }
 
@@ -124,7 +127,10 @@ fn refused(error: IoError) -> (&'static str, String) {
 #[test]
 fn x5_dependent_interval_artifact_replays_the_whole_resampling() {
     let p = panel();
-    let estimator = ObservedStateSequence { sequence: SEQUENCE };
+    let estimator =
+        antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
+            ObservedStateSequence { sequence: SEQUENCE },
+        );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let wire = artifact();
     let (decoded, replayed) =
@@ -156,27 +162,6 @@ fn x5_dependent_interval_artifact_replays_the_marginalized_estimator() {
         TemporalIntervalArtifactWire::consume(&wire.export().unwrap(), &limits(), &ctx()).unwrap();
     assert_eq!(replayed.estimand, "marginalized_initial_state");
     assert_eq!(replayed.calibration, "unmeasured");
-}
-
-#[test]
-fn x5_dependent_interval_artifact_basic_method_round_trips() {
-    let p = panel();
-    let config = DependentIntervalConfig { method: IntervalMethod::Basic, ..config() };
-    let estimator = ObservedStateSequence { sequence: SEQUENCE };
-    let interval = dependent_unit_interval(&p, &estimator, &config, &ctx()).unwrap();
-    let wire = TemporalIntervalArtifactWire::checked(
-        &p,
-        IntervalEstimatorWire::observed(SEQUENCE),
-        &config,
-        &interval,
-        None,
-        &ctx(),
-    )
-    .unwrap();
-    assert_eq!(wire.result.method, "basic");
-    let (_, replayed) =
-        TemporalIntervalArtifactWire::consume(&wire.export().unwrap(), &limits(), &ctx()).unwrap();
-    assert_eq!(replayed, interval);
 }
 
 #[test]
@@ -316,7 +301,10 @@ fn x5_dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
     };
     let (_, receipt) = refresh_held(&held, identity(SNAPSHOT, (10, 20)), |_| Ok(1.0)).unwrap();
     let p = panel();
-    let estimator = ObservedStateSequence { sequence: SEQUENCE };
+    let estimator =
+        antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
+            ObservedStateSequence { sequence: SEQUENCE },
+        );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let wire = TemporalIntervalArtifactWire::checked(
         &p,
@@ -350,7 +338,10 @@ fn x5_dependent_interval_artifact_links_the_refresh_that_produced_its_panel() {
 #[test]
 fn x5_dependent_interval_artifact_refuses_an_interval_of_another_panel() {
     let p = panel();
-    let estimator = ObservedStateSequence { sequence: SEQUENCE };
+    let estimator =
+        antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
+            ObservedStateSequence { sequence: SEQUENCE },
+        );
     let interval = dependent_unit_interval(&p, &estimator, &config(), &ctx()).unwrap();
     let mut units = p.units().to_vec();
     units.pop();
@@ -371,22 +362,7 @@ fn x5_dependent_interval_artifact_refuses_an_interval_of_another_panel() {
 
 #[test]
 fn studentized_artifact_replays_original_variance_and_rejects_resealed_pivot_mutation() {
-    let original = panel();
-    let units = original
-        .units()
-        .iter()
-        .map(|u| {
-            let mut histories = u.histories.clone();
-            for h in &u.histories {
-                let mut second = *h;
-                second.time_id += 8;
-                second.a1 = 1;
-                histories.push(second);
-            }
-            UnitHistories { unit_id: u.unit_id, histories }
-        })
-        .collect();
-    let panel = TemporalUnitPanel::new(SNAPSHOT, Some(units)).unwrap();
+    let panel = panel();
     let config = DependentIntervalConfig { method: IntervalMethod::Studentized, ..config() };
     let estimator = marginalized();
     let result = dependent_unit_interval(
@@ -412,4 +388,14 @@ fn studentized_artifact_replays_original_variance_and_rejects_resealed_pivot_mut
     assert_eq!(consumed, result);
     wire.result.studentization.as_mut().unwrap().pivots[0] = Some(123.0);
     assert!(TemporalIntervalArtifactWire::consume(&reseal(wire), &limits(), &ctx()).is_err());
+}
+
+#[test]
+fn direct_artifact_rejects_resealed_retired_methods() {
+    for method in ["percentile", "basic"] {
+        let mut wire = artifact();
+        wire.config.method = method.into();
+        wire.result.method = method.into();
+        assert!(convert_detail(consume(&reseal(wire))).contains("retired_method"));
+    }
 }

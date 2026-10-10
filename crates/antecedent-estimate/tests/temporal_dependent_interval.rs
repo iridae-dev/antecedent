@@ -88,24 +88,18 @@ fn history(time_id: u64, row: (u32, u32, u32, u32, f64)) -> SequenceHistory {
     SequenceHistory { time_id, s0: row.0, a1: row.1, l2: row.2, a2: row.3, y: row.4 }
 }
 
-/// `units` repeated units; with `one_row_per_unit` every history is its own unit.
-fn panel(units: usize, one_row_per_unit: bool) -> TemporalUnitPanel {
-    let mut out = Vec::new();
-    for unit in 0..units {
-        let rows = unit_rows(unit);
-        if one_row_per_unit {
-            for row in rows {
-                out.push(UnitHistories {
-                    unit_id: out.len() as u64,
-                    histories: vec![history(0, row)],
-                });
-            }
-        } else {
-            let histories =
-                rows.into_iter().enumerate().map(|(t, row)| history(t as u64, row)).collect();
-            out.push(UnitHistories { unit_id: unit as u64, histories });
-        }
-    }
+/// Complete repeated-unit histories for the studentized SCM fixture.
+fn panel(units: usize) -> TemporalUnitPanel {
+    let out = (0..units)
+        .map(|unit| {
+            let histories = unit_rows(unit)
+                .into_iter()
+                .enumerate()
+                .map(|(t, row)| history(t as u64, row))
+                .collect();
+            UnitHistories { unit_id: unit as u64, histories }
+        })
+        .collect();
     TemporalUnitPanel::new("dynamic-scm-panel", Some(out)).unwrap()
 }
 
@@ -125,7 +119,7 @@ fn target_truth() -> f64 {
 
 #[test]
 fn x5_dynamic_scm_interval_point_equals_enumerated_truth() {
-    let p = panel(30, false);
+    let p = panel(30);
     assert_eq!(p.unit_count(), 30);
     assert_eq!(p.history_count(), 30 * 800);
     for (s0, hand) in [(0_u32, 0.33), (1, 0.46)] {
@@ -133,30 +127,41 @@ fn x5_dynamic_scm_interval_point_equals_enumerated_truth() {
         assert!((fixed - truth_given_state(SEQUENCE, s0 as usize)).abs() < 1e-12);
         assert!((fixed - hand).abs() < 1e-12, "{fixed} vs hand-enumerated {hand}");
     }
-    let interval = dependent_unit_interval(&p, &target_query(), &config(7), &ctx()).unwrap();
+    let interval = dependent_unit_interval(
+        &p,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &config(7),
+        &ctx(),
+    )
+    .unwrap();
     assert!((target_truth() - 0.421).abs() < 1e-12);
     assert!((interval.point - 0.421).abs() < 1e-12, "point {}", interval.point);
     assert_eq!(interval.estimand, "marginalized_initial_state");
 }
 
 #[test]
-fn x5_dynamic_scm_interval_unit_resample_is_wider_than_iid_rows_and_covers_truth() {
+fn x5_dynamic_scm_studentized_interval_covers_independent_truth() {
     let truth = target_truth();
-    let by_unit =
-        dependent_unit_interval(&panel(30, false), &target_query(), &config(7), &ctx()).unwrap();
-    let by_row =
-        dependent_unit_interval(&panel(30, true), &target_query(), &config(7), &ctx()).unwrap();
+    let by_unit = dependent_unit_interval(
+        &panel(30),
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &config(7),
+        &ctx(),
+    )
+    .unwrap();
+
     assert_eq!(by_unit.units, 30);
-    assert_eq!(by_row.units, 30 * 800);
     assert_eq!(by_unit.failed, 0);
     assert_eq!(by_unit.replicates.len(), 200);
-    assert!((by_unit.point - truth).abs() < 1e-12 && (by_row.point - truth).abs() < 1e-12);
+    assert!((by_unit.point - truth).abs() < 1e-12);
     // Analytic direction: the unit effect moves the whole value by +-0.2, so the
     // replicate sd across 30 whole units is about 0.2 * 2 * sqrt(0.25 / 30) = 0.037
-    // (95% width about 0.14); resampled rows only see binomial noise of the pooled
-    // cells (width a few hundredths).
+    // (95% width about 0.14).
     assert!(by_unit.width() > 0.08 && by_unit.width() < 0.25, "width {}", by_unit.width());
-    assert!(by_unit.width() > 2.0 * by_row.width(), "{} vs {}", by_unit.width(), by_row.width());
     assert!(by_unit.contains(truth), "[{}, {}] misses {truth}", by_unit.lower, by_unit.upper);
     assert_eq!(by_unit.claim, INTERVAL_CLAIM);
     assert_eq!(by_unit.calibration, INTERVAL_CALIBRATION_STATUS);
@@ -166,16 +171,40 @@ fn x5_dynamic_scm_interval_unit_resample_is_wider_than_iid_rows_and_covers_truth
 
 #[test]
 fn x5_dynamic_scm_interval_replicate_ids_and_digests_reproduce() {
-    let p = panel(30, false);
-    let first = dependent_unit_interval(&p, &target_query(), &config(11), &ctx()).unwrap();
-    let again = dependent_unit_interval(&p, &target_query(), &config(11), &ctx()).unwrap();
+    let p = panel(30);
+    let first = dependent_unit_interval(
+        &p,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &config(11),
+        &ctx(),
+    )
+    .unwrap();
+    let again = dependent_unit_interval(
+        &p,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &config(11),
+        &ctx(),
+    )
+    .unwrap();
     assert_eq!(first.replicates, again.replicates);
     assert_eq!(first.replicate_digest(), again.replicate_digest());
     assert_eq!(first, again);
     let ids =
         first.replicates.iter().map(|r| r.replicate_id).collect::<std::collections::BTreeSet<_>>();
     assert_eq!(ids.len(), 200, "replicate ids are distinct");
-    let other_seed = dependent_unit_interval(&p, &target_query(), &config(12), &ctx()).unwrap();
+    let other_seed = dependent_unit_interval(
+        &p,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &config(12),
+        &ctx(),
+    )
+    .unwrap();
     assert_ne!(first.replicate_digest(), other_seed.replicate_digest());
 
     // Changed unit identity: the same values under a renamed unit.
@@ -183,7 +212,15 @@ fn x5_dynamic_scm_interval_replicate_ids_and_digests_reproduce() {
     units[3].unit_id = 9_999;
     let renamed = TemporalUnitPanel::new("dynamic-scm-panel", Some(units)).unwrap();
     assert_ne!(renamed.digest(), p.digest());
-    let moved = dependent_unit_interval(&renamed, &target_query(), &config(11), &ctx()).unwrap();
+    let moved = dependent_unit_interval(
+        &renamed,
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
+            target_query(),
+        ),
+        &config(11),
+        &ctx(),
+    )
+    .unwrap();
     assert_ne!(first.replicate_digest(), moved.replicate_digest());
 
     // Changed time identity and changed snapshot identity.
@@ -193,26 +230,16 @@ fn x5_dynamic_scm_interval_replicate_ids_and_digests_reproduce() {
     assert_ne!(retimed.digest(), p.digest());
     let resnapped = TemporalUnitPanel::new("other-snapshot", Some(p.units().to_vec())).unwrap();
     assert_ne!(resnapped.digest(), p.digest());
-
-    // The basic construction reads the same replicates.
-    let basic = dependent_unit_interval(
-        &p,
-        &target_query(),
-        &DependentIntervalConfig { method: IntervalMethod::Basic, ..config(11) },
-        &ctx(),
-    )
-    .unwrap();
-    assert_eq!(basic.replicate_digest(), first.replicate_digest());
-    assert!(basic.lower < basic.upper);
-    assert!((basic.point - first.point).abs() < 1e-15);
 }
 
 #[test]
 fn x5_dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
-    let p = panel(30, false);
+    let p = panel(30);
     let observed = dependent_unit_interval(
         &p,
-        &ObservedStateSequence { sequence: SEQUENCE },
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Observed(
+            ObservedStateSequence { sequence: SEQUENCE },
+        ),
         &config(5),
         &ctx(),
     )
@@ -222,7 +249,9 @@ fn x5_dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
     assert_eq!(observed.estimand, "observed_initial_state");
     let fixed = dependent_unit_interval(
         &p,
-        &FixedStateQuery { sequence: SEQUENCE, s0: 1 },
+        &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Fixed(
+            FixedStateQuery { sequence: SEQUENCE, s0: 1 },
+        ),
         &config(5),
         &ctx(),
     )
@@ -233,16 +262,16 @@ fn x5_dynamic_scm_interval_observed_state_estimand_is_labelled_distinctly() {
 
 #[test]
 fn x5_dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation() {
-    let p = panel(30, false);
+    let p = panel(30);
     let too_many = DependentIntervalConfig { replicates: 2001, ..config(1) };
     let (code, message) =
-        refused(dependent_unit_interval(&p, &target_query(), &too_many, &ctx()).unwrap_err());
+        refused(dependent_unit_interval(&p, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &too_many, &ctx()).unwrap_err());
     assert_eq!(code, "route_not_supported");
     assert!(message.contains("temporal_interval.too_many_replicates"), "{message}");
 
-    let few = panel(5, false);
+    let few = panel(5);
     let (code, message) =
-        refused(dependent_unit_interval(&few, &target_query(), &config(1), &ctx()).unwrap_err());
+        refused(dependent_unit_interval(&few, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &config(1), &ctx()).unwrap_err());
     assert_eq!(code, "too_few_clusters");
     assert!(message.contains("temporal_interval.too_few_units"), "{message}");
 
@@ -263,40 +292,8 @@ fn x5_dynamic_scm_interval_refuses_bounds_unsupported_histories_and_cancellation
     let stopped = ctx();
     stopped.cancellation.cancel();
     let (code, _) =
-        refused(dependent_unit_interval(&p, &target_query(), &config(1), &stopped).unwrap_err());
+        refused(dependent_unit_interval(&p, &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(target_query()), &config(1), &stopped).unwrap_err());
     assert_eq!(code, "transport_budget_cancel");
-}
-
-/// 30 units; the cell `(s0 = 0, a1 = 0, l = 1, a2 = 0)` is held by unit 0 alone, so
-/// a resample that misses unit 0 cannot form the response.
-fn fragile_panel() -> TemporalUnitPanel {
-    let units = (0..30_u64)
-        .map(|u| {
-            let mut histories = vec![history(0, (0, 0, 0, 0, 1.0)), history(1, (0, 0, 1, 1, 1.0))];
-            if u == 0 {
-                histories.push(history(2, (0, 0, 1, 0, 1.0)));
-            }
-            UnitHistories { unit_id: u, histories }
-        })
-        .collect();
-    TemporalUnitPanel::new("fragile", Some(units)).unwrap()
-}
-
-#[test]
-fn x5_dynamic_scm_interval_failed_replicates_are_counted_dropped_and_bounded() {
-    let query = FixedStateQuery { sequence: SEQUENCE, s0: 0 };
-    let strict =
-        refused(dependent_unit_interval(&fragile_panel(), &query, &config(3), &ctx()).unwrap_err());
-    assert_eq!(strict.0, "route_not_supported");
-    assert!(strict.1.contains("temporal_interval.unsupported_history"), "{}", strict.1);
-
-    let tolerant = DependentIntervalConfig { max_failed_fraction: 0.95, ..config(3) };
-    let interval = dependent_unit_interval(&fragile_panel(), &query, &tolerant, &ctx()).unwrap();
-    let dropped = interval.replicates.iter().filter(|r| r.point.is_none()).count();
-    assert_eq!(dropped, interval.failed);
-    assert!(interval.failed > 0, "a resample missing unit 0 must fail");
-    assert!((interval.point - 1.0).abs() < 1e-12);
-    assert_eq!(interval.replicates.len(), 200);
 }
 
 #[test]
@@ -336,7 +333,7 @@ fn x5_unknown_unit_dependence_public_route_stays_closed() {
 
 #[test]
 fn studentized_balanced_unit_variance_and_pivots_match_independent_two_point_algebra() {
-    let p = panel(30, false);
+    let p = panel(30);
     let result = dependent_unit_interval(
         &p,
         &antecedent_estimate::temporal_dependent_interval::BalancedTemporalEstimator::Marginalized(
@@ -386,7 +383,7 @@ fn studentized_refuses_unbalanced_units_and_uncertified_estimator() {
             Ok(units.iter().map(|u| u.histories[0].y).sum::<f64>() / units.len() as f64)
         }
     }
-    let p = panel(30, false);
+    let p = panel(30);
     let mut units = p.units().to_vec();
     units[0].histories.pop();
     let changed = TemporalUnitPanel::new("unbalanced", Some(units)).unwrap();
@@ -409,7 +406,7 @@ fn studentized_refuses_unbalanced_units_and_uncertified_estimator() {
 
 #[test]
 fn studentized_refuses_zero_original_unit_variance() {
-    let original = panel(30, false);
+    let original = panel(30);
     let mut units = original.units().to_vec();
     for unit in &mut units {
         for history in &mut unit.histories {
@@ -428,4 +425,18 @@ fn studentized_refuses_zero_original_unit_variance() {
             .to_string()
             .contains("studentized_zero_variance")
     );
+}
+
+#[test]
+fn direct_intervals_reject_retired_methods_before_estimation() {
+    for method in [IntervalMethod::Percentile, IntervalMethod::Basic] {
+        let error = dependent_unit_interval(
+            &panel(30),
+            &target_query(),
+            &DependentIntervalConfig { method, ..config(1) },
+            &ctx(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("temporal_interval.retired_method"));
+    }
 }

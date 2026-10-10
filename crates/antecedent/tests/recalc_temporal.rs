@@ -389,14 +389,21 @@ fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
     assert_eq!(run(&mut session, &r).recalc.receipt.totals().total(), 0);
 }
 
+#[cfg(feature = "calibration-internal")]
 #[test]
 fn temporal_history_closed_candidate_replays_whole_unit_identities_without_coverage_claim() {
-    use antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig;
+    use antecedent_estimate::temporal_dependent_interval::{
+        DependentIntervalConfig, IntervalMethod,
+    };
     let r = effect();
     let mut session = TemporalSession::new();
     run(&mut session, &r);
-    let config =
-        DependentIntervalConfig { replicates: 20, seed: 901, ..DependentIntervalConfig::default() };
+    let config = DependentIntervalConfig {
+        method: IntervalMethod::Percentile,
+        replicates: 20,
+        seed: 901,
+        ..DependentIntervalConfig::default()
+    };
     let (result, work) = count_static_work(|| session.candidate_interval_internal(&config, &ctx()));
     let result = result.unwrap();
     close(result.point, 0.5675);
@@ -418,4 +425,29 @@ fn temporal_history_closed_candidate_replays_whole_unit_identities_without_cover
     assert_ne!(changed.panel_digest, result.panel_digest);
     assert_ne!(changed.replicate_digest(), result.replicate_digest());
     assert!(session.dependent_interval(&config).is_err());
+}
+
+#[cfg(feature = "calibration-internal")]
+#[test]
+fn checked_response_retired_intervals_refuse_before_resampling() {
+    use antecedent_estimate::temporal_dependent_interval::{
+        DependentIntervalConfig, IntervalMethod,
+    };
+    let mut session = TemporalSession::new();
+    run(&mut session, &request(TemporalFunctional::Response { sequence: [0, 0] }));
+    for method in [IntervalMethod::Percentile, IntervalMethod::Basic] {
+        let config = DependentIntervalConfig {
+            method,
+            replicates: 20,
+            seed: 901,
+            ..DependentIntervalConfig::default()
+        };
+        let (result, work) =
+            count_static_work(|| session.candidate_interval_internal(&config, &ctx()));
+        assert!(
+            result.unwrap_err().to_string().contains("temporal_interval.retired_response_method")
+        );
+        assert_eq!(work.factor_builds, 0);
+        assert_eq!(work.factor_evaluations, 0);
+    }
 }

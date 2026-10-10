@@ -7,7 +7,6 @@ The finite SCM uses the exact frozen target law and shared-unit-shock design.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 import sys
@@ -50,7 +49,7 @@ def panel(*, snapshot="activation-unit-panel", unit_offset=0, time_offset=0, lif
     return TemporalUnitPanel.from_rows(snapshot, rows)
 
 
-def produce(method="percentile", **panel_args):
+def produce(method="studentized", **panel_args):
     return temporal_dependent_interval(
         panel(**panel_args),
         sequence=(0, 0),
@@ -108,7 +107,7 @@ def test_temporal_candidate_requires_original_factory():
 
 
 @pytest.mark.skipif(_INTERNAL, reason="normal released wheel refusal boundary")
-@pytest.mark.parametrize("method", ["percentile", "basic", "studentized"])
+@pytest.mark.parametrize("method", ["studentized"])
 def test_temporal_default_route_remains_frozen(method):
     with pytest.raises(CausalUnsupportedError) as caught:
         produce(method)
@@ -117,7 +116,7 @@ def test_temporal_default_route_remains_frozen(method):
 
 
 @_CANDIDATE
-@pytest.mark.parametrize("method", ["percentile", "basic", "studentized"])
+@pytest.mark.parametrize("method", ["studentized"])
 def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh_consumer(
     method, tmp_path
 ):
@@ -138,21 +137,17 @@ def test_temporal_actual_public_candidate_matches_independent_unit_scm_and_fresh
     assert payload["panel"]["snapshot_id"] == "activation-unit-panel"
     assert payload["result"]["failed"] == 0
     draws = independent_replicates(payload)
-    low, high = np.quantile(draws, [0.025, 0.975], method="linear")
-    if method == "studentized":
-        original_se = 0.2 / np.sqrt(99)
-        resample_se = np.sqrt((0.04 - (np.array(draws) - 0.49) ** 2) / 99)
-        pivots = (np.array(draws) - 0.49) / resample_se
-        qlow, qhigh = np.quantile(pivots, [0.025, 0.975], method="linear")
-        bounds = (0.49 - qhigh * original_se, 0.49 - qlow * original_se)
-        receipt = payload["result"]["studentization"]
-        assert receipt["standard_error"] == pytest.approx(original_se, abs=1e-12)
-        np.testing.assert_allclose(
-            receipt["replicate_standard_errors"], resample_se, atol=1e-12, rtol=0
-        )
-        np.testing.assert_allclose(receipt["pivots"], pivots, atol=1e-11, rtol=0)
-    else:
-        bounds = (low, high) if method == "percentile" else (0.98 - high, 0.98 - low)
+    original_se = 0.2 / np.sqrt(99)
+    resample_se = np.sqrt((0.04 - (np.array(draws) - 0.49) ** 2) / 99)
+    pivots = (np.array(draws) - 0.49) / resample_se
+    qlow, qhigh = np.quantile(pivots, [0.025, 0.975], method="linear")
+    bounds = (0.49 - qhigh * original_se, 0.49 - qlow * original_se)
+    receipt = payload["result"]["studentization"]
+    assert receipt["standard_error"] == pytest.approx(original_se, abs=1e-12)
+    np.testing.assert_allclose(
+        receipt["replicate_standard_errors"], resample_se, atol=1e-12, rtol=0
+    )
+    np.testing.assert_allclose(receipt["pivots"], pivots, atol=1e-11, rtol=0)
     assert (result.lower, result.upper) == pytest.approx(bounds, abs=1e-12)
     artifact = tmp_path / "whole-unit.cbor"
     artifact.write_bytes(result.export())
@@ -202,15 +197,9 @@ def test_temporal_candidate_keeps_unknown_units_and_incompatible_history_refusal
     assert caught.value.detail == "temporal_interval.unsupported_history"
 
 
-@_CANDIDATE
-@pytest.mark.parametrize(
-    ("method", "expected"),
-    [
-        ("percentile", "3b274fe3d1a6f9e4a9a06b0e09856ad46d27f88d54a05e6542ab9217911d73c6"),
-        ("basic", "fc79b2d1c0ff69e827cabbf986fd93edf118c5eb7ef887759f262ff31e354519"),
-    ],
-)
-def test_historical_temporal_candidate_artifact_remains_bit_identical(method, expected):
-    # Captured from the installed original 623f16dd native producer before the
-    # studentized implementation. This is compatibility evidence, not calibration.
-    assert hashlib.sha256(produce(method).export()).hexdigest() == expected
+@pytest.mark.parametrize("method", ["percentile", "basic"])
+def test_direct_temporal_retired_methods_are_not_public_options(method):
+    from antecedent.errors import CausalValueError
+
+    with pytest.raises(CausalValueError, match="require method='studentized'"):
+        produce(method)

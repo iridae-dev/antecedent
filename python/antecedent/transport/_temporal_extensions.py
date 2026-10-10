@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from .._measured_inference import MeasuredInference, _production_limits
 from .._native import (
@@ -625,7 +625,7 @@ def temporal_dependent_interval(
     replicates: int = 500,
     seed: int = 0,
     level: float = 0.95,
-    method: str = "studentized",
+    method: Literal["studentized"] = "studentized",
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
     memory_limit_bytes: int | None = None,
@@ -678,7 +678,7 @@ def _temporal_interval_entry(
     replicates: int = 500,
     seed: int = 0,
     level: float = 0.95,
-    method: str = "percentile",
+    method: Literal["studentized"] = "studentized",
     min_units: int = 20,
     max_failed_fraction: float = 0.05,
     measured: bool,
@@ -687,6 +687,8 @@ def _temporal_interval_entry(
 ) -> MeasuredInference | TemporalIntervalCandidate:
     """Shared source validation; candidate and measured authority remain separate."""
     _production_limits(memory_limit_bytes, cancel)
+    if method != "studentized":
+        raise CausalValueError("direct temporal intervals require method='studentized'")
     if not isinstance(panel, TemporalUnitPanel):
         raise CausalTypeError("panel must be a TemporalUnitPanel")
     law, point = (None, None) if target_law is None else _law_args(target_law)

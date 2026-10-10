@@ -4690,7 +4690,7 @@ def temporal_dependent_interval_closed(
     replicates: int,
     seed: int,
     level: float,
-    method: str,
+    method: Literal["studentized"],
     min_units: int,
     max_failed_fraction: float,
 ) -> str: ...
@@ -4711,7 +4711,7 @@ def temporal_dependent_interval_candidate(
     replicates: int,
     seed: int,
     level: float,
-    method: str,
+    method: Literal["studentized"],
     min_units: int,
     max_failed_fraction: float,
 ) -> tuple[NativeTemporalIntervalCandidate | None, str | None]: ...
@@ -6829,7 +6829,7 @@ def temporal_dependent_interval_measured(
     replicates: int,
     seed: int,
     level: float,
-    method: str,
+    method: Literal["studentized"],
     min_units: int,
     max_failed_fraction: float,
     *,

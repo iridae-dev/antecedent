@@ -363,13 +363,11 @@ fn temporal_dependent_interval_closed(
     max_failed_fraction: f64,
 ) -> PyResult<String> {
     let method = match method {
-        "percentile" => IntervalMethod::Percentile,
-        "basic" => IntervalMethod::Basic,
         "studentized" => IntervalMethod::Studentized,
         other => {
             return Err(crate::with_reason_code(
                 crate::value_err(format!(
-                    "interval method must be percentile, basic or studentized, not {other}"
+                    "direct interval method must be studentized, not {other}"
                 )),
                 reason_code!("invalid_argument"),
             ));
@@ -476,8 +474,6 @@ fn temporal_dependent_interval_candidate(
         return Ok((None, Some(refusal)));
     }
     let method = match method {
-        "percentile" => IntervalMethod::Percentile,
-        "basic" => IntervalMethod::Basic,
         "studentized" => IntervalMethod::Studentized,
         _ => return Err(crate::value_err("invalid interval method")),
     };
@@ -562,8 +558,6 @@ fn temporal_dependent_interval_measured(
         return Ok((None, Some(refusal)));
     }
     let method = match method {
-        "percentile" => IntervalMethod::Percentile,
-        "basic" => IntervalMethod::Basic,
         "studentized" => IntervalMethod::Studentized,
         _ => return Err(crate::value_err("invalid interval method")),
     };

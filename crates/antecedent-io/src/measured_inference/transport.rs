@@ -249,15 +249,16 @@ mod native_lifecycle_tests {
         ] {
             let sources: Vec<_> = (0..count)
                 .map(|b| {
-                    let x: Vec<_> =
-                        (0..150).map(|i| (f64::from(i) * 0.71 + b as f64 * 0.2).sin()).collect();
+                    let x: Vec<_> = (0..150)
+                        .map(|i| (f64::from(i) * 0.71 + f64::from(b) * 0.2).sin())
+                        .collect();
                     let a: Vec<_> = (0..150).map(|i| i % 3 != 0).collect();
                     let y: Vec<_> = x
                         .iter()
                         .zip(&a)
                         .enumerate()
                         .map(|(i, (x, a))| {
-                            0.4 + 0.7 * b as f64
+                            0.4 + 0.7 * f64::from(b)
                                 + 0.5 * x
                                 + if *a { 2.0 + 0.4 * x } else { 0.0 }
                                 + 0.1 * (i as f64 * 1.37).cos()

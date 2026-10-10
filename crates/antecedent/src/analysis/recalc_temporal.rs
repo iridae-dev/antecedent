@@ -456,8 +456,18 @@ impl TemporalSession {
     /// # Errors
     /// Missing actual state, changed producing context, invalid configuration,
     /// cancellation or unsupported resampled histories.
+    #[cfg(feature = "calibration-internal")]
     #[doc(hidden)]
     pub fn candidate_interval_internal(
+        &self,
+        config: &DependentIntervalConfig,
+        ctx: &ExecutionContext,
+    ) -> Result<antecedent_estimate::temporal_dependent_interval::DependentInterval, TemporalRunError>
+    {
+        self.candidate_interval_replay(config, ctx)
+    }
+
+    pub(crate) fn candidate_interval_replay(
         &self,
         config: &DependentIntervalConfig,
         ctx: &ExecutionContext,
@@ -477,7 +487,14 @@ impl TemporalSession {
                 ctx,
             )?);
         }
-        Ok(antecedent_estimate::temporal_dependent_interval::dependent_unit_interval(
+        if matches!(live.request.functional, TemporalFunctional::Response { .. }) {
+            return Err(antecedent_estimate::EstimationError::refused(
+                antecedent_core::reason_code!("route_not_supported"),
+                "temporal_interval.retired_response_method: checked responses require studentized",
+            )
+            .into());
+        }
+        Ok(antecedent_estimate::temporal_dependent_interval::checked_paired_effect_interval(
             &live.panel,
             &CheckedUnitDraw { live, ctx },
             config,

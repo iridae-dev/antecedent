@@ -50,7 +50,7 @@ fn panel(n: usize, seed: u64) -> TemporalUnitPanel {
     }
     TemporalUnitPanel::new(format!("independent-unit-scm-{seed}"), Some(units)).unwrap()
 }
-fn measure(test: &'static str, expected_id: &str, method: IntervalMethod) {
+fn measure(test: &'static str, expected_id: &str) {
     let n = grid_n(100);
     let law = InitialStateLaw::new(
         InitialStatePopulation::Target,
@@ -59,11 +59,7 @@ fn measure(test: &'static str, expected_id: &str, method: IntervalMethod) {
     )
     .unwrap();
     let query = MarginalizedQuery::new([0, 0], InitialStateSpec::Law(law)).unwrap();
-    let interval_name = match method {
-        IntervalMethod::Percentile => "bootstrap_percentile",
-        IntervalMethod::Basic => "bootstrap_basic",
-        IntervalMethod::Studentized => "bootstrap_studentized",
-    };
+    let interval_name = "bootstrap_studentized";
     let mut tally = CoverageTally::for_record(
         RecordKey {
             test,
@@ -80,7 +76,7 @@ fn measure(test: &'static str, expected_id: &str, method: IntervalMethod) {
             &DependentIntervalConfig {
                 replicates: 500,
                 seed: seed + 100_000,
-                method,
+                method: IntervalMethod::Studentized,
                 ..DependentIntervalConfig::default()
             },
             &ExecutionContext::for_tests(seed),
@@ -100,29 +96,9 @@ fn measure(test: &'static str, expected_id: &str, method: IntervalMethod) {
 }
 #[test]
 #[ignore = "calibration: final measurement only"]
-fn temporal_two_step_units_percentile_l95() {
-    measure(
-        "temporal_two_step_units_percentile_l95",
-        "cov.temporal_transport.selection_admg.frequentist.bootstrap_percentile.l95.temporal_two_step_units_percentile_l95",
-        IntervalMethod::Percentile,
-    );
-}
-#[test]
-#[ignore = "calibration: final measurement only"]
-fn temporal_two_step_units_basic_l95() {
-    measure(
-        "temporal_two_step_units_basic_l95",
-        "cov.temporal_transport.selection_admg.frequentist.bootstrap_basic.l95.temporal_two_step_units_basic_l95",
-        IntervalMethod::Basic,
-    );
-}
-
-#[test]
-#[ignore = "calibration: final measurement only"]
 fn temporal_two_step_units_studentized_l95() {
     measure(
         "temporal_two_step_units_studentized_l95",
         "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95",
-        IntervalMethod::Studentized,
     );
 }

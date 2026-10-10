@@ -227,7 +227,8 @@ pub struct IntervalConfigWire {
     pub seed: u64,
     /// Two-sided level.
     pub level: f64,
-    /// `percentile` or `basic`.
+    /// `studentized` for direct intervals; checked paired effects also use
+    /// `percentile` or `basic` through their separate source-bound receipt.
     pub method: String,
     /// Fewest units.
     pub min_units: u64,
@@ -328,7 +329,7 @@ pub struct IntervalResultWire {
     pub level: f64,
     /// Construction.
     pub method: String,
-    /// Absent for historical percentile/basic artifacts, preserving their encoding.
+    /// The checked paired-effect receipt omits this field for percentile/basic.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub studentization: Option<StudentizationWire>,
     /// Every replicate, in order.
@@ -432,6 +433,11 @@ impl TemporalIntervalArtifactWire {
         refresh_receipt: Option<&RefreshReceipt>,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        if config.method != IntervalMethod::Studentized
+            || interval.method != IntervalMethod::Studentized
+        {
+            return Err(mismatch(PREFIX, "retired_method"));
+        }
         if interval.panel_digest != panel.digest() || interval.snapshot_id != panel.snapshot_id() {
             return Err(mismatch(PREFIX, "foreign_interval"));
         }
@@ -533,6 +539,9 @@ impl TemporalIntervalArtifactWire {
         }
         let estimator = self.estimator.to_estimator()?;
         let config = self.config.to_config()?;
+        if config.method != IntervalMethod::Studentized {
+            return Err(mismatch(PREFIX, "retired_method"));
+        }
         let replayed = dependent_unit_interval(&panel, &*estimator, &config, ctx)?;
         if crate::to_cbor(&IntervalResultWire::from_interval(&replayed))?
             != crate::to_cbor(&self.result)?

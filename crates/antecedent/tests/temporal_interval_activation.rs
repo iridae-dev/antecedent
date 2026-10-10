@@ -69,8 +69,8 @@ fn prepare(method: IntervalMethod) -> TemporalIntervalArtifactWire {
 
 #[test]
 fn temporal_actual_facade_candidate_and_independent_consumer_preserve_frozen_coordinates() {
-    for method in [IntervalMethod::Percentile, IntervalMethod::Basic] {
-        let wire = prepare(method);
+    {
+        let wire = prepare(IntervalMethod::Studentized);
         // Independent SCM integration: .3*.35 + .7*.55 = .49; unit shocks sum to zero.
         assert!((wire.result.point - 0.49).abs() < 1e-12);
         assert_eq!(wire.result.calibration, "unmeasured");
@@ -91,7 +91,7 @@ fn temporal_actual_facade_candidate_and_independent_consumer_preserve_frozen_coo
 
 #[test]
 fn temporal_facade_candidate_replay_refuses_resealed_panel_estimator_and_seed_mutations() {
-    let original = prepare(IntervalMethod::Percentile);
+    let original = prepare(IntervalMethod::Studentized);
     for field in 0..6 {
         let mut changed = original.clone();
         match field {

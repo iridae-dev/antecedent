@@ -131,7 +131,7 @@ impl CheckedMeasuredTemporal {
         let name = preflight(&source, config, ctx, original.len())?;
         let mut producing = ctx.clone();
         producing.rng = RngFactory::from_seed(source.seed);
-        let result = session.candidate_interval_internal(config, &producing)?;
+        let result = session.candidate_interval_replay(config, &producing)?;
         let bundle = CheckedSource {
             version: 1,
             required_features: vec!["checked_temporal_measured_source_v1".into()],

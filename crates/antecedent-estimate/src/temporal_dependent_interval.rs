@@ -473,9 +473,9 @@ pub fn balanced_linear_unit_scores<E: TemporalEstimator + ?Sized>(
 /// How the interval is read off the replicate points.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IntervalMethod {
-    /// Equal-tailed percentile interval of the replicate points.
+    /// Equal-tailed percentile interval of a checked paired effect only.
     Percentile,
-    /// Basic (reverse percentile) interval: `2 * point - upper, 2 * point - lower`.
+    /// Checked paired-effect reverse percentile: `2 * point - upper, 2 * point - lower`.
     Basic,
     /// Equal-tailed bootstrap-t with exact balanced-unit scores and per-draw SE.
     /// This distinct candidate has no finite-sample or calibrated guarantee.
@@ -505,7 +505,7 @@ impl Default for DependentIntervalConfig {
             replicates: 500,
             seed: 0,
             level: 0.95,
-            method: IntervalMethod::Percentile,
+            method: IntervalMethod::Studentized,
             min_units: DEFAULT_MIN_UNITS,
             max_failed_fraction: 0.05,
         }
@@ -787,11 +787,10 @@ fn studentize_replicates(
     Ok(receipt)
 }
 
-/// Resample whole units, re-run the whole estimator per replicate and read a
-/// percentile (or basic) interval off the replicate points.
+/// Resample whole units and construct the balanced-unit studentized interval.
 ///
-/// The interval carries no coverage claim: calibration is unmeasured and the
-/// public route stays closed.
+/// This receipt retains unmeasured standing. A separate source-bound measured
+/// adapter resolves evidence for its exact validated protocol.
 ///
 /// # Errors
 /// `too_few_clusters` / `temporal_interval.too_few_units` below the minimum unit
@@ -806,7 +805,13 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     ctx: &ExecutionContext,
 ) -> Result<DependentInterval, EstimationError> {
     validate_config(config)?;
-    if config.method == IntervalMethod::Studentized && panel.units.len() > STUDENTIZED_MAX_UNITS {
+    if config.method != IntervalMethod::Studentized {
+        return Err(EstimationError::refused(
+            reason_code!("route_not_supported"),
+            "temporal_interval.retired_method: direct intervals require studentized",
+        ));
+    }
+    if panel.units.len() > STUDENTIZED_MAX_UNITS {
         return Err(EstimationError::refused(
             reason_code!("route_not_supported"),
             "temporal_interval.studentized_bounds_exceeded: at most 4096 original unit scores",
@@ -827,19 +832,11 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     let point = estimator
         .estimate(&all)
         .map_err(|error| unsupported_history(format!("the original panel: {error}")))?;
-    let prepared = if config.method == IntervalMethod::Studentized {
-        Some(prepare_studentization(panel, estimator, point, ctx)?)
-    } else {
-        None
-    };
+    let prepared = prepare_studentization(panel, estimator, point, ctx)?;
     let replicates = run_replicates(panel, estimator, config, ctx)?;
-    let mut points = replicates.iter().filter_map(|record| record.point).collect::<Vec<_>>();
-    let studentization = prepared
-        .map(|receipt| studentize_replicates(panel, point, &replicates, receipt, ctx))
-        .transpose()?;
-    if let Some(receipt) = &studentization {
-        points = receipt.pivots.iter().flatten().copied().collect();
-    }
+    let receipt = studentize_replicates(panel, point, &replicates, prepared, ctx)?;
+    let mut points = receipt.pivots.iter().flatten().copied().collect::<Vec<_>>();
+    let studentization = Some(receipt);
     let failed = replicates.len() - points.len();
     #[allow(clippy::cast_precision_loss, reason = "replicate counts are at most 2000")]
     let fraction = failed as f64 / replicates.len() as f64;
@@ -854,14 +851,8 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
     points.sort_by(f64::total_cmp);
     let tail = (1.0 - config.level) / 2.0;
     let (low, high) = (quantile(&points, tail), quantile(&points, 1.0 - tail));
-    let (lower, upper) = match config.method {
-        IntervalMethod::Percentile => (low, high),
-        IntervalMethod::Basic => (2.0_f64.mul_add(point, -high), 2.0_f64.mul_add(point, -low)),
-        IntervalMethod::Studentized => {
-            let se = studentization.as_ref().expect("checked studentized receipt").standard_error;
-            (point - high * se, point - low * se)
-        }
-    };
+    let se = studentization.as_ref().expect("checked studentized receipt").standard_error;
+    let (lower, upper) = (point - high * se, point - low * se);
     Ok(DependentInterval {
         estimand: estimator.label(),
         point,
@@ -870,6 +861,76 @@ pub fn dependent_unit_interval<E: TemporalEstimator + ?Sized>(
         level: config.level,
         method: config.method,
         studentization,
+        replicates,
+        failed,
+        units: panel.units.len(),
+        snapshot_id: panel.snapshot_id.clone(),
+        panel_digest: panel.digest,
+        seed: config.seed,
+        claim: INTERVAL_CLAIM,
+        calibration: INTERVAL_CALIBRATION_STATUS,
+    })
+}
+
+/// Percentile/basic resampling of a checked paired effect, sharing each unit draw.
+/// This helper returns an unmeasured receipt; public authority additionally requires
+/// the original checked source/proof and the exact calibrated effect protocol.
+/// # Errors
+/// Invalid configuration, unsupported resampled histories or cancellation.
+#[doc(hidden)]
+pub fn checked_paired_effect_interval<E: TemporalEstimator + ?Sized>(
+    panel: &TemporalUnitPanel,
+    estimator: &E,
+    config: &DependentIntervalConfig,
+    ctx: &ExecutionContext,
+) -> Result<DependentInterval, EstimationError> {
+    validate_config(config)?;
+    if config.method == IntervalMethod::Studentized {
+        return dependent_unit_interval(panel, estimator, config, ctx);
+    }
+    if panel.units.len() < config.min_units.max(2) {
+        return Err(EstimationError::refused(
+            reason_code!("too_few_clusters"),
+            format!(
+                "{TEMPORAL_INTERVAL_TOO_FEW_UNITS}: {} repeated units, at least {} required",
+                panel.units.len(),
+                config.min_units.max(2)
+            ),
+        ));
+    }
+    crate::transport::refuse_cancelled(ctx, "temporal dependent interval")?;
+    let all = panel.units.iter().collect::<Vec<_>>();
+    let point = estimator
+        .estimate(&all)
+        .map_err(|error| unsupported_history(format!("the original panel: {error}")))?;
+    let replicates = run_replicates(panel, estimator, config, ctx)?;
+    let mut points = replicates.iter().filter_map(|record| record.point).collect::<Vec<_>>();
+    let failed = replicates.len() - points.len();
+    #[allow(clippy::cast_precision_loss, reason = "replicate counts are at most 2000")]
+    let fraction = failed as f64 / replicates.len() as f64;
+    if fraction > config.max_failed_fraction || points.len() < 2 {
+        return Err(unsupported_history(format!(
+            "{failed} of {} unit-resampled replicates left a needed history unsupported, above the allowed fraction {}",
+            replicates.len(),
+            config.max_failed_fraction
+        )));
+    }
+    points.sort_by(f64::total_cmp);
+    let tail = (1.0 - config.level) / 2.0;
+    let (low, high) = (quantile(&points, tail), quantile(&points, 1.0 - tail));
+    let (lower, upper) = match config.method {
+        IntervalMethod::Percentile => (low, high),
+        IntervalMethod::Basic => (2.0_f64.mul_add(point, -high), 2.0_f64.mul_add(point, -low)),
+        IntervalMethod::Studentized => unreachable!("studentized dispatch above"),
+    };
+    Ok(DependentInterval {
+        estimand: estimator.label(),
+        point,
+        lower,
+        upper,
+        level: config.level,
+        method: config.method,
+        studentization: None,
         replicates,
         failed,
         units: panel.units.len(),

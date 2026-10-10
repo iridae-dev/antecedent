@@ -480,6 +480,15 @@ fn validated_interval(
     estimand: IntervalEstimand,
     config: &DependentIntervalConfig,
 ) -> Result<(TemporalUnitPanel, Box<dyn TemporalEstimator>), IoError> {
+    if config.method
+        != antecedent_estimate::temporal_dependent_interval::IntervalMethod::Studentized
+    {
+        return Err(refused(
+            reason_code!("route_not_supported"),
+            "temporal_interval.retired_method",
+            "direct intervals require studentized",
+        ));
+    }
     let panel = TemporalUnitPanel::new(snapshot_id, units)?;
     validate_interval_design(config, panel.unit_count())?;
     let estimator = interval_estimator(sequence, estimand)?;
@@ -521,13 +530,8 @@ pub fn temporal_dependent_interval_candidate(
             &MarginalizedQuery::new(sequence, spec.clone())?,
         ),
     };
-    let (panel, mut estimator) =
-        validated_interval(snapshot_id, units, sequence, estimand, config)?;
-    if config.method
-        == antecedent_estimate::temporal_dependent_interval::IntervalMethod::Studentized
-    {
-        estimator = wire.to_estimator()?;
-    }
+    let (panel, _) = validated_interval(snapshot_id, units, sequence, estimand, config)?;
+    let estimator = wire.to_estimator()?;
     let interval = antecedent_estimate::temporal_dependent_interval::dependent_unit_interval(
         &panel,
         &*estimator,
