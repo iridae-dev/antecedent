@@ -42,7 +42,7 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: "0"
       CARGO_INCREMENTAL: "0"
       SCCACHE_GHA_ENABLED: "true"
-      RUST_CI_REST_FEATURES: antecedent-identify/test-util,antecedent-io/calibration-internal
+      RUST_CI_REST_FEATURES: antecedent-identify/test-util,antecedent-io/calibration-internal,antecedent/calibration-internal
       RUST_CI_FACADE_FEATURES: ml-gbdt,ml-forest,ml-neural,antecedent-data/arrow
     strategy:
       fail-fast: false
@@ -151,7 +151,8 @@ jobs:
         run: |
           trap 'df -h /' EXIT
           # The facade's dev-dependencies enabled these features in the former
-          # full-workspace command. Keep that exact feature graph in this shard.
+          # full-workspace command, including its calibration-only self dependency.
+          # Keep that exact feature graph in this shard.
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --no-run --timings
           cargo nextest run --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES"
           cargo test --workspace --exclude antecedent --features "$RUST_CI_REST_FEATURES" --doc
