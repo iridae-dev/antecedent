@@ -265,7 +265,7 @@ def per_output_inference(records: list[dict]) -> list[str]:
         ),
         "",
         (
-            "This is explicit draft ownership and design allocation, not measurement or "
+            "This is explicit method ownership and design allocation, not itself measurement or "
             "a new license. Allocated candidate records describe future measurements; "
             "inherited records describe unchanged original methods. Neither allocation "
             "nor a numerical replay fixture validates a transformed estimator, covariance, "

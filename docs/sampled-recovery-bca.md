@@ -9,8 +9,12 @@ The new `bootstrap_bca` candidate uses 2,000 whole-row bootstrap draws and the
 bias-corrected and accelerated transformation of
 [Efron (1987), *Better Bootstrap Confidence Intervals*](https://doi.org/10.1080/01621459.1987.10478410).
 Asymptotic BCa regularity does not establish finite-sample coverage for this
-missingness estimator. Normal release production remains closed until the new
-procedure independently passes its frozen calibration and lifecycle gates.
+missingness estimator. The corrected procedure has completed its frozen
+measurement; current facet attestation and the normal producer/consumer gates
+still govern public standing. The normal adapter returns a distinct
+`inference.MeasuredInference` only after its original recovered-effect basis
+resolves to a current record. Its version-3 source candidate remains
+`unmeasured`, and legacy version-2 percentile evidence never gains a BCa license.
 
 Each draw reruns the original licensed observation-recovery formula and downstream
 standardized recovered effect. The candidate refuses any failed bootstrap draw;

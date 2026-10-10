@@ -1,8 +1,21 @@
 # Continuous binary Verma Bayesian pilot: frozen acceptance design
 
-Implementation and acceptance wiring are **unmeasured**. This document records the
-scientific design; it contains no measured coverage result, waiver, or public license.
-The normal `antecedent.transport.binary_nested_markov` route remains frozen.
+This document freezes the scientific measurement design. Its six mean0, mean1
+and contrast coverage records were measured on the stabilized candidate branch;
+they apply only while their declared facets attest the executing code. The
+normal `antecedent.transport.binary_nested_markov` adapter resolves those actual
+records for all three scalars before returning `inference.MeasuredInference`.
+Final normal producer/consumer and release attestation gates remain separate
+from the measurements. The original posterior artifact retains its
+`unmeasured` candidate standing inside the distinct measured envelope.
+
+Measured scope is nominal 0.95, sample counts 2000..8000, default constrained
+fit options (50000 iterations, tolerance 1e-11, no residual refusal threshold),
+uniform eleven-coordinate Beta(1,1) or Beta(2,2) shapes and the frozen sampler
+below. Original variable labels are bounded to 256 UTF-8 bytes. Other priors,
+sampler settings and count scopes cannot borrow these records. Only the three
+named effect scalars are authorized; full parameter or simultaneous credible
+intervals are not licensed by this evidence.
 
 The numerical candidate fits the original eleven-dimensional binary Verma nested-Markov
 law: `X1 -> X2 -> X3 -> X4`, `X2 <-> X4`, parameter order

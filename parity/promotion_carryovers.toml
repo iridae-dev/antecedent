@@ -10,22 +10,19 @@ corrective_action = "Implement the normal-build interval producer and versioned 
 
 [[cell]]
 id = "2.3A.X4.joint_bayesian_transport"
-failed_gates = ["whole_posterior_calibration"]
-detail = "The exact conjugate Gaussian engine and replay artifact exist, but the allocated frequentist credible-interval coverage record is unmeasured."
-corrective_action = "After implementation stabilizes, measure the declared source-target dependence and prior coordinates; execute the public producer and independent consumer before licensing."
-
+failed_gates = ["normal_public_surface_final_attestation"]
+detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
+corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
 [[cell]]
 id = "2.3A.X4.binary_nested_markov_pilot"
-failed_gates = ["whole_posterior_calibration", "public_posterior_activation"]
-detail = "The selected pilot executes the separately licensed general-ID binding before fitting. A continuous full11D raw-coordinate truncated Beta-kernel posterior, bounded SplitMix64 coordinate-slice sampler,95% joint credible summaries and independent replay now exist under calibration-internal. Independent lowcount quadrature validates means, full covariance, credible quantiles and prior sensitivity. The named-prior Python producer and fresh expected-identity consumer are implemented for internal acceptance builds, and the full11D coverage/precision harness is frozen and compiled. Whole-method calibration and normal public activation remain pending; neither MLE nor Fisher evidence supplies a Bayesian license."
-corrective_action = "After stabilization execute the frozen continuous-posterior precision/coverage design including failed fits/chains and endpoint-precision failures in its denominator. Activate only passing exact model/prior/count/sampler coordinates, then verify the released producer and retained-identity fresh consumer."
-
+failed_gates = ["normal_public_surface_final_attestation"]
+detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
+corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
 [[cell]]
 id = "2.3A.X5.dependent_temporal_interval"
-failed_gates = ["whole_temporal_interval_calibration"]
-detail = "Original 623f16dd percentile/basic measurements failed: checked response n64 rechecks1873/2000 and1867/2000; balanced unit response n200 rechecks1861/2000 and1857/2000, all zero skips. A distinct balanced complete-history equal-tailed bootstrap-t construction now has three new allocated IDs; it remains unmeasured. Original paired-effect percentile/basic passes are retained separately."
-corrective_action = "Measure the new studentized unit,response,effect methods on every original frozen grid point with unchanged denominator and precision gates. Preserve old failures and passing effect constructions; license only exact passing construction/scope after producer and consumer checks."
-
+failed_gates = ["normal_public_surface_final_attestation"]
+detail = "Original percentile/basic response failures remain retained; original passing paired-effect constructions are separate methods. The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
+corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
 [[cell]]
 id = "2.3A.X8.transported_path_specific_counterfactual"
 failed_gates = ["bounded_ctftr_derivation_and_implementation", "general_provider_and_artifact_evidence"]
@@ -34,18 +31,16 @@ corrective_action = "Complete the dependency-ordered 2.4 general finite counterf
 
 [[cell]]
 id = "2.3A.X10.sampled_observation_recovery"
-failed_gates = ["whole_recovery_interval_calibration"]
-detail = "Original 623f16dd B500 percentile coverage failed at n2000:1874/2000=.937, zero skips, below the unchanged2MCSE precision floor. Distinct B2000 whole-row BCa with exact delete-one-row acceleration, midrank bias correction and version3 replay is implemented but unmeasured. Legacy v2 percentile and its failed evidence remain retained; component variance cannot license either interval."
-corrective_action = "Measure distinct B2000 BCa on the complete frozen n1000/2000/4000 grid with original coverage/precision/failure gates, including exact jackknife and adjusted-tail refusal. Preserve legacy failure; execute public producer and independent version3 consumer before exact-scope licensing."
-
+failed_gates = ["normal_public_surface_final_attestation", "corrected_scientific_recovery_basis_remeasurement"]
+detail = "Original B500 percentile failure and legacy v2 candidate standing remain retained. Corrected BCa scientific basis excludes alias labels while preserving full source expectations; this changed actual key requires final remeasurement. The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
+corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
 [[cell]]
 id = "2.3A.X4.learned_joint_transport"
-failed_gates = ["whole_learned_posterior_calibration"]
-detail = "The polynomial-basis known-variance conjugate Gaussian fit and replay exist; the allocated learned source-target credible-interval coverage is unmeasured. This is not a non-conjugate sampler."
-corrective_action = "Measure the declared basis, prior and independent-sample coordinates after stabilization; execute the public producer and independent consumer before licensing."
-
+failed_gates = ["normal_public_surface_final_attestation"]
+detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
+corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
 [[cell]]
 id = "2.3A.X4.binary_nested_markov_fisher"
-failed_gates = ["whole_nested_fisher_interval_calibration", "public_interval_activation"]
-detail = "The original constrained likelihood fit, expected multinomial Fisher information, delta covariance and independent artifact replay are implemented at the strictly interior IID count-table coordinate. The six actual interval candidates have frozen measurement harnesses but no measured whole-method coverage."
-corrective_action = "After implementation stabilizes, measure the exact latent-Verma and Markov-submodel mean/contrast coordinates, retaining failed fits in the coverage denominator; activate and execute the matching public producer and independent consumer only for passing coordinates."
+failed_gates = ["normal_public_surface_final_attestation"]
+detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
+corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."

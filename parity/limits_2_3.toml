@@ -1468,3 +1468,12 @@ documentation = [{ path = "docs/2_3-supported-bounds.md", pattern = "\\| 2\\.3B\
 guard = { path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > 256" }
 refusal = { path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > 256[\\s\\S]{0,220}?return Err" }
 scope_fixture = { path = "python/tests/test_decision_flow_bridge.py", pattern = "\\btest_scalar_effect_evaluates_only_its_original_contrast_coordinate\\b" }
+
+[[bound]]
+record = "2.3A.F15.measured_scalar_inference"
+key = "max_bytes"
+implementation = [{ path = "crates/antecedent-io/src/measured_inference.rs", constant = "MAX_MEASURED_ARTIFACT_BYTES" }]
+documentation = [{ path = "docs/2_3-supported-bounds.md", pattern = "\\| 2\\.3A\\.F15\\.measured_scalar_inference \\| max_bytes \\| ([\\d,]+) \\|" }]
+guard = { path = "crates/antecedent-io/src/measured_inference.rs", pattern = "if bytes\\.len\\(\\) > MAX_MEASURED_ARTIFACT_BYTES" }
+refusal = { path = "crates/antecedent-io/src/measured_inference.rs", pattern = "if bytes\\.len\\(\\) > MAX_MEASURED_ARTIFACT_BYTES[\\s\\S]{0,300}return Err\\(refusal" }
+scope_fixture = { path = "python/tests/test_measured_inference.py", pattern = "\\btest_bounds_and_missing_native_cannot_be_overridden_by_basis\\b" }

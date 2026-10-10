@@ -20,6 +20,48 @@ A result can enter the decision step from either end. A native `analyze` result
 answers a decision directly (step 1). A foreign provider's numbers enter through
 a bound external claim (step 2). Both are `Contract.evaluate` sources.
 
+## Measured scalar inference and independent replay
+
+The statistical adapters return `inference.MeasuredInference` only when every
+reported scalar resolves to a current, non-boundary calibration record for its
+actual native method, prior, sampling declaration, functional, nominal level and
+sample-size scope. A completed measurement of an older branch does not attest a
+changed numerical surface. Unsupported or stale coordinates refuse with
+`cell_not_licensed`; an interval is never synthesized from a point result.
+
+The carrier is factory-only. `scalar(name)` exposes its point, interval, level,
+record ID, measured commit and full calibration basis. `validated_scope` reports
+checked protocol facts and declared model assumptions; observed data do not
+prove those assumptions or authenticate the generating distribution. Calibration
+of named scalar intervals supplies neither simultaneous coverage nor calibration
+of every parameter, covariance entry, posterior draw or diagnostic.
+
+```python
+from antecedent.inference import MeasuredInference
+
+# measured is returned by a supported statistical producer at its licensed scope.
+question = measured.expected_identity
+artifact = measured.export()
+replayed = MeasuredInference.load(artifact, expected=question)
+assert replayed.inspect() == measured.inspect()
+```
+
+Keep `expected_identity` separately from the artifact. A fresh consumer replays
+the original source, derives actual method-specific bases, resolves current
+records again and compares the complete receipt. Recomputing a checksum or
+editing a serialized `calibrated` flag cannot supply native authority.
+`source_artifact()` and `source_report()` expose the unchanged original
+candidate, whose own standing stays `unmeasured`; loading that candidate alone
+does not produce a measured result. Producers and the consumer accept explicit
+`memory_limit_bytes` and `cancel` controls.
+
+The exact adapters are joint and learned joint Gaussian transport, nested
+Fisher and full eleven-dimensional Bayesian inference, balanced studentized
+temporal intervals (including an original-source checked `TemporalSession`
+handoff), and whole-row BCa observation recovery. Their method bounds and
+historical refusals are described in the
+[population and uncertainty guide](2_3-population-time-uncertainty.md).
+
 ## 1. Analyze and decide directly
 
 `Contract.evaluate` takes a supported analysis result. Declare outcome units once
@@ -356,12 +398,14 @@ wheel before they can count as released positive evidence.
 
 ### Candidate nested-Markov posterior and sampling intervals
 
-The internal acceptance build also exercises the following original producers and
-bounded artifact consumers. Every normal released route remains closed pending
-its own measurement and coordinated public activation. Candidate artifacts retain
-`unmeasured` standing; their successful replay does not establish coverage.
+The internal acceptance build exercises the following historical candidate
+carriers and bounded artifact consumers. These original artifacts retain
+`unmeasured` standing; their successful replay does not establish coverage. The
+standard normal producers now return `MeasuredInference` for the exact guarded
+protocols described above. Candidate factories remain internal acceptance routes;
+they are not a fallback for unsupported measured requests.
 
-| Producer in `transport.advanced` | Candidate | Fresh-process consumer |
+| Internal acceptance producer family | Historical candidate | Fresh-process consumer |
 | --- | --- | --- |
 | `binary_nested_markov(..., prior=NestedMarkovPrior(...), seed=...)` | `NestedMarkovPosteriorCandidate` | `NestedMarkovPosteriorCandidate.load(bytes, expected_identity=...)` |
 | `binary_nested_markov_fisher_interval(...)` | `NestedFisherCandidate` | `NestedFisherCandidate.load(bytes, expected_identity=...)` |

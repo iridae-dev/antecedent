@@ -1,8 +1,10 @@
 # 2.3 joint distribution artifact contract
 
-The F15/F16/F1 cells are frozen for 2.3 A. The Rust value and artifact wire
-below are implementation work; their public scientific routes remain closed in
-`parity/promotion_2_3.toml` until the promotion evidence executes.
+The F15/F16/F1 cells provide checked quantity meaning, aligned joint draws and
+independent artifact replay. Their numerical operations retain the meaning of the
+supplied law; semantic validation does not establish causal identification or
+sampling coverage. Method-specific measured scalar intervals use the separate
+`antecedent.inference.MeasuredInference` carrier.
 
 ## Layout and identity
 

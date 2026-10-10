@@ -7,10 +7,12 @@ claim label, the Python entry point and the namespace of its refusal details.
 
 The authoritative status of each route (`licensed` or `closed`, with its reason
 code) is its record in `parity/promotion_2_3.toml` and its row in
-`parity/transport_stages.toml`; this page does not override them. No route here
-returns a confidence interval, credible interval or coverage statement. A route
-whose claim would be a calibrated interval is closed, and its calibration is
-unmeasured.
+`parity/transport_stages.toml`; this page does not override them. The statistical
+adapters described below return a factory-only `inference.MeasuredInference`
+only when their actual scalar bases resolve to current attesting records. Final
+normal producer/consumer and release gates remain distinct from a completed
+candidate calibration. Missing or stale evidence refuses; readable candidate
+artifacts retain their original `unmeasured` standing.
 
 ## Claim labels
 
@@ -20,10 +22,14 @@ unmeasured.
 - **Point only.** A value (or a matrix of values) with no interval and no
   coverage claim. Where a test is reported, its Type I error and power are
   unmeasured.
-- **Closed pending calibration.** The Rust core exists and replays through an
-  independent artifact, but the public producer validates its request and then
-  refuses with `cell_not_licensed` and a `route_frozen` detail. Nothing is
-  returned.
+- **Measured scalar inference.** The native producer and fresh consumer derive
+  each reported scalar's full method-specific basis and require a current,
+  passing record. Only the named scalar intervals receive that standing.
+  Unknown sampling/model assumptions remain declarations, and covariance,
+  posterior draws and simultaneous intervals receive no blanket license.
+- **Closed or unlicensed.** A missing implementation, unsupported protocol or
+  nonattesting record produces a typed refusal. An internal candidate and its
+  original artifact never supply a public interval license by themselves.
 
 Every refusal is a pair of a registered reason code and a detail of the form
 `<namespace>.<snake_case>`; callers switch on the pair.
@@ -64,35 +70,57 @@ completions that reuse the same observed units?
   `consume_scenario_covariance_artifact`.
 - Refusals: `scenario_covariance.*`, for example `unknown_dependence`.
 
-## A2: joint Bayesian transport (closed)
+## A2: joint Bayesian transport
 
 What target-effect posterior follows from a declared joint source and target
-model and the supplied transport evidence?
+model and the supplied original transport evidence?
 
-- Scope of the pilot: the fixed DAG of a separately licensed 2.2 transport
-  derivation. An ADMG or graph-posterior query refuses; draws are bounded to
-  1..=100000 and the model to 256 parameters; undeclared or overlapping source
-  dependence and a missing target law refuse with their own typed details.
-- Claim: closed pending calibration. A valid request raises
-  `cell_not_licensed` with `bayesian_transport.route_frozen`; calibration is
-  unmeasured and no posterior is published.
-- Entry point: `antecedent.transport.advanced.joint_bayesian_transport`, which
-  never returns.
-- Refusals: `bayesian_transport.*` (`unsupported_graph`, `route_frozen`).
+- Measured adapter scope: original checked fixed-DAG direct/standardization
+  proof; one covariate; zero-mean declared isotropic Gaussian priors of variance
+  1000; known source variances 1 and (when a second source exists) 2.25;
+  disjoint independent source samples of equal size 150..600; original covariates
+  in [-1,1]; fixed four-row target covariates [-0.25,0.25,0.25,0.55]. The four
+  measured configurations bind intercept/full varying blocks and
+  independent/shared block declarations. Posterior draws are 4096..100000 and
+  the nominal level is 0.95. Prior-bank variants cannot borrow this license.
+- Output: `MeasuredInference.scalar("target_effect")`. The original joint
+  posterior retains its full covariance and candidate approximation/diagnostic
+  standing. Gaussian model correctness and IID sampling are declared assumptions.
+- Entry point: `antecedent.transport.advanced.joint_bayesian_transport`.
+  Fresh consumption uses `inference.MeasuredInference.load` with the retained
+  expected identity; source proof, populations, data and model are replayed.
+- Refusals include unsupported graph/transport proof, overlapping or unknown
+  evidence dependence, out-of-protocol priors/designs and nonattesting records.
 
-## A3: binary nested-Markov pilot (closed)
+## A3: binary nested-Markov posterior and Fisher inference
 
-Can one bounded binary ADMG transport functional be evaluated through a
-correctly normalized nested-Markov likelihood?
+The original graph is exactly `X1 -> X2 -> X3 -> X4`, with `X2 <-> X4`, four
+binary variables and one observational sixteen-cell table of positive integer
+counts. Both methods execute original checked general-ID before fitting;
+nonparametric identification and likelihood-model adequacy remain distinct.
+Original variable labels have a 256 UTF-8 byte limit. Default fit options are
+50000 iterations, tolerance 1e-11 and no empirical-residual refusal threshold.
 
-- Scope: exactly one four-variable binary graph (`X1 -> X2 -> X3 -> X4` with
-  `X2 <-> X4`) and the observational regime. Any other ADMG, regime, non-binary
-  domain or more than six observed variables refuses, and this is never a
-  nonidentification claim.
-- Claim: closed pending calibration; no interval or posterior is published.
-- Entry point: `antecedent.transport.advanced.binary_nested_markov`, which never
-  returns.
-- Refusals: `nested_markov.*` (`outside_binary_pilot`, `route_frozen`).
+- `antecedent.transport.advanced.binary_nested_markov_fisher_interval` reports
+  named `mean0`, `mean1` and `contrast` scalars at 0.95, using the original
+  expected multinomial Fisher information and full delta covariance. Measured
+  sample-size scope is 1000..4000; singular/boundary information refuses.
+- `antecedent.transport.advanced.binary_nested_markov` uses the original full
+  eleven-dimensional feasible Möbius model with all eleven raw-coordinate
+  Beta(1,1) or all Beta(2,2) shapes. Its sampler is four chains, 2048 warmup,
+  4096 retained draws per chain, a 5000000 proposal bound and 0.95 equal-tailed
+  quantiles. All fourteen parameters/derived estimands must satisfy rank/folded
+  Rhat <=1.01 and bulk/tail ESS >=400. Measured count scope is 2000..8000.
+- Both return `inference.MeasuredInference` only if all three actual scalar
+  bases have current records. Posterior summaries are Monte Carlo estimates;
+  parameter-coordinate or simultaneous intervals are not licensed by these
+  three scalar records. Correct model specification and IID sampling cannot
+  be established from the observed table alone.
+- The fresh measured consumer replays the original point fit plus the complete
+  information or posterior receipt. Changing prior, fit/sampler settings,
+  counts, identity or original candidate standing refuses. An MLE or Fisher
+  record cannot supply a Bayesian license. See the
+  [Bayesian scientific design](nested-markov-bayesian-calibration.md).
 
 ## A4: temporal extensions and effect constancy
 
@@ -124,17 +152,26 @@ without reusing stale time or selection premises?
 - Refusals: `temporal_refresh.*` (`horizon_changed`, `lag_alignment_changed`,
   `intervention_history_changed`, `premises_changed`, `stale_snapshot`).
 
-**Dependent-sampling interval (closed).** What sampling interval surrounds a
-two-step sequence effect when observations share a repeated unit?
+**Dependent-sampling interval.** The measured direct-panel adapter uses a
+whole-unit equal-tailed studentized bootstrap, B500 at level 0.95, on complete
+balanced binary `(S0,A1,L2,A2)` histories. Each unit retains all sixteen history
+cells; units and raw per-unit scores, standard errors and resample pivots travel
+with the source. The fixed target initial law is (0.3,0.7) and sequence (0,0).
+The measured direct unit-count span is 50..200; the construction has native
+20..4096 unit bounds, minimum units 20 and failed fraction at most 0.05.
 
-- Scope: arguments are validated (unit map, minimum units, replicate bound,
-  supported history) and a well-formed request then refuses.
-- Claim: closed pending calibration; a point estimate is never relabeled as an
-  interval.
-- Entry point: `antecedent.transport.advanced.temporal_dependent_interval`,
-  which never returns.
-- Refusals: `temporal_interval.*` (`unknown_units`, `too_few_units`,
-  `too_many_replicates`, `unsupported_history`, `route_frozen`).
+`antecedent.transport.advanced.temporal_dependent_interval` resolves the
+`response` scalar's actual basis before returning `MeasuredInference`.
+`TemporalSession.dependent_interval` uses the original checked source,
+functional, active/control executions and paired unit scores; its measured
+checked span is 64..256 units and its functional basis is separate from a
+direct panel. Fresh consumption replays that checked source rather than
+substituting a plain panel artifact. Arbitrary temporal callbacks or incomplete
+histories receive no studentization certificate.
+
+Historical percentile/basic response failures remain failed. Previously passing
+paired-effect constructions remain separate methods; neither supplies evidence
+for a studentized interval. See [prepared recalculation](2_3-recalculation-capabilities.md).
 
 **Effect constancy (F18).** Can a test that one effect is the same across a
 declared partition (time periods or regions) be consumed under a checked
@@ -216,21 +253,25 @@ path-specific counterfactual answer be transported to a named target?
 - Refusals: `transported_counterfactual.*` (`route_frozen` as
   `cell_not_licensed`; `factor_missing` as `transport_missing_evidence`).
 
-## A6: sampled observation recovery (closed)
+## A6: sampled observation recovery
 
-What sampling uncertainty surrounds an effect computed from the exact binary
-observation-recovery formula?
+The measured adapter reruns the original checked binary observation-recovery
+formula and standardized recovered effect on complete whole-row bootstrap
+samples. Its exact protocol is B2000, level 0.95, zero failed bootstrap draws,
+normalization tolerance 0.1, small-cell count 5, treated level 1 and control 0.
+The `bootstrap_bca` interval binds midrank bias correction, the exact grouped
+all-row delete-one jackknife and adjusted quantile probabilities in a version-3
+source artifact. Measured row-count scope is 1000..4000. Support loss, degenerate
+jackknife variance, invalid bias/acceleration or unresolved adjusted tails refuse.
 
-- Scope: the one binary m-graph and exactly recoverable effect query of the 2.2
-  observation-recovery route, at most six binary variables. An m-graph with a
-  verified nonrecoverability witness, a zero complete-case cell (a zero
-  denominator of the recovery formula) or a malformed row refuses.
-- Claim: closed pending calibration; the percentile interval's whole-method
-  calibration is unmeasured and nothing is returned.
-- Entry point: `antecedent.transport.advanced.sampled_observation_recovery`,
-  which never returns.
-- Refusals: `sampled_recovery.*` (`unrecoverable_pattern`, `bounds_exceeded`,
-  `route_frozen`).
+`antecedent.transport.advanced.sampled_observation_recovery` returns a
+`MeasuredInference` for the named `recovered_effect` only when the actual
+original derivation/method basis resolves to a current record. Independent
+consumption rechecks the recovery proof and every bootstrap/jackknife receipt;
+correct missingness premises and independent observations remain declarations.
+The original B500 percentile failure (1874/2000 coverage in its recheck) and
+version-2 artifact remain distinct and unlicensed. They are not BCa evidence.
+See the [BCa scientific design](sampled-recovery-bca.md).
 
 The CPDAG search charges completion storage as well as orientation attempts. A
 stopped enumeration reports an upper bound on unseen completions, labeled

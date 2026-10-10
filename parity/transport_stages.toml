@@ -5671,3 +5671,10 @@ limits = "Supplemental sample is explicit and separately hashed; original result
 evidence_test = "python/tests/test_decision_flow_bridge.py"
 evidence_assertion = "test_empirical_msm_result_handoff_keeps_sample_bounds_distinct"
 notes = "Additive 2.3 public API adaptation; original algorithms, conditional claims and uncertainty boundaries preserved."
+
+[[routes]]
+route = "antecedent.inference.MeasuredInference.load"
+stage = "consume"
+status = "closed"
+reason_code = "cell_not_licensed"
+notes = "Measured original-source envelope implemented; final normal-wheel acceptance and current release attestation pending. This stage is registration standing, not a numerical universal license."

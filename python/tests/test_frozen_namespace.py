@@ -148,6 +148,7 @@ _EXPECTED_UNLISTED_BUT_REACHABLE = {
 # ``antecedent.discovery`` (or any sibling) while the root freeze continued
 # to pass.  Keep these lists literal: changing one is an API decision.
 _EXPECTED_STAGE_ALL = {
+    "inference": {"MeasuredInference", "MeasuredInferenceIdentity", "MeasuredScalar", "Bayesian", "ClassPrior", "Frequentist", "PosteriorArtifact", "decode_posterior_artifact", "encode_posterior_artifact"},
     "attribution": {
         "AnomalyScores",
         "ChangeAttributionResult",

@@ -12,6 +12,13 @@ the 88 cells asserted below; `test_c1_matrix_document_agrees_with_the_executable
 if this page and the table drift apart. Each producer row is `test_c1_matrix_<row>_row`,
 parametrized over the eight consumers.
 
+The statistical carrier `inference.MeasuredInference` has its own original-source
+producer and independent `load` consumer. It is not an additional C1 decision
+source: named scalar intervals and posterior parameter draws do not implicitly
+become a scientifically bound outcome law or a `Contract.evaluate` source.
+Its lifecycle and current-record requirements are documented in
+[the 2.3 lifecycle](2_3-lifecycle.md#measured-scalar-inference-and-independent-replay).
+
 ## Reading a cell
 
 - **DIRECT**: a licensed entry point takes the producer (Python and Rust entry named).
@@ -40,7 +47,7 @@ requiring an exception, with the exact type where the consumer types its input
 | `study_ranking` | a study ranking | `design.DesignRankingResult` (`design.rank_designs`, basis `net_value`) |
 | `failed_contract` | a failed identification contract (added: the only producer `repair` takes) | `repair.BackdoorContract` or `TransportContract` |
 
-`failed_contract` is not in the TODO list of producers; it is added so that the `repair`
+`failed_contract` is outside the original producer inventory; it is added so that the `repair`
 column has a DIRECT route. "External bound claim" is read as a bound external claim
 (`BoundExternalClaim`); a partial-identification interval is a separate field
 (`IdentifiedBound`) of a sensitivity artifact, not a producer here.

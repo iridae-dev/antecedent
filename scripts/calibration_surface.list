@@ -476,7 +476,7 @@ allow design crates/antecedent/src/analysis/smoothed_dose.rs antecedent_core ant
 allow design crates/antecedent/src/analysis/stage.rs antecedent_core finish
 allow design crates/antecedent/src/analysis/statistical.rs antecedent_core antecedent_io build consume decide export
 allow design crates/antecedent/src/analysis/temporal_counterfactual.rs antecedent_core antecedent_io consume evaluate export refusal seal
-allow design crates/antecedent/src/analysis/temporal_extensions.rs antecedent_core antecedent_io consume export prepare refused
+allow design crates/antecedent/src/analysis/temporal_extensions.rs antecedent_core antecedent_io consume export prepare refused seal
 allow design crates/antecedent/src/analysis/temporal_transport.rs antecedent_core antecedent_io consume_with_limits evaluate export
 allow design crates/antecedent/src/analysis/tier_diagnostics.rs antecedent_core refusal
 allow design crates/antecedent/src/analysis/transport_common.rs antecedent_core antecedent_io evaluate prepare
@@ -726,3 +726,12 @@ suite.nested_markov_bayesian_calibration crates/antecedent-io/tests/nested_marko
 key estimator.nested_markov estimator nested_markov_bayesian
 # Local Bayesian wire validation helper; it cannot invoke mechanism learning.
 allow mechanism crates/antecedent-io/src/nested_markov_bayesian_artifact.rs invalid
+
+core crates/antecedent-io/src/measured_inference.rs
+
+core crates/antecedent-io/src/measured_inference/
+
+core crates/antecedent/src/analysis/recalc_temporal_measured.rs
+
+# Shared IO/context and common method names only; this module calls no design estimator.
+allow design crates/antecedent/src/analysis/recalc_temporal_measured.rs antecedent_core antecedent_io consume export refused seal

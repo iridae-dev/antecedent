@@ -10,6 +10,16 @@ a coordinate limit from an unrelated distribution artifact. The accompanying
 original refusal path and an original executing fixture for that family. A fixture
 entry is not a claim that every listed cap was independently stress-tested.
 
+Measured inference adds exact protocol restrictions to these general native
+input limits. A native maximum does not mean its entire range was measured:
+for example, nested Fisher uses 1000..4000 observations, the fixed-prior nested
+Bayesian adapter uses 2000..8000 and original graph labels at most 256 UTF-8
+bytes, direct balanced studentized temporal response uses 50..200 units, and
+whole-row BCa uses 1000..4000 observations with B2000. Current method/prior/
+functional records are required separately for every reported scalar. See the
+[population and uncertainty guide](2_3-population-time-uncertainty.md) for all
+protocol checks; historical candidate bounds do not confer measured authority.
+
 Run `python3 scripts/check_limits_agreement.py --release 2.3 --strict` to check
 these statements; the original 2.2 check remains the default.
 
@@ -196,3 +206,5 @@ and 256 distinct outcomes per arm/stratum. Both treatment arms must appear in ea
 stratum. These bounds do not validate sampling uncertainty or certify equality
 with the original analysis snapshot. Scalar effect units label the original
 outcome scale and do not perform a unit conversion.
+
+| 2.3A.F15.measured_scalar_inference | max_bytes | 67,108,864 | Original measured envelope decode/source bound; caller limits may only tighten it. |

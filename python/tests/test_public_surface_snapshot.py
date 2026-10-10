@@ -28,6 +28,7 @@ from antecedent._workflow import LoadedResult
 from antecedent.estimation import PreparedAnalysis
 from antecedent import estimators
 from antecedent import design
+from antecedent import inference
 from antecedent.transport import advanced as transport
 
 def members(obj):
@@ -44,6 +45,10 @@ def members(obj):
 
 json.dump(
     {
+        "inference": sorted(inference.__all__),
+        "inference.MeasuredInference": members(inference.MeasuredInference),
+        "inference.MeasuredInferenceIdentity": members(inference.MeasuredInferenceIdentity),
+        "inference.MeasuredScalar": members(inference.MeasuredScalar),
         "transport.JointTransportIdentity": members(transport.JointTransportIdentity),
         "transport.GaussianTransportPrior": members(transport.GaussianTransportPrior),
         "transport.JointTransportPriors": members(transport.JointTransportPriors),
@@ -109,6 +114,10 @@ _PYDANTIC_SURFACE = {
 }
 
 SNAPSHOT: dict[str, set[str]] = {
+    "inference": {"MeasuredInference", "MeasuredInferenceIdentity", "MeasuredScalar", "Bayesian", "ClassPrior", "Frequentist", "PosteriorArtifact", "decode_posterior_artifact", "encode_posterior_artifact"},
+    "inference.MeasuredInference": {"route", "calibration", "expected_identity", "scalars", "scalar", "validated_scope", "inspect", "export", "source_report", "source_artifact", "load"},
+    "inference.MeasuredInferenceIdentity": {"route", "candidate_digest", "premises_digest", "data_digest", "level", "scalars", "seal"},
+    "inference.MeasuredScalar": {"name", "point", "interval", "level", "calibration", "record_id", "calibration_sha", "basis", "inspect"},
     "transport.JointTransportIdentity": {"datum_ids", "snapshot_digest"},
     "transport.GaussianTransportPrior": {"bank_id", "consumed", "covariance", "mean"},
     "transport.JointTransportPriors": {"invariant", "varying"},

@@ -7,7 +7,7 @@ honest about where they stop:
 | --- | --- | --- |
 | Transported path-specific effect, affine-additive class | `antecedent.transported_counterfactual` | point-only under a fully specified structural fit; calibration unmeasured |
 | Selection differences and invariances behind each scenario answer | `antecedent.scenario_invariance` | derived report, nothing sealed |
-| Learned joint source-target transport | `antecedent.transport.advanced.learned_joint_transport` | closed; calibration unmeasured |
+| Learned joint source-target transport | `antecedent.transport.advanced.learned_joint_transport` | measured scalar carrier only at a current, matching record; original posterior candidate unchanged |
 
 For the ordinary 2.0 transport compiler (`transport.Transport(...)`) see
 [transport and interference](transport-interference.md) and
@@ -188,44 +188,34 @@ the order edges or selection targets were supplied or on the scenario's name. Er
 raise `ScenarioInvarianceRefusal`: `scenario_invariance.not_estimated`
 (`not_executed`; call `estimate()` first) and `scenario_invariance.wrong_result_type`.
 
-## Learned joint transport is closed
+## Learned joint transport and measured source replay
 
-`transport.advanced.learned_joint_transport(...)` fits a known-variance Bayesian
-polynomial-basis outcome mechanism over a fixed DAG and selection assumptions and
-would answer the target average effect with a posterior interval. The Rust core
-and its artifact replay, but the posterior claims a **calibrated** interval whose
-coverage is measured only at the release cut, so the public producer is closed:
-the function never returns.
+`transport.advanced.learned_joint_transport(...)` uses the original
+known-variance conjugate Gaussian polynomial-basis outcome mechanism and original
+fixed-DAG transport proof. Its normal measured adapter reports only
+`target_effect` through `inference.MeasuredInference`, conditional on current
+method-specific evidence and completed normal producer/consumer gates.
 
-A request is first checked against the row's scope, so you learn the real
-obstruction:
+The measured protocol is quadratic degree 2, one covariate, zero-mean declared
+isotropic Gaussian priors of variance 1000, known source variances 1 and 2.25,
+disjoint independent source samples with equal sizes 150..600, bounded original
+covariates [-1,1] and the fixed target design [-0.25,0.25,0.25,0.55]. The four
+measured varying-block/sharing configurations retain the original full joint
+covariance. Nominal level is 0.95 with at least 4096 posterior draws; original
+native draw/parameter limits still apply. Other bases, prior-bank models,
+dependence declarations or target designs cannot borrow these records.
 
-| Request | Refusal |
-| --- | --- |
-| a graph with a bidirected edge, or a graph posterior | `route_not_supported`, `learned_joint_transport.unsupported_graph` |
-| basis degree outside 1..6, draws outside 1..100000, more than 256 parameters | `invalid_argument` (`invalid_basis`, `too_many_draws`, `too_many_parameters`) |
-| undeclared or overlapping source dependence | `sampling_dependence_unknown` |
-| no source, no target law | `transport_missing_evidence`, `joint_law_required` |
-| every other request | `cell_not_licensed`, `learned_joint_transport.route_frozen` |
+A fresh `MeasuredInference.load(artifact, expected=retained_identity)` consumer
+replays the actual source proof, fit, posterior and target effect and resolves
+its record again. The original candidate bytes stay `unmeasured`. A calibrated
+target scalar does not make every coefficient interval calibrated, and source
+rows do not authenticate Gaussian correctness or independence. A nonattesting
+record or unsupported protocol refuses with `cell_not_licensed`; original
+identification, support and evidence-overlap refusals remain intact.
 
-The route-frozen refusal names its **remedy**: use the open learned point-estimate
-route `antecedent.transport.advanced.prepare_learned_continuous` (cross-fitted,
-interval withheld), or an identified closed-form transport estimate; the learned
-joint posterior opens only when its coverage is measured.
-
-```python
-from antecedent.errors import CausalUnsupportedError
-from antecedent.transport import advanced as transport
-
-try:
-    transport.learned_joint_transport(
-        sources=[{"id": "s1"}, {"id": "s2"}], target={"x": [0.1, 0.2, 0.3]},
-        features=["x"], basis_degree=2, draws=1000, seed=7,
-    )
-except CausalUnsupportedError as refusal:
-    refusal.reason_code     # "cell_not_licensed"
-    refusal.remedy          # the open point-estimate route above
-```
+The separately supported learned point-estimate route
+`transport.advanced.prepare_learned_continuous` has its own cross-fitted scope
+and withheld interval. It does not substitute for this posterior construction.
 
 ## Before relying on a transport assumption
 
