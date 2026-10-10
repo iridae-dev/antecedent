@@ -69,6 +69,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LIST = ROOT / "scripts" / "calibration_surface.list"
 RECORDS = ROOT / "parity" / "coverage_records.toml"
 GATES = ROOT / "parity" / "calibration_gates.toml"
+DOCUMENTATION_CERTIFICATES = ROOT / "parity" / "calibration_documentation_equivalence.toml"
 # Ids of the pseudo-records the record-less group ledger contributes: a group that
 # passed at a commit can inherit an explicitly opted-in, valid numeric replay
 # waiver. Its original pass count and commit remain the evidence, never re-stamped.
@@ -171,7 +172,7 @@ def rust_code(text: str) -> str:
 
 
 
-def rust_mask(text: str) -> str:
+def rust_mask(text: str, line_docs: list[tuple[int, int]] | None = None) -> str:
     """`text` with comments and string / char literals blanked to spaces, keeping every
     offset and newline, so braces found in the mask are braces of the code."""
     out: list[str] = []
@@ -197,6 +198,12 @@ def rust_mask(text: str) -> str:
         if tok == "//":
             end = text.find("\n", start)
             end = n if end < 0 else end
+            if (
+                line_docs is not None
+                and text.startswith("///", start)
+                and not text.startswith("////", start)
+            ):
+                line_docs.append((start, end))
             blank(start, end)
             i = end
         elif tok == "/*":
@@ -834,6 +841,140 @@ def _normalized_manifest(text: str, lock: bool) -> str:
     return json.dumps(data, sort_keys=True)
 
 
+def git_blob_identity(text: str) -> str:
+    data = text.encode("utf-8")
+    return hashlib.sha1(
+        f"blob {len(data)}\0".encode() + data, usedforsecurity=False
+    ).hexdigest()
+
+
+def documentation_edits_match(old: str, new: str, replacements: list[dict]) -> bool:
+    """Accept only listed whole /// line replacements, with every other byte exact.
+
+    The existing Rust lexer identifies real line comments, so apparent doc tokens
+    inside strings, raw strings and nested block comments cannot be certified.
+    """
+    if not replacements or old == new:
+        return False
+    old_lines, new_lines = old.splitlines(keepends=True), new.splitlines(keepends=True)
+    if len(old_lines) != len(new_lines):
+        return False
+    old_docs: list[tuple[int, int]] = []
+    new_docs: list[tuple[int, int]] = []
+    rust_mask(old, old_docs)
+    rust_mask(new, new_docs)
+    old_offsets, new_offsets = [0], [0]
+    for before, after in zip(old_lines, new_lines):
+        old_offsets.append(old_offsets[-1] + len(before))
+        new_offsets.append(new_offsets[-1] + len(after))
+    expected = list(old_lines)
+    seen: set[int] = set()
+    for replacement in replacements:
+        if not isinstance(replacement, dict) or set(replacement) != {
+            "line",
+            "before",
+            "after",
+        }:
+            return False
+        line, before, after = (replacement[key] for key in ("line", "before", "after"))
+        if type(line) is not int or line < 1 or line > len(old_lines) or line in seen:
+            return False
+        seen.add(line)
+        if not isinstance(before, str) or not isinstance(after, str) or before == after:
+            return False
+        if any(
+            text.count("\n") != 1 or not text.endswith("\n") or "\r" in text
+            for text in (before, after)
+        ):
+            return False
+        index = line - 1
+        if old_lines[index] != before or new_lines[index] != after:
+            return False
+        for text, offsets, spans in (
+            (before, old_offsets, old_docs),
+            (after, new_offsets, new_docs),
+        ):
+            indent = len(text) - len(text.lstrip(" \t"))
+            if not text[indent:].startswith("///") or text[indent:].startswith("////"):
+                return False
+            if (offsets[index] + indent, offsets[index + 1] - 1) not in spans:
+                return False
+        expected[index] = after
+    return "".join(expected) == new
+
+
+def documentation_certificates() -> dict[str, tuple[str, str]]:
+    """Validated exact blob pairs; no numerical/replay SHA or outcome is rewritten."""
+    if not DOCUMENTATION_CERTIFICATES.is_file():
+        return {}
+    data = tomllib.loads(DOCUMENTATION_CERTIFICATES.read_text(encoding="utf-8"))
+    if (
+        set(data) != {"schema_version", "certificate"}
+        or type(data["schema_version"]) is not int
+        or data["schema_version"] != 1
+    ):
+        raise SystemExit("invalid documentation equivalence registry schema")
+    rows = data["certificate"]
+    if not isinstance(rows, list):
+        raise SystemExit("documentation equivalence certificates must be tables")
+    certificates = {}
+    for row in rows:
+        keys = {
+            "path",
+            "from_blob",
+            "to_blob",
+            "reviewed_by",
+            "rationale",
+            "replacement",
+        }
+        if not isinstance(row, dict) or set(row) != keys:
+            raise SystemExit("malformed documentation equivalence certificate")
+        rel = row["path"]
+        if (
+            not isinstance(rel, str)
+            or not rel.startswith("crates/")
+            or not rel.endswith(".rs")
+            or ".." in Path(rel).parts
+            or rel in certificates
+        ):
+            raise SystemExit("invalid or duplicate documentation certificate path")
+        if any(
+            not isinstance(row[key], str) or not row[key].strip()
+            for key in ("reviewed_by", "rationale")
+        ):
+            raise SystemExit(
+                f"documentation certificate {rel}: review and rationale required"
+            )
+        identities = [row["from_blob"], row["to_blob"]]
+        if (
+            any(
+                not isinstance(blob, str) or not re.fullmatch(r"[0-9a-f]{40}", blob)
+                for blob in identities
+            )
+            or identities[0] == identities[1]
+        ):
+            raise SystemExit(
+                f"documentation certificate {rel}: exact distinct Git blobs required"
+            )
+        old_result = _git("cat-file", "blob", identities[0])
+        new_result = _git("cat-file", "blob", identities[1])
+        old = old_result.stdout if old_result.returncode == 0 else None
+        new = new_result.stdout if new_result.returncode == 0 else None
+        replacements = row["replacement"]
+        if (
+            old is None
+            or new is None
+            or git_blob_identity(old) != identities[0]
+            or git_blob_identity(new) != identities[1]
+            or not isinstance(replacements, list)
+            or not documentation_edits_match(old, new, replacements)
+        ):
+            raise SystemExit(
+                f"documentation certificate {rel}: exact reviewed doc-line proof failed"
+            )
+        certificates[rel] = tuple(identities)
+    return certificates
+
 def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[str]:
     """Surface paths whose content differs between `sha` and `head` (default: the
     working tree), with workspace version numbers ignored in the manifests."""
@@ -847,7 +988,24 @@ def changed_paths(surface: Surface, sha: str, head: str | None = None) -> list[s
         untracked = _git("ls-files", "--others", "--exclude-standard", "-z", "--", *surface.paths)
         changed |= {p for p in untracked.stdout.split("\0") if p}
     kept = []
+    doc_pairs = documentation_certificates()
     for rel in sorted(changed):
+        if rel in doc_pairs:
+            old_doc = _git("show", f"{sha}:{rel}")
+            new_doc = (
+                _git("show", f"{head}:{rel}").stdout
+                if head is not None
+                else (ROOT / rel).read_bytes().decode("utf-8")
+                if (ROOT / rel).is_file()
+                else None
+            )
+            if (
+                old_doc.returncode == 0
+                and new_doc is not None
+                and (git_blob_identity(old_doc.stdout), git_blob_identity(new_doc))
+                == doc_pairs[rel]
+            ):
+                continue
         if rel in surface.testmods:
             old = _git("show", f"{sha}:{rel}")
             if head is None:
@@ -2654,6 +2812,49 @@ def self_test() -> int:
         and not declares_out_of_line_test_module("crates/antecedent-validate/src/validator.rs"),
         "a file declared `#[cfg(test)] mod name;` is test-only; a production file is not",
     )
+    doc_old = "/// old link\nfn production() { 1 }\n"
+    doc_new = "/// corrected link\nfn production() { 1 }\n"
+    doc_replacement = [
+        {"line": 1, "before": "/// old link\n", "after": "/// corrected link\n"}
+    ]
+    expect(
+        documentation_edits_match(doc_old, doc_new, doc_replacement),
+        "an exact listed doc-line substitution preserves every other byte",
+    )
+    expect(
+        not any(
+            documentation_edits_match(doc_old, changed, doc_replacement)
+            for changed in (
+                doc_new.replace("{ 1 }", "{ 2 }"),
+                doc_new + "fn added() {}\n",
+                doc_new.splitlines(keepends=True)[0],
+                doc_new + "/// unlisted doc edit\n",
+            )
+        ),
+        "changed, added, deleted code and unlisted documentation drift are refused",
+    )
+    for prefix, suffix in (
+        ('let text = "\n', '";\n'),
+        ('let text = r#"\n', '"#;\n'),
+        ("/*\n", "*/\n"),
+        ("/* outer /* nested */\n", "*/\n"),
+    ):
+        replacements = [
+            {"line": 2, "before": "/// old link\n", "after": "/// corrected link\n"}
+        ]
+        expect(
+            not documentation_edits_match(
+                prefix + doc_old + suffix, prefix + doc_new + suffix, replacements
+            ),
+            "apparent doc tokens within string/raw-string/block-comment bodies are refused",
+        )
+    expect(
+        not documentation_edits_match(doc_old, doc_new, doc_replacement * 2)
+        and not documentation_edits_match(
+            doc_old, doc_new, [{**doc_replacement[0], "line": True}]
+        ),
+        "duplicate replacements and non-integer line coordinates are refused",
+    )
     refs = references(base)
     counterfactual = {
         "test": "crates/antecedent/tests/v19_static_calibration.rs::t",
@@ -2861,8 +3062,16 @@ def main() -> int:
             return 1
         print(f"calibration surface list does not narrow relative to {args.base}")
         return 0
+    doc_pairs = documentation_certificates()
     surface = load_surface()
     if args.command == "check":
+        if doc_pairs:
+            doc_data = tomllib.loads(DOCUMENTATION_CERTIFICATES.read_text(encoding="utf-8"))
+            doc_lines = sum(len(row["replacement"]) for row in doc_data["certificate"])
+            print(
+                f"documentation-only equivalence: {len(doc_pairs)} paths, "
+                f"{doc_lines} explicitly reviewed line changes"
+            )
         problems = check(surface)
         waivers, waiver_problems = load_waivers()
         if not problems:
