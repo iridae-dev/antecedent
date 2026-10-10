@@ -23,7 +23,7 @@ success object, `NaN`, or a generic error string.
 
 ## Structured refusals and their remedies
 
-In 2.3 scientific stage refusals share the structured
+Scientific stage refusals share the structured
 base, `antecedent.errors.StructuredRefusal` (itself a `CausalUnsupportedError`).
 It exposes machine-readable fields, so you branch on fields rather than parse
 a message. Input type, value and resource errors can instead raise ordinary
@@ -58,7 +58,7 @@ a scientific route, and is also a `CausalValueError`, so `except CausalValueErro
 catches it. A refusal is registered: its code is one of the reasons in the registry
 and its detail is a literal under its route's namespace.
 
-The 2.3 families built on the base are: `DecisionRefusal` (and its
+The families built on the base are: `DecisionRefusal` (and its
 `ScenarioDecisionRefusal` and `CompositionRefusal` subtypes), `SensitivityRefusal`,
 `MsmSensitivityRefusal`, `MechanismDiscrepancyRefusal`, `TransportedCounterfactualRefusal`
 (with a two-model `witness` when it proves non-transportability),
@@ -71,7 +71,7 @@ and the earlier estimator refusals `VectorTreatmentRefusal`,
 lazily from `antecedent.errors`. `ExternalRefusal` and `DesignRankingRefusal` (with
 `SignalProviderRefusal`, `CostUnitsRefusal`, `SourceOverlapRefusal`) are
 `CausalUnsupportedError` subclasses that carry the same `reason_code`, `remedy`,
-`stage`, `detail` and `offending` fields. To handle any 2.3 refusal generically,
+`stage`, `detail` and `offending` fields. To handle any structured refusal generically,
 catch `CausalUnsupportedError` and read those attributes.
 
 Common remedies:
@@ -89,7 +89,7 @@ Common remedies:
 | `composition_bundle.node_not_found` | Add the node before connecting it (`NodeNotFoundRefusal.offending` is the missing id). |
 | `invalid_argument` | Fix the argument named in `detail` and `offending`. |
 
-See also the [2.3 lifecycle](lifecycle.md) for the refusal-handling pattern in
+See also the [lifecycle](lifecycle.md) for the refusal-handling pattern in
 context.
 
 ## Remedies

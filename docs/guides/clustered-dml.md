@@ -1,11 +1,11 @@
-# Clustered cross-fitted AIPW and entity-owned screen splits (2.2 E4)
+# Clustered cross-fitted AIPW and entity-owned screen splits
 
 `Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))` (Rust:
 `AipwAte::with_cluster_ids(..).with_cluster_dml(ClusterDml::new(20)?)`) cross-fits the
 standard AIPW average effect with **whole clusters** owning folds. The route publishes the
 cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
 scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The record is
-`estimate.clustered_dml_aipw` in `parity/promotion_2_2.toml`; the one-way interval's
+`estimate.clustered_dml_aipw` in `parity/promotion.toml`; the one-way interval's
 95% coverage record is measured and the one-way interval is licensed at its measured coordinate
 (see [What is published](#what-is-published-and-what-is-not)).
 

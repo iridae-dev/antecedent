@@ -1,4 +1,4 @@
-# v15_retarget_kernel
+# retarget_kernel
 
 **Suite path:** `conformance/estimate/retarget_kernel`
 

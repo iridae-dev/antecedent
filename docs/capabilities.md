@@ -10,7 +10,7 @@ handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
-The [2.3 lifecycle](lifecycle.md) connects native and external claims to
+The [lifecycle](lifecycle.md) connects native and external claims to
 decisions, study ranking and portable bundles; [measured scalar adapters](population-time-uncertainty.md)
 license specified Bayesian, nested-Markov, temporal and recovery intervals under
 separate source-bound contracts, without adding arbitrary analysis-grid cells.

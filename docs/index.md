@@ -6,11 +6,10 @@ answer means—its assumptions, identification status, empirical support,
 uncertainty, provenance, and limits—when the analysis is estimated, reused,
 combined, saved, transported, or consumed by other software.
 
-> **Antecedent 2.3.0.** Install it with
-> `python -m pip install --upgrade antecedent` (Python 3.11+), then begin with
-> the [Python quickstart](python-workflow.md). Read the
-> [2.3.0 release notes](release-notes/v2.3.0.md) when upgrading from an earlier
-> release.
+> Install with `python -m pip install --upgrade antecedent` (Python 3.11+),
+> then begin with the [Python quickstart](python-workflow.md). The
+> [release notes](release-notes/v2.3.0.md) describe what changed in each
+> version, with earlier releases listed in the navigation.
 
 Most causal failures in software are semantic failures at boundaries. Read
 [the system model](system-model.md) first: it explains how Antecedent compiles
@@ -58,4 +57,4 @@ For exact public boundaries, consult the [support matrix](support-matrix.md).
 An implemented capability is not automatically a licensed analysis, and a
 licensed analysis does not establish that a real-world causal model is true.
 
-Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [2.3.0 release notes](release-notes/v2.3.0.md).
+Read `result.calibration`: status `calibrated` requires a coverage record that matches the execution and attests the executing code. See the [measured-inference guide](population-time-uncertainty.md).

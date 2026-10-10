@@ -16,11 +16,11 @@ python -m pip install antecedent pdoc
 python -m pdoc antecedent -o site/python
 ```
 
-## 2.3 features
+## Task guides
 
-The 2.3 Python surface is documented by task in the 2.3 guide:
+The Python surface is documented by task in these guides:
 
-- [The 2.3 lifecycle](lifecycle.md): analyze, bind an external result, decide with `Contract.evaluate(result)`, rank a study, bundle and export, with the structured-refusal pattern.
+- [The lifecycle](lifecycle.md): analyze, bind an external result, decide with `Contract.evaluate(result)`, rank a study, bundle and export, with the structured-refusal pattern.
 - [Population, time and uncertainty](population-time-uncertainty.md): exact measured adapter scopes and `inference.MeasuredInference.load` with retained source identity; every scalar needs its own current record.
 - [Design ranking](design-ranking.md): the shared `design.rank_designs` entry point for identification, structural sufficiency, information objectives and decision value; `DesignDecision.from_contract`, `design.adapt_prior_to_signal` and `design.consume`.
 - [Sensitivity and robustness](sensitivity-and-robustness.md): `msm_sensitivity.msm_ate_sensitivity`, `sensitivity_decision`, `decision_robust` and `mechanism_discrepancy.diagnose_mechanism_discrepancy`.

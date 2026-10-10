@@ -1,9 +1,9 @@
-# Decisions, design, repair and estimator breadth (2.3)
+# Decisions, design, repair and estimator breadth
 
 This page lists the decision, design, repair and estimator routes: the question it answers, its scope
 bounds, its claim label, the Python module that owns it and its refusal
 namespace. Every claim here is point-only or makes no claim; the registry in
-`parity/promotion_2_3.toml` is the authority, and this page restates it.
+`parity/promotion.toml` is the authority, and this page restates it.
 
 ## Reading the labels
 
@@ -83,7 +83,7 @@ its intervals, stay closed.
 All four estimators report point values. Every standard error, covariance
 entry, Wald statistic, p-value (raw and Holm) and bootstrap standard error they
 report is a diagnostic with calibration unmeasured; Type I error, power and
-coverage are not collected in 2.3.
+coverage are not collected.
 
 | Route | Question | Scope bounds | Claim | Python entry | Refusal namespace |
 | --- | --- | --- | --- | --- | --- |

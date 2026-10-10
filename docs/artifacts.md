@@ -281,7 +281,7 @@ the Rust builder cannot express the combination at all — an accepted graph is
 just a static graph by build time. See `examples/python/discover_then_estimate.py`
 and `parity/discovery.toml` capability `discovery.ux.artifact_first`.
 
-## 2.3 source-bound workflow artifacts
+## Source-bound workflow artifacts
 
 Decision contracts, joint laws, external claims, study rankings and composition
 bundles have method-specific semantic consumers. Exported bytes retain their

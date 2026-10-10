@@ -1,4 +1,4 @@
-# 2.3 joint distribution artifact contract
+# Joint distribution artifact contract
 
 Joint distribution artifacts provide checked quantity meaning, aligned joint draws and
 independent artifact replay. Their numerical operations retain the meaning of the
@@ -76,7 +76,7 @@ the source column order from those bindings and checks the old summaries
 against the stored draws on every load. It also refuses changes to weights,
 support, alignment, distribution meaning or trust on converted artifacts.
 For an unweighted parameter or causal-functional posterior, an equal-tailed
-interval can be recomputed from loaded draws with the 2.2 type-7 quantile
+interval can be recomputed from loaded draws with the type-7 quantile
 rule. That interval describes posterior draw mass, not coverage.
 The converted artifact is marked `unverified` and `unmeasured`; the conversion
 cannot inherit a 2.2 provider or interval license. The 2.2 wire does not carry
@@ -85,7 +85,7 @@ in the independently retained causal contract before conversion.
 
 ## Mapped Gaussian posterior transfer
 
-`antecedent::inference::mapped_posterior_transfer` consumes a 2.3 aligned
+`antecedent::inference::mapped_posterior_transfer` consumes an aligned
 parameter-posterior artifact under a separately supplied expected source
 identity. The caller gives a complete mapping from stable source variable IDs
 to stable target variable IDs, plus target snapshot and causal-contract IDs;

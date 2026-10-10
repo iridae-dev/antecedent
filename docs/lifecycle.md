@@ -1,6 +1,6 @@
-# The 2.3 lifecycle: analyze, bind, decide, plan, bundle
+# The lifecycle: analyze, bind, decide, plan, bundle
 
-This page is the practitioner path through the 2.3 Python surface. Each step
+This page is the practitioner path through the Python surface. Each step
 hands a typed object to the next, and each step keeps the label of the claim it
 received. Nothing on the path upgrades a claim: an external mean stays
 externally attested, a point value stays a point value, and a sensitivity range

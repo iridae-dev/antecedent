@@ -1,8 +1,8 @@
-# Sensitivity and robustness (2.3)
+# Sensitivity and robustness
 
 A decision often rests on something that cannot be tested from the data: that
 there is no unmeasured confounding, that two populations share a mechanism, that
-the causal graph is the right one. The 2.3 routes on this page carry such an
+the causal graph is the right one. The routes on this page carry such an
 assumption into the decision as a declared range, report where the best action
 switches, and keep the range apart from sampling uncertainty.
 
@@ -15,7 +15,7 @@ Four modules:
 | `antecedent.decision_robust` | Is the choice robust across causal structures, support-robust, graph-dependent or under-claimed? | point-only verdicts over supplied structures |
 | `antecedent.mechanism_discrepancy` | Does the mechanism of one node differ between a source and a target population? | asymptotic Wald diagnostic; calibration unmeasured |
 
-Registry authority is `parity/promotion_2_3.toml`; this page restates it. For the
+Registry authority is `parity/promotion.toml`; this page restates it. For the
 label vocabulary (point-only, no claim, closed pending calibration) see
 [decisions, design, repair and estimator breadth](decisions-breadth.md).
 
@@ -288,6 +288,6 @@ Runnable examples:
 [`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/msm_sensitivity.py) and
 [`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/mechanism_discrepancy.py).
 
-Related: [the 2.3 lifecycle](lifecycle.md),
+Related: [the lifecycle](lifecycle.md),
 [transport and counterfactuals](transport-counterfactuals.md),
 [decisions](decisions.md).

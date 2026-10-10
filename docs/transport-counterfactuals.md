@@ -1,6 +1,6 @@
-# Transport, scenarios and transported counterfactuals (2.3)
+# Transport, scenarios and transported counterfactuals
 
-Three 2.3 routes answer "what changes when the population changes?" and are
+Three routes answer "what changes when the population changes?" and are
 honest about where they stop:
 
 | Route | Python entry | Claim |
@@ -11,7 +11,7 @@ honest about where they stop:
 
 For the ordinary 2.0 transport compiler (`transport.Transport(...)`) see
 [transport and interference](transport-interference.md) and
-[transport failures](guides/transport-failure.md). This page covers what 2.3 adds.
+[transport failures](guides/transport-failure.md). This page covers the transported-counterfactual and scenario routes.
 
 ## Transported path-specific effect
 
@@ -229,5 +229,5 @@ Runnable examples:
 [`transported_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/transported_counterfactual.py) and
 [`scenario_invariance.py`](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/scenario_invariance.py).
 
-Related: [the 2.3 lifecycle](lifecycle.md),
+Related: [the lifecycle](lifecycle.md),
 [transport and interference](transport-interference.md).

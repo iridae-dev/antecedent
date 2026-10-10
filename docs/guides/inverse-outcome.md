@@ -1,10 +1,10 @@
-# Finite-action inverse-outcome query (2.2 E6)
+# Finite-action inverse-outcome query
 
 `antecedent.inverse.inverse_outcome` asks the forward question backwards over a list
 you enumerate: *which of these interventions reach a target mean?* The goal is
 `E[Y^do(a)] >= threshold` (or `<=`) for the outcome, population and horizon of an
 existing, licensed forward response route. The claim is `point_only`. The record is
-`decision.finite_action_inverse` in `parity/promotion_2_2.toml`.
+`decision.finite_action_inverse` in `parity/promotion.toml`.
 
 ```python
 import antecedent as ant

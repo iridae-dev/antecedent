@@ -1,12 +1,12 @@
-# Joint mechanism deviations on the z route (2.2B X3)
+# Joint mechanism deviations on the z route
 
 This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
 states what it claims and what it does not. It also records the one sampling
 composition that was designed for the range. Its two coverage records have
-been measured, but every public route still refuses for 2.2.
+been measured, but every public route still refuses.
 
-Two records in `parity/promotion_2_2.toml` cover this page:
+Two records in `parity/promotion.toml` cover this page:
 
 - `sensitivity.joint_mechanism` (promoted): the exact assumption range
   only. It offers no sampling uncertainty.
@@ -35,7 +35,7 @@ Refused by design, each with a `joint_sensitivity.*` detail:
   fixed-graph route requires the supplied target parent law, so perturbing it
   would contradict supplied target evidence;
 - the fixed-graph conditional-mechanism joint problem: `fixed_graph_conditional`;
-- source-target discrepancy diagnostics: `source_target_discrepancy` (2.3B);
+- source-target discrepancy diagnostics: `source_target_discrepancy`;
 - no factor or more than two factors: `factor_count`. The formula has two
   factors, so a third declaration is always a duplicate or an out-of-scope
   factor; it refuses by count before its kind is examined.
@@ -194,7 +194,7 @@ cancelled frontier is not exported, because it does not replay.
 ## Sampling uncertainty (measured, route closed)
 
 Record `sensitivity.joint_uncertainty` is in progress. Every route to
-this composition refuses with `cell_not_licensed` for 2.2. Its two
+this composition refuses with `cell_not_licensed`. Its two
 coverage records were measured by `scripts/gate_calibration.sh` (`run_js`, over
 the sample-size grid).
 This section records what the composition is and how its coverage is measured.

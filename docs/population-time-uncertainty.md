@@ -1,12 +1,12 @@
-# Population, time and uncertainty routes (2.3)
+# Population, time and uncertainty routes
 
-This page summarizes the 2.3 routes that extend graph classes,
+This page summarizes the routes that extend graph classes,
 transport models, temporal sequences, counterfactuals and effect-constancy
 testing. For each it states the question it answers, the exact scope bounds, the
 claim label, the Python entry point and the namespace of its refusal details.
 
 The authoritative status of each route (`licensed` or `closed`, with its reason
-code) is its record in `parity/promotion_2_3.toml` and its row in
+code) is its record in `parity/promotion.toml` and its row in
 `parity/transport_stages.toml`; this page does not override them. The statistical
 adapters described below return a factory-only `inference.MeasuredInference`
 only when their actual scalar bases resolve to current attesting records. Missing or stale evidence refuses. Underlying model artifacts retain their
@@ -125,7 +125,7 @@ Original variable labels have a 256 UTF-8 byte limit. Default fit options are
 **Uncertain initial state.** How does uncertainty in the pre-action state change
 the two-step target response?
 
-- Scope: the 2.2 fixed two-slice graph with a finite observed pre-action state
+- Scope: the fixed two-slice graph with a finite observed pre-action state
   and a two-step sequence. The value is the target two-step mean marginalized
   over a finite target initial-state law. A source law or a single state does
   not answer it (a fixed-state response is reported under its own label), and a

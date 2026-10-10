@@ -1,4 +1,4 @@
-# v15_cell_aipw_interaction
+# cell_aipw_interaction
 
 **Suite path:** `conformance/estimate/cell_aipw_interaction`
 

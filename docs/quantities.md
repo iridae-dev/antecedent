@@ -1,4 +1,4 @@
-# Scientific quantities (2.3)
+# Scientific quantities
 
 `ScientificQuantity` (core: `antecedent-core/src/quantity.rs`; wire:
 `ScientificQuantityWire`) names one scalar coordinate by stable variable ID,

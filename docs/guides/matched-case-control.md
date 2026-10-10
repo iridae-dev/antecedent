@@ -1,4 +1,4 @@
-# Matched case-control odds ratio (2.2 E7)
+# Matched case-control odds ratio
 
 `antecedent.matched.matched_case_control_odds_ratio` (Rust:
 `antecedent_estimate::conditional_odds_ratio`) estimates one quantity from matched
@@ -6,7 +6,7 @@ sets sampled on the outcome: the **conditional odds ratio** of a binary exposure
 by exact conditional likelihood (conditional logistic regression). It is a new
 design row, not a conversion of the AIPW result, and its claim is `point_only`.
 The record is `estimate.matched_case_control_odds_ratio` in
-`parity/promotion_2_2.toml`.
+`parity/promotion.toml`.
 
 The safeguarded solve takes at most 500 Newton iterations. Artifact replay expands at
 most 10,000,000 reconstructed rows from the stored sufficient statistics.

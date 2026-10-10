@@ -1,4 +1,4 @@
-# Antecedent 2.3.0 (development)
+# Antecedent
 
 [![CI](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml/badge.svg)](https://github.com/iridae-dev/antecedent/actions/workflows/ci.yml) [![Crates.io](https://img.shields.io/crates/v/antecedent)](https://crates.io/crates/antecedent) [![PyPI](https://img.shields.io/pypi/v/antecedent)](https://pypi.org/project/antecedent/) [![GitHub Release](https://img.shields.io/github/v/release/iridae-dev/antecedent)](https://github.com/iridae-dev/antecedent/releases/latest) [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21556247-blue)](https://doi.org/10.5281/zenodo.21556247)
 
@@ -74,17 +74,17 @@ result = identification.estimate(ant.transport.StatisticalTransportData(...))
 # missing regime samples leave the functional unavailable
 ```
 
-## New in Antecedent 2.2.0
+## Inverse outcomes, large analyses and structural routes
 
-Antecedent 2.2.0 can work backward from a target mean over interventions you enumerate. Its [inverse-outcome query](docs/guides/inverse-outcome.md) classifies each action against a licensed forward response and keeps unsupported or unevaluated actions visible. The answer is relative to the declared grid and assumptions; it does not infer observational scenarios from an outcome.
+Antecedent can work backward from a target mean over interventions you enumerate. Its [inverse-outcome query](docs/guides/inverse-outcome.md) classifies each action against a licensed forward response and keeps unsupported or unevaluated actions visible. The answer is relative to the declared grid and assumptions; it does not infer observational scenarios from an outcome.
 
-Large and related analyses gain [penalized AIPW propensities](docs/guides/penalized-aipw.md), [configured batches and joint retarget covariance](docs/guides/batch-retarget.md), [cluster-owned cross-fitting](docs/guides/clustered-dml.md), and [factorized joint cells with derived-treatment declarations](docs/guides/joint-cells.md). [Preflight diagnostics](docs/guides/preflight-diagnostics.md) expose dependencies and cost before a fit; [matched case-control analysis](docs/guides/matched-case-control.md) reports the conditional odds ratio its sampling design supports.
+Large and related analyses use [penalized AIPW propensities](docs/guides/penalized-aipw.md), [configured batches and joint retarget covariance](docs/guides/batch-retarget.md), [cluster-owned cross-fitting](docs/guides/clustered-dml.md), and [factorized joint cells with derived-treatment declarations](docs/guides/joint-cells.md). [Preflight diagnostics](docs/guides/preflight-diagnostics.md) expose dependencies and cost before a fit; [matched case-control analysis](docs/guides/matched-case-control.md) reports the conditional odds ratio its sampling design supports.
 
-The release also adds bounded structural transport, sensitivity, study-planning and counterfactual routes. The [2.2.0 release notes](docs/release-notes/v2.2.0.md) give a task-oriented guide and state each cell's exact claim and refusal boundary. New sampling intervals without coordinate-matched coverage records remain withheld pending the final calibration pass.
+It also provides bounded structural transport, sensitivity, study-planning and counterfactual routes. The [transport scope guide](docs/guides/transport-scope.md) and the [release notes](docs/release-notes/v2.2.0.md) state each cell's exact claim and refusal boundary. Sampling intervals without coordinate-matched coverage records remain withheld.
 
-## New in Antecedent 2.1
+## Design-family studies
 
-2.1 keeps the same lifecycle and widens the questions it can carry. Design-family studies — randomized experiments (including factorial randomization), held-out policy value, difference-in-differences and other quasi-experimental designs, survival contrasts, and longitudinal regimes — prepare and analyze as retained studies on their own stage modules (`antecedent.experiment`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, `antecedent.regimes`), not at the package root. `antecedent.factorial.estimate` is a separate point utility for 2×2 cell means.
+The same lifecycle carries more than observational effects. Design-family studies — randomized experiments (including factorial randomization), held-out policy value, difference-in-differences and other quasi-experimental designs, survival contrasts, and longitudinal regimes — prepare and analyze as retained studies on their own stage modules (`antecedent.experiment`, `antecedent.policy`, `antecedent.quasi`, `antecedent.survival`, `antecedent.regimes`), not at the package root. `antecedent.factorial.estimate` is a separate point utility for 2×2 cell means.
 
 ```python
 design = ant.experiment.ExperimentDesign(
@@ -98,7 +98,7 @@ result = ant.analyze(data, query=ant.experiment.RandomizedEffect("revenue", desi
 
 On the experiment, policy, regime, and interference queries, row-aligned inputs may be named by a data column; `prepare` resolves those names and freezes the design, and `refresh` reuses that design with outcome-only data. Interval claims for these families are rows of the [graphless support matrix](docs/graphless-support-matrix.md), separate from the geometric matrix; a support license is not a coverage record.
 
-2.1 also adds restricted-experiment (z-transport) identification, a fixed-DAG nested-counterfactual natural direct effect, wider model-scoped Bayesian routes, and an external-provider contract (`antecedent.extensibility.CausalProviderSpec` with a `ProviderRegistry`).
+Antecedent also supports restricted-experiment (z-transport) identification, a fixed-DAG nested-counterfactual natural direct effect, wider model-scoped Bayesian routes, and an external-provider contract (`antecedent.extensibility.CausalProviderSpec` with a `ProviderRegistry`).
 
 Start with the [Python workflow](docs/python-workflow.md), [supported analyses](docs/supported-analyses.md), or [examples](examples/README.md). The [support matrix](docs/support-matrix.md) is the public license; [capabilities](docs/capabilities.md) is an inventory, not permission to combine every feature.
 
@@ -130,7 +130,7 @@ We believe this approach is critical when causal inference is built to exist bey
 
 Read `result.calibration` for the status of a reported interval: `calibrated` means a coverage record matches the execution, the execution is inside that record's scope, and the record still attests the current code. Licensed also does not mean measured: of the 472 licensed cells, 40 have no coverage measurement for their estimator and 4 report no interval (counts in the [support matrix](docs/support-matrix.md)).
 
-For what 2.1.0 adds over 2.0.0, read its [release notes](docs/release-notes/v2.1.0.md). The [changelog](CHANGELOG.md) records version deltas.
+The [release notes](docs/release-notes/v2.3.0.md) and the [changelog](CHANGELOG.md) record what each version changed.
 
 ## License
 

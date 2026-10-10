@@ -1,7 +1,7 @@
-# Decision contracts (2.3)
+# Decision contracts
 
 `antecedent_design::DecisionContract` declares a decision problem durably. It is
-separate from the 2.2 callback-based `DecisionProblem`, which stays for
+separate from the callback-based `DecisionProblem`, which stays for
 `evaluate_decision` and the preposterior routes.
 
 ## What a contract declares
@@ -191,7 +191,7 @@ Such a decision is not exportable or replayable (`route_not_supported`,
 `decision.mean_source_not_replayable`). `python/tests/test_lifecycle.py` runs
 identify, bind, inspect, export, decide and a fresh-process reload. Ranking a
 study with `design.rank_designs` is covered by [design ranking](design-ranking.md)
-and the [2.3 lifecycle](lifecycle.md).
+and the [lifecycle](lifecycle.md).
 
 ## Structural result artifact
 

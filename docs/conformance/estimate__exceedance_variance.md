@@ -1,4 +1,4 @@
-# v15_exceedance_variance
+# exceedance_variance
 
 **Suite path:** `conformance/estimate/exceedance_variance`
 

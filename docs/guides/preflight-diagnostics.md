@@ -1,4 +1,4 @@
-# Preflight diagnostics, rank-drop plans and estimates, and cost counts (2.2 E0/E1)
+# Preflight diagnostics, rank-drop plans and estimates, and cost counts
 
 Before a nuisance fit refuses a table, `antecedent` can say what is wrong with it.
 The diagnostics and the plan add no inferential claim; they are a diagnostic and
@@ -213,7 +213,7 @@ estimators; absent otherwise, never zero), cross-fit folds, bootstrap replicates
 when it resamples. A batch sums per-claim counts; the fit total is an upper bound because
 identical cross-fitted AIPW nuisances are shared across queries.
 
-### Counts for the 2.2 fit routes
+### Counts for the fit routes
 
 Counts are read off the configuration the route executes (`CostEstimate.fit_route` names the
 counted route), never from a second copy of its loop:

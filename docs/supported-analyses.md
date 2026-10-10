@@ -21,7 +21,7 @@ These are starting points, not permission to combine arbitrary options. The [ful
 
 For an analysis you have configured, `ant.prepare(...)` checks identification without estimating. Use `study.inspect()` to read what is known before calling `study.estimate()`. Preparation itself can refuse an unsupported request; see [handling refusals](python-workflow.md#when-an-analysis-is-refused).
 
-Specialized 2.3 decision, ranking, recalculation and measured-inference adapters
+Specialized decision, ranking, recalculation and measured-inference adapters
 have their own checked contracts; they do not add arbitrary combinations to the
-analysis grid. Start with the [2.3 lifecycle](lifecycle.md) and consult the
+analysis grid. Start with the [lifecycle](lifecycle.md) and consult the
 [measured interval scopes](population-time-uncertainty.md).

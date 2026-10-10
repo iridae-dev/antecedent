@@ -80,8 +80,8 @@ nav:
       - DR-Learner pointwise CATE: dr-pointwise-cate.md
       - Observational network exposure: observational-network-exposure.md
       - Saturation interference: saturation-interference.md
-  - 2.3 guide:
-      - The 2.3 lifecycle: lifecycle.md
+  - Decision workflows and external claims:
+      - The lifecycle: lifecycle.md
       - Quantities: quantities.md
       - External scientific objects: external-science.md
       - Joint distributions: joint-distributions.md
@@ -114,6 +114,7 @@ nav:
       - Practitioner acceptance: practitioner-acceptance.md
       - Security review: security_review.md
   - Release notes:
+      - "2.3.0": release-notes/v2.3.0.md
       - "2.2.0": release-notes/v2.2.0.md
       - "2.1.1": release-notes/v2.1.1.md
       - "2.1.0": release-notes/v2.1.0.md

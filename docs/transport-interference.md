@@ -205,4 +205,4 @@ provenance record preserve that distinction; no coverage theorem is claimed.
 - The network is treated as fixed and supplied by the caller.
 - Observational network treatment and graph semantics for contagion or
   allocational interference are outside this contract.
-- Cyclic/equilibrium causal systems remain outside this release.
+- Cyclic/equilibrium causal systems are not supported.

@@ -1,4 +1,4 @@
-# Design ranking: which study to run next (2.3)
+# Design ranking: which study to run next
 
 `antecedent.design` is one package with one entry point, `rank_designs`, and one
 result, `DesignRankingResult`. The result's `basis` says what its order means, and
@@ -362,7 +362,7 @@ Study candidates also come from [identification repair](decisions-breadth.md#rep
 which names the evidence a failed contract owes; the ranking values the studies
 that would supply it. A ranking exported here is a `study_ranking` bundle node (see
 [composition](composition.md)), and the full path from analysis to ranking is the
-[2.3 lifecycle](lifecycle.md). The route-by-route scope table is in
+[lifecycle](lifecycle.md). The route-by-route scope table is in
 [decisions, design, repair and estimator breadth](decisions-breadth.md#signals-evsi-and-design-ranking).
 
 ## Original posterior sources and future studies

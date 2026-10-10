@@ -1,4 +1,4 @@
-# Producer and consumer matrix (2.3)
+# Producer and consumer matrix
 
 Which object can be given to which decision-side consumer, by which route, and what is
 refused. The rule behind every cell: **a consumer never infers a joint law, a posterior or a
@@ -7,9 +7,9 @@ estimate is not a response, a posterior summary is not a prior signal, and a dec
 not a source. Every route here is point-only; nothing on this page is an interval, a coverage
 statement or a probability license.
 
-The executable source of truth is `python/tests/test_c1_matrix.py`. Its `STATUS` table holds
-the 88 cells asserted below; `test_c1_matrix_document_agrees_with_the_executable_table` fails
-if this page and the table drift apart. Each producer row is `test_c1_matrix_<row>_row`,
+The executable source of truth is `python/tests/test_producer_consumer_matrix.py`. Its `STATUS` table holds
+the 88 cells asserted below; `test_producer_consumer_matrix_document_agrees_with_the_executable_table` fails
+if this page and the table drift apart. Each producer row is `test_producer_consumer_matrix_<row>_row`,
 parametrized over the eight consumers.
 
 The statistical carrier `inference.MeasuredInference` has its own original-source
@@ -17,7 +17,7 @@ producer and independent `load` consumer. It is not an additional decision
 source: named scalar intervals and posterior parameter draws do not implicitly
 become a scientifically bound outcome law or a `Contract.evaluate` source.
 Its lifecycle and current-record requirements are documented in
-[the 2.3 lifecycle](lifecycle.md#measured-scalar-inference-and-independent-replay).
+[the lifecycle](lifecycle.md#measured-scalar-inference-and-independent-replay).
 
 ## Reading a cell
 
@@ -82,7 +82,7 @@ column has a DIRECT route. "External bound claim" is read as a bound external cl
 | `failed_contract` | REFUSED: `CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support` | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError` (not a `design.StatePrior`) | REFUSED: `CausalTypeError` | REFUSED: `CausalTypeError`; CPDAG `scenario_decision.no_native_run` | DIRECT: `repair.obligations(contract)` (one joint-law obligation over t, y, z1, z2) and `repair.repair(contract, candidates)` (only the cohort that observes all four repairs it); Rust `repair::repair` | REFUSED: no export; `CausalTypeError` | ADAPTER: `stage_identity(Stage.QUERY, contract_id)` declared by the caller |
 
 Counts: 88 cells, **15 DIRECT**, **15 ADAPTER**, **58 REFUSED**, **0 UNVERIFIED**. Every cell is
-executed by `test_c1_matrix_<row>_row[<consumer>]`.
+executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 
 ## Refusals the matrix relies on
 
@@ -126,17 +126,17 @@ executed by `test_c1_matrix_<row>_row[<consumer>]`.
 
 ## Tests that cite this page
 
-`test_c1_matrix_declares_every_cell_once_and_counts_them`,
-`test_c1_matrix_document_agrees_with_the_executable_table`,
-`test_c1_matrix_native_response_row`, `test_c1_matrix_fitted_effect_model_row`,
-`test_c1_matrix_retargeted_batch_row`, `test_c1_matrix_external_claim_row`,
-`test_c1_matrix_joint_draws_row`, `test_c1_matrix_bayesian_prior_row`,
-`test_c1_matrix_identified_scenarios_row`, `test_c1_matrix_sensitivity_artifact_row`,
-`test_c1_matrix_decision_row`, `test_c1_matrix_study_ranking_row`,
-`test_c1_matrix_failed_contract_row`,
-`test_c1_matrix_every_boundary_rejects_neighbours_with_typed_errors` and
-`test_c1_matrix_a_mean_never_answers_a_probability_a_quantile_or_a_law`, all in
-`python/tests/test_c1_matrix.py`.
+`test_producer_consumer_matrix_declares_every_cell_once_and_counts_them`,
+`test_producer_consumer_matrix_document_agrees_with_the_executable_table`,
+`test_producer_consumer_matrix_native_response_row`, `test_producer_consumer_matrix_fitted_effect_model_row`,
+`test_producer_consumer_matrix_retargeted_batch_row`, `test_producer_consumer_matrix_external_claim_row`,
+`test_producer_consumer_matrix_joint_draws_row`, `test_producer_consumer_matrix_bayesian_prior_row`,
+`test_producer_consumer_matrix_identified_scenarios_row`, `test_producer_consumer_matrix_sensitivity_artifact_row`,
+`test_producer_consumer_matrix_decision_row`, `test_producer_consumer_matrix_study_ranking_row`,
+`test_producer_consumer_matrix_failed_contract_row`,
+`test_producer_consumer_matrix_every_boundary_rejects_neighbours_with_typed_errors` and
+`test_producer_consumer_matrix_a_mean_never_answers_a_probability_a_quantile_or_a_law`, all in
+`python/tests/test_producer_consumer_matrix.py`.
 
 Original diagnostic carry-through preserves source scopes and semantic coordinates; a transformed value does not acquire a new local effective sample size or overlap diagnostic. External bound-response artifacts retain original support and exact request identity, but their original format contains no numerical diagnostic vectors. That absence remains explicit. `decision_robust.ExternalReceipt.from_claim` takes a caller-supplied scalar without an original response-coordinate mapping: it preserves provider, snapshot and request references while recording caller attestation, including when the original response had verified-extension standing. Those references supply no numerical verification or source diagnostic license for the scalar.
 
@@ -148,7 +148,7 @@ loads and verifies an executed parent analysis claim, then predicts CATE points 
 its immutable fitted payload. Its `EffectPrediction` currently retains only point
 values and the parent claim identity. It does not retain a cohort snapshot, row
 identities, declared outcome units/contrast quantity or target-row support. Neither
-representation currently supplies a direct native `Contract.evaluate` source in 2.3.
+representation currently supplies a direct native `Contract.evaluate` source.
 Prediction verification authenticates the parent model; it does not certify a new
 cohort's support or create absolute potential-outcome means or a joint law.
 

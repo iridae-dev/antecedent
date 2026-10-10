@@ -9,7 +9,7 @@ Three propositions must remain separate.
 | **Scientific validity** | The assumptions are appropriate for the real situation. | Something software can establish from a successful call alone. |
 
 The [support matrix](support-matrix.md) is the public license for ordinary
-analysis combinations. Specialized 2.3 [measured scalar adapters](population-time-uncertainty.md)
+analysis combinations. Specialized [measured scalar adapters](population-time-uncertainty.md)
 and [decision workflows](lifecycle.md) have separate checked contracts,
 without expanding that grid. [Capabilities](capabilities.md) explains what exists. A successful run
 still requires a defensible causal model, relevant data, and interpretation of

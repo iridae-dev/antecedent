@@ -1,4 +1,4 @@
-# External scientific object contracts (2.3)
+# External scientific object contracts
 
 `antecedent_core::ExternalScientificObject` has five typed variants:
 
@@ -37,7 +37,7 @@ Probe values are supplied by the caller, who must compute them independently;
 this layer does not invoke providers.
 
 Identification-to-result binding and an executable provider lifecycle have
-separate 2.3 gates. A declaration or provider label alone
+separate gates. A declaration or provider label alone
 does not certify a causal or inferential claim.
 
 ## Binding to a checked contract

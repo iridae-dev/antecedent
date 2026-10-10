@@ -1,4 +1,4 @@
-# Composing sources, recalculating and exporting a decision (2.3)
+# Composing sources, recalculating and exporting a decision
 
 Composition joins [decisions, design and repair](decisions-breadth.md) and the
 external claims of [external scientific objects](external-science.md) into

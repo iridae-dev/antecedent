@@ -1,4 +1,4 @@
-# Supported 2.3 input bounds
+# Supported input bounds
 
 These limits belong to the exact implementation and record shown. They bound the
 listed input or default consumer scope; they do not authorize inference or
@@ -20,8 +20,9 @@ functional records are required separately for every reported scalar. See the
 [population and uncertainty guide](population-time-uncertainty.md) for all
 protocol checks; underlying engine bounds do not confer measured authority.
 
-Run `python3 scripts/check_limits_agreement.py --release 2.3 --strict` to check
-these statements; the original 2.2 check remains the default.
+Run `python3 scripts/check_limits_agreement.py --strict` to check
+these statements; it also runs the exact-record comparison against
+`parity/limits.toml`.
 
 | Record | Bound | Value | Implementation |
 | --- | --- | ---: | --- |

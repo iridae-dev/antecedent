@@ -4,7 +4,7 @@ Date: 2026-10-09
 Scope: workspace crates + `python` extension (package version **2.3.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
-Pre-calibration source review against the `v2.2.0` tag, including the Python API
+Pre-calibration source review of the changes since the `v2.2.0` tag, including the Python API
 and result-to-decision changes. The Rust source diff adds no `unsafe` block and
 changes no workflow permissions or dependency-policy exceptions. The Rust lockfile
 adds `sha2` and its digest dependencies for the original external contract's
@@ -50,7 +50,7 @@ Date: 2026-10-05
 Scope: workspace crates + `python` extension (package version **2.2.0**)
 ADR: [0017](https://github.com/iridae-dev/antecedent/blob/main/adr/0017-release-prep.md)
 
-Pre-calibration source review of the 2.2.0 branch: the current changes add no
+Pre-calibration source review of the changes that became package version 2.2.0: they add no
 `unsafe` block and `Cargo.lock` changes only workspace package versions. The
 inverse-outcome route binds forward provenance and refuses unlicensed forward
 claims; batch retargeting requires one row snapshot; dependency and overlap
