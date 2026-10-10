@@ -1,16 +1,11 @@
-//! Route-level refusals of the three 2.3A closed calibrated-interval pilots.
+//! Candidate preflight refusals for bounded interval implementations.
 //!
-//! The Rust cores of joint Bayesian transport (A2, `antecedent.transport.joint_bayesian`),
-//! the binary nested-Markov pilot (A3, `antecedent.transport.binary_nested_markov`) and
-//! sampled observation recovery (A6, `antecedent.transport.sampled_observation_recovery`)
-//! exist and replay through independent io artifacts, but each claims a *calibrated*
-//! interval whose coverage is measured only at the release cut. Until then the public
-//! producer of each route is closed: it validates its request against the pilot's scope
-//! and otherwise refuses with the live typed `cell_not_licensed` refusal
-//! (`bayesian_transport.route_frozen`, `nested_markov.route_frozen`,
-//! `sampled_recovery.route_frozen`). A request outside the pilot refuses first with the
-//! pilot's own scope refusal (`route_not_supported` or an invalid-argument detail), so a
-//! caller learns the real obstruction before the closed route.
+//! These helpers validate the original joint Bayesian, nested-Markov and sampled
+//! recovery requests before internal candidate execution. Their frozen marker does
+//! not describe the separate public measured producers: those require actual native
+//! source replay and current record-backed authority. Candidate reports and artifacts
+//! retain unmeasured standing. Invalid model, sampling or support declarations produce
+//! their specific scope refusal before any candidate execution.
 //!
 //! These functions return the refusal as plain data; a binding raises it. They read the
 //! engines' own bounds, details and refusals, and never run a fit.
@@ -344,13 +339,13 @@ fn sampled_scope_refusal(request: &SampledRecoveryRequest<'_>) -> Option<ClosedP
     if request.replicates < SAMPLED_RECOVERY_MIN_REPLICATES {
         return Some(sampled(
             SampledRecoveryDetail::InvalidInput,
-            "too few replicates to form a 95% percentile interval",
+            "too few replicates to form the BCa interval",
         ));
     }
     sampled_row_refusal(request)
 }
 
-/// The refusal of a request to the closed sampled observation-recovery route: the
+/// The preflight refusal of an internal sampled-recovery candidate request: the
 /// pilot's scope refusal (`route_not_supported` /
 /// `sampled_recovery.unrecoverable_pattern` or `bounds_exceeded`, or an invalid-input
 /// detail) when the m-graph, bounds or observation patterns violate the exact recovery
@@ -400,7 +395,7 @@ mod tests {
             graph_recoverable: true,
             partially_observed: 1,
             fully_observed: 0,
-            replicates: 100,
+            replicates: 2000,
             rows: &rows,
         };
         let frozen = sampled_recovery_refusal(&request);
