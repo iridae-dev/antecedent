@@ -214,16 +214,20 @@ def test_fake_stage_callback_cannot_issue_candidate_authority():
 
 
 def test_oversized_row_sequence_refuses_before_materializing_patterns():
+    reads = []
+
     class OversizedRows(Sequence):
         def __len__(self):
             return 100001
 
         def __getitem__(self, index):
-            raise AssertionError("oversized rows must never be materialized")
+            reads.append(index)
+            raise IndexError(index)
 
     with pytest.raises(CausalValueError, match="bounds_exceeded") as caught:
         produce(sample=OversizedRows())
     assert caught.value.reason_code == "invalid_argument"
+    assert reads == []
 
 
 @pytest.mark.parametrize("change", ["duplicate_ids", "invalid_proxy", "oversized_id", "boolean_id"])

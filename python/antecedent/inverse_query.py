@@ -264,7 +264,12 @@ class MeanClaim:
         }
 
 
-ForwardClaim: TypeAlias = "JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim"
+if TYPE_CHECKING:
+    ForwardClaim: TypeAlias = (
+        JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim
+    )
+else:
+    ForwardClaim = "JointDistributionArtifact | MeanClaim | BoundExternalClaim | NativeClaim"
 
 
 def _claim(claim: ForwardClaim) -> Any:

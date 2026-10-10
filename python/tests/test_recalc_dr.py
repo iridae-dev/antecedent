@@ -466,7 +466,8 @@ print(json.dumps({'ate':result.law.ate,'fits':result.receipt.totals.fold_fits,
             text=True,
         )
     )
-    assert wire.pop("new_identity") != result.receipt.identity
+    new_identity = wire.pop("new_identity")
+    assert new_identity != result.receipt.identity
     assert result.receipt.totals.fold_fits == 9
     assert result.receipt.totals.model_fits == 1
     assert wire == {

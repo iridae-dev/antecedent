@@ -89,6 +89,7 @@ def _contract(criterion: decision.Criterion | None = None, **kwargs: object) -> 
 
 def test_joint_rows_choose_the_safe_action_and_explain_why():
     result = _contract().evaluate(_source())
+    assert result.source_evidence == ()
     risky, safe = result.actions
     assert risky.expected_utility == pytest.approx(2.0)
     assert safe.expected_utility == pytest.approx(3.0)

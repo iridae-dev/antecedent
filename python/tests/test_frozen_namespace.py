@@ -789,8 +789,6 @@ def test_stage_module_all_is_frozen(module_name):
 )
 def test_public_result_types_are_listed_in_their_module_all(module_name, name):
     """A public type a result hands back is exported by its module's ``__all__``."""
-    import importlib
-
     module = importlib.import_module(f"antecedent.{module_name}")
     assert name in module.__all__
     assert getattr(module, name) is not None

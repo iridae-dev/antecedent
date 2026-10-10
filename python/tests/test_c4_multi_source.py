@@ -597,7 +597,8 @@ def test_c4_a_fresh_interpreter_consumes_the_joint_bundle_and_reads_the_values(
     assert report["label"] == "joint_draw"
     nodes = report["nodes"]
     assert isinstance(nodes, dict)
-    assert nodes.pop("program") is False, "an unsupplied data reference is never claimed replayed"
+    program_replayed = nodes.pop("program")
+    assert program_replayed is False, "an unsupplied data reference is never claimed replayed"
     assert all(nodes.values()), nodes
     assert set(nodes) == {"e1", "e2claim", RELATION, "contract_j", "e2law", "result_j", "ranking"}
     values = report["values"]

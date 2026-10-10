@@ -264,12 +264,16 @@ def test_candidate_result_constructor_and_prior_dimension_bound_do_not_accept_fa
     with pytest.raises(CausalTypeError):
         tr.JointTransportPosterior()
 
+    reads = []
+
     class Oversized(Sequence):
         def __len__(self):
             return 257
 
         def __getitem__(self, index):
-            raise AssertionError("oversized prior must not be materialized")
+            reads.append(index)
+            raise IndexError(index)
 
     with pytest.raises(CausalValueError, match="1..256"):
         tr.GaussianTransportPrior(Oversized(), Oversized())._wire()
+    assert reads == []

@@ -49,6 +49,7 @@ from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 if TYPE_CHECKING:
     from ._native import AteAnalysisResult
     from .program_claims import ProgramBinding
+    from .source_evidence import SourceEvidence
 
 RESULT_LINK_ID = "decision_result"
 ActionKind = Literal["intervention", "policy", "regime", "study", "external"]
@@ -811,31 +812,23 @@ class Decision:
         return None
 
     @property
-    def source_evidence(self):
+    def source_evidence(self) -> tuple[SourceEvidence, ...]:
         """Original external support/request ancestry; no inferred numeric diagnostic or native authority."""
+        sources: list[SourceEvidence] = []
         if isinstance(self._source, BoundExternalClaim):
-            return (
-                self._source.source_evidence.project(
-                    self._contract, [action.id for action in self.actions]
-                ),
-            )
-        if isinstance(self._source, MeanSource) and self._source._original_native is not None:
+            sources.append(self._source.source_evidence)
+        elif isinstance(self._source, MeanSource) and self._source._original_native is not None:
             self._source._validated_original()
-            return (
-                self._source._original_native.source_evidence.project(
-                    self._contract, [action.id for action in self.actions]
-                ),
-            )
-        if (
+            sources.append(self._source._original_native.source_evidence)
+        elif (
             isinstance(self._source, JointDistributionArtifact)
             and self._source.source_evidence is not None
         ):
-            return (
-                self._source.source_evidence.project(
-                    self._contract, [action.id for action in self.actions]
-                ),
-            )
-        return ()
+            sources.append(self._source.source_evidence)
+        return tuple(
+            source.project(self._contract, [action.id for action in self.actions])
+            for source in sources
+        )
 
     @property
     def lineage(self) -> tuple[LineageLink, ...]:

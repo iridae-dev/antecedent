@@ -178,12 +178,15 @@ def test_nested_bayesian_prior_changes_actual_posterior_and_bound_identity():
 
 
 def test_nested_pilot_declines_oversized_sequences_before_materializing():
+    reads = []
+
     class Oversized(Sequence):
         def __len__(self):
             return 1_000_000
 
         def __getitem__(self, index):
-            raise AssertionError("out-of-scope sequence must not be materialized")
+            reads.append(index)
+            raise IndexError(index)
 
     for regimes in (
         Oversized(),
@@ -194,3 +197,4 @@ def test_nested_pilot_declines_oversized_sequences_before_materializing():
             binary_nested_markov(graph=graph(), regimes=regimes)
         assert caught.value.reason_code == "route_not_supported"
         assert "outside_binary_pilot" in str(caught.value)
+    assert reads == []

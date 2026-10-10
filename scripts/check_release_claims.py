@@ -287,28 +287,28 @@ def draft(records: list[dict], present: set[str]) -> str:
             "## Consumer workflows in this draft",
             "",
             "- Carry scientifically named quantities and aligned laws from original native producers "
-            "into supported decisions and inverse queries. A mean grid supplies affine mean utility; "
-            "probability, quantile and nonlinear-law questions require the separately declared joint law.",
+            + "into supported decisions and inverse queries. A mean grid supplies affine mean utility; "
+            + "probability, quantile and nonlinear-law questions require the separately declared joint law.",
             "- Recalculate declared adjusted, doubly robust, finite response/transport, Bayesian, "
-            "temporal and design-specific analyses through retained original execution state. "
-            "Actual component work is recorded; supported reuse preserves the producing uncertainty status.",
+            + "temporal and design-specific analyses through retained original execution state. "
+            + "Actual component work is recorded; supported reuse preserves the producing uncertainty status.",
             "- Execute bounded external mean callbacks under explicit provider, environment, RNG "
-            "and side-effect contracts. Combined native/two-provider mean decisions share a receipt; "
-            "callback outputs keep their original external attestation.",
+            + "and side-effect contracts. Combined native/two-provider mean decisions share a receipt; "
+            + "callback outputs keep their original external attestation.",
             "- Preserve original diagnostic scopes and semantic coordinates through decision and "
-            "inverse projections. Imported evidence retains unresolved dependencies; fresh source "
-            "resolution requires actual original analysis rather than caller metadata.",
+            + "inverse projections. Imported evidence retains unresolved dependencies; fresh source "
+            + "resolution requires actual original analysis rather than caller metadata.",
             "- Inspect effect constancy in transport reviews, advisory prior-source ranking and "
-            "partition-specific point-policy comparisons. Non-rejection establishes neither "
-            "transportability nor pooling, and policy agreement supplies no generalization guarantee.",
+            + "partition-specific point-policy comparisons. Non-rejection establishes neither "
+            + "transportability nor pooling, and policy agreement supplies no generalization guarantee.",
             "- Bind rollout rankings to complete original laws, priors, terminal actions and utilities. "
-            "Delivered finite count data use the original proposal/repair and transport estimators; "
-            "a historical artifact alone restores no executable state.",
+            + "Delivered finite count data use the original proposal/repair and transport estimators; "
+            + "a historical artifact alone restores no executable state.",
             "",
             "Calibration and final release gates remain pending. Reported candidate standard "
-            "errors, tests and posterior summaries remain explicitly unmeasured at their declared "
-            "coordinates. Discovery, adaptive policies and broader arbitrary callback/cross-world "
-            "execution retain their separate release targets in ROADMAP.md.",
+            + "errors, tests and posterior summaries remain explicitly unmeasured at their declared "
+            + "coordinates. Discovery, adaptive policies and broader arbitrary callback/cross-world "
+            + "execution retain their separate release targets in ROADMAP.md.",
             "",
         ]
     glossary = GLOSSARY
@@ -483,12 +483,13 @@ def check(root: Path, notes_rel: str = NOTES, final: bool = False) -> list[str]:
         # 6-7. the entry restates bounds, guarantee and interval stance. An optional
         # internal status must be accurate, but need not appear in public notes.
         bounds_lines = BOUNDS_LINE.findall(body)
-        if numeric_bounds(rec) != "none declared" or bounds_lines:
-            if len(bounds_lines) != 1 or bounds_lines[0] != numeric_bounds(rec):
-                stale.append(
-                    f"{label}: Bounds line {bounds_lines[:1]} differs from the record's "
-                    f"[{numeric_bounds(rec)}]"
-                )
+        if (numeric_bounds(rec) != "none declared" or bounds_lines) and (
+            len(bounds_lines) != 1 or bounds_lines[0] != numeric_bounds(rec)
+        ):
+            stale.append(
+                f"{label}: Bounds line {bounds_lines[:1]} differs from the record's "
+                f"[{numeric_bounds(rec)}]"
+            )
         statuses = STATUS_PART.findall(body)
         if statuses and statuses != [rec.get("status")]:
             stale.append(
