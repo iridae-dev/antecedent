@@ -45,24 +45,34 @@ Environment: INTERVALS_22_ROOT (tree to read, default the repo), INTERVALS_22_SK
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("INTERVALS_22_ROOT", REPO))
+RELEASE = "2.2"
 # check_a_intervals reads its tree from this variable at import; keep both on one tree.
 os.environ["A_INTERVALS_ROOT"] = str(ROOT)
 if os.environ.get("INTERVALS_22_SKIP_ATTEST") == "1":
     os.environ["A_INTERVALS_SKIP_ATTEST"] = "1"
 sys.path.insert(0, str(REPO / "scripts"))
 import check_a_intervals as cai  # noqa: E402  (read-only reuse)
-from promotion_source import ignored_test_literals, python_fn_literals  # noqa: E402
+from promotion_source import (  # noqa: E402
+    assertion_texts,
+    ignored_test_literals,
+    nontest_pair,
+    python_fn_literals,
+    rust_items,
+)
 
 NOMINAL = cai.NOMINAL
 WITHHOLD_REASONS = cai.WITHHOLD_REASONS
@@ -74,13 +84,42 @@ def load(rel: str) -> dict:
     return tomllib.loads(p.read_text()) if p.is_file() else {}
 
 
+def surface_interval_findings(rel: str) -> list[tuple[int, str]]:
+    if RELEASE != "2.3":
+        return cai.interval_findings(rel)
+    if not rel.endswith(".py"):
+        lines = (ROOT / rel).read_text().splitlines()
+        # Crate/module-private builders are not public producers. Rust forbids
+        # widening their visibility through a public reexport; actual public
+        # interval declarations still require their own route or feature gate.
+        return [(line, name) for line, name in cai.interval_findings(rel)
+                if not re.match(r"\s*pub\((?:crate|super|self)\)\s+", lines[line - 1])]
+    # Python keyword arguments are uses, not new public interval declarations.
+    found = []
+    def declarations(nodes):
+        for node in nodes:
+            if isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
+                declarations(node.body)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if not node.name.startswith("_") and "interval" in node.name.lower():
+                    found.append((node.lineno, node.name))
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                name = node.target.id
+                if not name.startswith("_") and "interval" in name.lower():
+                    found.append((node.lineno, name))
+    declarations(ast.parse((ROOT / rel).read_text()).body)
+    return found
+
+
 def surfaces_of(record: dict) -> list[str]:
     ws = cai.workstream(record)
-    if record.get("milestone") == "A" and ws in cai.INTERVAL_SURFACES:
+    if RELEASE == "2.2" and record.get("milestone") == "A" and ws in cai.INTERVAL_SURFACES:
         return list(cai.INTERVAL_SURFACES[ws])
     skip = set(record.get("search_impl") or [])
     files = [*(record.get("surface") or []), *(record.get("surface_rust") or [])]
-    return [f for f in files if f not in skip]
+    if RELEASE == "2.3":
+        files += [*(record.get("surface_exports") or []), *(record.get("surface_pyo3") or [])]
+    return list(dict.fromkeys(f for f in files if f not in skip))
 
 
 COV_ID = re.compile(r"cov\.[a-z_.0-9]+")
@@ -165,12 +204,334 @@ def text_fields(
     return []
 
 
+def registered_output_ids(gate_text: str) -> dict[tuple[str, str], set[str]]:
+    """Read each registered target once; keep literals bound to its actual test."""
+    targets: dict[str, dict[str, set[str]]] = {}
+    result = {}
+    for registration in registrations(gate_text):
+        target, name = registration["target"], registration["name"]
+        if target not in targets:
+            tests: dict[str, set[str]] = {}
+            for source in ROOT.glob(f"crates/*/tests/**/{target}.rs"):
+                for test, literals in ignored_test_literals(source).items():
+                    tests.setdefault(test, set()).update(literals)
+            targets[target] = tests
+        result[(target, name)] = targets[target].get(name, set())
+    return result
+
+
+def registration_owns_id(registration: dict, literals: set[str], coverage_id: str) -> bool:
+    """Match exact emitted IDs or CoverageTally's test[.label] suffix.
+
+    The original tally composes its bound construction with the test string and
+    optionally one sanitized effect label. The test string must occur in this
+    actual registered target/test; a substring or another target's name is not
+    evidence. Labels do not replace the emitting test's identity.
+    """
+    if coverage_id in literals:
+        return True
+    name = registration["name"]
+    if name not in literals:
+        return False
+    parts = coverage_id.split(".")
+    return parts[-1] == name or (
+        len(parts) >= 3 and re.fullmatch(r"l[0-9]+", parts[-3]) is not None
+        and parts[-2] == name and bool(re.fullmatch(r"[a-z_0-9]+", parts[-1]))
+    )
+
+
+
+def untrusted_interval_input_problems(
+    root: Path, record: dict, item: dict
+) -> list[str]:
+    """Prove the one caller-declared report input is incapable of granting authority."""
+    fields = {
+        "name",
+        "source",
+        "class",
+        "builder",
+        "report_type",
+        "authority_type",
+        "authority_fixture",
+        "why",
+    }
+    exact = {
+        "name": "interval",
+        "source": "crates/antecedent-io/src/measured_inference.rs",
+        "class": "ScalarExecution",
+        "builder": "build_report",
+        "report_type": "MeasuredInferenceReport",
+        "authority_type": "MeasuredInference",
+    }
+    if (
+        not isinstance(item, dict)
+        or set(item) != fields
+        or any(item.get(key) != value for key, value in exact.items())
+        or not isinstance(item.get("why"), str)
+        or not item["why"].strip()
+    ):
+        return [
+            "untrusted interval input needs the exact readable-report descriptor, never an estimator/output exemption"
+        ]
+    path = root / item["source"]
+    code, _ = nontest_pair(path)
+    _, items = rust_items(path)
+    declarations = list(
+        re.finditer(r"\bpub struct ScalarExecution\s*(\{[^}]*\})", code)
+    )
+    builders = [i for i in items if i.kind == "fn" and i.name == item["builder"]]
+    if len(declarations) != 1 or len(builders) != 1:
+        return [
+            "untrusted input declaration or readable report builder does not resolve uniquely"
+        ]
+    field_body = declarations[0][1]
+    # Exact bounded input fields. A new computed/authoritative field requires
+    # another review and cannot silently inherit this metadata classification.
+    if not re.fullmatch(
+        r"\{\s*pub name: String,\s*pub point: f64,\s*pub interval: \(f64, f64\),\s*pub basis: CalibrationBasis,\s*\}",
+        field_body,
+    ):
+        return [
+            "untrusted input no longer consists solely of caller-declared scalar/basis fields"
+        ]
+    builder = builders[0]
+    header = code[builder.start : builder.body[0]]
+    body = code[builder.body[0] : builder.body[1]]
+    if (
+        not re.search(r"executions:\s*Vec<ScalarExecution>", header)
+        or not re.search(r"->\s*Result<MeasuredInferenceReport,\s*IoError>\s*$", header)
+        or not re.search(r"lower:\s*execution\.interval\.0\s*,", body)
+        or not re.search(r"upper:\s*execution\.interval\.1\s*,", body)
+        or re.search(r"\bauthorize\s*\(|\bMeasuredInference\s*\{", body)
+        or re.search(
+            r"\bmut\s+executions?\b|execution\.interval\s*=|executions\s*\.\s*(?:iter_mut|sort|push|extend|retain)\b",
+            header + body,
+        )
+        or not re.search(r"for\s+execution\s+in\s+executions\s*\{", body)
+    ):
+        return [
+            "input builder must return readable metadata and project original endpoints without granting authority"
+        ]
+    authority = list(re.finditer(r"\bpub struct MeasuredInference\s*(\{[^}]*\})", code))
+    factory = [i for i in items if i.kind == "fn" and i.name == "authorize"]
+    if (
+        len(authority) != 1
+        or len(factory) != 1
+        or not re.fullmatch(
+            r"\{\s*report: MeasuredInferenceReport,\s*bytes: Arc<\[u8\]>,\s*source: Arc<\[u8\]>,\s*\}",
+            authority[0][1],
+        )
+        or re.search(
+            r"#\[derive\([^]]*Deserialize[^]]*\)\]\s*pub struct MeasuredInference\b",
+            code,
+        )
+        or not re.search(r"pub\(crate\)\s*$", code[: factory[0].start])
+    ):
+        return [
+            "readable input cannot expose, deserialize or publicly construct opaque measured authority"
+        ]
+    constructions = len(re.findall(r"\bMeasuredInference\s*\{", code)) - len(
+        re.findall(r"\b(?:struct|impl)\s+MeasuredInference\s*\{", code)
+    )
+    if (
+        constructions != 1
+        or "MeasuredInference {" not in code[factory[0].body[0] : factory[0].body[1]]
+    ):
+        return [
+            "readable metadata cannot gain an additional public measured-authority constructor"
+        ]
+    fixture = next(
+        (
+            f
+            for f in record.get("fixtures", [])
+            if f.get("id") == item["authority_fixture"]
+        ),
+        {},
+    )
+    if (
+        fixture.get("role") != "negative"
+        or not fixture.get("evidence_test")
+        or not fixture.get("evidence_assertion")
+    ):
+        return [
+            "untrusted input requires an actual ordinary authority-forgery negative fixture"
+        ]
+    evidence = root / fixture["evidence_test"]
+    assertion = fixture["evidence_assertion"]
+    try:
+        _, evidence_items = rust_items(evidence)
+        tests = [i for i in evidence_items if i.kind == "fn" and i.name == assertion]
+        observed = "\n".join(assertion_texts(evidence, assertion))
+        if (
+            len(tests) != 1
+            or "#[test]" not in tests[0].attrs
+            or any("ignore" in a for a in tests[0].attrs)
+            or "MeasuredInference::consume" not in observed
+            or ".is_err()" not in observed
+            or "decode" not in observed
+            or ".is_ok()" not in observed
+        ):
+            return [
+                "authority evidence must exercise readable decode success and opaque consumer rejection"
+            ]
+    except (OSError, ValueError):
+        return ["authority-forgery evidence does not resolve"]
+    return []
+
+
+def untrusted_interval_inputs(record: dict, findings: list, errors: list[str]) -> list:
+    remaining = list(findings)
+    for item in record.get("untrusted_interval_inputs", []):
+        problems = untrusted_interval_input_problems(ROOT, record, item)
+        matches = (
+            [
+                row
+                for row in remaining
+                if row[0] == item.get("source") and row[2] == item.get("name")
+            ]
+            if isinstance(item, dict)
+            else []
+        )
+        if problems or len(matches) != 1:
+            errors.extend(
+                f"{record['id']}: {problem}"
+                for problem in problems
+                or ["untrusted input must match exactly one actual interval field"]
+            )
+        else:
+            remaining = [row for row in remaining if row not in matches]
+    return remaining
+
+
+def delegated_interval_findings(record: dict, findings: list, records: dict, errors: list[str]) -> list:
+    """A verified scalar carrier exposes original endpoints, never a new estimator.
+
+    Delegation names the exact prerequisite method owners; each still undergoes
+    its own allocation, route, current attestation and producer/consumer gates.
+    """
+    remaining = list(findings)
+    for item in record.get("delegated_interval_fields", []):
+        if not isinstance(item, dict) or set(item) != {"name", "source", "class", "method_records", "authority_fixture", "why"}:
+            errors.append(f"{record['id']}: delegated interval requires exact source/method/authority fields")
+            continue
+        if any(not isinstance(item[key], str) or not item[key].strip()
+               for key in ("name", "source", "class", "authority_fixture", "why")):
+            errors.append(f"{record['id']}: delegated interval needs nonempty source/method/authority fields")
+            continue
+        methods = item["method_records"]
+        fixtures = {f["id"]: f for f in record.get("fixtures", [])}
+        authority = fixtures.get(item["authority_fixture"], {})
+        valid = (isinstance(methods, list) and bool(methods)
+                 and all(isinstance(x, str) for x in methods)
+                 and len(methods) == len(set(methods))
+                 and set(methods) == set(record.get("prerequisite_records", []))
+                 and authority.get("role") == "negative"
+                 and bool(authority.get("evidence_assertion"))
+                 and isinstance(item["why"], str) and bool(item["why"].strip()))
+        for method in methods if isinstance(methods, list) else []:
+            owner = records.get(method, {}) if isinstance(method, str) else {}
+            allocated = set(owner.get("coverage_records", [])) | set(owner.get("candidate_coverage_records", []))
+            outputs = owner.get("inference_outputs", [])
+            if not allocated or not any(set(output.get("allocated_coverage_records", [])) & allocated
+                                        for output in outputs):
+                valid = False
+        source = item["source"]
+        matches = [row for row in remaining if row[0] == source and row[2] == item["name"]]
+        try:
+            tree = ast.parse((ROOT / source).read_text(encoding="utf-8"))
+            cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == item["class"])
+            field = next(node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == item["name"])
+            # Exact original native report endpoint projection; no interval arithmetic,
+            # fitting or caller callbacks can be disguised as inherited uncertainty.
+            valid &= (len(matches) == 1 and len(field.body) == 1
+                      and isinstance(field.body[0], ast.Return)
+                      and ast.unparse(field.body[0].value) == "(float(self._body['lower']), float(self._body['upper']))"
+                      and any(isinstance(d, ast.Name) and d.id == "property" for d in field.decorator_list))
+        except (OSError, SyntaxError, StopIteration, TypeError):
+            valid = False
+        if not valid:
+            errors.append(f"{record['id']}: delegated interval lacks original endpoint projection, exact method ownership or authority evidence")
+        else:
+            remaining = [row for row in remaining if row not in matches]
+    return remaining
+
+
+def archived_emitter_literals(entry: dict) -> list[str]:
+    """Read failed emitter evidence from its immutable original Git revision."""
+    source = entry["harness"]
+    if Path(source).is_absolute() or ".." in Path(source).parts:
+        return []
+    result = subprocess.run(
+        ["git", "show", f"{entry['measurement_commit']}:{source}"],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    )
+    if result.returncode:
+        return []
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "archived_emitter.rs"
+        path.write_text(result.stdout, encoding="utf-8")
+        return ignored_test_literals(path).get(entry["test"], [])
+
+
+def historical_allocations(record: dict, selected: list[str], present: set[str], errors: list[str]) -> set[str]:
+    """Own failed original emitters without selecting or licensing their intervals."""
+    historical = set()
+    rid = record["id"]
+    declarations = record.get("historical_coverage_records", [])
+    if not isinstance(declarations, list):
+        errors.append(f"{rid}: historical coverage must be explicit failed emitter declarations")
+        return historical
+    for entry in declarations:
+        if not isinstance(entry, dict):
+            errors.append(f"{rid}: historical coverage must be explicit failed emitter declarations")
+            continue
+        cid, source, test = entry.get("id"), entry.get("harness"), entry.get("test")
+        if (
+            not isinstance(cid, str) or not COV_ID.fullmatch(cid)
+            or not isinstance(source, str) or not source.startswith("crates/")
+            or not isinstance(test, str) or not test
+            or entry.get("status") != "failed"
+            or not isinstance(entry.get("measurement_commit"), str)
+            or not re.fullmatch(r"[0-9a-f]{40}", entry["measurement_commit"])
+            or not isinstance(entry.get("failure"), str) or not entry["failure"].strip()
+        ):
+            errors.append(f"{rid}: historical coverage needs failed status, original source/test, commit and failure")
+            continue
+        path = ROOT / source
+        retired = entry.get("disposition") == "retired_superseded"
+        if retired:
+            replacement = entry.get("replacement_coverage_id")
+            if replacement not in selected:
+                errors.append(f"{rid}: retired history needs its selected replacement coverage id")
+            literals = archived_emitter_literals(entry)
+        else:
+            literals = ignored_test_literals(path).get(test, []) if path.is_file() else []
+        if not registration_owns_id({"name": test}, literals, cid):
+            errors.append(f"{rid}: historical coverage id {cid} has no original ignored harness emitter")
+            continue
+        if cid in selected or cid in historical:
+            errors.append(f"{rid}: historical coverage must be disjoint from selected allocations and unique")
+        if cid in present:
+            errors.append(f"{rid}: failed historical coverage cannot be a passing licensed record")
+        matching_outputs = [output for output in record.get("inference_outputs", [])
+                            if cid in output.get("allocated_coverage_records", [])]
+        if retired:
+            if matching_outputs:
+                errors.append(f"{rid}: retired history cannot allocate an active inference output")
+        elif not matching_outputs or any(output.get("allocation_status") != "historical_measurement_failed_route_closed"
+                                        for output in matching_outputs):
+            errors.append(f"{rid}: historical coverage needs an explicitly failed output allocation")
+        historical.add(cid)
+    return historical
+
+
 def check() -> dict:
     errors: list[str] = []
     notes: list[str] = []
     refusals: list[dict] = []
     calibration: dict[str, dict] = {}
-    promotion = load("parity/promotion_2_2.toml")
+    promotion_path = f"parity/promotion_{RELEASE.replace('.', '_')}.toml"
+    promotion = load(promotion_path)
     stages = load("parity/transport_stages.toml")
     support = load("parity/support_licensed.toml")
     present = {
@@ -182,26 +543,59 @@ def check() -> dict:
         else ""
     )
     groups = registered_groups(gate_text)
+    registered_literals = registered_output_ids(gate_text)
     records = promotion.get("record", [])
     if not records:
-        errors.append("no record found in parity/promotion_2_2.toml")
+        errors.append(f"no record found in {promotion_path}")
     stage_rows = {row.get("route"): row for row in stages.get("routes", [])}
     scoped_routes: set[str] = set()
+    diagnostic_groups: set[tuple[str, str]] = set()
+    allocations_by_record = {r["id"]: set(r.get("coverage_records") or []) | set(r.get("candidate_coverage_records") or []) for r in records}
     for record in records:
         rid = record["id"]
-        allocated = list(record.get("coverage_records") or [])
+        for declaration in record.get("diagnostic_measurement_tests") or []:
+            parts = declaration.split("::") if isinstance(declaration, str) else []
+            if len(parts) != 2:
+                errors.append(f"{rid}: diagnostic measurement needs an exact source::test")
+                continue
+            source, test = parts
+            path = ROOT / source
+            suites = {
+                output.get("measurement_suite", "").split("::", 1)[0]
+                for output in record.get("inference_outputs") or []
+            }
+            if (
+                source not in suites or not path.is_file()
+                or test not in ignored_test_literals(path)
+                or "CoverageTally" in path.read_text()
+                or any(COV_ID.search(literal) for literal in ignored_test_literals(path).get(test, []))
+            ):
+                errors.append(f"{rid}: diagnostic measurement {declaration!r} lacks its actual noncoverage ignored suite allocation")
+                continue
+            key = (path.stem, test)
+            if key not in registered_literals:
+                errors.append(f"{rid}: diagnostic measurement {declaration!r} is not registered at its actual target")
+            else:
+                diagnostic_groups.add(key)
+        active = list(record.get("coverage_records") or [])
+        candidates = list(record.get("candidate_coverage_records") or [])
+        allocated = active + candidates
+        historical = historical_allocations(record, allocated, present, errors)
+        if len(allocated) != len(set(allocated)):
+            errors.append(f"{rid}: active and candidate coverage allocations must be distinct")
+        missing_active = [cid for cid in active if cid not in present]
         missing = [c for c in allocated if c not in present]
         claim = record.get("inference_claim")
         if claim == "nominal":
             errors.append(
                 f"{rid}: inference_claim 'nominal' ships an interval no record measures"
             )
-        if claim == "calibrated" and not allocated:
+        if claim == "calibrated" and not active:
             errors.append(
                 f"{rid}: a calibrated claim must allocate its coverage record ids"
             )
         if (
-            allocated
+            active
             and claim != "calibrated"
             and record.get("status") != "carried_forward"
         ):
@@ -219,17 +613,37 @@ def check() -> dict:
             if (
                 record.get("status") != "carried_forward"
                 and cid.rsplit(".", 1)[-1] not in groups
+                and not any(
+                    registration_owns_id(registration, registered_literals[(registration["target"], registration["name"])], cid)
+                    for registration in registrations(gate_text)
+                )
             ):
                 errors.append(
                     f"{rid}: coverage id {cid} is not a registered group name on a run_* line of "
                     "scripts/gate_calibration.sh"
                 )
+        inherited = set()
+        for output in record.get("inference_outputs") or []:
+            inherited_ids = set(output.get("inherited_coverage_records") or [])
+            parents = output.get("inherited_from_records") or []
+            parent_ids = set()
+            for parent in parents:
+                if parent == rid or parent not in allocations_by_record:
+                    errors.append(f"{rid}: inherited coverage names an invalid owning record {parent!r}")
+                else:
+                    parent_ids.update(allocations_by_record[parent])
+            # Existing measured records are original methods with independently registered
+            # emission. Unmeasured candidate inheritance must identify its actual owner.
+            invalid = inherited_ids - (present | parent_ids)
+            for cid in sorted(invalid):
+                errors.append(f"{rid}: inherited coverage id {cid} has no measured record or explicit candidate owner")
+            inherited.update(inherited_ids - invalid)
         hidden = sorted(
             {
                 i.rstrip(".")
                 for t in text_fields(record)
                 for i in COV_ID.findall(t)
-                if i.rstrip(".") not in allocated
+                if i.rstrip(".") not in allocated and i.rstrip(".") not in inherited and i.rstrip(".") not in historical
             }
         )
         for cid in hidden:
@@ -269,10 +683,10 @@ def check() -> dict:
             if stage == "uncertainty":
                 if status == "licensed":
                     open_uncertainty = True
-                    if missing:
+                    if missing_active:
                         errors.append(
                             f"{rid}: uncertainty route {name} is licensed but coverage records are "
-                            f"absent: {', '.join(missing)}"
+                            f"absent: {', '.join(missing_active)}"
                         )
                 elif status == "closed":
                     closed_uncertainty = True
@@ -315,17 +729,64 @@ def check() -> dict:
             if not (ROOT / rel).is_file():
                 errors.append(f"{rid}: interval surface file {rel} is missing")
                 continue
-            findings += [(rel, line, n) for line, n in cai.interval_findings(rel)]
+            findings += [(rel, line, n) for line, n in surface_interval_findings(rel)]
         # A wrapper may echo an interval licensed by its input route without
         # constructing its own uncertainty. The record must name those public
         # fields explicitly; any new interval-bearing name still needs a route.
+        descriptors = record.get("noninferential_interval_fields") or []
+        for descriptor in descriptors:
+            name = descriptor.get("name")
+            why = descriptor.get("why")
+            if not isinstance(name, str) or not isinstance(why, str) or not why.strip():
+                errors.append(f"{rid}: interval status descriptors need a name and explanation")
+                continue
+            matches = [
+                row for row in findings
+                if row[2] == name and row[0].endswith(".py")
+                and (
+                    re.match(
+                        rf"\s*{re.escape(name)}\s*:\s*str\s*(?:#.*)?$",
+                        (ROOT / row[0]).read_text().splitlines()[row[1] - 1],
+                    )
+                    or (
+                        re.match(
+                            rf"\s*def {re.escape(name)}\(self\) -> str:",
+                            (ROOT / row[0]).read_text().splitlines()[row[1] - 1],
+                        )
+                        and (ROOT / row[0]).read_text().splitlines()[row[1] - 2].strip() == "@property"
+                    )
+                )
+            ]
+            matches += [
+                row for row in findings if row[2] == name and row[0].endswith(".rs")
+                and re.match(
+                    rf"\s*pub {re.escape(name)}\s*:\s*&'static str\s*,",
+                    (ROOT / row[0]).read_text().splitlines()[row[1] - 1],
+                )
+            ]
+            if not matches:
+                errors.append(f"{rid}: noninferential descriptor {name!r} is not a string field")
+            findings = [row for row in findings if row not in matches]
+        for name in record.get("internal_interval_fields") or []:
+            matches = [
+                row for row in findings if row[2] == name and row[0].endswith(".rs")
+                and re.search(
+                    rf'#\[cfg\(feature = "calibration-internal"\)\]\s*#\[doc\(hidden\)\]\s*pub fn {re.escape(name)}\b',
+                    (ROOT / row[0]).read_text(),
+                )
+            ]
+            if not matches:
+                errors.append(f"{rid}: internal interval {name!r} lacks its explicit hidden calibration-only gate")
+            findings = [row for row in findings if row not in matches]
+        findings = untrusted_interval_inputs(record, findings, errors)
+        findings = delegated_interval_findings(record, findings, {r["id"]: r for r in records}, errors)
         inherited = set(record.get("inherited_interval_fields") or [])
         if inherited:
             seen = {name for _, _, name in findings}
             for name in sorted(inherited - seen):
                 errors.append(f"{rid}: inherited interval field {name!r} is absent from its surface")
             findings = [row for row in findings if row[2] not in inherited]
-        if findings and not (closed_uncertainty or (open_uncertainty and not missing)):
+        if findings and not (closed_uncertainty or (open_uncertainty and not missing_active)):
             first = findings[0]
             errors.append(
                 f"{rid}: public interval-bearing output {first[2]} ({first[0]}:{first[1]}) has no "
@@ -359,19 +820,27 @@ def check() -> dict:
                     errors.append(
                         f"{rid}: coverage records present but not attested: {message}"
                     )
-    owned = {
-        cid.rsplit(".", 1)[-1]
-        for r in records
-        for cid in r.get("coverage_records") or []
+    allocated_ids = {
+        cid
+        for record in records
+        for cid in [*(record.get("coverage_records") or []), *(record.get("candidate_coverage_records") or [])]
     }
     for reg in registrations(gate_text):
-        if not reg["header"].startswith("2.2") or reg["name"] in owned:
+        if (
+            not reg["header"].startswith(RELEASE)
+            or (reg["target"], reg["name"]) in diagnostic_groups
+            or any(
+                registration_owns_id(reg, registered_literals[(reg["target"], reg["name"])], cid)
+                for cid in allocated_ids
+            )
+        ):
             continue
         for p in ROOT.glob(f"crates/*/tests/**/{reg['target']}.rs"):
-            if reg["name"] in ignored_test_literals(p).get(reg["name"], []):
+            literals = ignored_test_literals(p).get(reg["name"], [])
+            if reg["name"] in literals or any(COV_ID.fullmatch(literal) for literal in literals):
                 errors.append(
                     f"scripts/gate_calibration.sh registers {reg['name']} (under '== {reg['header']}') "
-                    "and its test emits that coverage record, but no 2.2 record lists it in "
+                    f"and its test emits that coverage record, but no {RELEASE} record lists it in "
                     "coverage_records (measured at the cut without an owner)"
                 )
     legacy = [
@@ -398,14 +867,14 @@ def check() -> dict:
 
 
 def report(result: dict) -> None:
-    print(f"2.2 records checked: {len(result['records'])}")
+    print(f"{RELEASE} records checked: {len(result['records'])}")
     for note in result["notes"]:
         print(f"  note: {note}")
     for rid, state in sorted(result["calibration"].items()):
         print(f"  calibration {rid}: {state['status']} ({state['detail']})")
     for error in result["errors"]:
         print(f"  FAIL: {error}")
-    print(f"interval coordinates (all 2.2 records): {result['intervals']}")
+    print(f"interval coordinates (all {RELEASE} records): {result['intervals']}")
 
 
 # ----------------------------------------------------------------------------- self-test
@@ -801,9 +1270,162 @@ routes = [
     return 0
 
 
+def self_test_23() -> int:
+    """Adversarial ownership checks on an isolated 2.3 tree, without measurements."""
+    global ROOT, RELEASE
+    original_root, original_release, original_cai_root = ROOT, RELEASE, cai.ROOT
+    failures = []
+    with tempfile.TemporaryDirectory(prefix="intervals23_") as directory:
+        ROOT = Path(directory)
+        RELEASE = "2.3"
+        cai.ROOT = ROOT
+        def write(path: str, contents: str) -> None:
+            target = ROOT / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(contents)
+        coverage_id = "cov.synth.dag.frequentist.l95.mean0"
+        surface = "python/antecedent/synth.py"
+        write(surface, "class Result:\n    interval_status: str\n    def summarize(self):\n        return result(interval=(0, 1))\n")
+        write("crates/synth/tests/calibration.rs",
+              '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+              f'    emit("{coverage_id}");\n}}\n')
+        write("scripts/gate_calibration.sh",
+              'run_synth() {\n  cargo test --test calibration "$1" -- --ignored\n}\n'
+              'echo "== 2.3 synthetic =="\nrun_synth whole_method\n')
+        record = (
+            '[[record]]\nid = "2.3A.F1.synthetic"\nmilestone = "A"\n'
+            'status = "promoted"\ninference_claim = "point_only"\n'
+            f'candidate_coverage_records = ["{coverage_id}"]\n'
+            f'surface = ["{surface}"]\n'
+            'noninferential_interval_fields = [{name="interval_status", why="status only"}]\n'
+        )
+        write("parity/promotion_2_3.toml", record)
+        try:
+            def expect(label: str, needle: str | None) -> dict:
+                # Synthetic mutations deliberately reuse a path between checks.
+                rust_items.cache_clear()
+                result = check()
+                if needle is None and result["errors"]:
+                    failures.append(f"{label}: {result['errors']}")
+                elif needle is not None and not any(needle in error for error in result["errors"]):
+                    failures.append(f"{label}: missing {needle!r}: {result['errors']}")
+                return result
+            baseline = expect("scoped candidate allocation and typed status", None)
+            if baseline["calibration"].get("2.3A.F1.synthetic", {}).get("status") != "PENDING_CALIBRATION":
+                failures.append("unmeasured diagnostic candidate lost its pending state")
+            historical_id = "cov.synth.dag.frequentist.l95.old_method"
+            historical_source = "crates/synth/tests/historical.rs"
+            write(historical_source, '#[test]\n#[ignore = "measurement"]\nfn old_method() {\n'
+                  f'    emit("{historical_id}");\n}}\n')
+            history = (
+                'historical_coverage_records = [{id="' + historical_id + '", '
+                'harness="' + historical_source + '", test="old_method", status="failed", '
+                'measurement_commit="' + 'a' * 40 + '", failure="below unchanged precision floor"}]\n'
+                'inference_outputs = [{allocation_status="historical_measurement_failed_route_closed", '
+                'allocated_coverage_records=["' + historical_id + '"]}]\n'
+            )
+            write("parity/promotion_2_3.toml", record + history)
+            expect("failed historical emitter remains owned without release selection", None)
+            write("parity/promotion_2_3.toml", record + history.replace('status="failed"', 'status="passed"'))
+            expect("history cannot relabel passed evidence", "needs failed status")
+            write("parity/promotion_2_3.toml", record + history.replace('test="old_method"', 'test="invented"'))
+            expect("history binds actual original emitter", "no original ignored harness emitter")
+            write("parity/promotion_2_3.toml", record + history.replace(historical_id, coverage_id).replace(
+                historical_source, "crates/synth/tests/calibration.rs").replace('test="old_method"', 'test="whole_method"'))
+            expect("historical cannot hide selected obligation", "disjoint from selected")
+            write("parity/promotion_2_3.toml", record + history.replace(
+                'historical_measurement_failed_route_closed', 'frozen_harness_compiled_measurement_pending'))
+            expect("history cannot be allocated as unmeasured candidate", "explicitly failed output")
+            write("parity/promotion_2_3.toml", record + history)
+            write("parity/coverage_records.toml", '[[record]]\nid="' + historical_id + '"\n')
+            expect("failed history cannot supply passing record", "cannot be a passing licensed record")
+            write("parity/coverage_records.toml", "")
+            write("parity/promotion_2_3.toml", record)
+            multi_ids = [f"cov.synth.dag.frequentist.l95.whole_method.{label}" for label in ("mean0", "mean1", "contrast")]
+            multi_record = record.replace(f'candidate_coverage_records = ["{coverage_id}"]',
+                "candidate_coverage_records = " + json.dumps(multi_ids))
+            write("parity/promotion_2_3.toml", multi_record)
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+                  '    measure("whole_method", ["mean0", "mean1", "contrast"]);\n}\n')
+            expect("composed multi-effect candidate IDs retain exact test ownership", None)
+            write("parity/promotion_2_3.toml", multi_record.replace(json.dumps(multi_ids), "[]"))
+            expect("multi-effect emitter without allocations remains orphaned", "without an owner")
+            write("parity/promotion_2_3.toml", multi_record.replace("l95.whole_method.", "l95.other_whole_method."))
+            expect("similar test-name substring cannot own composed IDs", "without an owner")
+            write("parity/promotion_2_3.toml", record)
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+                  f'    emit("{coverage_id}");\n}}\n')
+            write(surface, "class Result:\n    interval_status: float\n")
+            expect("numeric output cannot masquerade as a descriptor", "not a string field")
+            write(surface, "class Result:\n    interval_status: str\n    interval: tuple[float, float]\n")
+            expect("real interval needs its own route", "has no closed uncertainty route")
+            write(surface, "class Result:\n    interval_status: str\n")
+            write("parity/promotion_2_3.toml", record.replace('inference_claim = "point_only"', 'inference_claim = "calibrated"'))
+            expect("candidate allocation does not license calibration", "must allocate its coverage record ids")
+            write("parity/promotion_2_3.toml", record)
+            write("scripts/gate_calibration.sh",
+                  'run_synth() {\n cargo test --test wrong_target "$1" -- --ignored\n}\n'
+                  'echo "== 2.3 synthetic =="\nrun_synth whole_method\n')
+            expect("same test name in another target is not registration", "not a registered group name")
+            write("scripts/gate_calibration.sh",
+                  'run_synth() {\n cargo test --test calibration "$1" -- --ignored\n}\n'
+                  'echo "== 2.3 synthetic =="\nrun_synth whole_method\n')
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+                  f'    // emit("{coverage_id}");\n}}\n')
+            expect("comment is not actual candidate emission", "emitted by no")
+            inherited_record = (
+                '\n[[record]]\nid="2.3A.F2.inherited"\nmilestone="A"\n'
+                'status="promoted"\ninference_claim="point_only"\n'
+                'inference_outputs=[{inherited_from_records=["2.3A.F1.synthetic"],'
+                f'inherited_coverage_records=["{coverage_id}"]}}]\n'
+            )
+            write("parity/promotion_2_3.toml", record + inherited_record)
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+                  f'    emit("{coverage_id}");\n}}\n')
+            expect("candidate inheritance names actual separate owner", None)
+            write("parity/promotion_2_3.toml", record + inherited_record.replace('"2.3A.F1.synthetic"', '"invented.owner"'))
+            expect("inherited reservation without owner refuses", "invalid owning record")
+            write("parity/promotion_2_3.toml", record + inherited_record.replace('inference_claim="point_only"', 'inference_claim="calibrated"'))
+            expect("candidate inheritance cannot license child calibration", "must allocate its coverage record ids")
+            diagnostic_record = record.replace(
+                f'candidate_coverage_records = ["{coverage_id}"]\n',
+                'diagnostic_measurement_tests = ["crates/synth/tests/calibration.rs::whole_method"]\n'
+                'inference_outputs = [{measurement_suite="crates/synth/tests/calibration.rs"}]\n',
+            )
+            write("parity/promotion_2_3.toml", diagnostic_record)
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "precision"]\nfn whole_method() {\n'
+                  '    metric("whole_method");\n}\n')
+            expect("owned precision group does not fabricate a coverage record", None)
+            write("crates/synth/tests/calibration.rs",
+                  '#[test]\n#[ignore = "measurement"]\nfn whole_method() {\n'
+                  f'    emit("{coverage_id}");\n}}\n')
+            expect("coverage cannot be concealed as a diagnostic", "noncoverage ignored suite")
+        finally:
+            ROOT, RELEASE, cai.ROOT = original_root, original_release, original_cai_root
+    if failures:
+        print("check_interval_coordinates 2.3 self-test FAILED:")
+        for failure in failures:
+            print(f" - {failure}")
+        return 1
+    print("check_interval_coordinates 2.3 self-test: ok")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if "--self-test" in argv:
-        return self_test()
+        return max(self_test(), self_test_23())
+    global RELEASE
+    if "--release" in argv:
+        index = argv.index("--release")
+        if index + 1 >= len(argv) or argv[index + 1] not in ("2.2", "2.3"):
+            print("--release requires 2.2 or 2.3")
+            return 2
+        RELEASE = argv[index + 1]
     result = check()
     if "--run-refusals" in argv:
         failures = cai.run_refusals([dict(t) for t in result["refusal_tests"]])

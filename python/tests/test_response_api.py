@@ -157,6 +157,26 @@ def test_response_curve_runs_through_public_analyze_api():
     assert not any("least-squares Kennedy nuisances" in w for w in result.support.warnings)
 
 
+def test_static_curve_labels_each_coordinate_and_scopes_its_diagnostics():
+    rng = np.random.default_rng(17)
+    treatment = rng.normal(size=400)
+    outcome = 2.0 * treatment + rng.normal(scale=0.2, size=400)
+    query = antecedent.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5])
+
+    result = antecedent.analyze({"a": treatment, "y": outcome}, query=query, graph=[("a", "y")])
+
+    cells = list(result.support.point_status)
+    assert len(cells) == 3
+    assert cells == ["supported"] * 3
+    # ``status`` stays the worst-label summary for old consumers.
+    assert result.support.status == "supported"
+    by_id = {d.id: d for d in result.support.diagnostics}
+    assert by_id["response.local_ess"].scope == "per_coordinate"
+    assert len(by_id["response.local_ess"].values) == 3
+    assert by_id["response.outcome_tail_ratio"].scope == "global"
+    assert by_id["response.conditional_density_floor_rows"].scope == "global"
+
+
 def test_heavy_tailed_outcome_warns_without_demoting_license():
     rng = np.random.default_rng(17)
     n = 400

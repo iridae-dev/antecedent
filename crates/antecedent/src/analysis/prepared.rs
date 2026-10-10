@@ -529,6 +529,7 @@ impl CheckedFunctionalEffectResponseMember {
 /// family so it shares the same checked identification and provider binding.
 #[derive(Clone, Debug)]
 pub(crate) struct CheckedAdmgResponseCurveOperation {
+    factor_snapshot_digest: [u8; 32],
     query: antecedent_core::ResponseQuery,
     grid: Arc<[f64]>,
     members: Arc<[CheckedFunctionalEffectResponseMember]>,
@@ -564,21 +565,7 @@ impl CheckedAdmgResponseCurveOperation {
             .members
             .iter()
             .map(|member| {
-                let (treatment, outcome) =
-                    member.query.functional.primary_pair().ok_or_else(|| CausalError::Compile {
-                        message: "retained ADMG response member lost its treatment/outcome roles"
-                            .into(),
-                    })?;
-                let prepared = self
-                    .fitter
-                    .prepare(
-                        data,
-                        &member.estimand,
-                        &member.identification.arena,
-                        member.identification.required_assumptions.clone(),
-                        &[treatment, outcome],
-                    )
-                    .map_err(CausalError::from)?;
+                let prepared = member.prepared.rebind_checked(data).map_err(CausalError::from)?;
                 Ok(CheckedFunctionalEffectResponseMember { prepared, ..member.clone() })
             })
             .collect::<Result<Vec<_>, CausalError>>()?;
@@ -599,6 +586,7 @@ impl CheckedAdmgResponseCurveOperation {
         }
         let mut rebound = self.clone();
         rebound.members = Arc::from(members);
+        rebound.factor_snapshot_digest = data.storage().content_digest();
         Ok(rebound)
     }
 
@@ -614,6 +602,7 @@ impl CheckedAdmgResponseCurveOperation {
             });
         }
         let mut means = Vec::with_capacity(self.members.len());
+        let mut point_status = Vec::with_capacity(self.members.len());
         let mut member_posteriors = Vec::new();
         let mut support_status = antecedent_core::SupportStatus::Supported;
         let mut support_warnings = Vec::new();
@@ -682,6 +671,11 @@ impl CheckedAdmgResponseCurveOperation {
                     mean
                 }
             };
+            point_status.push(if value.is_finite() {
+                antecedent_core::SupportStatus::Supported
+            } else {
+                antecedent_core::SupportStatus::OutsideEmpiricalSupport
+            });
             means.push(value);
             if matches!(self.inference, InferenceMode::Frequentist)
                 && value.is_finite()
@@ -757,6 +751,7 @@ impl CheckedAdmgResponseCurveOperation {
                 CausalError::from(antecedent_estimate::EstimationError::data_msg(error.to_string()))
             })?;
         support.status = support_status;
+        support.point_status = Some(Arc::from(point_status));
         support.query_region = antecedent_core::SupportRegion {
             minima: Arc::from([self.grid.iter().copied().fold(f64::INFINITY, f64::min)]),
             maxima: Arc::from([self.grid.iter().copied().fold(f64::NEG_INFINITY, f64::max)]),
@@ -784,6 +779,7 @@ impl CheckedAdmgResponseCurveOperation {
                     "general-ID functional.effect response interval is a normal interval from the \
                      front-door plug-in bootstrap SE [requested replicates, successful replicates]",
                 ),
+                scope: antecedent_core::DiagnosticScope::Global,
             });
             if scalar_intervention {
                 let (lower, upper) = freq_bounds[0];
@@ -3149,6 +3145,31 @@ impl std::ops::DerefMut for PreparedStudy {
 }
 
 impl PreparedStudy {
+    pub(crate) fn rebind_checked_bayesian_inference(
+        &self,
+        config: crate::BayesianConfig,
+    ) -> Result<Self, CausalError> {
+        let execution = match &self.execution {
+            PreparedExecution::BayesianGcomp(operation) => {
+                PreparedExecution::BayesianGcomp(operation.with_inference_config(config.clone())?)
+            }
+            PreparedExecution::BayesianBasisAte(operation) => PreparedExecution::BayesianBasisAte(
+                operation.with_inference_config(config.clone())?,
+            ),
+            _ => {
+                return Err(CausalError::Unsupported {
+                    message: "retained Bayesian inference rebind requires its checked Gaussian operation",
+                });
+            }
+        };
+        let mut next = self.clone();
+        next.execution = execution;
+        let mut analysis = next.analysis.clone();
+        analysis.inference = InferenceMode::Bayesian(config);
+        next.replace_study(analysis);
+        Ok(next)
+    }
+
     pub(crate) fn checked_program_binding(&self) -> CheckedProgramBinding<'_> {
         self.execution.program_binding()
     }
@@ -4124,8 +4145,16 @@ impl PreparedStudy {
     ) -> Result<Option<Arc<[antecedent_estimate::functional_distribution::EmpiricalDistributionFactorSnapshot]>>, CausalError>{
         let Some(operation) = self.execution.admg_response_curve() else { return Ok(None) };
         self.ensure_schema_compatible(data)?;
-        let rebound = operation.rebind(data)?;
-        let snapshots = rebound
+        // Compare the factors' actual producing snapshot, rather than the
+        // study's retained data: generic refresh can replace only the latter.
+        let rebound;
+        let current = if operation.factor_snapshot_digest == data.storage().content_digest() {
+            operation
+        } else {
+            rebound = operation.rebind(data)?;
+            &rebound
+        };
+        let snapshots = current
             .members
             .iter()
             .map(|member| member.prepared.factor_snapshot().map_err(CausalError::from))
@@ -4973,7 +5002,7 @@ impl PreparedStudy {
     ///
     /// A `TemporalDag` prepare caches this directly. A DBN posterior or a TemporalCpdag/Pag
     /// envelope caches a per-atom or per-completion result instead; this projects either
-    /// onto the same shape (see [`super::contract::full_temporal_identification`]), so an
+    /// onto the same shape (see `full_temporal_identification`), so an
     /// exported `analysis_result` artifact validates its identification against the same
     /// namespace the compiled contract already uses.
     #[must_use]
@@ -5443,7 +5472,8 @@ impl PreparedStudy {
                     },
                     diagnostics: Vec::new(),
                     warnings: Vec::new(),
-                    point_status: None,
+                    // Same single-coordinate label as the solo cell route.
+                    point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
                 },
                 assumptions: cache.identification.required_assumptions.clone(),
                 provenance_id: Arc::from("estimate.cell.aipw.retarget"),
@@ -6031,6 +6061,70 @@ impl PreparedStudy {
         self.score_table = scores;
         let data = self.analysis.data.clone();
         self.stamp(&data, result)
+    }
+
+    /// Execute the retained discrete ADMG response providers without rebuilding them.
+    pub(crate) fn execute_static_functional_retained(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let operation = self.execution.admg_response_curve().ok_or(CausalError::Unsupported {
+            message: "prepared static functional response required",
+        })?;
+        let DataInput::Tabular(data) = &self.analysis.data else {
+            return Err(CausalError::Unsupported {
+                message: "static functional tabular data required",
+            });
+        };
+        let mut result = operation.execute(data, ctx)?;
+        result.executed_contract =
+            Some(self.executed_contract(&self.analysis.data, operation.refute, None)?);
+        Ok(result)
+    }
+    /// Rebind only the empirical factor providers of the retained checked static response.
+    pub(crate) fn rebind_static_functional_data(
+        &mut self,
+        data: TabularData,
+    ) -> Result<(), CausalError> {
+        self.ensure_schema_compatible(&data)?;
+        let operation = self
+            .execution
+            .admg_response_curve()
+            .ok_or(CausalError::Unsupported {
+                message: "prepared static functional response required",
+            })?
+            .rebind(&data)?;
+        let mut study = self.analysis.clone();
+        study.data = DataInput::Tabular(data);
+        self.replace_study(study);
+        self.execution = PreparedExecution::AdmgResponseCurve(operation);
+        Ok(())
+    }
+
+    /// Refresh only a DML/DR nuisance configuration, retaining the checked causal query.
+    /// The adapter has already checked that graph/query/regime/schema identities are unchanged.
+    pub(crate) fn refresh_dr_configuration(
+        &mut self,
+        data: TabularData,
+        spec: crate::estimator_spec::EstimatorSpec,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        use crate::strategy_table::EstimatorId;
+        if !matches!(spec.id(), EstimatorId::Dml | EstimatorId::DrLearner)
+            || self.analysis.estimator != Some(spec.id())
+            || !matches!(self.execution, PreparedExecution::OrdinaryDispatch)
+            || self.analysis.identification_cache.is_none()
+        {
+            return Err(CausalError::Unsupported {
+                message: "DML/DR configuration refresh requires the same checked estimator family",
+            });
+        }
+        self.analysis.estimator_spec_identity =
+            Some(super::contract_identity::estimator_spec_identity(&spec));
+        self.analysis.overlap_policy = spec.propensity_overlap();
+        self.analysis.estimator_spec = Some(spec);
+        self.program_cache = std::sync::OnceLock::new();
+        self.refresh(data, ctx)
     }
 
     /// Second-click / background refute: replace validation on a prior estimate.
@@ -8654,6 +8748,7 @@ impl Study {
                     });
                 }
                 Some(CheckedAdmgResponseCurveOperation {
+                    factor_snapshot_digest: data.storage().content_digest(),
                     query: query.clone(),
                     grid: Arc::from(grid),
                     members: Arc::from(members),

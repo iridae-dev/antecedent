@@ -34,6 +34,8 @@ reason. An unmapped one is an error (a gap on a `frozen` record). Works for any 
     python3 scripts/check_limits_agreement.py             # check the tree
     python3 scripts/check_limits_agreement.py --strict    # documentation gaps also fail
     python3 scripts/check_limits_agreement.py --self-test # synthetic disagreements must fail
+    python3 scripts/check_limits_agreement.py --release 2.3 # exact full 2.3 record IDs
+    python3 scripts/check_limits_agreement.py --release 2.3 --self-test
 
 Environment: LIMITS_AGREEMENT_ROOT (tree to read, default the repo; used by the self-test).
 """
@@ -1169,6 +1171,22 @@ def check(
 
 
 def main(argv: list[str]) -> int:
+    if "--release" in argv:
+        index = argv.index("--release")
+        if index + 1 >= len(argv) or argv[index + 1] not in ("2.2", "2.3"):
+            print("--release must be 2.2 or 2.3")
+            return 1
+        if argv[index + 1] == "2.3":
+            from check_limits_2_3 import check as check_2_3
+            from check_limits_2_3 import self_test as self_test_2_3
+            if "--self-test" in argv:
+                return self_test_2_3()
+            errors, checked = check_2_3(ROOT)
+            for error in errors:
+                print(f"FAIL: {error}")
+            if not errors:
+                print(f"2.3 limits agreement PASS: {len(checked)} exact-record bounds")
+            return int(bool(errors))
     if "--self-test" in argv:
         return self_test()
     strict = "--strict" in argv

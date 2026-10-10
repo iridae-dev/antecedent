@@ -18,45 +18,48 @@ workspace = true
 
 [features]
 default = []
+calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal"]
 ml-gbdt = ["antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent-estimate/ml-neural"]
 
 [dependencies]
-antecedent-core = { version = "2.2.0", path = "../antecedent-core" }
-antecedent-data = { version = "2.2.0", path = "../antecedent-data" }
-antecedent-discovery = { version = "2.2.0", path = "../antecedent-discovery" }
-antecedent-estimate = { version = "2.2.0", path = "../antecedent-estimate" }
-antecedent-expr = { version = "2.2.0", path = "../antecedent-expr" }
-antecedent-graph = { version = "2.2.0", path = "../antecedent-graph" }
-antecedent-identify = { version = "2.2.0", path = "../antecedent-identify" }
-antecedent-io = { version = "2.2.0", path = "../antecedent-io" }
-antecedent-prob = { version = "2.2.0", path = "../antecedent-prob" }
-antecedent-stats = { version = "2.2.0", path = "../antecedent-stats" }
-antecedent-validate = { version = "2.2.0", path = "../antecedent-validate" }
-antecedent-model = { version = "2.2.0", path = "../antecedent-model" }
-antecedent-learn = { version = "2.2.0", path = "../antecedent-learn" }
-antecedent-counterfactual = { version = "2.2.0", path = "../antecedent-counterfactual" }
-antecedent-attribution = { version = "2.2.0", path = "../antecedent-attribution" }
-antecedent-design = { version = "2.2.0", path = "../antecedent-design" }
-antecedent-state = { version = "2.2.0", path = "../antecedent-state" }
-antecedent-kernels = { version = "2.2.0", path = "../antecedent-kernels" }
+antecedent-core = { version = "2.3.0", path = "../antecedent-core" }
+antecedent-data = { version = "2.3.0", path = "../antecedent-data" }
+antecedent-discovery = { version = "2.3.0", path = "../antecedent-discovery" }
+antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate" }
+antecedent-expr = { version = "2.3.0", path = "../antecedent-expr" }
+antecedent-graph = { version = "2.3.0", path = "../antecedent-graph" }
+antecedent-identify = { version = "2.3.0", path = "../antecedent-identify" }
+antecedent-io = { version = "2.3.0", path = "../antecedent-io" }
+antecedent-prob = { version = "2.3.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.3.0", path = "../antecedent-stats" }
+antecedent-validate = { version = "2.3.0", path = "../antecedent-validate" }
+antecedent-model = { version = "2.3.0", path = "../antecedent-model" }
+antecedent-learn = { version = "2.3.0", path = "../antecedent-learn" }
+antecedent-counterfactual = { version = "2.3.0", path = "../antecedent-counterfactual" }
+antecedent-attribution = { version = "2.3.0", path = "../antecedent-attribution" }
+antecedent-design = { version = "2.3.0", path = "../antecedent-design" }
+antecedent-state = { version = "2.3.0", path = "../antecedent-state" }
+antecedent-kernels = { version = "2.3.0", path = "../antecedent-kernels" }
 thiserror = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+blake3 = { workspace = true }
 
 [dev-dependencies]
+antecedent = { version = "2.3.0", path = ".", features = ["calibration-internal"] }
 criterion.workspace = true
 ciborium = { workspace = true }
-antecedent-identify = { version = "2.2.0", path = "../antecedent-identify", features = ["test-util"] }
+antecedent-identify = { version = "2.3.0", path = "../antecedent-identify", features = ["test-util"] }
 # The calibration harness and lifecycle tests measure the closed X4 interval estimator.
-antecedent-estimate = { version = "2.2.0", path = "../antecedent-estimate", features = ["calibration-internal"] }
-antecedent-io = { version = "2.2.0", path = "../antecedent-io", features = ["calibration-internal"] }
+antecedent-estimate = { version = "2.3.0", path = "../antecedent-estimate", features = ["calibration-internal"] }
+antecedent-io = { version = "2.3.0", path = "../antecedent-io", features = ["calibration-internal"] }
 # The X3 joint-sensitivity calibration harness measures the closed endpoint bootstrap.
-antecedent-validate = { version = "2.2.0", path = "../antecedent-validate", features = ["calibration-internal"] }
+antecedent-validate = { version = "2.3.0", path = "../antecedent-validate", features = ["calibration-internal"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }
-serde_json = { workspace = true }
 
 [[example]]
 name = "ate_quickstart"

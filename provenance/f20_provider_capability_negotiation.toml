@@ -1,0 +1,17 @@
+feature_id = "f20_provider_capability_negotiation"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Exact-operation set membership at an independently retained request identity; no numerics.
+papers = []
+implementation_deviations = [
+  "A missing operation is never inferred from another operation or a provider label. A sampling approximation of a CDF or quantile needs its own licensed method and error/replicate receipt, which this route does not grant.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/src/external.rs",
+  "crates/antecedent-io/tests/external_binding_wire.rs",
+]

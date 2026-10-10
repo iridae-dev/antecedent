@@ -1,0 +1,17 @@
+feature_id = "f2_external_scientific_providers"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A typed declaration contract, not an estimator: no provider numerics run here.
+papers = []
+implementation_deviations = [
+  "Declares what a foreign provider object supplies (law, posterior, signal, evidence, utility) with stable identity and exact-request fingerprint; it verifies no numerical truth and grants no causal or interval claim.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-core/src/external.rs",
+  "crates/antecedent-io/tests/external_binding_wire.rs",
+]

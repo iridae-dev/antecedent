@@ -1,0 +1,34 @@
+feature_id = "b4_nonlinear_mediation"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Natural direct and indirect effects of a binary treatment through a continuous mediator with
+# a Gaussian linear mediator model and a polynomial outcome model in the mediator, computed by
+# the mediation formula with Gauss-Hermite quadrature over the mediator residual law, a
+# quadrature error check (n versus 2n nodes), an overlap check and a seeded bootstrap SE.
+# DOIs are omitted because they were not resolved here.
+papers = [
+  { title = "Direct and Indirect Effects (Proceedings of the Seventeenth Conference on Uncertainty in Artificial Intelligence, 2001)", sections = ["Definition of the natural direct and indirect effects and the mediation formula under the cross-world independence and sequential ignorability assumptions"] },
+  { title = "A General Approach to Causal Mediation Analysis (Psychological Methods 15(4), 2010)", sections = ["Identification of average causal mediation effects under sequential ignorability and their estimation from fitted mediator and outcome models by averaging over the mediator law"] },
+  { title = "Handbook of Mathematical Functions (Abramowitz and Stegun, 1964)", sections = ["Section 25.4: Gauss-Hermite integration, nodes as roots of the Hermite polynomial and their weights"] },
+]
+
+implementation_deviations = [
+  "Claim policy: the licensed claim is the POINT natural direct, indirect and total effects. The bootstrap standard error is a reported diagnostic with calibration 'unmeasured' and interval status 'closed_calibration_unmeasured'; no interval is produced and no coverage record is allocated.",
+  "Only natural direct and indirect effects are open. The interventional (randomized-intervention) direct and indirect effects (VanderWeele, Vansteelandt and Robins 2014 style) that tolerate treatment-induced mediator-outcome confounders are CLOSED: the estimand refuses with nonlinear_mediation.interventional_effects_closed rather than being approximated. A declared treatment-induced mediator-outcome confounder refuses natural-effect estimation.",
+  "The mediator law is a homoscedastic Gaussian linear model fitted by OLS; the outcome is a polynomial of degree at most 4 in the mediator with treatment interaction. Misspecification of either model is not diagnosed beyond reported residual skewness and excess kurtosis, and the paper's semiparametric generality is not reproduced.",
+  "Quadrature nodes come from Newton iteration on the Hermite recurrence (not the Golub-Welsch eigenvalue method); weights are normalised to sum to one. The effect is computed at n and 2n nodes and refused (nonlinear_mediation.integration_error) when they differ by more than the declared fraction of the outcome sd; the check bounds quadrature error only, not model error.",
+  "Cross-world independence, sequential ignorability and the absence of treatment-induced confounding are assumptions the caller declares; each is recorded as declared, never as verified. Overlap (the cross-world mediator law inside the treated arm's observed mediator range) is checked and refused when violated beyond a declared bound.",
+  "Artifact replay limits: the artifact embeds the data rows (capped) and the consumer refits and recomputes bit for bit; a changed data, config or premise is refused even when resealed.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/nonlinear_mediation.rs",
+  "crates/antecedent-io/tests/nonlinear_mediation_artifact.rs",
+  "python/tests/test_nonlinear_mediation.py",
+]

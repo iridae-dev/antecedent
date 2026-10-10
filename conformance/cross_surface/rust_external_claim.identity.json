@@ -1,0 +1,116 @@
+{
+  "causal_contract_id": "checked-contract",
+  "graph_id": "graph-1",
+  "identification": "nonparametrically_identified",
+  "quantities": [
+    {
+      "version": 1,
+      "variable_id": "y",
+      "variable_name": "y",
+      "role": "outcome",
+      "units": "mmHg",
+      "population_id": "target",
+      "regime_id": "do(a=0)",
+      "horizon": 0,
+      "functional_id": "mean",
+      "conditioning": [],
+      "transform_id": "identity"
+    },
+    {
+      "version": 1,
+      "variable_id": "y",
+      "variable_name": "y",
+      "role": "outcome",
+      "units": "mmHg",
+      "population_id": "target",
+      "regime_id": "do(a=1)",
+      "horizon": 0,
+      "functional_id": "mean",
+      "conditioning": [],
+      "transform_id": "identity"
+    },
+    {
+      "version": 1,
+      "variable_id": "y",
+      "variable_name": "y",
+      "role": "outcome",
+      "units": "mmHg",
+      "population_id": "target",
+      "regime_id": "do(a=2)",
+      "horizon": 0,
+      "functional_id": "mean",
+      "conditioning": [],
+      "transform_id": "identity"
+    }
+  ],
+  "provider_id": "lab",
+  "object_id": "curve",
+  "version_id": "v3",
+  "snapshot_id": "snap-9",
+  "request_id": "req-1",
+  "values_blake3": "5b26e0565116882002ee53127e087383701350735d04b09a0ffe7972476feaac",
+  "trust": "externally_attested",
+  "point_status": [
+    "supported",
+    "supported",
+    "outside_empirical_support"
+  ],
+  "uncertainty_method": null,
+  "evidence_ids": [
+    "factor:z"
+  ],
+  "assumption_ids": [
+    "ignorability"
+  ],
+  "equivalence_ids": [],
+  "lineage": [
+    {
+      "id": "contract:checked-contract",
+      "stage": "causal_contract",
+      "parents": [],
+      "digest": "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf",
+      "parent_digests": []
+    },
+    {
+      "id": "evidence:factor:z",
+      "stage": "evidence",
+      "parents": [
+        "contract:checked-contract"
+      ],
+      "digest": "fefe49837d0cd34618e84e8837070ba73610e6ade7b075606c84ba5f0fb64601",
+      "parent_digests": [
+        "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf"
+      ]
+    },
+    {
+      "id": "provider:external:lab/curve@v3#snap-9",
+      "stage": "external_provider",
+      "parents": [
+        "evidence:factor:z"
+      ],
+      "digest": "01e0bacd3a25263c2f5bd056924f89399dbad9ebb4e9189cdf9d77a32044c707",
+      "parent_digests": [
+        "fefe49837d0cd34618e84e8837070ba73610e6ade7b075606c84ba5f0fb64601"
+      ]
+    },
+    {
+      "id": "claim",
+      "stage": "claim",
+      "parents": [
+        "contract:checked-contract",
+        "provider:external:lab/curve@v3#snap-9"
+      ],
+      "digest": "bd4fc5f11a1b6d55fcd8876f5e591cc1abbfd6e83cf6c354d0e24caae74ac940",
+      "parent_digests": [
+        "7a399d764a7dede806e14aa43fea5d76af05c2ac4e3f0d72924deea45ebba1bf",
+        "01e0bacd3a25263c2f5bd056924f89399dbad9ebb4e9189cdf9d77a32044c707"
+      ]
+    }
+  ],
+  "provider_meaning": "interventional_predictive",
+  "capabilities": [
+    "mean"
+  ],
+  "provider_fingerprint": "06e689c45fc51c9df811df837eb7a1d53fb6ab05564f0644584708f6716a63c7",
+  "verification": null
+}

@@ -1,0 +1,24 @@
+feature_id = "c3_source_projection"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Original artifact consumers reconstruct each projection from retained full original bytes. Affine utilities use the original contract engine at exact semantic quantities. A selected AffineFunctional retains the full original contract and evaluates only its named action; unrelated unsupported coordinates do not become supported. Native bundle resolution requires an opaque receipt from actual original checked estimation; standalone decoding cannot import execution authority.", "Reuses original source artifact decoders and original contract evaluation; no new statistical method, nonlinear transform or native authority import."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/source_projection.rs", "python/tests/test_source_projection.py"]
+work_package = "C3.1"
+algorithm_provenance = ["provenance/c3_source_projection.toml"]
+parity_registry = "parity/promotion_2_3.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "c3.source_projection.source_projection_original_native_mean_and_affine_utility_match_independent_truth.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Original linear SCM Y=1+2A+.2X with balanced X, interventions1/2; original external attested means3/5; action utilitiesA=2*mean0-1 andB=mean1/2."
+expected_values = "Native/external means3/5; affine utilitiesA5/B2.5; selected A remains5 when B has original weak-overlap standing, while selected B and full-contract output refuse; full-source replay refuses resealed numeric/source/snapshot/coordinate/dependency mutations; three projection nodes require one actual checked execution."
+tolerance = "absolute1e-4 native means; exact affine arithmetic, original identities and execution counts"
+calibration = "point_only_original_unmeasured_no_new_interval_or_joint_coverage"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "c3.source_projection.test_source_projection_fresh_process_requires_actual_original_raw_data_execution.artifact"
+provider_trust = "original_native_source_unverified_on_import; external_attestation_retained"
+exact_request_verification = "actual_original_PreparedStudy_execution_full_source_comparison_required_for_native_bundle_resolution"

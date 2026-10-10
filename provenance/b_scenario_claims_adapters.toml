@@ -1,0 +1,34 @@
+feature_id = "b_scenario_claims_adapters"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Adapters from the real 2.2 scenario results (ScenarioSetReport, WeightedScenarioReport and
+# CpdagScenarioReport) into the decision atoms and identified-set utilities the 2.3 decision
+# adapters consume. Each scenario becomes one atom that keeps its status, declared weight and
+# support; each CPDAG completion becomes one unweighted atom; an identified set becomes one interval
+# per action by interval arithmetic over the action's inputs. This is a composition contract that
+# reads existing results and records a source identity, not a statistical method. papers = [] is an
+# explicit judgment: it is original engineering, no paper introduces it, and the decision rules it
+# feeds (maximin, minimax regret, Bayes) are carried by the 2.3 structural-decision records. The
+# scenario and completion enumerations carry their own citations in the 2.2 records that produce
+# them.
+papers = []
+
+implementation_deviations = [
+  "Mass is never renormalized: the weights of a weighted report are used as declared, unidentified and unevaluated scenarios keep their mass as separate atoms, and a truncated completion enumeration becomes one unevaluated atom carrying the count of unread completions. Invariance and worst-case claims are left unchecked while any scenario is unresolved.",
+  "Completion counts are never probabilities: a CPDAG report yields unweighted graph-dependent atoms only, and a Bayes policy over a report with no declared weights, or over completion counts, refuses. Declared weights are used only when the report is a weighted report.",
+  "An identified set covers identified scenarios only; unidentified or unevaluated scenarios, a truncated enumeration and a weighted report whose outcome domain is unbounded with unaccounted mass refuse to give an interval, and each interval is plain interval arithmetic over the action's inputs, with no probabilistic reading. Scenario support and every utility input must be bound by the caller; an action input bound to no outcome the scenarios evaluate refuses.",
+  "The conversion records the source identity it read (scenario ids, a content digest of each scenario's status, weight and law, and the premises and data digests the caller retained) and a conversion given an expected source refuses when any of them changed. The policy must be the contract's declared one. The conversion does not verify that the 2.2 report itself is correct.",
+  "Python delegates the conversion, identity and every refusal to the Rust core; the adapters introduce no calibrated, interval-coverage or probability claim. All standard errors and diagnostics, where a downstream report carries them, remain unmeasured.",
+  "Supplied uncertainty endpoint propagation requires the same scientific quantity across all actions: separate marginal intervals have no joint coverage contract and refuse. Duplicate interval coordinates also refuse. Estimated identified bounds remain descriptive interval arithmetic over multiple inputs; independent affine-endpoint fixtures verify both readings without collecting coverage.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/decision_claims.rs",
+  "python/tests/test_scenario_decision.py",
+]

@@ -1,0 +1,33 @@
+feature_id = "b4_vector_treatment"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Joint ordinary-least-squares coefficients of k >= 2 treatments that share one adjustment set
+# and one row snapshot, with the full k x k coefficient covariance (model-based sigma^2 (X'X)^-1
+# or the HC0-HC3 sandwiches), contrast variances w' V w, a joint Wald statistic and Holm-adjusted
+# contrast p-values. DOIs are omitted because they were not resolved here.
+papers = [
+  { title = "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity (Econometrica 48(4), 1980)", sections = ["The heteroskedasticity-consistent sandwich covariance estimator, used here as HC0"] },
+  { title = "Some Heteroskedasticity-Consistent Covariance Matrix Estimators with Improved Finite Sample Properties (Journal of Econometrics 29(3), 1985)", sections = ["The finite-sample variants of the sandwich estimator, used here as HC1, HC2 and HC3"] },
+  { title = "Tests of Statistical Hypotheses Concerning Several Parameters When the Number of Observations Is Large (Transactions of the American Mathematical Society 54(3), 1943)", sections = ["The Wald statistic: a quadratic form of the coefficients in the inverse of their covariance, referred to a chi-square distribution"] },
+  { title = "A Simple Sequentially Rejective Multiple Test Procedure (Scandinavian Journal of Statistics 6(2), 1979)", sections = ["The step-down procedure used for Holm-adjusted contrast p-values"] },
+]
+
+implementation_deviations = [
+  "Claim policy: the licensed claim is the POINT values (the coefficient vector and the declared contrast estimates). Every standard error, covariance entry, Wald statistic, raw and Holm p-value is a reported diagnostic with calibration coordinate 'unmeasured' (Type I error, power and coverage are not collected in 2.3); no interval is produced and no coverage record is allocated.",
+  "The p-values are asymptotic (standard normal and chi-square) and are applied to finite samples without any small-sample correction beyond the HC1-HC3 weights themselves; the HC weights are used as in the cited estimators but their finite-sample behaviour is not measured here. A cluster-robust covariance is deliberately not offered. HC2 and HC3 refuse (vector_treatment.leverage_one) when an observation has leverage one.",
+  "Design checks are stricter than a plain OLS routine: mismatched adjustment sets, row snapshots or row counts across treatments, a constant treatment, a collinear treatment and a rank-deficient adjustment block all refuse with a typed detail instead of dropping a column.",
+  "Artifact replay limits: a model-based fit embeds only X'X, X'y and the residual sum of squares and the consumer recomputes coefficients and the full covariance from them bit for bit; a robust (HC) fit needs the rows and embeds them, capped at 4096 rows (vector_treatment.hc_replay_row_cap_exceeded). A robust covariance cannot be replayed from the summary (vector_treatment.summary_model_based_only).",
+  "The regression-coefficient estimate is not an identification statement: the caller owns that the shared adjustment set is valid.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/vector_treatment.rs",
+  "crates/antecedent-io/tests/vector_treatment_artifact.rs",
+  "python/tests/test_vector_treatment.py",
+]

@@ -15,6 +15,7 @@ pub mod divergence;
 pub mod error;
 pub mod faer_backend;
 pub mod fdr;
+pub mod fit_counts;
 pub mod gam;
 pub mod glm;
 pub mod gram;

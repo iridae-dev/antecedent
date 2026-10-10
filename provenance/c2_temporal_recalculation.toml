@@ -1,0 +1,22 @@
+feature_id = "c2_temporal_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = [
+  "For a DAG with root S0 and selection only into S0, invariant remaining mechanisms make source P(S0,Y|do(A1,A2)) conditional on supported S0 invariant. Existing general ID checks the actual observational source intervention joint; a binder relabels only actual observational leaves to the real source regime while preserving all algebra. Dividing that checked joint by the positive source S0 marginal and mixing the supplied target S0 law identifies the target response. The exact native source expression/root and bound executable expression/root are exported and independently replayed from raw whole units. New intervention sequence/data invalidates required mechanism work; compatible initial law and utility changes reuse source factors/proof. Bound5-node source identification is fixed-input preflight/postcheck, not an incrementally charged generic search. Whole-unit bootstrap interval is a separate unmeasured internal candidate; public dependent inference remains closed.",
+  "Retention is original engineering over existing identified/numerical engines; no imported estimator theorem or coverage guarantee is asserted. Whole-method measurement and public inference activation remain separate gates.",
+  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; final changed-surface evidence and installed normal-wheel acceptance remain release prerequisites. No general-model or simultaneous interval guarantee is inherited.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/temporal_recalc_calibration.rs",
+  "crates/antecedent/tests/recalc_temporal.rs",
+  "python/tests/test_recalc_temporal.py",
+  "conformance/recalculation/temporal_history/expected.json",
+  "conformance/recalculation/temporal_history/README.md",
+  "crates/antecedent-io/src/measured_inference.rs",
+  "python/tests/test_measured_inference.py",
+]

@@ -26,9 +26,11 @@ from ._views import (
     TemporalMediationSliceView,
     ValidationView,
 )
+from .coordinates import response_coordinates
 from .provider import ProviderAnalysisResult
 from .response import (
     CausalResponseView,
+    IntervalInterpretation,
     ResponseEnvelopeView,
     ResponseUncertainty,
     ResponseValidationCheck,
@@ -37,6 +39,8 @@ from .response import (
     SimultaneousBand,
     SupportDiagnostic,
     SupportReport,
+    SupportStatus,
+    UncertaintyKind,
 )
 
 #: Shared analyze() result. Both classes implement :class:`ResultAPI`
@@ -78,4 +82,8 @@ __all__ = [
     "SimultaneousBand",
     "SupportDiagnostic",
     "SupportReport",
+    "SupportStatus",
+    "UncertaintyKind",
+    "IntervalInterpretation",
+    "response_coordinates",
 ]

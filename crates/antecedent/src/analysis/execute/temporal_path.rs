@@ -1940,6 +1940,7 @@ impl super::Study {
                      has_bounds, lower_or_zero, upper_or_zero, …]; \
                      transforms apply to deterministic propagated means, not stochastic draws",
                 ),
+                scope: antecedent_core::DiagnosticScope::Global,
             }],
             warnings: vec![Diagnostic::new(
                 "response.temporal.sequence_joint_support_unassessed",
@@ -4806,6 +4807,7 @@ fn apply_temporal_observation_result(
         detail: Arc::from(
             "minimum positive weight, maximum weight, and Kish effective sample size; weights are diagnostic only and were already incorporated into the pseudo-outcome",
         ),
+        scope: antecedent_core::DiagnosticScope::Global,
     });
     response.support.warnings.push(Diagnostic::new(
         "response.observation_joint_uncertainty_unavailable",
@@ -5183,6 +5185,7 @@ fn apply_class_observation_bootstrap(
                 "requested, completed class-band, cancellation, and attempted counts; the \
                  class band is withheld; atoms retain per-completion circular-block bands",
             ),
+            scope: antecedent_core::DiagnosticScope::Global,
         });
         Ok(false)
     }
@@ -5342,6 +5345,7 @@ fn apply_tuple_bootstrap_band(
             f64::from(bootstrap.attempted),
         ]),
         detail: Arc::from(source.counts_detail()),
+        scope: antecedent_core::DiagnosticScope::Global,
     });
 }
 

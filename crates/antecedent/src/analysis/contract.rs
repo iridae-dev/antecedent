@@ -883,11 +883,48 @@ impl PreparedStudy {
         artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, CausalError> {
+        self.encode_contracted_result_with_quantity_labels(result, artifact_id, ctx, None)
+    }
+
+    /// Encode an executed response with explicitly declared measurement semantics.
+    /// Native response structure determines variable, regime, horizon and functional;
+    /// the caller declares units, population and transform. Coordinates are included
+    /// in the checked result digest before sealing its claim.
+    ///
+    /// # Errors
+    /// The ordinary contracted-result errors, absent response or undescribed coordinates.
+    pub fn encode_contracted_result_with_quantity_labels(
+        &self,
+        result: &StudyResult,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+        labels: Option<&antecedent_core::ResponseCoordinateLabels<'_>>,
+    ) -> Result<Vec<u8>, CausalError> {
+        let quantities = labels
+            .map(|labels| {
+                let response = result.response.as_ref().ok_or_else(|| CausalError::Compile {
+                    message: "scientific coordinates require a native response".into(),
+                })?;
+                antecedent_core::response_coordinates(
+                    response,
+                    &|id| {
+                        self.schema()
+                            .variables()
+                            .get(id.as_usize())
+                            .map(|variable| variable.name.to_string())
+                    },
+                    labels,
+                )
+                .map_err(|refusal| CausalError::Compile {
+                    message: format!("{}: {}", refusal.code, refusal.detail),
+                })
+            })
+            .transpose()?;
         let (mut contract, payloads) = self.contract_and_payloads_for_result(result)?;
         // Bind the reuse layers before the claim: the claim id covers the seal,
         // and the seal covers every advertised identity.
         let reuse = self.bind_reuse(&mut contract, result)?;
-        let (claim, body) = result.claim_with_body(&contract, ctx)?;
+        let (claim, body) = result.claim_with_body(&contract, ctx, quantities.as_deref())?;
         let execution = execution_identity_from_context(ctx);
         let section =
             contract.section_from_payloads(&payloads, Some(&claim), Some(&execution), &reuse)?;
@@ -1072,7 +1109,7 @@ impl StudyResult {
         contract: &CausalContract,
         ctx: &ExecutionContext,
     ) -> Result<ClaimEnvelope, CausalError> {
-        Ok(self.claim_with_body(contract, ctx)?.0)
+        Ok(self.claim_with_body(contract, ctx, None)?.0)
     }
 
     /// Claim plus the exact result body its id digests.
@@ -1086,6 +1123,7 @@ impl StudyResult {
         &self,
         contract: &CausalContract,
         ctx: &ExecutionContext,
+        quantities: Option<&[antecedent_core::ScientificQuantity]>,
     ) -> Result<(ClaimEnvelope, AnalysisResultWire), CausalError> {
         // A claim seals the result under the contract's identities, so the result must
         // prove which contract it ran under. An unstamped result (a plain `Study::run`, a
@@ -1103,7 +1141,18 @@ impl StudyResult {
                 detail: "result was not executed under this contract",
             });
         }
-        let body = body_for(&contract.body, self)?;
+        let mut body = body_for(&contract.body, self)?;
+        if let Some(quantities) = quantities {
+            let response = body.response.as_mut().ok_or_else(|| CausalError::Compile {
+                message: "scientific coordinates require an exported response".into(),
+            })?;
+            response.coordinates = Some(
+                quantities
+                    .iter()
+                    .map(antecedent_io::quantity_wire::ScientificQuantityWire::from)
+                    .collect(),
+            );
+        }
         let mut reasoning = result_reasoning(self, &contract.reasoning, &body)?;
         if let (SlotAvailability::Available(slot), Some(status)) =
             (&mut reasoning.identification, contract.body.identification_status)

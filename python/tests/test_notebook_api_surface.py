@@ -1,12 +1,7 @@
 """Every `antecedent` symbol the README-linked notebooks use must still exist.
 
-The notebooks are the top of the funnel and are not executed by CI (they need
-matplotlib/pandas and a kernel). A deleted-or-moved name therefore survives in
-them silently: a namespace freeze left a mid-cell
-`antecedent.discover_pc(...)` call behind that no gate caught, because import
-lines were checked and attribute accesses were not.
-
-This resolves, without executing anything, every dotted `antecedent.…` path and
+The execution smoke suite checks notebook results. This complementary check
+resolves every dotted `antecedent.…` path and
 every `from antecedent[.…] import …` name appearing in the notebooks' code cells.
 """
 
@@ -62,7 +57,7 @@ def test_notebook_first_code_cell_installs_antecedent_when_missing(nb):
     first = next(c for c in cells if c.get("cell_type") == "code")
     src = "".join(first["source"])
     assert 'find_spec("antecedent")' in src
-    assert "pip" in src and "antecedent>=1.11.0,<1.12" in src
+    assert "pip" in src and "antecedent>=2.3.0,<2.4" in src
     assert "sys.version_info" in src
 
 

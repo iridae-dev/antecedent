@@ -37,7 +37,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::contract_section::CalibrationSlotWire;
 use crate::coverage_records_data::{
-    ATTESTING_RECORD_IDS, CoverageGridPoint, CoverageRecord, RECORDS,
+    ATTESTING_RECORD_IDS, CoverageGridPoint, CoverageRecord, FUNCTIONAL_IDENTITY_ALIASES,
+    FunctionalIdentityAlias, RECORDS,
 };
 
 /// No interval was reported.
@@ -190,6 +191,14 @@ pub struct CalibrationBasisWire {
 
 impl CalibrationKeyWire {
     fn same_construction(&self, record: &CoverageRecord) -> bool {
+        self.same_construction_with_aliases(record, FUNCTIONAL_IDENTITY_ALIASES)
+    }
+
+    fn same_construction_with_aliases(
+        &self,
+        record: &CoverageRecord,
+        aliases: &[FunctionalIdentityAlias],
+    ) -> bool {
         record.query == self.query
             && record.graph_class == self.graph_class
             && record.structure == self.structure
@@ -200,8 +209,22 @@ impl CalibrationKeyWire {
             && record.se_kind == self.se_kind
             && record.dependence == self.dependence
             && record.posterior == self.posterior
-            && record.functional == self.functional
+            && functional_matches(record, &self.functional, aliases)
     }
+}
+
+fn functional_matches(
+    record: &CoverageRecord,
+    functional: &str,
+    aliases: &[FunctionalIdentityAlias],
+) -> bool {
+    record.functional == functional
+        || aliases.iter().any(|alias| {
+            alias.record_id == record.id
+                && alias.measurement_sha == record.calibration_sha
+                && alias.original_functional == record.functional
+                && alias.canonical_functional == functional
+        })
 }
 
 /// Calibration slot of one reported interval (secondary list empty).
@@ -452,6 +475,47 @@ mod tests {
                 posterior_draws: None,
                 unidentified_mass: 0.0,
             },
+        }
+    }
+
+    #[test]
+    fn functional_alias_is_bound_to_exact_original_record_identity() {
+        let measured = record("cov.a");
+        let alias = FunctionalIdentityAlias {
+            record_id: measured.id,
+            measurement_sha: measured.calibration_sha,
+            original_functional: measured.functional,
+            canonical_functional: "canonical_recovery_functional",
+        };
+        assert!(functional_matches(&measured, alias.canonical_functional, &[alias]));
+        assert!(functional_matches(&measured, measured.functional, &[]));
+        assert!(!functional_matches(&measured, "foreign_functional", &[alias]));
+        assert!(!functional_matches(&record("cov.foreign"), alias.canonical_functional, &[alias]));
+        let mut changed = measured;
+        changed.calibration_sha = "foreign_measurement";
+        assert!(!functional_matches(&changed, alias.canonical_functional, &[alias]));
+        changed = measured;
+        changed.functional = "changed_original_functional";
+        assert!(!functional_matches(&changed, alias.canonical_functional, &[alias]));
+        let mut actual = basis();
+        actual.key.functional = alias.canonical_functional.into();
+        assert!(actual.key.same_construction_with_aliases(&measured, &[alias]));
+        assert!(!actual.key.same_construction_with_aliases(&measured, &[]));
+        for axis in 0..10 {
+            let mut incompatible = actual.clone();
+            match axis {
+                0 => incompatible.key.query = "foreign".into(),
+                1 => incompatible.key.graph_class = "foreign".into(),
+                2 => incompatible.key.structure = "foreign".into(),
+                3 => incompatible.key.modality = "foreign".into(),
+                4 => incompatible.key.inference = "foreign".into(),
+                5 => incompatible.key.estimator = "foreign".into(),
+                6 => incompatible.key.interval_method = "foreign".into(),
+                7 => incompatible.key.se_kind = "foreign".into(),
+                8 => incompatible.key.dependence = "foreign".into(),
+                _ => incompatible.key.posterior = "foreign".into(),
+            }
+            assert!(!incompatible.key.same_construction_with_aliases(&measured, &[alias]));
         }
     }
 

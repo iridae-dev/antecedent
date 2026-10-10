@@ -1,0 +1,40 @@
+feature_id = "c3_composition_bundle"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A portable composed result: a typed directed acyclic graph (fifteen node kinds) whose nodes are
+# either embedded artifacts a consumer decodes and verifies itself or references that need a
+# supplied provider or data source, whose edges carry the Merkle digest of the upstream node, bound
+# by one bundle identity. The digest construction is a hash DAG (each link digest covers the link
+# id, its stage and the digests of its parents; the existing composition-provenance chain) over
+# per-node content digests, in the manner of any Merkle DAG or content-addressed store.
+# papers = [] is an explicit judgment: no paper introduces this container, the graph checks or the
+# claim labelling, and the per-node verification is delegated to each artifact's own consumer, whose
+# records carry their own citations.
+papers = []
+
+implementation_deviations = [
+  "Claim policy: the bundle is point-only. It certifies that embedded artifacts decode and recompute and that the declared bindings hold; it grants no causal, interval, coverage or probability license. Every uncertainty diagnostic carried inside an embedded artifact keeps that artifact's own status (calibration 'unmeasured' where it declares so).",
+  "The digests are BLAKE3 throughout (node content digest, link digest over id, stage and parent digests, bundle identity). The chain is a Merkle DAG over dependency order, not a balanced Merkle tree: it gives tamper evidence along dependency edges, not logarithmic inclusion proofs. A changed upstream identity changes the digest of every dependent node and of the bundle.",
+  "A node digest binds an embedded node's bytes by their BLAKE3 hash and a reference node's declared identity, requirement, facts and inspected values. An embedded node's facts are never taken from producer-written text: each verifier publishes them from the decoded artifact's fields, and the claim label (point_only_attested or joint_draw) is derived from ancestor facts, never from bytes.",
+  "A reference node is verified only as 'matched a supplied source': a consumer-supplied provider (provider, snapshot and exact request fingerprint) or data digest is compared with the node's declaration. It is NEVER replayed, never claimed to have been replayed, and its declared inspected numbers are kept for inspection but are not verified values. A bundle never claims that a serialized result recreates an executable study.",
+  "External mean decisions are point-only attested: a decision resting on an external mean is labelled point_only_attested and the external trust stays 'externally_attested' unless the exact-request verification receipt is retained. Joint-draw decisions retain the aligned-law requirement: a decision that needs an aligned joint law over a mean-only upstream claim fails the dependent node at unsupported_law.",
+  "A consumer holding no retained expected bundle identity checks only internal consistency; a resealed forgery passes only under the forger's own identity, so the consumer passes the identity it retained independently of the bytes. Container, version, size and count bounds are checked before any decode allocation.",
+  "A node-level failure does not refuse the bundle: the node is reported failed at a named stage and the rest of the bundle keeps its inspected result. Graph defects (blank or repeated node, dangling or repeated edge, self-dependency, cycle) and a digest that differs from its recomputation share the edge_digest_mismatch stage.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/composition_bundle.rs",
+  "crates/antecedent/tests/composition_facade.rs",
+  "python/tests/test_composition_bundle.py",
+  "crates/antecedent/tests/recalc_dr.rs",
+  "python/tests/test_recalc_dr.py",
+]
+
+# Additive independently consumed receipt and frozen-score nodes bind the actual producing
+# snapshot/fit identity. Historical counts are inspectable records, not executable state.

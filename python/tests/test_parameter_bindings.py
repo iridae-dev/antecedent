@@ -436,3 +436,82 @@ def test_controls_reaches_plan():
         ant.analyze(
             data, query=query, graph=graph, controls=transport.TransportControls(cancel=token)
         )
+
+
+def _response_with_coordinates(**metadata):
+    rng = np.random.default_rng(411)
+    a = rng.normal(size=160)
+    data = {"a": a, "y": 2.0 * a + rng.normal(scale=0.1, size=160)}
+    return ant.analyze(
+        data,
+        query=ant.ResponseCurve("a", "y", grid=[-0.5, 0.0, 0.5]),
+        graph=[("a", "y")],
+        bootstrap=0,
+        refute="none",
+        **metadata,
+    )
+
+
+def test_outcome_units_reaches_plan():
+    base = _response_with_coordinates(outcome_units="kg")
+    declared = _response_with_coordinates(outcome_units="lb")
+    assert _bound(base, "outcome_units") != _bound(declared, "outcome_units")
+    assert {quantity.units for quantity in declared.quantities} == {"lb"}
+    np.testing.assert_array_equal(base.response.values, declared.response.values)
+    assert base.program_id == declared.program_id
+
+
+def test_quantity_population_reaches_plan():
+    base = _response_with_coordinates(outcome_units="kg")
+    declared = _response_with_coordinates(outcome_units="kg", quantity_population="clinic")
+    assert _bound(base, "quantity_population") != _bound(declared, "quantity_population")
+    assert {quantity.population_id for quantity in declared.quantities} == {"clinic"}
+    np.testing.assert_array_equal(base.response.values, declared.response.values)
+    assert base.program_id == declared.program_id
+
+
+def test_quantity_transform_reaches_plan():
+    base = _response_with_coordinates(outcome_units="kg")
+    declared = _response_with_coordinates(outcome_units="kg", quantity_transform="log")
+    assert _bound(base, "quantity_transform") != _bound(declared, "quantity_transform")
+    assert {quantity.transform_id for quantity in declared.quantities} == {"log"}
+    np.testing.assert_array_equal(base.response.values, declared.response.values)
+    assert base.program_id == declared.program_id
+
+
+def test_dose_units_reaches_plan():
+    from antecedent import decision
+    from antecedent.errors import CausalValueError
+
+    mg = _response_with_coordinates(outcome_units="kg", dose_units="mg")
+    grams = _response_with_coordinates(outcome_units="kg", dose_units="g")
+    assert mg.program_binding.dose_units == "mg"
+    assert grams.program_binding.dose_units == "g"
+    assert mg.program_binding.identity != grams.program_binding.identity
+    np.testing.assert_array_equal(mg.response.values, grams.response.values)
+    assert mg.program_id == grams.program_id
+    assert mg.claim_id == grams.claim_id
+    low, _, high = mg.quantities
+    contract = decision.Contract(
+        (
+            decision.Action("low", (low,), decision.x(0)),
+            decision.Action("high", (high,), decision.x(0)),
+        ),
+        "kg",
+        decision.Criterion.expected_utility(),
+        "target",
+    )
+    assert contract.evaluate(mg).selected == contract.evaluate(grams).selected == ("high",)
+    with pytest.raises(CausalValueError, match="requires outcome_units"):
+        _response_with_coordinates(dose_units="mg")
+    with pytest.raises(CausalValueError, match="static ResponseCurve"):
+        _analyze(outcome_units="kg", dose_units="mg")
+
+
+def test_loaded_scalar_result_has_no_implicit_empirical_msm_authority():
+    from antecedent.errors import CausalTypeError
+
+    live = _analyze()
+    loaded = ant.load(live.export())
+    with pytest.raises(CausalTypeError, match="AverageEffect analysis result"):
+        loaded.msm_sensitivity(data=_data(), lambda_max=2.0)

@@ -1020,6 +1020,33 @@ impl CoverageTally {
         self.emit_record(true, "named_boundary");
     }
 
+    /// Canonical emitter identity of this bound tally, for allocation checks.
+    /// Returns `None` until the first actual producer has supplied its construction.
+    pub fn record_id(&self) -> Option<String> {
+        let record = self.record.as_ref()?;
+        let construction = record.construction.as_ref()?;
+        // A nominal level is in [0, 1], so the rounded percentage is in [0, 100].
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "a nominal level is in [0, 1], so the rounded percentage is in [0, 100]"
+        )]
+        let level_pct = (self.level * 100.0).round() as u32;
+        let mut id = format!(
+            "cov.{}.{}.{}.{}.l{level_pct}.{}",
+            snake(&construction.query),
+            snake(&construction.graph_class),
+            construction.inference.to_ascii_lowercase(),
+            construction.interval_method,
+            record.key.test
+        );
+        if let Some(label) = &record.label {
+            id.push('.');
+            id.push_str(&sanitize_label(label));
+        }
+        Some(id)
+    }
+
     fn emit_record(&self, boundary: bool, role: &str) {
         self.emit_record_as(boundary, role, None);
     }
@@ -1040,25 +1067,7 @@ impl CoverageTally {
         } else {
             format!("{file}::{}", record.key.dgp)
         };
-        // A nominal level is in [0, 1], so the rounded percentage is in [0, 100].
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "a nominal level is in [0, 1], so the rounded percentage is in [0, 100]"
-        )]
-        let level_pct = (self.level * 100.0).round() as u32;
-        let mut id = format!(
-            "cov.{}.{}.{}.{}.l{level_pct}.{}",
-            snake(&construction.query),
-            snake(&construction.graph_class),
-            construction.inference.to_ascii_lowercase(),
-            construction.interval_method,
-            record.key.test
-        );
-        if let Some(label) = &record.label {
-            id.push('.');
-            id.push_str(&sanitize_label(label));
-        }
+        let id = self.record_id().expect("bound record identity");
         let rate = self.rate();
         let attempts = self.attempts();
         let mut payload = serde_json::json!({

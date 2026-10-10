@@ -357,3 +357,105 @@ fn estimator_level_records_key_the_facade_construction() {
         );
     }
 }
+
+fn assert_owned_static_construction(study: &Study, result: &StudyResult, owner: &str) {
+    let reported = constructions(&study.inspect().unwrap(), result);
+    assert!(
+        reported.iter().any(|(key, scope)| {
+            key.query == "AverageEffect"
+                && key.graph_class == "Dag"
+                && key.structure == "fixed"
+                && key.inference == "Frequentist"
+                && key.estimator == owner
+                && key.interval_method == "analytic_se"
+                && key.dependence == "iid"
+                && scope.row_count == u64::try_from(N).unwrap()
+        }),
+        "missing actual scientific owner {owner}: {reported:?}"
+    );
+    assert!(result.estimate.ate.is_finite());
+    assert!(result.estimate.se_analytic.is_finite() && result.estimate.se_analytic > 0.0);
+}
+
+#[test]
+fn checked_score_learner_calibration_owners_execute_all_static_coordinates() {
+    let (data, _) = backdoor_data(7);
+    let context = ExecutionContext::for_tests(82_019);
+    for (owner, spec) in [
+        ("dml", antecedent::EstimatorSpec::from(antecedent_estimate::DmlAte::new())),
+        ("dr.learner", antecedent::EstimatorSpec::from(antecedent_estimate::DrLearner::new())),
+        (
+            "causal.forest",
+            antecedent::EstimatorSpec::from(
+                antecedent_estimate::CausalForest::new().with_n_trees(40),
+            ),
+        ),
+    ] {
+        for accepted in [false, true] {
+            for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+                let builder = if accepted {
+                    Study::tabular(data.clone())
+                        .graph(antecedent::AcceptedGraph::from(backdoor_dag()))
+                } else {
+                    Study::tabular(data.clone()).graph(backdoor_dag())
+                };
+                let study = builder
+                    .query(ate_query())
+                    .estimator(spec.clone())
+                    .refute(suite)
+                    .build()
+                    .unwrap();
+                let result = study.run(&context).unwrap();
+                assert_owned_static_construction(&study, &result, owner);
+                let prepared = study.prepare(&context).unwrap();
+                let replay = prepared.estimate(&data, &context).unwrap();
+                assert_eq!(replay.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+                assert_eq!(
+                    replay.estimate.se_analytic.to_bits(),
+                    result.estimate.se_analytic.to_bits()
+                );
+                if suite != RefuteSuite::None {
+                    assert!(!result.refutations.is_empty());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn checked_frontdoor_functional_calibration_owner_executes_all_static_coordinates() {
+    let context = ExecutionContext::for_tests(14);
+    for discrete in [false, true] {
+        let data = frontdoor_functional_data(14, discrete);
+        for accepted in [false, true] {
+            for suite in [RefuteSuite::None, RefuteSuite::Cheap, RefuteSuite::Full] {
+                let builder = if accepted {
+                    Study::tabular(data.clone())
+                        .graph(antecedent::AcceptedGraph::from(frontdoor_dag()))
+                } else {
+                    Study::tabular(data.clone()).graph(frontdoor_dag())
+                };
+                let study = builder
+                    .query(continuous_query())
+                    .identifier(IdentifierId::Frontdoor)
+                    .estimator(EstimatorId::FrontDoorFunctional)
+                    .bootstrap_replicates(0)
+                    .refute(suite)
+                    .build()
+                    .unwrap();
+                let result = study.run(&context).unwrap();
+                assert_owned_static_construction(&study, &result, "frontdoor.functional");
+                let prepared = study.prepare(&context).unwrap();
+                let replay = prepared.estimate(&data, &context).unwrap();
+                assert_eq!(replay.estimate.ate.to_bits(), result.estimate.ate.to_bits());
+                assert_eq!(
+                    replay.estimate.se_analytic.to_bits(),
+                    result.estimate.se_analytic.to_bits()
+                );
+                if suite != RefuteSuite::None {
+                    assert!(!result.refutations.is_empty());
+                }
+            }
+        }
+    }
+}

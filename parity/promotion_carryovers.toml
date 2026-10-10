@@ -1,0 +1,15 @@
+version = 1
+
+# Failed obligations, not waivers. Promotion must remove the corresponding
+# disposition only after its public routes pass their own evidence gates.
+[[cell]]
+id = "2.2B.X3.joint_sensitivity_uncertainty"
+failed_gates = ["public_interval_producer", "independent_public_interval_consumer"]
+detail = "The measured internal percentile estimator is calibration-internal; the released producer and artifact have no interval path. Positive-box coverage targets the upper extremal bound, not a two-sided effect interval."
+corrective_action = "Implement the normal-build interval producer and versioned independent consumer at the exact dependence, box and endpoint coordinates; remeasure after numerical changes."
+
+[[cell]]
+id = "2.3A.X8.transported_path_specific_counterfactual"
+failed_gates = ["bounded_ctftr_derivation_and_implementation", "general_provider_and_artifact_evidence"]
+detail = "The published CTFTR counterfactual transportability theorem exists, but its bounded nested/conditional query reduction, selection-aware district transport, factor/evidence provider and replay are not implemented in this repository. The separately promoted affine-additive row does not license this general path-specific route."
+corrective_action = "Complete the dependency-ordered 2.4 general finite counterfactual transport package in ROADMAP.md: antecedent-identify leads typed query/evidence prerequisites, bounded CTFTR and district identification, exact provider and antecedent-io independent replay with Python public routes. Execute independent finite-SCM positive and two-model obstruction witnesses plus installed producer/fresh-process consumer gates; retain this route closed until its exact scope passes."

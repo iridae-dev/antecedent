@@ -1,0 +1,11 @@
+feature_id = "c2_static_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+# Original retention and exact identity binding over existing checked ADMG response and finite multi-source transport engines. Statistical and identification derivations remain owned by their existing engine provenance.
+papers = []
+implementation_deviations = ["ADMG-only static scope and strictly increasing support with at least two points are checked before numerical work. Conservative context memory checks precede provider construction; actual Cartesian CPT allocation has a one-million-cell bound. Missing exact providers retain their typed obstruction and cannot be silently skipped during resampling.", "CPTs bind original complete-case row IDs and their actual columns; unchanged factors may survive other-column refresh without stale aliases.", "Transport factors bind complete source law, population, regime, snapshot and checked proof leaves. Rebinding reuses compatible compiled programs; source mutations invalidate their factors.", "Successful executing component observers count identification, compilation, factor builds, provider binding, factor evaluation, integration and calls. Utility-only changes preserve numerical state. Results are exact finite-grid points, with no statistical uncertainty license."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/recalc_static.rs", "python/tests/test_recalc_static.py"]

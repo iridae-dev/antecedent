@@ -1,0 +1,31 @@
+feature_id = "f7_inverse_query"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A finite inverse decision query: over a caller-declared ordered action grid, find the
+# actions whose forward functional (mean, left-inverse quantile, threshold probability or a
+# utility) meets a target, reporting point, interval-region, identified-set, all-scenario and
+# posterior-probability feasibility as separate fields. It evaluates the existing forward
+# decision engine at each grid action and compares to a target; there is no paper for it.
+# papers = [] is an explicit judgment: the work is enumeration over a declared finite set,
+# with an independent finite_enumeration_baseline as the cross-check.
+papers = []
+
+implementation_deviations = [
+  "Enumeration of a declared finite grid (at most 4096 actions) in declaration order, not a search or optimization: feasibility is relative to the grid and the supplied forward claims, and an action outside the grid is unresolved, not excluded. One found grid point is never a global feasibility claim over a continuous domain, and an artifact claiming one is refused.",
+  "The frozen record declared a bounded search under antecedent_core::SearchBudget; the executed query uses a plain evaluation counter (max_evaluations). Exhaustion leaves the remaining candidates Unevaluated and sets a budget flag; it does not use SearchBudget or a cancellation hook, so no SearchBudget guarantee is inherited.",
+  "Quantile targets use the engine's left inverse inf{x : F(x) >= p}, so a level that lands exactly on an atom boundary selects that atom; a mean-only source never satisfies a probability or quantile target, and independent marginals refuse a nonlinear utility inversion (engine refusals pass through).",
+  "Feasibility fields are kept distinct and none is derived from another; scenario posterior feasibility requires genuine probabilities and unevaluated or unidentified atoms keep their mass and block a scenario claim rather than being renormalized away. No coverage or calibration claim is made.",
+  "The artifact stores premises and data under separate digests and replays the status table through the engine; it embeds laws and mean grids and refuses a probability attached to a mean grid.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/inverse_query.rs",
+  "crates/antecedent-design/tests/inverse_query_artifact.rs",
+  "python/tests/test_inverse_query.py",
+]

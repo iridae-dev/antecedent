@@ -1,0 +1,39 @@
+feature_id = "b3_mechanism_discrepancy"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A two-sample Wald comparison of the linear conditional mechanism of one node given its parents
+# between an independent source sample and an independent target sample: OLS fits from sufficient
+# statistics (X'X, X'y, y'y), the quadratic form W = d' (V_s + V_t)^-1 d referred to chi-square,
+# per-coefficient z statistics with a Holm step-down adjustment, and minimal detectable
+# differences (z_{1-alpha/2} + z_{power}) se. The quadratic-form test is Wald's; the
+# two-sample comparison of regression coefficients through the summed covariance of independent
+# fits is textbook material with no single primary paper, so only the two procedures that are
+# named precisely are cited. Everything around them (comparability contract, refusal of shared
+# units, the artifact and its recomputing consumer) is original engineering.
+papers = [
+  { title = "Tests of statistical hypotheses concerning several parameters when the number of observations is large", sections = ["Wald statistic for a general hypothesis on several parameters: the quadratic form of the estimator deviation in the inverse covariance, with its chi-square limit"] },
+  { title = "A simple sequentially rejective multiple test procedure", sections = ["Holm's step-down procedure: the adjusted p-values reported per compared coefficient"] },
+]
+
+implementation_deviations = [
+  "Claim policy: the statistic, degrees of freedom, p-values, Holm-adjusted p-values, standard errors and minimal detectable differences are diagnostics labelled calibration 'unmeasured' (inference claim asymptotic_wald_calibration_unmeasured). Wald's chi-square limit is asymptotic and is not checked for size or power at finite samples here; no interval, coverage or invariance license is granted.",
+  "Non-rejection never certifies invariance: non_rejection_certifies_invariance is false on every result, and the minimal detectable differences are attached so a non-rejection reads as 'differences smaller than these were not detectable'. The minimal detectable difference is the closed-form two-sided single-coefficient normal value at the observed standard error, with no multiplicity adjustment.",
+  "The covariance of the coefficient difference is the SUM of the two OLS covariance matrices sigma^2 (X'X)^-1, which is valid only for independent samples; declared shared units or an unknown dependence refuse (mechanism_discrepancy.dependence_unknown) rather than being corrected.",
+  "The mechanism is a linear conditional mean with homoscedastic Gaussian-theory standard errors: a shift in a nonlinear or higher-moment feature of the mechanism may go undetected, and heteroscedasticity-robust covariances are not offered. The test informs only a selection node on the node itself.",
+  "Comparability is declared, never inferred: both samples must declare the same node, parent set, units and protocol id, and a blank unit or id refuses (mechanism_discrepancy.incomparable_measurements). Parent order is irrelevant to the test.",
+  "Holm is applied over the compared coefficients only (the intercept is included only when its comparison is declared); a population that fits its mechanism exactly, a rank-deficient design or fewer than two residual degrees of freedom refuse.",
+  "The mechanism_discrepancy_v1 artifact embeds the summary statistics X'X, X'y and y'y of each population and the consumer recomputes the result from them; the expected identity is retained out of band, so a consumer without a retained identity checks only internal consistency and replay.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "hand-derived one-parent (x = [0,1,2,3], y_s = [1,3,2,4]) and two-parent (vector-treatment frozen data) OLS fits with df 1 and df 2 closed-form statistics",
+  "crates/antecedent-estimate/tests/mechanism_discrepancy.rs",
+  "crates/antecedent-io/tests/mechanism_discrepancy_artifact.rs",
+  "python/tests/test_mechanism_discrepancy.py",
+]

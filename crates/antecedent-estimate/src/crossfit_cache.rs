@@ -125,6 +125,7 @@ pub struct NuisanceScopeUse {
 #[derive(Default)]
 pub struct CrossfitNuisanceCache {
     entries: Mutex<Entries>,
+    learned_preparations: Mutex<Vec<crate::propensity::PreparedPropensityProblem>>,
     propensity_fits: AtomicUsize,
     propensity_reuses: AtomicUsize,
     outcome_fits: AtomicUsize,
@@ -351,5 +352,137 @@ impl OutcomeLease {
         let counter = if reused { &self.cache.outcome_reuses } else { &self.cache.outcome_fits };
         counter.fetch_add(1, Ordering::AcqRel);
         note_use(None, Some(self.entry.id), &self.cache);
+    }
+}
+
+/// Reuse exact physical row/design bindings only inside the explicitly active scoped cache.
+pub(crate) fn share_learner_preparation(
+    problem: crate::propensity::PreparedPropensityProblem,
+) -> crate::propensity::PreparedPropensityProblem {
+    let cache = ACTIVE.with(|scope| scope.borrow().as_ref().map(|scope| Arc::clone(&scope.cache)));
+    let Some(cache) = cache else {
+        return problem;
+    };
+    let Ok(mut entries) = cache.learned_preparations.lock() else {
+        return problem;
+    };
+    if let Some(existing) =
+        entries.iter().find(|existing| same_learner_preparation(existing, &problem))
+    {
+        return existing.clone();
+    }
+    let cost = learner_preparation_cost(&problem);
+    let Ok(mut budget) = cache.entries.lock() else {
+        return problem;
+    };
+    if entries.len() == 8 {
+        let old = entries.remove(0);
+        budget.retained = budget.retained.saturating_sub(learner_preparation_cost(&old));
+    }
+    if budget.retained.saturating_add(cost) > MAX_RETAINED_VALUES {
+        return problem;
+    }
+    budget.retained = budget.retained.saturating_add(cost);
+    entries.push(problem.clone());
+    problem
+}
+fn same_learner_preparation(
+    a: &crate::propensity::PreparedPropensityProblem,
+    b: &crate::propensity::PreparedPropensityProblem,
+) -> bool {
+    let floats = |a: &[f64], b: &[f64]| {
+        a.len() == b.len() && a.iter().zip(b).all(|(a, b)| a.to_bits() == b.to_bits())
+    };
+    a.design_ncols == b.design_ncols
+        && a.nrows == b.nrows
+        && floats(&a.design_matrix, &b.design_matrix)
+        && floats(&a.treatment, &b.treatment)
+        && floats(&a.outcome, &b.outcome)
+        && a.covariates.len() == b.covariates.len()
+        && a.covariates.iter().zip(b.covariates.iter()).all(|(a, b)| floats(a, b))
+        && a.method == b.method
+        && a.adjustment_set == b.adjustment_set
+        && a.overlap == b.overlap
+        && a.target_population == b.target_population
+        && match (&a.target_weights, &b.target_weights) {
+            (None, None) => true,
+            (Some(a), Some(b)) => floats(a, b),
+            _ => false,
+        }
+        && a.row_index == b.row_index
+        && a.treatment_id == b.treatment_id
+        && a.fold_assignment == b.fold_assignment
+        && a.fold_units == b.fold_units
+        && a.fold_unit_kind == b.fold_unit_kind
+        && a.fold_seed == b.fold_seed
+        && a.shared_design == b.shared_design
+        && a.propensity == b.propensity
+}
+
+fn learner_preparation_cost(problem: &crate::propensity::PreparedPropensityProblem) -> usize {
+    // Physical inputs and worst-case retention of eight cached OOF nuisance bundles.
+    problem.nrows.saturating_mul(problem.design_ncols.saturating_mul(2).saturating_add(64))
+}
+
+#[cfg(test)]
+mod learned_preparation_tests {
+    use super::*;
+    use crate::propensity::{PreparedPropensityProblem, PropensityNuisance};
+    use antecedent_core::{TargetPopulation, VariableId};
+    fn problem() -> PreparedPropensityProblem {
+        PreparedPropensityProblem {
+            learner_cache: Arc::default(),
+            design_matrix: Arc::from([1., 1., -1., 1.]),
+            design_ncols: 2,
+            nrows: 2,
+            treatment: Arc::from([0., 1.]),
+            outcome: Arc::from([1., 2.]),
+            covariates: Arc::from([Arc::from([-1., 1.])]),
+            method: Arc::from("backdoor"),
+            adjustment_set: Arc::from([VariableId::from_raw(2)]),
+            overlap: crate::OverlapPolicy::require_diagnostics(),
+            target_population: TargetPopulation::AllObserved,
+            target_weights: None,
+            row_index: Arc::from([0, 1]),
+            treatment_id: VariableId::from_raw(0),
+            fold_assignment: None,
+            fold_units: None,
+            fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit::Cluster,
+            fold_seed: 0,
+            shared_design: false,
+            propensity: PropensityNuisance::default(),
+        }
+    }
+    #[test]
+    fn exact_shared_inputs_reuse_but_outcomes_and_fold_units_do_not_alias() {
+        let cache = CrossfitNuisanceCache::new();
+        cache.scope(|| {
+            let a = share_learner_preparation(problem());
+            let same = share_learner_preparation(problem());
+            assert!(Arc::ptr_eq(&a.learner_cache, &same.learner_cache));
+            let mut changed = problem();
+            changed.outcome = Arc::from([1., 3.]);
+            let changed = share_learner_preparation(changed);
+            assert!(!Arc::ptr_eq(&a.learner_cache, &changed.learner_cache));
+            let mut clustered = problem();
+            clustered.fold_units = Some(Arc::from([4, 5]));
+            let clustered = share_learner_preparation(clustered);
+            assert!(!Arc::ptr_eq(&a.learner_cache, &clustered.learner_cache));
+            let mut seeded = problem();
+            seeded.fold_seed = 3;
+            let seeded = share_learner_preparation(seeded);
+            assert!(!Arc::ptr_eq(&a.learner_cache, &seeded.learner_cache));
+        });
+    }
+    #[test]
+    fn learner_preparations_share_the_existing_total_retention_budget() {
+        let cache = CrossfitNuisanceCache::new();
+        cache.entries.lock().unwrap().retained = MAX_RETAINED_VALUES;
+        cache.scope(|| {
+            let a = share_learner_preparation(problem());
+            let b = share_learner_preparation(problem());
+            assert!(!Arc::ptr_eq(&a.learner_cache, &b.learner_cache));
+        });
+        assert!(cache.learned_preparations.lock().unwrap().is_empty());
     }
 }

@@ -14,11 +14,15 @@ papers = [
 ]
 
 implementation_deviations = [
+ "The typed Python ModelDistinction declaration supplies aligned likelihood rows for all declared distinct model ids and preserves heuristic_reliability_scaled_loglik_gap / monte_carlo labels; no posterior model probabilities or Bayes factors are introduced.",
+
  "Scores heuristic candidate reliability times the mean absolute pairwise log-likelihood gap from one sampled draw; Box-Hill uses posterior model probabilities and predictive mean and variance terms to maximize expected symmetric information divergence.",
 ]
 
 upstream_implementations_observed = []
 
 test_sources = [
+ "python/tests/test_design_objectives.py (test_model_distinction_matches_independent_constant_loglik_gap)",
+
  "crates/antecedent-design/src/ranker.rs unit tests (model_distinguish_score_matches_closed_form_two_models, model_distinguish_score_zero_for_single_model)",
 ]

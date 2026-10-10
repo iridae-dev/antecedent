@@ -18,11 +18,15 @@ papers = [
  { title = "Expected value of sample information calculations in medical decision modeling", doi = "10.1177/0272989X04263162", sections = ["Monte Carlo EVSI by simulating data and updating the prior"] },
 ]
 
-implementation_deviations = []
+implementation_deviations = [
+ "The typed Python DecisionRegret declaration exposes the existing native utility callback and preposterior model through rank_designs; costs are not converted/subtracted and callable utilities have no portable artifact. Original callback failures retain their original exception cause. Native model precision remains conditional and unmeasured.",
+]
 
 upstream_implementations_observed = []
 
 test_sources = [
+ "python/tests/test_design_objectives.py (test_callable_regret_reaches_native_exact_preposterior_without_affine_restriction, test_callable_regret_preserves_native_callback_refusal)",
+
  "crates/antecedent-design/src/decision.rs unit tests",
  "crates/antecedent-design/src/ranker.rs unit tests (decision_regret_score_increases_with_design_sample_size, decision_regret_continuous_signal_is_labelled_monte_carlo, decision_regret_records_candidates_without_a_sample_size, decision_regret_refuses_unknown_and_inadmissible_problems)",
  "crates/antecedent-design/tests/value_of_information.rs",

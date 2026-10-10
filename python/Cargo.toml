@@ -20,12 +20,14 @@ workspace = true
 
 [features]
 default = ["ml-full", "ml-neural"]
+calibration-internal = ["antecedent/calibration-internal", "antecedent-io/calibration-internal", "antecedent-estimate/calibration-internal"]
 ml-gbdt = ["antecedent/ml-gbdt", "antecedent-estimate/ml-gbdt"]
 ml-forest = ["antecedent/ml-forest", "antecedent-estimate/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]
 ml-neural = ["antecedent/ml-neural", "antecedent-estimate/ml-neural"]
 
 [dependencies]
+blake3.workspace = true
 antecedent-core = { path = "../crates/antecedent-core" }
 antecedent-data = { path = "../crates/antecedent-data", features = ["arrow"] }
 antecedent = { path = "../crates/antecedent" }
@@ -44,6 +46,7 @@ antecedent-discovery = { path = "../crates/antecedent-discovery" }
 # Concrete estimator structs for the `estimator_config=` parser; the
 # `antecedent` facade re-exports `EstimatorSpec` but not the structs it wraps.
 antecedent-estimate = { path = "../crates/antecedent-estimate" }
+antecedent-learn = { path = "../crates/antecedent-learn" }
 pyo3 = { workspace = true, features = ["multiple-pymethods"] }
 arrow-array = { workspace = true }
 arrow-schema = { workspace = true }

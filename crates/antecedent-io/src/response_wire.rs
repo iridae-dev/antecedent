@@ -9,11 +9,11 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, GridSpec,
-    HorizonIdentification, IdentificationStatus, IntervalInterpretation, ObservationAssumption,
-    ObservationSpec, ResponseEnvelope, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
-    SupportStatus, TemporalNodeKey, VariableId,
+    CausalResponse, ContinuousDomain, DerivativeScale, DerivativeWeighting, DiagnosticScope,
+    GridSpec, HorizonIdentification, IdentificationStatus, IntervalInterpretation,
+    ObservationAssumption, ObservationSpec, ResponseEnvelope, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
+    SupportRegion, SupportReport, SupportStatus, TemporalNodeKey, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -559,6 +559,11 @@ pub struct SupportDiagnosticWire {
     pub id: String,
     pub values: Vec<f64>,
     pub detail: String,
+    /// `per_coordinate`, `global` or `inapplicable`. Artifacts written before
+    /// the scope existed omit it and load as `global`, which never lets a
+    /// value be read as local support.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
 }
 
 /// Complete empirical support report on the wire.
@@ -694,6 +699,25 @@ pub struct CausalResponseWire {
     /// Additive joint path: interaction contrast is structurally zero.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub interaction_structurally_zero: bool,
+    /// Optional scientific coordinate of each response value, in value order.
+    ///
+    /// Absent on artifacts written before 2.3. When present it has exactly one
+    /// descriptor per response value and consumers identify a value by its
+    /// descriptor, never by grid position or display label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coordinates: Option<Vec<crate::quantity_wire::ScientificQuantityWire>>,
+}
+
+impl CausalResponseWire {
+    /// Attach scientific coordinate descriptors, one per response value.
+    #[must_use]
+    pub fn with_coordinates(
+        mut self,
+        coordinates: Vec<crate::quantity_wire::ScientificQuantityWire>,
+    ) -> Self {
+        self.coordinates = Some(coordinates);
+        self
+    }
 }
 
 /// Encode a causal response artifact payload.
@@ -729,6 +753,7 @@ pub fn causal_response_to_wire(r: &CausalResponse) -> Result<CausalResponseWire,
                 .collect()
         }),
         interaction_structurally_zero: r.interaction_structurally_zero,
+        coordinates: None,
     })
 }
 
@@ -1022,7 +1047,7 @@ fn support_status_to_wire(status: SupportStatus) -> SupportStatusWire {
     }
 }
 
-fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
+pub(crate) fn support_status_from_wire(status: SupportStatusWire) -> SupportStatus {
     match status {
         SupportStatusWire::Supported => SupportStatus::Supported,
         SupportStatusWire::WeakOverlap => SupportStatus::WeakOverlap,
@@ -1046,6 +1071,7 @@ fn support_to_wire(s: &SupportReport) -> SupportReportWire {
                 id: d.id.to_string(),
                 values: d.values.to_vec(),
                 detail: d.detail.to_string(),
+                scope: Some(d.scope.as_str().to_owned()),
             })
             .collect(),
         warnings: s.warnings.iter().map(diagnostic_to_wire).collect(),
@@ -1065,12 +1091,21 @@ fn support_from_wire(s: &SupportReportWire) -> Result<SupportReport, IoError> {
         diagnostics: s
             .diagnostics
             .iter()
-            .map(|d| SupportDiagnostic {
-                id: Arc::from(d.id.as_str()),
-                values: d.values.clone().into(),
-                detail: Arc::from(d.detail.as_str()),
+            .map(|d| {
+                let scope = match d.scope.as_deref() {
+                    None => DiagnosticScope::Global,
+                    Some(name) => DiagnosticScope::from_name(name).ok_or_else(|| {
+                        IoError::Convert(format!("unknown diagnostic scope `{name}`"))
+                    })?,
+                };
+                Ok(SupportDiagnostic {
+                    id: Arc::from(d.id.as_str()),
+                    values: d.values.clone().into(),
+                    detail: Arc::from(d.detail.as_str()),
+                    scope,
+                })
             })
-            .collect(),
+            .collect::<Result<Vec<_>, IoError>>()?,
         warnings: s.warnings.iter().map(diagnostic_from_wire).collect::<Result<Vec<_>, _>>()?,
         point_status: s.point_status.as_ref().map(|cells| {
             cells.iter().copied().map(support_status_from_wire).collect::<Vec<_>>().into()
@@ -1212,6 +1247,7 @@ mod tests {
                     id: Arc::from("local_ess"),
                     values: Arc::from([80.0, 60.0, 20.0]),
                     detail: Arc::from("effective sample size by grid point"),
+                    scope: DiagnosticScope::PerCoordinate,
                 }],
                 warnings: vec![Diagnostic::new(
                     "support.weak_overlap",
@@ -1236,6 +1272,56 @@ mod tests {
         assert_eq!(causal_response_from_wire(&decoded).unwrap(), response);
     }
     #[test]
+    fn response_coordinates_are_additive_on_the_wire() {
+        let coordinate = |dose: &str| crate::quantity_wire::ScientificQuantityWire {
+            version: crate::quantity_wire::QUANTITY_WIRE_VERSION,
+            variable_id: "schema:y".into(),
+            variable_name: "y".into(),
+            role: "outcome".into(),
+            units: "kg".into(),
+            population_id: "target".into(),
+            regime_id: format!("do(a={dose})"),
+            horizon: 0,
+            functional_id: "mean".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let response = CausalResponseWire {
+            estimand: ResponseFunctionalWire::AverageDerivative {
+                outcome: 1,
+                treatment: 0,
+                weighting: DerivativeWeightingWire::Observed,
+            },
+            identification_status: IdentificationStatusWire::NotIdentified,
+            estimate: ResponseIdentificationWire::Unidentified { certificate: "c".into() },
+            uncertainty: ResponseUncertaintyWire::None,
+            support: SupportReportWire {
+                status: SupportStatusWire::Supported,
+                query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
+                diagnostics: vec![],
+                warnings: vec![],
+                point_status: None,
+            },
+            assumptions: vec![],
+            provenance_id: "p".into(),
+            horizon_identification: None,
+            interaction_structurally_zero: false,
+            coordinates: None,
+        };
+        let absent = serde_json::to_string(&response).unwrap();
+        assert!(!absent.contains("coordinates"));
+        let decoded: CausalResponseWire = serde_json::from_str(&absent).unwrap();
+        assert_eq!(decoded.coordinates, None);
+
+        let with = response.with_coordinates(vec![coordinate("0"), coordinate("1")]);
+        let bytes = serde_json::to_vec(&with).unwrap();
+        let decoded: CausalResponseWire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, with);
+        let ids: Vec<_> = decoded.coordinates.unwrap().into_iter().map(|c| c.regime_id).collect();
+        assert_eq!(ids, ["do(a=0)", "do(a=1)"]);
+    }
+
+    #[test]
     fn support_status_wire_spellings_are_the_core_spellings_and_stay_readable() {
         // The four earlier spellings decode as before; `missing_evidence` is additive.
         for status in [
@@ -1258,6 +1344,36 @@ mod tests {
             assert_eq!(support_status_from_wire(decoded), status);
         }
     }
+    #[test]
+    fn diagnostic_scope_round_trips_and_older_artifacts_load_as_global() {
+        let report = |scope: Option<&str>| SupportReportWire {
+            status: SupportStatusWire::Supported,
+            query_region: SupportRegionWire { minima: vec![0.0], maxima: vec![1.0] },
+            diagnostics: vec![SupportDiagnosticWire {
+                id: "d".into(),
+                values: vec![1.0],
+                detail: "x".into(),
+                scope: scope.map(str::to_owned),
+            }],
+            warnings: vec![],
+            point_status: None,
+        };
+        for scope in
+            [DiagnosticScope::PerCoordinate, DiagnosticScope::Global, DiagnosticScope::Inapplicable]
+        {
+            let loaded = support_from_wire(&report(Some(scope.as_str()))).unwrap();
+            assert_eq!(loaded.diagnostics[0].scope, scope);
+            assert_eq!(
+                support_to_wire(&loaded).diagnostics[0].scope.as_deref(),
+                Some(scope.as_str())
+            );
+        }
+        // No scope was recorded: the safe reading never implies local support.
+        let old = support_from_wire(&report(None)).unwrap();
+        assert_eq!(old.diagnostics[0].scope, DiagnosticScope::Global);
+        assert!(support_from_wire(&report(Some("local"))).is_err());
+    }
+
     #[test]
     fn credible_and_confidence_intervals_stay_distinct_on_the_wire() {
         for interpretation in [IntervalInterpretation::Confidence, IntervalInterpretation::Credible]

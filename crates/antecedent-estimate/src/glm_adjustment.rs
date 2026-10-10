@@ -345,7 +345,7 @@ impl GlmAdjustmentAte {
             .design
             .treatment_column()
             .ok_or_else(|| EstimationError::stats_msg("missing treatment column"))?;
-        let glm_fit = fit_glm(
+        let glm_fit = solve_adjustment_glm(
             problem.family,
             GlmDesignRef {
                 x_colmajor: &problem.design.matrix,
@@ -353,12 +353,10 @@ impl GlmAdjustmentAte {
                 ncols: problem.design.ncols,
                 y: &problem.design.outcome,
             },
-            &self.backend,
+            self.backend,
             &mut workspace.ols,
-            &self.glm_options.without_separation_ridge(),
-        )
-        .map_err(stats_err)?;
-        glm_fit.require_ok().map_err(stats_err)?;
+            &self.glm_options,
+        )?;
 
         let diffs = gcomp_diffs(
             problem.family,
@@ -501,7 +499,7 @@ fn include_gcomp_row(target: &TargetPopulation, t: f64) -> bool {
 }
 
 /// Response-scale derivative `dμ/dη` at `eta`.
-fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
+pub(crate) fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
     match family {
         GlmFamily::BinomialLogit => {
             let mu = 1.0 / (1.0 + (-eta).exp());
@@ -521,7 +519,7 @@ fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
 /// For canonical Bernoulli/logit and Poisson this equals `dμ/dη`. For probit the
 /// Bernoulli Fisher weight is `φ(η)² / (μ(1−μ))`, not `φ(η)`. For NB2 with log
 /// link, `V = μ + α μ²` so `w = (μ')² / V = μ / (1 + α μ)`.
-fn fisher_weight(family: GlmFamily, eta: f64, nb_alpha: f64) -> f64 {
+pub(crate) fn fisher_weight(family: GlmFamily, eta: f64, nb_alpha: f64) -> f64 {
     match family {
         GlmFamily::BinomialProbit => {
             let phi = mean_derivative(GlmFamily::BinomialProbit, eta);
@@ -541,7 +539,7 @@ fn fisher_weight(family: GlmFamily, eta: f64, nb_alpha: f64) -> f64 {
 
 /// Fitted NB2 `α`, or a moment estimate from working residuals when the fit did
 /// not report one. Non-NB families return `0.0` (ignored by callers).
-fn resolve_nb_alpha(
+pub(crate) fn resolve_nb_alpha(
     family: GlmFamily,
     fitted: Option<f64>,
     x_colmajor: &[f64],
@@ -613,33 +611,17 @@ fn gcomp_delta_method_se(
     treatment: &[f64],
     target: &TargetPopulation,
 ) -> f64 {
-    // Fisher information XᵀWX at the fitted coefficients, via a √W-scaled design copy.
-    let mut x_w = vec![0.0; nrows * ncols];
-    for r in 0..nrows {
-        let mut eta = 0.0;
-        for c in 0..ncols {
-            eta += x_colmajor[c * nrows + r] * coefficients[c];
-        }
-        let sqrt_w = fisher_weight(family, eta, nb_alpha).max(0.0).sqrt();
-        for c in 0..ncols {
-            x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
-        }
-    }
-    let Some(cov_unscaled) = crate::util::xtx_inverse(&x_w, nrows, ncols) else {
+    let Some(cov_unscaled) = adjustment_glm_covariance(
+        family,
+        x_colmajor,
+        nrows,
+        ncols,
+        coefficients,
+        deviance,
+        nb_alpha,
+    ) else {
         return f64::NAN;
     };
-    let n = nrows as f64;
-    let dispersion = match family {
-        // For Gaussian/identity the fit's deviance is the RSS.
-        GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
-        // NB2 carries α in its Fisher weight μ/(1+αμ), so (XᵀWX)⁻¹ is already the
-        // full covariance; like the other fixed-dispersion families it scales by 1.
-        GlmFamily::NegativeBinomial
-        | GlmFamily::BinomialLogit
-        | GlmFamily::BinomialProbit
-        | GlmFamily::PoissonLog => 1.0,
-    };
-
     let grad = gcomp_gradient(
         family,
         x_colmajor,
@@ -659,7 +641,61 @@ fn gcomp_delta_method_se(
             quad += grad[i] * cov_unscaled[i * ncols + j] * grad[j];
         }
     }
-    (dispersion * quad.max(0.0)).sqrt()
+    quad.max(0.0).sqrt()
+}
+
+/// Coefficient Fisher covariance shared by ordinary and retained GLM adjustment.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn adjustment_glm_covariance(
+    family: GlmFamily,
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    coefficients: &[f64],
+    deviance: f64,
+    nb_alpha: f64,
+) -> Option<Vec<f64>> {
+    // Fisher information XᵀWX at the fitted coefficients, via a √W-scaled design copy.
+    let mut x_w = vec![0.0; nrows * ncols];
+    for r in 0..nrows {
+        let mut eta = 0.0;
+        for c in 0..ncols {
+            eta += x_colmajor[c * nrows + r] * coefficients[c];
+        }
+        let sqrt_w = fisher_weight(family, eta, nb_alpha).max(0.0).sqrt();
+        for c in 0..ncols {
+            x_w[c * nrows + r] = x_colmajor[c * nrows + r] * sqrt_w;
+        }
+    }
+    let cov_unscaled = crate::util::xtx_inverse(&x_w, nrows, ncols)?;
+    let n = nrows as f64;
+    let dispersion = match family {
+        // For Gaussian/identity the fit's deviance is the RSS.
+        GlmFamily::GaussianIdentity => deviance / (n - ncols as f64).max(1.0),
+        // NB2 carries α in its Fisher weight μ/(1+αμ), so (XᵀWX)⁻¹ is already the
+        // full covariance; like the other fixed-dispersion families it scales by 1.
+        GlmFamily::NegativeBinomial
+        | GlmFamily::BinomialLogit
+        | GlmFamily::BinomialProbit
+        | GlmFamily::PoissonLog => 1.0,
+    };
+
+    Some(cov_unscaled.into_iter().map(|c| c * dispersion).collect())
+}
+
+/// Shared unpenalized adjusted GLM solve, requiring a valid finite likelihood fit.
+pub(crate) fn solve_adjustment_glm(
+    family: GlmFamily,
+    design: GlmDesignRef<'_>,
+    backend: FaerBackend,
+    workspace: &mut LeastSquaresWorkspace,
+    options: &GlmOptions,
+) -> Result<antecedent_stats::GlmFit, EstimationError> {
+    let fit = fit_glm(family, design, &backend, workspace, &options.without_separation_ridge())
+        .map_err(stats_err)?;
+    fit.require_ok().map_err(stats_err)?;
+    crate::adjustment_resume::record_model_fit();
+    Ok(fit)
 }
 
 /// G-computation SE using score-exact GLM sandwich Cov(β̂) then the same

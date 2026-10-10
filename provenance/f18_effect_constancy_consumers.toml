@@ -1,0 +1,10 @@
+feature_id = "f18_effect_constancy_consumers"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Original F18 artifact consumption verifies complete retained evidence identity and recomputes its heterogeneity and covariance-aware multiplicity-adjusted contrasts. The transport consumer returns only an original selected oriented contrast in its original family, requiring separate transport identification. The prior consumer calls the original PriorCatalog compatibility filter and rank, scoring declared source partitions by negative absolute effect distance to a declared target partition; this is explicitly data-dependent advisory preference, never automatic pooling or posterior transfer. The policy consumer supplies each original fully supported partition effect to the original affine mean decision engine using an exact declared common scientific effect coordinate, then intersects all exactly tied admissible leaders. Empty intersection is retained and no optimality/generalization guarantee is issued. Original calibration, point status, evidence identity and caveats are preserved.", "Original downstream exposure engineering over existing F18 covariance/heterogeneity and bank/decision engines, whose citations belong to their original owners. No new transport, posterior transfer, sampling or generalization theorem is asserted."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/effect_constancy_consumers.rs", "python/tests/test_effect_constancy_review.py", "conformance/population_time/effect_constancy_consumers/expected.json", "conformance/population_time/effect_constancy_consumers/README.md"]

@@ -1,0 +1,10 @@
+feature_id = "c2_external_callback_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Original external contract binding validates actual callback output against the declared scientific program. The shared dependency planner tracks bounded raw inputs, model parameters, provider implementation/environment and RNG policy. Actual provider entry is counted separately from input preparation and native estimation. Deterministic and seeded providers may retain compatible output; stateful providers execute again, unknown policies refuse, and side-effect attempts are retained separately from transactional scientific state to prevent implicit retries without an explicit supported idempotency key. Portable output contains the original attested claim, request and provider identities; fresh authority requires actual compatible provider reinvocation and comparison. No serialized callable, native identification, independent distribution or calibrated inference authority is created.", "Original executor and bounded replay engineering, not a new scientific estimator theorem; foreign attestation remains foreign attestation and measured calibration remains a separate gate."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/recalc_external.rs", "python/tests/test_recalc_external.py"]

@@ -1,0 +1,10 @@
+feature_id = "a0_sensitivity_source_lineage"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Original joint sensitivity v3 and its full checked baseline/proof/laws are independently consumed and reexecuted by the original joint sensitivity engine. Original sensitivity surface adapter recomputes and checks the complete surface before source lineage is published.", "Original stored uncertainty and declared provider assumptions remain unchanged; no new statistical method, native execution authority or calibration license."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/source_evidence.rs", "crates/antecedent/tests/joint_sensitivity_lifecycle.rs", "python/tests/test_composition_source_lineage.py"]

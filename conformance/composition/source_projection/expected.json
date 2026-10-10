@@ -1,0 +1,10 @@
+{
+  "native_means": [3.0, 5.0],
+  "external_means": [3.0, 5.0],
+  "utilities": {"A": 5.0, "B": 2.5},
+  "utility_rule": {"A": "2 * E[Y|do(a=1)] - 1", "B": "0.5 * E[Y|do(a=2)]"},
+  "utility_units": "caller_declared_utility_points",
+  "native_tolerance": 0.0001,
+  "calibration": "unmeasured",
+  "standard_error": null
+}

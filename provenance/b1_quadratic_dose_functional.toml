@@ -1,0 +1,10 @@
+feature_id = "b1_quadratic_dose_functional"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["Original finite weighted least-squares polynomial reproduction argument: for exact quadratic conditional mean, the design spans that mean for every positive fixed kernel weighting, hence level/derivative/contrast conditional expectation has zero smoothing bias. No external theorem or source code is inherited.", "Randomized IID design and exact quadratic mean are explicit caller assumptions, not authenticated from rows. Generic smoothing-bias omission and historical artifacts are unchanged.", "Residual sandwich remains a diagnostic with unmeasured repeated-sampling coverage; simultaneous bands stay closed."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent-estimate/tests/dose_grid_functional.rs", "crates/antecedent-io/tests/dose_grid_artifact.rs", "python/tests/test_dose_grid.py"]

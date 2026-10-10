@@ -15,10 +15,10 @@ use std::sync::Arc;
 
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticSeverity,
-    IdentificationStatus, ObservationAssumption, ObservationSpec, ParametricAssumption,
-    ResponseFunctional, ResponseQuery, ResponseUncertainty, SupportDiagnostic, TemporalNodeKey,
-    VariableId,
+    AssumptionStatus, CausalResponse, Diagnostic, DiagnosticKind, DiagnosticScope,
+    DiagnosticSeverity, IdentificationStatus, ObservationAssumption, ObservationSpec,
+    ParametricAssumption, ResponseFunctional, ResponseQuery, ResponseUncertainty,
+    SupportDiagnostic, TemporalNodeKey, VariableId,
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_stats::{
@@ -458,6 +458,7 @@ impl ObservationMechanismEstimator {
             detail: Arc::from(
                 "minimum positive weight, maximum weight, and Kish effective sample size; weights are diagnostic only and were already incorporated into the pseudo-outcome",
             ),
+            scope: DiagnosticScope::Global,
         });
         response.support.warnings.push(Diagnostic::new(
             "response.observation_joint_uncertainty_unavailable",

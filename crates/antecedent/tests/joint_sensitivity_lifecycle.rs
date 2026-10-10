@@ -777,3 +777,50 @@ fn a_z_transport_artifact_is_refused_by_the_mz_consumer() {
         Err(IoError::UnsupportedVersion { version: 2 })
     ));
 }
+
+#[test]
+fn source_backed_sensitivity_replays_full_original_source_and_rejects_changed_surface() {
+    use antecedent::analysis::sensitivity_source::SourceBackedSensitivity;
+    use antecedent_core::{QuantityRole, ScientificQuantity};
+    use antecedent_io::sensitivity_artifact::{ActionUtility, SensitivityArtifact, UtilityTerm};
+    let original = artifact();
+    let prepared = prepare(&builder());
+    let context = ExecutionContext::for_tests(91);
+    let result = prepared.joint_mechanism_sensitivity(&spec(), &context).unwrap();
+    let effect = ScientificQuantity {
+        variable_id: "effect".into(),
+        variable_name: "Y".into(),
+        role: QuantityRole::Outcome,
+        units: "outcome_units".into(),
+        population_id: "target".into(),
+        regime_id: "do(x=1)".into(),
+        horizon: 0,
+        functional_id: "sensitivity_surface".into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
+    };
+    let surface = SensitivityArtifact::from_joint_result(
+        &result,
+        &effect,
+        2,
+        vec![
+            ActionUtility { id: "adopt".into(), utility: UtilityTerm::quantity("effect") },
+            ActionUtility { id: "wait".into(), utility: UtilityTerm::Const(0.) },
+        ],
+        "checked-contract",
+    )
+    .unwrap();
+    let checked =
+        SourceBackedSensitivity::checked(&original.export().unwrap(), &surface, &context).unwrap();
+    let loaded = SourceBackedSensitivity::consume(&checked.export().unwrap(), &context).unwrap();
+    assert_eq!(loaded.surface(), &surface);
+    assert_eq!(loaded.summary().unwrap(), checked.summary().unwrap());
+    let mut changed = surface.parts().clone();
+    changed.quantities[0].lower[1] += 0.001;
+    let changed = SensitivityArtifact::new(changed).unwrap();
+    let error = SourceBackedSensitivity::checked(&original.export().unwrap(), &changed, &context)
+        .unwrap_err();
+    let (code, detail) = refused(&error);
+    assert_eq!(code, "invalid_argument");
+    assert_eq!(detail, "sensitivity_source.surface_mismatch");
+}

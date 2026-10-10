@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Literal, get_args
 
 if TYPE_CHECKING:
     from ..estimation import PreparedAnalysis
+    from ..msm_sensitivity import MsmResult
     from ..prediction import FittedEffectModel
     from .response import CausalResponseView
 
@@ -357,7 +358,28 @@ class ResultAPI:
         The five-line second click is ``result = analyze(...); result.refresh(new_data)``.
         A second ``analyze()`` still re-prepares. Equivalent to ``result.study.refresh``.
         """
-        return self.study.refresh(data, seed=seed, threads=threads)
+        refreshed = self.study.refresh(data, seed=seed, threads=threads)
+        binding = getattr(self, "program_binding", None)
+        if binding is not None:
+            from ..program_claims import ProgramBinding
+            from ._report import copy_model
+
+            refreshed = copy_model(
+                refreshed,
+                quantities=refreshed.response_coordinates(
+                    outcome_units=binding.outcome_units,
+                    population=binding.population_id,
+                    transform=binding.transform_id,
+                ),
+                program_binding=ProgramBinding.from_response(
+                    refreshed,
+                    outcome_units=binding.outcome_units,
+                    dose_units=binding.dose_units,
+                    population=binding.population_id,
+                    transform=binding.transform_id,
+                ),
+            )
+        return refreshed
 
     def refute(
         self,
@@ -651,6 +673,17 @@ class ResultAPI:
             )
         return float(answer.value)
 
+    def msm_sensitivity(self, *, data: Any, lambda_max: float, **options: Any) -> MsmResult:
+        """Estimate MSM bounds from an explicit finite-stratum supplemental sample.
+
+        Available for a checked binary-treatment AverageEffect. The aggregate
+        result supplies its query/adjustment set, not outcome laws; the explicit
+        sample supplies empirical laws. Sampling intervals remain withheld.
+        """
+        from ..msm_sensitivity import from_analysis
+
+        return from_analysis(self, data=data, lambda_max=lambda_max, **options)
+
     def as_response(self) -> CausalResponseView:
         """This result when it is function-valued; refuse a scalar analysis."""
         from .response import CausalResponseView
@@ -814,5 +847,13 @@ class ResultAPI:
             raise CausalUnsupportedError(
                 "This result has no retained execution artifact.",
                 reason_code="not_executed",
+            )
+        quantities = getattr(self, "quantities", None)
+        if quantities is not None:
+            import json
+
+            return execution.export_contracted_artifact(
+                artifact_id=artifact_id,
+                quantities_json=json.dumps([quantity._wire() for quantity in quantities]),
             )
         return execution.export_contracted_artifact(artifact_id=artifact_id)

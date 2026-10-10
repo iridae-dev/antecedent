@@ -86,3 +86,16 @@ def test_transported_curve_does_not_call_missing_evidence_a_support_failure():
     assert isinstance(view, CausalResponseView)
     assert tuple(view.support.point_status) == ("missing_evidence", "supported")
     assert view.support.status == "missing_evidence"
+
+
+def test_transported_curve_aligns_evidence_availability_with_each_requested_coordinate():
+    graph = Admg.from_edges(["x", "y"], [("x", "y")])
+    view = analyze(_treated_law_only(), graph=graph, query=_curve())
+    labels = tuple(view.support.point_status)
+    assert view.support.status == max(
+        labels, key=("supported", "outside_empirical_support", "missing_evidence").index
+    )
+    available = next(d for d in view.support.diagnostics if d.id == "transport.evidence_available")
+    assert available.scope == "per_coordinate"
+    assert len(available.values) == len(labels)
+    assert tuple(available.values) == (0.0, 1.0)

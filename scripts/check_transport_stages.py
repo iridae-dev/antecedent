@@ -10,10 +10,13 @@ from test_evidence import (
     resolve_python_test,
     resolve_rust_test,
 )
+from transport_replay_contract import shared_evidence_problems, source_replay_problems
 
 root = Path(__file__).resolve().parents[1]
 # An explicit registry path exists for gate self-tests; evidence still resolves in this tree.
-registry_path = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"
+registry_path = (
+    Path(sys.argv[1]) if len(sys.argv) > 1 else root / "parity/transport_stages.toml"
+)
 registry = tomllib.loads(registry_path.read_text())
 errors = []
 if registry.get("version") != 1 or registry.get("default") != "closed":
@@ -57,10 +60,22 @@ for route in registry.get("routes", []):
             errors.extend(problems)
             # A public stage route executes through its retained checked plan:
             # the cited test drops its builder, executes, and inspects the plan.
-            if not problems and name.startswith("antecedent.transport."):
+            contract = route.get("execution_contract", "retained_checked_plan")
+            if contract not in {"retained_checked_plan", "source_bound_replay"}:
+                errors.append(f"{name}: unknown execution contract {contract}")
+            elif not problems and contract == "source_bound_replay":
                 errors.extend(
                     f"{name}: {problem}"
-                    for problem in checked_execution_body_problems(closure(evidence_path, assertion), assertion)
+                    for problem in source_replay_problems(
+                        root, route, evidence_path.read_text(encoding="utf-8")
+                    )
+                )
+            elif not problems and name.startswith("antecedent.transport."):
+                errors.extend(
+                    f"{name}: {problem}"
+                    for problem in checked_execution_body_problems(
+                        closure(evidence_path, assertion), assertion
+                    )
                 )
         if (
             route.get("stage") == "identify"
@@ -68,17 +83,32 @@ for route in registry.get("routes", []):
         ):
             pinned = {
                 "antecedent.transport.advanced.identify_classical": (
-                    "complete_in_classical_evidence_scope", "classical_complete_source_experimental_family",
-                    "https://arxiv.org/abs/1312.7485v1"),
+                    "complete_in_classical_evidence_scope",
+                    "classical_complete_source_experimental_family",
+                    "https://arxiv.org/abs/1312.7485v1",
+                ),
                 "antecedent.transport.advanced.identify_meta": (
-                    "complete_in_classical_meta_evidence_scope", "classical_complete_multi_source_experimental_families",
-                    "https://proceedings.mlr.press/v31/bareinboim13a.pdf"),
+                    "complete_in_classical_meta_evidence_scope",
+                    "classical_complete_multi_source_experimental_families",
+                    "https://proceedings.mlr.press/v31/bareinboim13a.pdf",
+                ),
             }
-            if pinned.get(name) != (route.get("guarantee"), route.get("evidence"), route.get("reference")):
-                errors.append(f"{name}: completeness requires its pinned classical evidence scope")
-            path, assertion = route.get("conformance_test"), route.get("conformance_assertion")
+            if pinned.get(name) != (
+                route.get("guarantee"),
+                route.get("evidence"),
+                route.get("reference"),
+            ):
+                errors.append(
+                    f"{name}: completeness requires its pinned classical evidence scope"
+                )
+            path, assertion = (
+                route.get("conformance_test"),
+                route.get("conformance_assertion"),
+            )
             if not path or not assertion:
-                errors.append(f"{name}: completeness requires consuming Rust branch conformance")
+                errors.append(
+                    f"{name}: completeness requires consuming Rust branch conformance"
+                )
             else:
                 _, problems = resolve_rust_test(root / path, assertion)
                 errors.extend(problems)
@@ -87,16 +117,29 @@ for route in registry.get("routes", []):
 FAMILIES = {
     f"transport_{name}"
     for name in (
-        "direct_regression", "standardize_regression", "target_only", "recursive_district",
-        "negative_witness", "catalog_binding", "complementary_sources", "support_local",
-        "grid_joint_inference", "multisample_inference", "prepared_lifecycle",
-        "artifact_acceptance", "budget_refusal",
+        "direct_regression",
+        "standardize_regression",
+        "target_only",
+        "recursive_district",
+        "negative_witness",
+        "catalog_binding",
+        "complementary_sources",
+        "support_local",
+        "grid_joint_inference",
+        "multisample_inference",
+        "prepared_lifecycle",
+        "artifact_acceptance",
+        "budget_refusal",
     )
 }
 EVIDENCE_CLASSES = {
-    "external_parity", "exact_scm_truth", "internal_cross_check",
-    "theoretical_witness", "statistical_calibration",
-    "inferential_plumbing", "resampling_property",
+    "external_parity",
+    "exact_scm_truth",
+    "internal_cross_check",
+    "theoretical_witness",
+    "statistical_calibration",
+    "inferential_plumbing",
+    "resampling_property",
 }
 roles: dict[str, dict[str, tuple[str, str]]] = {}
 for row in registry.get("fixture_evidence", []):
@@ -121,21 +164,12 @@ for family in sorted(FAMILIES):
     if set(pair) != {"positive", "counterexample"}:
         errors.append(f"{family}: requires a positive and a counterexample row")
     elif pair["positive"] == pair["counterexample"]:
-        errors.append(f"{family}: one assertion cannot be both positive and counterexample")
+        errors.append(
+            f"{family}: one assertion cannot be both positive and counterexample"
+        )
 # Every licensed route owns its evidence: one assertion cited by several routes
 # proves at most one of them, so a shared citation is an error, not a warning.
-cited_by: dict[tuple[str, str], list[str]] = {}
-for route in registry.get("routes", []):
-    if route.get("status") != "licensed":
-        continue
-    key = (route.get("evidence_test", ""), route.get("evidence_assertion", ""))
-    cited_by.setdefault(key, []).append(route.get("route", "?"))
-for (path, assertion), names in sorted(cited_by.items()):
-    if len(names) > 1:
-        errors.append(
-            f"{path}::{assertion} is the sole evidence for {len(names)} routes "
-            f"({', '.join(names)}); cite a distinct assertion per route"
-        )
+errors.extend(shared_evidence_problems(registry.get("routes", [])))
 required = {
     "antecedent.transport.identify",
     "antecedent.transport.reload_lowered_expression",
@@ -144,7 +178,9 @@ if not required.issubset(seen):
     errors.append("missing current public transport stage")
 coverage_ids = {
     row.get("id")
-    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text()).get("record", [])
+    for row in tomllib.loads((root / "parity/coverage_records.toml").read_text()).get(
+        "record", []
+    )
 }
 for route in registry.get("routes", []):
     for cid in route.get("coverage") or []:

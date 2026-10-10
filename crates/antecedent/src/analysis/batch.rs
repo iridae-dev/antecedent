@@ -309,7 +309,7 @@ impl SharedBatchDesign {
     /// `problem.fold_seed` (the batch's master seed). That is the same call a solo
     /// analysis makes for the same query, seed, and rows, so it reproduces the solo
     /// fold plan bit-for-bit instead of drawing a private, unstratified shuffle that a
-    /// solo run would never draw. See [`crate::analysis::batch`] module docs.
+    /// solo run would never draw. See the batch design documentation.
     ///
     /// # Errors
     ///

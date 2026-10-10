@@ -7,11 +7,11 @@ A not-certified transport outcome is a conservative refusal, not a proof of impo
 
 | Outcome | Where to read it | Neighbor |
 | --- | --- | --- |
-| Not certified | `ident.certificate["identification_status"] == "not_certified"`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_exact.py) |
-| Theorem-scoped impossibility | `ident.certificate["identification_status"] == "proven_non_transportable"` | Combined complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/python/transport_meta_grid.py) |
+| Not certified | `ident.certificate["identification_status"] == "not_certified"`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/transport_exact.py) |
+| Theorem-scoped impossibility | `ident.certificate["identification_status"] == "proven_non_transportable"` | Combined complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/python/transport_meta_grid.py) |
 | Missing evidence | `ident.inspect().support`, `answer.kind="unavailable"` | Full vs partial catalog in the same meta-grid example |
 | Local support / positivity | `result.support` | Fixture family `transport_support_local` |
-| Uncalibrated / unavailable interval | `result.calibration`, `inspect().uncertainty` | Exact law (no interval) beside [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v2.1.0/examples/rust/transport_statistical.rs) |
+| Uncalibrated / unavailable interval | `result.calibration`, `inspect().uncertainty` | Exact law (no interval) beside [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v2.3.0/examples/rust/transport_statistical.rs) |
 | Budget exhaustion | raised `transport.identification_budget`, or a stage whose `identification_status` is `budget_cancel` | Same query under default `SidLimits`; fixture `transport_budget_refusal` |
 
 ## Not certified

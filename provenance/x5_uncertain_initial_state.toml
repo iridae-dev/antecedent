@@ -1,0 +1,30 @@
+feature_id = "x5_uncertain_initial_state"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A finite mixture over a supplied target initial-state law of the history-conditioned
+# two-step response R(s0) = sum_l P(l | s0, a1) E[y | s0, a1, l, a2] that the 2.2A.X5
+# two-step temporal transport cell already computes per state; the new work is the
+# weighted sum, the target/source labelling and a replay artifact. The sequential
+# g-formula that R(s0) specializes is the same one the 2.2A.X5 record carries. No
+# precise section of Robins (1986) is cited here because this record adds no
+# derivation of it, so papers = [] is an explicit judgment, not an unfilled field.
+papers = []
+
+implementation_deviations = [
+  "Not an implementation of a published estimator: an exact finite sum sum_{s0} P_target(s0) R(s0) over a supplied target law of at most 64 states with masses summing to one within 1e-9; R(s0) is read from the complete histories of the panel. A state with positive target mass and no history support refuses (initial_state.support_gap); zero-mass states need no support.",
+  "The initial-state law is supplied, not identified from data; a source-labelled law or a point state refuses as target evidence (initial_state.target_law_missing), and the fixed-state estimand is a separate result type with its own label.",
+  "The artifact re-evaluates both sums from the embedded law and a tally summary of the panel (counts and outcome sums per initial state and step-2 covariate cell), not from the full panel, so a coherently resealed forgery of summary, law and stored values replays; only the dependent-interval artifact embeds the full panel. Digests are non-cryptographic fingerprints.",
+  "Point-only: no sampling interval and no uncertainty in the transition model is claimed.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/temporal_initial_state.rs",
+  "crates/antecedent-io/tests/temporal_initial_state_artifact.rs",
+  "python/tests/test_temporal_extensions.py",
+]

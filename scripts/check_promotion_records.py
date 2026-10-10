@@ -1,4 +1,4 @@
-"""Validate the 2.2 promotion records (parity/promotion_2_2.toml).
+"""Validate a versioned promotion registry (2.2 or 2.3).
 
 A record freezes a cell's scientific surface before implementation. A route is
 licensed only when its record carries the evidence for it: a promoted record
@@ -85,12 +85,17 @@ from promotion_source import (
     charge_in_loop,
     closure_code,
     crate_src,
+    finite_refusal_helpers,
+    input_exception_evidence_problems,
     nontest_rust,
     pyo3_items,
     python_literals,
     python_symbols,
+    refusal_stage_literals,
     rust_literals,
     rust_pub_items,
+    shared_namespace_problems,
+    typed_input_exception_problems,
 )
 from test_evidence import (
     resolve_python_test,
@@ -108,7 +113,7 @@ root = Path(__file__).resolve().parents[1]
 # --mutation-check, proves the case stops failing when the rule is switched off).
 RULES = {
     # registry and frozen fields
-    "registry_header": "registry is version 1, release 2.2",
+    "registry_header": "registry is version 1, release matches its versioned filename",
     "frozen_field": "every frozen field is present and non-empty",
     "duplicate_record": "record ids are unique",
     "unknown_status": "status is frozen, in_progress, promoted or carried_forward",
@@ -215,6 +220,11 @@ if "--emit-evidence" in args:
     del args[at : at + 2]
 registry_path = Path(args[0]) if args else root / "parity/promotion_2_2.toml"
 registry = tomllib.loads(registry_path.read_text())
+expected_release = {"promotion_2_2.toml": "2.2", "promotion_2_3.toml": "2.3"}.get(
+    registry_path.name
+)
+if expected_release is None:
+    expected_release = "2.2"  # Synthetic self-test registries retain the 2.2 contract.
 
 DISABLED = {r for r in os.environ.get("PROMOTION_DISABLE_RULES", "").split(",") if r}
 STATIC_ONLY = os.environ.get("PROMOTION_STATIC_ONLY") == "1" or suggest
@@ -290,8 +300,8 @@ def fail(rule: str, message: str) -> None:
         errors.append(f"{message} [{rule}]")
 
 
-if registry.get("version") != 1 or registry.get("release") != "2.2":
-    fail("registry_header", "promotion registry requires version 1 and release 2.2")
+if registry.get("version") != 1 or registry.get("release") != expected_release:
+    fail("registry_header", f"promotion registry requires version 1 and release {expected_release}")
 
 
 # A surface_values type also covers the INHERENT methods and associated functions
@@ -440,13 +450,26 @@ def scan_details(namespaces: set[str]):
     for path, in_crate in source_files():
         if not path.is_file() or not hint.search(raw(path)):
             continue
-        lits = python_literals(path) if path.suffix == ".py" else rust_literals(path, in_crate=in_crate)
+        if path.suffix == ".py":
+            lits, finite_lines, stages = python_literals(path), set(), set()
+        else:
+            inferred, finite_lines = finite_refusal_helpers(path, in_crate=in_crate)
+            stages = refusal_stage_literals(path, in_crate=in_crate)
+            lits = [*rust_literals(path, in_crate=in_crate), *inferred]
         for lit in lits:
+            if (lit.line, lit.value) in stages:
+                continue
             m = shape.match(lit.value)
             if m:
-                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append((path, in_crate, lit))
+                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append(
+                    (path, in_crate, lit)
+                )
             for d in dyn.finditer(lit.value):
-                dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
+                if not (
+                    lit.line in finite_lines
+                    and lit.value == f"{d.group(1)}.{{detail}}: {{message}}"
+                ):
+                    dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
     return found, dynamic
 
 
@@ -480,7 +503,7 @@ namespaces_in_use = {
     refusal.get("detail", "").split(".")[0]
     for rec in records
     if rec.get("status") in IMPLEMENTED
-    for refusal in rec.get("refusals") or []
+    for refusal in [*(rec.get("refusals") or []), *(rec.get("input_exceptions") or [])]
     if "." in refusal.get("detail", "")
 }
 code_details, dynamic_details = scan_details(namespaces_in_use)
@@ -492,7 +515,7 @@ code_details, dynamic_details = scan_details(namespaces_in_use)
 namespace_declared: dict[str, set[str]] = {}
 for _rec in records:
     if _rec.get("status") in IMPLEMENTED:
-        for _refusal in _rec.get("refusals") or []:
+        for _refusal in [*(_rec.get("refusals") or []), *(_rec.get("input_exceptions") or [])]:
             _detail = _refusal.get("detail", "")
             if "." in _detail:
                 namespace_declared.setdefault(_detail.split(".")[0], set()).add(_detail)
@@ -611,34 +634,78 @@ for rec in records:
     for refusal in rec.get("refusals") or []:
         code, detail = refusal.get("code"), refusal.get("detail", "")
         if code not in runtime_codes:
-            fail("refusal_code", f"{rid}: refusal code {code!r} is not a registered runtime_refusal code")
+            fail(
+                "refusal_code",
+                f"{rid}: refusal code {code!r} is not a registered runtime_refusal code",
+            )
         if not refusal.get("when"):
             fail("refusal_when", f"{rid}: refusal {code!r} needs its condition")
         parts = detail.split(".")
-        if len(parts) != 2 or not all(part.replace("_", "").isalnum() and part.islower() for part in parts):
-            fail("refusal_detail_shape", f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>")
+        if len(parts) != 2 or not all(
+            part.replace("_", "").isalnum() and part.islower() for part in parts
+        ):
+            fail(
+                "refusal_detail_shape",
+                f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>",
+            )
         if detail in details:
-            fail("refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}")
+            fail(
+                "refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}"
+            )
         details.add(detail)
         detail_code.setdefault(detail, code)
     namespaces = {d.split(".")[0] for d in details}
-    if len(namespaces) > 1:
-        fail("refusal_namespace", f"{rid}: refusal details must share one namespace")
+    for problem in shared_namespace_problems(rec, records, code_details, root):
+        fail("refusal_namespace", f"{rid}: {problem}")
+    exception_details = set()
+    for entry in rec.get("input_exceptions", []):
+        for problem in typed_input_exception_problems(entry, root):
+            fail("refusal_pair_code", f"{rid}: {problem}")
+        detail = entry.get("detail", "")
+        if detail in exception_details or detail in details:
+            fail(
+                "refusal_detail_duplicate",
+                f"{rid}: duplicate exception/refusal detail {detail}",
+            )
+        exception_details.add(detail)
+        path, assertion = (
+            entry.get("evidence_test", ""),
+            entry.get("evidence_assertion", ""),
+        )
+        if not path or not assertion:
+            fail(
+                "evidence_pair",
+                f"{rid}: class-only exception needs ordinary class/absent-code assertion",
+            )
+        else:
+            problems = resolve(path, assertion)
+            for problem in problems:
+                fail("evidence_unresolved", f"{rid}: {problem}")
+            for problem in input_exception_evidence_problems(
+                entry, root / path, assertion
+            ):
+                fail("evidence_no_assertion", f"{rid}: {problem}")
+            evidence_rows.append((f"{rid}.{detail}.input_exception", path, assertion))
+    namespaces |= {d.split(".")[0] for d in exception_details}
 
     # Refusal boundary == code: once implemented, each declared detail is a
     # literal in non-test source, each namespaced literal there is declared, none
     # is built dynamically, and each (code, detail) pair is emitted by live code
     # that names the code.
-    if implemented and len(namespaces) == 1:
-        ns = next(iter(namespaces))
+    for ns in sorted(namespaces) if implemented else []:
         in_code = code_details.get(ns, {})
-        for detail in sorted(details - set(in_code)):
+        local_details = {
+            d for d in details | exception_details if d.startswith(ns + ".")
+        }
+        for detail in sorted(local_details - set(in_code)):
             fail(
                 "refusal_detail_missing",
                 f"{rid}: refusal detail {detail} is not emitted by non-test source "
-                f"(no \"{detail}\" or \"{detail}: ...\" literal in {', '.join(SOURCE_GLOBS)})",
+                f'(no "{detail}" or "{detail}: ..." literal in {", ".join(SOURCE_GLOBS)})',
             )
-        for detail in sorted(set(in_code) - details - namespace_declared.get(ns, set())):
+        for detail in sorted(
+            set(in_code) - details - namespace_declared.get(ns, set())
+        ):
             places = ", ".join(f"{rel(p)}:{lit.line}" for p, _, lit in in_code[detail])
             fail(
                 "refusal_detail_undeclared",
@@ -648,7 +715,7 @@ for rec in records:
         for place in dynamic_details.get(ns, []):
             fail(
                 "refusal_dynamic",
-                f"{rid}: dynamic refusal detail at {place} builds \"{ns}.\" from a placeholder; "
+                f'{rid}: dynamic refusal detail at {place} builds "{ns}." from a placeholder; '
                 f"a dynamic detail cannot be checked, use a literal",
             )
         for detail in sorted(details & set(in_code)):
@@ -674,8 +741,20 @@ for rec in records:
                     f"that no non-test code uses; emit it or delete it",
                 )
                 continue
+            proven_codes = {
+                lit.reason_code for _, _, lit in uses if lit.reason_code is not None
+            }
+            if proven_codes and proven_codes != {code}:
+                fail(
+                    "refusal_pair_code",
+                    f"{rid}: closed literal helper emits {sorted(proven_codes)} for {detail}, not {code}",
+                )
             spellings = (str(code), camel(str(code)), *CODE_ALIASES.get(str(code), ()))
-            named = re.compile(r"(?<![A-Za-z0-9_])(?:" + "|".join(map(re.escape, spellings)) + r")(?![A-Za-z0-9_])")
+            named = re.compile(
+                r"(?<![A-Za-z0-9_])(?:"
+                + "|".join(map(re.escape, spellings))
+                + r")(?![A-Za-z0-9_])"
+            )
             if not any(named.search(code_of(p, c)) for p, c in files.items()):
                 fail(
                     "refusal_pair_code",
@@ -1022,7 +1101,7 @@ for rec in records:
     value_types = {v for v in values if declared.get(v, ("", ""))[0] == "type"}
     for src, sym in checked:
         if sym.name in components or sym.name in values or sym.name in internal or sym.name in covers or (
-            sym.owner and f"{sym.owner}.{sym.name}" in covers
+            sym.owner and (f"{sym.owner}.{sym.name}" in covers or f"{sym.owner}.{sym.name}" in internal)
         ):
             continue
         state = value_method_state(sym, value_types)
@@ -1060,7 +1139,11 @@ for rec in records:
                 f"not a class/struct/enum; an entry point must be a route",
             )
     for name in internal:
-        matches = [s for _, s in checked if s.name == name and s.where in ("top", "method", "pyo3")]
+        matches = [
+            s for _, s in checked
+            if (s.name == name or (s.owner and f"{s.owner}.{s.name}" == name))
+            and s.where in ("top", "method", "pyo3")
+        ]
         rust_scanned = [src for src in surface_files if src.endswith(".rs")]
         if not matches:
             fail(

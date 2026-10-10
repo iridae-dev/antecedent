@@ -520,10 +520,15 @@ pub fn summarize_functional(
     table: &ScoreTable,
     weights: Option<&[f64]>,
 ) -> Result<(ScoreSummary, bool, Vec<Diagnostic>), EstimationError> {
-    let mut summary = table.summarize(weights)?;
-    let mut diagnostics = Vec::new();
-    let monotone_rearranged = rearrange_exceedance(&mut summary, table, &mut diagnostics);
-    Ok((summary, monotone_rearranged, diagnostics))
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::LawSummary,
+        || {
+            let mut summary = table.summarize(weights)?;
+            let mut diagnostics = Vec::new();
+            let monotone_rearranged = rearrange_exceedance(&mut summary, table, &mut diagnostics);
+            Ok((summary, monotone_rearranged, diagnostics))
+        },
+    )
 }
 
 /// `F_a(c) = 1 - P(Y(a) > c)` for every threshold column, in table order.
@@ -604,6 +609,27 @@ mod tests {
             treatment: VariableId::from_raw(0),
             intervened: Arc::from([]),
         }
+    }
+
+    #[test]
+    fn attempt_observer_records_actual_score_summary_and_invalid_mass() {
+        use antecedent_core::execution_attempt::{Operation, observe_execution};
+        let table = table();
+        let source_scores = table.scores.as_ptr();
+        let summarized = observe_execution(|| summarize_functional(&table, None));
+        let (summary, _, _) = summarized.result.unwrap();
+        assert!((summary.means[1] - 2.0).abs() < f64::EPSILON);
+        assert_eq!(summarized.report.counts(Operation::LawSummary).completed, 1);
+        let refused = observe_execution(|| summarize_functional(&table, Some(&[0.0; 4])));
+        assert!(refused.result.is_err());
+        assert_eq!(refused.report.counts(Operation::LawSummary).attempted, 1);
+        assert_eq!(refused.report.counts(Operation::LawSummary).failed, 1);
+        assert_eq!(refused.report.counts(Operation::LawSummary).completed, 0);
+        assert_eq!(table.scores.as_ptr(), source_scores);
+        let retry = observe_execution(|| summarize_functional(&table, None));
+        assert!((retry.result.unwrap().0.means[1] - 2.0).abs() < f64::EPSILON);
+        assert_eq!(retry.report.counts(Operation::LawSummary).completed, 1);
+        assert_eq!(retry.report.counts(Operation::LeastSquaresSolve).attempted, 0);
     }
 
     #[test]

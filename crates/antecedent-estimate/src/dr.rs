@@ -288,6 +288,7 @@ impl DrLearner {
         let fitted = factory
             .fit(fit_view, antecedent_learn::TargetView::new(&phi), None, ctx)
             .map_err(learn_err)?;
+        FINAL_EFFECT_FITS.with(|count| count.set(count.get().saturating_add(1)));
         let mut cate = vec![0.0; problem.nrows];
         fitted.predict(view, &mut cate, ctx).map_err(learn_err)?;
         let yhat = problem
@@ -865,4 +866,12 @@ mod tests {
             assert!((se[i] - var.sqrt()).abs() < 1e-10, "row {i}: {} vs {}", se[i], var.sqrt());
         }
     }
+}
+
+thread_local! { static FINAL_EFFECT_FITS:std::cell::Cell<u64>=const {std::cell::Cell::new(0)}; }
+/// Observe successful final-stage DR learner fits on this thread, including nested observers.
+pub fn count_dr_final_fits<R>(work: impl FnOnce() -> R) -> (R, u64) {
+    let before = FINAL_EFFECT_FITS.with(std::cell::Cell::get);
+    let result = work();
+    (result, FINAL_EFFECT_FITS.with(std::cell::Cell::get).saturating_sub(before))
 }

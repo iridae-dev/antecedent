@@ -307,25 +307,31 @@ fn posterior_known_sigma2(
     xty: &[f64],
     sigma2: f64,
 ) -> Result<(Vec<f64>, Vec<f64>, f64), ProbError> {
-    // Conjugate known-σ²: Cov(β|σ²) = σ² V0 (diagonal, or dense under a
-    // coefficient correlation), so `prec` = V0^{-1}. Matches [`GaussianCoefficientPrior`] docs.
-    // Λn = (V0^{-1} + X'X) / σ² ; mn = Λn^{-1} (V0^{-1} μ0 + X'y) / σ²
-    let mut lam = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            lam[i * ncols + j] = xtx[i * ncols + j] / sigma2;
-        }
-    }
-    prec.add_divided_to(&mut lam, ncols, sigma2);
-    let mut prec_mean = vec![0.0; ncols];
-    prec.mul_into(&prior.mean, &mut prec_mean);
-    let mut rhs = vec![0.0; ncols];
-    for i in 0..ncols {
-        rhs[i] = (prec_mean[i] + xty[i]) / sigma2;
-    }
-    let solved = solve_posterior_mean(&lam, ncols, &rhs)?;
-    let cov = solved.inverse();
-    Ok((solved.mean, cov, solved.condition))
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::PosteriorFit,
+        || {
+            // Conjugate known-σ²: Cov(β|σ²) = σ² V0 (diagonal, or dense under a
+            // coefficient correlation), so `prec` = V0^{-1}. Matches [`GaussianCoefficientPrior`] docs.
+            // Λn = (V0^{-1} + X'X) / σ² ; mn = Λn^{-1} (V0^{-1} μ0 + X'y) / σ²
+            let mut lam = vec![0.0; ncols * ncols];
+            for i in 0..ncols {
+                for j in 0..ncols {
+                    lam[i * ncols + j] = xtx[i * ncols + j] / sigma2;
+                }
+            }
+            prec.add_divided_to(&mut lam, ncols, sigma2);
+            let mut prec_mean = vec![0.0; ncols];
+            prec.mul_into(&prior.mean, &mut prec_mean);
+            let mut rhs = vec![0.0; ncols];
+            for i in 0..ncols {
+                rhs[i] = (prec_mean[i] + xty[i]) / sigma2;
+            }
+            let solved = solve_posterior_mean(&lam, ncols, &rhs)?;
+            let cov = solved.inverse();
+            crate::fit_counts::note_posterior_fit();
+            Ok((solved.mean, cov, solved.condition))
+        },
+    )
 }
 
 /// Posterior mean, precision factor and condition from [`solve_posterior_mean`].
@@ -421,43 +427,49 @@ fn posterior_nig(
     n_eff: f64,
     design: Option<BayesDesignRef<'_>>,
 ) -> Result<NigPosterior, ProbError> {
-    // Vn^{-1} = V0^{-1} + X'X ; mn = Vn (V0^{-1} m0 + X'y)
-    // βn = β0 + ½ [ ‖y − X mn‖² + (mn − m0)' Λ0 (mn − m0) ]
-    // Prefer residual RSS from the design (stable on uncentred y); fall back to
-    // the three-term Gram form when only moments are available.
-    let mut vn_inv = vec![0.0; ncols * ncols];
-    for i in 0..ncols {
-        for j in 0..ncols {
-            vn_inv[i * ncols + j] = xtx[i * ncols + j];
-        }
-    }
-    prec.add_divided_to(&mut vn_inv, ncols, 1.0);
-    let mut prec_mean = vec![0.0; ncols];
-    prec.mul_into(&prior.mean, &mut prec_mean);
-    let mut rhs = vec![0.0; ncols];
-    for i in 0..ncols {
-        rhs[i] = prec_mean[i] + xty[i];
-    }
-    let solved = solve_posterior_mean(&vn_inv, ncols, &rhs)?;
-    let vn = solved.inverse();
-    let (mean, condition) = (solved.mean, solved.condition);
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::PosteriorFit,
+        || {
+            // Vn^{-1} = V0^{-1} + X'X ; mn = Vn (V0^{-1} m0 + X'y)
+            // βn = β0 + ½ [ ‖y − X mn‖² + (mn − m0)' Λ0 (mn − m0) ]
+            // Prefer residual RSS from the design (stable on uncentred y); fall back to
+            // the three-term Gram form when only moments are available.
+            let mut vn_inv = vec![0.0; ncols * ncols];
+            for i in 0..ncols {
+                for j in 0..ncols {
+                    vn_inv[i * ncols + j] = xtx[i * ncols + j];
+                }
+            }
+            prec.add_divided_to(&mut vn_inv, ncols, 1.0);
+            let mut prec_mean = vec![0.0; ncols];
+            prec.mul_into(&prior.mean, &mut prec_mean);
+            let mut rhs = vec![0.0; ncols];
+            for i in 0..ncols {
+                rhs[i] = prec_mean[i] + xty[i];
+            }
+            let solved = solve_posterior_mean(&vn_inv, ncols, &rhs)?;
+            let vn = solved.inverse();
+            let (mean, condition) = (solved.mean, solved.condition);
 
-    let rss = match design {
-        Some(d) => residual_ss_from_design(d, &mean),
-        None => residual_ss_from_moments(ncols, &mean, xtx, xty, yty),
-    };
-    let prior_quad = prec.quadratic(&mean, &prior.mean);
-    let alpha_n = ig.shape + 0.5 * n_eff;
-    let beta_n = ig.scale + 0.5 * (rss + prior_quad);
-    if !(beta_n > 0.0) || !(alpha_n > 0.0) || !beta_n.is_finite() || !alpha_n.is_finite() {
-        return Err(ProbError::Numerical {
-            message: format!("invalid NIG posterior: alpha={alpha_n} beta={beta_n}"),
-        });
-    }
+            let rss = match design {
+                Some(d) => residual_ss_from_design(d, &mean),
+                None => residual_ss_from_moments(ncols, &mean, xtx, xty, yty),
+            };
+            let prior_quad = prec.quadratic(&mean, &prior.mean);
+            let alpha_n = ig.shape + 0.5 * n_eff;
+            let beta_n = ig.scale + 0.5 * (rss + prior_quad);
+            if !(beta_n > 0.0) || !(alpha_n > 0.0) || !beta_n.is_finite() || !alpha_n.is_finite() {
+                return Err(ProbError::Numerical {
+                    message: format!("invalid NIG posterior: alpha={alpha_n} beta={beta_n}"),
+                });
+            }
 
-    // Cholesky of Vn (scale matrix for β | σ²): cov(β|σ²) = σ² Vn
-    let chol = cholesky_spd(&vn, ncols)?;
-    Ok(NigPosterior { mean, scale_chol: chol, alpha_n, beta_n, condition })
+            // Cholesky of Vn (scale matrix for β | σ²): cov(β|σ²) = σ² Vn
+            let chol = cholesky_spd(&vn, ncols)?;
+            crate::fit_counts::note_posterior_fit();
+            Ok(NigPosterior { mean, scale_chol: chol, alpha_n, beta_n, condition })
+        },
+    )
 }
 
 /// Weighted residual sum of squares `Σ w_i (y_i − offset_i − x_i' m)²`.
@@ -519,6 +531,9 @@ fn draw_mvn_known_sigma(
     let mut values = vec![0.0; n_draws * ncols];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        let draw_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
+            antecedent_core::execution_attempt::Operation::PosteriorDraw,
+        );
         for j in 0..ncols {
             z[j] = standard_normal(&mut rng);
         }
@@ -530,6 +545,8 @@ fn draw_mvn_known_sigma(
             }
             values[i * n_draws + d] = acc;
         }
+        crate::fit_counts::note_posterior_draw();
+        draw_attempt.complete();
     }
     let _ = sigma2; // cov already includes σ²
     Ok(Arc::from(values))
@@ -549,6 +566,9 @@ fn draw_nig(
     let mut values = vec![0.0; n_draws * (ncols + 1)];
     let z = &mut workspace.draw_scratch[..ncols];
     for d in 0..n_draws {
+        let draw_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
+            antecedent_core::execution_attempt::Operation::PosteriorDraw,
+        );
         let sigma2 = sample_inv_gamma(alpha_n, beta_n, &mut rng);
         let sigma = sigma2.sqrt();
         for j in 0..ncols {
@@ -562,6 +582,8 @@ fn draw_nig(
             values[i * n_draws + d] = acc;
         }
         values[ncols * n_draws + d] = sigma2;
+        crate::fit_counts::note_posterior_draw();
+        draw_attempt.complete();
     }
     Ok(Arc::from(values))
 }

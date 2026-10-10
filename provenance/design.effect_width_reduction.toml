@@ -17,5 +17,11 @@ papers = []
 upstream_implementations_observed = []
 
 test_sources = [
+ "python/tests/test_design_objectives.py (test_effect_width_is_exact_gram_se_reduction_with_prospective_information)",
+
  "crates/antecedent-design/src/ranker.rs unit tests",
+]
+
+implementation_deviations = [
+ "The typed Python EffectWidth declaration preserves signed original se_before-se_after Gram arithmetic and prospective information for measurements/interventions/environments; it does not turn the SE reduction into a licensed posterior interval width.",
 ]

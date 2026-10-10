@@ -17,7 +17,12 @@ bash scripts/gate_docs_support_matrix.sh --self-test
 bash scripts/gate_composition.sh --self-test
 bash scripts/gate_transport.sh --self-test
 bash scripts/gate_promotion.sh --self-test
+python3 scripts/promotion_selftest.py --release 2.3
+python3 scripts/release_evidence_report.py --self-test
+python3 scripts/b_exit_report_cli_selftest.py
+python3 scripts/check_2_3_prerequisites.py --self-test
 python3 scripts/run_evidence_rows_selftest.py
+python3 scripts/test_calibration_groups.py
 python3 scripts/verify_wheel_matrix_selftest.py
 bash scripts/gate_release_candidate.sh --self-test
 bash scripts/gate_calibration_attestation.sh --self-test
@@ -28,6 +33,7 @@ bash scripts/gate_support_matrix.sh --self-test
 bash scripts/gate_a_exit.sh --self-test
 bash scripts/gate_b_exit.sh --self-test
 python3 scripts/check_limits_agreement.py --self-test
+python3 scripts/check_limits_agreement.py --release 2.3 --self-test
 python3 scripts/check_release_claims.py --self-test
 bash scripts/gate_graphless_support.sh --self-test
 bash scripts/gate_named_tests.sh --self-test

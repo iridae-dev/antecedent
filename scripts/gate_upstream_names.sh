@@ -56,7 +56,8 @@ def allowed(path: Path) -> bool:
     # Interop pages and their example scripts/tests exist specifically to name the
     # upstream tool they hand off to or benchmark against (black-box only; see the
     # scripts' own "do not vendor" wording).
-    if s in {"docs/examples.md", "docs/interop_dowhy.md"}:
+    # The example index names the optional integration its linked script uses.
+    if s in {"docs/examples.md", "docs/interop_dowhy.md", "examples/README.md"}:
         return True
     if s.startswith("examples/python/") and s.endswith(".py") and (
         "dowhy" in s.lower() or "pcmci" in s.lower()

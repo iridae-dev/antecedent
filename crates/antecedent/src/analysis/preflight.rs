@@ -701,7 +701,7 @@ fn dependent_columns(scan: &RankScan, names: &[String], skip: usize) -> Vec<Depe
 ///
 /// # Errors
 ///
-/// An unknown or non-numeric column, a table over [`MAX_PREFLIGHT_CELLS`], or cancellation.
+/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
 pub fn preflight_design(
     input: &PreflightInput<'_>,
     ctx: &ExecutionContext,
@@ -1068,7 +1068,7 @@ fn nearest_rank(sorted: &[f64], probability: f64) -> f64 {
 ///
 /// # Errors
 ///
-/// An unknown or non-numeric column, a table over [`MAX_PREFLIGHT_CELLS`], or cancellation.
+/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.
 pub fn fit_diagnostics_design(
     input: &PreflightInput<'_>,
     ctx: &ExecutionContext,

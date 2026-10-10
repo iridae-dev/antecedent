@@ -772,20 +772,40 @@ impl DistributionProvider for EmpiricalTableProvider {
         assignment: &Assignment,
         _ctx: &EvalContext,
     ) -> Result<f64, EvalError> {
-        // Borrowed-key lookup: no owned `FactorKey` (and its per-field `Arc`
-        // allocations) on the hot path — only the value row is assembled.
-        let values = factor_values(spec, assignment)?;
-        let intervention = canonical_interventions(spec.intervention);
-        let key = FactorKeyView {
-            variables: spec.variables,
-            conditioned_on: spec.conditioned_on,
-            intervention: &intervention,
-            domain: spec.domain,
-            population: spec.population,
-            regime: spec.regime,
-            values: &values,
-        };
-        self.tables.get(&key as &dyn FactorKeyLookup).copied().ok_or(EvalError::MissingTableEntry)
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::ProviderInvocation,
+            || {
+                crate::execution_counts::note_static_work(
+                    crate::execution_counts::StaticWork::ProviderCall,
+                );
+                crate::execution_counts::note_static_work(
+                    crate::execution_counts::StaticWork::FactorEvaluation,
+                );
+                let factor_attempt = antecedent_core::execution_attempt::OperationGuard::begin(
+                    antecedent_core::execution_attempt::Operation::FactorEvaluation,
+                );
+                // Borrowed-key lookup: no owned `FactorKey` (and its per-field `Arc`
+                // allocations) on the hot path — only the value row is assembled.
+                let values = factor_values(spec, assignment)?;
+                let intervention = canonical_interventions(spec.intervention);
+                let key = FactorKeyView {
+                    variables: spec.variables,
+                    conditioned_on: spec.conditioned_on,
+                    intervention: &intervention,
+                    domain: spec.domain,
+                    population: spec.population,
+                    regime: spec.regime,
+                    values: &values,
+                };
+                let value = self
+                    .tables
+                    .get(&key as &dyn FactorKeyLookup)
+                    .copied()
+                    .ok_or(EvalError::MissingTableEntry)?;
+                factor_attempt.complete();
+                Ok(value)
+            },
+        )
     }
 
     fn support(

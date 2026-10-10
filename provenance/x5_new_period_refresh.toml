@@ -1,0 +1,29 @@
+feature_id = "x5_new_period_refresh"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Window-identity bookkeeping: an ordered comparison of declared premises (graph, horizon,
+# lag alignment, intervention history, selection targets, regimes, proof, period, units,
+# snapshot) with a typed invalidation, a sealed receipt and a re-evaluation hook. It is
+# engineering, not a statistical method: no paper introduces it and no identification
+# theorem is claimed (the 2.2A.X5 record carries the sequence functional), so papers = []
+# is an explicit judgment, not an unfilled field.
+papers = []
+
+implementation_deviations = [
+  "Not an implementation of a published procedure: the decision is an identity comparison, and the proof is reusable only when every premise is unchanged and both the period and the snapshot are new; any other change is a typed route_not_supported invalidation. The core tests use a deterministic stand-in evaluator (mean of the snapshot's unit outcomes) to isolate the contract; the real marginalized re-evaluation is exercised through the artifact and the exact-law prepared adapter.",
+  "A refreshed result never carries an interval; the receipt records that an interval of the old window was invalidated.",
+  "The artifact re-evaluates from a tally summary of each panel (not the full panel), so a coherently resealed forgery of summaries, law, receipt and values replays. Digests are non-cryptographic FNV-style fingerprints that detect unresealed change, not an adversary.",
+  "Horizon 2 only: an appended third slice invalidates and needs its own cell. Point-only.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/temporal_refresh.rs",
+  "crates/antecedent-io/tests/temporal_refresh_artifact.rs",
+  "python/tests/test_temporal_extensions.py",
+]

@@ -21,17 +21,46 @@
 )]
 
 pub mod candidate;
+pub mod composition_boundary;
+pub mod composition_bundle;
+pub mod composition_verifiers;
 pub mod decision;
+pub mod decision_adapters;
+pub mod decision_artifact;
+pub mod decision_contract;
+pub mod decision_eval;
+pub mod decision_refusal;
+pub mod decision_robust_artifact;
+pub mod decision_robustness;
+pub mod decision_structural;
+pub mod decision_structural_artifact;
+pub mod design_ranking_artifact;
 pub mod error;
+pub mod evsi;
+pub mod functional_source;
+pub mod inverse_query;
+pub mod inverse_query_artifact;
 pub mod objective;
+pub mod obligation_adapters;
 mod plan_common;
 pub mod preposterior;
+pub mod prior_signal;
+pub mod proposal_receipt;
 pub mod ranker;
+pub mod ranking;
+pub mod repair;
+pub mod repair_artifact;
 pub mod result;
+pub mod rollout_artifact;
+pub mod sensitivity_decision;
+pub mod signal;
+pub mod study_candidate;
 pub mod study_plan_artifact;
 pub mod study_planner;
 pub mod transport_planner;
 pub mod z_transport_planner;
+pub mod z_transport_repair;
+pub use z_transport_repair::ZTransportRepairFamily;
 
 /// The plan the proposals are read from, owned by the identification crate that
 /// runs it; re-exported so the facade reaches it through the design crate.
@@ -45,6 +74,12 @@ pub use decision::{
     AffineUtility, DecisionConstraint, DecisionEvaluation, DecisionProblem, DecisionProblemId,
     Utility, evaluate_decision,
 };
+pub use decision_contract::{
+    ActionKind, DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion,
+    DecisionFunctional, HardConstraint, SourceMode, SourceRepresentation, SourceRequirement,
+    StructuralPolicy, Tail, UtilityExpr,
+};
+pub use decision_structural_artifact::StructuralResultArtifact;
 pub use error::DesignError;
 pub use objective::DesignObjective;
 pub use preposterior::{
@@ -55,7 +90,20 @@ pub use ranker::{
     EffectWidthContext, EnvironmentGramSpec, InterventionDesignEffect, MeasureColumnSpec,
     ModelLoglikDraws,
 };
+pub use repair::{
+    BackdoorRepairFamily, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
+    RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
+    TransportRepairFamily, repair,
+};
+pub use repair_artifact::{
+    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION, RepairArtifactError, RepairConsumeLimits,
+    RepairFamilyRef, RepairReportArtifact,
+};
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
+pub use study_candidate::{
+    DurableStudyCandidate, ExpectedEvidence, StudyCandidateError, StudyCostDeclaration, StudyKind,
+    UnitRules,
+};
 pub use study_plan_artifact::{
     STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION, StudyBaseFailureWire,
     StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire, StudyPlanConsumeLimits,
@@ -78,3 +126,7 @@ pub use z_transport_planner::{
     ZTransportProposalWire, ZTransportQueryWire, plan_z_transport_evidence,
     propose_z_transport_evidence, snapshot_z_transport_failure, validate_z_transport_candidate,
 };
+
+/// Independently consumed original source diagnostics and semantic mappings.
+pub mod source_evidence;
+pub mod source_projection_artifact;

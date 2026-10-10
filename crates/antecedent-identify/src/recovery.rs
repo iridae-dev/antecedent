@@ -425,6 +425,7 @@ pub struct RecoveryDerivationRecord {
 /// A checked recovery derivation. Fields are private execution authority.
 #[derive(Clone, Debug)]
 pub struct RecoveryDerivation {
+    scientific_identity: Arc<str>,
     query: ObservationRecoveryQuery,
     record: RecoveryDerivationRecord,
     arena: CausalExprArena,
@@ -504,6 +505,17 @@ impl RecoveryDerivation {
     pub fn identity(&self) -> String {
         derivation_identity(&self.record)
     }
+    /// Scientific construction identity for matching validation evidence across
+    /// source aliases. Graph, roles, checked premises, formula, effect and the
+    /// provider's row sampling/design semantics remain bound. Cross-study linkage
+    /// is irrelevant because the checked formula uses only this one provider.
+    /// Population, regime,
+    /// study, snapshot and dataset labels remain in [`Self::identity`] and the
+    /// original proof; they do not change the estimator construction.
+    #[must_use]
+    pub fn scientific_identity(&self) -> Arc<str> {
+        Arc::clone(&self.scientific_identity)
+    }
     /// The catalog descriptor of the recovered law: a derived observational joint
     /// law of the same population over `X ∪ O` with [`LawOrigin::Recovered`]
     /// provenance, traced to the observed pattern law's regime.
@@ -517,6 +529,34 @@ impl RecoveryDerivation {
         descriptor.projections = Arc::from([]);
         descriptor
     }
+}
+
+fn scientific_identity(
+    record: &RecoveryDerivationRecord,
+    observed: &CatalogDistribution,
+) -> String {
+    let mut observed = observed.clone();
+    observed.source_regime = RegimeId::from_raw(0);
+    observed.population = Arc::from("scientific_source");
+    observed.study = None;
+    observed.snapshot = None;
+    observed.dataset = None;
+    // The independent formula checker binds every margin to this one observed
+    // provider. Cross-study linkage is therefore not a premise of this
+    // construction; whole-row resampling preserves joint within-table scores.
+    // Retain the actual row sampling design (unknown/clustered are distinct).
+    observed.dependence = None;
+    let mut record = record.clone();
+    record.population = String::new();
+    record.observed_regime = 0;
+    record.observed_identity = observed.canonical_identity();
+    // Each margin's variables and formula leaf remain bound below. Its
+    // catalog identity only repeats the originating provider labels and
+    // the same semantics already retained in observed_identity.
+    for margin in &mut record.margins {
+        margin.identity = String::new();
+    }
+    format!("recovery_scientific.v1:{}", derivation_identity(&record))
 }
 
 fn derivation_identity(record: &RecoveryDerivationRecord) -> String {
@@ -1025,7 +1065,9 @@ pub fn decide_observation_recovery(
         operations_consumed: search.operations(),
         depth_reached: search.decision_depth(),
     };
+    let scientific_identity = Arc::from(scientific_identity(&record, &observed));
     Ok(RecoveryDecision::Recovered(Box::new(RecoveryDerivation {
+        scientific_identity,
         query,
         record,
         arena,

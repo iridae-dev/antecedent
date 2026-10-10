@@ -66,15 +66,21 @@ bash scripts/gate_provenance_schema.sh
 echo "== cross-file metadata consistency =="
 bash scripts/gate_metadata_consistency.sh
 
+echo "== retained 2.2 and current 2.3 promotion evidence inventory =="
+python3 scripts/release_evidence_report.py
+
+echo "== inherited calibration debt and current inference contract inventory =="
+python3 scripts/generate_2_3_calibration_plan.py --check
+
 echo "== hot-path baseline metadata =="
 bash scripts/gate_hot_path_baselines.sh
 fi
 
 if [[ "$section" == all || "$section" == promotion ]]; then
 section_start promotion
-# 2.2 cells stay closed until their frozen promotion record carries executed
-# positive, negative and artifact evidence (parity/promotion_2_2.toml).
-echo "== 2.2 promotion records =="
+# Both release registries are checked; frozen or carried-forward 2.3 cells
+# remain closed until their cited evidence executes.
+echo "== 2.2 and 2.3 promotion records =="
 bash scripts/gate_promotion.sh
 section_end promotion
 fi
@@ -142,9 +148,14 @@ python3 scripts/check_doc_links.py
 # docstrings; the release notes describe each cell with exactly its record's claim word.
 echo "== 2.2 limits agreement (records, docs, Rust constants, Python) =="
 python3 scripts/check_limits_agreement.py
+python3 scripts/check_limits_agreement.py --release 2.3
 
-echo "== 2.2 release notes claim vocabulary =="
+echo "== 2.3 interval ownership and candidate measurement wiring =="
+python3 scripts/check_interval_coordinates.py --release 2.3
+
+echo "== 2.2 and 2.3 release notes claim vocabulary =="
 python3 scripts/check_release_claims.py
+python3 scripts/check_release_claims.py --release 2.3
 
 # The calibration inventories are generated; a stale checked-in copy fails here (B8 gap closed).
 echo "== calibration backlog and readiness inventories are current =="

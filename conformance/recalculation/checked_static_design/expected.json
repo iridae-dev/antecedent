@@ -1,0 +1,14 @@
+{
+  "oracle_kind": "closed_form_and_enumerated_finite_law",
+  "frontdoor_discrete_contrast": 0.282,
+  "verma_do_means": [
+    0.3275,
+    0.5025
+  ],
+  "verma_contrast": 0.175,
+  "iv_effect": 2.0,
+  "rd_jump": 2.5,
+  "rd_hc1_variance": 0.041025641025641026,
+  "frontdoor_linear_effect": 1.5,
+  "frontdoor_hc0_variance": 0.4505
+}

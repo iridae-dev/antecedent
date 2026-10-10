@@ -58,28 +58,39 @@ impl ExactDistribution {
     /// # Errors
     /// Unknown or nonnumeric outcome.
     pub fn mean(&self, outcome: VariableId) -> Result<f64, EvalError> {
-        let axis = self
-            .outcomes
-            .iter()
-            .position(|v| *v == outcome)
-            .ok_or(EvalError::MissingBinding(outcome))?;
-        if self.atoms.len() != self.probabilities.len() {
-            return Err(EvalError::ProviderKind("invalid exact distribution shape"));
-        }
-        let mut invalid = false;
-        let total =
-            crate::exact::sum(self.atoms.iter().zip(self.probabilities.iter()).map(|(atom, p)| {
-                if let Some(value) = atom.get(axis).and_then(Value::as_f64) {
-                    value * p
-                } else {
-                    invalid = true;
-                    f64::NAN
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::Integration,
+            || {
+                let axis = self
+                    .outcomes
+                    .iter()
+                    .position(|v| *v == outcome)
+                    .ok_or(EvalError::MissingBinding(outcome))?;
+                if self.atoms.len() != self.probabilities.len() {
+                    return Err(EvalError::ProviderKind("invalid exact distribution shape"));
                 }
-            }));
-        if invalid || !total.is_finite() {
-            return Err(EvalError::ProviderKind("exact mean requires finite numeric outcomes"));
-        }
-        Ok(total)
+                let mut invalid = false;
+                let total = crate::exact::sum(
+                    self.atoms.iter().zip(self.probabilities.iter()).map(|(atom, p)| {
+                        if let Some(value) = atom.get(axis).and_then(Value::as_f64) {
+                            value * p
+                        } else {
+                            invalid = true;
+                            f64::NAN
+                        }
+                    }),
+                );
+                if invalid || !total.is_finite() {
+                    return Err(EvalError::ProviderKind(
+                        "exact mean requires finite numeric outcomes",
+                    ));
+                }
+                crate::execution_counts::note_static_work(
+                    crate::execution_counts::StaticWork::Integration,
+                );
+                Ok(total)
+            },
+        )
     }
     /// Difference of numeric means between two complete laws.
     ///
@@ -204,67 +215,75 @@ impl ExactEvaluationPlan {
     /// # Errors
     /// Located support failure, cancellation, resource exhaustion, or invalid mass.
     pub fn evaluate(&self, ctx: &ExecutionContext) -> Result<ExactDistribution, EvalError> {
-        // Refresh may impose a smaller execution budget than preparation did.
-        let mut preflight = Preflight {
-            arena: &self.arena,
-            data: &self.data,
-            request: &self.request,
-            limits: self.limits,
-            ctx,
-            bound: self.outcomes.iter().copied().collect(),
-            intermediate_bytes: Cell::new(0),
-            remaining_checks: Cell::new(self.limits.operations),
-        };
-        preflight.cardinality(&self.outcomes)?;
-        preflight.visit(self.root, 0)?;
-        check_cache_memory(
-            &self.evaluator,
-            &self.data,
-            &self.request,
-            self.limits,
-            preflight.intermediate_bytes.get(),
-            ctx,
-        )?;
-        // One budget covers expression operations and provider row inspections alike.
-        let budget = Cell::new(self.limits.operations);
-        let provider = BoundedProvider { data: &self.data, ctx, remaining: &budget };
-        let eval = EvalContext::default();
-        let atoms = provider.support(&self.outcomes, &eval)?;
-        let mut probabilities = Vec::with_capacity(atoms.len());
-        let mut session = crate::exact_engine::ExactSession::new(
-            &self.arena,
-            &self.evaluator,
-            &provider,
-            ctx,
-            &budget,
-        );
-        let mut assignment = self.request.clone();
-        for atom in atoms.iter() {
-            provider.charge(1)?;
-            for (v, value) in self.outcomes.iter().zip(atom.iter()) {
-                assignment.set(*v, value.clone());
-            }
-            let p = session.evaluate(&mut assignment)?;
-            if !p.is_finite()
-                || p < 0.0
-                || p > 1.0 + self.tolerance.absolute + self.tolerance.relative
-            {
-                return Err(EvalError::ProviderKind("invalid exact target probability"));
-            }
-            probabilities.push(p);
-        }
-        let total = crate::exact::sum(probabilities.iter().copied());
-        if !total.is_finite()
-            || (total - 1.0).abs() > self.tolerance.absolute + self.tolerance.relative
-        {
-            return Err(EvalError::ProviderKind("unnormalized exact target distribution"));
-        }
-        Ok(ExactDistribution {
-            outcomes: self.outcomes.clone(),
-            atoms,
-            probabilities: probabilities.into(),
-            support: session.support.into(),
-        })
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::Integration,
+            || {
+                // Refresh may impose a smaller execution budget than preparation did.
+                let mut preflight = Preflight {
+                    arena: &self.arena,
+                    data: &self.data,
+                    request: &self.request,
+                    limits: self.limits,
+                    ctx,
+                    bound: self.outcomes.iter().copied().collect(),
+                    intermediate_bytes: Cell::new(0),
+                    remaining_checks: Cell::new(self.limits.operations),
+                };
+                preflight.cardinality(&self.outcomes)?;
+                preflight.visit(self.root, 0)?;
+                check_cache_memory(
+                    &self.evaluator,
+                    &self.data,
+                    &self.request,
+                    self.limits,
+                    preflight.intermediate_bytes.get(),
+                    ctx,
+                )?;
+                // One budget covers expression operations and provider row inspections alike.
+                let budget = Cell::new(self.limits.operations);
+                let provider = BoundedProvider { data: &self.data, ctx, remaining: &budget };
+                let eval = EvalContext::default();
+                let atoms = provider.support(&self.outcomes, &eval)?;
+                let mut probabilities = Vec::with_capacity(atoms.len());
+                let mut session = crate::exact_engine::ExactSession::new(
+                    &self.arena,
+                    &self.evaluator,
+                    &provider,
+                    ctx,
+                    &budget,
+                );
+                let mut assignment = self.request.clone();
+                for atom in atoms.iter() {
+                    provider.charge(1)?;
+                    for (v, value) in self.outcomes.iter().zip(atom.iter()) {
+                        assignment.set(*v, value.clone());
+                    }
+                    let p = session.evaluate(&mut assignment)?;
+                    if !p.is_finite()
+                        || p < 0.0
+                        || p > 1.0 + self.tolerance.absolute + self.tolerance.relative
+                    {
+                        return Err(EvalError::ProviderKind("invalid exact target probability"));
+                    }
+                    probabilities.push(p);
+                }
+                let total = crate::exact::sum(probabilities.iter().copied());
+                if !total.is_finite()
+                    || (total - 1.0).abs() > self.tolerance.absolute + self.tolerance.relative
+                {
+                    return Err(EvalError::ProviderKind("unnormalized exact target distribution"));
+                }
+                crate::execution_counts::note_static_work(
+                    crate::execution_counts::StaticWork::Integration,
+                );
+                Ok(ExactDistribution {
+                    outcomes: self.outcomes.clone(),
+                    atoms,
+                    probabilities: probabilities.into(),
+                    support: session.support.into(),
+                })
+            },
+        )
     }
 }
 

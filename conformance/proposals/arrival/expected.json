@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "scm": "X is assigned by the source experiment; Y=I(U < 0.2+0.6X), U uniform on [0,1], the Y mechanism is shared; selection changes only root X",
+  "arm0_counts": [80, 20],
+  "arm1_counts": [20, 80],
+  "rust_sample_size": 200,
+  "python_sample_size": 500,
+  "control_mean": 0.2,
+  "active_mean": 0.8,
+  "contrast": 0.6,
+  "active_probabilities": [0.2, 0.8],
+  "inference": "empirical_point_only",
+  "calibration": "unmeasured"
+}

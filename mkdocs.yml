@@ -80,6 +80,20 @@ nav:
       - DR-Learner pointwise CATE: dr-pointwise-cate.md
       - Observational network exposure: observational-network-exposure.md
       - Saturation interference: saturation-interference.md
+  - 2.3 guide:
+      - The 2.3 lifecycle: 2_3-lifecycle.md
+      - Quantities: 2_3-quantities.md
+      - External scientific objects: 2_3-external-science.md
+      - Joint distributions: 2_3-joint-distributions.md
+      - Decisions: 2_3-decisions.md
+      - Decisions, design, repair and estimator breadth: 2_3-decisions-breadth.md
+      - Design ranking: 2_3-design-ranking.md
+      - Sensitivity and robustness: 2_3-sensitivity-and-robustness.md
+      - Transport and counterfactuals: 2_3-transport-counterfactuals.md
+      - Population, time and uncertainty: 2_3-population-time-uncertainty.md
+      - Composition and bundles: 2_3-composition.md
+      - Producer and consumer matrix: 2_3-producer-consumer-matrix.md
+      - Prepared recalculation: 2_3-recalculation-capabilities.md
   - Concepts:
       - Capabilities: capabilities.md
       - Observation contract: observation-contract.md

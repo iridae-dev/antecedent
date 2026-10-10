@@ -1,0 +1,36 @@
+feature_id = "f9_evidence_obligations"
+implementation_crate = "antecedent-core"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# Original engineering: a typed vocabulary for the evidence a failed causal contract
+# still owes (kind, variables, population, regime, contract slots, originating proof
+# step) and a necessary-condition screen against a proposed study. No paper
+# introduces this vocabulary, so papers is explicitly empty. The theorems that decide
+# whether evidence actually repairs identification belong to the owning contracts
+# (see provenance/f13_identification_repair.toml).
+papers = []
+
+implementation_deviations = [
+  "addressed_by is a screen on population, regime and joint law, not an identification theorem: a study that passes it repairs a contract only when the theorem-specific checker that owns the contract accepts the hypothetical evidence.",
+  "EstablishAssumption is never satisfiable by a study; a proposed study does not prove an assumption.",
+  "Identifiers eo1:<kind>:<hash> are digests of the canonical content, independent of variable order and sensitive to provenance; they are fingerprints for equality, not security tokens.",
+  "The z-transport adapter preserves checked expression leaves and binding failures and is consumed by ZTransportRepairFamily through the public generic repair facade; it emits no factor request for a failure without a checked formula.",
+  "Scientific quantities can be explicitly bound to every requested variable, retaining units, population, regime identity, horizon, functional, conditioning and transform in the canonical obligation ID. Display-name changes do not change identity. A declared coordinate requires a compatible offered coordinate in the necessary-condition screen. Structural obligations with no measurement declaration retain their original IDs and never infer units.",
+  "Repair obligation wire records preserve the full shared ScientificQuantityWire descriptors, refuse duplicate variables and reject descriptor tampering against the stored obligation ID.",
+  "No causal, interval or calibration claim is made.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-core/tests/evidence_obligation.rs",
+  "crates/antecedent-design/tests/repair_facade.rs",
+  "crates/antecedent-design/tests/repair_artifact.rs",
+  "crates/antecedent-design/src/repair_artifact.rs",
+  "python/tests/test_repair.py",
+  "crates/antecedent/tests/z_transport_repair.rs",
+  "python/tests/test_z_transport_repair.py",
+]

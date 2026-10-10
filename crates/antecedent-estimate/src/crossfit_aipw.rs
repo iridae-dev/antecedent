@@ -122,46 +122,54 @@ pub(crate) fn build_binary_scores_in(
     share: bool,
     ctx: Option<&ExecutionContext>,
 ) -> Result<(ScoreTable, NuisanceFit), EstimationError> {
-    let mut failed: Option<FailedFit> = None;
-    let first = build_scores_pass(
-        problem,
-        treatment,
-        thresholds,
-        folds,
-        glm_options,
-        backend,
-        share,
-        ctx,
-        &mut failed,
-    );
-    let error = match first {
-        Ok((table, selections)) => return Ok((table, NuisanceFit { selections, fallback: None })),
-        Err(error) => error,
-    };
-    let Some(failed_fit) = failed else {
-        return Err(error);
-    };
-    let destination = problem.propensity.resolve_failed_fit(error)?;
-    let mut rerun = problem.clone();
-    rerun.propensity = destination;
-    let (mut table, selections) = build_scores_pass(
-        &rerun,
-        treatment,
-        thresholds,
-        folds,
-        glm_options,
-        backend,
-        share,
-        ctx,
-        &mut None,
-    )?;
-    table.nuisance_provenance = Arc::from(format!(
-        "{}{}",
-        table.nuisance_provenance,
-        fallback_provenance(&problem.propensity, &failed_fit)
-    ));
-    let record = FallbackRecord { failed_fit, destination: rerun.propensity.canonical_key() };
-    Ok((table, NuisanceFit { selections, fallback: Some(record) }))
+    antecedent_core::execution_attempt::run_operation(
+        antecedent_core::execution_attempt::Operation::ScoreConstruction,
+        || {
+            let mut failed: Option<FailedFit> = None;
+            let first = build_scores_pass(
+                problem,
+                treatment,
+                thresholds,
+                folds,
+                glm_options,
+                backend,
+                share,
+                ctx,
+                &mut failed,
+            );
+            let error = match first {
+                Ok((table, selections)) => {
+                    return Ok((table, NuisanceFit { selections, fallback: None }));
+                }
+                Err(error) => error,
+            };
+            let Some(failed_fit) = failed else {
+                return Err(error);
+            };
+            let destination = problem.propensity.resolve_failed_fit(error)?;
+            let mut rerun = problem.clone();
+            rerun.propensity = destination;
+            let (mut table, selections) = build_scores_pass(
+                &rerun,
+                treatment,
+                thresholds,
+                folds,
+                glm_options,
+                backend,
+                share,
+                ctx,
+                &mut None,
+            )?;
+            table.nuisance_provenance = Arc::from(format!(
+                "{}{}",
+                table.nuisance_provenance,
+                fallback_provenance(&problem.propensity, &failed_fit)
+            ));
+            let record =
+                FallbackRecord { failed_fit, destination: rerun.propensity.canonical_key() };
+            Ok((table, NuisanceFit { selections, fallback: Some(record) }))
+        },
+    )
 }
 
 /// One pass of the score-table builder; `failed` records the GLM propensity fit that failed.

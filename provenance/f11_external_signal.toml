@@ -1,0 +1,36 @@
+feature_id = "f11_external_signal"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A typed request/receipt contract for a candidate-specific predictive observation law and
+# posterior update (SignalProvider), with two native families behind it (Gaussian sample
+# mean with known variance, binomial successes) and an ExternalSignal provider whose
+# update is one of NativeUpdate (Antecedent updates natively from a supplied likelihood),
+# ExternalPosterior (the supplier computed the posterior for every observation) or
+# ExternalDecisionValues (the supplier computed per-branch decision values).
+#
+# No primary paper is cited on purpose. This is an interface and trust contract, not an
+# algorithm introduced by a publication: the Bayes update behind the supplied-likelihood
+# and external-posterior modes is the textbook rule P(theta | y) proportional to
+# P(y | theta) P(theta) applied to finite tables, and the Gaussian-mean and binomial
+# likelihoods it wraps were already present in the preposterior module. The decision-value
+# use of the resulting laws is cited in f12_evsi.toml.
+papers = []
+
+implementation_deviations = [
+  "Nothing in this record is a scientific guarantee about an external model. An external law, posterior or decision-value table is checked only for internal coherence (rows sum to one, the posterior averages back to the prior, the observation and state coordinates and the exact request fingerprint, candidate, prior and sample size match) and is never verified against the world; its trust label is externally_attested or exact_request_verified and is never native_licensed. A supplier claiming native trust, or an object that is not a signal declaration, refuses.",
+  "The provider is asked for the observation law and update on a finite support only (finite observation values and finite decision-state draws or the two native conjugate families); a request above the declared sample-size or support limit refuses and nothing is approximated.",
+  "The request's sample size is authoritative: native signals are wrapped so a candidate design's own sample size cannot override it. Conditional independence of the observations given the state is a declared identity that is carried and fingerprinted, not tested.",
+  "ExternalPosterior and ExternalDecisionValues computations happen outside Antecedent: the receipt retains the exact request fingerprint, the provider object identity, the attestor and a digest of the supplied table, but Antecedent cannot replay the external computation.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/signal_provider.rs",
+  "crates/antecedent-design/tests/design_ranking_artifact.rs",
+  "python/tests/test_design_ranking.py",
+]

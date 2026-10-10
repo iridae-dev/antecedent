@@ -1,0 +1,36 @@
+feature_id = "c1_composition_boundary"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The composition boundary of a decision: what a decision input carries (provider kind, trust,
+# calibration, capabilities and a per-coordinate support map) and what may be combined with what
+# (declared evidence relations, dependence routes, separate declared operations, structural atoms).
+# Trust is taken from evidence records only: an artifact labelled native or exact is stored as
+# unverified unless a matching native execution record or an exact-request verification receipt is
+# supplied. The per-action support evaluation, the shared-evidence refusals and the atom-combination
+# rule are finite checks over declared identities and supplied numbers. papers = [] is an explicit
+# judgment: these are composition contracts (original engineering over the 2.3 decision evaluator),
+# not statistical methods, and no paper introduces them. Pooling, borrowing, transport and evidence
+# reuse are named here as distinct declared operations; none of their statistical theory is
+# implemented or claimed.
+papers = []
+
+implementation_deviations = [
+  "The Python direct native-claim adapter consumes opaque actual checked producer state and original aligned functional rows through the existing Mean/Joint input constructors. Copied values or metadata cannot issue native trust; original uncertainty remains point_only/unmeasured. Coordinate diagnostic vectors and the full queryable native provenance chain remain separate propagation obligations.",
+  "Trust never comes from artifact metadata. A native label without a native execution record for the same provider and snapshot is a metadata-only claim and refuses; a requirement for native or verified inputs refuses an unbacked label; an exact label counts only with an exact-request verification receipt that matches the object. An unbacked label is stored as unverified and its exact claim is not used.",
+  "Support is evaluated per action. An action that reads a missing or too weakly supported coordinate, or that its source cannot answer (a nonlinear utility or outcome-law input on a mean source), is reported unsupported or unevaluated with a reason while the supported actions are still compared, unless the policy requires every action; when no action is supported the result is a state, not an error. Actions answered by different inputs compare by value only. Support labels and coordinates are caller-supplied; the evaluator does not verify them.",
+  "A mean is never an outcome distribution: a probability, quantile or nonlinear functional asked of a mean source refuses, and paired draws require every input to be an aligned joint law. Evaluation reuses the 2.3 decision evaluator and passes its own refusals through; this record does not change its arithmetic.",
+  "Independent pooling and paired draws are refused when two inputs share data, a prior or a fitted model, or when their dependence is unknown or undeclared, unless a covariance or joint-law route is declared that names one of the pair as an aligned joint law. Two inputs declared independent but carrying the same snapshot identity are treated as sharing data. A relation or route is a declaration the check reads, not a derivation of the dependence; no covariance is estimated and no pooling is performed.",
+  "Statistical pooling, Bayesian borrowing, causal transport and evidence reuse are separate declared operations and none implies another; an undeclared operation refuses. Conflicting structural atoms are never averaged silently: a weighted combination needs a declared probability on every atom, probabilities must be finite, non-negative and sum to at most one, missing mass is retained and never renormalized, and completion counts are not probabilities.",
+  "The Python bridge delegates every identity, trust rule and refusal to the Rust core and cannot assert a native or verified provider by passing a string.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-design/tests/composition_boundary.rs",
+  "python/tests/test_composition.py",
+]

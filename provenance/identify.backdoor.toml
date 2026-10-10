@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 implementation_deviations = [
-  "Supports only single-treatment, single-outcome AverageEffect queries with hard Set contrasts on static DAGs.",
+  "Adjustment-set enumeration supports single-treatment, single-outcome AverageEffect queries with hard Set contrasts on static DAGs. The checked joint-adjustment API validates a caller-supplied common set for simultaneous treatments on a static DAG: no treatment descendant may be adjusted for, and each treatment must be d-separated from the outcome given the set after deleting outgoing arrows of the entire intervention set. This sufficient joint backdoor certificate performs no search and grants no parametric fit or positivity guarantee.",
   "Adjustment-set search is bounded: exhaustive enumeration stops above 40 candidates and results default to 64; larger problems use only an ancestral screen and an O-set-like fallback.",
 ]
 
@@ -22,4 +22,5 @@ test_sources = [
   "independently generated synthetic SCMs",
   "consumed black-box identify() status/estimand-family comparison against pinned DoWhy 0.14 baseline (conformance/identify/general_id_backdoor_chain)",
   "confounding_requires_z (crates/antecedent-identify/src/backdoor.rs)",
+  "crates/antecedent/tests/recalc_adjusted.rs",
 ]

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 2.2 promotion gate: parity/promotion_2_2.toml freezes each 2.2 cell before
+# Promotion gate: versioned registries freeze each release cell before
 # implementation, licenses a route only with its record's evidence, and rejects a
 # capability that executes without its proof, refusal and artifact evidence.
 #
@@ -9,7 +9,6 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-REGISTRY=parity/promotion_2_2.toml
 
 # The self-test (scripts/promotion_selftest.py) builds ONE synthetic record
 # (2.2A.XT.self_test_cell) with its own owning registries and source files in a temp
@@ -26,6 +25,8 @@ self_test() {
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
+  python3 scripts/check_2_3_prerequisites.py --self-test
+  python3 scripts/check_2_3_evidence_ledger.py --self-test
   self_test
   exit $?
 fi
@@ -42,35 +43,39 @@ elif [[ $# -ne 0 ]]; then
   exit 2
 fi
 
-echo "== 2.2 promotion records =="
 EVIDENCE="$(mktemp)"
 SELECTED="$(mktemp)"
-EMITTED="$EVIDENCE"
-trap 'rm -f "$EMITTED" "$SELECTED"' EXIT
-if [[ "$group" == all ]]; then
-  python3 scripts/check_promotion_records.py --emit-evidence "$EVIDENCE"
-else
-  # Every CI shard validates the complete registry statically. Its evidence
-  # runner then checks exact Rust identity and ignored status, or executes
-  # Python nodes through pytest collection, for the rows assigned to it.
-  # This avoids compiling every Rust target in the Python-only shard.
-  PROMOTION_STATIC_ONLY=1 python3 scripts/check_promotion_records.py --emit-evidence "$EVIDENCE"
-fi
-if [[ "$group" != all ]]; then
-  python3 scripts/partition_promotion_evidence.py "$EVIDENCE" "$SELECTED" "$group"
-  EVIDENCE="$SELECTED"
-fi
-
-# Cited fixtures and closed-route refusal tests are executed, not just resolved.
-# Frozen records cite nothing yet, so there may be nothing to run.
-if [[ -s "$EVIDENCE" ]]; then
+trap 'rm -f "$EVIDENCE" "$SELECTED"' EXIT
+python3 scripts/check_2_3_prerequisites.py
+python3 scripts/check_2_3_evidence_ledger.py
+for release in 2_2 2_3; do
+  registry="parity/promotion_${release}.toml"
+  echo "== ${release/_/.} promotion records =="
+  : > "$EVIDENCE"
+  if [[ "$group" == all ]]; then
+    python3 scripts/check_promotion_records.py "$registry" --emit-evidence "$EVIDENCE"
+  else
+    # Shards validate every registry, then execute only their assigned rows.
+    PROMOTION_STATIC_ONLY=1 python3 scripts/check_promotion_records.py "$registry" --emit-evidence "$EVIDENCE"
+  fi
+  if [[ ! -s "$EVIDENCE" ]]; then
+    echo "no promotion fixture cites evidence yet; nothing to execute"
+    continue
+  fi
+  selected="$EVIDENCE"
+  if [[ "$group" != all ]]; then
+    python3 scripts/partition_promotion_evidence.py "$EVIDENCE" "$SELECTED" "$group"
+    selected="$SELECTED"
+  fi
+  if [[ ! -s "$selected" ]]; then
+    echo "no ${release/_/.} promotion evidence in $group shard"
+    continue
+  fi
   if [[ "$group" == all || "$group" == python ]] && ! command -v uv >/dev/null 2>&1; then
     echo "FAIL: uv is required; unexecuted Python rows are not promotion evidence"
     exit 1
   fi
-  echo "== promotion evidence: executing cited fixtures and refusals =="
-  python3 scripts/run_evidence_rows.py "$ROOT" "$EVIDENCE" "$ROOT" fixture_evidence gate_promotion
-else
-  echo "no promotion fixture cites evidence yet; nothing to execute"
-fi
+  echo "== ${release/_/.} promotion evidence: executing cited fixtures and refusals =="
+  python3 scripts/run_evidence_rows.py "$ROOT" "$selected" "$ROOT" fixture_evidence gate_promotion
+done
 echo "gate_promotion: ok"

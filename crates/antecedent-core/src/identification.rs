@@ -63,6 +63,21 @@ impl IdentificationStatus {
         }
     }
 
+    /// Parse the `snake_case` name written by [`Self::as_str`].
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::NonparametricallyIdentified,
+            Self::IdentifiedUnderParametricRestrictions,
+            Self::IdentifiedUnderPriorRestrictions,
+            Self::PartiallyIdentified,
+            Self::GraphDependent,
+            Self::NotIdentified,
+        ]
+        .into_iter()
+        .find(|status| status.as_str() == name)
+    }
+
     /// Evidential strength of the identification claim, larger is stronger.
     ///
     /// A derivation may keep or lower this rank but never raise it: a derived

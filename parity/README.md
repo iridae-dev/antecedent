@@ -228,3 +228,9 @@ runs under `antecedent_core::SearchBudget` (operation and depth limits, plus the
 context's cancellation and hard memory limit on every charge), charged inside a
 loop or recursion that live code reaches, and a promoted search's budget fixture
 must exercise it.
+
+2.3 promotion starts in `promotion_2_3.toml` under the same contract. The
+promotion and release gates validate both versioned registries, and each CI
+evidence shard checks both before running its cited tests. A frozen 2.3 route
+is visible in its owning stage registry but remains closed; its planned fixture
+IDs do not count as executed evidence.

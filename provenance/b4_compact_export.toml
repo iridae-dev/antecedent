@@ -1,0 +1,31 @@
+feature_id = "b4_compact_export"
+implementation_crate = "antecedent-io"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A durable, portable container for a fitted linear-in-coefficients effect model: a finite basis
+# (intercept, linear, polynomial and one-hot terms), the coefficient vector, its covariance, the
+# declared support of every input and a refusal mask, bound by one BLAKE3 identity. Evaluation is
+# the point prediction b'phi(x) and the model-based standard error sqrt(phi' V phi), the textbook
+# variance of a linear combination. papers = [] is an explicit judgment: this module is
+# serialization, identity binding and bounded evaluation (original engineering) over standard
+# linear algebra, and no paper introduces it. The coefficients and covariance it carries are
+# produced by other records (for example b4_vector_treatment), which carry their own citations.
+papers = []
+
+implementation_deviations = [
+  "Claim policy: the licensed claim is the POINT prediction f(x) = b'phi(x) inside the declared support and outside the refusal mask. The model-based standard error sqrt(phi' V phi) is a reported diagnostic with calibration 'unmeasured'; it is not an interval, not a coverage claim, and carries no extrapolation or misspecification uncertainty. No coverage record is allocated.",
+  "Evaluation refuses (never extrapolates or clamps) a query outside the declared support of any input, a missing or unknown quantity, a query matching a refusal-mask region even inside the support, a wrong query type, and a non-finite result or negative variance.",
+  "A consumer verifies the identity over every semantic field (response quantity, inputs and supports, terms, coefficients, covariance, mask and scope statements) and the premises and data digests, so a change to any of them is refused even when the container is resealed with recomputed section checksums. A consumer holding no retained expected identity checks only internal consistency; a forgery passes only under the forger's own identity.",
+  "Decode is bounded (byte size, term, input, mask-region and level counts) and refused before decoding when the declared size is oversized. Term and input order is canonicalised so permuted specifications share one identity.",
+  "The export does not check that the supplied coefficients and covariance came from a valid estimator; covariance must be symmetric positive semidefinite and finite, nothing more.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-io/tests/compact_export.rs",
+  "python/tests/test_compact_export.py",
+]

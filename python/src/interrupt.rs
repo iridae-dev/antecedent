@@ -155,13 +155,14 @@ where
         .unwrap_or_else(PoisonError::into_inner)
         .extend(PENDING.with(|pending| std::mem::take(&mut *pending.borrow_mut())));
     let slot: (Mutex<Option<PyResult<T>>>, Condvar) = (Mutex::new(None), Condvar::new());
+    let observation = antecedent_core::execution_attempt::ObservationToken::capture();
     let outcome = std::thread::scope(|s| {
         let worker_scope = Arc::clone(&scope);
         let slot = &slot;
         let spawned =
             std::thread::Builder::new().stack_size(WORKER_STACK_BYTES).spawn_scoped(s, move || {
                 ACTIVE.with(|active| *active.borrow_mut() = Some(worker_scope));
-                let result = catch_ffi(f);
+                let result = observation.execute(|| catch_ffi(f));
                 *slot.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
                 slot.1.notify_one();
             });

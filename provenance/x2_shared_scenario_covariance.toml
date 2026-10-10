@@ -1,0 +1,28 @@
+feature_id = "x2_shared_scenario_covariance"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The nonparametric bootstrap resamples observations with replacement from the
+# empirical distribution; the cited paper introduces it. The shared-row design (one
+# replicate identity applied to every scenario's estimator) and the exact multinomial
+# enumeration are the deviations recorded below. The DOI is omitted because it could
+# not be verified here.
+papers = [
+  { title = "Bootstrap Methods: Another Look at the Jackknife", sections = ["the nonparametric bootstrap: estimating the sampling variability of a statistic by resampling the observations from the empirical distribution"] },
+]
+implementation_deviations = [
+  "The bootstrap estimates a joint covariance matrix of several plug-in statistics rather than one standard error: every replicate resamples whole rows once, from a deterministic seed-derived selection that depends only on the replicate id and the row count, and the same per-row multiplicities feed every scenario's estimator, so the off-diagonal is estimated, not assumed. Independent per-scenario resamples would report a zero off-diagonal and are not used.",
+  "The covariance of the bootstrap replicates carries the R/(R-1) correction; no bias correction, studentization, percentile or interval is computed, and no coverage claim is made. The result is point-only.",
+  "A second method enumerates every multinomial count vector of the resampled rows with its exact probability (at most 24 rows and 4000000 count vectors), giving the bootstrap distribution's covariance without Monte Carlo error; it is a deterministic reference, not a procedure of the cited paper.",
+  "A replicate or count vector on which any scenario estimator fails is dropped for every scenario jointly, its mass is reported, the surviving mass is renormalized, and a failure above the declared bound refuses; the matrix must be finite and positive semidefinite or the call refuses.",
+  "Estimators are limited to plug-in functionals of the resampled table: a linear score of per-row terms and a stratified adjusted contrast of conditional outcome proportions. Influence-function variance is not implemented, rows are assumed iid, and scenarios with a different snapshot, a different or reordered unit list, duplicate unit ids or an undeclared or independent dependence are refused.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-estimate/tests/scenario_covariance.rs",
+  "crates/antecedent-io/tests/scenario_covariance_artifact.rs",
+  "python/tests/test_scenario_covariance.py",
+]

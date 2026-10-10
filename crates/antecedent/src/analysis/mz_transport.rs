@@ -296,6 +296,25 @@ impl PreparedMzTransport {
         Ok(Self { data, plans, ..self.clone() })
     }
 
+    /// Rebind finite supported requests and laws to the same checked proof and catalog.
+    /// # Errors
+    /// Missing factors, incompatible snapshots/worlds, support or numerical limits.
+    pub(crate) fn refresh_requests(
+        &self,
+        data: ExactTransportData,
+        requests: Vec<Assignment>,
+        limits: ExactEvaluationLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, IoError> {
+        antecedent_estimate::refuse_cancelled(ctx, "mz-transport request refresh")
+            .map_err(estimate_err)?;
+        if self.empirical {
+            require_counts(&data)?;
+        }
+        let plans = compile(&self.functional, &data, &requests, limits, ctx)?;
+        Ok(Self { data, requests, limits, plans, ..self.clone() })
+    }
+
     /// The frozen, catalog-bound functional.
     #[must_use]
     pub const fn functional(&self) -> &BoundMzTransportFunctional {

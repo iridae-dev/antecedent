@@ -32,6 +32,7 @@ pub mod conjugate_moment_match;
 pub mod diagnostics;
 pub mod error;
 pub mod external_prior;
+pub mod fit_counts;
 pub mod gaussian_target;
 pub mod graph_samples;
 pub mod hmc;

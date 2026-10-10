@@ -389,7 +389,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         covariate_cols.push(Arc::from(col));
     }
 
-    Ok(PreparedPropensityProblem {
+    Ok(crate::crossfit_cache::share_learner_preparation(PreparedPropensityProblem {
         learner_cache: Arc::default(),
         design_matrix: Arc::from(design),
         design_ncols: ncols,
@@ -420,7 +420,7 @@ pub(crate) fn prepare_propensity_problem_with_registry(
         fold_seed: 0,
         shared_design: false,
         propensity: crate::propensity::PropensityNuisance::default(),
-    })
+    }))
 }
 
 pub(crate) fn clip_of(overlap: OverlapPolicy) -> Option<f64> {

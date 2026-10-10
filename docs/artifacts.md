@@ -280,3 +280,20 @@ Python (`antecedent/_analyze.py`, gated by `test_discovery_interactive_guard`);
 the Rust builder cannot express the combination at all — an accepted graph is
 just a static graph by build time. See `examples/python/discover_then_estimate.py`
 and `parity/discovery.toml` capability `discovery.ux.artifact_first`.
+
+## 2.3 source-bound workflow artifacts
+
+Decision contracts, joint laws, external claims, study rankings and composition
+bundles have method-specific semantic consumers. Exported bytes retain their
+scientific coordinates, provenance and limits; consumers check retained expected
+identities rather than granting authority from a digest alone. See
+[composition and bundles](2_3-composition.md).
+
+The distinct `inference.MeasuredInference` envelope binds each named scalar to
+its original method and current attesting coverage record. Its independent
+consumer replays the original source calculation under caller-retained identity
+and bounds. An original source artifact can retain unmeasured diagnostics or
+parameter summaries inside a measured envelope: only the named endpoints in
+the [measured scope](2_3-population-time-uncertainty.md) receive that standing.
+A general `antecedent.load` call is not a substitute for this method-specific
+consumer.

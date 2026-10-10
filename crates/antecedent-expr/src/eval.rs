@@ -83,7 +83,10 @@ impl CausalExprArena {
     /// Continuous [`ExprNode::IntegralOut`] compiles successfully; evaluation uses
     /// [`DistributionProvider::quadrature`] or discrete [`DistributionProvider::support`].
     pub fn compile(&self, root: ExprId) -> Result<CompiledEvaluator, EvalError> {
-        CompiledEvaluator::compile(self, root)
+        antecedent_core::execution_attempt::run_operation(
+            antecedent_core::execution_attempt::Operation::ProgramCompilation,
+            || CompiledEvaluator::compile(self, root),
+        )
     }
 }
 
@@ -119,6 +122,9 @@ impl CompiledEvaluator {
             origins[slot] = ExprId::from_raw(expression);
         }
         let density_vars = compute_density_vars(&ops, arena);
+        crate::execution_counts::note_static_work(
+            crate::execution_counts::StaticWork::ProgramCompilation,
+        );
         Ok(Self { ops, origins, free_vars, density_vars, root: root_slot })
     }
 

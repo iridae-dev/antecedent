@@ -1,0 +1,34 @@
+feature_id = "b1_dose_grid_functional"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A named functional (level, derivative or contrast) of a randomized-dose response
+# curve from the Gaussian-kernel local quadratic kernel of antecedent-stats (see
+# provenance/stats.response.local_polynomial.toml), with per-dose Kish effective
+# sample size labels and a heteroskedasticity-robust sandwich standard error from the
+# linearized influences. DOIs and section or chapter numbers are omitted: they were
+# not resolved for this record, and no theorem of the sources is inherited.
+papers = [
+  { title = "Local Polynomial Modelling and Its Applications (Fan and Gijbels, Chapman and Hall, 1996)", sections = ["local polynomial fitting by kernel-weighted least squares, with the fitted coefficients giving the regression function and its derivatives (construction only; chapter and section numbers not re-verified for this record)"] },
+  { title = "A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity (White, Econometrica 48(4), 1980)", sections = ["the heteroskedasticity-robust sandwich variance, applied here to the linearized influences of the local fit (construction only; no theorem inherited)"] },
+  { title = "Survey Sampling (Kish, Wiley, 1965)", sections = ["effective sample size of unequal weights, 1/sum(w_i^2) for normalized weights, used as the per-dose support criterion (construction only; section number not re-verified for this record)"] },
+]
+
+implementation_deviations = [
+  "The fitted object is the Gaussian-kernel local quadratic smoother at a caller-declared fixed bandwidth that must lie in a caller-declared range; it is never data-selected here, so the claim is about the smoother's m_h, and the smoothing bias m_h - m is neither estimated nor included in any interval. Fan and Gijbels' bias and variance asymptotics are not applied.",
+  "The pointwise normal interval uses a sandwich standard error with calibration unmeasured: the nominal level 0.95 is not a coverage claim. Coverage is allocated (cov.dose_response.randomized_dose.frequentist.l95.pointwise_local_quadratic_level, _derivative, _contrast) and not collected until the 2.3 release cut. The simultaneous band is a different claim and is closed (dose_grid.simultaneous_band_closed).",
+  "Randomization of the dose is a caller attestation; no graph is re-derived and an observational dose is refused. Rows are treated as independent; clustered, serial or linked rows are outside the row.",
+  "Support is judged per requested dose: outside the observed dose range, or Kish effective sample size below a caller-declared minimum (at least 3), is labelled and refused, never extrapolated.",
+  "Exactly one named functional is evaluated per call, each with its own claim flag; the measured numerical residual of the local solves is reported and is not a bound on estimation error.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/dose_grid_functional.rs",
+  "crates/antecedent-io/tests/dose_grid_artifact.rs",
+  "python/tests/test_dose_grid.py",
+]

@@ -1,0 +1,10 @@
+feature_id = "c4_composite_recalculation"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = []
+implementation_deviations = ["The original checked finite native engine supplies real producing state and its original execution context. Two real foreign mean callbacks execute under their original external program and policy contracts. All three inputs enter the original supported composition boundary as ordered scientific alternatives, preserving native versus externally attested standing. One shared original RecalcPlan/receipt accounts for actual native factors/integrations, branch-specific provider entries and terminal decision work. Utility-only changes do no provider/native work; one foreign request mutation invokes only that provider plus the original decision; native data changes refresh original native factors while compatible providers remain retained. Failed scientific transactions leave prior native/provider/decision state usable while attempted side effects remain recorded. Fresh-process scientific replay explicitly reexecutes supplied raw native requests and compatible supplied callbacks, and independently consumes the original receipt. This finite mean workflow does not create a joint law, arbitrary callback runtime or calibrated ranking guarantee.", "Original integration engineering; existing ordinary ID, native finite evaluation, external contract binder, supported decision and canonical original receipt own their numerical/scientific methods. No new inferential guarantee."]
+upstream_implementations_observed = []
+test_sources = ["crates/antecedent/tests/recalc_composite.rs", "python/tests/test_recalc_composite.py", "crates/antecedent-io/tests/native_contract_identity.rs"]

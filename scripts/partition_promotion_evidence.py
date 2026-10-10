@@ -60,7 +60,9 @@ def main() -> None:
     assert sum(map(len, groups.values())) == len(rows)
     selected = groups[name]
     if not selected:
-        raise SystemExit(f"promotion evidence group {name} has no cited assertions")
+        output.write_text("")
+        print(f"promotion evidence {name}: 0/{len(rows)} rows")
+        return
     output.write_text("".join(
         "[[fixture_evidence]]\n"
         + "".join(f"{key} = {toml_string(str(row[key]))}\n"

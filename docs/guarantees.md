@@ -8,8 +8,10 @@ Three propositions must remain separate.
 | **Licensed support** | A specific query × graph × structure × inference × validation route has a recorded execution/evidence contract. | The real-world causal assumptions are true. |
 | **Scientific validity** | The assumptions are appropriate for the real situation. | Something software can establish from a successful call alone. |
 
-The [support matrix](support-matrix.md) is the public license, not a feature
-list. [Capabilities](capabilities.md) explains what exists. A successful run
+The [support matrix](support-matrix.md) is the public license for ordinary
+analysis combinations. Specialized 2.3 [measured scalar adapters](2_3-population-time-uncertainty.md)
+and [decision workflows](2_3-lifecycle.md) have separate checked contracts,
+without expanding that grid. [Capabilities](capabilities.md) explains what exists. A successful run
 still requires a defensible causal model, relevant data, and interpretation of
 the result's support, uncertainty, and assumptions.
 

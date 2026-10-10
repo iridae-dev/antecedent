@@ -370,6 +370,9 @@ pub(crate) struct AipwCacheEntry {
     seed: u64,
     row_index: std::sync::Arc<[u32]>,
     fold_assignment: Option<std::sync::Arc<[u32]>>,
+    fold_units: Option<std::sync::Arc<[u32]>>,
+    fold_unit_kind: crate::cluster_dml_aipw::IndependenceUnit,
+    fold_seed: u64,
     result: std::sync::Mutex<Option<std::sync::Arc<AipwPredictions>>>,
 }
 
@@ -406,6 +409,19 @@ fn retained_fold_ids(
     })
 }
 
+fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
+    // Preparation validates binary values with its numerical tolerance. Match the
+    // executing fold classifier so accepted near-zero/near-one values retain their arms.
+    if treatment.iter().any(|&value| value <= 0.5) && treatment.iter().any(|&value| value > 0.5) {
+        return Ok(());
+    }
+    Err(crate::propensity::refuse(
+        antecedent_core::reason_code!("arm_not_populated"),
+        "dml.arm_not_populated",
+        "both treatment arms must remain populated after complete-case selection",
+    ))
+}
+
 pub(crate) fn cached_aipw_nuisances(
     problem: &crate::propensity::PreparedPropensityProblem,
     outcome: LearnerSpec,
@@ -418,6 +434,7 @@ pub(crate) fn cached_aipw_nuisances(
         if ctx.cancellation.is_cancelled() { Err(nuisance_cancelled()) } else { Ok(()) }
     };
     check_cancel()?;
+    require_populated_arms(&problem.treatment)?;
     let entry = {
         let mut cache = problem
             .learner_cache
@@ -434,6 +451,9 @@ pub(crate) fn cached_aipw_nuisances(
                 && entry.folds == folds
                 && entry.seed == ctx.rng.master_seed()
                 && Arc::ptr_eq(&entry.row_index, &problem.row_index)
+                && entry.fold_units == problem.fold_units
+                && entry.fold_unit_kind == problem.fold_unit_kind
+                && entry.fold_seed == problem.fold_seed
                 && match (&entry.fold_assignment, &problem.fold_assignment) {
                     (None, None) => true,
                     (Some(a), Some(b)) => Arc::ptr_eq(a, b),
@@ -462,9 +482,16 @@ pub(crate) fn cached_aipw_nuisances(
                 seed: ctx.rng.master_seed(),
                 row_index: Arc::clone(&problem.row_index),
                 fold_assignment: problem.fold_assignment.clone(),
+                fold_units: problem.fold_units.clone(),
+                fold_unit_kind: problem.fold_unit_kind,
+                fold_seed: problem.fold_seed,
                 result: std::sync::Mutex::new(None),
             });
-            cache.push(Arc::clone(&entry));
+            // All eight slots can be initialized concurrently. An additional key
+            // computes outside the retained cache instead of exceeding its budget.
+            if cache.len() < 8 {
+                cache.push(Arc::clone(&entry));
+            }
             entry
         }
     };
@@ -506,6 +533,18 @@ pub(crate) fn cached_aipw_nuisances(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn populated_arm_guard_preserves_prepared_binary_tolerance() {
+        assert!(require_populated_arms(&[1e-13, 1.0 - 1e-13]).is_ok());
+        assert!(require_populated_arms(&[-1e-13, 1.0 + 1e-13]).is_ok());
+        for absent in [&[1e-13, -1e-13][..], &[1.0 - 1e-13, 1.0 + 1e-13][..]] {
+            assert!(matches!(
+                require_populated_arms(absent),
+                Err(EstimationError::Refused { code: "arm_not_populated", .. })
+            ));
+        }
+    }
 
     #[test]
     fn fold_plan_is_seeded_stratified_and_balanced() {

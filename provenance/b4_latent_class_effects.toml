@@ -1,0 +1,32 @@
+feature_id = "b4_latent_class_effects"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A K-class Gaussian finite mixture of linear outcome models, y = alpha_k + tau_k a + x'beta_k + e,
+# fitted by seeded multi-restart EM; per-class treatment effects tau_k, mixture weights, a
+# mixture-average effect, canonical class order and refusal of weak or degenerate classes.
+# DOIs are omitted because they were not resolved here.
+papers = [
+  { title = "Maximum Likelihood from Incomplete Data via the EM Algorithm (Journal of the Royal Statistical Society, Series B 39(1), 1977)", sections = ["The EM algorithm and the monotone non-decreasing likelihood of its iterates, applied to the finite-mixture missing-label problem"] },
+  { title = "Finite Mixture Models (McLachlan and Peel, Wiley, 2000)", sections = ["Maximum likelihood fitting of finite mixtures by EM: responsibilities in the E-step and weighted updates of proportions, coefficients and variances in the M-step; multiple starts against local maxima"] },
+]
+
+implementation_deviations = [
+  "Claim policy: the licensed claim is the POINT per-class effects, mixture weights and mixture-average effect. Class standard errors, the mixture-average SE and any bootstrap SE are reported diagnostics with calibration 'unmeasured'; no interval is produced and no coverage record is allocated.",
+  "EM finds a local maximum: it is run from several seeded restarts and the best likelihood is kept, with no guarantee of the global maximum. The number of classes K is declared by the caller (at most four), never selected from the data. The log-likelihood is checked to be non-decreasing and a violation refuses (latent_class.likelihood_not_monotone).",
+  "Identification is a declared premise, not a result: treatment must be as-if randomized within class given the covariates, and the caller declares it (latent_class.randomization_not_declared otherwise). Class membership is latent and estimated; the per-class effect is a mixture-model quantity, not an individual treatment effect.",
+  "Classes are put in a canonical order by (tau, alpha, weight), so the output is invariant to label permutation, restart seeds and row order. A class below the minimum weight, with too little design support, or whose effects are not separated by the declared gap refuses (latent_class.weak_class) and a single-class or noise-free regime refuses as degenerate; overlapping classes are never reported as separated.",
+  "Variance floors regularise the likelihood against degenerate components; the floor is a declared configuration value.",
+  "Artifact replay limits: the artifact embeds the data rows (capped) and the bootstrap replicate count (capped); the consumer refits from the embedded data and seed and must reproduce the stored result bit for bit, so a replay is only as portable as floating-point determinism of the refit.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/latent_class_effects.rs",
+  "crates/antecedent-io/tests/latent_class_artifact.rs",
+  "python/tests/test_latent_class.py",
+]

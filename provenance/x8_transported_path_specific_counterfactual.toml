@@ -1,0 +1,25 @@
+feature_id = "x8_transported_path_specific_counterfactual"
+implementation_crate = "antecedent-counterfactual"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# A closed gate, not an algorithm: the route evaluates nothing and reports which
+# prerequisite (transport license, fixed-population cross-world license, stated
+# cross-population assumptions) is missing and which regime factors are absent. No paper
+# introduces it and the joint cross-world transport theorem it would need is not
+# derived, so papers = [] is an explicit judgment, not an unfilled field.
+papers = []
+
+implementation_deviations = [
+ "No estimator exists: the joint cross-world transport theorem for the composed quantity is not derived and the route is carried forward closed (cell_not_licensed / transported_counterfactual.route_frozen, offending input = the first missing gate). transported_counterfactual.factor_missing is returned only when every gate passes and a required source or target regime factor is absent; both lists are retained either way.",
+ "The prerequisite gates are caller-declared flags, not checked licenses of the transport and fixed-population cross-world routes; nothing is composed, so no theorem is inherited from either prerequisite record.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-counterfactual/tests/temporal_cross_world.rs",
+ "python/tests/test_temporal_counterfactual.py",
+]

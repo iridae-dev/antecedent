@@ -1,6 +1,6 @@
 # Sparse and columnar ingest evaluation (2.2 E7)
 
-**Decision (pending the measurement below): dense fallback retained, evaluation recorded.**
+**Decision: dense fallback retained; the measurement below records the evaluation.**
 No library code changes. The accepted schema, the estimand and the single design builder are
 untouched; a CSC pattern exists only inside the one-off evaluation program and nothing in the
 library consumes it (no second panel builder).

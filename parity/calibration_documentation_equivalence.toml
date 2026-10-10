@@ -1,0 +1,58 @@
+# Exact reviewed Rustdoc link repairs. No measurement or replay SHA is changed.
+schema_version = 1
+
+[[certificate]]
+path = "crates/antecedent/src/analysis/batch.rs"
+from_blob = "1b9b28bf9ba6e047f6d0471a5081762419d53690"
+to_blob = "a0cf7805a2f067527accfbef3fc51d8caca98fb9"
+reviewed_by = "authorized release engineering review"
+rationale = "Only the explicitly listed Rustdoc link text changes; executable source, attributes, examples, and every other byte remain identical."
+[[certificate.replacement]]
+line = 312
+before = "    /// solo run would never draw. See [`crate::analysis::batch`] module docs.\n"
+after = "    /// solo run would never draw. See the batch design documentation.\n"
+
+[[certificate]]
+path = "crates/antecedent/src/analysis/exact.rs"
+from_blob = "7773e76a1bb46eac1f7df23f09fed82160d55c91"
+to_blob = "56ba97e5a2ee324b5ad4fae1f56b369eb96ef3a1"
+reviewed_by = "authorized release engineering review"
+rationale = "Only the explicitly listed Rustdoc link text changes; executable source, attributes, examples, and every other byte remain identical."
+[[certificate.replacement]]
+line = 484
+before = "    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,\n"
+after = "    /// Returns a [`antecedent_validate::FixedGraphSensitivityError`] when the checked derivation, graph,\n"
+[[certificate.replacement]]
+line = 508
+before = "    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,\n"
+after = "    /// Returns a [`antecedent_validate::FixedGraphSensitivityError`] when the checked derivation, graph,\n"
+[[certificate.replacement]]
+line = 532
+before = "    /// Returns a [`FixedGraphSensitivityError`] when the checked derivation, graph,\n"
+after = "    /// Returns a [`antecedent_validate::FixedGraphSensitivityError`] when the checked derivation, graph,\n"
+
+[[certificate]]
+path = "crates/antecedent/src/analysis/preflight.rs"
+from_blob = "d8021be8d01fbe7676aac889857337ac46dcb081"
+to_blob = "c164946071775be8f33069127b5cddbe0884cdb8"
+reviewed_by = "authorized release engineering review"
+rationale = "Only the explicitly listed Rustdoc link text changes; executable source, attributes, examples, and every other byte remain identical."
+[[certificate.replacement]]
+line = 704
+before = "/// An unknown or non-numeric column, a table over [`MAX_PREFLIGHT_CELLS`], or cancellation.\n"
+after = "/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.\n"
+[[certificate.replacement]]
+line = 1071
+before = "/// An unknown or non-numeric column, a table over [`MAX_PREFLIGHT_CELLS`], or cancellation.\n"
+after = "/// An unknown or non-numeric column, a table exceeding the preflight cell limit, or cancellation.\n"
+
+[[certificate]]
+path = "crates/antecedent/src/analysis/prepared.rs"
+from_blob = "df10b6ee2f51730d9a9dcc0bc19fc2dc4b699a0b"
+to_blob = "9b89e9b83f706aa83b8414365a4e26180a61fd96"
+reviewed_by = "authorized release engineering review"
+rationale = "Only the explicitly listed Rustdoc link text changes; executable source, attributes, examples, and every other byte remain identical."
+[[certificate.replacement]]
+line = 5005
+before = "    /// onto the same shape (see [`super::contract::full_temporal_identification`]), so an\n"
+after = "    /// onto the same shape (see `full_temporal_identification`), so an\n"
