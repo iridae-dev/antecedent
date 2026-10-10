@@ -577,7 +577,6 @@ impl DependentInterval {
     /// Actual construction and observed work of this internal measurement candidate.
     /// Units, successful replicates and the nominal level are those of the executed
     /// whole-unit procedure; this neither authenticates a sampling design nor activates it.
-    #[cfg(feature = "calibration-internal")]
     #[must_use]
     pub fn calibration_basis(&self) -> antecedent_core::CalibrationBasis {
         use std::sync::Arc;

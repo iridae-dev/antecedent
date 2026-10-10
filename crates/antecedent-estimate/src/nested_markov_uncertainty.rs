@@ -11,7 +11,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#[cfg(feature = "calibration-internal")]
 mod internal {
     use antecedent_core::ExecutionContext;
     use antecedent_stats::{chol_solve, cholesky_spd, special::normal_ppf};
@@ -278,7 +277,6 @@ mod internal {
     }
 }
 
-#[cfg(feature = "calibration-internal")]
 pub use internal::{
     NestedFisherFunctional, NestedMarkovUncertainty, PARAMETER_COUNT, nested_markov_fisher_internal,
 };

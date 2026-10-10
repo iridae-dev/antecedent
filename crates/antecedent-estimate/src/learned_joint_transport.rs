@@ -187,8 +187,9 @@ pub struct LearnedJointDiagnostics {
 /// Learn-fitted joint posterior of the transport row.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LearnedJointFit {
-    #[cfg(feature = "calibration-internal")]
     calibration_rows: u64,
+    // Same executed model facts, with source-order labels canonicalized only for evidence.
+    calibration_model_identity: String,
     /// Parameter names in order: invariant, then every varying block.
     pub parameter_names: Vec<String>,
     /// Exact posterior mean of the parameters.
@@ -222,7 +223,6 @@ impl LearnedJointFit {
     /// Actual source rows were captured during fitting; the full executed model
     /// identity includes basis, priors, source variances and sharing declaration.
     /// This supplies no public uncertainty activation or sampling-design authority.
-    #[cfg(feature = "calibration-internal")]
     #[allow(clippy::result_large_err)]
     pub fn target_calibration_basis(
         &self,
@@ -243,7 +243,7 @@ impl LearnedJointFit {
         }
         let draws = u32::try_from(self.draws.n_draws)
             .map_err(|_| invalid(DETAIL_INVALID_INPUT, "candidate draw count overflow"))?;
-        let posterior = format!("{LEARNED_JOINT_SAMPLER}.{}", self.model_identity);
+        let posterior = format!("{LEARNED_JOINT_SAMPLER}.{}", self.calibration_model_identity);
         Ok(antecedent_core::CalibrationBasis::new(
             [
                 "ClassicalTransport",
@@ -929,12 +929,33 @@ fn disagreement(
 }
 
 fn model_identity(model: &LearnedJointModel, layout: &Layout, sources: &[SourceData]) -> String {
+    let labels: Vec<_> = sources.iter().map(|s| s.id.as_str()).collect();
+    model_identity_with_source_labels(model, layout, sources, &labels)
+}
+
+fn calibration_model_identity(
+    model: &LearnedJointModel,
+    layout: &Layout,
+    sources: &[SourceData],
+) -> String {
+    // IDs label columns and provenance; source order, known variances and all model facts
+    // remain exact. Preserve the original measured s0/s1 construction byte for byte.
+    let labels: Vec<_> = (0..sources.len()).map(|i| format!("s{i}")).collect();
+    let labels: Vec<_> = labels.iter().map(String::as_str).collect();
+    model_identity_with_source_labels(model, layout, sources, &labels)
+}
+
+fn model_identity_with_source_labels(
+    model: &LearnedJointModel,
+    layout: &Layout,
+    sources: &[SourceData],
+    labels: &[&str],
+) -> String {
     let prior = |p: &GaussianPrior| {
         let bits: Vec<String> =
             p.mean.iter().chain(&p.covariance).map(|v| format!("{:016x}", v.to_bits())).collect();
         bits.join(",")
     };
-    let ids: Vec<&str> = sources.iter().map(|s| s.id.as_str()).collect();
     format!(
         "learned_joint_transport_v1|provider={LEARNED_JOINT_PROVIDER}|graph=fixed_dag|\
          query={LEARNED_JOINT_QUERY}|features={:?}|basis=polynomial_degree_{}|varying={:?}|\
@@ -944,7 +965,7 @@ fn model_identity(model: &LearnedJointModel, layout: &Layout, sources: &[SourceD
         model.basis_degree,
         model.varying,
         model.sharing,
-        ids.join(","),
+        labels.join(","),
         sources.iter().map(|s| s.noise_variance.to_bits()).collect::<Vec<_>>(),
         prior(&model.priors.invariant),
         prior(&model.priors.varying),
@@ -1131,7 +1152,6 @@ fn assemble(
         }
     }
     LearnedJointFit {
-        #[cfg(feature = "calibration-internal")]
         calibration_rows: sources
             .iter()
             .map(|s| u64::try_from(s.outcome.len()).expect("validated bounded source rows"))
@@ -1139,6 +1159,7 @@ fn assemble(
         target_effect_mean: effect_means[count - 1],
         target_effect_variance: effect_covariance[count * count - 1],
         model_identity: model_identity(model, layout, sources),
+        calibration_model_identity: calibration_model_identity(model, layout, sources),
         diagnostics: LearnedJointDiagnostics {
             sampler: LEARNED_JOINT_SAMPLER,
             draw_count: options.draws,

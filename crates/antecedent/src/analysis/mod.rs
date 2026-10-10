@@ -64,6 +64,7 @@ pub mod recalc_design;
 pub mod recalc_dr;
 pub mod recalc_receipt;
 pub mod recalc_temporal;
+pub mod recalc_temporal_measured;
 mod recovery;
 pub mod recovery_chain;
 pub mod repair;
@@ -73,7 +74,6 @@ mod statistical;
 pub mod temporal_counterfactual;
 mod temporal_extensions;
 #[doc(hidden)]
-#[cfg(feature = "calibration-internal")]
 pub use temporal_extensions::temporal_dependent_interval_candidate;
 mod temporal_transport;
 mod tier_diagnostics;
@@ -266,3 +266,6 @@ pub mod sensitivity_source;
 /// Independently retained original source diagnostics and contributor mappings.
 pub mod source_evidence;
 pub mod source_projection;
+
+#[doc(hidden)]
+pub use temporal_extensions::validate_temporal_dependent_interval;

@@ -1,5 +1,4 @@
-//! Feature-only candidate Gaussian/learned joint transport public lifecycle.
-#[cfg(feature = "calibration-internal")]
+//! Measured Gaussian/learned transport lifecycle and unchanged feature-only candidates.
 mod enabled {
     use crate::transport_interference_api::TransportIdentificationResult;
     use antecedent_core::reason_code;
@@ -10,12 +9,16 @@ mod enabled {
     };
     use antecedent_estimate::learned_joint_transport::LearnedJointModel;
     use antecedent_identify::{TransportFormula, TransportIdentification};
+    #[cfg(feature = "calibration-internal")]
+    use antecedent_io::joint_bayesian_transport_artifact::JointBayesianExpectation;
     use antecedent_io::joint_bayesian_transport_artifact::{
         DataIdentityWire, GaussianPriorWire, JointBayesianArtifactWire, JointBayesianConsumeLimits,
-        JointBayesianExpectation, PriorProvenanceWire,
+        PriorProvenanceWire,
     };
+    use antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire;
+    #[cfg(feature = "calibration-internal")]
     use antecedent_io::learned_joint_transport_artifact::{
-        LearnedJointArtifactWire, LearnedJointConsumeLimits, LearnedJointExpectation,
+        LearnedJointConsumeLimits, LearnedJointExpectation,
     };
     use pyo3::prelude::*;
     use serde::Deserialize;
@@ -59,6 +62,7 @@ mod enabled {
         max_unsupported_mass: f64,
         conflict_z_threshold: f64,
     }
+    #[cfg(feature = "calibration-internal")]
     #[derive(Default, Deserialize)]
     #[serde(deny_unknown_fields)]
     struct Expectation {
@@ -110,13 +114,20 @@ mod enabled {
         }
         Ok(())
     }
-    #[pyfunction]
-    fn joint_transport_candidate(
-        py: Python<'_>,
-        proof: PyRef<'_, TransportIdentificationResult>,
+    struct Prepared {
+        id: TransportIdentification,
+        model: JointTransportModel,
+        sources: Vec<SourceData>,
+        target: TargetData,
+        options: JointTransportOptions,
+        basis_degree: usize,
+        draw_cells: usize,
+    }
+    fn prepare(
+        proof: &TransportIdentificationResult,
         request_json: &str,
         learned: bool,
-    ) -> PyResult<(String, Vec<u8>)> {
+    ) -> PyResult<Prepared> {
         if request_json.len() > MAX_BYTES {
             return Err(invalid("joint_transport.request_too_large"));
         }
@@ -205,12 +216,17 @@ mod enabled {
             "unknown" => SourceDependence::Unknown,
             _ => return Err(invalid("joint_transport.dependence_invalid")),
         };
-        let source_rows: usize = request.sources.iter().map(|s| s.outcome.len()).sum();
+        let source_rows =
+            request.sources.iter().fold(0usize, |n, s| n.saturating_add(s.outcome.len()));
         let limits = JointBayesianConsumeLimits::default();
         let basis = features.len().saturating_mul(if learned { request.basis_degree } else { 1 });
-        let varying_dim = if varying == VaryingBlock::Intercept { 1 } else { 1 + basis };
-        let invariant_dim =
-            if varying == VaryingBlock::Intercept { 1 + 2 * basis } else { 1 + basis };
+        let varying_dim =
+            if varying == VaryingBlock::Intercept { 1 } else { 1usize.saturating_add(basis) };
+        let invariant_dim = if varying == VaryingBlock::Intercept {
+            1usize.saturating_add(2usize.saturating_mul(basis))
+        } else {
+            1usize.saturating_add(basis)
+        };
         let varying_blocks =
             if sharing == SourceSharing::SharedVaryingBlock { 1 } else { request.sources.len() };
         let dimension = invariant_dim.saturating_add(varying_dim.saturating_mul(varying_blocks));
@@ -255,13 +271,34 @@ mod enabled {
         };
         let id = id.clone();
         let options = JointTransportOptions { draws: request.draws, seed: request.seed };
-        let ctx = antecedent_core::ExecutionContext::production_default(request.seed);
+        Ok(Prepared {
+            id,
+            model,
+            sources,
+            target,
+            options,
+            basis_degree: request.basis_degree,
+            draw_cells: request.draws.saturating_mul(draw_width),
+        })
+    }
+
+    #[cfg(feature = "calibration-internal")]
+    #[pyfunction]
+    fn joint_transport_candidate(
+        py: Python<'_>,
+        proof: PyRef<'_, TransportIdentificationResult>,
+        request_json: &str,
+        learned: bool,
+    ) -> PyResult<(String, Vec<u8>)> {
+        let Prepared { id, model, sources, target, options, basis_degree, .. } =
+            prepare(&proof, request_json, learned)?;
+        let ctx = antecedent_core::ExecutionContext::production_default(options.seed);
         crate::detach_catch(py, move || {
             if learned {
                 let model = LearnedJointModel {
                     graph: model.graph,
                     features: model.features,
-                    basis_degree: request.basis_degree,
+                    basis_degree,
                     varying: model.varying,
                     sharing: model.sharing,
                     dependence: model.dependence,
@@ -283,6 +320,65 @@ mod enabled {
             }
         })
     }
+    #[pyfunction]
+    #[pyo3(signature=(identification,request_json,learned,*,level=0.95,memory_limit_bytes=None,cancel=None))]
+    fn joint_transport_measured(
+        py: Python<'_>,
+        identification: PyRef<'_, TransportIdentificationResult>,
+        request_json: &str,
+        learned: bool,
+        level: f64,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+        if request_json.len() > MAX_BYTES {
+            return Err(invalid("joint_transport.request_too_large"));
+        }
+        crate::measured_inference_api::before_work(
+            request_json.len(),
+            0,
+            memory_limit_bytes,
+            cancel.as_ref(),
+        )?;
+        let Prepared { id, model, sources, target, options, basis_degree, draw_cells } =
+            prepare(&identification, request_json, learned)?;
+        crate::measured_inference_api::before_work(
+            request_json.len(),
+            draw_cells.saturating_mul(8),
+            memory_limit_bytes,
+            cancel.as_ref(),
+        )?;
+        let ctx = crate::measured_inference_api::context(options.seed, memory_limit_bytes, cancel);
+        crate::detach_catch(py, move || {
+            let measured = if learned {
+                let model = LearnedJointModel {
+                    graph: model.graph,
+                    features: model.features,
+                    basis_degree,
+                    varying: model.varying,
+                    sharing: model.sharing,
+                    dependence: model.dependence,
+                    priors: model.priors,
+                    max_unsupported_mass: model.max_unsupported_mass,
+                    conflict_z_threshold: model.conflict_z_threshold,
+                };
+                LearnedJointArtifactWire::build_measured(
+                    &id, &model, &sources, &target, options, level, &ctx,
+                )
+                .map_err(io)?
+                .2
+            } else {
+                JointBayesianArtifactWire::build_measured(
+                    &id, &model, &sources, &target, options, level, &ctx,
+                )
+                .map_err(io)?
+                .2
+            };
+            crate::measured_inference_api::check_cancelled(&ctx)?;
+            crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
+        })
+    }
+    #[cfg(feature = "calibration-internal")]
     #[pyfunction]
     fn consume_joint_transport_candidate(
         py: Python<'_>,
@@ -337,8 +433,13 @@ mod enabled {
         })
     }
     pub(super) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-        m.add_function(wrap_pyfunction!(joint_transport_candidate, m)?)?;
-        m.add_function(wrap_pyfunction!(consume_joint_transport_candidate, m)?)
+        m.add_function(wrap_pyfunction!(joint_transport_measured, m)?)?;
+        #[cfg(feature = "calibration-internal")]
+        {
+            m.add_function(wrap_pyfunction!(joint_transport_candidate, m)?)?;
+            m.add_function(wrap_pyfunction!(consume_joint_transport_candidate, m)?)?;
+        }
+        Ok(())
     }
 }
 pub(crate) fn register(m: &pyo3::Bound<'_, pyo3::types::PyModule>) -> pyo3::PyResult<()> {

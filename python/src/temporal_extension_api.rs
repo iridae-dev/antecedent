@@ -1,6 +1,6 @@
 //! Python bindings for the temporal extensions of the finite two-step sequence
 //! (2.3A, X5): the uncertain initial state and the new-period refresh (both point
-//! only and licensed), and the closed dependent interval.
+//! only and licensed), and measured dependent intervals.
 //!
 //! Python builds the declarations; every identity, check and refusal rule is Rust's.
 //! A refusal comes back as structured JSON for the Python layer to raise as its own
@@ -392,7 +392,7 @@ fn temporal_dependent_interval_closed(
     };
     let sequence = [sequence.0, sequence.1];
     let outcome = estimand.and_then(|estimand| {
-        antecedent::temporal_dependent_interval(
+        antecedent::analysis::validate_temporal_dependent_interval(
             snapshot_id,
             units_of(units),
             sequence,
@@ -401,7 +401,10 @@ fn temporal_dependent_interval_closed(
         )
     });
     match outcome {
-        Ok(never) => match never {},
+        Ok(()) => Ok(refusal_json(
+            reason_code!("cell_not_licensed"),
+            "temporal_interval.route_frozen: the historical candidate diagnostic does not authorize inference",
+        )),
         Err(IoError::Refused { code, message }) => Ok(refusal_json(code, &message)),
         Err(other) => Err(crate::value_err(other.to_string())),
     }
@@ -505,6 +508,108 @@ fn temporal_dependent_interval_candidate(
     })
 }
 
+/// Measured standard route: original whole-unit source and current scalar evidence.
+#[pyfunction]
+#[pyo3(signature = (snapshot_id, units, sequence, estimand, fixed_state, law, point, replicates, seed, level, method, min_units, max_failed_fraction, *, memory_limit_bytes=None, cancel=None))]
+#[allow(clippy::too_many_arguments)]
+fn temporal_dependent_interval_measured(
+    py: Python<'_>,
+    snapshot_id: &str,
+    units: Option<Vec<UnitTuple>>,
+    sequence: (u32, u32),
+    estimand: &str,
+    fixed_state: Option<u32>,
+    law: Option<LawTuple>,
+    point: Option<u32>,
+    replicates: usize,
+    seed: u64,
+    level: f64,
+    method: &str,
+    min_units: usize,
+    max_failed_fraction: f64,
+    memory_limit_bytes: Option<u64>,
+    cancel: Option<crate::PyCancellationToken>,
+) -> Outcome<crate::measured_inference_api::NativeMeasuredInference> {
+    let numerical_bytes = units
+        .as_ref()
+        .map_or(0, |u| u.iter().map(|(_, h)| h.len()).sum::<usize>())
+        .saturating_mul(128);
+    crate::measured_inference_api::before_work(
+        0,
+        numerical_bytes,
+        memory_limit_bytes,
+        cancel.as_ref(),
+    )?;
+    // Preserve complete original-domain validation before scoped inference.
+    let refusal = temporal_dependent_interval_closed(
+        snapshot_id,
+        units.clone(),
+        sequence,
+        estimand,
+        fixed_state,
+        law.clone(),
+        point,
+        replicates,
+        seed,
+        level,
+        method,
+        min_units,
+        max_failed_fraction,
+    )?;
+    let detail = serde_json::from_str::<serde_json::Value>(&refusal)
+        .map_err(|e| crate::value_err(e.to_string()))?;
+    if detail["detail"] != "temporal_interval.route_frozen" {
+        return Ok((None, Some(refusal)));
+    }
+    let method = match method {
+        "percentile" => IntervalMethod::Percentile,
+        "basic" => IntervalMethod::Basic,
+        "studentized" => IntervalMethod::Studentized,
+        _ => return Err(crate::value_err("invalid interval method")),
+    };
+    let estimand = match (estimand, fixed_state) {
+        ("observed_initial_state", None) => IntervalEstimand::Observed,
+        ("fixed_initial_state", Some(s0)) => IntervalEstimand::FixedState(s0),
+        ("marginalized_initial_state", None) => IntervalEstimand::Marginalized(
+            spec_of(law, point).map_err(|e| crate::value_err(e.to_string()))?,
+        ),
+        _ => return Err(crate::value_err("invalid interval estimand")),
+    };
+    let config =
+        DependentIntervalConfig { replicates, seed, level, method, min_units, max_failed_fraction };
+    let ctx = crate::measured_inference_api::context(seed, memory_limit_bytes, cancel);
+    let snapshot_id = snapshot_id.to_owned();
+    crate::detach_catch(py, move || {
+        let source = antecedent::temporal_dependent_interval_candidate(
+            &snapshot_id,
+            units_of(units),
+            [sequence.0, sequence.1],
+            estimand,
+            &config,
+            &ctx,
+        );
+        let source = match source {
+            Ok(wire) => wire,
+            Err(cause) => return produce(Err(cause)),
+        };
+        let bytes = source.export().map_err(crate::transport_common::error)?;
+        let measured =
+            antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure(
+                &bytes,
+                &source.seal,
+                &antecedent_io::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(
+                ),
+                &ctx,
+            );
+        let measured = match measured {
+            Ok(value) => value,
+            Err(cause) => return produce(Err(cause)),
+        };
+        crate::measured_inference_api::check_cancelled(&ctx)?;
+        Ok((Some(crate::measured_inference_api::NativeMeasuredInference::from_io(measured)?), None))
+    })
+}
+
 /// Fresh internal consumer reruns the original whole-unit estimator/resampling.
 #[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
@@ -542,6 +647,7 @@ fn consume_temporal_interval_candidate(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(temporal_dependent_interval_measured, module)?)?;
     #[cfg(feature = "calibration-internal")]
     {
         module.add_class::<NativeTemporalIntervalCandidate>()?;

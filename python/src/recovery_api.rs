@@ -265,13 +265,9 @@ struct ObservationRecoveryStage {
     memory_bytes: Option<u64>,
 }
 
-#[pymethods]
 impl ObservationRecoveryStage {
-    /// Internal release-acceptance producer; default wheels omit this method.
-    #[cfg(feature = "calibration-internal")]
-    #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_percentile"))]
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-    fn sampled_candidate(
+    fn sampled_source(
         &self,
         py: Python<'_>,
         population: String,
@@ -283,6 +279,8 @@ impl ObservationRecoveryStage {
         replicates: usize,
         seed: u64,
         interval_method: &str,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(String, Vec<u8>)> {
         use antecedent_estimate::{
             ObservationPattern, ObservationRow, SampledObservationInput, SampledRecoveryConfig,
@@ -392,7 +390,11 @@ impl ObservationRecoveryStage {
         let graph = self.shared.clone();
         let catalog = self.catalog.clone();
         let names = self.graph.names.clone();
-        let ctx = execution_context(seed, self.memory_bytes, None);
+        let memory = match (self.memory_bytes, memory_limit_bytes) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        let ctx = crate::measured_inference_api::context(seed, memory, cancel);
         crate::detach_catch(py, move || {
             let result = estimate_sampled_recovery(&derivation, &input, &config, &ctx)
                 .map_err(|e| sampled_candidate_error(e.reason_code(), &e.to_string()))?;
@@ -409,6 +411,122 @@ impl ObservationRecoveryStage {
             let bytes = wire.export().map_err(|e| sampled_candidate_io_error(&e))?;
             let summary = sampled_candidate_json(&wire);
             Ok((summary, bytes))
+        })
+    }
+}
+
+#[pymethods]
+impl ObservationRecoveryStage {
+    /// Internal historical candidate; retains unmeasured semantics.
+    #[cfg(feature = "calibration-internal")]
+    #[pyo3(signature=(population, observed_regime, partial, fully, rows, snapshot, replicates, seed, interval_method="bootstrap_percentile"))]
+    #[allow(clippy::too_many_arguments)]
+    fn sampled_candidate(
+        &self,
+        py: Python<'_>,
+        population: String,
+        observed_regime: String,
+        partial: Vec<(String, String, String)>,
+        fully: Vec<String>,
+        rows: Vec<(u64, u8, u8, u8)>,
+        snapshot: String,
+        replicates: usize,
+        seed: u64,
+        interval_method: &str,
+    ) -> PyResult<(String, Vec<u8>)> {
+        self.sampled_source(
+            py,
+            population,
+            observed_regime,
+            partial,
+            fully,
+            rows,
+            snapshot,
+            replicates,
+            seed,
+            interval_method,
+            None,
+            None,
+        )
+    }
+    /// Checked whole-row BCa producer bound to current measured native evidence.
+    #[pyo3(signature=(population,observed_regime,partial,fully,rows,snapshot,replicates,seed,interval_method="bootstrap_bca",*,memory_limit_bytes=None,cancel=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn sampled_measured(
+        &self,
+        py: Python<'_>,
+        population: String,
+        observed_regime: String,
+        partial: Vec<(String, String, String)>,
+        fully: Vec<String>,
+        rows: Vec<(u64, u8, u8, u8)>,
+        snapshot: String,
+        replicates: usize,
+        seed: u64,
+        interval_method: &str,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<crate::measured_inference_api::NativeMeasuredInference> {
+        use antecedent_io::sampled_recovery_artifact::{
+            SampledRecoveryArtifactWire, SampledRecoveryConsumeLimits, SampledRecoveryExpectation,
+        };
+        if replicates != 2000
+            || interval_method != "bootstrap_bca"
+            || !(1000..=4000).contains(&rows.len())
+        {
+            return Err(crate::transport_common::error(IoError::Refused {code:antecedent_core::reason_code!("cell_not_licensed"),message:"sampled_recovery.protocol_not_measured: measured BCa requires 2000 draws and 1000..=4000 observation rows".into()}));
+        }
+        if self.catalog.bindings.iter().any(|binding| {
+            binding.regime == self.query.observed_regime
+                && (binding.weights.is_some()
+                    || binding.sampling != antecedent_core::SamplingDesign::Independent)
+        }) {
+            return Err(crate::transport_common::error(IoError::Refused {
+                code: antecedent_core::reason_code!("cell_not_licensed"),
+                message: "sampled_recovery.protocol_not_measured: measured whole-row recovery requires an unweighted independent observation binding".into(),
+            }));
+        }
+        let memory = match (self.memory_bytes, memory_limit_bytes) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        crate::measured_inference_api::before_work(
+            0,
+            rows.len().saturating_mul(64),
+            memory,
+            cancel.as_ref(),
+        )?;
+        let (_, bytes) = self.sampled_source(
+            py,
+            population,
+            observed_regime,
+            partial,
+            fully,
+            rows,
+            snapshot,
+            replicates,
+            seed,
+            interval_method,
+            memory,
+            cancel.clone(),
+        )?;
+        let ctx = crate::measured_inference_api::context(seed, memory, cancel);
+        crate::detach_catch(py, move || {
+            let source = SampledRecoveryArtifactWire::decode(&bytes)
+                .map_err(crate::transport_common::error)?;
+            let expected = SampledRecoveryExpectation {
+                premises_digest: Some(source.premises_digest),
+                data_digest: Some(source.data_digest),
+            };
+            let measured = SampledRecoveryArtifactWire::measure(
+                &bytes,
+                &expected,
+                SampledRecoveryConsumeLimits::default(),
+                &ctx,
+            )
+            .map_err(crate::transport_common::error)?;
+            crate::measured_inference_api::check_cancelled(&ctx)?;
+            crate::measured_inference_api::NativeMeasuredInference::from_io(measured)
         })
     }
     /// `recovered` or `nonrecoverable`.
@@ -801,7 +919,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[cfg(feature = "calibration-internal")]
 fn sampled_candidate_error(code: &str, message: &str) -> PyErr {
     if code == antecedent_core::reason_code!("invalid_argument") {
         crate::with_reason_code(
@@ -813,7 +930,6 @@ fn sampled_candidate_error(code: &str, message: &str) -> PyErr {
     }
 }
 
-#[cfg(feature = "calibration-internal")]
 fn sampled_candidate_io_error(error: &IoError) -> PyErr {
     match error.reason_code() {
         Some(code) => sampled_candidate_error(code, &error.to_string()),
@@ -821,7 +937,6 @@ fn sampled_candidate_io_error(error: &IoError) -> PyErr {
     }
 }
 
-#[cfg(feature = "calibration-internal")]
 fn sampled_candidate_json(
     wire: &antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire,
 ) -> String {

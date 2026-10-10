@@ -85,7 +85,6 @@ pub(crate) struct TransportIdentificationResult {
     // than a value a caller could set from Python (this pyclass has no `#[new]` and no
     // setters, so a Python caller cannot forge or mutate one either).
     identification: TransportIdentification,
-    #[cfg(feature = "calibration-internal")]
     original_populations: (String, String),
 }
 
@@ -341,7 +340,6 @@ fn verify_program_matches_identification(
 }
 
 impl TransportIdentificationResult {
-    #[cfg(feature = "calibration-internal")]
     pub(crate) fn original_joint_inputs(
         &self,
     ) -> (&TransportIdentification, &Admg, &(String, String)) {
@@ -986,8 +984,6 @@ fn transport_result(
     original_populations: (String, String),
 ) -> PyResult<TransportIdentificationResult> {
     let names = &graph.names;
-    #[cfg(not(feature = "calibration-internal"))]
-    let _ = original_populations;
     let mut out = TransportIdentificationResult {
         transportable: false,
         outcome: result.outcome().kind.as_str().to_owned(),
@@ -1013,7 +1009,6 @@ fn transport_result(
         original_catalog,
         identification_arena: None,
         identification: result.clone(),
-        #[cfg(feature = "calibration-internal")]
         original_populations,
     };
     match result {

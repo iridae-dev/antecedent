@@ -657,3 +657,140 @@ fn sampled_bca_refuses_protocol_changes_and_delete_one_support_boundary() {
     assert_eq!(error.detail, SampledRecoveryDetail::UnrecoverablePattern);
     assert_eq!(error.patterns, vec![rare]);
 }
+
+#[test]
+fn scientific_basis_ignores_source_aliases_but_retains_checked_construction() {
+    let m = model();
+    let original_catalog = m.catalog();
+    let original = derive_with(&m, &original_catalog);
+    let mut alias_catalog = original_catalog.clone();
+    let mut alias_query = m.query();
+    alias_query.population = Arc::from("alias_population");
+    alias_query.observed_regime = antecedent_core::RegimeId::from_raw(91);
+    for environment in Arc::make_mut(&mut alias_catalog.environments) {
+        environment.identity = Arc::from("alias_population");
+    }
+    for regime in Arc::make_mut(&mut alias_catalog.regimes) {
+        regime.id = alias_query.observed_regime;
+        regime.population = Arc::clone(&alias_query.population);
+        regime.label = Some(Arc::from("alias_regime"));
+    }
+    for binding in Arc::make_mut(&mut alias_catalog.bindings) {
+        binding.regime = alias_query.observed_regime;
+        binding.snapshot_identity = Arc::from("alias_snapshot");
+        binding.dataset_identity = Some(Arc::from("alias_dataset"));
+    }
+    let alias = derive_sampled_recovery(
+        &m.graph,
+        &alias_query,
+        &alias_catalog,
+        &effect_query(&m, &EDGES, 0, 1),
+        RecoveryLimits::default(),
+        &ctx(),
+    )
+    .unwrap();
+    assert_ne!(original.identity(), alias.identity());
+    assert_eq!(original.scientific_identity(), alias.scientific_identity());
+    let data = input(seeded_rows(2000, 6917));
+    let aliased_data = SampledObservationInput {
+        snapshot_id: "alias_snapshot".to_owned(),
+        rows: data.rows.clone(),
+    };
+    let config = loose(20, 5);
+    let first = estimate_sampled_recovery(&original, &data, &config, &ctx()).unwrap();
+    let second = estimate_sampled_recovery(&alias, &aliased_data, &config, &ctx()).unwrap();
+    // External Rust callers retain the existing all-public result literal API.
+    let literal = antecedent_estimate::SampledRecoveryResult {
+        recovered_law: first.recovered_law.clone(),
+        effect: first.effect,
+        diagnostics: first.diagnostics.clone(),
+        interval: first.interval,
+        replicate_effects: first.replicate_effects.clone(),
+        failed_replicates: first.failed_replicates,
+        effect_standard_error: first.effect_standard_error,
+        recovered_cells: first.recovered_cells,
+        recovered_cell_covariance: first.recovered_cell_covariance.clone(),
+        receipt: first.receipt.clone(),
+    };
+    assert_eq!(literal.calibration_basis(), first.calibration_basis());
+    assert_eq!(first.calibration_basis(), second.calibration_basis());
+    assert_ne!(first.receipt.derivation_identity, second.receipt.derivation_identity);
+    assert_ne!(first.receipt.receipt_digest, second.receipt.receipt_digest);
+    assert!(replay_sampled_recovery(&alias, &aliased_data, &first.receipt, &ctx()).is_err());
+    let changed = MModel::new(2, 1, &EDGES, &[vec![], vec![0]], 5).unwrap();
+    let changed_derivation = derive_with(&changed, &changed.catalog());
+    assert_ne!(original.scientific_identity(), changed_derivation.scientific_identity());
+    let changed_response_roles = MModel::new(2, 1, &EDGES, &[vec![1], vec![2]], 5).unwrap();
+    let changed_response_derivation =
+        derive_with(&changed_response_roles, &changed_response_roles.catalog());
+    assert_ne!(original.scientific_identity(), changed_response_derivation.scientific_identity());
+    let reversed_effect = derive_sampled_recovery(
+        &m.graph,
+        &m.query(),
+        &original_catalog,
+        &effect_query(&m, &EDGES, 1, 0),
+        RecoveryLimits::default(),
+        &ctx(),
+    )
+    .unwrap();
+    assert_ne!(original.scientific_identity(), reversed_effect.scientific_identity());
+    let reversed_result =
+        estimate_sampled_recovery(&reversed_effect, &data, &config, &ctx()).unwrap();
+    assert_ne!(first.calibration_basis(), reversed_result.calibration_basis());
+
+    let changed_roles = MModel::new(2, 1, &EDGES, &[vec![0], vec![2]], 5).unwrap();
+    // Self censoring is refused, never normalized into the original license.
+    assert!(
+        derive_sampled_recovery(
+            &changed_roles.graph,
+            &changed_roles.query(),
+            &changed_roles.catalog(),
+            &effect_query(&changed_roles, &EDGES, 0, 1),
+            RecoveryLimits::default(),
+            &ctx(),
+        )
+        .is_err()
+    );
+    let mut changed_sampling = original_catalog.clone();
+    Arc::make_mut(&mut changed_sampling.bindings)[0].sampling =
+        antecedent_core::SamplingDesign::Unknown;
+    let changed_sampling = derive_with(&m, &changed_sampling);
+    assert_ne!(original.scientific_identity(), changed_sampling.scientific_identity());
+}
+
+#[test]
+fn single_provider_cross_study_linkage_is_not_a_row_sampling_premise() {
+    let m = model();
+    let catalog = m.catalog();
+    let original = derive_with(&m, &catalog);
+    let mut unknown_linkage = catalog.clone();
+    Arc::make_mut(&mut unknown_linkage.bindings)[0].dependence =
+        antecedent_core::DependenceGroup::UnknownDependence;
+    let aliased = derive_with(&m, &unknown_linkage);
+    assert_ne!(original.identity(), aliased.identity());
+    assert_eq!(original.scientific_identity(), aliased.scientific_identity());
+    let data = input(seeded_rows(2000, 6917));
+    let config = loose(20, 5);
+    let first = estimate_sampled_recovery(&original, &data, &config, &ctx()).unwrap();
+    let second = estimate_sampled_recovery(&aliased, &data, &config, &ctx()).unwrap();
+    assert_eq!(first.calibration_basis(), second.calibration_basis());
+    assert!((first.effect - second.effect).abs() < 1e-12);
+    assert!(
+        first
+            .replicate_effects
+            .iter()
+            .zip(&second.replicate_effects)
+            .all(|(a, b)| (a - b).abs() < 1e-12)
+    );
+    assert_ne!(first.receipt.receipt_digest, second.receipt.receipt_digest);
+    assert!(replay_sampled_recovery(&aliased, &data, &first.receipt, &ctx()).is_err());
+    for design in
+        [antecedent_core::SamplingDesign::Unknown, antecedent_core::SamplingDesign::Clustered]
+    {
+        let mut changed_catalog = catalog.clone();
+        Arc::make_mut(&mut changed_catalog.bindings)[0].sampling = design;
+        let changed = derive_with(&m, &changed_catalog);
+        let changed_result = estimate_sampled_recovery(&changed, &data, &config, &ctx()).unwrap();
+        assert_ne!(first.calibration_basis(), changed_result.calibration_basis());
+    }
+}

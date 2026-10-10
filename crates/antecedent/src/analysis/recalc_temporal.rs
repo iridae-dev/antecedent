@@ -1,16 +1,12 @@
 //! Shared-plan point execution of checked binary two-step whole-history functionals.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#[cfg(feature = "calibration-internal")]
 #[path = "recalc_temporal_studentized.rs"]
 mod studentized;
 
-use super::{
-    recalc_receipt::{
-        Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder,
-        UtilitySpec, decide,
-    },
-    temporal_extensions::{IntervalEstimand, temporal_dependent_interval},
+use super::recalc_receipt::{
+    Counter, DecisionValue, LawValue, RecalcOutcome, RecalcRunError, ReceiptRecorder, UtilitySpec,
+    decide,
 };
 use antecedent_core::recalc::{
     Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
@@ -27,7 +23,7 @@ use antecedent_estimate::{
         DependentIntervalConfig, SequenceHistory, TemporalUnitPanel, UnitHistories,
     },
     temporal_history_fit::{FittedSequenceHistory, fit_binary_history_joint},
-    temporal_initial_state::{InitialStateLaw, InitialStatePopulation, InitialStateSpec},
+    temporal_initial_state::{InitialStateLaw, InitialStatePopulation},
 };
 use antecedent_expr::execution_counts::{StaticWorkCounts, count_static_work};
 use antecedent_expr::{
@@ -439,23 +435,19 @@ impl TemporalSession {
         )?
         .export()?)
     }
-    /// Validate the selected whole-unit interval request and preserve the public frozen gate.
+    /// Measured original-source whole-unit interval, including paired effect arms.
     /// # Errors
-    /// Missing state, invalid unit/config/support, or always temporal_interval.route_frozen.
+    /// Missing checked state, unmeasured protocol, source replay or stale evidence.
     pub fn dependent_interval(
         &self,
         config: &DependentIntervalConfig,
-    ) -> Result<std::convert::Infallible, TemporalRunError> {
-        let l = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
-        let sequence = l.request.functional.sequences()[0];
-        temporal_dependent_interval(
-            l.panel.snapshot_id(),
-            Some(l.panel.units().to_vec()),
-            sequence,
-            IntervalEstimand::Marginalized(InitialStateSpec::Law(initial_law(&l.request)?)),
+    ) -> Result<super::recalc_temporal_measured::CheckedMeasuredTemporal, TemporalRunError> {
+        let live = self.live.as_ref().ok_or(RecalcRunError::NoLiveState(Stage::ScoreArtifact))?;
+        super::recalc_temporal_measured::CheckedMeasuredTemporal::produce(
+            self,
             config,
+            &ExecutionContext::production_default(live.seed),
         )
-        .map_err(TemporalRunError::from)
     }
 
     /// Closed whole-unit interval candidate for internal acceptance/calibration.
@@ -464,7 +456,6 @@ impl TemporalSession {
     /// # Errors
     /// Missing actual state, changed producing context, invalid configuration,
     /// cancellation or unsupported resampled histories.
-    #[cfg(feature = "calibration-internal")]
     #[doc(hidden)]
     pub fn candidate_interval_internal(
         &self,
@@ -494,12 +485,10 @@ impl TemporalSession {
         )?)
     }
 }
-#[cfg(feature = "calibration-internal")]
 struct CheckedUnitDraw<'a> {
     live: &'a Live,
     ctx: &'a ExecutionContext,
 }
-#[cfg(feature = "calibration-internal")]
 impl antecedent_estimate::temporal_dependent_interval::TemporalEstimator for CheckedUnitDraw<'_> {
     fn label(&self) -> &'static str {
         match self.live.request.functional {
@@ -517,7 +506,6 @@ impl antecedent_estimate::temporal_dependent_interval::TemporalEstimator for Che
         })
     }
 }
-#[cfg(feature = "calibration-internal")]
 fn checked_unit_draw(
     live: &Live,
     units: &[&UnitHistories],

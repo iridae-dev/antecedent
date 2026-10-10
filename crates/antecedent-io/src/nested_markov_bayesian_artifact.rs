@@ -82,7 +82,7 @@ pub struct Artifact {
     pub coordinates: Vec<String>,
     /// Declared sampling assumption.
     pub sampling: String,
-    /// Must remain unmeasured; an artifact cannot activate calibration.
+    /// Original candidate standing remains unmeasured; a distinct outer envelope resolves scalar authority.
     pub calibration: String,
     /// Inferential standing, distinct from nonparametric identification.
     pub inference: String,

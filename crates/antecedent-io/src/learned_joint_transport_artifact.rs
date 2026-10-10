@@ -1,8 +1,9 @@
 //! Independent artifact of the learned joint source-target transport row (2.3A cell X4
-//! remainder and 2.3B B1 model-provider row `learned_joint_transport`). Internal and
-//! non-routed: the public interval route `antecedent.transport.learned_joint` stays closed
-//! (`cell_not_licensed`, `learned_joint_transport.route_frozen`) until calibration is
-//! measured, so nothing here is a published interval.
+//! remainder and 2.3B B1 model-provider row `learned_joint_transport`). The original
+//! candidate format and its posterior quantities retain their `unmeasured` standing.
+//! Separate `build_measured` / `consume_measured` adapters authorize only the
+//! target-effect scalar when the actual native execution satisfies the frozen
+//! protocol and its basis resolves to a current attesting calibration record.
 //!
 //! Format version 1. The artifact carries the model declaration (graph class, polynomial
 //! basis degree, varying block, sharing, dependence, bounds), both priors with their
@@ -741,5 +742,191 @@ impl LearnedJointArtifactWire {
             return Err(LearnedJointArtifactError::ResultMismatch.into());
         }
         Ok((wire, fit))
+    }
+}
+
+impl LearnedJointArtifactWire {
+    /// Produce the unchanged original candidate plus a separately record-bound
+    /// measured target-effect scalar. Other posterior quantities remain unmeasured.
+    /// # Errors
+    /// Out-of-protocol inputs, original native refusal, or non-attesting evidence.
+    #[allow(clippy::too_many_arguments)]
+    pub fn build_measured(
+        id: &TransportIdentification,
+        model: &LearnedJointModel,
+        sources: &[SourceData],
+        target: &TargetData,
+        options: JointTransportOptions,
+        level: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<(Self, LearnedJointFit, crate::measured_inference::MeasuredInference), IoError>
+    {
+        Self::measured_input_bounds(model, sources, target)?;
+        let declaration = LearnedModelWire::from_model(model);
+        let source_wires: Vec<_> = sources.iter().map(source_to_wire).collect();
+        let target_wire = JointTargetWire {
+            identity: identity_to_wire(&target.identity),
+            rows: target.rows,
+            covariates: target.covariates.clone(),
+        };
+        crate::measured_inference::transport::protocol(
+            &crate::measured_inference::transport::Model {
+                graph: &declaration.graph,
+                features: &declaration.features,
+                varying: &declaration.varying,
+                sharing: &declaration.sharing,
+                dependence: &declaration.dependence,
+                invariant: &declaration.invariant_prior,
+                varying_prior: &declaration.varying_prior,
+                unsupported: declaration.max_unsupported_mass,
+                conflict: declaration.conflict_z_threshold,
+                degree: Some(declaration.basis_degree),
+            },
+            &source_wires,
+            &target_wire,
+            options.draws,
+            level,
+        )?;
+        let (wire, fit) = Self::build(id, model, sources, target, options, ctx)?;
+        let measured = wire.measured_from_execution(&fit, level)?;
+        Ok((wire, fit, measured))
+    }
+    fn measured_input_bounds(
+        model: &LearnedJointModel,
+        sources: &[SourceData],
+        target: &TargetData,
+    ) -> Result<(), IoError> {
+        let identity_ok = |id: &DataIdentity| {
+            id.snapshot_digest.len() <= 256
+                && id.datum_ids.len() <= 600
+                && id.datum_ids.iter().all(|s| s.len() <= 256)
+        };
+        if sources.len() > 2
+            || model.features.len() != 1
+            || model.priors.invariant.mean.len() > 5
+            || model.priors.invariant.covariance.len() > 25
+            || model.priors.varying.mean.len() > 3
+            || model.priors.varying.covariance.len() > 9
+            || sources.iter().any(|s| {
+                s.id.len() > 64
+                    || s.outcome.len() > 600
+                    || s.treatment.len() > 600
+                    || s.covariates.len() != 1
+                    || s.covariates[0].len() > 600
+                    || !identity_ok(&s.identity)
+            })
+            || target.rows != 4
+            || target.covariates.len() != 1
+            || target.covariates[0].len() != 4
+            || !identity_ok(&target.identity)
+        {
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: source/model/identity shape exceeds the frozen bounded protocol".into() });
+        }
+        Ok(())
+    }
+    fn measured_from_execution(
+        &self,
+        fit: &LearnedJointFit,
+        level: f64,
+    ) -> Result<crate::measured_inference::MeasuredInference, IoError> {
+        let scope = crate::measured_inference::transport::protocol(
+            &crate::measured_inference::transport::Model {
+                graph: &self.model.graph,
+                features: &self.model.features,
+                varying: &self.model.varying,
+                sharing: &self.model.sharing,
+                dependence: &self.model.dependence,
+                invariant: &self.model.invariant_prior,
+                varying_prior: &self.model.varying_prior,
+                unsupported: self.model.max_unsupported_mass,
+                conflict: self.model.conflict_z_threshold,
+                degree: Some(self.model.basis_degree),
+            },
+            &self.sources,
+            &self.target,
+            self.options.draws,
+            level,
+        )?;
+        if fit.diagnostics.sampler
+            != antecedent_estimate::learned_joint_transport::LEARNED_JOINT_SAMPLER
+            || fit.diagnostics.draw_count != fit.draws.n_draws
+        {
+            return Err(IoError::Refused { code:antecedent_core::reason_code!("cell_not_licensed"),message:"measured_transport.protocol_not_measured: actual native posterior differs from measured sampler".into() });
+        }
+        let basis = fit.target_calibration_basis(level).map_err(|e| engine_refusal(&e))?;
+        let column = fit
+            .draws
+            .column("effect.target")
+            .ok_or_else(|| IoError::Convert("actual target effect column missing".into()))?;
+        let interval =
+            crate::measured_inference::posterior_interval(fit.draws.coordinate(column), level)?;
+        crate::measured_inference::authorize(
+            "learned_joint",
+            self.export()?,
+            &self.premises_digest,
+            &self.data_digest,
+            scope,
+            vec![crate::measured_inference::ScalarExecution {
+                name: "target_effect".into(),
+                point: fit.target_effect_mean,
+                interval,
+                basis,
+            }],
+        )
+    }
+    /// Independently replay the original source/priors/model and derive every
+    /// scalar's current record binding; serialized calibrated flags cannot license it.
+    /// # Errors
+    /// Identity/source mismatch, original engine refusal, out-of-protocol or stale evidence.
+    pub fn consume_measured(
+        bytes: &[u8],
+        expected: &crate::measured_inference::MeasuredExpectation,
+        limits: LearnedJointConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<(Self, LearnedJointFit, crate::measured_inference::MeasuredInference), IoError>
+    {
+        if expected.route != "learned_joint" {
+            return Err(IoError::Refused {
+                code: antecedent_core::reason_code!("invalid_argument"),
+                message:
+                    "measured_inference.artifact_mismatch: route differs from requested adapter"
+                        .into(),
+            });
+        }
+        let envelope = crate::measured_inference::decode(bytes, expected)?;
+        let preliminary = Self::decode(&envelope.source)?;
+        preliminary.check_limits(&limits)?;
+        crate::measured_inference::transport::protocol(
+            &crate::measured_inference::transport::Model {
+                graph: &preliminary.model.graph,
+                features: &preliminary.model.features,
+                varying: &preliminary.model.varying,
+                sharing: &preliminary.model.sharing,
+                dependence: &preliminary.model.dependence,
+                invariant: &preliminary.model.invariant_prior,
+                varying_prior: &preliminary.model.varying_prior,
+                unsupported: preliminary.model.max_unsupported_mass,
+                conflict: preliminary.model.conflict_z_threshold,
+                degree: Some(preliminary.model.basis_degree),
+            },
+            &preliminary.sources,
+            &preliminary.target,
+            preliminary.options.draws,
+            expected.level,
+        )?;
+        // Release preliminary decoded draws/source before the independent replay.
+        drop(preliminary);
+        let (wire, fit) = Self::consume_expecting(
+            &envelope.source,
+            &LearnedJointExpectation {
+                premises_digest: Some(expected.premises_digest.clone()),
+                data_digest: Some(expected.data_digest.clone()),
+            },
+            limits,
+            ctx,
+        )?;
+        let measured = wire.measured_from_execution(&fit, expected.level)?;
+        crate::measured_inference::compare_replay(&envelope, &measured)?;
+        Ok((wire, fit, measured))
     }
 }

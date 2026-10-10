@@ -41,6 +41,7 @@ pub mod graph_networkx;
 pub mod identity;
 pub mod joint_bayesian_transport_artifact;
 pub mod learned_joint_transport_artifact;
+pub mod measured_inference;
 pub mod mechanism_wire;
 pub mod migrate;
 pub mod mixed_source_artifact;
@@ -52,7 +53,6 @@ pub mod mmap_file;
 pub mod model_bundle;
 pub mod mz_transport_artifact;
 pub mod nested_markov_artifact;
-#[cfg(feature = "calibration-internal")]
 pub mod nested_markov_bayesian_artifact;
 pub mod plan_wire;
 pub mod posterior;

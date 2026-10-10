@@ -227,7 +227,7 @@ impl NestedOptionsWire {
         }
     }
 
-    const fn to_options(self) -> FitOptions {
+    pub(crate) const fn to_options(self) -> FitOptions {
         FitOptions {
             max_iterations: self.max_iterations,
             tolerance: self.tolerance,
@@ -684,9 +684,9 @@ impl NestedMarkovArtifactWire {
     }
 }
 
-/// Internal covariance/interval candidate envelope, awaiting whole-method calibration.
-/// The existing public point artifact does not accept this separate feature marker.
-#[cfg(feature = "calibration-internal")]
+/// Original unmeasured covariance/interval candidate envelope.
+/// A distinct measured outer envelope resolves scalar authority without changing
+/// this historical standing. The public point artifact does not accept this marker.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NestedFisherArtifact {
@@ -696,7 +696,7 @@ pub struct NestedFisherArtifact {
     pub method: String,
     /// Declared sampling assumption, not authenticated from the count table.
     pub sampling: String,
-    /// Must remain unmeasured until separate activation after calibration.
+    /// Original candidate standing remains unmeasured, including inside a measured envelope.
     pub calibration: String,
     /// Bound point-fit premises, data and likelihood receipt.
     pub point: NestedMarkovArtifactWire,
@@ -712,7 +712,6 @@ pub struct NestedFisherArtifact {
     pub inverse_residual: f64,
 }
 
-#[cfg(feature = "calibration-internal")]
 impl NestedFisherArtifact {
     /// Fit once and construct the separately marked internal uncertainty artifact.
     /// # Errors
@@ -723,21 +722,35 @@ impl NestedFisherArtifact {
         nominal_level: f64,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        Self::build_with_uncertainty(input, options, nominal_level, ctx)
+            .map(|(artifact, _)| artifact)
+    }
+
+    pub(crate) fn build_with_uncertainty(
+        input: &NestedMarkovInput,
+        options: &FitOptions,
+        nominal_level: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (Self, antecedent_estimate::nested_markov_uncertainty::NestedMarkovUncertainty),
+        IoError,
+    > {
         use antecedent_estimate::nested_markov_uncertainty::nested_markov_fisher_internal;
         let candidate = nested_markov_fisher_internal(input, options, nominal_level, ctx)
             .map_err(|e| estimation_refusal(&e))?;
-        Ok(Self {
+        let artifact = Self {
             version: 1,
             method: "binary_verma_expected_fisher_delta_internal_v1".into(),
             sampling: "iid_multinomial_integer_counts_correctly_specified_interior_model".into(),
             calibration: "unmeasured".into(),
             point: NestedMarkovArtifactWire::from_report(input, options, &candidate.pilot)?,
             nominal_level,
-            parameter_covariance: candidate.parameter_covariance,
+            parameter_covariance: candidate.parameter_covariance.clone(),
             effect_covariance: candidate.effect_covariance,
             interval_candidates: candidate.interval_candidates,
             inverse_residual: candidate.inverse_residual,
-        })
+        };
+        Ok((artifact, candidate))
     }
 
     /// Export internal candidate evidence; no public route can load it as a licensed interval.
@@ -757,6 +770,18 @@ impl NestedFisherArtifact {
         limits: NestedMarkovConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
+        Self::consume_with_uncertainty(bytes, expected, limits, ctx).map(|(artifact, _)| artifact)
+    }
+
+    pub(crate) fn consume_with_uncertainty(
+        bytes: &[u8],
+        expected: &NestedMarkovExpectation,
+        limits: NestedMarkovConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<
+        (Self, antecedent_estimate::nested_markov_uncertainty::NestedMarkovUncertainty),
+        IoError,
+    > {
         if bytes.len() > 256 * 1024 {
             return Err(NestedMarkovArtifactError::LimitsExceeded("candidate byte size").into());
         }
@@ -778,10 +803,15 @@ impl NestedFisherArtifact {
                 .map(NestedRegimeWire::to_counts)
                 .collect::<Result<Vec<_>, _>>()?,
         };
-        let replay = Self::build(&input, &point.options.to_options(), wire.nominal_level, ctx)?;
+        let (replay, uncertainty) = Self::build_with_uncertainty(
+            &input,
+            &point.options.to_options(),
+            wire.nominal_level,
+            ctx,
+        )?;
         if crate::to_cbor(&wire)? != crate::to_cbor(&replay)? {
             return Err(NestedMarkovArtifactError::ReceiptMismatch.into());
         }
-        Ok(wire)
+        Ok((wire, uncertainty))
     }
 }

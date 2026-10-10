@@ -362,7 +362,7 @@ fn temporal_history_source_program_uses_only_reachable_actual_observational_sour
 }
 
 #[test]
-fn temporal_history_uncertainty_public_gate_stays_closed_and_graph_is_actually_checked() {
+fn temporal_history_uncertainty_rejects_unmeasured_scope_and_checks_graph() {
     use antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig;
     let r = effect();
     let mut session = TemporalSession::new();
@@ -373,7 +373,7 @@ fn temporal_history_uncertainty_public_gate_stays_closed_and_graph_is_actually_c
             ..DependentIntervalConfig::default()
         })
         .unwrap_err();
-    assert!(error.to_string().contains("temporal_interval.route_frozen"));
+    assert!(error.to_string().contains("only the measured complete binary-history"));
     let mut confounded = r.clone();
     confounded.bidirected.push((1, 4));
     let (result, work) =

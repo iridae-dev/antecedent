@@ -497,7 +497,6 @@ impl JointDraws {
     }
 }
 
-#[cfg(feature = "calibration-internal")]
 #[derive(Clone, Debug, PartialEq)]
 struct JointCalibrationScope {
     rows: u64,
@@ -509,8 +508,9 @@ struct JointCalibrationScope {
 /// Exact conjugate fit of the joint model.
 #[derive(Clone, Debug, PartialEq)]
 pub struct JointTransportFit {
-    #[cfg(feature = "calibration-internal")]
     calibration_scope: JointCalibrationScope,
+    // Same executed model facts, with source-order labels canonicalized only for evidence.
+    calibration_model_identity: String,
     /// Parameter names in order: invariant, then every varying block.
     pub parameter_names: Vec<String>,
     /// Exact posterior mean of the parameters.
@@ -541,7 +541,6 @@ impl JointTransportFit {
     /// Bind an internal measurement to the actual producing posterior construction.
     /// The private source scope was captured by the successful fit. This supplies
     /// no public interval, independently authenticated sampling design or activation.
-    #[cfg(feature = "calibration-internal")]
     #[allow(clippy::result_large_err)]
     pub fn target_calibration_basis(
         &self,
@@ -569,7 +568,7 @@ impl JointTransportFit {
         );
         // The full executed model identity includes the known variances and every
         // Gaussian prior hyperparameter. Measurement cannot silently cover a new prior.
-        let posterior = format!("{JOINT_TRANSPORT_SAMPLER}.{}", self.model_identity);
+        let posterior = format!("{JOINT_TRANSPORT_SAMPLER}.{}", self.calibration_model_identity);
         Ok(antecedent_core::CalibrationBasis::new(
             [
                 "ClassicalTransport",
@@ -1272,19 +1271,40 @@ fn disagreement(
 }
 
 fn model_identity(model: &JointTransportModel, layout: &Layout, sources: &[SourceData]) -> String {
+    let labels: Vec<_> = sources.iter().map(|s| s.id.as_str()).collect();
+    model_identity_with_source_labels(model, layout, sources, &labels)
+}
+
+fn calibration_model_identity(
+    model: &JointTransportModel,
+    layout: &Layout,
+    sources: &[SourceData],
+) -> String {
+    // IDs label columns and provenance; source order, known variances and all model facts
+    // remain exact. Preserve the original measured s0/s1 construction byte for byte.
+    let labels: Vec<_> = (0..sources.len()).map(|i| format!("s{i}")).collect();
+    let labels: Vec<_> = labels.iter().map(String::as_str).collect();
+    model_identity_with_source_labels(model, layout, sources, &labels)
+}
+
+fn model_identity_with_source_labels(
+    model: &JointTransportModel,
+    layout: &Layout,
+    sources: &[SourceData],
+    labels: &[&str],
+) -> String {
     let prior = |p: &GaussianPrior| {
         let bits: Vec<String> =
             p.mean.iter().chain(&p.covariance).map(|v| format!("{:016x}", v.to_bits())).collect();
         bits.join(",")
     };
-    let ids: Vec<&str> = sources.iter().map(|s| s.id.as_str()).collect();
     format!(
         "joint_bayesian_transport_v1|graph=fixed_dag|features={:?}|varying={:?}|sharing={:?}|\
          sources={}|noise={:?}|theta_prior={}|gamma_prior={}|dim={}|max_draws={}|max_parameters={}",
         model.features,
         model.varying,
         model.sharing,
-        ids.join(","),
+        labels.join(","),
         sources.iter().map(|s| s.noise_variance.to_bits()).collect::<Vec<_>>(),
         prior(&model.priors.invariant),
         prior(&model.priors.varying),
@@ -1439,7 +1459,6 @@ fn fit_inner(
         }
     }
     Ok(JointTransportFit {
-        #[cfg(feature = "calibration-internal")]
         calibration_scope: JointCalibrationScope {
             rows: sources
                 .iter()
@@ -1456,6 +1475,7 @@ fn fit_inner(
         target_effect_mean: effect_means[count - 1],
         target_effect_variance: effect_covariance[count * count - 1],
         model_identity: model_identity(model, &layout, sources),
+        calibration_model_identity: calibration_model_identity(model, &layout, sources),
         diagnostics: JointTransportDiagnostics {
             sampler: JOINT_TRANSPORT_SAMPLER,
             draw_count: options.draws,

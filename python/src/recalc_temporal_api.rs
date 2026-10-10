@@ -375,13 +375,58 @@ impl PyTemporalSession {
     ) -> PyResult<(Option<candidate::NativeCheckedTemporalIntervalCandidate>, Option<String>)> {
         candidate::produce(self, py, config_json, memory_limit_bytes, cancel)
     }
+    #[pyo3(signature=(config_json,*,memory_limit_bytes=None,cancel=None))]
+    fn measured_interval(
+        &self,
+        py: Python<'_>,
+        config_json: &str,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<(Option<crate::measured_inference_api::NativeMeasuredInference>, Option<String>)>
+    {
+        let config: antecedent_io::temporal_interval_artifact::IntervalConfigWire =
+            parse_json(config_json, "checked temporal interval config")?;
+        let config = config.to_config().map_err(crate::py_msg)?;
+        crate::measured_inference_api::before_work(
+            0,
+            256 * 16 * 128,
+            memory_limit_bytes,
+            cancel.as_ref(),
+        )?;
+        let ctx = crate::measured_inference_api::context(0, memory_limit_bytes, cancel);
+        crate::detach_catch(py, || {
+            match antecedent::analysis::recalc_temporal_measured::CheckedMeasuredTemporal::produce(
+                &self.inner,
+                &config,
+                &ctx,
+            ) {
+                Ok(measured) => {
+                    crate::measured_inference_api::check_cancelled(&ctx)?;
+                    Ok((
+                        Some(crate::measured_inference_api::NativeMeasuredInference::from_checked(
+                            measured,
+                        )?),
+                        None,
+                    ))
+                }
+                Err(cause) => Ok((None, Some(error(&cause)))),
+            }
+        })
+    }
     fn dependent_interval(&self) -> String {
-        match self.inner.dependent_interval(
-            &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig::default(),
-        ) {
-            Err(cause) => error(&cause),
-            Ok(never) => match never {},
+        if self.inner.source_factor().is_none() {
+            return error(&TemporalRunError::Recalc(
+                antecedent::analysis::recalc_receipt::RecalcRunError::NoLiveState(
+                    antecedent_core::recalc::Stage::ScoreArtifact,
+                ),
+            ));
         }
+        error(&TemporalRunError::Io(antecedent_io::IoError::Refused {
+            code: antecedent_core::reason_code!("cell_not_licensed"),
+            message:
+                "temporal_interval.route_frozen: use the measured original-source interval entry"
+                    .into(),
+        }))
     }
 }
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

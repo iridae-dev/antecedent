@@ -45,12 +45,16 @@ use antecedent_identify::{
 /// and the descriptor do.
 #[derive(Clone, Debug)]
 pub struct RecoveredLaw {
+    scientific_derivation: Arc<str>,
     law: ExactDiscreteLaw,
     descriptor: CatalogDistribution,
     derivation: String,
 }
 
 impl RecoveredLaw {
+    pub(crate) fn scientific_derivation_identity(&self) -> &str {
+        &self.scientific_derivation
+    }
     /// The recovered law over `X ∪ O` (axes sorted by variable, last fastest),
     /// with snapshot identity `recovered:<derivation identity>`.
     #[must_use]
@@ -315,6 +319,7 @@ pub fn evaluate_exact_recovery(
     )
     .map_err(|e| refuse(RecoveryDetail::InvalidObservedLaw, e.to_string()))?;
     Ok(RecoveredLaw {
+        scientific_derivation: derivation.scientific_identity(),
         law,
         descriptor: derivation.recovered_descriptor(),
         derivation: derivation_identity,

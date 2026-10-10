@@ -532,12 +532,11 @@ impl SampledRecoveryResult {
     /// Bind the internal whole-row candidate to its actual whole-method receipt.
     /// A checked recovery derivation and the complete executed row/replicate scope
     /// remain visible; this is not a public confidence-interval activation.
-    #[cfg(feature = "calibration-internal")]
     #[must_use]
     pub fn calibration_basis(&self) -> antecedent_core::CalibrationBasis {
         let functional = format!(
             "recovered_effect:{}:treated={:016x}:control={:016x}",
-            self.receipt.derivation_identity,
+            self.recovered_law.scientific_derivation_identity(),
             self.receipt.config.treated_level.to_bits(),
             self.receipt.config.control_level.to_bits()
         );

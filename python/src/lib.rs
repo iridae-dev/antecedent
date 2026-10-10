@@ -65,18 +65,16 @@ mod interference_saturation_api;
 mod interrupt;
 mod inverse_outcome_api;
 mod inverse_query_api;
-#[cfg(feature = "calibration-internal")]
 mod joint_transport_api;
 mod latent_class_api;
 mod learned_continuous_api;
 mod learned_joint_api;
 mod learned_trial_api;
 mod matched_case_control_api;
+mod measured_inference_api;
 mod mechanism_discrepancy_api;
 mod msm_sensitivity_api;
-#[cfg(feature = "calibration-internal")]
 mod nested_bayesian_api;
-#[cfg(feature = "calibration-internal")]
 mod nested_fisher_api;
 mod nonlinear_mediation_api;
 mod observation_api;
@@ -2746,12 +2744,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     repair_api::register(m)?;
     recovery_api::register(m)?;
     closed_pilot_api::register(m)?;
-    #[cfg(feature = "calibration-internal")]
     nested_fisher_api::register(m)?;
-    #[cfg(feature = "calibration-internal")]
     nested_bayesian_api::register(m)?;
     learned_joint_api::register(m)?;
-    #[cfg(feature = "calibration-internal")]
+    measured_inference_api::register(m)?;
     joint_transport_api::register(m)?;
     msm_sensitivity_api::register(m)?;
     mechanism_discrepancy_api::register(m)?;

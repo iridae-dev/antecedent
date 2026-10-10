@@ -21,7 +21,6 @@ use antecedent_estimate::temporal_dependent_interval::{
     DependentIntervalConfig, INTERVAL_MAX_REPLICATES, INTERVAL_MIN_REPLICATES,
     ObservedStateSequence, TEMPORAL_INTERVAL_TOO_FEW_UNITS, TEMPORAL_INTERVAL_TOO_MANY_REPLICATES,
     TEMPORAL_INTERVAL_UNSUPPORTED_HISTORY, TemporalEstimator, TemporalUnitPanel, UnitHistories,
-    route_frozen_refusal,
 };
 use antecedent_estimate::temporal_initial_state::{
     FixedStateEffect, FixedStateQuery, InitialStateSpec, MarginalizedEffect, MarginalizedQuery,
@@ -39,7 +38,6 @@ use antecedent_io::temporal_refresh_artifact::{
     RefreshInputs, RefreshReplay, TemporalRefreshArtifactWire, WindowIdentityWire, expected_receipt,
 };
 use std::collections::BTreeSet;
-use std::convert::Infallible;
 
 fn refused(code: &'static str, detail: &str, message: &str) -> IoError {
     IoError::Refused { code, message: format!("{detail}: {message}") }
@@ -432,25 +430,47 @@ fn interval_estimator(
     })
 }
 
-/// The dependent-sampling interval route, **closed** while its calibration is
-/// unmeasured.
-///
-/// The arguments are validated for real first: the unit map and snapshot (the core's
-/// `temporal_interval.unknown_units` refusals), the resampling design, the unit count
-/// and the estimator's support on the original panel. Only then does the route
-/// refuse with `cell_not_licensed` / `temporal_interval.route_frozen`.
-///
+/// A measured whole-unit studentized response at the exact validated scope.
+/// The original panel/estimator is checked and replayed, then current scalar
+/// calibration evidence is resolved by the native consumer.
 /// # Errors
-/// Always: a validation refusal, or the route-frozen refusal.
+/// Invalid source/design, an unmeasured method/target or absent/stale evidence.
 pub fn temporal_dependent_interval(
     snapshot_id: &str,
     units: Option<Vec<UnitHistories>>,
     sequence: [u32; 2],
     estimand: IntervalEstimand,
     config: &DependentIntervalConfig,
-) -> Result<Infallible, IoError> {
+) -> Result<antecedent_io::measured_inference::MeasuredInference, IoError> {
+    let ctx = antecedent_core::ExecutionContext::production_default(config.seed);
+    let wire = temporal_dependent_interval_candidate(
+        snapshot_id,
+        units,
+        sequence,
+        estimand,
+        config,
+        &ctx,
+    )?;
+    antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::measure(
+        &wire.export()?,
+        &wire.seal,
+        &antecedent_io::temporal_interval_artifact::TemporalIntervalConsumeLimits::default(),
+        &ctx,
+    )
+}
+
+/// Validate original panel/design support without performing resampling.
+/// # Errors
+/// Invalid unit ownership, design, estimator declaration or unsupported history.
+pub fn validate_temporal_dependent_interval(
+    snapshot_id: &str,
+    units: Option<Vec<UnitHistories>>,
+    sequence: [u32; 2],
+    estimand: IntervalEstimand,
+    config: &DependentIntervalConfig,
+) -> Result<(), IoError> {
     validated_interval(snapshot_id, units, sequence, estimand, config)?;
-    Err(route_frozen_refusal().into())
+    Ok(())
 }
 
 fn validated_interval(
@@ -480,7 +500,6 @@ fn validated_interval(
 /// # Errors
 /// Original panel/design/history refusals or failed original engine/artifact replay.
 #[doc(hidden)]
-#[cfg(feature = "calibration-internal")]
 pub fn temporal_dependent_interval_candidate(
     snapshot_id: &str,
     units: Option<Vec<UnitHistories>>,

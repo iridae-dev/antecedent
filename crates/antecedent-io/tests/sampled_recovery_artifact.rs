@@ -451,3 +451,66 @@ fn legacy_percentile_v2_remains_method_distinct_and_replayable() {
     });
     assert!(SampledRecoveryArtifactWire::decode(&bca_disguise).is_err());
 }
+
+#[test]
+fn original_weighted_candidate_remains_replayable_but_cannot_gain_measured_authority() {
+    let mut f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::bca(7142));
+    Arc::make_mut(&mut f.catalog.bindings)[0].weights =
+        Some(antecedent_core::LicensedWeights { snapshot_identity: Arc::from(SNAPSHOT) });
+    let wire = wire_of(&f);
+    let bytes = wire.export().unwrap();
+    // Original candidate proof, receipt and wire semantics are unchanged.
+    let original = consume(&bytes).unwrap();
+    assert_eq!(original.wire.export().unwrap(), bytes);
+    let error = SampledRecoveryArtifactWire::measure(
+        &bytes,
+        &SampledRecoveryExpectation {
+            premises_digest: Some(wire.premises_digest.clone()),
+            data_digest: Some(wire.data_digest.clone()),
+        },
+        SampledRecoveryConsumeLimits::default(),
+        &ctx(),
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("weighted observed rows"));
+}
+
+#[test]
+fn original_unknown_or_clustered_row_design_cannot_gain_measured_authority() {
+    for design in
+        [antecedent_core::SamplingDesign::Unknown, antecedent_core::SamplingDesign::Clustered]
+    {
+        let mut f = fixture(seeded_rows(2000, 8123), &SampledRecoveryConfig::bca(7142));
+        Arc::make_mut(&mut f.catalog.bindings)[0].sampling = design;
+        f.derivation = derive_sampled_recovery(
+            &f.model.graph,
+            &f.model.query(),
+            &f.catalog,
+            &f.effect,
+            RecoveryLimits::default(),
+            &ctx(),
+        )
+        .unwrap();
+        f.result = estimate_sampled_recovery(
+            &f.derivation,
+            &f.data,
+            &SampledRecoveryConfig::bca(7142),
+            &ctx(),
+        )
+        .unwrap();
+        let wire = wire_of(&f);
+        let bytes = wire.export().unwrap();
+        assert_eq!(consume(&bytes).unwrap().wire.export().unwrap(), bytes);
+        let error = SampledRecoveryArtifactWire::measure(
+            &bytes,
+            &SampledRecoveryExpectation {
+                premises_digest: Some(wire.premises_digest.clone()),
+                data_digest: Some(wire.data_digest.clone()),
+            },
+            SampledRecoveryConsumeLimits::default(),
+            &ctx(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("explicitly independent observation rows"));
+    }
+}
