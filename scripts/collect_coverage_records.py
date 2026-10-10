@@ -599,6 +599,38 @@ def replace_pair(
     return "\n".join(kept) + "\n\n"
 
 
+def licensed_record_matches(cell: dict, record: dict) -> bool:
+    """Exact support coordinates and declared estimator ownership, never axes alone."""
+    structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
+    return (
+        record.get("query"), record.get("graph_class"), record.get("inference"),
+        record.get("structure"),
+    ) == (
+        cell.get("query"), cell.get("graph_class"), cell.get("inference"), structure,
+    ) and record.get("estimator") in cell.get("estimators", [])
+
+
+def licensed_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> list[str]:
+    """Require all owned coordinate records and refuse foreign/missing bindings.
+
+    Ownership is declared by the support cell, not inferred from a new passing
+    record. Posterior engines of another estimator cannot upgrade that cell.
+    """
+    bound = cell.get("calibration", [])
+    errors = []
+    for rid in bound:
+        record = records.get(rid)
+        if record is None:
+            errors.append(f"unknown bound record {rid}")
+        elif not licensed_record_matches(cell, record):
+            errors.append(f"bound record {rid} has foreign estimator or scientific coordinate")
+    owned = {rid for rid, record in records.items() if licensed_record_matches(cell, record)}
+    missing = sorted(owned - set(bound))
+    if missing:
+        errors.append(f"missing required owned records {missing}")
+    return errors
+
+
 def sync_licensed_cells(
     records: dict[str, dict],
     only_cells: dict[tuple[str, str, str, str, str], list[str]] | None = None,
@@ -626,6 +658,11 @@ def sync_licensed_cells(
             missing = [rid for rid in ids if rid not in records]
             if missing:
                 raise SystemExit(f"licensed cell {cell_key}: bound calibration records absent: {missing}")
+            incompatible = [rid for rid in ids if not licensed_record_matches(cell, records[rid])]
+            if incompatible:
+                raise SystemExit(
+                    f"licensed cell {cell_key}: bound records not owned by the licensed cell: {incompatible}"
+                )
             if not ids:
                 # An unmeasured cell must not acquire a claim from an unrelated
                 # new estimator sharing broad support axes.
@@ -639,7 +676,7 @@ def sync_licensed_cells(
                     rec["query"], rec["graph_class"], rec["inference"], rec["structure"]
                 ) != (cell["query"], cell["graph_class"], cell["inference"], structures[0]):
                     raise SystemExit(f"--only-cell {cell_key}: incompatible or absent record {rid}")
-                if rec.get("estimator") not in cell.get("estimators", []):
+                if not licensed_record_matches(cell, rec):
                     raise SystemExit(
                         f"--only-cell {cell_key}: record {rid} estimator {rec.get('estimator')!r} "
                         "is not owned by the licensed cell"

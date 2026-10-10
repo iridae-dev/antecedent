@@ -835,10 +835,6 @@ by_id = {rec.get("id"): rec for rec in records}
 
 # --- licensed cell calibration obligation ---
 lic = tomllib.loads((root / "parity/support_licensed.toml").read_text()).get("cell", [])
-by_coordinate = {}
-for rid, rec in by_id.items():
-    key = (rec["query"], rec["graph_class"], rec["inference"], rec["structure"])
-    by_coordinate.setdefault(key, []).append(rid)
 for cell in lic:
     label = f"{cell.get('query')}/{cell.get('graph_class')}/{cell.get('inference')}"
     has_cal = "calibration" in cell
@@ -866,23 +862,8 @@ for cell in lic:
         )
     if not has_cal and cell.get("calibration_reason") == "boundary_record":
         problems.append(f"support_licensed.toml {label}: boundary_record without a record list")
-    structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
-    expected_ids = sorted(
-        by_coordinate.get(
-            (cell.get("query"), cell.get("graph_class"), cell.get("inference"), structure), []
-        )
-    )
-    if expected_ids:
-        if sorted(cell.get("calibration") or []) != expected_ids:
-            problems.append(
-                f"support_licensed.toml {label}: calibration is not the records measured for this "
-                f"coordinate; re-run scripts/collect_coverage_records.py"
-            )
-    elif has_cal:
-        problems.append(f"support_licensed.toml {label}: cites records that measure another coordinate")
-    for rid in cell.get("calibration") or []:
-        if rid not in record_ids:
-            problems.append(f"support_licensed.toml {label}: unknown record {rid}")
+    for ownership_error in collector.licensed_cell_calibration_problems(cell, by_id):
+        problems.append(f"support_licensed.toml {label}: {ownership_error}")
     # Coverage figures in `limitations` must cite a matching record or say they are
     # not a registry value: scripts/gate_coverage_citations.sh owns that check, so
     # known-truth values, SEs and disclosed probe figures stay in the license text.

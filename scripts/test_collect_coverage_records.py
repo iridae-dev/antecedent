@@ -142,6 +142,48 @@ class LicensedCellSyncTest(unittest.TestCase):
             self.assertEqual(parsed["calibration"], ["frontdoor"])
             self.assertNotIn("calibration_reason", parsed)
 
+    def test_schema_ownership_does_not_require_new_foreign_posteriors(self) -> None:
+        for inference, foreign in (("Bayesian", "nested_markov_bayesian"),
+                                   ("Frequentist", "nested_markov_fisher")):
+            cell = collector.tomllib.loads(self.source(inference))["cell"][0]
+            records = {"frontdoor": self.record("functional.effect", inference, True),
+                       "new_posterior": self.record(foreign, inference)}
+            self.assertEqual(collector.licensed_cell_calibration_problems(cell, records), [])
+            cell["calibration"].append("new_posterior")
+            self.assertTrue(any("foreign estimator" in error for error in
+                                collector.licensed_cell_calibration_problems(cell, records)))
+
+    def test_schema_requires_every_actual_owned_grid_and_rejects_missing_record(self) -> None:
+        cell = collector.tomllib.loads(self.source())["cell"][0]
+        records = {"frontdoor": self.record("functional.effect", boundary=True),
+                   "new_owned_grid": self.record("functional.effect")}
+        errors = collector.licensed_cell_calibration_problems(cell, records)
+        self.assertTrue(any("missing required owned records" in error for error in errors))
+        cell["calibration"].append("new_owned_grid")
+        self.assertEqual(collector.licensed_cell_calibration_problems(cell, records), [])
+        del records["frontdoor"]
+        self.assertTrue(any("unknown bound record" in error for error in
+                            collector.licensed_cell_calibration_problems(cell, records)))
+
+    def test_schema_rejects_other_structure_even_with_same_estimator(self) -> None:
+        cell = collector.tomllib.loads(self.source())["cell"][0]
+        record = self.record("functional.effect")
+        record["structure"] = "graph_posterior"
+        self.assertTrue(any("scientific coordinate" in error for error in
+                            collector.licensed_cell_calibration_problems(cell, {"frontdoor": record})))
+
+    def test_default_refresh_refuses_foreign_existing_binding_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "licensed.toml"
+            source = self.source()
+            path.write_text(source)
+            with patch.object(collector, "LICENSED", path), self.assertRaisesRegex(
+                SystemExit, "not owned by the licensed cell"
+            ):
+                collector.sync_licensed_cells({"frontdoor": self.record("nested_markov_bayesian")})
+            self.assertEqual(path.read_text(), source)
+
+
 
 def _point(k: int, observed: float, role: str, **extra) -> dict:
     """One grid point's `calibration-record` payload, as the harness emits it."""
@@ -167,6 +209,7 @@ def _point(k: int, observed: float, role: str, **extra) -> dict:
 
 
 UPPER = {"side": "upper", "target": "true upper extremal bound U"}
+
 
 
 class OneSidedRoleTest(unittest.TestCase):
