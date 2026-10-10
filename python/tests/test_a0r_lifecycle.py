@@ -27,7 +27,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 import textwrap
 from collections.abc import Callable
 from pathlib import Path
@@ -138,7 +137,7 @@ def _study_candidates() -> list[dr.Candidate]:
     ]
 
 
-def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
+def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study(tmp_path: Path):
     # compile / identify -> bind an external object.
     claim = _claim(_spec())
     inspection = claim.inspect()
@@ -245,28 +244,24 @@ def test_a0r_lifecycle_identify_bind_inspect_decide_and_rank_a_study():
         assert ranked.calibration == "unmeasured"
         """
     )
-    with (
-        tempfile.NamedTemporaryFile(suffix=".bin") as claim_file,
-        tempfile.NamedTemporaryFile(suffix=".bin") as ranking_file,
-    ):
-        claim_file.write(claim_bytes)
-        claim_file.flush()
-        ranking_file.write(ranking_bytes)
-        ranking_file.flush()
-        done = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                script,
-                claim_file.name,
-                ranking_file.name,
-                claim.identity,
-                contract.identity,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    claim_file = tmp_path / "claim.bin"
+    claim_file.write_bytes(claim_bytes)
+    ranking_file = tmp_path / "ranking.bin"
+    ranking_file.write_bytes(ranking_bytes)
+    done = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(claim_file),
+            str(ranking_file),
+            claim.identity,
+            contract.identity,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert done.returncode == 0, done.stderr
 
     # A different retained contract identity does not consume the same ranking.

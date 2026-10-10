@@ -12,8 +12,8 @@ import dataclasses
 import json
 import subprocess
 import sys
-import tempfile
 import textwrap
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -219,7 +219,7 @@ def test_contract_identity_ignores_declaration_order_and_tracks_semantics():
     assert all(edit.identity != base.identity for edit in edits)
 
 
-def test_contract_and_result_round_trip_and_replay_in_a_fresh_process():
+def test_contract_and_result_round_trip_and_replay_in_a_fresh_process(tmp_path: Path):
     contract = _contract(
         constraints=(
             decision.Constraint(
@@ -296,20 +296,16 @@ def test_contract_and_result_round_trip_and_replay_in_a_fresh_process():
         assert abs(result.evpi - 0.5) < 1e-12
         """
     )
-    with (
-        tempfile.NamedTemporaryFile(suffix=".bin") as c_file,
-        tempfile.NamedTemporaryFile(suffix=".bin") as r_file,
-    ):
-        c_file.write(contract_bytes)
-        c_file.flush()
-        r_file.write(result_bytes)
-        r_file.flush()
-        done = subprocess.run(
-            [sys.executable, "-c", script, c_file.name, r_file.name, contract.identity],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    c_file = tmp_path / "contract.bin"
+    c_file.write_bytes(contract_bytes)
+    r_file = tmp_path / "result.bin"
+    r_file.write_bytes(result_bytes)
+    done = subprocess.run(
+        [sys.executable, "-c", script, str(c_file), str(r_file), contract.identity],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert done.returncode == 0, done.stderr
     assert json.loads(json.dumps(result.selected)) == ["safe"]
 

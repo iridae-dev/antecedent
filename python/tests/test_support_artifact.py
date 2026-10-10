@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-import tempfile
 import textwrap
+from pathlib import Path
 
 import antecedent
 import numpy as np
@@ -143,7 +143,9 @@ _READER = textwrap.dedent(
 )
 
 
-def test_static_response_artifact_is_readable_by_a_fresh_process_with_its_coordinates():
+def test_static_response_artifact_is_readable_by_a_fresh_process_with_its_coordinates(
+    tmp_path: Path,
+):
     rng = np.random.default_rng(17)
     treatment = rng.normal(size=400)
     outcome = 2.0 * treatment + rng.normal(scale=0.2, size=400)
@@ -160,15 +162,14 @@ def test_static_response_artifact_is_readable_by_a_fresh_process_with_its_coordi
     assert len(by_id["response.local_ess"].values) == len(grid)
 
     data = result.export()
-    with tempfile.NamedTemporaryFile(suffix=".bin") as handle:
-        handle.write(data)
-        handle.flush()
-        done = subprocess.run(
-            [sys.executable, "-c", _READER, handle.name],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    handle = tmp_path / "analysis.bin"
+    handle.write_bytes(data)
+    done = subprocess.run(
+        [sys.executable, "-c", _READER, str(handle)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert done.returncode == 0, done.stderr
     report = json.loads(done.stdout)
     assert report["kind"] == "analysis_result"

@@ -6,6 +6,7 @@ import dataclasses
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import antecedent as ac
 import numpy as np
@@ -321,7 +322,7 @@ def test_unknown_capability_names_are_refused_not_ignored():
     assert unknown.value.detail == "external_response_binding.malformed_capability"
 
 
-def test_fresh_process_consumer_loads_only_under_its_own_identity():
+def test_fresh_process_consumer_loads_only_under_its_own_identity(tmp_path: Path):
     spec = _spec_with_premises()
     claim = spec.bind(_response())
     data = claim.export()
@@ -351,15 +352,13 @@ def test_fresh_process_consumer_loads_only_under_its_own_identity():
         assert claim.provenance_label == "external:lab/curve@v3#snap-9"
         """
     )
-    import tempfile
 
-    with tempfile.NamedTemporaryFile(suffix=".bin") as handle:
-        handle.write(data)
-        handle.flush()
-        done = subprocess.run(
-            [sys.executable, "-c", script, handle.name, claim.identity],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    handle = tmp_path / "claim.bin"
+    handle.write_bytes(data)
+    done = subprocess.run(
+        [sys.executable, "-c", script, str(handle), claim.identity],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert done.returncode == 0, done.stderr

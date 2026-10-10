@@ -1,0 +1,3 @@
+# Canonical fixture documents are compared byte-for-byte across language surfaces.
+/conformance/cross_surface/rust_a0r_obligation.identity.json text eol=lf
+/conformance/cross_surface/py_composition_bundle.identity.json text eol=lf

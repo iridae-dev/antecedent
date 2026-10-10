@@ -11,8 +11,8 @@ from __future__ import annotations
 import dataclasses
 import subprocess
 import sys
-import tempfile
 import textwrap
+from pathlib import Path
 
 import antecedent as ac
 import pytest
@@ -77,7 +77,7 @@ def _contract(claim: external.BoundExternalClaim) -> decision.Contract:
     )
 
 
-def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process():
+def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process(tmp_path: Path):
     spec = _spec()
     claim = _claim(spec)
 
@@ -171,22 +171,21 @@ def test_identify_bind_inspect_decide_and_hand_off_to_a_fresh_process():
         assert "external_provider" in result.stages_behind()
         """
     )
-    with tempfile.NamedTemporaryFile(suffix=".bin") as handle:
-        handle.write(data)
-        handle.flush()
-        done = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                script,
-                handle.name,
-                claim.identity,
-                contract.identity,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    handle = tmp_path / "claim.bin"
+    handle.write_bytes(data)
+    done = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(handle),
+            claim.identity,
+            contract.identity,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert done.returncode == 0, done.stderr
 
     # A claim loaded under a changed identity does not reach a decision.
