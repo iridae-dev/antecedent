@@ -1787,21 +1787,22 @@ def load_replay_capture(out_dir: Path, source_sha: str, records: list[str]) -> d
     return payloads
 
 
-def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False) -> int:
+def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False,
+           waiver_file: Path = WAIVERS) -> int:
     surface = load_surface()
     if surface.errors:
         for problem in surface.errors:
             print(f"FAIL: {problem}")
         return 1
     records = load_records()
-    waivers, problems = load_waivers()
+    waivers, problems = load_waivers(waiver_file)
     if problems:
         for problem in problems:
             print(f"FAIL: {problem}")
         return 1
     matching = [w for w in waivers if w.id == waiver_id]
     if not matching:
-        print(f"FAIL: no waiver {waiver_id} in {WAIVERS.relative_to(ROOT)}")
+        print(f"FAIL: no waiver {waiver_id} in {waiver_file}")
         return 1
     waiver = matching[0]
     repo = Repo()
@@ -1928,13 +1929,13 @@ def replay(waiver_id: str, dry_run: bool, reuse_capture: bool = False) -> int:
         differences=differences,
         fingerprints={str(rec["id"]): fingerprint(rec) for rec in stored},
     )
-    WAIVERS.write_text(render_waivers(waivers))
+    waiver_file.write_text(render_waivers(waivers))
     for difference in differences:
         print(f"DIFFERS: {difference}")
     verdict = "bit-identical" if identical else "NOT identical: the waiver is invalid"
     print(
         f"replay of waiver {waiver_id}: {verdict}; "
-        f"outcome written to {WAIVERS.relative_to(ROOT)}"
+        f"outcome written to {waiver_file}"
     )
     print(f"replay logs: {out_dir.relative_to(ROOT)}")
     return 0 if identical else 1
@@ -2337,6 +2338,23 @@ def _waiver_self_test(base: Surface, refs: References, expect) -> None:
            and compare_replay(functional_record, canonical_payload | {"observed": 0.9},
                               [exact_alias], end) != [],
            "verified exact identity migration changes no numeric comparison or source binding")
+    from unittest.mock import patch
+    cli_calls = []
+
+    def captured_replay(wid, dry_run, reuse, path):
+        cli_calls.append((wid, dry_run, reuse, path))
+        return 0
+
+    external = Path("/private/tmp/isolated-replay-plan.toml")
+    with patch.dict(globals(), {"replay": captured_replay}):
+        with patch.object(sys, "argv", ["facets", "replay", "--waiver", "x", "--dry-run",
+                                       "--waiver-file", str(external)]):
+            external_status = main()
+        with patch.object(sys, "argv", ["facets", "replay", "--waiver", "x", "--reuse-capture"]):
+            default_status = main()
+    expect(external_status == default_status == 0 and cli_calls == [
+        ("x", True, False, external), ("x", False, True, WAIVERS)],
+        "external replay plan CLI preserves defaults and directs both input and outcome path")
     committed, committed_problems = load_waivers()
     registry = load_records()
     expect(
@@ -2793,6 +2811,8 @@ def main() -> int:
     sub.add_parser("self-test", help="the guard must fail on broken input")
     p_replay = sub.add_parser("replay", help="re-run a waiver's replay records at its `to`")
     p_replay.add_argument("--waiver", required=True)
+    p_replay.add_argument("--waiver-file", type=Path, default=WAIVERS,
+                          help="read and update an external plan; default is the tracked registry")
     p_replay.add_argument("--dry-run", action="store_true", help="print the gate groups only")
     p_replay.add_argument("--reuse-capture", action="store_true",
                           help="compare preserved raw logs again; execute no measurements")
@@ -2806,7 +2826,7 @@ def main() -> int:
     if args.command == "self-test":
         return self_test()
     if args.command == "replay":
-        return replay(args.waiver, args.dry_run, args.reuse_capture)
+        return replay(args.waiver, args.dry_run, args.reuse_capture, args.waiver_file)
     if args.command == "replay-candidates":
         return replay_candidates(args.start, args.end, args.paths)
     if args.command == "widening":
