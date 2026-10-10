@@ -562,3 +562,29 @@ def test_empirical_msm_digest_matches_canonical_sample_and_changes_with_data() -
     assert second.sample_id != first.sample_id
     assert first.identified == pytest.approx(0.5)
     assert second.identified == pytest.approx(1.0)
+
+
+def test_effect_quantity_factory_preserves_original_contrast_declaration() -> None:
+    result = analyze(_curve_data(), query=AverageEffect("a", "y"), graph=[("a", "y")])
+    effect = ScientificQuantity.from_effect(result, outcome_units="mmHg")
+    assert effect.units == "mmHg" and effect.population_id == "target"
+    assert effect.functional_id == "mean_difference"
+    with pytest.raises(CausalValueError):
+        ScientificQuantity.from_effect(result, outcome_units="")
+
+
+def test_empirical_msm_function_keeps_supplemental_sample_identity() -> None:
+    data = {
+        "a": [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+        "y": [0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0],
+    }
+    result = analyze(data, query=AverageEffect("a", "y"), graph=[("a", "y")])
+    sensitivity = msm_sensitivity.from_analysis(result, data=data, lambda_max=2.0)
+    assert sensitivity.identified == pytest.approx(0.5)
+    assert sensitivity.input_basis == "empirical_plugin"
+    assert sensitivity.sample_id.startswith("sha256:")
+    assert sensitivity.uncertainty.sampling_interval == "sampling interval: not reported"
+    with pytest.raises(CausalValueError):
+        msm_sensitivity.from_analysis(
+            result, data={"a": [0.0, 0.0], "y": [0.0, 1.0]}, lambda_max=2.0
+        )

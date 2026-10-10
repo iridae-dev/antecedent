@@ -18,6 +18,7 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+  "python/tests/test_transport_route_contracts.py",
   # independently coded dense Gaussian closed-form oracle in crates/antecedent-estimate/tests/joint_bayesian_transport.rs (single source, two sources with independent and shared varying blocks, varying covariate block, prior sensitivity)
   "crates/antecedent-estimate/tests/joint_bayesian_transport.rs",
   # crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs (artifact re-fit against the exact oracle, resealed mutations, double use)

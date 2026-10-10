@@ -26,6 +26,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "python/tests/test_transport_route_contracts.py",
   # enumerated latent-variable binary SCM on the Verma graph in crates/antecedent-estimate/tests/nested_markov_binary.rs and crates/antecedent-io/tests/nested_markov_artifact.rs (independently coded mechanisms p2, p3, p4 summed over the latent by hand)
   "crates/antecedent-estimate/tests/nested_markov_binary.rs",
   "crates/antecedent-io/tests/nested_markov_artifact.rs",

@@ -3967,10 +3967,12 @@ evidence = "independent_source_trials_and_target_covariates_known_noise_declared
 functional = "target_effect"
 guarantee = "original_native_source_replay_current_exact_named_scalar_calibration"
 limits = "Named target_effect95 only; original four Gaussian designs, source n150..600,4096 draws, frozen known variances and zero-mean isotropic1000 prior. Original parameter/covariance/draw/source fields remain model-conditional; adjacent designs refuse."
-evidence_test = "python/tests/test_measured_joint_transport.py"
-evidence_assertion = "test_normal_public_measured_joint_scalar_and_original_source_fresh_replay"
+evidence_test = "python/tests/test_transport_route_contracts.py"
+evidence_assertion = "test_joint_bayesian_factory_replays_without_producer_inputs"
 notes = "Normal measured producer and independent retained-identity consumer resolve actual method-specific evidence. Historical source candidate bytes/reports remain unmeasured; caller metadata or serialized calibrated flags cannot grant authority."
 
+execution_contract = "source_bound_replay"
+promotion_record = "2.3A.X4.joint_bayesian_transport"
 [[routes]]
 route = "antecedent.transport.binary_nested_markov"
 stage = "uncertainty"
@@ -3980,10 +3982,12 @@ evidence = "positive_integer_IID_observational_counts_declared_Beta_prior"
 functional = "mean0_mean1_contrast"
 guarantee = "original_native_source_replay_current_exact_named_scalar_calibration"
 limits = "Named mean0/mean1/contrast95 only; full11D native nested-Markov posterior, uniform Beta1 or Beta2 prior, frozen four-chain sampler and diagnostics, n1000..4000. No general ADMG/posterior/simultaneous guarantee."
-evidence_test = "python/tests/test_measured_nested.py"
-evidence_assertion = "test_normal_nested_all_three_measured_scalars_replay_original_source"
+evidence_test = "python/tests/test_transport_route_contracts.py"
+evidence_assertion = "test_nested_bayesian_factory_replays_without_producer_inputs"
 notes = "Normal measured producer and independent retained-identity consumer resolve actual method-specific evidence. Historical source candidate bytes/reports remain unmeasured; caller metadata or serialized calibrated flags cannot grant authority."
 
+execution_contract = "source_bound_replay"
+promotion_record = "2.3A.X4.binary_nested_markov_pilot"
 [[routes]]
 route = "antecedent.transport.temporal_dependent_interval"
 stage = "uncertainty"
@@ -3993,10 +3997,12 @@ evidence = "independent_complete_balanced_units_known_target_initial_state"
 functional = "response"
 guarantee = "original_native_source_replay_current_exact_named_scalar_calibration"
 limits = "Studentized response95 only; n200..800 complete16-cell balanced binary histories per unit,500 whole-unit resamples, native unit-score standard errors and frozen target initial-state design. Percentile/basic direct routes are retired."
-evidence_test = "python/tests/test_measured_temporal_public.py"
-evidence_assertion = "test_normal_direct_whole_unit_measured_response_independent_math_and_fresh_consumer"
+evidence_test = "python/tests/test_transport_route_contracts.py"
+evidence_assertion = "test_direct_temporal_factory_replays_without_producer_inputs"
 notes = "Normal measured producer and independent retained-identity consumer resolve actual method-specific evidence. Historical source candidate bytes/reports remain unmeasured; caller metadata or serialized calibrated flags cannot grant authority."
 
+execution_contract = "source_bound_replay"
+promotion_record = "2.3A.X5.dependent_temporal_interval"
 [[routes]]
 route = "antecedent.temporal.initial_state"
 stage = "evaluate"
@@ -4052,10 +4058,12 @@ evidence = "original_native_recovery_derivation_and_independent_unweighted_whole
 functional = "recovered_effect"
 guarantee = "original_native_source_replay_current_exact_named_scalar_calibration"
 limits = "BCa recovered_effect95 only; n500..2000,2000 whole-row resamples, full original-row jackknife, selected binary recovery with complete support. Weighted/dependent rows, different graph or method refuse; retired percentile source v2 grants no authority."
-evidence_test = "python/tests/test_measured_recovery.py"
-evidence_assertion = "test_normal_recovered_effect_bca_original_source_and_fresh_measured_replay"
+evidence_test = "python/tests/test_transport_route_contracts.py"
+evidence_assertion = "test_sampled_recovery_factory_replays_without_producer_inputs"
 notes = "Normal measured producer and independent retained-identity consumer resolve actual method-specific evidence. Historical source candidate bytes/reports remain unmeasured; caller metadata or serialized calibrated flags cannot grant authority."
 
+execution_contract = "source_bound_replay"
+promotion_record = "2.3A.X10.sampled_observation_recovery"
 [[routes]]
 route = "antecedent.distribution.meaning_check"
 stage = "consume"
@@ -4983,10 +4991,12 @@ evidence = "independent_source_trials_and_target_covariates_known_noise_declared
 functional = "target_effect"
 guarantee = "original_native_source_replay_current_exact_named_scalar_calibration"
 limits = "Named target_effect95 only; original four Gaussian designs with degree2 learned polynomial basis, source n150..600,4096 draws and frozen known variance/prior. No arbitrary learner or parameter-wide interval license."
-evidence_test = "python/tests/test_measured_joint_transport.py"
-evidence_assertion = "test_normal_public_measured_joint_scalar_and_original_source_fresh_replay"
+evidence_test = "python/tests/test_transport_route_contracts.py"
+evidence_assertion = "test_learned_joint_factory_replays_without_producer_inputs"
 notes = "Normal measured producer and independent retained-identity consumer resolve actual method-specific evidence. Historical source candidate bytes/reports remain unmeasured; caller metadata or serialized calibrated flags cannot grant authority."
 
+execution_contract = "source_bound_replay"
+promotion_record = "2.3A.X4.learned_joint_transport"
 [[routes]]
 route = "antecedent.recalc_capabilities.capability_matrix"
 stage = "evaluate"
@@ -5090,10 +5100,12 @@ evidence = "positive_integer_IID_multinomial_observational_counts"
 functional = "mean0_mean1_contrast"
 guarantee = "original_native_source_replay_current_exact_named_scalar_calibration"
 limits = "Named mean0/mean1/contrast95 only; n1000..4000 selected interior eleven-parameter Verma model, native full expected-Fisher/delta construction and default fit. Source covariance remains model-conditional;90% or other designs refuse."
-evidence_test = "python/tests/test_measured_nested.py"
-evidence_assertion = "test_normal_nested_all_three_measured_scalars_replay_original_source"
+evidence_test = "python/tests/test_transport_route_contracts.py"
+evidence_assertion = "test_nested_fisher_factory_replays_without_producer_inputs"
 notes = "Normal measured producer and independent retained-identity consumer resolve actual method-specific evidence. Historical source candidate bytes/reports remain unmeasured; caller metadata or serialized calibrated flags cannot grant authority."
 
+execution_contract = "source_bound_replay"
+promotion_record = "2.3A.X4.binary_nested_markov_fisher"
 [[routes]]
 route = "antecedent.recalc_static.StaticResponseSession.execute"
 stage = "evaluate"
@@ -5667,7 +5679,7 @@ functional = "public_typed_adapter_preserves_original_native_or_empirical_input_
 guarantee = "point_only_no_new_inference_or_population_coverage"
 limits = "Only a retained point-identified static ordinary mean ATE on original observed target population without effect modifiers/structural scenarios; scalar contrast is not two outcome means, a joint law or a utility interval. Original execution remains separately inspectable. Response bindings use original numeric dose scale and explicit scientific declarations. Original source/support restrictions are enforced before use; units at most 256 bytes."
 evidence_test = "python/tests/test_decision_flow_bridge.py"
-evidence_assertion = "test_scalar_effect_evaluates_only_its_original_contrast_coordinate"
+evidence_assertion = "test_effect_quantity_factory_preserves_original_contrast_declaration"
 notes = "Additive 2.3 public API adaptation; original algorithms, conditional claims and uncertainty boundaries preserved."
 
 [[routes]]
@@ -5680,7 +5692,7 @@ functional = "public_typed_adapter_preserves_original_native_or_empirical_input_
 guarantee = "point_only_no_new_inference_or_population_coverage"
 limits = "Only a retained point-identified static ordinary mean ATE on original observed target population without effect modifiers/structural scenarios; scalar contrast is not two outcome means, a joint law or a utility interval. Original execution remains separately inspectable. Response bindings use original numeric dose scale and explicit scientific declarations. Original source/support restrictions are enforced before use; units at most 256 bytes."
 evidence_test = "python/tests/test_decision_flow_bridge.py"
-evidence_assertion = "test_scalar_effect_evaluates_only_its_original_contrast_coordinate"
+evidence_assertion = "test_scalar_decision_exposes_original_diagnostics_not_modified_wrapper"
 notes = "Additive 2.3 public API adaptation; original algorithms, conditional claims and uncertainty boundaries preserved."
 
 [[routes]]
@@ -5693,7 +5705,7 @@ functional = "public_typed_adapter_preserves_original_native_or_empirical_input_
 guarantee = "point_only_no_new_inference_or_population_coverage"
 limits = "Supplemental sample is explicit and separately hashed; original result does not retain per-stratum laws or certify the supplemental snapshot. Bounds are sharp only for the empirical distribution and estimate population bounds with sampling uncertainty withheld. Max 1,000,000 sample rows, 4096 finite strata, 256 distinct outcomes per arm/stratum; both arms must occur in every stratum. No percentile bootstrap, population coverage, source-sample equality or new inference license."
 evidence_test = "python/tests/test_decision_flow_bridge.py"
-evidence_assertion = "test_empirical_msm_result_handoff_keeps_sample_bounds_distinct"
+evidence_assertion = "test_empirical_msm_function_keeps_supplemental_sample_identity"
 notes = "Additive 2.3 public API adaptation; original algorithms, conditional claims and uncertainty boundaries preserved."
 
 [[routes]]

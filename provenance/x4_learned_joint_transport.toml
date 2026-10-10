@@ -32,6 +32,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "python/tests/test_transport_route_contracts.py",
   # independently coded dense Gaussian closed-form oracle in crates/antecedent-estimate/tests/learned_joint_transport.rs (quadratic basis, two sources with independent and shared blocks at degrees two and three, varying covariate block, exactly representable nonlinear truth, prior sensitivity)
   "crates/antecedent-estimate/tests/learned_joint_transport.rs",
   # crates/antecedent-io/tests/learned_joint_transport_artifact.rs (artifact re-fit against the exact oracle, resealed mutations, double use, consumer limits)

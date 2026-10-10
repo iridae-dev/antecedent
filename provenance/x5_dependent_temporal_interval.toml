@@ -15,6 +15,7 @@ implementation_deviations = [
 ]
 upstream_implementations_observed = []
 test_sources = [
+  "python/tests/test_transport_route_contracts.py",
   "crates/antecedent-estimate/tests/temporal_unit_calibration.rs",
   "crates/antecedent/tests/temporal_recalc_calibration.rs",
   "crates/antecedent-estimate/tests/temporal_dependent_interval.rs",

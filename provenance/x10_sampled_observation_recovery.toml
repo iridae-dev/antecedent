@@ -28,6 +28,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 
 test_sources = [
+  "python/tests/test_transport_route_contracts.py",
   "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs",
   "docs/sampled-recovery-bca.md",
   # enumerated binary missingness SCM (confounder O, treatment X0, outcome X1, response indicators R0 and R1) in crates/antecedent-estimate/tests/recovery_sampled.rs with its hand-computed backdoor truth
