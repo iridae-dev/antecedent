@@ -1,12 +1,13 @@
 # Continuous binary Verma Bayesian pilot: frozen acceptance design
 
 This document freezes the scientific measurement design. Its six mean0, mean1
-and contrast coverage records were measured on the stabilized candidate branch;
-they apply only while their declared facets attest the executing code. The
+and contrast coverage records were measured at `5c76724f`; their original
+statistics and measurement identity remain unchanged. Main-source replay and
+reviewed source equivalence attest the executing code. The
 normal `antecedent.transport.binary_nested_markov` adapter resolves those actual
 records for all three scalars before returning `inference.MeasuredInference`.
-Final normal producer/consumer and release attestation gates remain separate
-from the measurements. The original posterior artifact retains its
+The ordinary-wheel producer and independent source-bound consumer are verified
+separately from the original measurements. The original posterior artifact retains its
 `unmeasured` candidate standing inside the distinct measured envelope.
 
 Measured scope is nominal 0.95, sample counts 2000..8000, default constrained
@@ -44,7 +45,7 @@ entries, 95% effect credible endpoints, marginal q4 endpoints, and integration r
 No production sampler or production summary is used in this oracle. This finite reference
 does not establish repeated-sampling coverage.
 
-## Ignored repeated-sampling measurement
+## Repeated-sampling measurement and current attestation
 
 `crates/antecedent-io/tests/nested_markov_bayesian_calibration.rs` freezes two coordinates:
 
@@ -102,8 +103,16 @@ are conditional on successful whole-method replicates; they cannot erase any fai
 from coverage. Frozen auxiliary gates require relative Frobenius covariance error <=25%
 and mean bias <=25% of the empirical sampling standard deviation in every effect.
 
-Any eventual measured frequentist coverage applies only to these declared interior laws,
+Measured frequentist coverage applies only to these declared interior laws,
 sample-size grid, priors and numerical settings. It is neither a generic Bayesian
 coverage guarantee nor evidence for other graphs, boundary cells, fractional counts,
-other priors, arbitrary levels, or other sampler settings. Whole-method calibration and
-explicit public activation remain later work; this harness must not be run prematurely.
+other priors, arbitrary levels, or other sampler settings. Calibration and public
+activation apply only to the measured protocol described below.
+
+The original whole-method measurement at `5c76724f` remains unchanged. Current
+main-source attestation is supported by actual bit-identical representative replay
+at `13705704` and reviewed source equivalence. The normal producer returns
+`MeasuredInference` for the named `mean0`, `mean1` and `contrast` 95% endpoints
+under the exact uniform or Beta(2,2), four-chain protocol and n2000..8000 scope.
+The retained original posterior artifact keeps its unmeasured candidate standing;
+parameter marginals, covariance and diagnostics have no blanket interval license.

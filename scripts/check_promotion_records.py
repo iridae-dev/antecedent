@@ -85,12 +85,17 @@ from promotion_source import (
     charge_in_loop,
     closure_code,
     crate_src,
+    finite_refusal_helpers,
+    input_exception_evidence_problems,
     nontest_rust,
     pyo3_items,
     python_literals,
     python_symbols,
+    refusal_stage_literals,
     rust_literals,
     rust_pub_items,
+    shared_namespace_problems,
+    typed_input_exception_problems,
 )
 from test_evidence import (
     resolve_python_test,
@@ -445,13 +450,26 @@ def scan_details(namespaces: set[str]):
     for path, in_crate in source_files():
         if not path.is_file() or not hint.search(raw(path)):
             continue
-        lits = python_literals(path) if path.suffix == ".py" else rust_literals(path, in_crate=in_crate)
+        if path.suffix == ".py":
+            lits, finite_lines, stages = python_literals(path), set(), set()
+        else:
+            inferred, finite_lines = finite_refusal_helpers(path, in_crate=in_crate)
+            stages = refusal_stage_literals(path, in_crate=in_crate)
+            lits = [*rust_literals(path, in_crate=in_crate), *inferred]
         for lit in lits:
+            if (lit.line, lit.value) in stages:
+                continue
             m = shape.match(lit.value)
             if m:
-                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append((path, in_crate, lit))
+                found[m.group(1)].setdefault(f"{m.group(1)}.{m.group(2)}", []).append(
+                    (path, in_crate, lit)
+                )
             for d in dyn.finditer(lit.value):
-                dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
+                if not (
+                    lit.line in finite_lines
+                    and lit.value == f"{d.group(1)}.{{detail}}: {{message}}"
+                ):
+                    dynamic[d.group(1)].append(f"{rel(path)}:{lit.line}")
     return found, dynamic
 
 
@@ -485,7 +503,7 @@ namespaces_in_use = {
     refusal.get("detail", "").split(".")[0]
     for rec in records
     if rec.get("status") in IMPLEMENTED
-    for refusal in rec.get("refusals") or []
+    for refusal in [*(rec.get("refusals") or []), *(rec.get("input_exceptions") or [])]
     if "." in refusal.get("detail", "")
 }
 code_details, dynamic_details = scan_details(namespaces_in_use)
@@ -497,7 +515,7 @@ code_details, dynamic_details = scan_details(namespaces_in_use)
 namespace_declared: dict[str, set[str]] = {}
 for _rec in records:
     if _rec.get("status") in IMPLEMENTED:
-        for _refusal in _rec.get("refusals") or []:
+        for _refusal in [*(_rec.get("refusals") or []), *(_rec.get("input_exceptions") or [])]:
             _detail = _refusal.get("detail", "")
             if "." in _detail:
                 namespace_declared.setdefault(_detail.split(".")[0], set()).add(_detail)
@@ -616,34 +634,78 @@ for rec in records:
     for refusal in rec.get("refusals") or []:
         code, detail = refusal.get("code"), refusal.get("detail", "")
         if code not in runtime_codes:
-            fail("refusal_code", f"{rid}: refusal code {code!r} is not a registered runtime_refusal code")
+            fail(
+                "refusal_code",
+                f"{rid}: refusal code {code!r} is not a registered runtime_refusal code",
+            )
         if not refusal.get("when"):
             fail("refusal_when", f"{rid}: refusal {code!r} needs its condition")
         parts = detail.split(".")
-        if len(parts) != 2 or not all(part.replace("_", "").isalnum() and part.islower() for part in parts):
-            fail("refusal_detail_shape", f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>")
+        if len(parts) != 2 or not all(
+            part.replace("_", "").isalnum() and part.islower() for part in parts
+        ):
+            fail(
+                "refusal_detail_shape",
+                f"{rid}: refusal detail {detail!r} must be <namespace>.<snake_case>",
+            )
         if detail in details:
-            fail("refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}")
+            fail(
+                "refusal_detail_duplicate", f"{rid}: duplicate refusal detail {detail}"
+            )
         details.add(detail)
         detail_code.setdefault(detail, code)
     namespaces = {d.split(".")[0] for d in details}
-    if len(namespaces) > 1:
-        fail("refusal_namespace", f"{rid}: refusal details must share one namespace")
+    for problem in shared_namespace_problems(rec, records, code_details, root):
+        fail("refusal_namespace", f"{rid}: {problem}")
+    exception_details = set()
+    for entry in rec.get("input_exceptions", []):
+        for problem in typed_input_exception_problems(entry, root):
+            fail("refusal_pair_code", f"{rid}: {problem}")
+        detail = entry.get("detail", "")
+        if detail in exception_details or detail in details:
+            fail(
+                "refusal_detail_duplicate",
+                f"{rid}: duplicate exception/refusal detail {detail}",
+            )
+        exception_details.add(detail)
+        path, assertion = (
+            entry.get("evidence_test", ""),
+            entry.get("evidence_assertion", ""),
+        )
+        if not path or not assertion:
+            fail(
+                "evidence_pair",
+                f"{rid}: class-only exception needs ordinary class/absent-code assertion",
+            )
+        else:
+            problems = resolve(path, assertion)
+            for problem in problems:
+                fail("evidence_unresolved", f"{rid}: {problem}")
+            for problem in input_exception_evidence_problems(
+                entry, root / path, assertion
+            ):
+                fail("evidence_no_assertion", f"{rid}: {problem}")
+            evidence_rows.append((f"{rid}.{detail}.input_exception", path, assertion))
+    namespaces |= {d.split(".")[0] for d in exception_details}
 
     # Refusal boundary == code: once implemented, each declared detail is a
     # literal in non-test source, each namespaced literal there is declared, none
     # is built dynamically, and each (code, detail) pair is emitted by live code
     # that names the code.
-    if implemented and len(namespaces) == 1:
-        ns = next(iter(namespaces))
+    for ns in sorted(namespaces) if implemented else []:
         in_code = code_details.get(ns, {})
-        for detail in sorted(details - set(in_code)):
+        local_details = {
+            d for d in details | exception_details if d.startswith(ns + ".")
+        }
+        for detail in sorted(local_details - set(in_code)):
             fail(
                 "refusal_detail_missing",
                 f"{rid}: refusal detail {detail} is not emitted by non-test source "
-                f"(no \"{detail}\" or \"{detail}: ...\" literal in {', '.join(SOURCE_GLOBS)})",
+                f'(no "{detail}" or "{detail}: ..." literal in {", ".join(SOURCE_GLOBS)})',
             )
-        for detail in sorted(set(in_code) - details - namespace_declared.get(ns, set())):
+        for detail in sorted(
+            set(in_code) - details - namespace_declared.get(ns, set())
+        ):
             places = ", ".join(f"{rel(p)}:{lit.line}" for p, _, lit in in_code[detail])
             fail(
                 "refusal_detail_undeclared",
@@ -653,7 +715,7 @@ for rec in records:
         for place in dynamic_details.get(ns, []):
             fail(
                 "refusal_dynamic",
-                f"{rid}: dynamic refusal detail at {place} builds \"{ns}.\" from a placeholder; "
+                f'{rid}: dynamic refusal detail at {place} builds "{ns}." from a placeholder; '
                 f"a dynamic detail cannot be checked, use a literal",
             )
         for detail in sorted(details & set(in_code)):
@@ -679,8 +741,20 @@ for rec in records:
                     f"that no non-test code uses; emit it or delete it",
                 )
                 continue
+            proven_codes = {
+                lit.reason_code for _, _, lit in uses if lit.reason_code is not None
+            }
+            if proven_codes and proven_codes != {code}:
+                fail(
+                    "refusal_pair_code",
+                    f"{rid}: closed literal helper emits {sorted(proven_codes)} for {detail}, not {code}",
+                )
             spellings = (str(code), camel(str(code)), *CODE_ALIASES.get(str(code), ()))
-            named = re.compile(r"(?<![A-Za-z0-9_])(?:" + "|".join(map(re.escape, spellings)) + r")(?![A-Za-z0-9_])")
+            named = re.compile(
+                r"(?<![A-Za-z0-9_])(?:"
+                + "|".join(map(re.escape, spellings))
+                + r")(?![A-Za-z0-9_])"
+            )
             if not any(named.search(code_of(p, c)) for p, c in files.items()):
                 fail(
                     "refusal_pair_code",

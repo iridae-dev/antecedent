@@ -14,7 +14,7 @@ Measured inference adds exact protocol restrictions to these general native
 input limits. A native maximum does not mean its entire range was measured:
 for example, nested Fisher uses 1000..4000 observations, the fixed-prior nested
 Bayesian adapter uses 2000..8000 and original graph labels at most 256 UTF-8
-bytes, direct balanced studentized temporal response uses 50..200 units, and
+bytes, direct balanced studentized temporal response uses 75..200 units, and
 whole-row BCa uses 1000..4000 observations with B2000. Current method/prior/
 functional records are required separately for every reported scalar. See the
 [population and uncertainty guide](2_3-population-time-uncertainty.md) for all
@@ -48,7 +48,7 @@ these statements; the original 2.2 check remains the default.
 | 2.3A.X5.new_period_refresh | max_history_states | 4096 | `crates/antecedent-identify/src/sid/temporal_sequence.rs` |
 | 2.3A.X8.temporal_fixed_population_counterfactual | max_horizon | 2 | `crates/antecedent-counterfactual/src/temporal_cross_world.rs` |
 | 2.3A.X8.temporal_fixed_population_counterfactual | max_units | 100000 | `crates/antecedent-counterfactual/src/temporal_cross_world.rs` |
-| 2.3A.X10.sampled_observation_recovery | min_replicates | 20 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
+| 2.3A.X10.sampled_observation_recovery | min_replicates | 2000 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
 | 2.3A.X10.sampled_observation_recovery | max_replicates | 2000 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
 | 2.3A.X10.sampled_observation_recovery | max_rows | 1000000 | `crates/antecedent-estimate/src/recovery_sampled.rs` |
 | 2.3A.X10.sampled_observation_recovery | max_binary_variables | 6 | `crates/antecedent-estimate/src/recovery_sampled.rs` |

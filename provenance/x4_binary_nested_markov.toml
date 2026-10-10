@@ -17,20 +17,27 @@ papers = [
 implementation_deviations = [
   "Certified subset only: exactly one graph (the Verma ADMG X1 -> X2 -> X3 -> X4 with X2 <-> X4, districts {X1}, {X3}, {X2, X4}) over four binary variables and one observational regime. The papers treat general ADMGs; every other graph, regime or non-binary domain refuses (route_not_supported / nested_markov.outside_binary_pilot).",
   "Every identity (the 11 Mobius parameters, the likelihood P = Pa(x1) C(x3 | x2) Q(x2, x4 | x1, x3), the four equality constraints, the do(X2) formula and the profile-likelihood fit) is derived directly in crates/antecedent-estimate/src/nested_markov_binary.rs and checked against an enumerated latent-variable SCM; no theorem of either paper is inherited, so smoothness, identifiability or asymptotic claims of the supermodel paper are not claimed.",
-  "The fit is a constrained maximum-likelihood fit (closed form when the empirical law satisfies the constraints, otherwise profiling g inside block coordinate ascent over q2 and q4, bounded sweeps) and a model-versus-plug-in point contrast. This MLE engine supplies no Bayesian posterior. Separately owned continuous raw-coordinate Beta-kernel posterior (provenance/x4_nested_markov_bayesian.toml) and expected-Fisher/delta (provenance/x4_nested_markov_fisher.toml) candidates are implemented under calibration-internal, without activating this route.",
+  "The fit is a constrained maximum-likelihood fit (closed form when the empirical law satisfies the constraints, otherwise profiling g inside block coordinate ascent over q2 and q4, bounded sweeps) and a model-versus-plug-in point contrast. This MLE engine supplies no Bayesian posterior. Separately owned continuous raw-coordinate Beta-kernel posterior (provenance/x4_nested_markov_bayesian.toml) and expected-Fisher/delta (provenance/x4_nested_markov_fisher.toml) source candidates retain unmeasured standing; separate normal measured endpoint producers use their own current method-specific records and full original-source replay.",
   "The pilot executes the existing general-ID checker for the selected binary contrast before fitting. Its identification status cannot come from a likelihood label. Public Rust/Python static response fixtures license this same graph/query independently. The existing 2.2B conditional ADMG functional remains lineage: that route needs conditioned variables and this graph has none, so the pilot derives its own unconditional identifying formula, P(x4 | do(x2)) = sum_{x3} P(x3 | x2) sum_{x1, x2'} P(x1, x2') P(x4 | x1, x2', x3).",
   "Positivity is demanded of every regime cell count and fitted cells must stay at least 1e-9 from 0 and 1; boundary fits refuse rather than being reported.",
-  "Calibration is unmeasured and the public route antecedent.transport.binary_nested_markov is closed (cell_not_licensed) until the 2.3 release-cut measurement.",
-  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; final changed-surface evidence and installed normal-wheel acceptance remain release prerequisites. No general-model or simultaneous interval guarantee is inherited.",
+  "The original MLE/source candidate remains unmeasured. The separately owned Bayesian normal producer licenses only named mean0, mean1 and contrast95 endpoints under the exact measured uniform-Beta1/Beta2 full11D protocol; the Fisher producer has its own distinct evidence. Other priors, samplers, graph classes and simultaneous guarantees remain unsupported.",
+  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; current main-source replay and attestation pass, and scoped installed normal-wheel producer/independent consumer acceptance passes. No general-model or simultaneous interval guarantee is inherited.",
 ]
 upstream_implementations_observed = []
 
 test_sources = [
-  "enumerated latent-variable binary SCM on the Verma graph in crates/antecedent-estimate/tests/nested_markov_binary.rs and crates/antecedent-io/tests/nested_markov_artifact.rs (independently coded mechanisms p2, p3, p4 summed over the latent by hand)",
-  "crates/antecedent-io/tests/nested_markov_artifact.rs (receipt replay, resealed mutations, producer scope)",
-  "python/tests/test_closed_pilots.py (closed route refusals)",
-  "crates/antecedent/tests/recalc_static.rs and python/tests/test_nested_binding.py (separately licensed public Verma ID response, independent SCM truth)",
-  "crates/antecedent-estimate/src/nested_markov_binary.rs (checked ID refusal of an adjacent unidentifiable bow)",
+  # enumerated latent-variable binary SCM on the Verma graph in crates/antecedent-estimate/tests/nested_markov_binary.rs and crates/antecedent-io/tests/nested_markov_artifact.rs (independently coded mechanisms p2, p3, p4 summed over the latent by hand)
+  "crates/antecedent-estimate/tests/nested_markov_binary.rs",
+  "crates/antecedent-io/tests/nested_markov_artifact.rs",
+  # crates/antecedent-io/tests/nested_markov_artifact.rs (receipt replay, resealed mutations, producer scope)
+  # python/tests/test_closed_pilots.py (closed route refusals)
+  "python/tests/test_closed_pilots.py",
+  # crates/antecedent/tests/recalc_static.rs and python/tests/test_nested_binding.py (separately licensed public Verma ID response, independent SCM truth)
+  "crates/antecedent/tests/recalc_static.rs",
+  "python/tests/test_nested_binding.py",
+  # crates/antecedent-estimate/src/nested_markov_binary.rs (checked ID refusal of an adjacent unidentifiable bow)
+  "crates/antecedent-estimate/src/nested_markov_binary.rs",
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
+  "python/tests/test_measured_nested.py",
 ]

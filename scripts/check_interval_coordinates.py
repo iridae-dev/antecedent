@@ -53,8 +53,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 REPO = Path(__file__).resolve().parents[1]
 ROOT = Path(os.environ.get("INTERVALS_22_ROOT", REPO))
@@ -65,7 +66,13 @@ if os.environ.get("INTERVALS_22_SKIP_ATTEST") == "1":
     os.environ["A_INTERVALS_SKIP_ATTEST"] = "1"
 sys.path.insert(0, str(REPO / "scripts"))
 import check_a_intervals as cai  # noqa: E402  (read-only reuse)
-from promotion_source import ignored_test_literals, python_fn_literals, rust_items  # noqa: E402
+from promotion_source import (  # noqa: E402
+    assertion_texts,
+    ignored_test_literals,
+    nontest_pair,
+    python_fn_literals,
+    rust_items,
+)
 
 NOMINAL = cai.NOMINAL
 WITHHOLD_REASONS = cai.WITHHOLD_REASONS
@@ -232,6 +239,168 @@ def registration_owns_id(registration: dict, literals: set[str], coverage_id: st
         and parts[-2] == name and bool(re.fullmatch(r"[a-z_0-9]+", parts[-1]))
     )
 
+
+
+def untrusted_interval_input_problems(
+    root: Path, record: dict, item: dict
+) -> list[str]:
+    """Prove the one caller-declared report input is incapable of granting authority."""
+    fields = {
+        "name",
+        "source",
+        "class",
+        "builder",
+        "report_type",
+        "authority_type",
+        "authority_fixture",
+        "why",
+    }
+    exact = {
+        "name": "interval",
+        "source": "crates/antecedent-io/src/measured_inference.rs",
+        "class": "ScalarExecution",
+        "builder": "build_report",
+        "report_type": "MeasuredInferenceReport",
+        "authority_type": "MeasuredInference",
+    }
+    if (
+        not isinstance(item, dict)
+        or set(item) != fields
+        or any(item.get(key) != value for key, value in exact.items())
+        or not isinstance(item.get("why"), str)
+        or not item["why"].strip()
+    ):
+        return [
+            "untrusted interval input needs the exact readable-report descriptor, never an estimator/output exemption"
+        ]
+    path = root / item["source"]
+    code, _ = nontest_pair(path)
+    _, items = rust_items(path)
+    declarations = list(
+        re.finditer(r"\bpub struct ScalarExecution\s*(\{[^}]*\})", code)
+    )
+    builders = [i for i in items if i.kind == "fn" and i.name == item["builder"]]
+    if len(declarations) != 1 or len(builders) != 1:
+        return [
+            "untrusted input declaration or readable report builder does not resolve uniquely"
+        ]
+    field_body = declarations[0][1]
+    # Exact bounded input fields. A new computed/authoritative field requires
+    # another review and cannot silently inherit this metadata classification.
+    if not re.fullmatch(
+        r"\{\s*pub name: String,\s*pub point: f64,\s*pub interval: \(f64, f64\),\s*pub basis: CalibrationBasis,\s*\}",
+        field_body,
+    ):
+        return [
+            "untrusted input no longer consists solely of caller-declared scalar/basis fields"
+        ]
+    builder = builders[0]
+    header = code[builder.start : builder.body[0]]
+    body = code[builder.body[0] : builder.body[1]]
+    if (
+        not re.search(r"executions:\s*Vec<ScalarExecution>", header)
+        or not re.search(r"->\s*Result<MeasuredInferenceReport,\s*IoError>\s*$", header)
+        or not re.search(r"lower:\s*execution\.interval\.0\s*,", body)
+        or not re.search(r"upper:\s*execution\.interval\.1\s*,", body)
+        or re.search(r"\bauthorize\s*\(|\bMeasuredInference\s*\{", body)
+        or re.search(
+            r"\bmut\s+executions?\b|execution\.interval\s*=|executions\s*\.\s*(?:iter_mut|sort|push|extend|retain)\b",
+            header + body,
+        )
+        or not re.search(r"for\s+execution\s+in\s+executions\s*\{", body)
+    ):
+        return [
+            "input builder must return readable metadata and project original endpoints without granting authority"
+        ]
+    authority = list(re.finditer(r"\bpub struct MeasuredInference\s*(\{[^}]*\})", code))
+    factory = [i for i in items if i.kind == "fn" and i.name == "authorize"]
+    if (
+        len(authority) != 1
+        or len(factory) != 1
+        or not re.fullmatch(
+            r"\{\s*report: MeasuredInferenceReport,\s*bytes: Arc<\[u8\]>,\s*source: Arc<\[u8\]>,\s*\}",
+            authority[0][1],
+        )
+        or re.search(
+            r"#\[derive\([^]]*Deserialize[^]]*\)\]\s*pub struct MeasuredInference\b",
+            code,
+        )
+        or not re.search(r"pub\(crate\)\s*$", code[: factory[0].start])
+    ):
+        return [
+            "readable input cannot expose, deserialize or publicly construct opaque measured authority"
+        ]
+    constructions = len(re.findall(r"\bMeasuredInference\s*\{", code)) - len(
+        re.findall(r"\b(?:struct|impl)\s+MeasuredInference\s*\{", code)
+    )
+    if (
+        constructions != 1
+        or "MeasuredInference {" not in code[factory[0].body[0] : factory[0].body[1]]
+    ):
+        return [
+            "readable metadata cannot gain an additional public measured-authority constructor"
+        ]
+    fixture = next(
+        (
+            f
+            for f in record.get("fixtures", [])
+            if f.get("id") == item["authority_fixture"]
+        ),
+        {},
+    )
+    if (
+        fixture.get("role") != "negative"
+        or not fixture.get("evidence_test")
+        or not fixture.get("evidence_assertion")
+    ):
+        return [
+            "untrusted input requires an actual ordinary authority-forgery negative fixture"
+        ]
+    evidence = root / fixture["evidence_test"]
+    assertion = fixture["evidence_assertion"]
+    try:
+        _, evidence_items = rust_items(evidence)
+        tests = [i for i in evidence_items if i.kind == "fn" and i.name == assertion]
+        observed = "\n".join(assertion_texts(evidence, assertion))
+        if (
+            len(tests) != 1
+            or "#[test]" not in tests[0].attrs
+            or any("ignore" in a for a in tests[0].attrs)
+            or "MeasuredInference::consume" not in observed
+            or ".is_err()" not in observed
+            or "decode" not in observed
+            or ".is_ok()" not in observed
+        ):
+            return [
+                "authority evidence must exercise readable decode success and opaque consumer rejection"
+            ]
+    except (OSError, ValueError):
+        return ["authority-forgery evidence does not resolve"]
+    return []
+
+
+def untrusted_interval_inputs(record: dict, findings: list, errors: list[str]) -> list:
+    remaining = list(findings)
+    for item in record.get("untrusted_interval_inputs", []):
+        problems = untrusted_interval_input_problems(ROOT, record, item)
+        matches = (
+            [
+                row
+                for row in remaining
+                if row[0] == item.get("source") and row[2] == item.get("name")
+            ]
+            if isinstance(item, dict)
+            else []
+        )
+        if problems or len(matches) != 1:
+            errors.extend(
+                f"{record['id']}: {problem}"
+                for problem in problems
+                or ["untrusted input must match exactly one actual interval field"]
+            )
+        else:
+            remaining = [row for row in remaining if row not in matches]
+    return remaining
 
 
 def delegated_interval_findings(record: dict, findings: list, records: dict, errors: list[str]) -> list:
@@ -609,6 +778,7 @@ def check() -> dict:
             if not matches:
                 errors.append(f"{rid}: internal interval {name!r} lacks its explicit hidden calibration-only gate")
             findings = [row for row in findings if row not in matches]
+        findings = untrusted_interval_inputs(record, findings, errors)
         findings = delegated_interval_findings(record, findings, {r["id"]: r for r in records}, errors)
         inherited = set(record.get("inherited_interval_fields") or [])
         if inherited:

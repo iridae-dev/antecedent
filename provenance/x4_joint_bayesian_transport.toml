@@ -12,19 +12,24 @@ implementation_deviations = [
   "The model is a linear outcome mechanism with treatment-covariate interactions and an optional population-varying block that never interacts with treatment; a varying treatment effect is structurally impossible to declare. Nonlinear or non-Gaussian outcomes are outside the cell.",
   "Overlap is a conservative axis-aligned covariate box check of the target against each source, not a density-ratio bound.",
   "Sources must be independent samples with disjoint units; dependent or unknown sampling refuses. Prior mass never changes structural identification, which is the supplied 2.2 certificate.",
-  "Historical source candidate artifacts retain unmeasured standing. Whole-method calibration completed at5c76724f for the frozen scoped construction; the separate normal measured envelope requires current scalar records and exact original source replay. Final changed-surface attestation remains a release prerequisite.",
+  "Historical source candidate artifacts retain unmeasured standing. Whole-method calibration completed at5c76724f for the frozen scoped construction; the separate normal measured envelope requires current scalar records and exact original source replay. Current main-source replay, reviewed nonnumerical equivalence and attestation pass; exact scoped normal-wheel producer and fresh consumer acceptance pass.",
   "The new calibration-internal retained-family adapter executes actual raw-source preparation and its original numerical engine. Actual successful solve/draw or source factor/program/whole-unit work is observed. Independent source replay binds complete raw evidence and graph/program; compatible summaries retain state without new fitting. These acceptance fixtures do not measure coverage or activate the public inference route.",
-  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; final changed-surface evidence and installed normal-wheel acceptance remain release prerequisites. No general-model or simultaneous interval guarantee is inherited.",
+  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; current main-source replay and attestation pass, and scoped installed normal-wheel producer/independent consumer acceptance passes. No general-model or simultaneous interval guarantee is inherited.",
 ]
 upstream_implementations_observed = []
 test_sources = [
-  "independently coded dense Gaussian closed-form oracle in crates/antecedent-estimate/tests/joint_bayesian_transport.rs (single source, two sources with independent and shared varying blocks, varying covariate block, prior sensitivity)",
-  "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs (artifact re-fit against the exact oracle, resealed mutations, double use)",
-  "crates/antecedent-io/tests/joint_bayesian_transport_artifact.rs (aligned joint-draw hydration)",
-  "python/tests/test_closed_pilots.py (closed route refusals)",
+  # independently coded dense Gaussian closed-form oracle in crates/antecedent-estimate/tests/joint_bayesian_transport.rs (single source, two sources with independent and shared varying blocks, varying covariate block, prior sensitivity)
+  "crates/antecedent-estimate/tests/joint_bayesian_transport.rs",
+  # crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs (artifact re-fit against the exact oracle, resealed mutations, double use)
+  "crates/antecedent-io/tests/joint_bayesian_transport_model_artifact.rs",
+  # crates/antecedent-io/tests/joint_bayesian_transport_artifact.rs (aligned joint-draw hydration)
+  "crates/antecedent-io/tests/joint_bayesian_transport_artifact.rs",
+  # python/tests/test_closed_pilots.py (closed route refusals)
+  "python/tests/test_closed_pilots.py",
   "crates/antecedent/tests/recalc_joint_bayesian.rs",
   "conformance/recalculation/bayesian_retention/expected.json",
   "conformance/recalculation/bayesian_retention/README.md",
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
+  "python/tests/test_measured_joint_transport.py",
 ]

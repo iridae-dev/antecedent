@@ -157,7 +157,7 @@ whole-unit equal-tailed studentized bootstrap, B500 at level 0.95, on complete
 balanced binary `(S0,A1,L2,A2)` histories. Each unit retains all sixteen history
 cells; units and raw per-unit scores, standard errors and resample pivots travel
 with the source. The fixed target initial law is (0.3,0.7) and sequence (0,0).
-The measured direct unit-count span is 50..200; the construction has native
+The measured direct unit-count span is 75..200; the construction has native
 20..4096 unit bounds, minimum units 20 and failed fraction at most 0.05.
 
 `antecedent.transport.advanced.temporal_dependent_interval` resolves the
@@ -169,9 +169,9 @@ direct panel. Fresh consumption replays that checked source rather than
 substituting a plain panel artifact. Arbitrary temporal callbacks or incomplete
 histories receive no studentization certificate.
 
-Failed percentile/basic response implementations are retired; their measurements remain archived. Previously passing
-paired-effect constructions remain separate methods; neither supplies evidence
-for a studentized interval. See [prepared recalculation](2_3-recalculation-capabilities.md).
+Response intervals use the studentized method. Checked paired effects have
+separate studentized, percentile and basic records; one method does not supply
+evidence for another. See [prepared recalculation](2_3-recalculation-capabilities.md).
 
 **Effect constancy (F18).** Can a test that one effect is the same across a
 declared partition (time periods or regions) be consumed under a checked
@@ -269,8 +269,6 @@ jackknife variance, invalid bias/acceleration or unresolved adjusted tails refus
 original derivation/method basis resolves to a current record. Independent
 consumption rechecks the recovery proof and every bootstrap/jackknife receipt;
 correct missingness premises and independent observations remain declarations.
-The original B500 percentile failure (1874/2000 coverage in its recheck) and
-version-2 evidence remain archived. The percentile estimator and version-2 runtime are retired, not pending release work. They are not BCa evidence.
 See the [BCa scientific design](sampled-recovery-bca.md).
 
 The CPDAG search charges completion storage as well as orientation attempts. A

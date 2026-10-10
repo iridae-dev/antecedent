@@ -22,17 +22,21 @@ implementation_deviations = [
   "The empirical recovered law is a finite-sample table whose masses need not sum to one; it is never renormalized, its mass defect is reported and bounded by an explicit tolerance (default 0.1), and effect probabilities are normalized by the evaluated total.",
   "A zero complete-case cell, a zero denominator or too many failed replicates (default above 5 percent) refuse; failed replicates are retained in the receipt, never silently dropped.",
   "The digests of the receipt and artifact are FNV-based fingerprints, not cryptographic. BCa uses distinct version3 sampled_observation_recovery_bca_v3 bytes binding all B2000 draws, grouped delete-one-row patterns, acceleration, z0 and adjusted probabilities; an independent consumer reruns every step. The failed percentile estimator and version2 runtime are retired; original failure evidence remains at its immutable measurement commit, and version2 bytes are not accepted as BCa.",
-  "Corrected BCa calibration is unmeasured; legacy failed percentile evidence is retained: the interval carries calibration = unmeasured and the public route antecedent.transport.sampled_observation_recovery is closed (cell_not_licensed) until the 2.3 release-cut whole-method grid is measured.",
-  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; final changed-surface evidence and installed normal-wheel acceptance remain release prerequisites. No general-model or simultaneous interval guarantee is inherited.",
+  "Corrected BCa whole-method calibration completed at5c76724f; current main-source replay independently validates the nonnumerical scientific-identity projection and attestation. The normal producer licenses only the recovered_effect95 scalar under the exact unweighted independent-row B2000 protocol. Original source candidate intervals remain unmeasured; retired failed percentile evidence remains historical.",
+  "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; current main-source replay and attestation pass, and scoped installed normal-wheel producer/independent consumer acceptance passes. No general-model or simultaneous interval guarantee is inherited.",
 ]
 upstream_implementations_observed = []
 
 test_sources = [
   "crates/antecedent-estimate/tests/recovery_whole_method_calibration.rs",
   "docs/sampled-recovery-bca.md",
-  "enumerated binary missingness SCM (confounder O, treatment X0, outcome X1, response indicators R0 and R1) in crates/antecedent-estimate/tests/recovery_sampled.rs with its hand-computed backdoor truth",
-  "crates/antecedent-io/tests/sampled_recovery_artifact.rs (whole-method replay, resealed mutations, consumer limits)",
-  "python/tests/test_closed_pilots.py (closed route refusals)",
+  # enumerated binary missingness SCM (confounder O, treatment X0, outcome X1, response indicators R0 and R1) in crates/antecedent-estimate/tests/recovery_sampled.rs with its hand-computed backdoor truth
+  "crates/antecedent-estimate/tests/recovery_sampled.rs",
+  # crates/antecedent-io/tests/sampled_recovery_artifact.rs (whole-method replay, resealed mutations, consumer limits)
+  "crates/antecedent-io/tests/sampled_recovery_artifact.rs",
+  # python/tests/test_closed_pilots.py (closed route refusals)
+  "python/tests/test_closed_pilots.py",
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
+  "python/tests/test_measured_recovery.py",
 ]

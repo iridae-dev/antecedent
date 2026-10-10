@@ -161,6 +161,7 @@ REQUIRED_INFERENCE_OUTPUT_FIELDS = {
     "truth_grid_allocation",
 }
 INFERENCE_IMPLEMENTATIONS = {
+    "implemented_measured_scoped",
     "implemented_unmeasured",
     "candidate_public_closed",
     "implemented_exact_conditional",

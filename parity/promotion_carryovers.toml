@@ -9,38 +9,7 @@ detail = "The measured internal percentile estimator is calibration-internal; th
 corrective_action = "Implement the normal-build interval producer and versioned independent consumer at the exact dependence, box and endpoint coordinates; remeasure after numerical changes."
 
 [[cell]]
-id = "2.3A.X4.joint_bayesian_transport"
-failed_gates = ["normal_public_surface_final_attestation"]
-detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
-corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
-[[cell]]
-id = "2.3A.X4.binary_nested_markov_pilot"
-failed_gates = ["normal_public_surface_final_attestation"]
-detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
-corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
-[[cell]]
-id = "2.3A.X5.dependent_temporal_interval"
-failed_gates = ["normal_public_surface_final_attestation"]
-detail = "Original percentile/basic response failures remain retained; original passing paired-effect constructions are separate methods. The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
-corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
-[[cell]]
 id = "2.3A.X8.transported_path_specific_counterfactual"
 failed_gates = ["bounded_ctftr_derivation_and_implementation", "general_provider_and_artifact_evidence"]
 detail = "The published CTFTR counterfactual transportability theorem exists, but its bounded nested/conditional query reduction, selection-aware district transport, factor/evidence provider and replay are not implemented in this repository. The separately promoted affine-additive row does not license this general path-specific route."
 corrective_action = "Complete the dependency-ordered 2.4 general finite counterfactual transport package in ROADMAP.md: antecedent-identify leads typed query/evidence prerequisites, bounded CTFTR and district identification, exact provider and antecedent-io independent replay with Python public routes. Execute independent finite-SCM positive and two-model obstruction witnesses plus installed producer/fresh-process consumer gates; retain this route closed until its exact scope passes."
-
-[[cell]]
-id = "2.3A.X10.sampled_observation_recovery"
-failed_gates = ["normal_public_surface_final_attestation", "corrected_scientific_recovery_basis_remeasurement"]
-detail = "Original B500 percentile failure and legacy v2 candidate standing remain retained. Corrected BCa scientific basis excludes alias labels while preserving full source expectations; this changed actual key requires final remeasurement. The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
-corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
-[[cell]]
-id = "2.3A.X4.learned_joint_transport"
-failed_gates = ["normal_public_surface_final_attestation"]
-detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
-corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."
-[[cell]]
-id = "2.3A.X4.binary_nested_markov_fisher"
-failed_gates = ["normal_public_surface_final_attestation"]
-detail = "The exact scoped corrected method passed its complete frozen measurement at5c76724f. Normal measured envelope producer and independent original-source consumer are implemented. Current changed-surface attestation and final installed-wheel acceptance remain prerequisites; no historical source artifact is relabeled calibrated."
-corrective_action = "Complete actual normal-wheel producer/independent consumer acceptance and final frozen-surface remeasurement with unchanged denominator, precision thresholds and exact method guards. Promote only currently attesting scopes; retain original failures and broader unsupported models closed."

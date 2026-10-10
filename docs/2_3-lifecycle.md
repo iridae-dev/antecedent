@@ -341,17 +341,18 @@ Next: [sensitivity and robustness](2_3-sensitivity-and-robustness.md),
 [design ranking](2_3-design-ranking.md) and
 [recalculation](2_3-recalculation-capabilities.md).
 
-### Candidate joint Gaussian and learned joint transport
+### Joint Gaussian and learned joint transport
 
-The normal wheel keeps `transport.advanced.joint_bayesian_transport` and
-`learned_joint_transport` frozen after their real scope checks. An internal
-`calibration-internal` build supplies a success lifecycle to prepare later release
-verification; it does not measure calibration or activate either interval route.
-The same public functions accept an original native `TransportIdentification`
-from `transport.advanced.identify`, complete `JointTransportPriors`, and typed
-`JointTransportSource`/`JointTransportTarget` declarations. The returned
-`JointTransportPosterior.release_status` is `candidate_only`; calibration stays
-`unmeasured`.
+The normal `transport.joint_bayesian` and `learned.joint_transport` producers
+return `MeasuredInference` for the named `target_effect` at level 0.95 when
+the original native identification, data and protocol resolve current evidence.
+The scope is the four frozen source-sharing/varying-block configurations with
+known observation variances 1 or 2.25, prior variance 1000, 4096 aligned draws,
+150..600 observations per source and the declared target design; the learned
+route requires degree two. This is finite validation under the declared model,
+not a confidence guarantee for arbitrary source populations or mechanisms.
+The original `JointTransportPosterior` remains a separate internal candidate;
+its report and source artifact keep `candidate_only`/`unmeasured` standing.
 
 A `GaussianTransportPrior` declares its mean and complete square covariance,
 including off-diagonal dependence. An invariant block and one varying block are
@@ -372,8 +373,10 @@ support the four combinations of varying block (`intercept`,
 and `antecedent-learn` provider record. Parameter and effect covariance are full
 joint covariance; each draw row is a single aligned realization of the parameters,
 source effects and target effect. Independent marginal samples are never paired.
-The target mean/variance condition on the supplied target covariate sample; no
-sampling uncertainty or calibrated coverage is added by these wrappers.
+The target mean/variance condition on the supplied target covariate sample.
+Only the named target scalar endpoints carry the exact measured scope above;
+parameter covariance, source effects, draws and diagnostics keep their original
+model-conditional standing.
 
 `posterior.export()` preserves the existing engine artifact's model, original
 identification record, priors/bank provenance, basis, source and target observations,
@@ -393,8 +396,9 @@ units, prior-bank/likelihood reuse and target mass outside declared source suppo
 `python/tests/test_joint_transport_candidate_lifecycle.py` contains separate
 independent dense Gaussian precision/mean/covariance oracles for all four plus four
 configurations, exact aligned-effect-row assertions and fresh-process consumption.
-These feature-build tests must be repeated through the activated ordinary final
-wheel before they can count as released positive evidence.
+The separate ordinary-wheel tests in `test_measured_joint_transport.py` verify
+all eight measured configurations, an independent oracle, fresh source-bound
+consumption and neighboring protocol refusals.
 
 ### Candidate nested-Markov posterior and sampling intervals
 
@@ -423,8 +427,9 @@ matrix](2_3-producer-consumer-matrix.md) does not grant them an additional route
 `binary_nested_markov` selects the four-variable binary observational Verma ADMG
 `X1 -> X2 -> X3 -> X4`, `X2 <-> X4`. Its continuous posterior uses the original
 eleven raw Möbius coordinates `a,c0,c1,q20,q21,q40,q41,g00,g01,g10,g11`.
-`NestedMarkovPrior` names a Beta kernel for every coordinate; each shape lies in
-`[1,1000000]`. Their product density is restricted to the positive feasible
+The internal `NestedMarkovPrior` candidate names a Beta kernel for every
+coordinate, with shape bounds `[1,1000000]`. The normal measured route accepts
+only all eleven Beta(1,1) or all eleven Beta(2,2) kernels. Their product density is restricted to the positive feasible
 c-factor polytope. It is not divided by conditional association-interval widths,
 and no finite parameter grid substitutes for this continuous posterior. The
 default kernels are uniform. Counts must be positive integers from the declared
@@ -451,9 +456,10 @@ mixed stationary chains, not a rigorous endpoint confidence guarantee. Neither
 the harness's allocation nor deterministic posterior agreement is measurement.
 
 The Fisher candidate is a distinct expected-information/full-delta frequentist
-method for the same interior IID model, at frozen nominal levels 90% and 95%.
+method for the same interior IID model, at internal nominal levels 90% and 95%; the standard measured route licenses
+only the named 95% scalar endpoints.
 Temporal intervals instead resample complete independent unit histories, retaining
-panel, unit, time, estimator and seed identities. Direct and checked response use studentized intervals; checked paired effects retain separately measured studentized, percentile and basic methods. Failed response percentile/basic implementations are retired. Sampled recovery resamples complete raw rows
+panel, unit, time, estimator and seed identities. Direct and checked response use studentized intervals; checked paired effects retain separately measured studentized, percentile and basic methods. Sampled recovery resamples complete raw rows
 through the original recovery estimator, retaining query-role mapping, recovered
 law covariance and original data/premise identities. Its preparation interface
 bounds six binary roles, 100000 rows and 2000 replicates; this is narrower than
