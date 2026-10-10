@@ -74,7 +74,7 @@ fn predict_bytes(bytes: &[u8]) -> (Vec<f64>, String) {
 }
 
 #[test]
-fn c2_portable_predictor_zero_refits_and_fresh_process_match_full_run() {
+fn portable_predictor_zero_refits_and_fresh_process_match_full_run() {
     let (bytes, fits) = fit_bytes(2.0);
     assert!(fits > 1, "resolved nuisance and final-stage models actually fit");
     assert_eq!(bytes, fitted_bytes(2.0), "instrumentation preserves the complete claim bytes");
@@ -89,7 +89,7 @@ fn c2_portable_predictor_zero_refits_and_fresh_process_match_full_run() {
     let path = directory.join("model.ant");
     std::fs::write(&path, &bytes).unwrap();
     let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "c2_portable_predictor_child", "--nocapture"])
+        .args(["--exact", "portable_predictor_child", "--nocapture"])
         .env("ANTECEDENT_PORTABLE_TEST_ARTIFACT", &path)
         .output()
         .unwrap();
@@ -110,7 +110,7 @@ fn c2_portable_predictor_zero_refits_and_fresh_process_match_full_run() {
 }
 
 #[test]
-fn c2_portable_predictor_child() {
+fn portable_predictor_child() {
     let Some(path) = std::env::var_os("ANTECEDENT_PORTABLE_TEST_ARTIFACT") else { return };
     let bytes = std::fs::read(path).unwrap();
     let (_, fits) = count_resolved_fits(|| predict_bytes(&bytes));

@@ -103,7 +103,7 @@ fn two_parents(label: &str, y: &[f64]) -> PopulationSample {
 }
 
 #[test]
-fn b3_discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
+fn discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_BOTH),
@@ -127,7 +127,7 @@ fn b3_discrepancy_ols_fits_and_summed_covariance_match_hand_algebra() {
 
 #[test]
 #[allow(clippy::float_cmp, reason = "identical sufficient statistics give bitwise-equal fits")]
-fn b3_discrepancy_identical_fits_give_statistic_zero_exactly() {
+fn discrepancy_identical_fits_give_statistic_zero_exactly() {
     let same = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YS),
@@ -147,7 +147,7 @@ fn b3_discrepancy_identical_fits_give_statistic_zero_exactly() {
 }
 
 #[test]
-fn b3_discrepancy_slope_shift_matches_df1_closed_form() {
+fn discrepancy_slope_shift_matches_df1_closed_form() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_SLOPE),
@@ -173,7 +173,7 @@ fn b3_discrepancy_slope_shift_matches_df1_closed_form() {
 }
 
 #[test]
-fn b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form() {
+fn discrepancy_intercept_and_slope_shift_matches_df2_closed_form() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_BOTH),
@@ -197,7 +197,7 @@ fn b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form() {
 }
 
 #[test]
-fn b3_discrepancy_two_parent_statistic_matches_slope_block_algebra() {
+fn discrepancy_two_parent_statistic_matches_slope_block_algebra() {
     let r = test_mechanism_discrepancy(
         &two_parents("source", &Y6),
         &two_parents("target", &Y6_TARGET),
@@ -218,7 +218,7 @@ fn b3_discrepancy_two_parent_statistic_matches_slope_block_algebra() {
 }
 
 #[test]
-fn b3_discrepancy_minimal_detectable_difference_uses_normal_quantiles() {
+fn discrepancy_minimal_detectable_difference_uses_normal_quantiles() {
     // The six-decimal constants are the quantiles of the standard normal (checked against erfc).
     let tail = |z: f64| 0.5 * erfc(z / 2.0_f64.sqrt());
     assert!((tail(Z_ALPHA_TWO_SIDED_05) - 0.025).abs() < 1e-7);
@@ -250,7 +250,7 @@ fn b3_discrepancy_minimal_detectable_difference_uses_normal_quantiles() {
 }
 
 #[test]
-fn b3_discrepancy_non_rejection_never_certifies_invariance() {
+fn discrepancy_non_rejection_never_certifies_invariance() {
     let r = test_mechanism_discrepancy(
         &one_parent("source", &YS),
         &one_parent("target", &YT_SLOPE),
@@ -282,7 +282,7 @@ fn b3_discrepancy_non_rejection_never_certifies_invariance() {
 }
 
 #[test]
-fn b3_discrepancy_parent_order_is_irrelevant() {
+fn discrepancy_parent_order_is_irrelevant() {
     let base = test_mechanism_discrepancy(
         &two_parents("source", &Y6),
         &two_parents("target", &Y6_TARGET),
@@ -304,7 +304,7 @@ fn b3_discrepancy_parent_order_is_irrelevant() {
 }
 
 #[test]
-fn b3_discrepancy_incomparable_measurements_refuse() {
+fn discrepancy_incomparable_measurements_refuse() {
     let incomparable = reason_code!("route_not_supported");
     let detail = "mechanism_discrepancy.incomparable_measurements:";
     let source = one_parent("source", &YS);
@@ -337,7 +337,7 @@ fn b3_discrepancy_incomparable_measurements_refuse() {
 }
 
 #[test]
-fn b3_discrepancy_dependence_unknown_refuses() {
+fn discrepancy_dependence_unknown_refuses() {
     let source = one_parent("source", &YS);
     let target = one_parent("target", &YT_BOTH);
     for dependence in [SampleDependence::Unknown, SampleDependence::SharedUnits] {
@@ -363,7 +363,7 @@ fn b3_discrepancy_dependence_unknown_refuses() {
 }
 
 #[test]
-fn b3_discrepancy_degenerate_inputs_refuse() {
+fn discrepancy_degenerate_inputs_refuse() {
     let invalid = reason_code!("invalid_argument");
     let detail_of = |error: EstimationError| {
         let (code, message) = refusal(error);
@@ -424,7 +424,7 @@ fn b3_discrepancy_degenerate_inputs_refuse() {
 
 #[test]
 #[allow(clippy::float_cmp, reason = "the summary entries are integer-valued sums")]
-fn b3_discrepancy_summaries_replay_the_raw_data_result() {
+fn discrepancy_summaries_replay_the_raw_data_result() {
     let source = one_parent("source", &YS);
     let target = one_parent("target", &YT_BOTH);
     let raw = test_mechanism_discrepancy(&source, &target, &opts(true)).unwrap();

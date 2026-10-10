@@ -213,7 +213,7 @@ const TARGET_ONLY: [(Stage, &str); 3] = [
 ];
 
 #[test]
-fn c2_cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit() {
+fn cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit() {
     let request = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &request, SEED);
@@ -239,7 +239,7 @@ fn c2_cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit() {
 }
 
 #[test]
-fn c2_cell_utility_only_change_recomputes_the_decision_with_zero_fits() {
+fn cell_utility_only_change_recomputes_the_decision_with_zero_fits() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -263,7 +263,7 @@ fn c2_cell_utility_only_change_recomputes_the_decision_with_zero_fits() {
 }
 
 #[test]
-fn c2_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() {
+fn cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -290,7 +290,7 @@ fn c2_cell_compatible_target_weight_change_reuses_the_frozen_cell_scores() {
 }
 
 #[test]
-fn c2_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() {
+fn cell_changed_folds_and_new_outcomes_refit_without_reidentifying() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -328,7 +328,7 @@ fn c2_cell_changed_folds_and_new_outcomes_refit_without_reidentifying() {
 }
 
 #[test]
-fn c2_cell_graph_or_query_change_reidentifies_and_refits() {
+fn cell_graph_or_query_change_reidentifies_and_refits() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -364,7 +364,7 @@ fn c2_cell_graph_or_query_change_reidentifies_and_refits() {
 }
 
 #[test]
-fn c2_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
+fn cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
     let base = request();
     let mut session = CellSession::new();
     session.set_retarget_support(RetargetSupport::NotDeclared);
@@ -392,7 +392,7 @@ fn c2_cell_an_undeclared_retarget_refits_instead_of_reusing_scores() {
 }
 
 #[test]
-fn c2_cell_refusals_run_no_work_and_leave_the_session_usable() {
+fn cell_refusals_run_no_work_and_leave_the_session_usable() {
     let base = request();
 
     // A descendant of a treatment is not an adjustment set: nothing is fitted or kept.
@@ -436,7 +436,7 @@ fn c2_cell_refusals_run_no_work_and_leave_the_session_usable() {
 }
 
 #[test]
-fn c2_cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits() {
+fn cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -512,7 +512,7 @@ fn c2_cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fit
 }
 
 #[test]
-fn c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() {
+fn cell_resume_with_an_unchanged_request_reproduces_the_first_run() {
     let base = request();
     let mut session = CellSession::new();
     let first = go(&mut session, &base, SEED);
@@ -544,7 +544,7 @@ fn c2_cell_resume_with_an_unchanged_request_reproduces_the_first_run() {
 }
 
 #[test]
-fn c2_cell_resumed_contrast_change_reduces_scores_without_reusing_the_old_law() {
+fn cell_resumed_contrast_change_reduces_scores_without_reusing_the_old_law() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
@@ -581,7 +581,7 @@ fn c2_cell_resumed_contrast_change_reduces_scores_without_reusing_the_old_law() 
 }
 
 #[test]
-fn c2_cell_resume_rejects_overridden_request_identities_without_changing_live_state() {
+fn cell_resume_rejects_overridden_request_identities_without_changing_live_state() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
@@ -624,7 +624,7 @@ fn c2_cell_resume_rejects_overridden_request_identities_without_changing_live_st
 }
 
 #[test]
-fn c2_cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
+fn cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
@@ -721,7 +721,7 @@ fn c2_cell_resume_refuses_every_request_that_needs_data_or_a_fit() {
 }
 
 #[test]
-fn c2_cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
+fn cell_resume_refuses_resealed_or_foreign_artifact_bytes() {
     let base = request();
     let mut session = CellSession::new();
     go(&mut session, &base, SEED);
@@ -767,7 +767,7 @@ fn crossfit_columns() -> Columns {
 }
 
 #[test]
-fn c2_cell_crossfit_scores_resume_the_same_way() {
+fn cell_crossfit_scores_resume_the_same_way() {
     // Columns t=0, y=1, z=2; edges z->t, z->y, t->y.
     let edges = vec![(2, 0), (2, 1), (0, 1)];
     let base = RecalcRequest {

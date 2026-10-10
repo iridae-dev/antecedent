@@ -92,7 +92,7 @@ fn refusal(error: &LatentClassArtifactError) -> (&'static str, String) {
 }
 
 #[test]
-fn b4_latent_artifact_round_trips_the_hand_derived_fixed_point() {
+fn latent_artifact_round_trips_the_hand_derived_fixed_point() {
     let (artifact, bytes) = seal(11, 0);
     let consumed = LatentClassArtifact::from_bytes(&bytes, Some(artifact.identity())).unwrap();
     let meta = consumed.meta();
@@ -120,7 +120,7 @@ fn b4_latent_artifact_round_trips_the_hand_derived_fixed_point() {
 }
 
 #[test]
-fn b4_latent_artifact_summarizes_responsibilities_exactly() {
+fn latent_artifact_summarizes_responsibilities_exactly() {
     let (artifact, _) = seal(3, 0);
     let summary = &artifact.meta().responsibilities;
     assert_eq!(summary.rows, 40);
@@ -142,7 +142,7 @@ fn b4_latent_artifact_summarizes_responsibilities_exactly() {
 }
 
 #[test]
-fn b4_latent_artifact_records_trace_premises_and_unmeasured_calibration() {
+fn latent_artifact_records_trace_premises_and_unmeasured_calibration() {
     let (artifact, _) = seal(5, 0);
     let meta = artifact.meta();
     let likelihood = &meta.likelihood;
@@ -163,7 +163,7 @@ fn b4_latent_artifact_records_trace_premises_and_unmeasured_calibration() {
 }
 
 #[test]
-fn b4_latent_artifact_refit_with_bootstrap_is_bit_for_bit() {
+fn latent_artifact_refit_with_bootstrap_is_bit_for_bit() {
     let (artifact, bytes) = seal(7, 20);
     let boot = artifact.meta().bootstrap.as_ref().expect("bootstrap record");
     assert_eq!(boot.requested, 20);
@@ -176,7 +176,7 @@ fn b4_latent_artifact_refit_with_bootstrap_is_bit_for_bit() {
 }
 
 #[test]
-fn b4_latent_artifact_label_permutation_keeps_the_canonical_classes() {
+fn latent_artifact_label_permutation_keeps_the_canonical_classes() {
     let truth = build().class;
     let swapped: Vec<u32> = truth.iter().map(|&c| 1 - c).collect();
     let mut a = request(1, 0);
@@ -195,7 +195,7 @@ fn b4_latent_artifact_label_permutation_keeps_the_canonical_classes() {
 }
 
 #[test]
-fn b4_latent_artifact_refuses_changed_data_even_when_resealed() {
+fn latent_artifact_refuses_changed_data_even_when_resealed() {
     let (artifact, bytes) = seal(11, 0);
     let (meta, mut numbers) = decode_parts(&bytes).unwrap();
     // The outcome column comes first.
@@ -219,7 +219,7 @@ fn b4_latent_artifact_refuses_changed_data_even_when_resealed() {
 }
 
 #[test]
-fn b4_latent_artifact_refuses_a_changed_stored_result_or_config() {
+fn latent_artifact_refuses_a_changed_stored_result_or_config() {
     let (_, bytes) = seal(11, 0);
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.classes[0].effect += 0.1;
@@ -245,7 +245,7 @@ fn b4_latent_artifact_refuses_a_changed_stored_result_or_config() {
 }
 
 #[test]
-fn b4_latent_artifact_seal_refuses_undeclared_weak_and_single_class_fits() {
+fn latent_artifact_seal_refuses_undeclared_weak_and_single_class_fits() {
     let mut undeclared = request(1, 0);
     undeclared.config.assume_conditional_randomization = false;
     let error = LatentClassArtifact::seal(&undeclared).unwrap_err();
@@ -269,7 +269,7 @@ fn b4_latent_artifact_seal_refuses_undeclared_weak_and_single_class_fits() {
 }
 
 #[test]
-fn b4_latent_artifact_refuses_unknown_versions_features_and_corruption() {
+fn latent_artifact_refuses_unknown_versions_features_and_corruption() {
     let (_, bytes) = seal(11, 0);
     let (mut meta, numbers) = decode_parts(&bytes).unwrap();
     meta.version = LATENT_CLASS_ARTIFACT_VERSION + 1;
@@ -299,7 +299,7 @@ fn b4_latent_artifact_refuses_unknown_versions_features_and_corruption() {
 }
 
 #[test]
-fn b4_latent_artifact_caps_embedded_rows_and_replicates() {
+fn latent_artifact_caps_embedded_rows_and_replicates() {
     let rows = LATENT_CLASS_ARTIFACT_MAX_ROWS + 1;
     let big = LatentClassRequestWire {
         config: config(1, 0),

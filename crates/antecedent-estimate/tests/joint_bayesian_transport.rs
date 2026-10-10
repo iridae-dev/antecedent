@@ -366,7 +366,7 @@ fn spec<'a>(raws: &'a [&'a Raw], vc: bool, shared: bool, tm: f64, tv: f64) -> Sp
 // ---------------------------------------------------------------- positive oracle
 
 #[test]
-fn x4_joint_posterior_oracle_single_source_matches_closed_form() {
+fn joint_posterior_oracle_single_source_matches_closed_form() {
     let r1 = raw(60, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let f = fit(&model(), &sources, &options()).unwrap();
@@ -391,7 +391,7 @@ fn x4_joint_posterior_oracle_single_source_matches_closed_form() {
 }
 
 #[test]
-fn x4_joint_posterior_oracle_two_sources_independent_and_shared_blocks() {
+fn joint_posterior_oracle_two_sources_independent_and_shared_blocks() {
     let r1 = raw(50, 0, 1.0, 2.0, 1.5, 0.09);
     let r2 = raw(45, 200, -0.5, 2.0, 1.5, 0.16);
     let sources = [to_source("s1", &r1, "snap-s1", "s1"), to_source("s2", &r2, "snap-s2", "s2")];
@@ -413,7 +413,7 @@ fn x4_joint_posterior_oracle_two_sources_independent_and_shared_blocks() {
 }
 
 #[test]
-fn x4_joint_posterior_oracle_varying_covariate_block_matches_closed_form() {
+fn joint_posterior_oracle_varying_covariate_block_matches_closed_form() {
     let r1 = raw(60, 0, 1.0, 2.0, 1.5, 0.09);
     let r2 = raw(55, 300, 2.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1"), to_source("s2", &r2, "snap-s2", "s2")];
@@ -431,7 +431,7 @@ fn x4_joint_posterior_oracle_varying_covariate_block_matches_closed_form() {
 }
 
 #[test]
-fn x4_joint_posterior_oracle_prior_sensitivity_moves_toward_prior_by_analytic_amount() {
+fn joint_posterior_oracle_prior_sensitivity_moves_toward_prior_by_analytic_amount() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.25);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let raws = [&r1];
@@ -465,7 +465,7 @@ fn x4_joint_posterior_oracle_prior_sensitivity_moves_toward_prior_by_analytic_am
 }
 
 #[test]
-fn x4_joint_posterior_oracle_wrong_prior_still_follows_the_closed_form() {
+fn joint_posterior_oracle_wrong_prior_still_follows_the_closed_form() {
     let r1 = raw(40, 0, 1.0, 2.0, 0.0, 0.25);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let raws = [&r1];
@@ -483,7 +483,7 @@ fn x4_joint_posterior_oracle_wrong_prior_still_follows_the_closed_form() {
 }
 
 #[test]
-fn x4_joint_posterior_oracle_draws_are_seeded_and_bounded() {
+fn joint_posterior_oracle_draws_are_seeded_and_bounded() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let small = JointTransportOptions { draws: 500, seed: 9 };
@@ -509,7 +509,7 @@ fn x4_joint_posterior_oracle_draws_are_seeded_and_bounded() {
 }
 
 #[test]
-fn x4_joint_posterior_oracle_cancellation_refuses_with_typed_detail() {
+fn joint_posterior_oracle_cancellation_refuses_with_typed_detail() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let ctx = ExecutionContext::for_tests(1);
@@ -530,7 +530,7 @@ fn x4_joint_posterior_oracle_cancellation_refuses_with_typed_detail() {
 // ---------------------------------------------------------------- negatives
 
 #[test]
-fn x4_prior_data_overlap_bank_and_likelihood_refuse() {
+fn prior_data_overlap_bank_and_likelihood_refuse() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     // Same snapshot digest consumed by the prior bank and by the likelihood.
@@ -568,7 +568,7 @@ fn x4_prior_data_overlap_bank_and_likelihood_refuse() {
 }
 
 #[test]
-fn x4_prior_data_overlap_unsupported_graph_and_uncertified_derivation_refuse() {
+fn prior_data_overlap_unsupported_graph_and_uncertified_derivation_refuse() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     for graph in [TransportGraphClass::Admg, TransportGraphClass::GraphPosterior] {
@@ -620,7 +620,7 @@ fn x4_prior_data_overlap_unsupported_graph_and_uncertified_derivation_refuse() {
 }
 
 #[test]
-fn x4_prior_data_overlap_singular_design_retains_failure_diagnostics() {
+fn prior_data_overlap_singular_design_retains_failure_diagnostics() {
     // Every source unit is treated: the treatment column is collinear with the intercept.
     let mut r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
     r1.a = vec![true; 30];
@@ -647,7 +647,7 @@ fn x4_prior_data_overlap_singular_design_retains_failure_diagnostics() {
 }
 
 #[test]
-fn x4_prior_data_overlap_weak_overlap_and_missing_law_refuse() {
+fn prior_data_overlap_weak_overlap_and_missing_law_refuse() {
     let r1 = raw(40, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     // Half of the target sits far outside the source covariate range.
@@ -688,7 +688,7 @@ fn x4_prior_data_overlap_weak_overlap_and_missing_law_refuse() {
 }
 
 #[test]
-fn x4_prior_data_overlap_bounds_and_source_dependence_refuse() {
+fn prior_data_overlap_bounds_and_source_dependence_refuse() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     for dependence in [SourceDependence::OverlappingUnits, SourceDependence::Unknown] {
@@ -742,7 +742,7 @@ fn x4_prior_data_overlap_bounds_and_source_dependence_refuse() {
 // ---------------------------------------------------------------- conflicts and identification
 
 #[test]
-fn x4_posterior_conflicting_sources_are_reported_not_silently_pooled() {
+fn posterior_conflicting_sources_are_reported_not_silently_pooled() {
     // Two sources with opposite effects and small noise.
     let r1 = raw(60, 0, 1.0, 3.0, 0.0, 0.04);
     let r2 = raw(60, 500, 1.0, -3.0, 0.0, 0.04);
@@ -772,7 +772,7 @@ fn x4_posterior_conflicting_sources_are_reported_not_silently_pooled() {
 }
 
 #[test]
-fn x4_posterior_prior_strength_never_changes_identification_status() {
+fn posterior_prior_strength_never_changes_identification_status() {
     let r1 = raw(30, 0, 1.0, 2.0, 1.5, 0.09);
     let sources = [to_source("s1", &r1, "snap-s1", "s1")];
     let small = JointTransportOptions { draws: 50, seed: 1 };

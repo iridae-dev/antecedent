@@ -191,7 +191,7 @@ fn refusal(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn x10_sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() {
+fn sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covariance() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let consumed = consume(&wire.export().expect("export")).expect("replays");
@@ -212,7 +212,7 @@ fn x10_sampled_recovery_replay_a_seeded_interval_replays_and_keeps_the_covarianc
 type Mutation = (&'static str, fn(&mut SampledRecoveryArtifactWire));
 
 #[test]
-fn x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_receipt() {
+fn sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interval_receipt() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let mutations: [Mutation; 7] = [
@@ -256,7 +256,7 @@ fn x10_sampled_recovery_replay_refuses_a_changed_pattern_snapshot_seed_or_interv
 }
 
 #[test]
-fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
+fn sampled_recovery_replay_enforces_an_expected_identity() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     let expected = SampledRecoveryExpectation {
@@ -284,7 +284,7 @@ fn x10_sampled_recovery_replay_enforces_an_expected_identity() {
 }
 
 #[test]
-fn x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
+fn sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let wire = wire_of(&f);
     // Version 1 is the exact-law point artifact; version 4 is unknown.
@@ -308,7 +308,7 @@ fn x10_sampled_recovery_replay_refuses_an_unknown_version_and_an_interval_claim(
 }
 
 #[test]
-fn x10_sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() {
+fn sampled_recovery_replay_refuses_stored_sizes_above_the_consumer_limits() {
     let f = fixture(seeded_rows(4000, 17), &loose(99));
     let bytes = wire_of(&f).export().expect("export");
     let tight = [

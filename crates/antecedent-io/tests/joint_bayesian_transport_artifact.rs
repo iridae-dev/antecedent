@@ -166,7 +166,7 @@ fn artifact(fit: &JointTransportFit, alignment: DrawAlignment) -> DistributionAr
 }
 
 #[test]
-fn x4_posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity() {
+fn posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity() {
     let fit = run();
     let original = artifact(&fit, DrawAlignment::Joint);
     let bytes = original.to_bytes("joint-bayesian-transport-fixture").unwrap();
@@ -204,7 +204,7 @@ fn x4_posterior_hydration_aligned_joint_draws_round_trip_with_expected_identity(
 }
 
 #[test]
-fn x4_posterior_hydration_refuses_changed_meaning_and_independent_marginals() {
+fn posterior_hydration_refuses_changed_meaning_and_independent_marginals() {
     let fit = run();
     let bytes = artifact(&fit, DrawAlignment::Joint).to_bytes("fixture").unwrap();
     // The consumer expects a different target population: refused.

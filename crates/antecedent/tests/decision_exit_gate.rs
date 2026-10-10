@@ -104,7 +104,7 @@ fn coded(error: &IoError) -> (&'static str, String) {
 
 /// `X(0) -> Y(1) -> W(2)`, `X <-> Y`, the target's `W` mechanism selected:
 /// `P*(y | do(x), w)` is the reduced joint normalized at `w`.
-fn b1_model(params: usize, selected: usize) -> admg_conditional_scm::Scm {
+fn model(params: usize, selected: usize) -> admg_conditional_scm::Scm {
     admg_conditional_scm::Scm {
         n: 3,
         directed: vec![(0, 1), (1, 2)],
@@ -117,7 +117,7 @@ fn b1_model(params: usize, selected: usize) -> admg_conditional_scm::Scm {
 
 const B1_LEVELS: [usize; 4] = [0b000, 0b001, 0b100, 0b101];
 
-fn b1_refusal(bytes: &[u8]) -> AdmgConditionalArtifactError {
+fn refusal(bytes: &[u8]) -> AdmgConditionalArtifactError {
     match AdmgConditionalArtifactWire::consume_with_limits(
         bytes,
         AdmgConditionalConsumeLimits::default(),
@@ -129,7 +129,7 @@ fn b1_refusal(bytes: &[u8]) -> AdmgConditionalArtifactError {
     }
 }
 
-fn b1_reseal(wire: &mut AdmgConditionalArtifactWire) -> Vec<u8> {
+fn conditional_reseal(wire: &mut AdmgConditionalArtifactWire) -> Vec<u8> {
     wire.premises_digest = wire.expected_premises_digest().unwrap();
     wire.data_digest = wire.expected_data_digest().unwrap();
     wire.export().unwrap()
@@ -143,7 +143,7 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
 
     // Prepare: decide once on the latent-confounded selection ADMG, then bind.
     let (bytes, produced) = {
-        let model = b1_model(1, 2);
+        let model = model(1, 2);
         let (catalog, data) = model.catalog_and_laws();
         let ConditionalTransportDecision::Identified(bound) = decide_admg_conditional_transport(
             &model.diagram(),
@@ -212,7 +212,7 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
     let replayed: Vec<Vec<u64>> =
         consumed.distributions().iter().map(|d| bits(&d.probabilities)).collect();
     assert_eq!(replayed, produced);
-    let truth = b1_model(1, 2);
+    let truth = model(1, 2);
     for (distribution, level) in consumed.distributions().iter().zip(B1_LEVELS) {
         let t = truth.truth(&[1], &[0], &[2], level).unwrap();
         assert!(distribution.probabilities.iter().zip(&t).all(|(p, t)| (p - t).abs() < 1e-12));
@@ -222,61 +222,61 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
     let original = AdmgConditionalArtifactWire::decode(&bytes).unwrap();
     let mut w = original.clone();
     w.query.conditioned_on = vec![0];
-    assert_eq!(b1_refusal(&w.export().unwrap()), AdmgConditionalArtifactError::PremisesMismatch);
+    assert_eq!(refusal(&w.export().unwrap()), AdmgConditionalArtifactError::PremisesMismatch);
     let mut w = original.clone();
     w.proof.moves = vec![2];
     w.proof.remaining.clear();
     assert_eq!(
-        b1_refusal(&b1_reseal(&mut w)).refusal(),
+        refusal(&conditional_reseal(&mut w)).refusal(),
         ("transport_not_certified", "admg_transport.invalid_derivation"),
         "re-sealed premises"
     );
     let mut w = original.clone();
     w.laws[0].population = "elsewhere".into();
-    assert!(b1_refusal(&w.export().unwrap()).refusal().0 == "transport_not_certified");
+    assert!(refusal(&w.export().unwrap()).refusal().0 == "transport_not_certified");
     let mut w = original.clone();
     w.bindings[0].0 = "elsewhere".into();
     assert_eq!(
-        b1_refusal(&b1_reseal(&mut w)),
+        refusal(&conditional_reseal(&mut w)),
         AdmgConditionalArtifactError::ReplayMismatch("the leaf bindings"),
         "re-sealed source identity"
     );
     let mut w = original.clone();
     w.laws[0].snapshot = "renamed".into();
     assert_eq!(
-        b1_refusal(&w.export().unwrap()),
+        refusal(&w.export().unwrap()),
         AdmgConditionalArtifactError::DataIdentityMismatch
     );
     let mut w = original.clone();
     let target = w.laws.iter().position(|law| law.population == "target").unwrap();
     w.laws[target].probabilities.reverse();
     assert_eq!(
-        b1_refusal(&b1_reseal(&mut w)),
+        refusal(&conditional_reseal(&mut w)),
         AdmgConditionalArtifactError::ReplayMismatch("a point"),
         "re-sealed data identity"
     );
     let mut w = original.clone();
     w.results[0].probabilities[0] += 1e-9;
     assert_eq!(
-        b1_refusal(&w.export().unwrap()),
+        refusal(&w.export().unwrap()),
         AdmgConditionalArtifactError::ReplayMismatch("a point")
     );
     let mut w = original.clone();
     w.results[0].probabilities[0] += 1e-9;
     assert_eq!(
-        b1_refusal(&b1_reseal(&mut w)),
+        refusal(&conditional_reseal(&mut w)),
         AdmgConditionalArtifactError::ReplayMismatch("a point"),
         "re-sealed result body"
     );
     let mut w = original.clone();
     w.uncertainty = "percentile_bootstrap".into();
-    assert_eq!(b1_refusal(&b1_reseal(&mut w)), AdmgConditionalArtifactError::IntervalWithheld);
+    assert_eq!(refusal(&conditional_reseal(&mut w)), AdmgConditionalArtifactError::IntervalWithheld);
 
     // A non-transportable diagram (selection on Y): the decision never
     // identifies (not certified, or proven non-transportable when an exact
     // witness is verified), and a functional decided on the transportable
     // diagram does not certify on it: `transport_not_certified`.
-    let blocked = b1_model(1, 1);
+    let blocked = model(1, 1);
     let (catalog, _) = blocked.catalog_and_laws();
     let decision = decide_admg_conditional_transport(
         &blocked.diagram(),
@@ -295,7 +295,7 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
         "{:?}",
         decision.reason_code()
     );
-    let model = b1_model(1, 2);
+    let model = model(1, 2);
     let (catalog, data) = model.catalog_and_laws();
     let ConditionalTransportDecision::Identified(bound) = decide_admg_conditional_transport(
         &model.diagram(),
@@ -327,7 +327,7 @@ fn story_b1_admg_conditional_transport_against_enumerated_truth_with_typed_refus
 // B2 (X4): smoothed dose-response transport grid.
 // ---------------------------------------------------------------------------
 
-fn b2_refused(bytes: &[u8]) -> SmoothedDoseArtifactError {
+fn refused(bytes: &[u8]) -> SmoothedDoseArtifactError {
     match consume_smoothed_dose_artifact(
         bytes,
         SmoothedDoseConsumeLimits::default(),
@@ -339,7 +339,7 @@ fn b2_refused(bytes: &[u8]) -> SmoothedDoseArtifactError {
     }
 }
 
-fn b2_mutate(
+fn mutate(
     wire: &SmoothedDoseArtifactWire,
     edit: impl Fn(&mut SmoothedDoseArtifactWire),
     reseal: bool,
@@ -404,23 +404,23 @@ fn story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() 
     let original = SmoothedDoseArtifactWire::decode(&bytes).unwrap();
     // Premises.
     assert_eq!(
-        b2_refused(&b2_mutate(&original, |w| w.query.bandwidth = 0.45, false)),
+        refused(&mutate(&original, |w| w.query.bandwidth = 0.45, false)),
         SmoothedDoseArtifactError::PremisesMismatch
     );
     assert_eq!(
-        b2_refused(&b2_mutate(&original, |w| w.query.bandwidth = 0.45, true)),
+        refused(&mutate(&original, |w| w.query.bandwidth = 0.45, true)),
         SmoothedDoseArtifactError::PointMismatch
     );
     // Source identity: the source population key is a premise.
     assert_eq!(
-        b2_refused(&b2_mutate(&original, |w| w.query.source_population = "other".into(), false)),
+        refused(&mutate(&original, |w| w.query.source_population = "other".into(), false)),
         SmoothedDoseArtifactError::PremisesMismatch
     );
     // Re-sealed, the relabelled population is a different premise set: the rows
     // carry no population name, so the replay itself cannot contradict the label
     // (as for any label-only premise); the consumed identity names the forgery
     // and a consumer naming the populations it expects refuses it.
-    let relabelled = b2_mutate(&original, |w| w.query.source_population = "other".into(), true);
+    let relabelled = mutate(&original, |w| w.query.source_population = "other".into(), true);
     let forged = consume_smoothed_dose_artifact(
         &relabelled,
         SmoothedDoseConsumeLimits::default(),
@@ -441,20 +441,20 @@ fn story_b2_smoothed_dose_grid_against_closed_form_truth_with_closed_interval() 
     // Data identity.
     let row = (0..original.input.source.len()).find(|i| original.input.source[*i]).unwrap();
     assert_eq!(
-        b2_refused(&b2_mutate(&original, |w| w.input.outcome[row] += 1.0, false)),
+        refused(&mutate(&original, |w| w.input.outcome[row] += 1.0, false)),
         SmoothedDoseArtifactError::DataIdentityMismatch
     );
     assert!(matches!(
-        b2_refused(&b2_mutate(&original, |w| w.input.outcome[row] += 1.0, true)),
+        refused(&mutate(&original, |w| w.input.outcome[row] += 1.0, true)),
         SmoothedDoseArtifactError::PointMismatch
     ));
     // Result body.
     assert_eq!(
-        b2_refused(&b2_mutate(&original, |w| w.result.grid[0].estimate += 1e-9, false)),
+        refused(&mutate(&original, |w| w.result.grid[0].estimate += 1e-9, false)),
         SmoothedDoseArtifactError::EvidenceMismatch
     );
     assert_eq!(
-        b2_refused(&b2_mutate(&original, |w| w.result.grid[0].estimate += 1e-9, true)),
+        refused(&mutate(&original, |w| w.result.grid[0].estimate += 1e-9, true)),
         SmoothedDoseArtifactError::PointMismatch
     );
 }
@@ -468,7 +468,7 @@ const B3_Z: VariableId = VariableId::from_raw(1);
 const B3_X: VariableId = VariableId::from_raw(2);
 const B3_Y: VariableId = VariableId::from_raw(3);
 
-fn b3_prepared() -> antecedent::PreparedZTransport {
+fn prepared() -> antecedent::PreparedZTransport {
     let mut graph = Admg::with_variables(4);
     for (from, to) in [(0, 1), (1, 2), (2, 3), (0, 3)] {
         graph.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).unwrap();
@@ -575,7 +575,7 @@ fn b3_prepared() -> antecedent::PreparedZTransport {
     .unwrap()
 }
 
-fn b3_spec() -> JointDeviationSpec {
+fn spec() -> JointDeviationSpec {
     let mut spec = JointDeviationSpec::new(vec![
         JointFactorBound { factor: JointFactor::SharedParentMarginal, max_fraction: 0.3 },
         JointFactorBound { factor: JointFactor::OutcomeKernel, max_fraction: 0.2 },
@@ -585,13 +585,13 @@ fn b3_spec() -> JointDeviationSpec {
     spec
 }
 
-fn b3_consume(
+fn consume(
     wire: &JointSensitivityArtifactWire,
 ) -> Result<JointSensitivityArtifactWire, IoError> {
     JointSensitivityArtifactWire::consume(&wire.export().unwrap(), &ExecutionContext::for_tests(1))
 }
 
-fn b3_reseal(mut wire: JointSensitivityArtifactWire) -> JointSensitivityArtifactWire {
+fn sensitivity_reseal(mut wire: JointSensitivityArtifactWire) -> JointSensitivityArtifactWire {
     wire.premises_digest = wire.computed_premises_digest().unwrap();
     wire.data_digest = wire.computed_data_digest().unwrap();
     wire
@@ -601,9 +601,9 @@ fn b3_reseal(mut wire: JointSensitivityArtifactWire) -> JointSensitivityArtifact
 fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_range() {
     let ctx = ExecutionContext::for_tests(1);
     let (bytes, range) = {
-        let prepared = b3_prepared();
+        let prepared = prepared();
         let baseline = prepared.estimate(&ctx).unwrap();
-        let result = prepared.joint_mechanism_sensitivity(&b3_spec(), &ctx).unwrap();
+        let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
         // The z baseline equals the closed form of the declared law:
         // P(Y = 1 | do(X = 1)) = 0.65 * 0.5 + 0.35 * 0.8 and the contrast
         // against do(X = 0) (0.65 * 0.2 + 0.35 * 0.3) is the analysed baseline.
@@ -617,7 +617,7 @@ fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_ra
         assert_eq!(result.inference_claim, "assumption_range");
         let wire = JointSensitivityArtifactWire::checked(
             baseline.export(&prepared).unwrap(),
-            &b3_spec(),
+            &spec(),
             &ctx,
         )
         .unwrap();
@@ -638,7 +638,7 @@ fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_ra
     assert_eq!(consumed.body.sampling.interval, None);
 
     let original = consumed;
-    let refused = |wire: &JointSensitivityArtifactWire| coded(&b3_consume(wire).unwrap_err());
+    let refused = |wire: &JointSensitivityArtifactWire| coded(&consume(wire).unwrap_err());
     let premises = ("transport_not_certified", "joint_sensitivity.premises_mismatch".to_owned());
     let data = ("transport_not_certified", "joint_sensitivity.data_identity_mismatch".to_owned());
     let replay = ("transport_not_certified", "joint_sensitivity.replay_mismatch".to_owned());
@@ -646,40 +646,40 @@ fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_ra
     let mut w = original.clone();
     w.body.perturbation.decision_threshold = Some(0.6);
     assert_eq!(refused(&w), premises);
-    assert_eq!(refused(&b3_reseal(w)), replay, "re-sealed threshold");
+    assert_eq!(refused(&sensitivity_reseal(w)), replay, "re-sealed threshold");
     let mut w = original.clone();
     w.body.perturbation.factors.pop();
-    assert_eq!(refused(&b3_reseal(w)), replay, "re-sealed factor set");
+    assert_eq!(refused(&sensitivity_reseal(w)), replay, "re-sealed factor set");
     // Source identity: the source regime.
     let mut w = original.clone();
     w.body.provenance.source_regime = 7;
     assert_eq!(refused(&w), data);
-    assert_eq!(refused(&b3_reseal(w)), replay, "re-sealed source regime");
+    assert_eq!(refused(&sensitivity_reseal(w)), replay, "re-sealed source regime");
     // Data identity: the provider snapshot.
     let mut w = original.clone();
     w.body.provenance.provider_snapshots[0].push('x');
     assert_eq!(refused(&w), data);
     let mut w = original.clone();
     w.body.provenance.provider_snapshots[0] = "snapshot-9".into();
-    assert_eq!(refused(&b3_reseal(w)), replay, "re-sealed snapshot");
+    assert_eq!(refused(&sensitivity_reseal(w)), replay, "re-sealed snapshot");
     // Result body.
     let mut w = original.clone();
     w.body.outcome.range[1] += 1e-9;
     assert_eq!(refused(&w), replay);
     let mut w = original.clone();
     w.body.outcome.range[1] += 1e-9;
-    assert_eq!(refused(&b3_reseal(w)), replay, "re-sealed range");
+    assert_eq!(refused(&sensitivity_reseal(w)), replay, "re-sealed range");
     // The union relabelled as a CI or given an interval is refused by name.
     let mut w = original.clone();
     w.body.inference_claim = "confidence_interval".into();
     assert_eq!(
-        refused(&b3_reseal(w)),
+        refused(&sensitivity_reseal(w)),
         ("estimator_inference_mismatch", "joint_sensitivity.union_labelled_ci".to_owned())
     );
     let mut w = original.clone();
     w.body.sampling.interval = Some([0.1, 0.9]);
     assert_eq!(
-        refused(&b3_reseal(w)),
+        refused(&sensitivity_reseal(w)),
         ("cell_not_licensed", "joint_sensitivity.interval_withheld".to_owned())
     );
 }
@@ -688,7 +688,7 @@ fn story_b3_joint_two_factor_deviation_with_tipping_frontier_is_an_assumption_ra
 // B4 (X6): planning additions for a failed X1 decision.
 // ---------------------------------------------------------------------------
 
-fn b4_study(
+fn study(
     id: &str,
     population: &str,
     on: &[usize],
@@ -724,7 +724,7 @@ fn b4_study(
     }
 }
 
-fn b4_base() -> (EvidenceCatalog, ExactTransportData) {
+fn base() -> (EvidenceCatalog, ExactTransportData) {
     let (catalog, data) = common::mz_fixture::evidence();
     let base = EvidenceCatalog::try_new(
         Arc::clone(&catalog.environments),
@@ -743,7 +743,7 @@ fn b4_base() -> (EvidenceCatalog, ExactTransportData) {
 
 /// The base plus every proposed regime delivered as available evidence under
 /// `snapshot`, each law enumerated from its population's structural model.
-fn b4_arrive(
+fn arrive(
     base: &EvidenceCatalog,
     base_data: &ExactTransportData,
     regimes: &[EvidenceRegime],
@@ -814,7 +814,7 @@ fn story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival() {
     use common::mz_fixture::{X, Y, Z1, Z2, graph, query, sources, target_scm};
     use common::z_scm::{risk_of, vid};
     let ctx = ExecutionContext::for_tests(3);
-    let (base, base_data) = b4_base();
+    let (base, base_data) = base();
     let route = StudyPlanRoute::Mz(query(sources()));
 
     // The X1 decision on the target law alone fails for missing evidence.
@@ -824,7 +824,7 @@ fn story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival() {
     assert_eq!(failed.reason_code(), Some("transport_missing_evidence"));
 
     let candidates = vec![
-        b4_study(
+        study(
             "a_do_z2",
             "a",
             &[Z2],
@@ -832,8 +832,8 @@ fn story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival() {
             &[Z1, X, Y],
             3,
         ),
-        b4_study("b_do_z1", "b", &[Z1], Some(vec![vec![(Z1, false)]]), &[X, Z2, Y], 2),
-        b4_study("b_observe", "b", &[], None, &[Z1, X, Z2, Y], 1),
+        study("b_do_z1", "b", &[Z1], Some(vec![vec![(Z1, false)]]), &[X, Z2, Y], 2),
+        study("b_observe", "b", &[], None, &[Z1, X, Z2, Y], 1),
     ];
     let bytes = {
         let plan =
@@ -860,7 +860,7 @@ fn story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival() {
 
     // Arrival of the proposed studies flips the decision; the point equals truth.
     let top = consumed.proposal(0).unwrap();
-    let (actual, data) = b4_arrive(&base, &base_data, &top.delta().proposed_regimes, "arrival-1");
+    let (actual, data) = arrive(&base, &base_data, &top.delta().proposed_regimes, "arrival-1");
     let arrival = top.receive(&actual, "arrival-1", &ctx).unwrap();
     let StudyArrivalDecision::Mz(decision) = arrival.decision else { panic!("mz route") };
     let MzTransportDecision::Identified { derivation, .. } = *decision else {
@@ -884,7 +884,7 @@ fn story_b4_a_failed_x1_decision_is_planned_replayed_and_flipped_by_arrival() {
 
     // A catalog over the bounds is refused as bounds_exceeded, never "sufficient".
     let many: Vec<_> =
-        (0..17).map(|i| b4_study(&format!("obs{i:02}"), "b", &[], None, &[X], 1)).collect();
+        (0..17).map(|i| study(&format!("obs{i:02}"), "b", &[], None, &[X], 1)).collect();
     let error =
         plan_studies(&graph(), &route, &base, &many, StudyPlanLimits::default(), &ctx).unwrap_err();
     assert_eq!((error.code, error.detail), ("route_not_supported", "study_plan.bounds_exceeded"));

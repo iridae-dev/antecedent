@@ -185,7 +185,7 @@ fn close(left: f64, right: f64) -> bool {
 }
 
 #[test]
-fn c1_native_response_exposes_coordinates_support_and_native_trust() {
+fn native_response_exposes_coordinates_support_and_native_trust() {
     let claim =
         NativeResponseClaim::from_response(&mean_response(), &schema(), &context()).unwrap();
     assert_eq!(claim.coordinates(), &[quantity("1"), quantity("2")][..]);
@@ -202,7 +202,7 @@ fn c1_native_response_exposes_coordinates_support_and_native_trust() {
 }
 
 #[test]
-fn c1_native_mean_response_feeds_an_affine_decision_on_hand_values() {
+fn native_mean_response_feeds_an_affine_decision_on_hand_values() {
     let claim =
         NativeResponseClaim::from_response(&mean_response(), &schema(), &context()).unwrap();
     let contract = contract(DecisionCriterion::PosteriorExpectedUtility);
@@ -226,7 +226,7 @@ fn c1_native_mean_response_feeds_an_affine_decision_on_hand_values() {
 }
 
 #[test]
-fn c1_native_mean_only_result_is_refused_for_probability_and_quantile_sources() {
+fn native_mean_only_result_is_refused_for_probability_and_quantile_sources() {
     let claim =
         NativeResponseClaim::from_response(&mean_response(), &schema(), &context()).unwrap();
     for criterion in [
@@ -255,7 +255,7 @@ fn c1_native_mean_only_result_is_refused_for_probability_and_quantile_sources() 
 }
 
 #[test]
-fn c1_native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals() {
+fn native_joint_response_supplies_an_aligned_law_for_nonlinear_functionals() {
     let claim =
         NativeResponseClaim::from_response(&joint_response(), &schema(), &context()).unwrap();
     assert!(claim.has_joint_law());
@@ -300,7 +300,7 @@ fn contract_expected_utility(
 }
 
 #[test]
-fn c1_native_unsupported_coordinates_are_withheld_not_silently_used() {
+fn native_unsupported_coordinates_are_withheld_not_silently_used() {
     let labels = Some(vec![SupportStatus::Supported, SupportStatus::OutsideEmpiricalSupport]);
     let response = response_on(
         &[1.0, 2.0],
@@ -338,7 +338,7 @@ fn c1_native_unsupported_coordinates_are_withheld_not_silently_used() {
 }
 
 #[test]
-fn c1_native_response_for_another_request_is_refused_against_the_program() {
+fn native_response_for_another_request_is_refused_against_the_program() {
     // A different dose grid.
     let changed = response_on(
         &[1.0, 3.0],
@@ -367,7 +367,7 @@ fn c1_native_response_for_another_request_is_refused_against_the_program() {
 }
 
 #[test]
-fn c1_native_non_point_or_unlabeled_responses_are_refused() {
+fn native_non_point_or_unlabeled_responses_are_refused() {
     let mut partial = mean_response();
     partial.estimate = ResponseIdentification::PartiallyIdentified(ResponseValue::Scalar(1.0));
     let refusal = NativeResponseClaim::from_response(&partial, &schema(), &context()).unwrap_err();

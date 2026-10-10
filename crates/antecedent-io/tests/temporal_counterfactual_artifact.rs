@@ -109,7 +109,7 @@ fn export(
 }
 
 #[test]
-fn x8_artifact_matches_hand_abduction_and_replays_both_worlds() {
+fn artifact_matches_hand_abduction_and_replays_both_worlds() {
     let (artifact, bytes) = export(&request());
     let consumed =
         TemporalCounterfactualArtifact::from_bytes(&bytes, Some(artifact.identity()), &ctx())
@@ -146,7 +146,7 @@ fn x8_artifact_matches_hand_abduction_and_replays_both_worlds() {
 }
 
 #[test]
-fn x8_artifact_is_invariant_to_unit_order() {
+fn artifact_is_invariant_to_unit_order() {
     let base = TemporalCounterfactualArtifact::seal(&request(), &ctx()).unwrap();
     let mut shuffled = request();
     shuffled.factual.reverse();
@@ -157,7 +157,7 @@ fn x8_artifact_is_invariant_to_unit_order() {
 }
 
 #[test]
-fn x8_artifact_unpaired_histories_refuse_with_a_witness() {
+fn artifact_unpaired_histories_refuse_with_a_witness() {
     let mut unpaired = request();
     unpaired.plus.units.pop();
     let error = TemporalCounterfactualArtifact::seal(&unpaired, &ctx()).unwrap_err();
@@ -170,7 +170,7 @@ fn x8_artifact_unpaired_histories_refuse_with_a_witness() {
 }
 
 #[test]
-fn x8_artifact_refuting_history_retains_node_residual_and_bound() {
+fn artifact_refuting_history_retains_node_residual_and_bound() {
     let mut bounded = request();
     for m in &mut bounded.fit.mechanisms {
         m.noise_halfwidth = Some(0.45);
@@ -205,7 +205,7 @@ fn resealed_mutation_refuses(mutated: &TemporalCounterfactualRequestWire, field:
 }
 
 #[test]
-fn x8_artifact_resealed_action_time_is_refused() {
+fn artifact_resealed_action_time_is_refused() {
     // Consistent times everywhere so the core accepts it, but they differ from the original.
     let mut moved = request();
     for f in &mut moved.factual {
@@ -228,14 +228,14 @@ fn x8_artifact_resealed_action_time_is_refused() {
 }
 
 #[test]
-fn x8_artifact_resealed_action_values_are_refused() {
+fn artifact_resealed_action_values_are_refused() {
     let mut changed = request();
     changed.plus.actions = [1.0, 0.0];
     resealed_mutation_refuses(&changed, "action_history");
 }
 
 #[test]
-fn x8_artifact_resealed_unit_history_is_refused() {
+fn artifact_resealed_unit_history_is_refused() {
     let mut changed = request();
     // A different but self-consistent trajectory for unit 2: other exogenous noise.
     changed.factual[2].values = simulate([0.4, 0.4, 0.4], FACTUAL_ACTIONS[2]);
@@ -246,14 +246,14 @@ fn x8_artifact_resealed_unit_history_is_refused() {
 }
 
 #[test]
-fn x8_artifact_resealed_snapshot_is_refused() {
+fn artifact_resealed_snapshot_is_refused() {
     let mut changed = request();
     changed.snapshot = "snapshot-2".into();
     resealed_mutation_refuses(&changed, "snapshot");
 }
 
 #[test]
-fn x8_artifact_resealed_mechanism_fit_is_refused() {
+fn artifact_resealed_mechanism_fit_is_refused() {
     let mut changed = request();
     changed.fit.fit_id = "fit-refit".into();
     resealed_mutation_refuses(&changed, "mechanism_fit");
@@ -289,7 +289,7 @@ fn x8_artifact_resealed_mechanism_fit_is_refused() {
 }
 
 #[test]
-fn x8_artifact_unresealed_tampering_does_not_replay() {
+fn artifact_unresealed_tampering_does_not_replay() {
     let (artifact, bytes) = export(&request());
     let (meta, values) = decode_parts(&bytes).unwrap();
 
@@ -354,7 +354,7 @@ fn x8_artifact_unresealed_tampering_does_not_replay() {
 }
 
 #[test]
-fn x8_artifact_unknown_major_version_refuses() {
+fn artifact_unknown_major_version_refuses() {
     let (_, bytes) = export(&request());
     let (meta, values) = decode_parts(&bytes).unwrap();
     for version in [0_u16, 2, 9] {
@@ -369,7 +369,7 @@ fn x8_artifact_unknown_major_version_refuses() {
 }
 
 #[test]
-fn x8_artifact_corrupt_truncated_and_cancelled_inputs_refuse() {
+fn artifact_corrupt_truncated_and_cancelled_inputs_refuse() {
     let (_, bytes) = export(&request());
     let mut corrupt = bytes.clone();
     let middle = corrupt.len() / 2;

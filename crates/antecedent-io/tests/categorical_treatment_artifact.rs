@@ -91,7 +91,7 @@ fn export(request: &CategoricalTreatmentRequest) -> (CategoricalTreatmentArtifac
 }
 
 #[test]
-fn b4_categorical_artifact_group_mean_algebra_survives_the_container() {
+fn categorical_artifact_group_mean_algebra_survives_the_container() {
     let (artifact, bytes) = export(&abc_request());
     let report = CategoricalTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity()))
         .unwrap()
@@ -116,7 +116,7 @@ fn b4_categorical_artifact_group_mean_algebra_survives_the_container() {
 }
 
 #[test]
-fn b4_categorical_artifact_omnibus_and_holm_family_match_closed_forms() {
+fn categorical_artifact_omnibus_and_holm_family_match_closed_forms() {
     let mut request = abc_request();
     request.spec.pairwise = vec![("b".into(), "c".into())];
     let report = export(&request).0.report();
@@ -143,7 +143,7 @@ fn b4_categorical_artifact_omnibus_and_holm_family_match_closed_forms() {
 }
 
 #[test]
-fn b4_categorical_artifact_unordered_level_permutation_gives_identical_artifacts() {
+fn categorical_artifact_unordered_level_permutation_gives_identical_artifacts() {
     let base = export(&abc_request());
     let mut permuted = abc_request();
     permuted.spec.declared_levels = names(&["c", "a", "b"]);
@@ -155,7 +155,7 @@ fn b4_categorical_artifact_unordered_level_permutation_gives_identical_artifacts
 }
 
 #[test]
-fn b4_categorical_artifact_ordered_scale_is_part_of_the_estimand() {
+fn categorical_artifact_ordered_scale_is_part_of_the_estimand() {
     let ordered = {
         let mut request = abc_request();
         request.spec.scale = "ordered".into();
@@ -172,7 +172,7 @@ fn b4_categorical_artifact_ordered_scale_is_part_of_the_estimand() {
 }
 
 #[test]
-fn b4_categorical_artifact_monotonicity_result_and_null_are_stored_and_replayed() {
+fn categorical_artifact_monotonicity_result_and_null_are_stored_and_replayed() {
     let (artifact, bytes) = export(&ordered_request());
     let report = CategoricalTreatmentArtifact::from_bytes(&bytes, Some(artifact.identity()))
         .unwrap()
@@ -208,7 +208,7 @@ fn b4_categorical_artifact_monotonicity_result_and_null_are_stored_and_replayed(
 }
 
 #[test]
-fn b4_categorical_artifact_calibration_is_unmeasured_and_says_so() {
+fn categorical_artifact_calibration_is_unmeasured_and_says_so() {
     let report = export(&abc_request()).0.report();
     assert_eq!(report.calibration, CATEGORICAL_TREATMENT_CALIBRATION);
     assert_eq!(report.calibration, "unmeasured");
@@ -219,7 +219,7 @@ fn b4_categorical_artifact_calibration_is_unmeasured_and_says_so() {
 }
 
 #[test]
-fn b4_categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_level_named() {
+fn categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_level_named() {
     let mut absent = abc_request();
     absent.spec.declared_levels = names(&["a", "b", "c", "d"]);
     let (code, detail, text) =
@@ -273,7 +273,7 @@ fn b4_categorical_artifact_sparse_absent_and_undeclared_levels_refuse_with_the_l
 }
 
 #[test]
-fn b4_categorical_artifact_robust_covariance_replays_from_the_rows_and_has_a_cap() {
+fn categorical_artifact_robust_covariance_replays_from_the_rows_and_has_a_cap() {
     let mut hc = abc_request();
     hc.spec.covariance = "hc1".into();
     let (artifact, bytes) = export(&hc);
@@ -308,7 +308,7 @@ fn b4_categorical_artifact_robust_covariance_replays_from_the_rows_and_has_a_cap
 }
 
 #[test]
-fn b4_categorical_artifact_adjustment_columns_enter_the_design_and_the_identity() {
+fn categorical_artifact_adjustment_columns_enter_the_design_and_the_identity() {
     let mut adjusted = abc_request();
     adjusted.adjustment = vec![AdjustmentColumnRequest {
         name: "z".into(),
@@ -340,7 +340,7 @@ fn resealed_mutation_refuses(
 }
 
 #[test]
-fn b4_categorical_artifact_resealed_identity_changes_are_refused() {
+fn categorical_artifact_resealed_identity_changes_are_refused() {
     let original = ordered_request();
     let mut snapshot = original.clone();
     snapshot.row_snapshot = "snap-2".into();
@@ -381,7 +381,7 @@ fn b4_categorical_artifact_resealed_identity_changes_are_refused() {
 }
 
 #[test]
-fn b4_categorical_artifact_unresealed_tampering_does_not_replay() {
+fn categorical_artifact_unresealed_tampering_does_not_replay() {
     let (artifact, bytes) = export(&ordered_request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
 
@@ -460,7 +460,7 @@ fn b4_categorical_artifact_unresealed_tampering_does_not_replay() {
 }
 
 #[test]
-fn b4_categorical_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
+fn categorical_artifact_unknown_major_version_and_corrupt_bytes_refuse() {
     let (_, bytes) = export(&abc_request());
     let (meta, numbers) = decode_parts(&bytes).unwrap();
     for version in [0_u16, 2, 7] {

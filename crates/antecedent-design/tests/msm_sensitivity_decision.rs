@@ -70,7 +70,7 @@ fn treat_vs(result: &MsmSensitivityResult, skip: f64) -> SensitivityArtifact {
 }
 
 #[test]
-fn b3_msm_decision_invariant_action() {
+fn msm_decision_invariant_action() {
     let built = treat_vs(&result(2.0, 3), 0.0);
     let decided = evaluate(&built);
     assert_eq!(decided.outcome, SensitivityOutcome::InvariantAction { action: "treat".into() });
@@ -83,7 +83,7 @@ fn b3_msm_decision_invariant_action() {
 }
 
 #[test]
-fn b3_msm_decision_assumption_dependent_switch() {
+fn msm_decision_assumption_dependent_switch() {
     let result = result(3.0, 3);
     let net = UtilityTerm::difference(UtilityTerm::quantity("ate"), UtilityTerm::quantity("cost"));
     let actions = vec![act("treat", net), act("skip", UtilityTerm::Const(0.0))];
@@ -107,7 +107,7 @@ fn b3_msm_decision_assumption_dependent_switch() {
 }
 
 #[test]
-fn b3_msm_decision_no_robust_action() {
+fn msm_decision_no_robust_action() {
     let built = treat_vs(&result(3.0, 3), 0.2);
     let decided = evaluate(&built);
     let expected = SensitivityOutcome::NoRobustAction {
@@ -119,7 +119,7 @@ fn b3_msm_decision_no_robust_action() {
 }
 
 #[test]
-fn b3_msm_decision_keeps_sampling_withheld_and_refuses_composition() {
+fn msm_decision_keeps_sampling_withheld_and_refuses_composition() {
     let built = treat_vs(&result(2.0, 3), 0.0);
     let decided = evaluate(&built);
     let SamplingReport::Withheld { reason_code, detail } = &decided.sampling else {

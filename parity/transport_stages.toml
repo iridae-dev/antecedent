@@ -3942,7 +3942,7 @@ functional = "per_completion_target_interventional_distribution"
 guarantee = "bounded_completion_enumeration_each_completion_decided_by_the_classical_catalog_route_structural_envelope_no_graph_probability"
 limits = "At most six static nodes and 64 completions; selection edges, latent pairs and counted laws refuse; evidence never transfers between completions by name; the envelope is unweighted and never renormalized, with identified, unidentified, unevaluated and never-enumerated counts apart. A limit stop exports and replays its prefix, cancellation never exports. Not a graph probability, interval or inference across completions."
 evidence_test = "crates/antecedent-estimate/tests/cpdag_scenarios.rs"
-evidence_assertion = "x2_cpdag_permutation_envelope"
+evidence_assertion = "cpdag_permutation_envelope"
 notes = "2.3 A1 X2 bounded CPDAG completion cell: finite enumeration of DAG completions, each decided by the 2.2 per-scenario route with evidence bound per completion identity; structural envelope only. Stage is prepare rather than the frozen identify because the route enumerates, decides and compiles; the identify stage requires the pinned classical completeness scope."
 
 [[routes]]
@@ -3955,7 +3955,7 @@ functional = "joint_sampling_covariance_of_scenario_plug_in_estimates"
 guarantee = "shared_row_resampling_covariance_point_only_no_interval"
 limits = "One row snapshot and one unit list for every scenario (otherwise unknown_dependence refuses); at most 64 scenarios, 2000 bootstrap replicates, 24 rows for exact enumeration, 10000 table rows; plug-in families linear_score and adjusted_contrast; jointly failing replicates are dropped and counted. A covariance matrix only: no standard error, interval or coverage claim."
 evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs"
-evidence_assertion = "x2_covariance_replay_is_bit_identical_and_identity_sensitive"
+evidence_assertion = "covariance_replay_is_bit_identical_and_identity_sensitive"
 notes = "2.3 A1 X2 shared-row covariance of scenario estimates by whole-row resampling with one replicate identity across scenarios (seeded bootstrap or exact multinomial enumeration), with an independently recomputable artifact."
 
 [[routes]]
@@ -4348,7 +4348,7 @@ functional = "one_named_functional_per_call_level_derivative_or_contrast_of_the_
 guarantee = "randomized_dose_gaussian_local_quadratic_named_functional_point_values_with_per_dose_support_pointwise_calibration_unmeasured_band_closed"
 limits = "Point values are the claim. Pointwise intervals and standard errors have calibration unmeasured, the smoothing bias is not included and the simultaneous band is closed. Fixed caller-declared bandwidth; a dose outside the observed support or with thin local weight is refused, never extrapolated. Independent rows only."
 evidence_test = "crates/antecedent-estimate/tests/dose_grid_functional.rs"
-evidence_assertion = "b1_level_recovers_closed_form_exactly_without_noise"
+evidence_assertion = "level_recovers_closed_form_exactly_without_noise"
 notes = "2.3 B1 X4 dose-grid functional row; point_only."
 
 [[routes]]
@@ -4361,7 +4361,7 @@ functional = "ordered_response_recovery_of_p_x1_x2_or_a_verified_two_model_nonre
 guarantee = "sound_incomplete"
 limits = "Sound inside the stated class only: a self-censoring edge is refused with an integer-verified two-model witness over 60^4, and every other graph is route_not_supported, never nonrecoverable. Exact laws only; any sampled provider and its intervals are closed with calibration unmeasured (cov.recovery.chain_mgraph.frequentist.l95.sampled_whole_method allocated, not collected). Positivity is required."
 evidence_test = "crates/antecedent-estimate/tests/b2_recovery_chain_truth.rs"
-evidence_assertion = "b2_chain_formula_equals_the_enumerated_truth_for_every_chain_shape"
+evidence_assertion = "chain_formula_equals_the_enumerated_truth_for_every_chain_shape"
 notes = "2.3 B2 X10 second row: ordered-response recovery; point_only."
 
 [[routes]]
@@ -4413,7 +4413,7 @@ functional = "checked_adapter_from_compatible_prior_sources_to_prior_draws_and_a
 guarantee = "checked_prior_to_candidate_signal_adaptation_with_declared_pooling_and_observation_reuse_refusal_point_only"
 limits = "Point-only: sources pool into the enumerated draws 0.2, 0.4, 0.6, 0.8 with pooled mean 1/2 by a deterministic weight-times-strength quota rule with declared conflict shrinkage, not a Bayesian combination with a proven estimand; a coefficient prior or unlock list alone, an incompatible artifact, a changed population without a transport policy, and observation reuse refuse; reuse is excluded only through declared observation identities; no causal or interval claim."
 evidence_test = "crates/antecedent-design/tests/prior_signal.rs"
-evidence_assertion = "x6_equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal"
+evidence_assertion = "equal_weight_sources_pool_into_the_enumerated_draws_and_a_signal"
 notes = "2.3 B0 X6 prior-to-candidate-signal adapter feeding ReduceDecisionRegret/EVSI; retains the 2.2 structural sufficiency-and-cost order when no probabilistic model is licensed."
 
 [[routes]]
@@ -4530,7 +4530,7 @@ functional = "joint_ols_treatment_coefficients_with_full_covariance_contrast_var
 guarantee = "joint_ols_treatment_coefficients_with_full_covariance_point_only_standard_errors_and_p_values_unmeasured_diagnostics"
 limits = "Point values only: coefficients (2.75, 0.75) and contrast estimates are the claim; every standard error, covariance entry, Wald statistic and p-value is a reported diagnostic with calibration unmeasured (coverage, Type I error and power are not collected in 2.3) and no interval is produced. The shared adjustment set is the caller's, mismatched adjustment sets, snapshots or row counts and constant, collinear or rank-deficient designs refuse; an HC covariance replays from rows capped at 4096."
 evidence_test = "crates/antecedent-estimate/tests/vector_treatment.rs"
-evidence_assertion = "b4_vector_coefficients_and_full_covariance_match_hand_algebra"
+evidence_assertion = "vector_coefficients_and_full_covariance_match_hand_algebra"
 notes = "2.3 B4 joint vector-treatment coefficients; point-only, diagnostics unmeasured."
 
 [[routes]]
@@ -4543,7 +4543,7 @@ functional = "level_and_pairwise_contrasts_of_a_categorical_treatment_with_omnib
 guarantee = "categorical_treatment_level_and_pairwise_contrasts_point_only_tests_and_standard_errors_unmeasured_diagnostics"
 limits = "Point values only: level coefficients (3, 7) and contrast estimates are the claim; standard errors, Wald, Holm and monotonicity p-values are diagnostics with calibration unmeasured and no interval is produced. The monotonicity p-value is a conservative bound; absent, sparse and undeclared levels refuse by name and are never dropped; a monotonicity test needs ordered levels."
 evidence_test = "crates/antecedent-estimate/tests/categorical_treatment.rs"
-evidence_assertion = "b4_categorical_dummy_regression_covariance_matches_group_mean_algebra"
+evidence_assertion = "categorical_dummy_regression_covariance_matches_group_mean_algebra"
 notes = "2.3 B4 categorical treatment contrasts; point-only, diagnostics unmeasured."
 
 [[routes]]
@@ -4556,7 +4556,7 @@ functional = "point_prediction_b_prime_phi_x_inside_declared_support_and_outside
 guarantee = "compact_export_point_prediction_inside_declared_support_point_only_model_based_se_unmeasured_diagnostic"
 limits = "Point prediction only (f(2) = 3, f(0) = 1, f(10) = -29); the model-based standard error is a diagnostic with calibration unmeasured, no interval, no extrapolation or misspecification uncertainty. A query outside the declared support or inside a mask region refuses; the identity binds every semantic field even when resealed, and a consumer without a retained identity checks only internal consistency."
 evidence_test = "crates/antecedent-io/tests/compact_export.rs"
-evidence_assertion = "b4_compact_quadratic_point_and_se_match_hand_values"
+evidence_assertion = "compact_quadratic_point_and_se_match_hand_values"
 notes = "2.3 B4 compact runtime export; point-only, model-based SE unmeasured."
 
 [[routes]]
@@ -4569,7 +4569,7 @@ functional = "natural_direct_indirect_and_total_effects_by_gauss_hermite_mediati
 guarantee = "nonlinear_mediation_natural_effects_point_only_bootstrap_se_unmeasured_diagnostic_interval_closed"
 limits = "Point natural effects only (NDE 0.95, NIE 0.75, TE 1.70 on the anchor SCM); the bootstrap SE is a diagnostic with calibration unmeasured and interval status closed. Assumptions are declared, never verified; confounding, treatment-induced confounders, undeclared cross-world independence, weak overlap and quadrature disagreement above tolerance refuse. Gaussian mediator and polynomial outcome misspecification is reported, not diagnosed."
 evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation.rs"
-evidence_assertion = "b4_mediation_exact_scm_recovers_closed_form_effects"
+evidence_assertion = "mediation_exact_scm_recovers_closed_form_effects"
 notes = "2.3 B4 nonlinear mediation natural effects; point-only, interval closed."
 
 [[routes]]
@@ -4589,7 +4589,7 @@ functional = "per_class_treatment_effects_weights_and_mixture_average_of_a_gauss
 guarantee = "latent_class_effects_point_only_local_em_maximum_standard_errors_unmeasured_diagnostics"
 limits = "Point per-class effects, weights and mixture-average only (tau -2 and 1, weights 0.4 and 0.6, average -0.2 on the anchor design); standard errors and bootstrap SEs are diagnostics with calibration unmeasured and no interval is produced. EM finds a local maximum from seeded restarts; the class count is declared; randomization within class is a declared premise; weak, degenerate and single-class fits refuse; replay is bit-for-bit refit from embedded data."
 evidence_test = "crates/antecedent-estimate/tests/latent_class_effects.rs"
-evidence_assertion = "b4_latent_recovers_hand_derived_two_class_fixed_point"
+evidence_assertion = "latent_recovers_hand_derived_two_class_fixed_point"
 notes = "2.3 B4 latent-class effects; point-only, diagnostics unmeasured."
 
 [[routes]]
@@ -4602,7 +4602,7 @@ functional = "refusal_of_any_claim_whose_declared_coordinates_or_identity_differ
 guarantee = "external_claim_bound_to_full_identified_program_and_request_identity_point_only_no_native_upgrade"
 limits = "Point-only: nothing is estimated, converted or rescaled; a graph-only identity, an incompatible quantities override, a treatment or outcome substitution, a population mismatch and a dose-grid or dose-unit change each refuse with their own program_binding detail; the first failing field in a fixed order names the refusal; the durable identity changes with any one of the 13 program fields."
 evidence_test = "crates/antecedent-core/tests/program_binding.rs"
-evidence_assertion = "c1_binding_faithful_claim_passes_with_derived_coordinates"
+evidence_assertion = "binding_faithful_claim_passes_with_derived_coordinates"
 notes = "2.3 C1 binding of an external claim to the identified program and request; the check reads declared identities only."
 
 [[routes]]
@@ -4615,7 +4615,7 @@ functional = "bound_external_claim_carrying_the_verified_program_identity_that_s
 guarantee = "external_claim_bound_to_full_identified_program_and_request_identity_point_only_no_native_upgrade"
 limits = "Point-only: the contract must itself carry the program's graph and exact coordinates, so a contract describing another request refuses before the result binds and a program refusal comes first; the bound claim keeps its external trust and is never promoted to native estimation; values are not converted."
 evidence_test = "crates/antecedent-core/tests/program_binding.rs"
-evidence_assertion = "c1_binding_binds_a_result_to_the_program_and_stays_external"
+evidence_assertion = "binding_binds_a_result_to_the_program_and_stays_external"
 notes = "2.3 C1 external result bound to the checked contract and the program; stays external."
 
 [[routes]]
@@ -4628,7 +4628,7 @@ functional = "typed_claim_with_one_scientific_quantity_per_grid_point_support_la
 guarantee = "native_mean_response_as_typed_claim_with_coordinates_support_trust_never_an_outcome_law_point_only"
 limits = "Point-only: a native response carries no population or outcome functional of its own, so those come from the program binding and only the outcome, treatment, grid and units are read from the response; only a point-identified static mean curve is accepted; another request, an envelope or unidentified response, an unlabeled support and a caller-asserted calibration refuse; every standard error is unmeasured."
 evidence_test = "crates/antecedent/tests/native_claims.rs"
-evidence_assertion = "c1_native_response_exposes_coordinates_support_and_native_trust"
+evidence_assertion = "native_response_exposes_coordinates_support_and_native_trust"
 notes = "2.3 C1 native response claim; coordinates derived from the response's own estimand and grid."
 
 [[routes]]
@@ -4641,7 +4641,7 @@ functional = "mean_decision_source_for_affine_expectation_or_aligned_joint_law_w
 guarantee = "native_mean_response_as_typed_claim_with_coordinates_support_trust_never_an_outcome_law_point_only"
 limits = "Point-only: a mean source answers only the expectation of an affine utility (A = 3.0, B = 3.5) and refuses probability and quantile sources; a joint law is available only when credible draws of every coordinate were retained and is a posterior over the mean curve, not an outcome law; unsupported coordinates are withheld and reported; a Python native claim is mean-only because the response view keeps no draws."
 evidence_test = "crates/antecedent/tests/native_claims.rs"
-evidence_assertion = "c1_native_mean_response_feeds_an_affine_decision_on_hand_values"
+evidence_assertion = "native_mean_response_feeds_an_affine_decision_on_hand_values"
 notes = "2.3 C1 native response to decision source; a mean response never becomes an outcome law."
 
 [[routes]]
@@ -4654,7 +4654,7 @@ functional = "decision_input_carrying_provider_trust_calibration_capabilities_an
 guarantee = "decision_input_trust_from_evidence_only_per_action_support_and_declared_dependence_boundary_point_only"
 limits = "Point-only: an artifact labelled native or exact is stored unverified unless a matching native execution record or an exact-request verification receipt is supplied, and a contract requiring native or verified inputs refuses the label; support labels are caller-supplied and not verified; no interval or probability claim."
 evidence_test = "crates/antecedent-design/tests/composition_boundary.rs"
-evidence_assertion = "c1_boundary_exact_request_verification_needs_a_matching_receipt"
+evidence_assertion = "boundary_exact_request_verification_needs_a_matching_receipt"
 notes = "2.3 C1 decision input; metadata alone never upgrades trust."
 
 [[routes]]
@@ -4667,7 +4667,7 @@ functional = "per_action_support_evaluation_marking_unsupported_and_unevaluated_
 guarantee = "decision_input_trust_from_evidence_only_per_action_support_and_declared_dependence_boundary_point_only"
 limits = "Point-only: an action reading a missing or too weakly supported coordinate, or one its source cannot answer, is reported unsupported or unevaluated while supported actions are compared unless the policy requires every action; all actions unsupported is a state, not an error; a mean never answers a probability, quantile or nonlinear utility; support labels are unverified."
 evidence_test = "crates/antecedent-design/tests/composition_boundary.rs"
-evidence_assertion = "c1_boundary_missing_coordinate_beside_supported_action_mean_source"
+evidence_assertion = "boundary_missing_coordinate_beside_supported_action_mean_source"
 notes = "2.3 C1 per-action support evaluation over mean and joint-draw sources."
 
 [[routes]]
@@ -4680,7 +4680,7 @@ functional = "check_that_inputs_may_be_pooled_borrowed_transported_or_reused_und
 guarantee = "decision_input_trust_from_evidence_only_per_action_support_and_declared_dependence_boundary_point_only"
 limits = "Point-only: independent pooling and paired draws refuse shared data, priors or fitted models, unknown or undeclared dependence and a shared snapshot unless a covariance or joint-law route names one of the pair as an aligned joint law; pooling, borrowing, transport and evidence reuse are separate declared operations; relations and routes are declarations the check reads, no dependence is derived and nothing is pooled; atoms are averaged only under declared probabilities."
 evidence_test = "crates/antecedent-design/tests/composition_boundary.rs"
-evidence_assertion = "c1_boundary_borrowing_pooling_transport_and_reuse_are_declared_separately"
+evidence_assertion = "boundary_borrowing_pooling_transport_and_reuse_are_declared_separately"
 notes = "2.3 C1 composition dependence boundary."
 
 [[routes]]
@@ -4732,7 +4732,7 @@ functional = "per_proposal_receipt_binding_base_failure_hypothetical_delta_deriv
 guarantee = "per_proposal_receipt_binds_repair_and_ranking_by_identity_hypothetical_never_evidence_family_checker_on_arrival_point_only"
 limits = "Point-only: the receipt binds identities and digests, never copies; its delta and derivation are hypothetical and never available evidence; it makes no claim that a proposed study will deliver the evidence or about the EVSI and net values it retains; no interval or probability claim."
 evidence_test = "crates/antecedent-design/tests/proposal_receipt.rs"
-evidence_assertion = "x6_receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision"
+evidence_assertion = "receipt_binds_failure_delta_derivation_cost_lineage_value_and_decision"
 notes = "2.3 B X6 per-proposal receipt linking identification repair and design ranking."
 
 [[routes]]
@@ -4745,7 +4745,7 @@ functional = "cross_artifact_verification_recomputing_every_receipt_from_the_two
 guarantee = "per_proposal_receipt_binds_repair_and_ranking_by_identity_hypothetical_never_evidence_family_checker_on_arrival_point_only"
 limits = "Point-only: verification refuses a candidate in only one artifact, a changed delta, a swapped signal, changed cost, lineage, value or decision identity, an unsealed artifact and a bundle not covering exactly the ranked candidates; a consumer without a retained expected identity checks only internal consistency."
 evidence_test = "crates/antecedent-design/tests/proposal_receipt.rs"
-evidence_assertion = "x6_receipt_identity_and_bundle_digests_bind"
+evidence_assertion = "receipt_identity_and_bundle_digests_bind"
 notes = "2.3 B X6 bundle verifier over the repair and ranking artifacts."
 
 [[routes]]
@@ -4758,7 +4758,7 @@ functional = "re_identification_by_the_repair_familys_own_checker_on_the_arrived
 guarantee = "per_proposal_receipt_binds_repair_and_ranking_by_identity_hypothetical_never_evidence_family_checker_on_arrival_point_only"
 limits = "Point-only: the recorded hypothetical derivation is never reused as a verdict and a hypothetical delivery refuses; an arrival lacking the joint law is still insufficient, a different population or regime invalidates the derivation, and a sample or shape difference refuses with a typed reason; backdoor and transport repair families only."
 evidence_test = "crates/antecedent-design/tests/proposal_receipt.rs"
-evidence_assertion = "x6_receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker"
+evidence_assertion = "receipt_arrival_of_the_exact_proposed_law_is_verified_by_the_family_checker"
 notes = "2.3 B X6 on_arrival re-identification through the repair family checker."
 
 [[routes]]
@@ -4771,7 +4771,7 @@ functional = "per_stage_reuse_recompute_or_refuse_plan_naming_the_determining_de
 guarantee = "selective_recalculation_stage_plan_and_counted_fold_fit_reuse_point_only_no_interval_no_persistent_cache"
 limits = "Decides and explains; computes nothing. Reuse never means persistently cached: in a fresh process no derived stage is reused except portable scores and never the law or decision, and a missing fit, data or provider is refused by name. The planner trusts the caller's declared own-input digests and retarget and request capabilities and does not verify them; no interval or coverage claim."
 evidence_test = "crates/antecedent-core/tests/recalc_plan.rs"
-evidence_assertion = "c2_recalc_mutation_tables_are_exact"
+evidence_assertion = "recalc_mutation_tables_are_exact"
 notes = "2.3 C2 selective recalculation stage plan; point-only."
 
 [[routes]]
@@ -4784,7 +4784,7 @@ functional = "plan_then_run_only_the_stages_that_must_run_and_count_identificati
 guarantee = "selective_recalculation_stage_plan_and_counted_fold_fit_reuse_point_only_no_interval_no_persistent_cache"
 limits = "Reuse is proven by the cross-fit cache's fold-fit counts (10 on a first run, 0 on a utility-only change and on a compatible retarget); the other counters are call-level. The per-call batch cache is not a persistent fit cache, a second session fits again, and only the cross-fitted AIPW route with a net-benefit rule is driven; prior and provider stages are plan-level only. Point law and net benefit only; the law standard error is a diagnostic with calibration unmeasured and no interval is produced."
 evidence_test = "crates/antecedent/tests/recalc_receipt.rs"
-evidence_assertion = "c2_recalc_utility_only_change_recomputes_the_decision_with_zero_fit_work"
+evidence_assertion = "recalc_utility_only_change_recomputes_the_decision_with_zero_fit_work"
 notes = "2.3 C2 instrumented selective recalculation with a verified receipt; point-only."
 
 [[routes]]
@@ -4797,7 +4797,7 @@ functional = "consume_by_recomputing_the_plan_from_stored_declarations_and_requi
 guarantee = "recalc_receipt_artifact_recomputed_plan_and_counts_no_fresh_process_reuse_point_only_no_interval"
 limits = "A record of a decided plan and the producer's counts, not a certificate that a cache exists: any derived stage stored as reused under a fresh-process boundary is refused even where the planner would allow portable scores. Counts cannot be re-observed, and without a retained identity only internal consistency is checked. Bounded decode; no estimate, interval or coverage claim."
 evidence_test = "crates/antecedent-io/tests/recalc_receipt_artifact.rs"
-evidence_assertion = "c2_artifact_round_trip_preserves_table_counts_and_identities"
+evidence_assertion = "artifact_round_trip_preserves_table_counts_and_identities"
 notes = "2.3 C2 recalc_receipt_v1 artifact; point-only."
 
 [[routes]]
@@ -4810,7 +4810,7 @@ functional = "typed_node_graph_with_embedded_or_reference_nodes_and_merkle_edge_
 guarantee = "portable_composed_result_merkle_bound_nodes_verified_by_per_kind_verifiers_references_never_replayed_point_only"
 limits = "Point-only: certifies decoding, identities and declared bindings, no causal, interval or coverage license. The chain is a Merkle DAG along dependency edges, not a balanced tree; identity is invariant to node and edge declaration order. A bundle never claims that a serialized result recreates an executable study, and a reference node is never replayed."
 evidence_test = "crates/antecedent-design/tests/composition_bundle.rs"
-evidence_assertion = "c3_bundle_identity_is_invariant_to_node_and_edge_declaration_order"
+evidence_assertion = "bundle_identity_is_invariant_to_node_and_edge_declaration_order"
 notes = "2.3 C3 composition bundle export; point-only."
 
 [[routes]]
@@ -4823,7 +4823,7 @@ functional = "independent_consumption_verifying_every_embedded_node_by_its_own_c
 guarantee = "portable_composed_result_merkle_bound_nodes_verified_by_per_kind_verifiers_references_never_replayed_point_only"
 limits = "Point-only. External mean decisions are point-only attested and joint-draw decisions keep the aligned-law requirement. A reference node is verified only as matched a supplied source, never replayed. A consumer without a retained bundle identity checks only internal consistency; a node-level failure is reported on the node and does not refuse the bundle. Bounds are checked before decoding."
 evidence_test = "crates/antecedent-design/tests/composition_bundle.rs"
-evidence_assertion = "c3_bundle_round_trip_verifies_every_node_and_reports_the_hand_computed_decision"
+evidence_assertion = "bundle_round_trip_verifies_every_node_and_reports_the_hand_computed_decision"
 notes = "2.3 C3 composition bundle consumption; point-only."
 
 [[routes]]
@@ -4836,7 +4836,7 @@ functional = "one_verifier_per_artifact_kind_decoding_through_the_artifacts_own_
 guarantee = "per_kind_node_verifiers_through_own_consumers_facts_from_decoded_fields_external_mean_point_only_attested"
 limits = "Point-only. Facts are read from the decoded artifact, never from producer text. Embedded kinds with no verifier (causal contract, attestation, quantity coordinates, transformation) fail unknown_node_kind and must travel as references; recalculation receipts are not covered. An external claim stays externally_attested unless it retains its exact-request receipt, and a joint requirement over a mean-only claim fails unsupported_law."
 evidence_test = "crates/antecedent-design/tests/composition_verifiers.rs"
-evidence_assertion = "c3_verifiers_joint_decision_verifies_every_node_and_reads_the_hand_computed_values"
+evidence_assertion = "verifiers_joint_decision_verifies_every_node_and_reads_the_hand_computed_values"
 notes = "2.3 C3 per-kind node verifiers; point-only."
 
 [[routes]]
@@ -4849,7 +4849,7 @@ functional = "point_only_attested_decision_result_bytes_evaluated_from_the_claim
 guarantee = "per_kind_node_verifiers_through_own_consumers_facts_from_decoded_fields_external_mean_point_only_attested"
 limits = "Point-only attested: the value is the supplier's external mean evaluated through the contract and is never upgraded to native; it matches direct evaluation and refuses a contract whose functional needs a distribution or aligned joint draws. No interval or coverage claim."
 evidence_test = "crates/antecedent-design/tests/composition_verifiers.rs"
-evidence_assertion = "c3_verifiers_mean_decision_helper_matches_direct_evaluation_and_refuses_what_a_mean_cannot_answer"
+evidence_assertion = "verifiers_mean_decision_helper_matches_direct_evaluation_and_refuses_what_a_mean_cannot_answer"
 notes = "2.3 C3 external mean decision helper; point-only attested."
 
 [[routes]]
@@ -4875,7 +4875,7 @@ functional = "wald_test_of_equal_linear_conditional_mechanism_coefficients_betwe
 guarantee = "asymptotic_wald_discrepancy_diagnostic_non_rejection_never_certifies_invariance_point_only_error_rates_unmeasured"
 limits = "Diagnostic with Type I error and power unmeasured: the statistic, p-values and standard errors are unmeasured diagnostics, not a size or power guarantee. Non-rejection never certifies invariance (non_rejection_certifies_invariance is false); only differences larger than the minimal detectable differences (z_{1-alpha/2} + z_{power}) se could have been detected. Valid for independent samples measured on comparable units and protocol; incomparable measurements, shared units and unknown dependence refuse. Linear-Gaussian-mean mechanism only; informs only a selection node on the node itself."
 evidence_test = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs"
-evidence_assertion = "b3_discrepancy_intercept_and_slope_shift_matches_df2_closed_form"
+evidence_assertion = "discrepancy_intercept_and_slope_shift_matches_df2_closed_form"
 notes = "2.3 B3 mechanism discrepancy diagnostic; point-only, error rates unmeasured."
 
 [[routes]]
@@ -4888,7 +4888,7 @@ functional = "consume_by_recomputing_the_wald_result_from_stored_summary_statist
 guarantee = "mechanism_discrepancy_artifact_recomputed_result_and_identity_point_only_error_rates_unmeasured"
 limits = "A record of a diagnostic whose error rates are unmeasured: the consumer recomputes the result from the stored summary statistics and refuses a stored result or identity that differs, even when the container is resealed, but a consumer holding no retained expected identity checks only internal consistency and replay. Non-rejection never certifies invariance. Bounded decode; no interval or coverage claim."
 evidence_test = "crates/antecedent-io/tests/mechanism_discrepancy_artifact.rs"
-evidence_assertion = "b3_discrepancy_artifact_acceptance_numbers_replay_through_the_container"
+evidence_assertion = "discrepancy_artifact_acceptance_numbers_replay_through_the_container"
 notes = "2.3 B3 mechanism_discrepancy_v1 artifact; point-only."
 
 [[routes]]
@@ -4901,7 +4901,7 @@ functional = "sharp_ate_bounds_under_the_marginal_sensitivity_model_by_fractiona
 guarantee = "msm_sharp_assumption_range_exact_population_inputs_lambda_one_identified_sampling_interval_withheld_point_only"
 limits = "Exact population inputs and a binary treatment over finite strata only: nothing is estimated, so the range is an assumption range (never a confidence interval) and the sampling interval is withheld (sampling interval: not reported; a requested composition refuses with cell_not_licensed). One Lambda is shared by all strata and both arms; the exact E[rho] = 1 normalization is not the Hajek renormalization. Hand anchors: identified 0.3 and bounds [0.04375, 0.4875] at Lambda 2; calibration unmeasured."
 evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs"
-evidence_assertion = "b3_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation"
+evidence_assertion = "msm_sharp_bounds_at_lambda_two_match_the_hand_derivation"
 notes = "2.3 B3 marginal sensitivity model bounds and tipping point; point-only."
 
 [[routes]]
@@ -4914,7 +4914,7 @@ functional = "adapt_a_marginal_sensitivity_result_into_the_f17_sensitivity_artif
 guarantee = "msm_sensitivity_artifact_lambda_surface_with_withheld_sampling_decision_replay_point_only"
 limits = "The artifact carries the assumption range of the ATE bounds per grid Lambda, no identified bound and a withheld sampling descriptor; the F17 decision composition classifies actions over the declared Lambda range only (invariant action, assumption-dependent switch or no robust action) and never as a probability. A composed sampling interval is refused; the artifact refusals belong to the F17 namespace."
 evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs"
-evidence_assertion = "b3_msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds"
+evidence_assertion = "msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds"
 notes = "2.3 B3 marginal sensitivity model adapter into the F17 sensitivity artifact; point-only."
 
 [[routes]]
@@ -4927,7 +4927,7 @@ functional = "cell_saturated_aipw_interaction_contrast_with_counted_fits_zero_fi
 guarantee = "cell_recalculation_and_portable_score_resume_counted_fits_zero_fit_retarget_point_only_no_interval"
 limits = "Point law and net benefit of the cell-AIPW route with the standard error a diagnostic of unmeasured calibration; no interval. A first run does 25 fits (5 folds x (1 propensity + 4 cell regressions)); a utility-only change and a compatible retarget do 0 fits; without a declared retarget licence the target change refits. The retarget licence and the declared adjustment set are caller declarations, never verified here."
 evidence_test = "crates/antecedent/tests/recalc_cell.rs"
-evidence_assertion = "c2_cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit"
+evidence_assertion = "cell_first_run_counts_the_cell_fits_and_matches_an_independent_fit"
 notes = "2.3 C2 cell-AIPW selective recalculation; point-only."
 
 [[routes]]
@@ -4940,7 +4940,7 @@ functional = "retarget_the_frozen_scores_by_row_weights_over_the_same_row_ids_an
 guarantee = "cell_recalculation_and_portable_score_resume_counted_fits_zero_fit_retarget_point_only_no_interval"
 limits = "The only licensed resumed operation is a retarget over the frozen row ids with 0 fits; every request that needs data or a fit (changed outcome, folds, graph, adjustment, snapshot or new rows) is refused with Unavailable for the data before any work, and resealed or foreign bytes are refused. A resumed receipt is a verified in-process record, not a sealed artifact; ResumeContext cannot express scores bound with data absent, so the resume path plans under a flag standing for the artifact-bound snapshot identity. Point only; no interval."
 evidence_test = "crates/antecedent/tests/recalc_cell.rs"
-evidence_assertion = "c2_cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits"
+evidence_assertion = "cell_resume_in_a_fresh_session_retargets_the_exported_scores_with_zero_fits"
 notes = "2.3 C2 portable score resume; point-only."
 
 [[routes]]
@@ -4953,7 +4953,7 @@ functional = "consume_by_recomputing_the_fit_identity_from_stored_stage_digests_
 guarantee = "frozen_score_artifact_recomputed_fit_and_artifact_identity_bit_exact_scores_no_data_no_model_point_only_no_interval"
 limits = "Carries scores, stage digests and identities, no data and no model; scores are checked for shape and binding, not recomputed from data. A consumer holding no retained identity checks only internal consistency, so a consistently resealed artifact of another run passes under its own identity. Bounded decode (128 MiB, 2^21 rows, 64 columns); no estimate, interval or coverage claim."
 evidence_test = "crates/antecedent-io/tests/frozen_scores_artifact.rs"
-evidence_assertion = "c2_scores_round_trip_is_bit_exact_and_carries_every_identity"
+evidence_assertion = "scores_round_trip_is_bit_exact_and_carries_every_identity"
 notes = "2.3 C2 frozen_scores_v1 artifact; point-only."
 
 [[routes]]

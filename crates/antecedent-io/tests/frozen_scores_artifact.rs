@@ -86,7 +86,7 @@ fn sealed() -> FrozenScoreTable {
 }
 
 #[test]
-fn c2_scores_round_trip_is_bit_exact_and_carries_every_identity() {
+fn scores_round_trip_is_bit_exact_and_carries_every_identity() {
     let artifact = sealed();
     let bytes = artifact.to_bytes(ID).unwrap();
     let again = FrozenScoreTable::from_bytes(&bytes, Some(artifact.identity())).unwrap();
@@ -118,7 +118,7 @@ fn c2_scores_round_trip_is_bit_exact_and_carries_every_identity() {
 }
 
 #[test]
-fn c2_scores_identity_is_independent_of_declaration_order() {
+fn scores_identity_is_independent_of_declaration_order() {
     let base = sealed();
     let mut reversed_wire = identities_to_wire(&declared("seed-1"));
     reversed_wire.reverse();
@@ -156,7 +156,7 @@ fn c2_scores_identity_is_independent_of_declaration_order() {
 }
 
 #[test]
-fn c2_scores_resealed_mutation_is_refused_by_a_retained_identity() {
+fn scores_resealed_mutation_is_refused_by_a_retained_identity() {
     let artifact = sealed();
     let mut meta = artifact.meta().clone();
     meta.table.scores[3] += 0.5;
@@ -177,7 +177,7 @@ fn c2_scores_resealed_mutation_is_refused_by_a_retained_identity() {
 }
 
 #[test]
-fn c2_scores_stage_and_snapshot_bindings_are_checked() {
+fn scores_stage_and_snapshot_bindings_are_checked() {
     let artifact = sealed();
 
     let mut snapshot = artifact.meta().clone();
@@ -220,7 +220,7 @@ fn c2_scores_stage_and_snapshot_bindings_are_checked() {
 }
 
 #[test]
-fn c2_scores_malformed_tables_are_refused_even_when_resealed() {
+fn scores_malformed_tables_are_refused_even_when_resealed() {
     let artifact = sealed();
     let reseal = |edit: &dyn Fn(&mut antecedent_io::frozen_scores_artifact::FrozenScoresMeta)| {
         let mut meta = artifact.meta().clone();
@@ -251,7 +251,7 @@ fn c2_scores_malformed_tables_are_refused_even_when_resealed() {
 }
 
 #[test]
-fn c2_scores_decode_is_bounded_and_versioned() {
+fn scores_decode_is_bounded_and_versioned() {
     let artifact = sealed();
 
     let mut rows = artifact.meta().clone();
@@ -300,7 +300,7 @@ fn c2_scores_decode_is_bounded_and_versioned() {
 }
 
 #[test]
-fn c2_scores_corrupt_or_truncated_bytes_are_refused() {
+fn scores_corrupt_or_truncated_bytes_are_refused() {
     let artifact = sealed();
     let bytes = artifact.to_bytes(ID).unwrap();
     assert!(FrozenScoreTable::from_bytes(&bytes[..bytes.len() / 2], None).is_err());

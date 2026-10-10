@@ -88,7 +88,7 @@ fn refusal(error: &IoError) -> (&'static str, &str) {
 }
 
 #[test]
-fn b3_msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds() {
+fn msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds() {
     let result = result(3.0, 5);
     let built = artifact(&result, treat_vs(0.0));
     let coordinate = built.coordinate();
@@ -120,7 +120,7 @@ fn b3_msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds() {
 }
 
 #[test]
-fn b3_msm_artifact_reaches_an_invariant_action() {
+fn msm_artifact_reaches_an_invariant_action() {
     let built = artifact(&result(2.0, 3), treat_vs(0.0));
     let expected = SensitivityOutcome::InvariantAction { action: "treat".into() };
     assert_eq!(built.outcome(), Some(&expected));
@@ -128,7 +128,7 @@ fn b3_msm_artifact_reaches_an_invariant_action() {
 }
 
 #[test]
-fn b3_msm_artifact_reaches_an_assumption_dependent_switch() {
+fn msm_artifact_reaches_an_assumption_dependent_switch() {
     let result = result(3.0, 3);
     let cost = (scientific("cost"), vec![0.0, 0.0, 2.0]);
     let built = msm_sensitivity_artifact(
@@ -154,7 +154,7 @@ fn b3_msm_artifact_reaches_an_assumption_dependent_switch() {
 }
 
 #[test]
-fn b3_msm_artifact_reaches_no_robust_action_when_the_range_straddles() {
+fn msm_artifact_reaches_no_robust_action_when_the_range_straddles() {
     let built = artifact(&result(3.0, 3), treat_vs(0.2));
     let expected = SensitivityOutcome::NoRobustAction {
         reason: NoRobustReason::MixedWithinRange { coordinates: vec![2.0, 3.0] },
@@ -165,7 +165,7 @@ fn b3_msm_artifact_reaches_no_robust_action_when_the_range_straddles() {
 }
 
 #[test]
-fn b3_msm_artifact_round_trips_and_replays_its_decision() {
+fn msm_artifact_round_trips_and_replays_its_decision() {
     let built = artifact(&result(3.0, 3), treat_vs(0.2));
     let bytes = built.to_bytes("msm-1").unwrap();
     let restored = SensitivityArtifact::from_bytes(&bytes, Some(built.identity())).unwrap();
@@ -174,7 +174,7 @@ fn b3_msm_artifact_round_trips_and_replays_its_decision() {
 }
 
 #[test]
-fn b3_msm_artifact_refuses_a_sampling_composition() {
+fn msm_artifact_refuses_a_sampling_composition() {
     let built = artifact(&result(2.0, 3), treat_vs(0.0));
     let mut parts = built.parts().clone();
     let n = parts.grid.len();
@@ -196,7 +196,7 @@ fn b3_msm_artifact_refuses_a_sampling_composition() {
 }
 
 #[test]
-fn b3_msm_adapter_refuses_malformed_surfaces() {
+fn msm_adapter_refuses_malformed_surfaces() {
     let result = result(2.0, 3);
     // A point quantity with the wrong number of grid values.
     let short = (scientific("cost"), vec![0.0, 0.0]);

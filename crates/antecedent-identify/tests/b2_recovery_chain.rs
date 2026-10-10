@@ -83,7 +83,7 @@ fn recovered(decision: ChainRecoveryDecision) -> antecedent_identify::ChainRecov
 }
 
 #[test]
-fn b2_chain_graph_is_recovered_with_the_head_response_first() {
+fn chain_graph_is_recovered_with_the_head_response_first() {
     let plan = recovered(decide(IDS, &IDS, &edges(IDS, 0, true, &[]), &[]).unwrap());
     assert_eq!(plan.head, 0);
     assert!(plan.tail_depends_on_head_variable);
@@ -102,7 +102,7 @@ fn b2_chain_graph_is_recovered_with_the_head_response_first() {
 }
 
 #[test]
-fn b2_chain_decision_is_invariant_to_node_order_and_labels() {
+fn chain_decision_is_invariant_to_node_order_and_labels() {
     let reference = recovered(decide(IDS, &IDS, &edges(IDS, 0, true, &[]), &[]).unwrap());
     // Relabelled variables, nodes inserted in reverse order.
     let relabelled: [u32; 6] = [41, 17, 9, 30, 2, 25];
@@ -117,7 +117,7 @@ fn b2_chain_decision_is_invariant_to_node_order_and_labels() {
 }
 
 #[test]
-fn b2_self_censoring_chain_is_nonrecoverable_with_an_exact_witness() {
+fn self_censoring_chain_is_nonrecoverable_with_an_exact_witness() {
     // X2 -> R2 on top of the chain: P(X2) is not recoverable from the pattern law.
     let extra = [(1, 3)];
     let graph = build(&IDS, &edges(IDS, 0, true, &extra), &[]);
@@ -145,7 +145,7 @@ fn b2_self_censoring_chain_is_nonrecoverable_with_an_exact_witness() {
 }
 
 #[test]
-fn b2_head_self_censoring_and_independent_tail_are_also_witnessed() {
+fn head_self_censoring_and_independent_tail_are_also_witnessed() {
     // X1 -> R1 (head self-censoring) with an independent tail.
     let extra = [(0, 2)];
     let graph = build(&IDS, &edges(IDS, 0, false, &extra), &[]);
@@ -162,7 +162,7 @@ fn b2_head_self_censoring_and_independent_tail_are_also_witnessed() {
 }
 
 #[test]
-fn b2_a_tampered_witness_fails_the_exact_verifier() {
+fn a_tampered_witness_fails_the_exact_verifier() {
     let extra = [(1, 3)];
     let graph = build(&IDS, &edges(IDS, 0, true, &extra), &[]);
     let q = query(IDS);
@@ -198,7 +198,7 @@ fn assert_not_supported(result: Result<ChainRecoveryDecision, ChainRecoveryError
 }
 
 #[test]
-fn b2_adjacent_graphs_are_not_supported_never_nonrecoverable() {
+fn adjacent_graphs_are_not_supported_never_nonrecoverable() {
     // The tail variable drives the head response: X2 -> R1 with chain R1 -> R2.
     assert_not_supported(decide(IDS, &IDS, &edges(IDS, 0, true, &[(1, 2)]), &[]));
     // No response chain: the 2.2 route's graph, not this row's.
@@ -215,7 +215,7 @@ fn b2_adjacent_graphs_are_not_supported_never_nonrecoverable() {
 }
 
 #[test]
-fn b2_malformed_roles_are_invalid_queries() {
+fn malformed_roles_are_invalid_queries() {
     // A proxy not wired to its response.
     let mut broken = edges(IDS, 0, true, &[]);
     broken.retain(|e| *e != (3, 5));
@@ -242,7 +242,7 @@ fn b2_malformed_roles_are_invalid_queries() {
 }
 
 #[test]
-fn b2_reason_codes_and_details_are_fixed_per_kind() {
+fn reason_codes_and_details_are_fixed_per_kind() {
     use ChainRecoveryDetail::{
         Budget, InvalidDerivation, InvalidObservedLaw, InvalidQuery, NonrecoverableWitness,
         Positivity, UnsupportedMechanism,

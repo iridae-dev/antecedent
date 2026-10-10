@@ -407,7 +407,7 @@ const MEAN_EDGES: [(&str, &str); 2] = [("claim", "result"), ("contract", "result
 // ---------------------------------------------------------------------------
 
 #[test]
-fn c3_verifiers_joint_decision_verifies_every_node_and_reads_the_hand_computed_values() {
+fn verifiers_joint_decision_verifies_every_node_and_reads_the_hand_computed_values() {
     let j = joint();
     let consumed = run(joint_nodes(&j), &JOINT_EDGES, &SuppliedSources::default());
     consumed.require_verified().unwrap();
@@ -440,7 +440,7 @@ fn c3_verifiers_joint_decision_verifies_every_node_and_reads_the_hand_computed_v
 }
 
 #[test]
-fn c3_verifiers_external_mean_decision_is_point_only_attested_with_verification_only_when_retained()
+fn verifiers_external_mean_decision_is_point_only_attested_with_verification_only_when_retained()
 {
     let attested = claim(&ClaimSpec::default());
     let nodes = |claim_artifact: &ExternalClaimArtifact| {
@@ -471,7 +471,7 @@ fn c3_verifiers_external_mean_decision_is_point_only_attested_with_verification_
 }
 
 #[test]
-fn c3_verifiers_mean_decision_helper_matches_direct_evaluation_and_refuses_what_a_mean_cannot_answer()
+fn verifiers_mean_decision_helper_matches_direct_evaluation_and_refuses_what_a_mean_cannot_answer()
  {
     let artifact = claim(&ClaimSpec::default());
     let claim_bytes = artifact.to_bytes("claim").unwrap();
@@ -490,7 +490,7 @@ fn c3_verifiers_mean_decision_helper_matches_direct_evaluation_and_refuses_what_
 }
 
 #[test]
-fn c3_verifiers_changed_mean_value_fails_the_point_only_result() {
+fn verifiers_changed_mean_value_fails_the_point_only_result() {
     let honest = claim(&ClaimSpec::default());
     let changed = claim(&ClaimSpec { values: [1.0, 3.0, 6.0], ..ClaimSpec::default() });
     let consumed = run(
@@ -510,7 +510,7 @@ fn c3_verifiers_changed_mean_value_fails_the_point_only_result() {
 }
 
 #[test]
-fn c3_verifiers_joint_requirement_over_a_mean_only_claim_fails_unsupported_law() {
+fn verifiers_joint_requirement_over_a_mean_only_claim_fails_unsupported_law() {
     let j = joint();
     // The claim states the snapshot and causal contract the decision rests on, so only
     // its law can disagree.
@@ -531,7 +531,7 @@ fn c3_verifiers_joint_requirement_over_a_mean_only_claim_fails_unsupported_law()
 }
 
 #[test]
-fn c3_verifiers_swapped_quantity_fails_the_dependent_result_after_resealing_the_inner_artifact() {
+fn verifiers_swapped_quantity_fails_the_dependent_result_after_resealing_the_inner_artifact() {
     let j = joint();
     let resealed = reseal_distribution(&j.distribution, |meta| {
         meta["identity"]["quantities"][0]["variable_id"] = json!("p-renamed");
@@ -568,7 +568,7 @@ fn c3_verifiers_swapped_quantity_fails_the_dependent_result_after_resealing_the_
 }
 
 #[test]
-fn c3_verifiers_a_decision_over_other_contract_or_unrelated_source_is_refused() {
+fn verifiers_a_decision_over_other_contract_or_unrelated_source_is_refused() {
     let j = joint();
     // A result whose contract is not upstream of it.
     let other_contract = {
@@ -597,7 +597,7 @@ fn c3_verifiers_a_decision_over_other_contract_or_unrelated_source_is_refused() 
 }
 
 #[test]
-fn c3_verifiers_swapped_snapshot_fails_the_bound_sensitivity_node() {
+fn verifiers_swapped_snapshot_fails_the_bound_sensitivity_node() {
     let artifact = SensitivityArtifact::new(sensitivity_parts()).unwrap();
     let bytes = artifact.to_bytes("sensitivity").unwrap();
     let reference = |snapshot: &str| {
@@ -628,7 +628,7 @@ fn c3_verifiers_swapped_snapshot_fails_the_bound_sensitivity_node() {
 }
 
 #[test]
-fn c3_verifiers_swapped_evidence_fails_the_relationship_node() {
+fn verifiers_swapped_evidence_fails_the_relationship_node() {
     let a = claim(&ClaimSpec { request: "req-a", evidence: &["factor:z"], ..ClaimSpec::default() });
     let b = claim(&ClaimSpec { request: "req-b", evidence: &["factor:w"], ..ClaimSpec::default() });
     let relationship = evidence_relationship_bytes(EvidenceRelationship::Independent, "a", "b");
@@ -778,7 +778,7 @@ fn robust_nodes(r: &Robust, claim_artifact: &ExternalClaimArtifact) -> Vec<Bundl
 }
 
 #[test]
-fn c3_verifiers_changed_provider_request_fails_the_robust_result() {
+fn verifiers_changed_provider_request_fails_the_robust_result() {
     let attested = ExternalTrustLimit::ExternallyAttested { attestor: "outside-lab".into() };
     let r = robust(attested);
     let answered = claim(&ClaimSpec {
@@ -1004,7 +1004,7 @@ fn ranking(source_digests: &[String]) -> DesignRankingArtifactWire {
 }
 
 #[test]
-fn c3_verifiers_ranking_is_replayed_and_bound_to_its_source_digests() {
+fn verifiers_ranking_is_replayed_and_bound_to_its_source_digests() {
     let j = joint();
     let digest = source_digest(&joint_source());
     let bound = ranking(&[digest]).to_bytes("ranking").unwrap();
@@ -1035,7 +1035,7 @@ fn c3_verifiers_ranking_is_replayed_and_bound_to_its_source_digests() {
 }
 
 #[test]
-fn c3_verifiers_registry_covers_every_artifact_kind_and_refuses_the_rest() {
+fn verifiers_registry_covers_every_artifact_kind_and_refuses_the_rest() {
     let j = joint();
     for kind in VERIFIABLE_KINDS {
         assert!(verifier_for(kind).is_some_and(|v| v.kind() == kind), "{kind:?}");

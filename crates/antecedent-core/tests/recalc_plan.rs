@@ -132,7 +132,7 @@ fn assert_reused_keep_identity(base: &RecalcPlan, plan: &RecalcPlan) {
 }
 
 #[test]
-fn c2_recalc_unchanged_request_reuses_every_stage() {
+fn recalc_unchanged_request_reuses_every_stage() {
     let v = full_versions();
     let plan = run(&v, &v, &licensed());
     assert_eq!(table(&plan), expected(&v, &[]));
@@ -141,7 +141,7 @@ fn c2_recalc_unchanged_request_reuses_every_stage() {
 }
 
 #[test]
-fn c2_recalc_first_request_has_nothing_to_reuse() {
+fn recalc_first_request_has_nothing_to_reuse() {
     let v = native_versions();
     let plan = RecalcPlan::plan(&StageIdentities::new(), &identities(&v), &licensed());
     assert!(plan.reused().is_empty());
@@ -280,7 +280,7 @@ fn input_cases() -> Vec<MutationCase> {
 }
 
 #[test]
-fn c2_recalc_mutation_tables_are_exact() {
+fn recalc_mutation_tables_are_exact() {
     let mut cases = target_cases();
     cases.extend(input_cases());
     for (name, stage, caps, overrides) in cases {
@@ -347,7 +347,7 @@ fn reidentify_overrides(stage: Stage, label: &'static str) -> Vec<(Stage, &'stat
 }
 
 #[test]
-fn c2_recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
+fn recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
     let base = full_versions();
     let changed = bump(&base, Stage::Evidence);
     let plan = run(&base, &changed, &licensed());
@@ -367,7 +367,7 @@ fn c2_recalc_evidence_change_reidentifies_and_rebuilds_every_prior() {
 }
 
 #[test]
-fn c2_recalc_external_requests_and_priors_bind_the_full_causal_request() {
+fn recalc_external_requests_and_priors_bind_the_full_causal_request() {
     let base = full_versions();
     let before = run(&base, &base, &licensed());
     for input in [
@@ -399,7 +399,7 @@ fn c2_recalc_external_requests_and_priors_bind_the_full_causal_request() {
 }
 
 #[test]
-fn c2_recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
+fn recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data() {
     let base = native_versions();
     let resume = ResumeContext {
         portable_scores: true,
@@ -425,7 +425,7 @@ fn c2_recalc_bound_score_snapshot_reuses_scores_without_claiming_supplied_data()
 }
 
 #[test]
-fn c2_recalc_external_study_change_leaves_unrelated_branches_identical() {
+fn recalc_external_study_change_leaves_unrelated_branches_identical() {
     let base = full_versions();
     let base_plan = run(&base, &base, &licensed());
     let changed = bump(&base, Stage::ExternalStudy(b(0)));
@@ -463,7 +463,7 @@ fn c2_recalc_external_study_change_leaves_unrelated_branches_identical() {
 }
 
 #[test]
-fn c2_recalc_added_and_removed_external_studies_reach_only_the_decision() {
+fn recalc_added_and_removed_external_studies_reach_only_the_decision() {
     let base = full_versions();
     let mut without = base.clone();
     for stage in [Stage::ExternalStudy(b(1)), Stage::ProviderRequest(b(1)), Stage::Prior(b(1))] {
@@ -484,7 +484,7 @@ fn c2_recalc_added_and_removed_external_studies_reach_only_the_decision() {
 }
 
 #[test]
-fn c2_recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route() {
+fn recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route() {
     let base = full_versions();
     let cases = [
         (
@@ -535,7 +535,7 @@ fn c2_recalc_off_grid_and_unsupported_requests_refuse_or_name_a_licensed_route()
 }
 
 #[test]
-fn c2_recalc_every_refusal_detail_is_a_namespaced_literal_with_a_registered_code() {
+fn recalc_every_refusal_detail_is_a_namespaced_literal_with_a_registered_code() {
     let reasons = [
         RefusalReason::Unavailable { missing: MissingDependency::Fit },
         RefusalReason::Unavailable { missing: MissingDependency::Data },
@@ -559,7 +559,7 @@ fn fresh(retarget: RetargetSupport, resume: ResumeContext) -> RecalcCapabilities
 }
 
 #[test]
-fn c2_recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
+fn recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
     let v = full_versions();
     let caps = fresh(RetargetSupport::Licensed, ResumeContext::default());
     let plan = run(&v, &v, &caps);
@@ -589,7 +589,7 @@ fn c2_recalc_an_ordinary_loaded_result_never_claims_reuse_of_a_derived_stage() {
 }
 
 #[test]
-fn c2_recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the_decision() {
+fn recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_the_decision() {
     let v = full_versions();
     let resume = ResumeContext { supplied_data: true, ..ResumeContext::default() };
     let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
@@ -622,7 +622,7 @@ fn c2_recalc_supplied_data_resumes_by_recomputing_and_a_missing_callback_blocks_
 }
 
 #[test]
-fn c2_recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decision() {
+fn recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_decision() {
     let v = native_versions();
     let resume = ResumeContext { portable_scores: true, ..ResumeContext::default() };
     let plan = run(&v, &v, &fresh(RetargetSupport::Licensed, resume));
@@ -664,7 +664,7 @@ fn c2_recalc_portable_scores_resume_without_data_but_never_reuse_the_law_or_deci
 }
 
 #[test]
-fn c2_recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
+fn recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
     let v = native_versions();
     let cases = [
         (ResumeContext::default(), MissingDependency::Fit),
@@ -694,7 +694,7 @@ fn c2_recalc_missing_fit_and_snapshot_name_the_specific_dependency() {
 }
 
 #[test]
-fn c2_recalc_identity_is_canonical_and_order_independent() {
+fn recalc_identity_is_canonical_and_order_independent() {
     assert_ne!(StageIdentity::of("x", &[b"ab", b"c"]), StageIdentity::of("x", &[b"a", b"bc"]));
     assert_ne!(StageIdentity::of("x", &[b"a"]), StageIdentity::of("y", &[b"a"]));
     assert!(!StageIdentity::of("x", &[]).is_absent());
@@ -722,7 +722,7 @@ fn c2_recalc_identity_is_canonical_and_order_independent() {
 }
 
 #[test]
-fn c2_recalc_branch_indices_are_bounded() {
+fn recalc_branch_indices_are_bounded() {
     assert!(Branch::new(0).is_some());
     assert!(Branch::new(antecedent_core::recalc::MAX_EXTERNAL_BRANCHES).is_none());
     assert_eq!(Branch::new(3).unwrap().index(), 3);

@@ -328,7 +328,7 @@ fn assert_hand_derived_truth(consumed: &ConsumedBundle) {
 /// The Python-built bundle verifies under an identity assembled here from constants,
 /// and reads the hand-derived values.
 #[test]
-fn c3_xsurface_python_built_bundle_verifies_under_the_constants_identity() {
+fn xsurface_python_built_bundle_verifies_under_the_constants_identity() {
     let expected = rust_bundle();
     let consumed = consume(&read_fixture("py_composition_bundle.bin"), expected.identity());
     assert_eq!(consumed.identity(), expected.identity());
@@ -342,7 +342,7 @@ fn c3_xsurface_python_built_bundle_verifies_under_the_constants_identity() {
 
 /// The identity file Python writes agrees with the constants but is never trusted.
 #[test]
-fn c3_xsurface_python_identity_file_agrees_with_the_constants_but_is_never_trusted() {
+fn xsurface_python_identity_file_agrees_with_the_constants_but_is_never_trusted() {
     let json: serde_json::Value =
         serde_json::from_slice(&read_fixture("py_composition_bundle.identity.json")).unwrap();
     assert_eq!(json["bundle_identity"], rust_bundle().identity());
@@ -355,7 +355,7 @@ fn c3_xsurface_python_identity_file_agrees_with_the_constants_but_is_never_trust
 
 /// Another retained identity or a changed byte refuses the Python-built bundle.
 #[test]
-fn c3_xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
+fn xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() {
     let bytes = read_fixture("py_composition_bundle.bin");
     let identity = rust_bundle().identity().to_owned();
 
@@ -383,7 +383,7 @@ fn c3_xsurface_python_built_bundle_refuses_another_identity_and_changed_bytes() 
 /// The Rust-assembled bundle round-trips through its own bytes, so the Python
 /// consumer is handed bytes this side already verifies.
 #[test]
-fn c3_xsurface_rust_built_bundle_round_trips_in_process() {
+fn xsurface_rust_built_bundle_round_trips_in_process() {
     let bundle = rust_bundle();
     let bytes = bundle.to_bytes("composition-bundle", &BundleLimits::default()).unwrap();
     assert_hand_derived_truth(&consume(&bytes, bundle.identity()));

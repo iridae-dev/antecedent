@@ -40,7 +40,7 @@ fn refused(mutate: impl FnOnce(&mut ExternalProgramClaim)) -> ExternalRefusal {
 }
 
 #[test]
-fn c1_binding_faithful_claim_passes_with_derived_coordinates() {
+fn binding_faithful_claim_passes_with_derived_coordinates() {
     let program = binding();
     let claim = ExternalProgramClaim::declared_by(&program);
     let regimes: Vec<&str> = claim.quantities.iter().map(|q| q.regime_id.as_str()).collect();
@@ -53,7 +53,7 @@ fn c1_binding_faithful_claim_passes_with_derived_coordinates() {
 }
 
 #[test]
-fn c1_binding_quantities_override_is_refused_with_its_coordinate() {
+fn binding_quantities_override_is_refused_with_its_coordinate() {
     let units = refused(|c| c.quantities[1].units = "kPa".into());
     assert_eq!(
         detail(&units),
@@ -72,7 +72,7 @@ fn c1_binding_quantities_override_is_refused_with_its_coordinate() {
 }
 
 #[test]
-fn c1_binding_treatment_and_outcome_substitution_is_refused() {
+fn binding_treatment_and_outcome_substitution_is_refused() {
     let outcome = refused(|c| c.outcome_id = "schema:z".into());
     assert_eq!(
         detail(&outcome),
@@ -97,7 +97,7 @@ fn c1_binding_treatment_and_outcome_substitution_is_refused() {
 }
 
 #[test]
-fn c1_binding_population_mismatch_is_refused() {
+fn binding_population_mismatch_is_refused() {
     let declared = refused(|c| c.population_id = "source".into());
     assert_eq!(
         detail(&declared),
@@ -120,7 +120,7 @@ fn c1_binding_population_mismatch_is_refused() {
 }
 
 #[test]
-fn c1_binding_dose_grid_change_is_refused() {
+fn binding_dose_grid_change_is_refused() {
     let doses = refused(|c| c.doses[1] = 1.5);
     assert_eq!(
         detail(&doses),
@@ -142,7 +142,7 @@ fn c1_binding_dose_grid_change_is_refused() {
 }
 
 #[test]
-fn c1_binding_contract_identity_mismatch_is_refused() {
+fn binding_contract_identity_mismatch_is_refused() {
     let contract = refused(|c| c.contract_id = "contract:other".into());
     assert_eq!(
         detail(&contract),
@@ -171,7 +171,7 @@ fn c1_binding_contract_identity_mismatch_is_refused() {
 }
 
 #[test]
-fn c1_binding_graph_only_identity_is_insufficient() {
+fn binding_graph_only_identity_is_insufficient() {
     let program = binding();
     for declared in [
         ProgramBinding::graph_only_identity(&program.graph_id),
@@ -202,7 +202,7 @@ fn c1_binding_graph_only_identity_is_insufficient() {
 }
 
 #[test]
-fn c1_binding_identity_changes_when_any_one_field_changes() {
+fn binding_identity_changes_when_any_one_field_changes() {
     let base = binding().identity();
     let mut seen = vec![base.clone()];
     for field in 0..13 {
@@ -230,7 +230,7 @@ fn c1_binding_identity_changes_when_any_one_field_changes() {
 }
 
 #[test]
-fn c1_binding_invalid_binding_is_refused_before_any_comparison() {
+fn binding_invalid_binding_is_refused_before_any_comparison() {
     let mut program = binding();
     program.dose_grid = vec![1.0, 1.0];
     let claim = ExternalProgramClaim::declared_by(&program);
@@ -287,7 +287,7 @@ fn response_for(program: &ProgramBinding) -> ExternalResult {
 }
 
 #[test]
-fn c1_binding_binds_a_result_to_the_program_and_stays_external() {
+fn binding_binds_a_result_to_the_program_and_stays_external() {
     let program = binding();
     let claim = ExternalProgramClaim::declared_by(&program);
     let bound = bind_external_result_to_program(
@@ -303,7 +303,7 @@ fn c1_binding_binds_a_result_to_the_program_and_stays_external() {
 }
 
 #[test]
-fn c1_binding_refuses_a_contract_that_describes_another_request() {
+fn binding_refuses_a_contract_that_describes_another_request() {
     let program = binding();
     let claim = ExternalProgramClaim::declared_by(&program);
     let result = response_for(&program);

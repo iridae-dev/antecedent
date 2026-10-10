@@ -111,7 +111,7 @@ fn assert_close(law: &ChainRecoveredLaw, truth: &[[f64; 2]; 2]) {
 }
 
 #[test]
-fn b2_chain_formula_equals_the_enumerated_truth_for_every_chain_shape() {
+fn chain_formula_equals_the_enumerated_truth_for_every_chain_shape() {
     for head in 0..2 {
         for dependent in [true, false] {
             let (observed, truth) = scm(head, dependent);
@@ -128,7 +128,7 @@ fn b2_chain_formula_equals_the_enumerated_truth_for_every_chain_shape() {
 }
 
 #[test]
-fn b2_chain_recovery_is_not_complete_case_analysis() {
+fn chain_recovery_is_not_complete_case_analysis() {
     // In the dependent SCM the complete-case law is biased: the recovery is not
     // MAR or an unweighted complete-case fallback.
     let (observed, truth) = scm(0, true);
@@ -140,7 +140,7 @@ fn b2_chain_recovery_is_not_complete_case_analysis() {
 }
 
 #[test]
-fn b2_chain_answer_is_invariant_to_variable_order_and_labels() {
+fn chain_answer_is_invariant_to_variable_order_and_labels() {
     let (observed, truth) = scm(0, true);
     let reference = evaluate_chain_recovery(&plan(IDS, &IDS, 0, true), &observed).unwrap();
     let relabelled: [u32; 6] = [41, 17, 9, 30, 2, 25];
@@ -175,7 +175,7 @@ fn b2_chain_answer_is_invariant_to_variable_order_and_labels() {
 }
 
 #[test]
-fn b2_chain_zero_cell_is_a_positivity_refusal() {
+fn chain_zero_cell_is_a_positivity_refusal() {
     let (observed, _) = scm(0, true);
     let mut both = *observed.both();
     let moved = both[1][1];
@@ -195,7 +195,7 @@ fn b2_chain_zero_cell_is_a_positivity_refusal() {
 }
 
 #[test]
-fn b2_chain_head_response_without_mass_is_a_positivity_refusal() {
+fn chain_head_response_without_mass_is_a_positivity_refusal() {
     // Head R1 never observed: P(R1 = 1) = 0 and every complete-case cell is empty.
     let law = ChainPatternLaw::new([[0.0; 2]; 2], [0.0; 2], [0.5, 0.25], 0.25).unwrap();
     let error = evaluate_chain_recovery(&plan(IDS, &IDS, 0, true), &law).unwrap_err();
@@ -203,7 +203,7 @@ fn b2_chain_head_response_without_mass_is_a_positivity_refusal() {
 }
 
 #[test]
-fn b2_chain_invalid_observed_laws_are_refused() {
+fn chain_invalid_observed_laws_are_refused() {
     let negative = ChainPatternLaw::new([[0.5, 0.5], [0.5, -0.5]], [0.0; 2], [0.0; 2], 0.0);
     assert_eq!(negative.unwrap_err().detail, ChainRecoveryDetail::InvalidObservedLaw);
     let not_normalized = ChainPatternLaw::new([[0.1; 2]; 2], [0.1; 2], [0.1; 2], 0.1);
@@ -215,7 +215,7 @@ fn b2_chain_invalid_observed_laws_are_refused() {
 }
 
 #[test]
-fn b2_chain_malformed_plan_is_refused() {
+fn chain_malformed_plan_is_refused() {
     let (observed, _) = scm(0, true);
     let original = plan(IDS, &IDS, 0, true);
     assert!(original.is_intact());

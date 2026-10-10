@@ -66,7 +66,7 @@ fn invalidation_detail(result: Result<impl std::fmt::Debug, EstimationError>) ->
 }
 
 #[test]
-fn x5_period_replace_matches_clean_preparation_bit_for_bit() {
+fn period_replace_matches_clean_preparation_bit_for_bit() {
     let held = held(true);
     let (refreshed, receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     let clean = evaluate(&replacement()).unwrap();
@@ -89,7 +89,7 @@ fn x5_period_replace_matches_clean_preparation_bit_for_bit() {
 }
 
 #[test]
-fn x5_period_replace_without_prior_interval_records_none() {
+fn period_replace_without_prior_interval_records_none() {
     let (refreshed, receipt) = refresh_held(&held(false), replacement(), evaluate).unwrap();
     assert!(!receipt.interval_invalidated);
     assert!(!refreshed.interval_present);
@@ -97,7 +97,7 @@ fn x5_period_replace_without_prior_interval_records_none() {
 }
 
 #[test]
-fn x5_third_period_appended_slice_or_changed_horizon_invalidates() {
+fn third_period_appended_slice_or_changed_horizon_invalidates() {
     for horizon in [3, 1] {
         let mut new = replacement();
         new.horizon = horizon;
@@ -111,7 +111,7 @@ fn x5_third_period_appended_slice_or_changed_horizon_invalidates() {
 }
 
 #[test]
-fn x5_third_period_changed_lag_alignment_invalidates() {
+fn third_period_changed_lag_alignment_invalidates() {
     let mut new = replacement();
     new.lag_alignment = vec![("x".into(), 1), ("a".into(), 2), ("y".into(), 2)];
     assert_eq!(
@@ -123,7 +123,7 @@ fn x5_third_period_changed_lag_alignment_invalidates() {
 }
 
 #[test]
-fn x5_third_period_altered_intervention_history_invalidates() {
+fn third_period_altered_intervention_history_invalidates() {
     let mut new = replacement();
     new.intervention_history = vec!["a1=1".into(), "a2=1".into()];
     assert_eq!(
@@ -135,7 +135,7 @@ fn x5_third_period_altered_intervention_history_invalidates() {
 }
 
 #[test]
-fn x5_third_period_changed_selection_regimes_graph_or_proof_invalidates() {
+fn third_period_changed_selection_regimes_graph_or_proof_invalidates() {
     let edits: [fn(&mut TemporalWindowIdentity); 4] = [
         |i| i.selection_targets = set(&["s_t1"]),
         |i| i.regimes = set(&["observational"]),
@@ -155,7 +155,7 @@ fn x5_third_period_changed_selection_regimes_graph_or_proof_invalidates() {
 }
 
 #[test]
-fn x5_third_period_new_snapshot_with_identical_period_is_stale() {
+fn third_period_new_snapshot_with_identical_period_is_stale() {
     let mut new = replacement();
     new.period = identity().period;
     assert_eq!(
@@ -178,7 +178,7 @@ fn x5_third_period_new_snapshot_with_identical_period_is_stale() {
 }
 
 #[test]
-fn x5_third_period_invalid_replacement_is_refused_before_evaluation() {
+fn third_period_invalid_replacement_is_refused_before_evaluation() {
     let mut empty_period = replacement();
     empty_period.period = ObservationPeriod { start: 5, end: 5 };
     let mut no_units = replacement();
@@ -198,7 +198,7 @@ fn x5_third_period_invalid_replacement_is_refused_before_evaluation() {
 }
 
 #[test]
-fn x5_third_period_invalidated_refresh_never_runs_the_evaluator() {
+fn third_period_invalidated_refresh_never_runs_the_evaluator() {
     let mut new = replacement();
     new.horizon = 3;
     let mut called = false;
@@ -211,7 +211,7 @@ fn x5_third_period_invalidated_refresh_never_runs_the_evaluator() {
 }
 
 #[test]
-fn x5_period_reseal_identity_digest_changes_with_every_single_input() {
+fn period_reseal_identity_digest_changes_with_every_single_input() {
     let base = identity().digest();
     let edits: [fn(&mut TemporalWindowIdentity); 11] = [
         |i| i.graph_id = "g2".into(),
@@ -244,7 +244,7 @@ fn x5_period_reseal_identity_digest_changes_with_every_single_input() {
 }
 
 #[test]
-fn x5_period_reseal_receipt_digest_changes_with_period_snapshot_units_and_interval() {
+fn period_reseal_receipt_digest_changes_with_period_snapshot_units_and_interval() {
     let (_, base) = refresh_held(&held(true), replacement(), evaluate).unwrap();
     let mut variants = Vec::new();
     let mut other_period = replacement();
@@ -263,7 +263,7 @@ fn x5_period_reseal_receipt_digest_changes_with_period_snapshot_units_and_interv
 }
 
 #[test]
-fn x5_period_reseal_unsealed_edit_of_a_receipt_is_refused() {
+fn period_reseal_unsealed_edit_of_a_receipt_is_refused() {
     let held = held(true);
     let (refreshed, mut receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     receipt.new_period = ObservationPeriod { start: 11, end: 21 };
@@ -272,7 +272,7 @@ fn x5_period_reseal_unsealed_edit_of_a_receipt_is_refused() {
 }
 
 #[test]
-fn x5_period_reseal_resealed_receipt_for_another_period_or_snapshot_is_refused() {
+fn period_reseal_resealed_receipt_for_another_period_or_snapshot_is_refused() {
     let held = held(true);
     let (refreshed, receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     // Honest receipt is accepted.
@@ -299,7 +299,7 @@ fn x5_period_reseal_resealed_receipt_for_another_period_or_snapshot_is_refused()
 }
 
 #[test]
-fn x5_period_reseal_receipt_for_a_different_held_result_is_refused() {
+fn period_reseal_receipt_for_a_different_held_result_is_refused() {
     let held_a = held(true);
     let (refreshed, receipt) = refresh_held(&held_a, replacement(), evaluate).unwrap();
     // A different held result (other snapshot id and period) than the receipt's old identity.
@@ -312,7 +312,7 @@ fn x5_period_reseal_receipt_for_a_different_held_result_is_refused() {
 }
 
 #[test]
-fn x5_period_reseal_refreshed_result_keeping_an_interval_is_refused() {
+fn period_reseal_refreshed_result_keeping_an_interval_is_refused() {
     let held = held(true);
     let (mut refreshed, receipt) = refresh_held(&held, replacement(), evaluate).unwrap();
     refreshed.interval_present = true;

@@ -75,7 +75,7 @@ fn refusal(error: &MsmSensitivityError) -> (&'static str, &'static str) {
 }
 
 #[test]
-fn b3_msm_lambda_one_is_the_stratified_identified_value() {
+fn msm_lambda_one_is_the_stratified_identified_value() {
     let result = msm_ate_sensitivity(&two_strata(), &MsmSensitivitySpec::new(3.0)).unwrap();
     close(result.identified, 0.3, 1e-12);
     let first = result.grid[0];
@@ -89,14 +89,14 @@ fn b3_msm_lambda_one_is_the_stratified_identified_value() {
 }
 
 #[test]
-fn b3_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation() {
+fn msm_sharp_bounds_at_lambda_two_match_the_hand_derivation() {
     let point = msm_ate_bounds_at(&two_strata(), 2.0).unwrap();
     close(point.lower, 0.04375, 1e-12);
     close(point.upper, 0.4875, 1e-12);
 }
 
 #[test]
-fn b3_msm_three_atom_fractional_split_matches_the_hand_derivation() {
+fn msm_three_atom_fractional_split_matches_the_hand_derivation() {
     let law =
         || MsmOutcomeLaw { values: vec![2.0, 0.0, 1.0], probabilities: vec![0.25, 0.25, 0.5] };
     let strata = vec![MsmStratum { mass: 1.0, propensity: 0.5, treated: law(), control: law() }];
@@ -112,7 +112,7 @@ fn b3_msm_three_atom_fractional_split_matches_the_hand_derivation() {
 }
 
 #[test]
-fn b3_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form() {
+fn msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form() {
     let mut spec = MsmSensitivitySpec::new(4.0).with_threshold(0.0);
     spec.tolerance = 1e-12;
     let result = msm_ate_sensitivity(&two_strata(), &spec).unwrap();
@@ -131,7 +131,7 @@ fn b3_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form() {
 }
 
 #[test]
-fn b3_msm_upper_tipping_origin_and_unreached_statuses() {
+fn msm_upper_tipping_origin_and_unreached_statuses() {
     // Identified 0.3 below 0.5: the upper bound rises to it.
     let spec = MsmSensitivitySpec::new(4.0).with_threshold(0.5);
     let tipping = msm_ate_sensitivity(&two_strata(), &spec).unwrap().tipping.unwrap();
@@ -163,7 +163,7 @@ fn b3_msm_upper_tipping_origin_and_unreached_statuses() {
 }
 
 #[test]
-fn b3_msm_bounds_widen_with_lambda() {
+fn msm_bounds_widen_with_lambda() {
     let mut spec = MsmSensitivitySpec::new(8.0);
     spec.grid_points = 33;
     let result = msm_ate_sensitivity(&two_strata(), &spec).unwrap();
@@ -180,7 +180,7 @@ fn b3_msm_bounds_widen_with_lambda() {
 }
 
 #[test]
-fn b3_msm_refuses_lambda_below_one() {
+fn msm_refuses_lambda_below_one() {
     let error = msm_ate_bounds_at(&two_strata(), 0.5).unwrap_err();
     assert_eq!(refusal(&error), ("invalid_argument", "msm_sensitivity.lambda_below_one"));
     let error = msm_ate_sensitivity(&two_strata(), &MsmSensitivitySpec::new(0.9)).unwrap_err();
@@ -192,7 +192,7 @@ fn b3_msm_refuses_lambda_below_one() {
 }
 
 #[test]
-fn b3_msm_refuses_propensities_on_the_boundary() {
+fn msm_refuses_propensities_on_the_boundary() {
     for propensity in [0.0, 1.0, -0.1, 1.2, f64::NAN] {
         let strata = vec![stratum(0.5, 0.5, 0.8, 0.4), stratum(0.5, propensity, 0.5, 0.3)];
         let error = msm_ate_bounds_at(&strata, 2.0).unwrap_err();
@@ -201,7 +201,7 @@ fn b3_msm_refuses_propensities_on_the_boundary() {
 }
 
 #[test]
-fn b3_msm_refuses_malformed_inputs_and_sampling_composition() {
+fn msm_refuses_malformed_inputs_and_sampling_composition() {
     let mut strata = two_strata();
     strata[0].mass = 0.6;
     let error = msm_ate_bounds_at(&strata, 2.0).unwrap_err();
@@ -243,7 +243,7 @@ fn b3_msm_refuses_malformed_inputs_and_sampling_composition() {
 }
 
 #[test]
-fn b3_msm_is_invariant_to_stratum_order() {
+fn msm_is_invariant_to_stratum_order() {
     let forward = two_strata();
     let mut reversed = two_strata();
     reversed.reverse();
@@ -260,7 +260,7 @@ fn b3_msm_is_invariant_to_stratum_order() {
 }
 
 #[test]
-fn b3_msm_keeps_the_assumption_range_distinct_from_sampling() {
+fn msm_keeps_the_assumption_range_distinct_from_sampling() {
     let result = msm_ate_sensitivity(&two_strata(), &MsmSensitivitySpec::new(2.0)).unwrap();
     assert_eq!(result.inference_claim, "assumption_range");
     assert_eq!(result.uncertainty.sampling_interval, "sampling interval: not reported");

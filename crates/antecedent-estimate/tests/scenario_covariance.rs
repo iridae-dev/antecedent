@@ -219,7 +219,7 @@ fn enumerate_tuples() -> Oracle {
 // ---- positive: shared rows -------------------------------------------------------------
 
 #[test]
-fn x2_shared_rows_covariance_exact_matches_closed_form() {
+fn shared_rows_covariance_exact_matches_closed_form() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
     assert_eq!(out.method, CovarianceMethod::ExactEnumeration);
@@ -251,7 +251,7 @@ fn x2_shared_rows_covariance_exact_matches_closed_form() {
 }
 
 #[test]
-fn x2_shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters() {
+fn shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = shared_row_bootstrap_covariance(&family, &boot_options(20_260_101), &ctx()).unwrap();
     assert_eq!(out.method.label(), "shared_row_bootstrap");
@@ -290,7 +290,7 @@ fn x2_shared_rows_covariance_bootstrap_matches_oracle_and_shared_design_matters(
 }
 
 #[test]
-fn x2_shared_rows_covariance_adjustment_pair_with_joint_dropping_matches_tuple_enumeration() {
+fn shared_rows_covariance_adjustment_pair_with_joint_dropping_matches_tuple_enumeration() {
     let family = vec![fallible("adjusted", adjusted), fallible("crude", crude)];
     let oracle = enumerate_tuples();
     assert!(oracle.failed_fraction > 0.0, "empty strata must occur");
@@ -344,7 +344,7 @@ fn both_methods_refuse(family: &[ScenarioRowEstimator], code: &str, detail: &str
 }
 
 #[test]
-fn x2_independent_rows_mismatched_snapshot_refuses() {
+fn independent_rows_mismatched_snapshot_refuses() {
     let family = vec![
         linear("a", "snapshot:one", units("u"), score_a),
         linear("b", "snapshot:two", units("u"), score_b),
@@ -353,7 +353,7 @@ fn x2_independent_rows_mismatched_snapshot_refuses() {
 }
 
 #[test]
-fn x2_independent_rows_mismatched_or_reordered_units_refuse() {
+fn independent_rows_mismatched_or_reordered_units_refuse() {
     let mut reordered = units("u");
     reordered.swap(0, 1);
     let family =
@@ -367,7 +367,7 @@ fn x2_independent_rows_mismatched_or_reordered_units_refuse() {
 }
 
 #[test]
-fn x2_independent_rows_declared_independent_or_unknown_dependence_refuses() {
+fn independent_rows_declared_independent_or_unknown_dependence_refuses() {
     for dependence in [RowDependence::IndependentSample, RowDependence::Unknown] {
         let family = vec![
             linear("a", SNAPSHOT, units("u"), score_a),
@@ -378,7 +378,7 @@ fn x2_independent_rows_declared_independent_or_unknown_dependence_refuses() {
 }
 
 #[test]
-fn x2_independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
+fn independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
     let mut dup = units("u");
     dup[3] = dup[2].clone();
     let family =
@@ -387,7 +387,7 @@ fn x2_independent_rows_duplicate_unit_ids_refuse_without_a_cluster_map() {
 }
 
 #[test]
-fn x2_independent_rows_bounds_and_arguments_refuse() {
+fn independent_rows_bounds_and_arguments_refuse() {
     // Too many scenarios.
     let many: Vec<ScenarioRowEstimator> = (0..=MAX_SCENARIOS)
         .map(|i| linear(&format!("s{i}"), SNAPSHOT, units("u"), score_a))
@@ -433,7 +433,7 @@ fn x2_independent_rows_bounds_and_arguments_refuse() {
 }
 
 #[test]
-fn x2_independent_rows_failing_estimators_and_cancellation_refuse() {
+fn independent_rows_failing_estimators_and_cancellation_refuse() {
     let failing = vec![
         linear_by_name("a"),
         ScenarioRowEstimator::new("broken", SNAPSHOT, units("u"), |_| {
@@ -491,7 +491,7 @@ fn assert_permuted(first: &ScenarioCovariance, second: &ScenarioCovariance, name
 }
 
 #[test]
-fn x2_covariance_permutation_reorders_rows_and_columns_identically() {
+fn covariance_permutation_reorders_rows_and_columns_identically() {
     let names = ["a", "b", "c"];
     let first_order = family_in_order(&["a", "b", "c"]);
     let second_order = family_in_order(&["c", "a", "b"]);
@@ -515,7 +515,7 @@ fn x2_covariance_permutation_reorders_rows_and_columns_identically() {
 // ---- replay ----------------------------------------------------------------------------
 
 #[test]
-fn x2_covariance_replay_is_bit_identical_and_identity_sensitive() {
+fn covariance_replay_is_bit_identical_and_identity_sensitive() {
     let make = || family_in_order(&["a", "b"]);
     let first = shared_row_bootstrap_covariance(&make(), &boot_options(42), &ctx()).unwrap();
     let second = shared_row_bootstrap_covariance(&make(), &boot_options(42), &ctx()).unwrap();

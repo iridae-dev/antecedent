@@ -159,7 +159,7 @@ fn loose(seed: u64) -> SampledRecoveryConfig {
 }
 
 #[test]
-fn x10_sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps_covariance() {
+fn sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps_covariance() {
     let model = model();
     let derivation = derive(&model);
     let data = input(seeded_rows(4000, 17));
@@ -212,7 +212,7 @@ fn x10_sampled_recovery_truth_seeded_interval_is_centered_reproducible_and_keeps
 }
 
 #[test]
-fn x10_unrecoverable_pattern_zero_complete_case_cell_refuses_with_the_pattern() {
+fn unrecoverable_pattern_zero_complete_case_cell_refuses_with_the_pattern() {
     let model = model();
     let derivation = derive(&model);
     // No row of the complete-case pattern X0 = 1, X1 = 0, O = 0.
@@ -230,7 +230,7 @@ fn x10_unrecoverable_pattern_zero_complete_case_cell_refuses_with_the_pattern() 
 }
 
 #[test]
-fn x10_unrecoverable_pattern_zero_denominator_refuses_with_every_offending_pattern() {
+fn unrecoverable_pattern_zero_denominator_refuses_with_every_offending_pattern() {
     let model = model();
     let derivation = derive(&model);
     // No unit has R0 = 1 and X*0 = 1: the margin P(R0 = 1, X*0 = 1) that
@@ -255,7 +255,7 @@ fn x10_unrecoverable_pattern_zero_denominator_refuses_with_every_offending_patte
 }
 
 #[test]
-fn x10_unrecoverable_pattern_adjacent_and_nonrecoverable_mgraphs_refuse() {
+fn unrecoverable_pattern_adjacent_and_nonrecoverable_mgraphs_refuse() {
     // Self-censoring: X0 -> R0 with a verified nonrecoverability witness.
     let censoring = MModel::new(1, 1, &[(1, 0)], &[vec![0]], 3).unwrap();
     let error = derive_sampled_recovery(
@@ -289,7 +289,7 @@ fn x10_unrecoverable_pattern_adjacent_and_nonrecoverable_mgraphs_refuse() {
 }
 
 #[test]
-fn x10_unrecoverable_pattern_bounds_and_malformed_inputs_refuse() {
+fn unrecoverable_pattern_bounds_and_malformed_inputs_refuse() {
     let model = model();
     let derivation = derive(&model);
     let rows = seeded_rows(500, 2);
@@ -317,7 +317,7 @@ fn x10_unrecoverable_pattern_bounds_and_malformed_inputs_refuse() {
 }
 
 #[test]
-fn x10_sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapshot_and_seed() {
+fn sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapshot_and_seed() {
     let model = model();
     let derivation = derive(&model);
     let rows = seeded_rows(1500, 21);
@@ -374,7 +374,7 @@ fn x10_sampled_recovery_replay_digests_recompute_and_change_with_pattern_snapsho
 }
 
 #[test]
-fn x10_sampled_recovery_replay_component_variance_only_and_route_frozen_refuse() {
+fn sampled_recovery_replay_component_variance_only_and_route_frozen_refuse() {
     let error = refuse_component_variance_only(&[0.01, 0.02, 0.03]);
     assert_eq!(error.detail, SampledRecoveryDetail::ComponentVarianceOnly);
     assert_eq!(error.detail.detail(), "sampled_recovery.component_variance_only");

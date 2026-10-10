@@ -142,7 +142,7 @@ fn reseal(mut wire: RecoveryChainArtifactWire) -> Vec<u8> {
 }
 
 #[test]
-fn b2_artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shape() {
+fn artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shape() {
     for head in 0..2 {
         for dependent in [true, false] {
             let (wire, truth) = recovered_wire(head, dependent);
@@ -168,7 +168,7 @@ fn b2_artifact_recovered_round_trip_equals_enumerated_truth_for_every_chain_shap
 }
 
 #[test]
-fn b2_artifact_producer_refuses_a_mutated_checked_plan() {
+fn artifact_producer_refuses_a_mutated_checked_plan() {
     let graph = build(&edges(0, true, &[]));
     let ChainRecoveryDecision::Recovered(plan) =
         decide_chain_recovery(&graph, &query(), &ctx()).unwrap()
@@ -193,7 +193,7 @@ fn b2_artifact_producer_refuses_a_mutated_checked_plan() {
 }
 
 #[test]
-fn b2_artifact_nonrecoverable_carries_a_reverified_witness() {
+fn artifact_nonrecoverable_carries_a_reverified_witness() {
     let wire = nonrecoverable_wire();
     assert_eq!(wire.outcome, RECOVERY_CHAIN_NONRECOVERABLE);
     let consumed =
@@ -212,7 +212,7 @@ fn b2_artifact_nonrecoverable_carries_a_reverified_witness() {
 }
 
 #[test]
-fn b2_resealed_graph_changes_are_refused() {
+fn resealed_graph_changes_are_refused() {
     // Removing X1 -> R2 turns the dependent chain into an independent one: the stored plan
     // no longer equals the re-decided plan.
     let (mut dropped, _) = recovered_wire(0, true);
@@ -238,7 +238,7 @@ fn b2_resealed_graph_changes_are_refused() {
 }
 
 #[test]
-fn b2_resealed_query_change_is_refused() {
+fn resealed_query_change_is_refused() {
     // Declaring the axes in the opposite order re-decides a different head axis.
     let (mut swapped, _) = recovered_wire(0, true);
     swapped.query.first = (1, 3, 5);
@@ -250,7 +250,7 @@ fn b2_resealed_query_change_is_refused() {
 }
 
 #[test]
-fn b2_resealed_observed_and_recovered_cell_changes_are_refused() {
+fn resealed_observed_and_recovered_cell_changes_are_refused() {
     // A shifted observed cell (the cells still sum to one) no longer reproduces the stored law.
     let (mut observed, _) = recovered_wire(0, true);
     {
@@ -279,7 +279,7 @@ fn b2_resealed_observed_and_recovered_cell_changes_are_refused() {
 }
 
 #[test]
-fn b2_resealed_witness_changes_are_refused() {
+fn resealed_witness_changes_are_refused() {
     let mut model = nonrecoverable_wire();
     model.witness.as_mut().unwrap().second[3].numerators[0] += 1;
     assert_eq!(
@@ -301,7 +301,7 @@ fn b2_resealed_witness_changes_are_refused() {
 }
 
 #[test]
-fn b2_unresealed_changes_hit_the_digests() {
+fn unresealed_changes_hit_the_digests() {
     let (mut graph, _) = recovered_wire(0, true);
     graph.graph.directed.retain(|e| *e != (0, 3));
     assert_eq!(
@@ -317,7 +317,7 @@ fn b2_unresealed_changes_hit_the_digests() {
 }
 
 #[test]
-fn b2_artifact_without_mass_in_a_required_cell_is_a_positivity_refusal() {
+fn artifact_without_mass_in_a_required_cell_is_a_positivity_refusal() {
     let (mut wire, _) = recovered_wire(0, true);
     {
         let law = wire.observed.as_mut().unwrap();
@@ -332,7 +332,7 @@ fn b2_artifact_without_mass_in_a_required_cell_is_a_positivity_refusal() {
 }
 
 #[test]
-fn b2_artifact_invalid_observed_law_is_refused() {
+fn artifact_invalid_observed_law_is_refused() {
     let (mut wire, _) = recovered_wire(0, true);
     wire.observed.as_mut().unwrap().neither += 0.5;
     let error = RecoveryChainArtifactWire::consume_typed(&reseal(wire), &ctx()).unwrap_err();
@@ -340,7 +340,7 @@ fn b2_artifact_invalid_observed_law_is_refused() {
 }
 
 #[test]
-fn b2_artifact_version_features_outcome_and_names_are_checked() {
+fn artifact_version_features_outcome_and_names_are_checked() {
     let (mut future, _) = recovered_wire(0, true);
     future.version = RECOVERY_CHAIN_ARTIFACT_VERSION + 1;
     let bytes = future.export().unwrap();
@@ -385,7 +385,7 @@ fn b2_artifact_version_features_outcome_and_names_are_checked() {
 }
 
 #[test]
-fn b2_artifact_graph_wire_round_trips_and_refuses_a_bidirected_graph() {
+fn artifact_graph_wire_round_trips_and_refuses_a_bidirected_graph() {
     let graph = build(&edges(0, true, &[]));
     let wire = ChainGraphWire::from_graph(&graph).unwrap();
     assert_eq!(wire.nodes, vec![0, 1, 2, 3, 4, 5]);
@@ -397,7 +397,7 @@ fn b2_artifact_graph_wire_round_trips_and_refuses_a_bidirected_graph() {
 }
 
 #[test]
-fn b2_artifact_refusals_map_to_io_errors_with_their_reason_codes() {
+fn artifact_refusals_map_to_io_errors_with_their_reason_codes() {
     let (mut wire, _) = recovered_wire(0, true);
     wire.graph.directed.push((2, 5));
     wire.graph.directed.sort_unstable();

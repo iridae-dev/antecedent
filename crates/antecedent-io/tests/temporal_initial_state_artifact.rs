@@ -123,7 +123,7 @@ fn refused(error: IoError) -> (&'static str, String) {
 }
 
 #[test]
-fn x5_initial_state_artifact_replays_the_integrated_value_and_the_fixed_mode() {
+fn initial_state_artifact_replays_the_integrated_value_and_the_fixed_mode() {
     let bytes = artifact().export().unwrap();
     let (wire, replay) = TemporalInitialStateArtifactWire::consume(&bytes, &limits()).unwrap();
     assert!((replay.value - 0.421).abs() < 1e-12, "{}", replay.value);
@@ -148,7 +148,7 @@ fn x5_initial_state_artifact_replays_the_integrated_value_and_the_fixed_mode() {
 }
 
 #[test]
-fn x5_initial_state_artifact_matches_the_core_evaluation_bit_for_bit() {
+fn initial_state_artifact_matches_the_core_evaluation_bit_for_bit() {
     let p = panel("state-panel");
     let query =
         MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(target_law("target-state", 0.7)))
@@ -165,7 +165,7 @@ fn x5_initial_state_artifact_matches_the_core_evaluation_bit_for_bit() {
 }
 
 #[test]
-fn x5_initial_state_artifact_refuses_unsealed_edits() {
+fn initial_state_artifact_refuses_unsealed_edits() {
     let mut wire = artifact();
     wire.marginalized.value += 0.001;
     let message = convert_detail(
@@ -175,7 +175,7 @@ fn x5_initial_state_artifact_refuses_unsealed_edits() {
 }
 
 #[test]
-fn x5_initial_state_artifact_refuses_a_resealed_changed_value_or_swapped_labels() {
+fn initial_state_artifact_refuses_a_resealed_changed_value_or_swapped_labels() {
     let mut value = artifact();
     value.marginalized.value = 0.46;
     let message = convert_detail(
@@ -208,7 +208,7 @@ fn x5_initial_state_artifact_refuses_a_resealed_changed_value_or_swapped_labels(
 }
 
 #[test]
-fn x5_initial_state_artifact_refuses_a_resealed_changed_law_snapshot_or_population() {
+fn initial_state_artifact_refuses_a_resealed_changed_law_snapshot_or_population() {
     // Changed masses under a recomputed law digest: the stored result no longer matches.
     let mut moved = artifact();
     moved.law = InitialStateLawWire::from_law(&target_law("target-state", 0.5));
@@ -252,7 +252,7 @@ fn x5_initial_state_artifact_refuses_a_resealed_changed_law_snapshot_or_populati
 }
 
 #[test]
-fn x5_initial_state_artifact_refuses_a_resealed_changed_panel_summary() {
+fn initial_state_artifact_refuses_a_resealed_changed_panel_summary() {
     let mut tallies = artifact();
     tallies.panel.rows[0].y_sum += 5.0;
     let message = convert_detail(
@@ -285,7 +285,7 @@ fn x5_initial_state_artifact_refuses_a_resealed_changed_panel_summary() {
 }
 
 #[test]
-fn x5_initial_state_artifact_is_not_the_specified_initial_state_artifact() {
+fn initial_state_artifact_is_not_the_specified_initial_state_artifact() {
     assert_ne!(TEMPORAL_INITIAL_STATE_ARTIFACT_FEATURE, TEMPORAL_TRANSPORT_ARTIFACT_FEATURE);
     let bytes = artifact().export().unwrap();
     // The 2.2 sequence artifact decoder refuses these bytes outright.
@@ -309,7 +309,7 @@ fn x5_initial_state_artifact_is_not_the_specified_initial_state_artifact() {
 }
 
 #[test]
-fn x5_initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
+fn initial_state_artifact_is_not_built_for_a_source_law_or_a_support_gap() {
     let source = InitialStateLaw::new(
         InitialStatePopulation::Source,
         "source-state",

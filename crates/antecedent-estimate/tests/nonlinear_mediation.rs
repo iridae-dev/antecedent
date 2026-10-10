@@ -168,7 +168,7 @@ fn refusal_message(r: Result<NonlinearMediationEstimate, EstimationError>) -> St
 }
 
 #[test]
-fn b4_mediation_closed_form_algebra_is_self_consistent() {
+fn mediation_closed_form_algebra_is_self_consistent() {
     // The two ways of writing the truth (decomposed and telescoped) agree.
     let s = base_scm();
     let (nde, nie, te) = truth(&s);
@@ -178,7 +178,7 @@ fn b4_mediation_closed_form_algebra_is_self_consistent() {
 }
 
 #[test]
-fn b4_mediation_exact_scm_recovers_closed_form_effects() {
+fn mediation_exact_scm_recovers_closed_form_effects() {
     let s = base_scm();
     let g = grid(&s);
     let est = run(&g, &NonlinearMediationPremises::sequentially_ignorable(), &config(8))
@@ -197,7 +197,7 @@ fn b4_mediation_exact_scm_recovers_closed_form_effects() {
 }
 
 #[test]
-fn b4_mediation_quadrature_error_check_reports_and_refuses() {
+fn mediation_quadrature_error_check_reports_and_refuses() {
     // Cubic outcome: E[M^3 | a'] = mu^3 + 3*mu*sigma2 depends on mu, so the sigma2 integration
     // term does not cancel from the contrasts and the node count matters.
     let s = Scm { c3: 0.2, ..base_scm() };
@@ -224,7 +224,7 @@ fn b4_mediation_quadrature_error_check_reports_and_refuses() {
 }
 
 #[test]
-fn b4_mediation_confounding_and_cross_world_premises_are_refused() {
+fn mediation_confounding_and_cross_world_premises_are_refused() {
     let g = grid(&base_scm());
     let cfg = config(8);
     let mut flags = [
@@ -270,7 +270,7 @@ fn b4_mediation_confounding_and_cross_world_premises_are_refused() {
 }
 
 #[test]
-fn b4_mediation_total_equals_direct_plus_indirect() {
+fn mediation_total_equals_direct_plus_indirect() {
     let s = Scm { c2: -0.35, delta: -0.5, alpha: 0.4, b1: -0.2, ..base_scm() };
     let g = grid(&s);
     let est = run(&g, &NonlinearMediationPremises::sequentially_ignorable(), &config(10))
@@ -284,7 +284,7 @@ fn b4_mediation_total_equals_direct_plus_indirect() {
 }
 
 #[test]
-fn b4_mediation_weak_overlap_is_refused() {
+fn mediation_weak_overlap_is_refused() {
     // alpha = 6: the control mediator law sits far outside the treated arm's mediator range.
     let s = Scm { alpha: 6.0, ..base_scm() };
     let g = grid(&s);
@@ -321,7 +321,7 @@ fn b4_mediation_weak_overlap_is_refused() {
 }
 
 #[test]
-fn b4_mediation_linear_g_matches_product_of_coefficients_cross_check() {
+fn mediation_linear_g_matches_product_of_coefficients_cross_check() {
     // Regression / cross-check, NOT independent truth: with g linear and no interaction the
     // natural indirect effect is the linear product of coefficients (alpha_hat * c1_hat) and the
     // natural direct effect is the treatment coefficient. The coefficients are read from the
@@ -349,7 +349,7 @@ fn b4_mediation_linear_g_matches_product_of_coefficients_cross_check() {
 }
 
 #[test]
-fn b4_mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
+fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     let g = grid(&base_scm());
     let ignorable = NonlinearMediationPremises::sequentially_ignorable();
     let cfg = NonlinearMediationConfig { bootstrap_replicates: 30, seed: 7, ..config(8) };

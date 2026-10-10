@@ -464,7 +464,7 @@ fn node_mut<'a>(body: &'a mut Value, id: &str) -> &'a mut Value {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn c3_bundle_round_trip_verifies_every_node_and_reports_the_hand_computed_decision() {
+fn bundle_round_trip_verifies_every_node_and_reports_the_hand_computed_decision() {
     let f = Fixture::new();
     let bundle = f.bundle();
     let bytes = bundle.to_bytes("bundle-1", &BundleLimits::default()).unwrap();
@@ -483,7 +483,7 @@ fn c3_bundle_round_trip_verifies_every_node_and_reports_the_hand_computed_decisi
 }
 
 #[test]
-fn c3_bundle_identity_is_invariant_to_node_and_edge_declaration_order() {
+fn bundle_identity_is_invariant_to_node_and_edge_declaration_order() {
     let f = Fixture::new();
     let a = f.bundle();
     let mut nodes = f.nodes();
@@ -499,7 +499,7 @@ fn c3_bundle_identity_is_invariant_to_node_and_edge_declaration_order() {
 }
 
 #[test]
-fn c3_bundle_changed_upstream_identity_cascades_into_every_dependent_digest() {
+fn bundle_changed_upstream_identity_cascades_into_every_dependent_digest() {
     let f = Fixture::new();
     let base = f.bundle();
     let mut changed = Fixture::new();
@@ -523,7 +523,7 @@ fn c3_bundle_changed_upstream_identity_cascades_into_every_dependent_digest() {
 }
 
 #[test]
-fn c3_bundle_resealed_container_edits_are_refused_at_their_stage() {
+fn bundle_resealed_container_edits_are_refused_at_their_stage() {
     let f = Fixture::new();
     let bundle = f.bundle();
     let honest = bundle.to_bytes("bundle", &BundleLimits::default()).unwrap();
@@ -580,7 +580,7 @@ fn c3_bundle_resealed_container_edits_are_refused_at_their_stage() {
 }
 
 #[test]
-fn c3_bundle_tampered_quantity_fails_the_dependent_node() {
+fn bundle_tampered_quantity_fails_the_dependent_node() {
     let mut f = Fixture::new();
     f.quantity = b"some other coordinates".to_vec();
     let bundle = f.bundle();
@@ -593,7 +593,7 @@ fn c3_bundle_tampered_quantity_fails_the_dependent_node() {
 }
 
 #[test]
-fn c3_bundle_swapped_evidence_fails_the_evidence_node() {
+fn bundle_swapped_evidence_fails_the_evidence_node() {
     let mut f = Fixture::new();
     f.evidence_identity = text_digest(b"shared_prior");
     let bundle = f.bundle();
@@ -608,7 +608,7 @@ fn c3_bundle_swapped_evidence_fails_the_evidence_node() {
 }
 
 #[test]
-fn c3_bundle_graph_or_snapshot_mismatch_fails_the_bound_node() {
+fn bundle_graph_or_snapshot_mismatch_fails_the_bound_node() {
     let mut f = Fixture::new();
     f.snapshot_fact = "elsewhere|other-contract".into();
     let bundle = f.bundle();
@@ -626,7 +626,7 @@ fn c3_bundle_graph_or_snapshot_mismatch_fails_the_bound_node() {
 }
 
 #[test]
-fn c3_bundle_reference_node_is_unresolved_without_a_source_and_verified_with_one() {
+fn bundle_reference_node_is_unresolved_without_a_source_and_verified_with_one() {
     let f = Fixture::new();
     let bundle = f.bundle();
     let bytes = bundle.to_bytes("bundle", &BundleLimits::default()).unwrap();
@@ -696,7 +696,7 @@ fn mean_consume(
 }
 
 #[test]
-fn c3_bundle_external_mean_decision_is_point_only_attested_and_preserved() {
+fn bundle_external_mean_decision_is_point_only_attested_and_preserved() {
     let bundle = external_mean_bundle(false);
     let none = mean_consume(&bundle, &SuppliedSources::default()).unwrap();
     assert!(matches!(status_of(&none, "claim"), NodeStatus::ReferenceUnresolved { .. }));
@@ -717,7 +717,7 @@ fn c3_bundle_external_mean_decision_is_point_only_attested_and_preserved() {
 }
 
 #[test]
-fn c3_bundle_changed_provider_request_is_refused() {
+fn bundle_changed_provider_request_is_refused() {
     let bundle = external_mean_bundle(false);
     let supplied = SuppliedSources::default()
         .with_provider("lab", "snap-9", "fp-CHANGED")
@@ -730,7 +730,7 @@ fn c3_bundle_changed_provider_request_is_refused() {
 }
 
 #[test]
-fn c3_bundle_joint_decision_over_a_mean_only_claim_retains_the_aligned_law_requirement() {
+fn bundle_joint_decision_over_a_mean_only_claim_retains_the_aligned_law_requirement() {
     let bundle = external_mean_bundle(true);
     let consumed = mean_consume(&bundle, &SuppliedSources::default()).unwrap();
     assert_eq!(failed_stage(&consumed, "decision"), BundleStage::UnsupportedLaw);
@@ -738,7 +738,7 @@ fn c3_bundle_joint_decision_over_a_mean_only_claim_retains_the_aligned_law_requi
 }
 
 #[test]
-fn c3_bundle_embedded_node_without_a_registered_verifier_never_verifies() {
+fn bundle_embedded_node_without_a_registered_verifier_never_verifies() {
     let nodes = vec![BundleNode::embedded("sens", NodeKind::Sensitivity, "s-1", b"bytes".to_vec())];
     let bundle = CompositionBundle::new(nodes, &[], &BundleLimits::default()).unwrap();
     let bytes = bundle.to_bytes("sens", &BundleLimits::default()).unwrap();
@@ -749,7 +749,7 @@ fn c3_bundle_embedded_node_without_a_registered_verifier_never_verifies() {
 }
 
 #[test]
-fn c3_bundle_oversize_and_graph_bounds_are_refused() {
+fn bundle_oversize_and_graph_bounds_are_refused() {
     let f = Fixture::new();
     let bundle = f.bundle();
     let bytes = bundle.to_bytes("bundle", &BundleLimits::default()).unwrap();
@@ -787,7 +787,7 @@ fn c3_bundle_oversize_and_graph_bounds_are_refused() {
 }
 
 #[test]
-fn c3_bundle_stages_map_to_registered_codes_and_namespaced_details() {
+fn bundle_stages_map_to_registered_codes_and_namespaced_details() {
     for stage in BundleStage::ALL {
         assert_eq!(stage.detail(), format!("composition_bundle.{}", stage.as_str()));
         assert!(antecedent_core::reason_code::is_registered(stage.code()), "{stage:?}");

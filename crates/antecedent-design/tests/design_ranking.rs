@@ -325,7 +325,7 @@ fn overlapping_source_data_and_incompatible_cost_units_refuse_before_ranking() {
 }
 
 #[test]
-fn x6_noisy_candidate_regret_differs_from_its_structural_unlock_rank() {
+fn noisy_candidate_regret_differs_from_its_structural_unlock_rank() {
     // Structurally "noisy" is verified sufficient and cheapest, so the 2.2 order puts it first.
     let structural = vec![
         StructuralCandidate {
@@ -366,7 +366,7 @@ fn x6_noisy_candidate_regret_differs_from_its_structural_unlock_rank() {
 }
 
 #[test]
-fn x6_structural_order_is_sufficiency_then_cost_then_budget_then_id() {
+fn structural_order_is_sufficiency_then_cost_then_budget_then_id() {
     let candidate = |id: &str, sufficient: bool, units: u64, budget: u64| StructuralCandidate {
         semantic_id: id.into(),
         verified_sufficient: sufficient,
@@ -396,7 +396,7 @@ fn x6_structural_order_is_sufficiency_then_cost_then_budget_then_id() {
 }
 
 #[test]
-fn x6_truncated_search_is_recorded_and_changes_the_identity() {
+fn truncated_search_is_recorded_and_changes_the_identity() {
     let full = evaluate(&request(frozen_candidates(), None)).unwrap();
     let mut bounded = request(frozen_candidates(), None);
     bounded.max_candidates = 1;
