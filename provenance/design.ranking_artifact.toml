@@ -13,7 +13,7 @@ copied_tests = false
 # EVSI/EVPI/net numbers with integration method and error, the cost mapping, the
 # source-overlap diagnostic, source digests, RNG seed and rank/tie receipts, sealed by a
 # digest over the canonical body with candidates in semantic-id order. A structural
-# fallback keeps the 2.2 order (verified sufficiency, then cost units, then sample
+# fallback keeps the existing order (verified sufficiency, then cost units, then sample
 # budget, then semantic id) when no probabilistic model is licensed.
 #
 # No primary paper is cited on purpose. This is a serialization, identity and replay

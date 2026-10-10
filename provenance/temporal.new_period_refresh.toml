@@ -9,7 +9,7 @@ copied_tests = false
 # lag alignment, intervention history, selection targets, regimes, proof, period, units,
 # snapshot) with a typed invalidation, a sealed receipt and a re-evaluation hook. It is
 # engineering, not a statistical method: no paper introduces it and no identification
-# theorem is claimed (the 2.2A.X5 record carries the sequence functional), so papers = []
+# theorem is claimed (the two-step temporal transport record carries the sequence functional), so papers = []
 # is an explicit judgment, not an unfilled field.
 papers = []
 

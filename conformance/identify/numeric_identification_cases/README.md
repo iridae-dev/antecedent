@@ -1,11 +1,11 @@
-# Identify: R13 tests-quality-5 numeric gaps
+# Identify: numeric identification cases
 
 Hand-derived binary SCMs consumed by
-`crates/antecedent-identify/tests/r13_quality5.rs`.
+`crates/antecedent-identify/tests/numeric_identification_cases.rs`.
 
-These three cases are the defects named by R13 `tests-quality-5`: a numeric
-identification query whose treatment has an observed parent (and whose
-functional differs from the parent-free graph), a napkin with a pinned
+These three cases pin numeric identification results: a query whose treatment
+has an observed parent (and whose functional differs from the parent-free
+graph), a napkin with a pinned
 interventional mean, and a MAG whose treatment→outcome edge is visible only
 through a discriminating collider path — each checked against truncated
 factorization, not against `identify() == Ok`.

@@ -11,7 +11,7 @@ covariance, and `ExecutionContext` (thread budget, RNG, memory, kernel
 policy). Nuisance fits are hard-coded GLM/OLS/GAM. Cross-fitted AIPW copies
 training rows. There is no pluggable prediction contract.
 
-The 2.0 user problem is large tabular adjustment sets with nonlinear
+The existing user problem is large tabular adjustment sets with nonlinear
 covariate relationships — EconML-like flexibility — without making
 Antecedent a Rust scikit-learn or a GPU tensor framework.
 
@@ -84,6 +84,6 @@ tree learners are adapters.
 - `antecedent-estimate` depends on `antecedent-learn` only when DML/DR
   bind (milestone G). A–C do not rewire AIPW.
 - Public APIs never expose foreign matrix types.
-- Transport T6/X4 consume this substrate; they do not invent a second
+- Learned transport routes consume this substrate; they do not invent a second
   provider stack.
 - Comparison docs and CHANGELOG product claims wait until G.

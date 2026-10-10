@@ -212,7 +212,7 @@ baselines, security review (`release.toml`, ADR 0017). Package version is
 whatever `[workspace.package].version` in `Cargo.toml` says — do not restate it
 here; a hardcoded copy in this file sat five minor releases behind for months.
 
-2.2 promotion: `promotion_2_2.toml` freezes each 2.2 cell (theorem, graph class,
+Promotion: `promotion.toml` freezes each cell (theorem, graph class,
 population semantics, evidence family, provider, estimand, inference claim,
 bounds, refusal codes, identity inputs, wire changes, fixture ids, coverage-record
 ids) before implementation. Its routes stay closed until the record is
@@ -223,14 +223,14 @@ once those same fixture roles cite executed evidence. `gate_promotion.sh`
 enforces this (`check_promotion_records.py` resolves every cited test, then
 `run_evidence_rows.py` executes each one and requires it to pass: exactly one
 Rust test, at least one collected Python test, none failing), and no
-2.2 interval may cite `estimator_grid_not_measured`. Every new bounded search
+interval may cite `estimator_grid_not_measured`. Every new bounded search
 runs under `antecedent_core::SearchBudget` (operation and depth limits, plus the
 context's cancellation and hard memory limit on every charge), charged inside a
 loop or recursion that live code reaches, and a promoted search's budget fixture
 must exercise it.
 
-2.3 promotion starts in `promotion_2_3.toml` under the same contract. The
-promotion and release gates validate both versioned registries, and each CI
-evidence shard checks both before running its cited tests. A frozen 2.3 route
+A cell is frozen in `promotion.toml` before implementation, under the same
+contract. The promotion and release gates validate the registry and each CI
+evidence shard checks it before running its cited tests. A frozen route
 is visible in its owning stage registry but remains closed; its planned fixture
 IDs do not count as executed evidence.

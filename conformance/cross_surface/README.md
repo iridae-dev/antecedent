@@ -46,7 +46,7 @@ and `safe` (policy, `max(x0, 0)`), expected utility, hard constraint `q-cap`
 - `py_decision.identities.json`: Python's contract identity and source digest
   (cross-check only).
 
-## Composition bundle (C3)
+## Composition bundle
 
 One bundle with two hand-derived decisions, nodes `contract`, `law`, `result`,
 `claim`, `mean_contract`, `mean_result` and edges `law -> result`,

@@ -13,7 +13,7 @@ sound rule applied. That refusal also absorbed "the required source experiment
 is missing," so a caller could not tell a catalog gap from a verified
 impossibility witness or from an unimplemented multi-node branch.
 
-2.0 transport (T0–T10) is structural population transport, not statistical
+transport (T0–T10) is structural population transport, not statistical
 prior/evidence transport (`antecedent.priors`). It must not grow a second
 workflow engine or a new `analyze` matrix shape. The licensed trial-IPW cell
 stays. New work lives in `antecedent.transport` and in core catalog / outcome

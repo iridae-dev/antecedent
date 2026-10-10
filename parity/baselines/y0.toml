@@ -1,4 +1,4 @@
-# Immutable released-package oracle pin for the 2.2B X8 counterfactual-identification parity case.
+# Immutable released-package oracle pin for the counterfactual-identification parity case.
 project = "y0"
 version = "0.2.11"
 source = "https://pypi.org/project/y0/0.2.11/"

@@ -1,5 +1,4 @@
-# Cross-document public claims are intentionally re-baselined for the 2.0
-# preparation line. Capability and refusal assertions continue to be checked
+# Cross-document public claims. Capability and refusal assertions continue to be checked
 # against the support matrix by scripts/gate_docs_support_matrix.sh.
 
 [[claim]]
@@ -50,7 +49,7 @@ files = ["README.md", "docs/python-workflow.md", "docs/capabilities.md"]
 
 # Historical CHANGELOG sections are frozen history; only the current version's
 # section is scanned (`changelog_section = "current"`). README may name the
-# deferred calibration program; that is a current 2.0 fact, not a later-version promise.
+# deferred calibration program; that is a current fact, not a later-version promise.
 [[forbidden]]
 id = "deferral_prose"
 pattern = '(?i)not yet|cannot yet|follow[- ]on|follow[- ]up work|later release|future release|subsequent release|next release|(?:lands?|ships?|arrives?|comes?) later|in a later|separately gated|workstream|deferred|1\.11\.1|(?<![<>=,~])1\.12(?![0-9])'

@@ -21,7 +21,7 @@ implementation_deviations = [
  "The typed Python GraphEntropy declaration forwards the original native graph-channel model and retains heuristic_graph_channel_entropy / monte_carlo labels; it grants no likelihood-based EIG or calibrated error/rank guarantee.",
 
  "Uses a synthetic categorical graph-label channel whose candidate reliability is a hand-coded saturating heuristic rather than the experiment-specific likelihood p(y | G, design) required by Lindley expected information gain.",
- "The channel is p(y | G) = r * 1[y = feature(G)] + (1 - r) / k: reliability r = 0 is the uninformative point and a lower r is a garbling of a higher one, so the score is zero for a no-op design and non-decreasing in the design amount. (Before 2.2 the off-category mass was (1 - r) / (k - 1), uninformative at r = 1/k, so small designs could outrank larger ones.)",
+ "The channel is p(y | G) = r * 1[y = feature(G)] + (1 - r) / k: reliability r = 0 is the uninformative point and a lower r is a garbling of a higher one, so the score is zero for a no-op design and non-decreasing in the design amount. (Before the off-category mass was (1 - r) / (k - 1), uninformative at r = 1/k, so small designs could outrank larger ones.)",
 ]
 
 upstream_implementations_observed = [

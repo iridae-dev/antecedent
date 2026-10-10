@@ -343,7 +343,7 @@ id = "transport_coef_index_out_of_range"
 applies_to = ["runtime_refusal"]
 meaning = "A coefficient index passed to a transport reweighting is outside the prior's dimension."
 
-# 2.2 (parity/promotion_2_2.toml). Registered before any route returns them.
+# Reason codes of the promotion records (parity/promotion.toml). Registered before any route returns them.
 [[code]]
 id = "sampling_dependence_unknown"
 applies_to = ["runtime_refusal"]
@@ -354,7 +354,7 @@ id = "scenario_aggregate_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "An inferential statement across structural scenarios that share data was requested; only per-scenario results and structural envelopes are licensed."
 
-# 2.2 E1 preflight (parity/promotion_2_2.toml carries no record: diagnostics add no inferential claim).
+# Preflight (parity/promotion.toml carries no record: diagnostics add no inferential claim).
 [[code]]
 id = "design_rank_deficient"
 applies_to = ["runtime_refusal"]
@@ -370,7 +370,7 @@ id = "arm_not_populated"
 applies_to = ["runtime_refusal"]
 meaning = "A treatment arm or joint cell has no complete-case rows, so no contrast against it is estimable; the refusal names the arm and its counts."
 
-# 2.2 E2 penalized AIPW (promotion record: aipw.penalized_propensity in parity/promotion_2_2.toml).
+# Penalized AIPW (promotion record: aipw.penalized_propensity in parity/promotion.toml).
 [[code]]
 id = "penalized_interval_not_licensed"
 applies_to = ["runtime_refusal"]
@@ -386,7 +386,7 @@ id = "nuisance_fallback_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "A declared fallback from a failed GLM nuisance fit to a flexible learner has no support or uncertainty license on this route; the failed fit is reported and no fallback result is produced."
 
-# 2.2 E5 factorized joint cells and derived treatments (promotion record: estimate.factorized_joint_cells).
+# Factorized joint cells and derived treatments (promotion record: estimate.factorized_joint_cells).
 [[code]]
 id = "joint_cell_unsupported"
 applies_to = ["runtime_refusal"]
@@ -402,7 +402,7 @@ id = "ml_nuisance_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "A machine-learning nuisance was declared for joint cells in a way no record licenses: an interval or joint covariance over learner-supplied nuisances (which need their own remainder and coverage license), or a machine-learning name that is not a declared joint-cell learner; refused rather than silently replaced by the ridge-logistic factors."
 
-# 2.2 E4 clustered DML (promotion record: estimate.clustered_dml_aipw).
+# Clustered DML (promotion record: estimate.clustered_dml_aipw).
 [[code]]
 id = "cluster_interval_not_licensed"
 applies_to = ["runtime_refusal"]
@@ -418,7 +418,7 @@ id = "dyadic_dependence_not_licensed"
 applies_to = ["runtime_refusal"]
 meaning = "Rows share endpoints (dyads) in a structure the two-way cluster-DML construction does not cover: an entity used as both a first and a second endpoint, or one connected component of the endpoint graph holding more than a fold's share of the rows, so whole-component folds and the two-way variance are not licensed."
 
-# 2.2 E7 tier diagnostics (promotion record: tier_diagnostics in parity/promotion_2_2.toml).
+# Tier diagnostics (promotion record: tier_diagnostics in parity/promotion.toml).
 [[code]]
 id = "diagnostic_not_available"
 applies_to = ["runtime_refusal"]

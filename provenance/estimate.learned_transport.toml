@@ -10,7 +10,7 @@ papers = [
 implementation_deviations = [
  "Binary randomized source trial with supplied treatment probabilities and independent IID target sampling; source-arm outcome models and observed-sample membership models are cross-fitted.",
  "Nested cohort estimates the nonparticipant contrast; independent samples estimate the separately sampled target contrast. Bootstrap sampling units differ explicitly.",
- "Joint outer bootstrap uses original fold identities for duplicate sampled rows; failed replicates withhold the interval. Intervals are nominal and uncalibrated pending T10.",
+ "Joint outer bootstrap uses original fold identities for duplicate sampled rows; failed replicates withhold the interval. Intervals are nominal and uncalibrated pending calibration.",
  "Recursive finite categorical transport is a separate model-based plug-in route built from a chain of binary hazards. It has no double-robustness or calibration claim.",
  "Finite model probabilities do not establish positivity. Empirical counts continue to reject unsupported conditioning strata.",
 ]

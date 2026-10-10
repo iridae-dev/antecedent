@@ -17,7 +17,7 @@ copied_tests = false
 # nothing is cited here rather than implying theorem inheritance. The joint
 # source-target construction (invariant effect block, population-varying blocks that
 # never interact with treatment, posterior of the target-covariate-averaged effect) is
-# original engineering on the 2.2 transport certificate.
+# original engineering on the existing transport certificate.
 papers = []
 
 implementation_deviations = [
@@ -25,7 +25,7 @@ implementation_deviations = [
   "The posterior is exact and Gaussian with iid draws; it is NOT a non-conjugate sampler. There is no MCMC, so the effective sample size equals the draw count and no R-hat exists. Unknown noise variance, non-Gaussian likelihoods and MCMC are not provided by this row.",
   "The noise variance of every source is declared and treated as known, so a credible interval from this engine would not account for estimating sigma^2.",
   "The outcome mechanism is a polynomial basis of declared degree 1 to 6 in the certified covariates, with treatment-covariate interactions and an optional population-varying block that never interacts with treatment; a varying treatment effect is structurally impossible to declare. At degree one the model equals the joint Bayesian engine, which the tests use only as a labelled regression cross-check between two Antecedent paths, not as an external oracle.",
-  "Overlap is a conservative axis-aligned covariate box check of the target against each source, not a density-ratio bound. Sources must be independent samples with disjoint units. Prior mass never changes structural identification, which is the supplied 2.2 certificate.",
+  "Overlap is a conservative axis-aligned covariate box check of the target against each source, not a density-ratio bound. Sources must be independent samples with disjoint units. Prior mass never changes structural identification, which is the supplied certificate.",
   "Historical source candidate artifacts retain unmeasured standing. Whole-method calibration completed at5c76724f for the frozen scoped construction; the separate normal measured envelope requires current scalar records and exact original source replay. Current main-source replay, reviewed nonnumerical equivalence and attestation pass; exact scoped normal-wheel producer and fresh consumer acceptance pass.",
   "Normal measured envelope is distinct from the original unmeasured source candidate. Original method execution is independently replayed, every named scalar uses its actual native basis and current attesting record, and exact method/prior/design guards refuse adjacent protocols. Whole-method candidate measurements completed at5c76724f; current main-source replay and attestation pass, and scoped installed normal-wheel producer/independent consumer acceptance passes. No general-model or simultaneous interval guarantee is inherited.",
 ]

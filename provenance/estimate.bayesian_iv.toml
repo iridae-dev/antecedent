@@ -37,6 +37,6 @@ test_sources = [
  "crates/antecedent-estimate/src/bayesian_iv.rs (in-module tests: joint_fixed_loading_intervals_calibrate_under_the_declared_law, strong_instrument_recovers_structural_effect_and_prior_sensitivity_is_visible, weak_instrument_is_refused)",
  "crates/antecedent/tests/bayesian_iv_rd_staged.rs (bayesian_iv_joint_fixed_loading_executes_staged_with_known_truth, iv_joint_fixed_loading_public_intervals_calibrate_under_declared_law)",
  "crates/antecedent/src/analysis/execute/bayesian_specialist_path.rs (model-scope refusals)",
- "conformance/estimate/bayesian_iv (synthetic known-truth fixture: true structural effect 2.0 under the declared joint Gaussian law)",
+ "conformance/estimate/bayesian_iv (synthetic known-truth fixture: true structural effect under the declared joint Gaussian law)",
  "python/tests/test_bayesian_estimator_lifecycle.py",
 ]
