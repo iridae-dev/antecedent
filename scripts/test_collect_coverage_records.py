@@ -12,6 +12,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collect_coverage_records as collector  # noqa: E402
 
 
+class ConditionalDgpReferenceTest(unittest.TestCase):
+    def test_conditional_record_labels_resolve_both_actual_branches_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "suite.rs"
+            source.write_text(
+                'fn measure(latent: bool) { let key = RecordKey { '
+                'dgp: if latent { "latent_rows" } else { "markov_rows" }, }; }'
+            )
+            self.assertEqual(collector.conditional_record_dgp_labels(source),
+                             {"latent_rows", "markov_rows"})
+
+    def test_comments_unrelated_literals_and_computed_branches_do_not_resolve(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "suite.rs"
+            source.write_text(
+                '// dgp: if latent { "forged" } else { "forged2" }\n'
+                'fn measure() { let unrelated = "forged"; '
+                'let key = RecordKey { dgp: if latent { label() } else { "computed" }, }; }'
+            )
+            self.assertEqual(collector.conditional_record_dgp_labels(source), set())
+
+
 class AppendAttestedRecordsTest(unittest.TestCase):
     def test_append_preserves_old_rows_and_original_sha(self) -> None:
         old = {"old": {"id": "old", "calibration_sha": "old-sha", "observed": 0.8}}
@@ -183,6 +205,70 @@ class LicensedCellSyncTest(unittest.TestCase):
                 collector.sync_licensed_cells({"frontdoor": self.record("nested_markov_bayesian")})
             self.assertEqual(path.read_text(), source)
 
+
+
+    @staticmethod
+    def scientific_owner_evidence_errors(cell: dict, root: Path = collector.ROOT) -> list[str]:
+        # Static resolver roots are redirected only for isolated synthetic schema fixtures.
+        with patch("test_evidence.ROOT", root):
+            return collector.calibration_estimator_evidence_problems(cell, root)
+
+    @staticmethod
+    def scientific_owner(root: Path, *, ignored: bool = False, comment_only: bool = False) -> dict:
+        source = root / "crates/owner/src/lib.rs"
+        proof = root / "crates/owner/tests/owner.rs"
+        source.parent.mkdir(parents=True)
+        proof.parent.mkdir(parents=True)
+        (root / "crates/owner/Cargo.toml").write_text(
+            '[package]\nname = "owner"\nversion = "0.1.0"\nedition = "2021"\n'
+        )
+        source.write_text("// pub struct NativeOwner;" if comment_only else "pub struct NativeOwner;")
+        proof.write_text("#[test]\n" + ("#[ignore]\n" if ignored else "")
+                         + "fn scientific_owner_proof() { assert_eq!(1, 1); }")
+        return {"estimator": "actual.scientific", "source": "crates/owner/src/lib.rs",
+                "source_symbol": "NativeOwner", "evidence_test": "crates/owner/tests/owner.rs",
+                "evidence_assertion": "scientific_owner_proof"}
+
+    def test_separate_scientific_owner_does_not_change_public_selectors(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cell = collector.tomllib.loads(self.source())["cell"][0]
+            selectors = list(cell["estimators"])
+            cell["calibration_estimators"] = [self.scientific_owner(root)]
+            self.assertEqual(self.scientific_owner_evidence_errors(cell, root), [])
+            self.assertTrue(collector.licensed_record_matches(cell, self.record("actual.scientific")))
+            self.assertEqual(cell["estimators"], selectors)
+            self.assertFalse(collector.licensed_record_matches(cell, self.record("nested_markov_bayesian")))
+
+    def test_scientific_owner_requires_actual_native_code_not_comment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cell = {"estimators": [], "calibration_estimators": [
+                self.scientific_owner(root, comment_only=True)]}
+            self.assertTrue(any("outside comments/tests" in error for error in
+                                self.scientific_owner_evidence_errors(cell, root)))
+
+    def test_scientific_owner_requires_nonignored_asserting_native_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            entry = self.scientific_owner(root, ignored=True)
+            cell = {"estimators": [], "calibration_estimators": [entry]}
+            self.assertTrue(any("ignore" in error for error in
+                                self.scientific_owner_evidence_errors(cell, root)))
+            proof = root / entry["evidence_test"]
+            proof.write_text("#[test] fn scientific_owner_proof() {}")
+            self.assertTrue(self.scientific_owner_evidence_errors(cell, root))
+
+    def test_scientific_owner_malformed_or_duplicate_declarations_refuse(self) -> None:
+        for entries in ["actual.scientific", ["actual.scientific"], [{"estimator": "forged"}]]:
+            self.assertTrue(self.scientific_owner_evidence_errors(
+                {"estimators": [], "calibration_estimators": entries}))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            entry = self.scientific_owner(root)
+            self.assertTrue(any("duplicate" in error for error in
+                self.scientific_owner_evidence_errors(
+                    {"estimators": [], "calibration_estimators": [entry, entry]}, root)))
 
 
 def _point(k: int, observed: float, role: str, **extra) -> dict:

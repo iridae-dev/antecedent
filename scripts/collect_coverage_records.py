@@ -599,6 +599,75 @@ def replace_pair(
     return "\n".join(kept) + "\n\n"
 
 
+def conditional_record_dgp_labels(path: Path) -> set[str]:
+    """Exact literal labels emitted by two-branch RecordKey DGP expressions.
+
+    Comments and unrelated strings cannot establish a DGP reference. Both
+    branches must be literal labels; arbitrary computed expressions do not resolve.
+    """
+    from test_evidence import rust_items
+
+    code = rust_items(path)[0].code
+    pattern = r'\bdgp\s*:\s*if\s+[^{};]+\{\s*"([^"\\]+)"\s*\}\s*else\s*\{\s*"([^"\\]+)"\s*\}'
+    return {label for pair in re.findall(pattern, code) for label in pair}
+
+
+CALIBRATION_OWNER_FIELDS = frozenset({
+    "estimator", "source", "source_symbol", "evidence_test", "evidence_assertion",
+})
+
+
+def calibration_estimator_evidence_problems(cell: dict, root: Path = ROOT) -> list[str]:
+    """Scientific owners require real native code and non-ignored asserting proof.
+
+    This ownership declaration never changes selectable estimator names or grants
+    calibration to another method. Native execution/current records remain required.
+    """
+    from promotion_source import assertion_problems, nontest_rust
+    from test_evidence import static_rust_test
+
+    entries = cell.get("calibration_estimators", [])
+    if not isinstance(entries, list):
+        return ["calibration_estimators must be an evidence list"]
+    errors = []
+    seen = set()
+    for entry in entries:
+        if (not isinstance(entry, dict) or set(entry) != CALIBRATION_OWNER_FIELDS
+                or any(not isinstance(value, str) or not value for value in entry.values())):
+            errors.append("calibration_estimators entries require exact nonempty native/evidence fields")
+            continue
+        name = entry["estimator"]
+        if name in seen or name in cell.get("estimators", []):
+            errors.append(f"duplicate scientific calibration owner {name}")
+        seen.add(name)
+        source, test = root / entry["source"], root / entry["evidence_test"]
+        if (not entry["source"].startswith("crates/") or "/src/" not in entry["source"]
+                or source.suffix != ".rs" or not source.is_file()
+                or not source.resolve().is_relative_to(root.resolve())):
+            errors.append(f"{name}: scientific native source must exist inside crates/*/src")
+        elif not re.search(r"\b" + re.escape(entry["source_symbol"]) + r"\b", nontest_rust(source)):
+            errors.append(f"{name}: native source symbol is absent outside comments/tests")
+        if (not entry["evidence_test"].startswith("crates/") or test.suffix != ".rs"
+                or not test.is_file() or not test.resolve().is_relative_to(root.resolve())):
+            errors.append(f"{name}: native scientific ownership evidence must exist")
+        else:
+            errors.extend(f"{name}: {error}" for error in
+                          static_rust_test(test, entry["evidence_assertion"]).problems)
+            errors.extend(f"{name}: {error}" for _, error in
+                          assertion_problems(test, entry["evidence_assertion"]))
+    return errors
+
+
+def scientific_calibration_estimators(cell: dict) -> set[str]:
+    """Declared algorithm identities, separate from public estimator selectors."""
+    entries = cell.get("calibration_estimators", [])
+    if not isinstance(entries, list):
+        return set()
+    return {entry["estimator"] for entry in entries if isinstance(entry, dict)
+            and set(entry) == CALIBRATION_OWNER_FIELDS
+            and all(isinstance(value, str) and value for value in entry.values())}
+
+
 def licensed_record_matches(cell: dict, record: dict) -> bool:
     """Exact support coordinates and declared estimator ownership, never axes alone."""
     structure = "graph_posterior" if cell.get("structure") == "graph_posterior" else "fixed"
@@ -607,7 +676,7 @@ def licensed_record_matches(cell: dict, record: dict) -> bool:
         record.get("structure"),
     ) == (
         cell.get("query"), cell.get("graph_class"), cell.get("inference"), structure,
-    ) and record.get("estimator") in cell.get("estimators", [])
+    ) and record.get("estimator") in (set(cell.get("estimators", [])) | scientific_calibration_estimators(cell))
 
 
 def licensed_cell_calibration_problems(cell: dict, records: dict[str, dict]) -> list[str]:
@@ -652,6 +721,9 @@ def sync_licensed_cells(
             out.append(block)
             continue
         seen.add(cell_key)
+        evidence_errors = calibration_estimator_evidence_problems(cell)
+        if evidence_errors:
+            raise SystemExit(f"licensed cell {cell_key}: invalid scientific ownership: {evidence_errors}")
         structures = ["graph_posterior"] if cell["structure"] == "graph_posterior" else ["fixed"]
         if only_cells is None:
             ids = list(cell.get("calibration", []))

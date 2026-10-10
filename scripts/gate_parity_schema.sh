@@ -547,6 +547,8 @@ def _resolves(spec: str) -> bool:
     # would drift the suite facet after the 2.1 replay waivers.
     if re.search(r'dgp:\s*"' + re.escape(fn) + r'"', text):
         return True
+    if fn in collector.conditional_record_dgp_labels(path):
+        return True
     # A suite that imports its data-generating function from a shared test module
     # (`use common::static_dgp::{path_data, ..}`) names it through that import: it
     # resolves when a file compiled into the same test target defines it.
@@ -862,6 +864,8 @@ for cell in lic:
         )
     if not has_cal and cell.get("calibration_reason") == "boundary_record":
         problems.append(f"support_licensed.toml {label}: boundary_record without a record list")
+    for evidence_error in collector.calibration_estimator_evidence_problems(cell, root):
+        problems.append(f"support_licensed.toml {label}: {evidence_error}")
     for ownership_error in collector.licensed_cell_calibration_problems(cell, by_id):
         problems.append(f"support_licensed.toml {label}: {ownership_error}")
     # Coverage figures in `limitations` must cite a matching record or say they are

@@ -489,33 +489,33 @@ def test_extensibility_exported():
     [
         (
             "joint_bayesian_transport",
-            "sources target features graph graph_class dependence varying sharing draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold",
-            "JointTransportPosterior",
+            "sources target features graph graph_class dependence varying sharing draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "MeasuredInference",
         ),
         (
             "learned_joint_transport",
-            "sources target features graph graph_class dependence varying sharing basis_degree draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold",
-            "JointTransportPosterior",
+            "sources target features graph graph_class dependence varying sharing basis_degree draws seed identification priors treatment outcome max_unsupported_mass conflict_z_threshold level memory_limit_bytes cancel",
+            "MeasuredInference",
         ),
         (
             "temporal_dependent_interval",
-            "panel sequence estimand fixed_state target_law replicates seed level method min_units max_failed_fraction",
-            "TemporalIntervalCandidate",
+            "panel sequence estimand fixed_state target_law replicates seed level method min_units max_failed_fraction memory_limit_bytes cancel",
+            "MeasuredInference",
         ),
         (
             "binary_nested_markov",
-            "graph regimes max_iterations tolerance prior seed",
-            "NestedMarkovPosteriorCandidate",
+            "graph regimes max_iterations tolerance prior seed memory_limit_bytes cancel",
+            "MeasuredInference",
         ),
         (
             "binary_nested_markov_fisher_interval",
-            "graph regimes nominal_level max_iterations tolerance",
-            "NestedFisherCandidate",
+            "graph regimes nominal_level max_iterations tolerance memory_limit_bytes cancel",
+            "MeasuredInference",
         ),
         (
             "sampled_observation_recovery",
-            "stage query rows snapshot replicates seed interval_method",
-            "SampledRecoveryCandidate",
+            "stage query rows snapshot replicates seed interval_method memory_limit_bytes cancel",
+            "MeasuredInference",
         ),
         (
             "consume_joint_transport_posterior",
@@ -525,7 +525,7 @@ def test_extensibility_exported():
     ],
 )
 def test_candidate_public_signature_contract(name, parameters, result):
-    """Default and internal builds expose the same typed interface, without activation flags."""
+    """Measured normal producers and the historical source consumer have explicit contracts."""
     import inspect
 
     from antecedent.transport import advanced
