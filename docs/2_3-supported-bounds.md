@@ -18,7 +18,7 @@ bytes, direct balanced studentized temporal response uses 75..200 units, and
 whole-row BCa uses 1000..4000 observations with B2000. Current method/prior/
 functional records are required separately for every reported scalar. See the
 [population and uncertainty guide](2_3-population-time-uncertainty.md) for all
-protocol checks; historical candidate bounds do not confer measured authority.
+protocol checks; underlying engine bounds do not confer measured authority.
 
 Run `python3 scripts/check_limits_agreement.py --release 2.3 --strict` to check
 these statements; the original 2.2 check remains the default.
@@ -187,7 +187,7 @@ these statements; the original 2.2 check remains the default.
 | 2.3C.C4.conditional_study_ranking | max_policy_json_bytes | 262,144 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
 
 The typed native plan/objective ranker preserves its original native scoring scope.
-The F14 portable study-artifact `max_candidates` budget applies to signal-provider
+The portable study-artifact `max_candidates` budget applies to signal-provider
 study rankings and artifact consumers; it is not a universal limit on original
 native plan scoring. No portable-artifact or calibrated EVSI guarantee transfers
 to graph-channel entropy, model-gap heuristics, Gram-SE reduction or callable

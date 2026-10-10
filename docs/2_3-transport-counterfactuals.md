@@ -7,7 +7,7 @@ honest about where they stop:
 | --- | --- | --- |
 | Transported path-specific effect, affine-additive class | `antecedent.transported_counterfactual` | point-only under a fully specified structural fit; calibration unmeasured |
 | Selection differences and invariances behind each scenario answer | `antecedent.scenario_invariance` | derived report, nothing sealed |
-| Learned joint source-target transport | `antecedent.transport.advanced.learned_joint_transport` | measured scalar carrier only at a current, matching record; original posterior candidate unchanged |
+| Learned joint source-target transport | `antecedent.transport.advanced.learned_joint_transport` | measured scalar carrier only at a current, matching record; underlying posterior remains model-conditional |
 
 For the ordinary 2.0 transport compiler (`transport.Transport(...)`) see
 [transport and interference](transport-interference.md) and
@@ -194,7 +194,7 @@ raise `ScenarioInvarianceRefusal`: `scenario_invariance.not_estimated`
 known-variance conjugate Gaussian polynomial-basis outcome mechanism and original
 fixed-DAG transport proof. Its normal measured adapter reports only
 `target_effect` through `inference.MeasuredInference`, conditional on current
-method-specific evidence and completed normal producer/consumer gates.
+method-specific evidence.
 
 The measured protocol is quadratic degree 2, one covariate, zero-mean declared
 isotropic Gaussian priors of variance 1000, known source variances 1 and 2.25,
@@ -207,7 +207,7 @@ dependence declarations or target designs cannot borrow these records.
 
 A fresh `MeasuredInference.load(artifact, expected=retained_identity)` consumer
 replays the actual source proof, fit, posterior and target effect and resolves
-its record again. The original candidate bytes stay `unmeasured`. A calibrated
+its record again. The underlying posterior artifact stays `unmeasured` outside the named scalar interval. A calibrated
 target scalar does not make every coefficient interval calibrated, and source
 rows do not authenticate Gaussian correctness or independence. A nonattesting
 record or unsupported protocol refuses with `cell_not_licensed`; original

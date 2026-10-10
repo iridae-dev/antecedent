@@ -124,17 +124,16 @@ interventional coordinates with the justification in its lineage. In Python,
 `spec.observational_quantities()` and `spec.observational_equivalence(...)`
 build both sides for a dose grid; asserting the justification is the caller's.
 
-## Promotion state
+## Trust and replay
 
-F2 (typed provider objects), F3 (checked response binding), F20 (exact
-operation negotiation), F22 (exact-request verification) and F23 (trust
-tier) are promoted as point-only or no-claim routes. Each executes a positive
-enumerated fixture, a negative one and a fresh-reader artifact fixture; F3 also
-executes the Python surface. The artifact identity carries the provider's law
-meaning, sorted operations, a BLAKE3 fingerprint of the complete provider
-contract, and, for verified trust, the passed probes that cover only that
-fingerprint. Every refusal detail is a literal under its record's namespace
-(`external_response_binding`, `external_scientific_providers`,
-`provider_capability_negotiation`, `external_object_verification`,
-`external_trust_receipt`). Nothing here licenses an interval, a sampling
-approximation of a CDF or quantile, or native trust.
+Typed provider objects, checked response binding, operation negotiation,
+exact-request verification and trust receipts preserve point-only or no-claim
+standing. Artifact identity covers the provider's law meaning, sorted operations
+and the complete provider contract. Verified trust is limited to the exact
+contract fingerprint and passed probes; a changed provider needs new verification.
+
+Refusal details retain their owning namespace: `external_response_binding`,
+`external_scientific_providers`, `provider_capability_negotiation`,
+`external_object_verification` or `external_trust_receipt`. These checks supply
+neither an interval nor sampling calibration for a CDF or quantile, and external
+trust remains external.

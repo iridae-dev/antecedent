@@ -120,8 +120,11 @@ directly:
   actions by stable ID with the `ScientificQuantity` inputs each utility reads and a
   closed utility `Expr` built with ordinary operators (`decision.x(0) * decision.x(1)`),
   hard `Constraint`s that exclude and never penalize, a `Criterion` and a structural
-  policy. `contract.evaluate(joint_distribution)` needs aligned joint draws and
-  returns a `Decision` (`verdict`, `actions`, `evpi`, `explain()`, `export()`);
+  policy. `contract.evaluate(joint_distribution)` accepts aligned joint draws for all
+  criteria; checked static ATE and response-curve analysis results supply affine
+  mean utility only. A retained program binding or unambiguous contract supplies
+  units; explicit unit arguments resolve ambiguity. It returns a `Decision`
+  (`verdict`, `actions`, `evpi`, `explain()`, `export()`);
   `decision.replay(bytes, contract=, source=)` recomputes a stored result exactly.
   Refusals raise `DecisionRefusal`, a `CausalUnsupportedError` with a registered
   `reason_code`.
@@ -162,7 +165,9 @@ directly:
 - ``antecedent.population`` — named predicates and custom target-distribution
   weights for `analyze()`.
 - ``antecedent.prediction`` — portable fitted CATE predictions bound to a
-  parent claim; no interval is implied.
+  parent claim; no interval is implied. `FittedEffectModel` predicts CATE points
+  but is not a direct decision source; checked native analysis results supply the
+  supported analysis-to-decision handoff.
 - ``antecedent.transport`` — single-source graphical transportability
   specifications.
 
@@ -205,7 +210,9 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Vector response derivative | `ResponseFunctional::DirectionalDerivative` / `::Jacobian` | `DirectionalDerivative` / `ResponseJacobian` |
 | Intervention response | `ResponseFunctional::InterventionResponse` | `InterventionResponse(..., intervention=intervention.Set/Shift/Bernoulli/Gaussian/Categorical(...))` |
 | Bind a foreign response grid (2.3) | `CheckedCausalContract` + `ExternalResponse` → `bind_external_result` → `BoundExternalClaim`; `ExternalClaimArtifact` (`antecedent-io`); refusals as `ExternalRefusal` | `antecedent.external.response(identification, outcome_units=...)` → `ExternalSpec.bind(Response(provider=ProviderObject(...), ...))` → `BoundExternalClaim` (`.inspect()`, `.export()`, `.lineage`); `ExternalSpec.load(bytes, expected_identity=claim.identity)`; refusals raise `ExternalRefusal` |
-| Decision contract (2.3) | `DecisionContract` / `DecisionAction` / `UtilityExpr` / `HardConstraint` / `DecisionCriterion` (`antecedent-design`); `evaluate_contract`, `evaluate_structural`; `DecisionContractArtifact` / `DecisionResultArtifact` | `antecedent.decision.Contract` / `Action` / `Expr` (`decision.x(i)`) / `Constraint` / `Criterion`; `Contract.evaluate(joint_distribution)` → `Decision`; `Contract.load` / `.export()`; `decision.replay(...)`; refusals raise `DecisionRefusal` |
+| Decision contract (2.3) | `DecisionContract` / `DecisionAction` / `UtilityExpr` / `HardConstraint` / `DecisionCriterion` (`antecedent-design`); `evaluate_contract`, `evaluate_structural`; `DecisionContractArtifact` / `DecisionResultArtifact` | `antecedent.decision.Contract` / `Action` / `Expr` (`decision.x(i)`) / `Constraint` / `Criterion`; `Contract.evaluate(joint_distribution)` or a supported static ATE/response result → `Decision` (means permit affine expectation only); `Contract.load` / `.export()`; `decision.replay(...)`; refusals raise `DecisionRefusal` |
+| Study ranking (2.3) | `antecedent-design` decision-value and native model objectives; checked prior-to-signal adapter | `design.rank_designs` returns one `DesignRankingResult` with an explicit basis: identification, EVSI/net value, structural sufficiency/cost, graph entropy, effect width, model distinction or callable-utility regret. `design.adapt_prior_to_signal` preserves native posterior lineage and overlap checks. See [design ranking](2_3-design-ranking.md). |
+| Measured scalar adapters (2.3) | Source-bound `MeasuredInference` / checked method-specific producers and independent consumers (`antecedent-io`) | `transport.advanced` joint Bayesian, learned joint, binary nested-Markov Bayesian/Fisher, dependent temporal and sampled-recovery methods return `inference.MeasuredInference` at their [exact measured scopes](2_3-population-time-uncertainty.md); `MeasuredInference.load` requires the retained source identity. |
 | Provider trust (shared) | `ExternalTrustState` (`NativeLicensed` / `ExternallyAttested` / `ExactRequestVerified`) | `ProviderTrust` (`native_licensed` / `externally_attested` / `verified_extension`); a bound external claim is never `native_licensed` |
 | Observation mechanism | `ObservationSpec` + explicit `ObservationAssumption` | `antecedent.observation` specs attached to a response query |
 | Structural transport (2.0 compiler) | μsID catalogs + exact/empirical/learned joints | `antecedent.transport.Transport(ResponseCurve\|AverageEffect, target=, evidence=)` on `analyze` / `identify` / `Identification.estimate`; `provider=` / `TransportInference` / `controls=` are opt-in. Evidence constructor is `transport.Evidence` / `transport.Source`. Theorem-stage types live in `antecedent.transport.advanced`. |

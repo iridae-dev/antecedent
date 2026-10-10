@@ -41,9 +41,10 @@ exception families. External response validation rejects boolean and complex
 numeric coercion, and detached identity mappings prevent caller mutation of the
 claim's exposed original coordinates. Caller-attested scalar mappings retain
 their external trust and cannot inherit a provider's verified response trust.
-Ordinary implementation, artifact and packaging checks precede calibration;
-calibration, inference activation and the final release-candidate gates remain
-required before publication.
+This dated source review preceded calibration and inference activation. For
+current supported methods and attestation requirements, see the
+[measured-inference guide](2_3-population-time-uncertainty.md). The final GitHub
+release checks remain required before publication.
 
 Date: 2026-10-05
 Scope: workspace crates + `python` extension (package version **2.2.0**)

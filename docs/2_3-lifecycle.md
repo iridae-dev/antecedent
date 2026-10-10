@@ -30,7 +30,7 @@ changed numerical surface. Unsupported or stale coordinates refuse with
 `cell_not_licensed`; an interval is never synthesized from a point result.
 
 The carrier is factory-only. `scalar(name)` exposes its point, interval, level,
-record ID, measured commit and full calibration basis. `validated_scope` reports
+record ID and full calibration basis. `validated_scope` reports
 checked protocol facts and declared model assumptions; observed data do not
 prove those assumptions or authenticate the generating distribution. Calibration
 of named scalar intervals supplies neither simultaneous coverage nor calibration
@@ -50,8 +50,8 @@ Keep `expected_identity` separately from the artifact. A fresh consumer replays
 the original source, derives actual method-specific bases, resolves current
 records again and compares the complete receipt. Recomputing a checksum or
 editing a serialized `calibrated` flag cannot supply native authority.
-`source_artifact()` and `source_report()` expose the unchanged original
-candidate, whose own standing stays `unmeasured`; loading that candidate alone
+`source_artifact()` and `source_report()` expose the underlying model report and source artifact, whose own standing stays
+`unmeasured`; loading that source artifact alone
 does not produce a measured result. Producers and the consumer accept explicit
 `memory_limit_bytes` and `cancel` controls.
 
@@ -59,7 +59,7 @@ The exact adapters are joint and learned joint Gaussian transport, nested
 Fisher and full eleven-dimensional Bayesian inference, balanced studentized
 temporal intervals (including an original-source checked `TemporalSession`
 handoff), and whole-row BCa observation recovery. Their method bounds and
-historical refusals are described in the
+protocol refusals are described in the
 [population and uncertainty guide](2_3-population-time-uncertainty.md).
 
 ## 1. Analyze and decide directly
@@ -341,135 +341,50 @@ Next: [sensitivity and robustness](2_3-sensitivity-and-robustness.md),
 [design ranking](2_3-design-ranking.md) and
 [recalculation](2_3-recalculation-capabilities.md).
 
-### Joint Gaussian and learned joint transport
+## Statistical producers and replay
 
-The normal `transport.joint_bayesian` and `learned.joint_transport` producers
-return `MeasuredInference` for the named `target_effect` at level 0.95 when
-the original native identification, data and protocol resolve current evidence.
-The scope is the four frozen source-sharing/varying-block configurations with
-known observation variances 1 or 2.25, prior variance 1000, 4096 aligned draws,
-150..600 observations per source and the declared target design; the learned
-route requires degree two. This is finite validation under the declared model,
-not a confidence guarantee for arbitrary source populations or mechanisms.
-The original `JointTransportPosterior` remains a separate internal candidate;
-its report and source artifact keep `candidate_only`/`unmeasured` standing.
+The following public producers return `MeasuredInference` at their supported
+protocols. Use `scalar(name)` to inspect an interval and its evidence, then
+`export()` and `MeasuredInference.load(..., expected=...)` for independent replay.
 
-A `GaussianTransportPrior` declares its mean and complete square covariance,
-including off-diagonal dependence. An invariant block and one varying block are
-required; no prior is fabricated from posterior moments. A bank prior additionally
-names its bank and every consumed `JointTransportIdentity`. Sources declare named
-strict numeric data, a source population, known positive observation noise variance,
-a snapshot identity and one unique observation identity per row. Targets similarly
-retain their population, snapshot and every row identity. Treatment uses original
-binary levels zero and one. The certified graph/query, source and target populations
-and standardizers come from the retained native identification, rather than its
-mutable Python display fields. A redundant `graph` argument is refused in the
-candidate path because the original proof already binds it.
-
-Both frozen Gaussian configurations and their learned polynomial counterparts
-support the four combinations of varying block (`intercept`,
-`intercept_and_covariates`) and source sharing (`independent_varying_blocks`,
-`shared_varying_block`). The learned route retains the actual polynomial degree
-and `antecedent-learn` provider record. Parameter and effect covariance are full
-joint covariance; each draw row is a single aligned realization of the parameters,
-source effects and target effect. Independent marginal samples are never paired.
-The target mean/variance condition on the supplied target covariate sample.
-Only the named target scalar endpoints carry the exact measured scope above;
-parameter covariance, source effects, draws and diagnostics keep their original
-model-conditional standing.
-
-`posterior.export()` preserves the existing engine artifact's model, original
-identification record, priors/bank provenance, basis, source and target observations,
-identities, numerical posterior and diagnostics. Retain `posterior.expectation()`
-independently, then pass it to `consume_joint_transport_posterior(...,
-kind=posterior.kind, expected_identity=...)` in a fresh internal-feature process.
-That consumer independently re-fits from the stored inputs and checks both premises
-and data digests. Numerical replay does not independently re-run graphical
-identification or authenticate the truth of declared historical observation IDs;
-it is not a new causal identification or interval license.
-
-The candidate producer and consumer enforce bounds before materializing an
-unbounded model/draw request. They refuse mismatched scientific schema/populations,
-missing or repeated row identities, unsupported graph/formula, inconsistent prior
-dimensions, non-positive covariance, undeclared dependence, shared source/target
-units, prior-bank/likelihood reuse and target mass outside declared source support.
-`python/tests/test_joint_transport_candidate_lifecycle.py` contains separate
-independent dense Gaussian precision/mean/covariance oracles for all four plus four
-configurations, exact aligned-effect-row assertions and fresh-process consumption.
-The separate ordinary-wheel tests in `test_measured_joint_transport.py` verify
-all eight measured configurations, an independent oracle, fresh source-bound
-consumption and neighboring protocol refusals.
-
-### Candidate nested-Markov posterior and sampling intervals
-
-The internal acceptance build exercises the following historical candidate
-carriers and bounded artifact consumers. These original artifacts retain
-`unmeasured` standing; their successful replay does not establish coverage. The
-standard normal producers now return `MeasuredInference` for the exact guarded
-protocols described above. Candidate factories remain internal acceptance routes;
-they are not a fallback for unsupported measured requests.
-
-| Internal acceptance producer family | Historical candidate | Fresh-process consumer |
+| Family | Public producer | Measured scalars |
 | --- | --- | --- |
-| `transport._closed_pilots._nested_posterior_candidate(...)` (private acceptance helper) | `NestedMarkovPosteriorCandidate` | `NestedMarkovPosteriorCandidate.load(bytes, expected_identity=...)` |
-| `transport._closed_pilots._nested_fisher_candidate(...)` (private acceptance helper) | `NestedFisherCandidate` | `NestedFisherCandidate.load(bytes, expected_identity=...)` |
-| `transport._temporal_extensions._temporal_dependent_interval_candidate(...)` (private acceptance helper) | `TemporalIntervalCandidate` | `TemporalIntervalCandidate.load(bytes, expected_identity=...)` |
-| `transport._closed_pilots._sampled_observation_recovery_candidate(...)` (private acceptance helper) | `SampledRecoveryCandidate` | `SampledRecoveryCandidate.load(bytes, expected_identity=...)` |
+| Joint Gaussian transport | `transport.advanced.joint_bayesian_transport` | `target_effect` |
+| Learned joint Gaussian transport | `transport.advanced.learned_joint_transport` | `target_effect` |
+| Binary nested-Markov Bayesian inference | `transport.advanced.binary_nested_markov` | `mean0`, `mean1`, `contrast` |
+| Binary nested-Markov Fisher inference | `transport.advanced.binary_nested_markov_fisher_interval` | `mean0`, `mean1`, `contrast` |
+| Direct temporal inference | `transport.advanced.temporal_dependent_interval` | `response` |
+| Checked temporal recalculation | `recalc_temporal.TemporalSession.dependent_interval` | `response` or `effect` |
+| Sampled observation recovery | `transport.advanced.sampled_observation_recovery` | `recovered_effect` |
 
-Each candidate supplies `export()`. Retain its expected identity independently of
-the exported artifact: `identity` for the nested and temporal objects,
-`expected_identity` for sampled recovery. The consumers reconstruct the original
-inputs and method, replay their numerical outputs and reject incompatible retained
-expectations. These are separate artifact lifecycles, not a conversion into an
-outcome distribution or a decision source. The [decision-side producer/consumer
-matrix](2_3-producer-consumer-matrix.md) does not grant them an additional route.
+Joint transport requires original checked identification, explicit Gaussian
+priors, disjoint source/target observation identities, known source noise and a
+compatible target design. Learned transport uses the quadratic basis. Both
+license only the named target-effect interval; full parameter covariance,
+source effects, draws and diagnostics retain their model-conditional standing.
 
-`binary_nested_markov` selects the four-variable binary observational Verma ADMG
-`X1 -> X2 -> X3 -> X4`, `X2 <-> X4`. Its continuous posterior uses the original
-eleven raw Möbius coordinates `a,c0,c1,q20,q21,q40,q41,g00,g01,g10,g11`.
-The internal `NestedMarkovPrior` candidate names a Beta kernel for every
-coordinate, with shape bounds `[1,1000000]`. The normal measured route accepts
-only all eleven Beta(1,1) or all eleven Beta(2,2) kernels. Their product density is restricted to the positive feasible
-c-factor polytope. It is not divided by conditional association-interval widths,
-and no finite parameter grid substitutes for this continuous posterior. The
-default kernels are uniform. Counts must be positive integers from the declared
-IID multinomial design. Successful original checked identification and interior
-point fitting are pilot eligibility requirements, rather than prerequisites for
-the mathematical existence of a posterior.
+Nested-Markov inference requires the four-variable binary Verma graph and an
+interior IID count table. Bayesian inference uses eleven continuous Möbius
+coordinates with uniformly Beta(1,1) or Beta(2,2) priors, four chains and guarded
+convergence diagnostics. Fisher inference uses expected multinomial information
+and full delta covariance. A Fisher record cannot justify a Bayesian interval.
 
-The frozen sampler retains four aligned chains of 4096 draws after 2048 warmup
-sweeps, with a five-million-proposal bound and fixed 95% equal-tailed credible
-quantiles. Its read-only `samples` array has shape `(4,4096,14)`: eleven parameters,
-the two intervention means and their difference. Full covariance and diagnostics
-retain their joint dependence. Rank-normalized/folded Rhat and bulk/tail ESS are
-convergence diagnostics, not proofs of convergence or endpoint precision. The
-artifact binds the original graph, counts, raw prior, fit and sampler settings,
-seed, aligned receipt and separate identification/fit/inference standing.
-`load` independently reruns identification, fitting and posterior computation.
+Temporal inference resamples complete independent unit histories. Direct and
+checked responses use studentized intervals; checked paired effects also support
+separately measured percentile and basic intervals. Sampled observation recovery
+uses BCa resampling of complete raw rows through the checked recovery estimator.
+Neither sampling distribution supplies a predictive outcome law or a posterior.
 
-The [frozen Bayesian acceptance design](nested-markov-bayesian-calibration.md)
-documents the independent deterministic integration reference and the separate,
-ignored repeated-sampling harness. That harness keeps all fit, chain, numerical,
-budget, replay and endpoint-precision failures in the coverage denominator. Its
-ESS-based endpoint Monte Carlo precision bracket is an estimated check under
-mixed stationary chains, not a rigorous endpoint confidence guarantee. Neither
-the harness's allocation nor deterministic posterior agreement is measurement.
+Read the exact sample-size, prior, design and inference settings in
+[population, time and uncertainty](2_3-population-time-uncertainty.md),
+[transport and counterfactuals](2_3-transport-counterfactuals.md) and
+[supported bounds](2_3-supported-bounds.md). Unsupported neighboring protocols
+refuse; these finite validation scopes do not certify arbitrary models or data.
 
-The Fisher candidate is a distinct expected-information/full-delta frequentist
-method for the same interior IID model, at internal nominal levels 90% and 95%; the standard measured route licenses
-only the named 95% scalar endpoints.
-Temporal intervals instead resample complete independent unit histories, retaining
-panel, unit, time, estimator and seed identities. Direct and checked response use studentized intervals; checked paired effects retain separately measured studentized, percentile and basic methods. Sampled recovery resamples complete raw rows
-through the original recovery estimator, retaining query-role mapping, recovered
-law covariance and original data/premise identities. Its preparation interface
-bounds six binary roles, 100000 rows and 2000 replicates; this is narrower than
-the engine's broader resource scope. None of these sampling distributions is a
-Bayesian posterior or a predictive outcome law.
-
-The public candidate acceptance fixtures are
-`test_nested_bayesian_activation.py`, `test_nested_fisher_activation.py`,
-`test_temporal_interval_activation.py` and `test_sampled_recovery_activation.py`.
-They prepare successful producer/export/fresh-consumer and adjacent refusal
-evidence. Final activation must rerun these through the ordinary final wheel and
-update support/stage rows, promotion records, labels and consumers together after
-the exact method's calibration passes.
+Retain the expectation separately from exported bytes. A fresh consumer
+reexecutes the source and its identification, checks the original premises and
+protocol, resolves each scalar's evidence and compares the complete receipt.
+Original source reports are available through `source_report()` and
+`source_artifact()`. Their diagnostic uncertainty does not acquire the scalar
+interval's measured standing, and a measured result does not automatically supply
+the aligned outcome law required for distributional decisions.

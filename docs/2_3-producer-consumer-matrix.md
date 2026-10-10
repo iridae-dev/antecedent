@@ -1,4 +1,4 @@
-# Producer and consumer matrix (2.3, milestone C1)
+# Producer and consumer matrix (2.3)
 
 Which object can be given to which decision-side consumer, by which route, and what is
 refused. The rule behind every cell: **a consumer never infers a joint law, a posterior or a
@@ -13,7 +13,7 @@ if this page and the table drift apart. Each producer row is `test_c1_matrix_<ro
 parametrized over the eight consumers.
 
 The statistical carrier `inference.MeasuredInference` has its own original-source
-producer and independent `load` consumer. It is not an additional C1 decision
+producer and independent `load` consumer. It is not an additional decision
 source: named scalar intervals and posterior parameter draws do not implicitly
 become a scientifically bound outcome law or a `Contract.evaluate` source.
 Its lifecycle and current-record requirements are documented in
@@ -116,9 +116,10 @@ executed by `test_c1_matrix_<row>_row[<consumer>]`.
   binds a contract by identity string only and does not check the action set against it; a
   `Contract` object does check it.
 - **Checked original prior adapter.** `design.adapt_prior_to_signal` invokes the Rust adapter over original catalog posterior bytes; canonical ranking retains its sampled prior, source digests, transport declaration and observation-overlap checks. Numerical artifact replay does not independently authenticate source origin or caller-declared historical observation identities. See `test_prior_signal_bridge.py`.
-- **Recalc adapters are declarations.** The plan compares caller-supplied digests and never
-  reads the producer, so it cannot notice a different object that reuses the same identity
-  string.
+- **Declarative plans and executed adapters differ.** `plan_recalculation` compares
+  caller-supplied digests. Executing family sessions bind checked native state and
+  measure actual work; the plan alone supplies no evidence that a fit or provider
+  exists. See [recalculation capabilities](2_3-recalculation-capabilities.md).
 - **Mean-only native producers remain mean-only.** Actual producer-issued aligned credible
   rows are retained when present; handcrafted views cannot create them. A joint law from a
   native Python response needs draws retained there; Rust supplies one from credible draws.

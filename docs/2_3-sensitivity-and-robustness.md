@@ -281,7 +281,7 @@ parent set, unit or protocol id, or a blank declaration; `route_not_supported`),
 | Mechanism discrepancy | statistic, p-value, minimal detectable differences, `informs_selection_on` | Type I error, power; invariance on non-rejection |
 
 Every standard error, p-value and interval on this page is a diagnostic with
-calibration unmeasured until the 2.3 release cut. It is reported so it can be
+calibration unmeasured. It is reported so it can be
 inspected, not as a confidence statement.
 
 Runnable examples:

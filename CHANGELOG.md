@@ -1,32 +1,27 @@
 # Changelog
 
-## 2.3.0 — unreleased
+## 2.3.0
 
-The [draft release notes](docs/release-notes/v2.3.0.md) list exact scientific scopes and refused adjacent requests. Implementation and release review continue; final calibration has not run.
+Changes since 2.2.0. The [release notes](docs/release-notes/v2.3.0.md) describe the new workflows, validated method scopes and refusals.
 
 ### Added
 
-- Scientifically named, aligned distribution objects support declared probability, quantile, nonlinear-utility, decision and inverse-query operations. Native composition uses authority issued by actual original execution; caller metadata cannot issue native trust.
-- Shared selective recalculation retains checked adjusted models, doubly robust scores/predictors, finite response and transport factors, Bayesian posterior rows, temporal mechanisms and design-specific fits. Receipts report actual work, compatible reuse and typed refusals; fresh execution requires compatible supplied state or data.
-- Native execution observations separately report actual attempted, completed and failed component work, including cancellations and cached failures. They preserve the original value or exception and grant no scientific authority or successful-work receipt.
-- Bounded external mean callbacks declare provider/environment/seed identities and deterministic, seeded, stateful or side-effect policies. Native/two-provider mean decisions execute through one shared receipt, with selective provider invalidation and transactional scientific state.
-- Original source evidence retains diagnostic scopes, semantic coordinates and action contributors through native and external decisions, functional projections and inverse artifacts. External artifacts that omit numerical diagnostics explicitly disclose that absence. Imported evidence preserves original unresolved dependencies; native source resolution requires actual checked analysis.
-- Effect-constancy artifacts feed covariance-aware transport review, advisory prior-source ranking and per-partition affine policy comparisons. These consumers preserve the original inference status and expose their separate identification and selection limits.
-- Rollout artifacts bind complete source laws, priors and terminal contracts to rankings. Proposal arrivals evaluate delivered finite count tables through original transport and z-transport engines, with raw evidence and original artifact replay.
-- Conditional study ranking follows the selected action of an actually executed native/two-provider decision. Fresh consumers reexecute the full source and rerun the original structural ranking; declared candidate sufficiency remains caller-owned and supplies no EVSI or ranking confidence.
+- Named causal quantities and aligned joint distributions carry units, support, provenance and declared uncertainty into compatible decisions and inverse queries.
+- Typed decision contracts and study-ranking objectives support checked native and external handoffs, prior-to-signal adaptation, utility and cost declarations, and independently replayed artifacts.
+- Selective recalculation retains adjusted models, doubly robust scores and predictors, finite response/transport factors, Bayesian posterior rows, temporal mechanisms and design-specific fits. Receipts report actual work, compatible reuse and refusals; failed updates preserve the last successful scientific state.
+- Measured scalar uncertainty is available for joint Bayesian transport, learned joint transport, nested-Markov Bayesian and Fisher effects, dependent temporal intervals and sampled observation recovery, each at its separately validated scope. Nested-Markov fitting requires a checked causal-identification graph.
+- Bounded external mean callbacks declare provider, environment, seed and execution policy; idempotency keys bind the complete request. Combined native/two-provider decisions share an execution receipt and preserve the external evidence's declared trust.
+- Effect-constancy results support transport review, advisory prior-source ranking and per-partition affine policy comparisons. Rollout and proposal artifacts retain source laws, priors, terminal contracts and delivered evidence.
+- Native execution observations expose attempted, completed and failed component work without changing the original result or error.
 
-### Fixed
+### Changed
 
-- Static response support records reflect successful original finite evaluation and preserve explicit failed-cell causes.
-- Nested-Markov likelihood evaluation checks the actual identification graph before fitting; unsupported graph classes retain scientific refusals.
-- Side-effect idempotency keys bind the complete original callback request, preventing a changed payload from reusing a prior attempt's key.
-- Recalculation receipts bind actual per-provider invocation counts while preserving historical receipt digests when extensions are absent.
-- Failed refreshes, law projections and decisions preserve the last successful retained analysis state; compatible reuse avoids copying prepared data.
-- Unmapped caller-supplied scalar receipts retain caller attestation rather than inheriting verified response trust or numerical diagnostics.
+- Python adds `decision.Contract.evaluate` and expands `design.rank_designs` with typed objectives and one result vocabulary. Existing design helpers remain available; specialized workflows live on their stage modules and the root namespace retains the ordinary analysis verbs.
+- Portable decision, ranking and composition artifacts preserve source identities, semantic coordinates and diagnostic scopes. Independent consumers verify the original source; caller metadata cannot issue native authority.
 
-### Release boundary
+### Scope
 
-New diagnostic standard errors, tests and posterior summaries remain unmeasured at their declared coordinates. Candidate joint Bayesian transport, dependent temporal and recovery inference retain their closed public inference routes until exact measurement and activation pass. The selected callback workflow is limited to attested means. Discovery, adaptive policies and broader arbitrary callback/cross-world execution retain separate targets and open gates in [ROADMAP.md](ROADMAP.md). Package metadata remains at the existing version until the release cut.
+The new interval licenses apply only to named scalars under the measured protocol; diagnostic standard errors and posterior summaries retain their stated meaning. The callback executor supports attested finite means. Broader discovery, adaptive-policy, arbitrary callback and cross-world recalculation are outside this release. See the [release notes](docs/release-notes/v2.3.0.md) for supported inputs and refusals.
 
 ## 2.2.0
 

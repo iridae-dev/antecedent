@@ -27,5 +27,8 @@ conditioning and transform all match. Units are declared, never converted.
 
 ## Evidence obligations
 
-Evidence obligations are not implemented yet. When they land they will
-reuse `ScientificQuantity` to name the coordinates they cover.
+`repair.obligations(contract)` returns the evidence needed by a failed
+identification contract, with scientific coordinates, population, regime and
+proof-step identity. A study must cover the required joint factor in the named
+regime; separate marginal observations cannot replace it. See
+[decisions, design and repair](2_3-decisions-breadth.md#repair).

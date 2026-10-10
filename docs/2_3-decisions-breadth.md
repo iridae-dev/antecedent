@@ -1,6 +1,6 @@
-# Decisions, design, repair and estimator breadth (2.3, milestone B)
+# Decisions, design, repair and estimator breadth (2.3)
 
-This page lists each milestone B route: the question it answers, its scope
+This page lists the decision, design, repair and estimator routes: the question it answers, its scope
 bounds, its claim label, the Python module that owns it and its refusal
 namespace. Every claim here is point-only or makes no claim; the registry in
 `parity/promotion_2_3.toml` is the authority, and this page restates it.
@@ -11,10 +11,9 @@ namespace. Every claim here is point-only or makes no claim; the registry in
   quantity). No interval, coverage or probability claim comes with it.
 - **No claim** means the route states a request or a classification and
   computes no estimate.
-- **Closed pending calibration** means a route or field exists in the registry
-  but is refused until its calibration is measured at the 2.3 release cut.
-- Every standard error, p-value, interval and Monte Carlo error that appears in
-  B is a **diagnostic with calibration unmeasured**. It is reported so it can be
+- **Closed or unlicensed** means the requested route or uncertainty field is
+  unsupported and produces a typed refusal.
+- Every standard error, p-value, interval and Monte Carlo error reported by the routes on this page is a **diagnostic with calibration unmeasured**. It is reported so it can be
   inspected. It is not a confidence statement, its nominal level is not a
   coverage claim, and no coverage record is allocated for it.
 
@@ -107,7 +106,7 @@ status `closed_calibration_unmeasured`: no interval is produced.
   (externally attested unless an exact-request receipt is retained) and never
   upgrades it to native.
 - Registration is not execution. A record proves what its cited tests execute;
-  see the milestone C page for how B routes are composed in
+  see how these routes are composed in
   [composition](2_3-composition.md).
 
 Related pages: [decisions](2_3-decisions.md),

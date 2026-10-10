@@ -1,13 +1,11 @@
-# Composing sources, recalculating and exporting a decision (2.3, milestone C)
+# Composing sources, recalculating and exporting a decision (2.3)
 
-Milestone C joins the pieces of [milestone B](2_3-decisions-breadth.md) and the
+Composition joins [decisions, design and repair](2_3-decisions-breadth.md) and the
 external claims of [external scientific objects](2_3-external-science.md) into
 one decision, recalculates it selectively, and exports it as one portable
 bundle. Every route here is **point-only**. Nothing on this page is an interval,
-a coverage statement or a probability license. Any standard error, p-value,
-interval or Monte Carlo error carried inside a composed artifact is a
-diagnostic with calibration unmeasured, and the composition never changes that
-label.
+a coverage statement or a probability license. Uncertainty carried inside a composed artifact keeps its source standing.
+Composition supplies no additional calibration or interval guarantee.
 
 For each route: the question it answers, its scope bounds, claim label, Python
 entry point and refusal namespace.
@@ -43,8 +41,9 @@ entry point and refusal namespace.
 - **Python.** `antecedent.program_claims`: `native_claim`, `NativeClaim`,
   `NativeDecisionSource`.
 - **Refusals.** `native_claims.*`.
-- **Limit.** A Python native claim is mean-only because the Python response view
-  keeps no draws.
+- **Limit.** A mean-only response remains mean-only. Actual native producers
+  may retain aligned credible rows; these describe uncertainty over the mean
+  response, rather than an interventional outcome law.
 
 ## Composition boundary
 
@@ -81,7 +80,11 @@ entry point and refusal namespace.
   Without a declared retarget licence the change refits. In a fresh process no
   derived stage is reused unless the caller supplies a portable artifact. The
   per-call cache is not a persistent fit cache, and a second session fits
-  again. Only the cross-fitted AIPW route with a net-benefit rule is driven.
+  again. The `RecalcSession` example uses cross-fitted AIPW with a net-benefit
+  rule. Separate checked sessions support adjusted regression, doubly robust
+  effects, static transport, Bayesian summaries, temporal analysis,
+  design-specific effects and bounded external mean callbacks; see
+  [recalculation capabilities](2_3-recalculation-capabilities.md).
 - **Claim.** Point-only: the plan table, the counted work, and the point law and
   net benefit of that route. Its law standard error is a diagnostic with
   calibration unmeasured.
@@ -124,11 +127,10 @@ not a certificate that a cache exists.
   `consume_bundle`, `describe_artifact`.
 - **Refusals.** `composition_bundle.*` (shared by the bundle and the verifiers).
 
-## The multi-source acceptance story and its limits
+## A multi-source example
 
-The acceptance record `2.3C.C4.multi_source_acceptance` composes only the routes
-above and the B routes they depend on. It adds no estimator and no new
-artifact.
+This example combines native and external responses, a joint-law decision and
+study ranking. Each source keeps its own scientific standing.
 
 **Setup.** Graph `x -> a`, `x -> y`, `a -> y`; a program for `y` under `do(a)`
 over doses 0, 1 and 2. Three actions read the mean at each dose: wait reads
@@ -174,18 +176,15 @@ boundary or recalculates only the stages that depend on it.
 | Evidence overlap | Overlap is never pooled or counted twice; a bundle that declares independence over overlapping evidence fails. |
 | Utility | Only the decision recomputes, with zero fit work. |
 
-**Limits found by the acceptance.**
+**Limits of this example.**
 
-- Python cannot state a native execution record, so a Python native claim enters
-  composition as unverified.
-- A native response retains no draws, so a probability or quantile comes only
-  from an external joint law.
-- The recalculation stage model has no graph or query edge into external-study
-  branches. Only the binding refusals protect them; a changed external study
-  leaves unrelated branches valid but is not tracked by the stage model.
-- The design ranking is bound to the joint law only by its source digest.
-
-**Registry note.** The acceptance record declares two details of the
-`composition_bundle` namespace (`unsupported_law` and
-`expected_identity_mismatch`) because it adds no refusal of its own. The other
-refusals the story observes keep their owning records.
+- Its mean-only native response supplies no probability or quantile. A producer
+  that retains aligned credible rows can supply a posterior over its mean
+  response; those rows still do not supply a predictive outcome law.
+- `native_claim` requires actual producer-issued native execution authority.
+  Handcrafted response views and caller-supplied trust labels cannot supply it.
+- The declarative planner compares identities; executing family sessions bind
+  their own checked inputs and measure actual work. A changed external branch
+  must be rebound and executed under its provider's replay policy.
+- A ranking and a joint-law decision retain their source identities. Binding
+  them together does not validate the utility or the generating model.

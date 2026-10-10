@@ -23,10 +23,12 @@ success object, `NaN`, or a generic error string.
 
 ## Structured refusals and their remedies
 
-In 2.3 every stage module that refuses a request raises a subclass of one shared
+In 2.3 scientific stage refusals share the structured
 base, `antecedent.errors.StructuredRefusal` (itself a `CausalUnsupportedError`).
-It exposes the same machine-readable fields on every class, so you branch on
-fields and never parse a message:
+It exposes machine-readable fields, so you branch on fields rather than parse
+a message. Input type, value and resource errors can instead raise ordinary
+`CausalTypeError`, `CausalValueError` or `CausalResourceError` without a scientific
+reason code.
 
 | Field | Meaning |
 | --- | --- |
@@ -77,11 +79,11 @@ Common remedies:
 | Refusal | What to change |
 | --- | --- |
 | `cell_not_licensed` / `*.composition_not_licensed` | Report the sampling interval next to the assumption range; do not compose them. No composition method is licensed. |
-| `cell_not_licensed` / `learned_joint_transport.route_frozen` | Use `transport.advanced.prepare_learned_continuous` (interval withheld) or an identified closed-form transport estimate. |
+| `cell_not_licensed` / `learned_joint_transport.route_frozen` | Use the checked `transport.advanced.learned_joint_transport` adapter inside its measured protocol. The separate `prepare_learned_continuous` IID route offers a point estimate or its scoped analytic interval via `prepared.interval()`; these methods have distinct contracts. |
 | `cell_not_licensed` / `transported_counterfactual.nonadditive_mechanism` and its siblings | Declare the premise in `Premises` if you can defend it, or choose an assignment inside the affine-additive class. |
 | `transport_proven_non_transportable` | Read `witness`: two models agree on the source and differ on the target. Remove the selection on that mechanism or supply target evidence for it. |
 | `decision_contract_unsatisfied` / `native_claims.source_not_supplied` | A mean cannot answer a quantile or probability. Supply aligned joint draws. |
-| `route_not_supported` / `decision_evaluation.mean_source_not_replayable` | A decision over a mean is not exportable; use `composition_bundle.mean_decision` to carry it point-only. |
+| `route_not_supported` / `decision_evaluation.mean_source_not_replayable` | `Decision.export()` requires aligned joint draws; `decision.replay` uses that same law. For a bound external mean claim, `composition_bundle.mean_decision` supplies a distinct point-only bundle artifact. Native mean workflows retain their own source-bound recalculation/replay contracts. |
 | `design_cost_units_mismatch` | Supply a `CostMap` from the study cost unit to the decision's utility unit, or consume under the cost map the ranking used. |
 | `score_table_unavailable` / `recalc.unavailable_data` | The request needs the data or a fit; supply the data and refit, or ask only for a same-row reweighting of the frozen scores. |
 | `composition_bundle.node_not_found` | Add the node before connecting it (`NodeNotFoundRefusal.offending` is the missing id). |

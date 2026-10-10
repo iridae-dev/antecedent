@@ -4,7 +4,7 @@
 result, `DesignRankingResult`. The result's `basis` says what its order means, and
 different objectives answer different questions and are never mixed in one result.
 
-```python
+```text
 design.rank_designs(
     candidates, *, objective=None, decision=None, prior=None,
     signal=None, cost_map=None, ...
@@ -213,7 +213,7 @@ Each `CandidateValue` has `evsi`, `evpi` (the upper bound), `net_value` (when a
 cost map was used), `study_cost_utility`, `rank`, `rank_uncertain`, `integration`
 (method `exact`, `monte_carlo` or `externally_computed`, with error and replicates),
 `provider_trust`, `update_mode`, `natively_replayed`, `trust_limit` and
-`source_overlap`. The frozen F14 guess decision (binary state, prior 1/2) is the
+`source_overlap`. The worked guess decision (binary state, prior 1/2) is the
 oracle: signals of accuracy 3/4 and 5/8 have EVSI 1/4 and 1/8 and `EVPI = 1/2`;
 with a utility-unit cost of 1/10 the net values are 3/20 and 1/40. `design.evsi(decision,
 candidate, ...)` values one candidate and is `rank_designs([candidate], ...)` for it.

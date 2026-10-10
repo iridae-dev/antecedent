@@ -500,6 +500,87 @@ def render_release_licensed(cells: list[dict], axes: dict) -> list[str]:
     return lines
 
 
+def release_support_delta(cells: list[dict], axes: dict, baseline: Path) -> list[str]:
+    """Compare exact coordinates with a shipped, frozen support inventory."""
+    text = baseline.read_text(encoding="utf-8")
+    if text.count(FROZEN_BEGIN) != 1 or text.count(FROZEN_END) != 1:
+        raise ValueError(
+            f"{baseline}: release delta requires one frozen support inventory"
+        )
+    block = text.split(FROZEN_BEGIN, 1)[1].split(FROZEN_END, 1)[0]
+    previous = set()
+    for line in block.splitlines():
+        if not line.startswith("- "):
+            continue
+        parts = line[2:].split(" × ")
+        if len(parts) != 5 or not parts[-1].startswith("validation "):
+            raise ValueError(f"{baseline}: invalid support coordinate {line!r}")
+        parts[-1] = parts[-1].removeprefix("validation ")
+        choices = []
+        for part in parts:
+            tokens = part.split(" / ")
+            if any(
+                not re.fullmatch(r"`[A-Za-z_][A-Za-z0-9_]*`", token) for token in tokens
+            ):
+                raise ValueError(f"{baseline}: invalid support axis {part!r}")
+            choices.append([token[1:-1] for token in tokens])
+        coordinates = set(product(*choices))
+        if coordinates & previous:
+            raise ValueError(f"{baseline}: duplicate support coordinates")
+        previous.update(coordinates)
+    count = re.search(r"^(\d+) licensed of ", block, re.MULTILINE)
+    if not count or len(previous) != int(count[1]):
+        raise ValueError(
+            f"{baseline}: frozen support count does not match its coordinates"
+        )
+    keys = ("query", "graph_class", "structure", "inference", "validation")
+    current = {tuple(cell[key] for key in keys) for cell in cells}
+    added = [cell for cell in cells if tuple(cell[key] for key in keys) not in previous]
+    removed = [dict(zip(keys, coordinate)) for coordinate in sorted(previous - current)]
+    version = baseline.stem.removeprefix("v")
+    lines = [
+        f"Changes to generic analysis support since {version}: {len(added)} added coordinates, {len(removed)} removed coordinates.",
+        "",
+    ]
+    if added:
+        lines.extend(
+            [
+                "### Added analysis coordinates",
+                "",
+                *render_release_licensed(added, axes),
+                "",
+            ]
+        )
+    if removed:
+        removed_axes = dict(axes)
+        for axis, key in zip(
+            ("queries", "graph_classes", "structures", "inferences", "validations"),
+            keys,
+        ):
+            removed_axes[axis] = list(axes[axis]) + sorted(
+                {cell[key] for cell in removed} - set(axes[axis])
+            )
+        lines.extend(
+            [
+                "### Removed analysis coordinates",
+                "",
+                *render_release_licensed(removed, removed_axes),
+                "",
+            ]
+        )
+    if not added and not removed:
+        lines.append(
+            "The generic analysis grid is unchanged. The new typed workflows and method-specific inference scopes are described above; they do not expand this grid."
+        )
+    lines.extend(
+        [
+            "",
+            "See the [support matrix](../support-matrix.md) for the complete current inventory and interval standing.",
+        ]
+    )
+    return lines
+
+
 def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> None:
     """Replace the marked licensed block in the *current* release notes.
 
@@ -516,16 +597,24 @@ def write_release_notes_block(cells: list[dict], counts: dict, axes: dict) -> No
         raise SystemExit(
             f"{RELEASE_NOTES}: missing generated-block markers {RN_BEGIN!r} / {RN_END!r}"
         )
-    body_lines = [
-        f"{counts['licensed']} licensed of {counts['cartesian'] - counts['n_a']} meaningful "
-        f"cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
-        f"{counts['reason_backed_refused']} refused with a reason on file; "
-        f"{counts['unreasoned_refused']} refused without a reason; "
-        f"{counts['allowed']} active `allowed_unlicensed` compatibility entries.",
-        "",
-        calibration_summary(cells),
-        "",
-    ] + render_release_licensed(cells, axes)
+    baseline_match = re.search(
+        r"<!-- support-delta-baseline: v(\d+\.\d+\.\d+) -->", text
+    )
+    if baseline_match:
+        body_lines = release_support_delta(
+            cells, axes, release_notes_path(baseline_match[1])
+        )
+    else:
+        body_lines = [
+            f"{counts['licensed']} licensed of {counts['cartesian'] - counts['n_a']} meaningful "
+            f"cells ({counts['n_a']} n/a typed impossibilities are not a coverage gap). "
+            f"{counts['reason_backed_refused']} refused with a reason on file; "
+            f"{counts['unreasoned_refused']} refused without a reason; "
+            f"{counts['allowed']} active `allowed_unlicensed` compatibility entries.",
+            "",
+            calibration_summary(cells),
+            "",
+        ] + render_release_licensed(cells, axes)
     block = RN_BEGIN + "\n" + "\n".join(body_lines) + "\n" + RN_END
     head, rest = text.split(RN_BEGIN, 1)
     _, tail = rest.split(RN_END, 1)

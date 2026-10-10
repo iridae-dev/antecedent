@@ -1,21 +1,22 @@
-# Whole-row sampled recovery: BCa candidate protocol
+# Whole-row sampled recovery: BCa intervals
 
-The original 500-draw percentile procedure did not earn a coverage license: its
-2,000-repetition recheck observed 0.937 coverage. Its failed measurements are retained as historical evidence. The percentile estimator and version-2 runtime path are retired; BCa replaces them rather than leaving a pending release method. Those measurements are not evidence for BCa.
+`antecedent.transport.advanced.sampled_observation_recovery` returns a checked
+`inference.MeasuredInference` for the named `recovered_effect` at level 0.95,
+with 2,000 whole-row bootstrap draws and sample counts 1000..4000. The original
+recovery derivation and method must resolve to a current attesting coverage record.
+Correct missingness assumptions and independent observations are declared premises.
+Other sample sizes or protocols cannot inherit this calibration.
 
-The new `bootstrap_bca` candidate uses 2,000 whole-row bootstrap draws and the
-bias-corrected and accelerated transformation of
-[Efron (1987), *Better Bootstrap Confidence Intervals*](https://doi.org/10.1080/01621459.1987.10478410).
-Asymptotic BCa regularity does not establish finite-sample coverage for this
-missingness estimator. The corrected procedure has completed its frozen
-measurement; current facet attestation and the normal producer/consumer gates
-still govern public standing. The normal adapter returns a distinct
-`inference.MeasuredInference` only after its original recovered-effect basis
-resolves to a current record. Its version-3 source candidate remains
-`unmeasured`, and legacy version-2 percentile evidence never gains a BCa license.
+The `bootstrap_bca` procedure uses the bias-corrected and accelerated transformation
+of [Efron (1987), *Better Bootstrap Confidence Intervals*](https://doi.org/10.1080/01621459.1987.10478410).
+Its frozen repeated-sampling measurements, source replay and ordinary-wheel
+producer/consumer checks support the measured adapter. Asymptotic BCa regularity
+alone does not establish finite-sample coverage. The retained version-3 source
+artifact remains `unmeasured`; the distinct measured envelope licenses only its
+`recovered_effect` endpoints.
 
 Each draw reruns the original licensed observation-recovery formula and downstream
-standardized recovered effect. The candidate refuses any failed bootstrap draw;
+standardized recovered effect. The procedure refuses any failed bootstrap draw;
 it does not condition its interval on successful draws. The empirical recovered
 law is never renormalized; the effect probabilities use their evaluated totals,
 and the original 0.1 mass-defect tolerance remains in force.
@@ -40,7 +41,7 @@ The version-3 artifact binds this method, the exact tie/quantile/jackknife
 convention, bias correction, acceleration, adjusted probabilities, every grouped
 delete-one record, original rows and identities, and every attempted bootstrap
 draw. Its consumer rechecks identification and reruns the complete calculation
-under caller-retained identities and bounds. Historical version-2 percentile evidence remains archived at its original commit; it is not accepted by the BCa consumer.
+under caller-retained identities and bounds. The consumer accepts only the version-3 BCa protocol.
 
 The distinct ignored calibration fixture is
 `binary_missingness_whole_row_recovery_bca_l95`, emitting
@@ -48,7 +49,7 @@ The distinct ignored calibration fixture is
 It preserves the independently generated confounded binary missingness SCM,
 structural truth 0.36, sample sizes 1,000/2,000/4,000, original seeds, shared
 400/1,000/2,000 repetition protocol, failure denominator and coverage thresholds.
-Only the explicitly distinct interval method and its resampling budget change.
+The interval protocol and resampling budget are bound to this record.
 All estimator, support, numerical and cancellation failures remain denominator
 failures. Ordinary reference tests check independent inverse-response algebra,
 all individual delete-one effects, normal quadrature and interval endpoints;

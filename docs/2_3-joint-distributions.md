@@ -1,6 +1,6 @@
 # 2.3 joint distribution artifact contract
 
-The F15/F16/F1 cells provide checked quantity meaning, aligned joint draws and
+Joint distribution artifacts provide checked quantity meaning, aligned joint draws and
 independent artifact replay. Their numerical operations retain the meaning of the
 supplied law; semantic validation does not establish causal identification or
 sampling coverage. Method-specific measured scalar intervals use the separate
@@ -99,7 +99,7 @@ finite-draw covariance and passes it to the existing 2.2 dense covariance
 hydration, permuted into target order. An old posterior must first pass the
 explicit checked conversion above. Positional or partial mappings refuse.
 
-The F19 oracle uses batch A design row `(1, 1)` with response `1` and batch B
+A checked transfer example uses batch A design row `(1, 1)` with response `1` and batch B
 row `(1, -1)` with response `3`, under `N(0, I)` and known residual variance
 `1`. A four-draw quadrature artifact has the exact first two moments of the
 batch A Gaussian posterior. With target columns reversed, sequential and

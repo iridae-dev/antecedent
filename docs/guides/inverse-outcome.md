@@ -110,7 +110,7 @@ retain one time coordinate.
 | Reason code | Detail | When |
 | --- | --- | --- |
 | `cell_not_licensed` | `inverse.probability_target` | `ChanceConstraint`: a mean cannot establish `P(Y^do(a) >= y) >= q`; that needs a separately identified, calibrated interventional-distribution cell |
-| `cell_not_licensed` | `inverse.quantile_target` | `TargetQuantile`: a target-quantile inverse query is scheduled for 2.3B |
+| `cell_not_licensed` | `inverse.quantile_target` | `TargetQuantile` is unsupported by this mean-only route; the separate [functional inverse query](../2_3-decisions-breadth.md) requires a source supplying the requested functional |
 | `cell_not_licensed` | `inverse.observational_scenarios` | `ObservationalScenarios` |
 | `route_not_supported` | `inverse.forward_not_mean_response` | the forward estimand is not a scalar-outcome mean curve (`ResponseCurve`) |
 | `route_not_supported` | `inverse.forward_not_point_identified` | the forward response is an identified set, a class mixture or unidentified |

@@ -1,6 +1,6 @@
-# Population, time and uncertainty routes (2.3, A section)
+# Population, time and uncertainty routes (2.3)
 
-This page summarizes the 2.3 A-section routes that extend graph classes,
+This page summarizes the 2.3 routes that extend graph classes,
 transport models, temporal sequences, counterfactuals and effect-constancy
 testing. For each it states the question it answers, the exact scope bounds, the
 claim label, the Python entry point and the namespace of its refusal details.
@@ -9,10 +9,8 @@ The authoritative status of each route (`licensed` or `closed`, with its reason
 code) is its record in `parity/promotion_2_3.toml` and its row in
 `parity/transport_stages.toml`; this page does not override them. The statistical
 adapters described below return a factory-only `inference.MeasuredInference`
-only when their actual scalar bases resolve to current attesting records. Final
-normal producer/consumer and release gates remain distinct from a completed
-candidate calibration. Missing or stale evidence refuses; readable candidate
-artifacts retain their original `unmeasured` standing.
+only when their actual scalar bases resolve to current attesting records. Missing or stale evidence refuses. Underlying model artifacts retain their
+original `unmeasured` standing outside the named measured scalar intervals.
 
 ## Claim labels
 
@@ -28,8 +26,8 @@ artifacts retain their original `unmeasured` standing.
   Unknown sampling/model assumptions remain declarations, and covariance,
   posterior draws and simultaneous intervals receive no blanket license.
 - **Closed or unlicensed.** A missing implementation, unsupported protocol or
-  nonattesting record produces a typed refusal. An internal candidate and its
-  original artifact never supply a public interval license by themselves.
+  nonattesting record produces a typed refusal. An underlying model report and its
+  source artifact never supply a measured interval by themselves.
 
 Every refusal is a pair of a registered reason code and a detail of the form
 `<namespace>.<snake_case>`; callers switch on the pair.
@@ -84,7 +82,7 @@ model and the supplied original transport evidence?
   independent/shared block declarations. Posterior draws are 4096..100000 and
   the nominal level is 0.95. Prior-bank variants cannot borrow this license.
 - Output: `MeasuredInference.scalar("target_effect")`. The original joint
-  posterior retains its full covariance and candidate approximation/diagnostic
+  posterior retains its full covariance and model-conditional diagnostic
   standing. Gaussian model correctness and IID sampling are declared assumptions.
 - Entry point: `antecedent.transport.advanced.joint_bayesian_transport`.
   Fresh consumption uses `inference.MeasuredInference.load` with the retained
@@ -118,7 +116,7 @@ Original variable labels have a 256 UTF-8 byte limit. Default fit options are
   be established from the observed table alone.
 - The fresh measured consumer replays the original point fit plus the complete
   information or posterior receipt. Changing prior, fit/sampler settings,
-  counts, identity or original candidate standing refuses. An MLE or Fisher
+  counts, identity or source-report standing refuses. An MLE or Fisher
   record cannot supply a Bayesian license. See the
   [Bayesian scientific design](nested-markov-bayesian-calibration.md).
 
@@ -173,7 +171,7 @@ Response intervals use the studentized method. Checked paired effects have
 separate studentized, percentile and basic records; one method does not supply
 evidence for another. See [prepared recalculation](2_3-recalculation-capabilities.md).
 
-**Effect constancy (F18).** Can a test that one effect is the same across a
+**Effect constancy.** Can a test that one effect is the same across a
 declared partition (time periods or regions) be consumed under a checked
 contract?
 
@@ -191,7 +189,7 @@ contract?
   arithmetic, so input order does not change the result.
 - Scope: at most 1024 partitions that share one effect, unit, regime and
   population; a partition with unsupported coordinate support refuses.
-- Frozen acceptance: equal effects give difference 0 and statistic 0; effects 1
+- Checked example: equal effects give difference 0 and statistic 0; effects 1
   and 2 with variance 1/4 each give statistic 2.
 - Claim: point only. Non-rejection does not prove constancy, the test's Type I
   error and power are unmeasured (calibration coordinate `unmeasured`), and no
@@ -279,7 +277,7 @@ after cancellation or budget exhaustion. Directed edges that are reversible
 within the equivalence class are rejected, as are undirected edges whose
 orientation is compelled.
 
-F18 also executes a known-Gaussian reference experiment (2,000 replicates per
+The known-Gaussian reference experiment (2,000 replicates per
 cell; n=20,80,320; 2,3,8 partitions; independent and positively/negatively
 correlated errors), checking null Type I error, power and both Holm families.
 This measures the test composition under known covariance. It does not certify
@@ -288,7 +286,7 @@ retain their `unmeasured` calibration label.
 
 ## Effect constancy in downstream reviews
 
-`antecedent.effect_constancy_review` consumes the original portable F18 artifact
+`antecedent.effect_constancy_review` consumes the original portable effect-constancy artifact
 against its independently retained identity before invoking downstream engines.
 `transport_diagnostic` returns an original oriented, covariance-aware Holm contrast;
 it always requires a separate transport identification check.
