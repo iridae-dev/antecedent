@@ -276,40 +276,40 @@ mod tests {
             vec![(0, 0.2), (1, 0.8)],
         )
         .unwrap();
+        // The retained history estimator has no certified studentization. Its
+        // former generic interval must refuse rather than borrow the licensed
+        // balanced-unit estimator's authority.
         let config = DependentIntervalConfig {
             replicates: 20,
             seed: 19,
             ..DependentIntervalConfig::default()
         };
         let ctx = ExecutionContext::for_tests(19);
-        let effect =
-            history_interval_candidate(&panel, [1, 1], Some([0, 0]), &law, &config, &ctx).unwrap();
-        assert!((effect.point - candidate_pin("effect_11_vs_00")).abs() < 1e-10);
-        assert!(
-            effect.replicates.iter().all(|r| (r.point.unwrap() - 5.).abs() < 1e-10),
-            "the shared unit disturbance cancels only when both arms share draws"
-        );
-        assert_eq!(effect.calibration, "unmeasured");
-        let repeated =
-            history_interval_candidate(&panel, [1, 1], Some([0, 0]), &law, &config, &ctx).unwrap();
-        assert_eq!(effect, repeated);
-        let response =
-            history_interval_candidate(&panel, [1, 1], None, &law, &config, &ctx).unwrap();
-        assert!((response.point - candidate_pin("response_11")).abs() < 1e-10);
-        assert!(
-            response.upper > response.lower,
-            "shared unit variation survives response resampling"
-        );
-        for (a, b) in effect.replicates.iter().zip(&response.replicates) {
-            assert_eq!(a.replicate_id, b.replicate_id);
-            assert_eq!(a.selection_digest, b.selection_digest);
+        for control in [Some([0, 0]), None] {
+            let error = history_interval_candidate(&panel, [1, 1], control, &law, &config, &ctx)
+                .unwrap_err();
+            assert!(matches!(
+                error,
+                EstimationError::Refused { code: "route_not_supported", ref message }
+                    if message == "temporal_interval.studentized_estimator_not_certified"
+            ));
         }
-        let mut relabeled = panel.units().to_vec();
-        relabeled[0].unit_id = 1000;
-        let new_panel = TemporalUnitPanel::new(panel.snapshot_id(), Some(relabeled)).unwrap();
-        let changed =
-            history_interval_candidate(&new_panel, [1, 1], None, &law, &config, &ctx).unwrap();
-        assert_ne!(response.panel_digest, changed.panel_digest);
-        assert_ne!(response.replicate_digest(), changed.replicate_digest());
+
+        // Specify shared whole-unit selections independently of the interval
+        // engine, including duplicates and reordering. Each fit sees exactly
+        // the same histories in both arms, so the unit disturbance cancels.
+        for selection in [vec![0, 23, 23, 7], vec![7, 0, 23, 23], (0..24).collect()] {
+            let units = selection.iter().map(|&index| &panel.units()[index]).collect::<Vec<_>>();
+            let fits = FittedSequenceHistory::fit_many(&units, &[[1, 1], [0, 0]]);
+            let project = |fit: &FittedSequenceHistory| {
+                fit.contributions(&law).unwrap().iter().map(|c| c.mass * c.response).sum::<f64>()
+            };
+            let response = project(&fits[0]);
+            let control = project(&fits[1]);
+            assert!((response - control - candidate_pin("effect_11_vs_00")).abs() < 1e-10);
+            if selection.len() == panel.units().len() {
+                assert!((response - candidate_pin("response_11")).abs() < 1e-10);
+            }
+        }
     }
 }

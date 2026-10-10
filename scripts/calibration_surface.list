@@ -22,7 +22,8 @@
 #                      the facet's items, which cannot run the facet's code for
 #                      records that do not carry it. Any other reference, and
 #                      any stale name here, fails `calibration_facets.py check`.
-#   testmod <path>     A reviewed file whose inline `#[cfg(test)] mod name { ... }`
+#   testmod <path>     A reviewed file whose inline test-required modules use
+#                      `#[cfg(test)]` or `#[cfg(all(test, feature="..."))]` and whose
 #                      blocks hold unit-test scaffolding, not measurement (or that
 #                      is itself a `#[cfg(test)] mod name;` file): an edit confined
 #                      to them is not a change to the surface. No record's test or
@@ -339,6 +340,9 @@ testmod crates/antecedent-prob/src/hmc.rs
 testmod crates/antecedent-discovery/src/ci_screened_posterior.rs
 testmod crates/antecedent-validate/src/tests.rs
 testmod crates/antecedent-core/src/query/tests.rs
+# Inline history fitting checks require both test and calibration-internal;
+# no coverage record's measurement test or DGP is hosted in this file.
+testmod crates/antecedent-estimate/src/temporal_history_fit.rs
 
 # F18 known-Gaussian reference experiment (caller-specific covariance stays unmeasured).
 suite.effect_constancy_calibration crates/antecedent-estimate/tests/effect_constancy_calibration.rs

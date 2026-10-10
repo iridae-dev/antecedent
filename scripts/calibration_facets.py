@@ -236,12 +236,15 @@ def rust_mask(text: str) -> str:
 
 
 _TEST_MOD = re.compile(
-    r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{"
+    # rust_mask blanks the feature's string literal. The conjunction still
+    # requires `test`; `any(test, ...)` and feature-only modules stay visible.
+    r"#\[cfg\((?:test|all\(\s*test\s*,\s*feature\s*=\s+\))\)\]"
+    r"\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{"
 )
 
 
 def strip_test_modules(text: str) -> str:
-    """`text` without its inline `#[cfg(test)] mod name { ... }` blocks.
+    """`text` without inline modules requiring `test`, optionally AND one feature.
 
     Only inline test modules go; a `#[cfg(test)]` item of any other kind, and an
     out-of-line `mod tests;` (a different file), stay."""
@@ -2623,6 +2626,23 @@ def self_test() -> int:
         strip_test_modules(tm.replace("fn a() { 1 }", "fn a() { 2 }")) != strip_test_modules(tm)
         and strip_test_modules(tm.replace("let s", "let z")) == strip_test_modules(tm),
         "an edit to production code counts; an edit inside the test module does not",
+    )
+    feature_tm = tm.replace("cfg(test)", 'cfg(all(test, feature="calibration-internal"))')
+    expect(
+        strip_test_modules(feature_tm) == strip_test_modules(tm)
+        and strip_test_modules(feature_tm.replace("let s", "let z")) == strip_test_modules(tm)
+        and strip_test_modules(feature_tm.replace("fn a() { 1 }", "fn a() { 2 }"))
+        != strip_test_modules(tm),
+        "a conjunctive test-and-feature module is scaffolding; production edits remain visible",
+    )
+    any_tm = feature_tm.replace("all(test,", "any(test,")
+    production_tm = feature_tm.replace(
+        'all(test, feature="calibration-internal")', 'feature="calibration-internal"'
+    )
+    expect(
+        strip_test_modules(any_tm) == any_tm
+        and strip_test_modules(production_tm) == production_tm,
+        "disjunctive test-or-feature and feature-only modules are production, not scaffolding",
     )
     expect(
         strip_test_modules("#[cfg(test)]\nmod tests;\nfn a() {}\n") == "#[cfg(test)]\nmod tests;\nfn a() {}\n"
