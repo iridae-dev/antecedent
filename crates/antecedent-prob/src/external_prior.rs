@@ -29,17 +29,15 @@ use crate::prior::{GaussianCoefficientPrior, PriorSet, PriorSpec};
 /// Floor on conjugate-scale variance after composition.
 const COMPOSE_VAR_FLOOR: f64 = 1e-12;
 
-/// Kish (1965) effective sample size: `(Σw)² / Σw²`.
+/// Kish (1965) effective sample size `(Σw)² / Σw²`, owned by
+/// [`antecedent_kernels::kish_ess`] (non-finite weights give `NaN`, zero mass
+/// gives `0.0`).
 ///
 /// A concentration-of-trust diagnostic over an importance/trust weight
-/// vector — distinct from MCMC/autocorrelation ESS and from the
+/// vector, distinct from MCMC/autocorrelation ESS and from the
 /// **prior-strength ESS** reported on [`ComposedPrior`] (precision-based, not
-/// weight-based; see the module docs). Guards `Σw² > 0`, returning `0.0`
-/// otherwise (e.g. all-zero weights).
-#[must_use]
-pub fn kish_ess(weights: &[f64]) -> f64 {
-    antecedent_kernels::kish_ess(weights)
-}
+/// weight-based; see the module docs).
+pub use antecedent_kernels::kish_ess;
 
 /// Per-source trust knobs for external prior composition.
 ///

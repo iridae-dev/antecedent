@@ -83,14 +83,8 @@ pub(crate) fn normal_scores_column(col: &[f64], out: &mut [f64]) -> Result<(), S
 /// statistic applies: `n_eff = (Σw)² / Σw²`. Zero / non-finite / negative
 /// weights contribute nothing and cannot inflate df.
 fn kish_effective_n(weights: &[f64]) -> f64 {
-    let mut sum = 0.0;
-    let mut sum_sq = 0.0;
-    for &w in weights {
-        let w = sanitize_weight(w);
-        sum += w;
-        sum_sq += w * w;
-    }
-    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+    let clean: Vec<f64> = weights.iter().map(|&w| sanitize_weight(w)).collect();
+    antecedent_kernels::kish_ess(&clean)
 }
 
 /// Robust (nonparanormal) partial correlation: van der Waerden normal scores of each column,

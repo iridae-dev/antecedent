@@ -246,14 +246,45 @@ pub fn sanitize_weight(w: f64) -> f64 {
 
 /// Kish effective sample size `(Σw)² / Σw²` of a weight vector.
 ///
-/// Returns `0.0` when `Σw² ≤ 0` (all-zero weights, or an empty slice) so the
-/// ratio is never `0/0`. Scale-free in the weights. Unlike the `weighted_*`
-/// reductions this does not sanitize: weights are taken as given.
+/// This is the single workspace owner of the Kish ESS. Contract:
+///
+/// * normalised and unnormalised weights are both accepted (the ratio is
+///   scale-free); weights are taken as given, with no sanitising;
+/// * any non-finite weight (`NaN`, `±∞`) yields `NaN`: impossible weights
+///   must never be mistaken for a uniform, healthy sample;
+/// * an empty slice or an all-zero vector carries no mass and yields `0.0`;
+/// * finite weights whose squares overflow are rescaled by their largest
+///   magnitude, so the result stays finite and exact to rounding.
+///
+/// A caller that gates on `ess.is_finite() && ess >= floor` therefore refuses
+/// both the `NaN` and the zero-mass cases.
 #[must_use]
 pub fn kish_ess(weights: &[f64]) -> f64 {
-    let sum: f64 = weights.iter().sum();
-    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+    let mut sum = 0.0_f64;
+    let mut sum_sq = 0.0_f64;
+    let mut all_finite = true;
+    for &w in weights {
+        all_finite &= w.is_finite();
+        sum += w;
+        sum_sq += w * w;
+    }
+    if !all_finite {
+        return f64::NAN;
+    }
+    if sum.is_finite() && sum_sq.is_finite() && sum_sq > 0.0 {
+        return (sum * sum) / sum_sq;
+    }
+    // Zero mass, or finite weights whose sum or squares overflow: rescale by
+    // the largest magnitude (the ratio is scale-free).
+    let scale = weights.iter().fold(0.0_f64, |m, w| m.max(w.abs()));
+    if scale == 0.0 {
+        return 0.0;
+    }
+    let (s, q) = weights.iter().fold((0.0_f64, 0.0_f64), |(s, q), &w| {
+        let u = w / scale;
+        (s + u, q + u * u)
+    });
+    (s * s) / q
 }
 
 /// Weighted sum `Σ w_i x_i` (non-finite / negative weights treated as 0).
@@ -317,6 +348,30 @@ mod tests {
         assert!((kish_ess(&[3.0, 3.0, 3.0, 3.0]) - 4.0).abs() < 1e-12);
         assert!(kish_ess(&[0.0, 0.0]).abs() < f64::MIN_POSITIVE);
         assert!(kish_ess(&[]).abs() < f64::MIN_POSITIVE);
+    }
+
+    #[test]
+    fn kish_ess_boundary_contract() {
+        // Impossible weights never look uniform.
+        assert!(kish_ess(&[f64::NAN, f64::NAN]).is_nan());
+        assert!(kish_ess(&[0.5, f64::NAN]).is_nan());
+        assert!(kish_ess(&[1.0, f64::INFINITY]).is_nan());
+        assert!(kish_ess(&[f64::INFINITY, f64::NEG_INFINITY]).is_nan());
+        // No mass.
+        assert_eq!(kish_ess(&[0.0, 0.0, 0.0]), 0.0);
+        // One-hot, normalised or not.
+        assert!((kish_ess(&[0.0, 1.0, 0.0]) - 1.0).abs() < 1e-15);
+        assert!((kish_ess(&[0.0, 7.5, 0.0]) - 1.0).abs() < 1e-15);
+        // Uniform, normalised or not.
+        assert!((kish_ess(&[0.25; 4]) - 4.0).abs() < 1e-15);
+        assert!((kish_ess(&[9.0; 5]) - 5.0).abs() < 1e-14);
+        // Squares overflow: the rescaled path stays exact.
+        let big = f64::MAX / 2.0;
+        assert!((kish_ess(&[big, big, big]) - 3.0).abs() < 1e-12);
+        // Scale-free.
+        let w = [0.1, 0.4, 0.2, 0.3];
+        let scaled: Vec<f64> = w.iter().map(|x| x * 1e6).collect();
+        assert!((kish_ess(&w) - kish_ess(&scaled)).abs() < 1e-10);
     }
 
     #[test]

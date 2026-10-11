@@ -462,6 +462,8 @@ fn fit_local_quadratic(
             }
         }
     }
+    // Fused with the accumulation loop above (which also guards both sums), so
+    // this is the one Kish ratio not routed through `kernels::kish_ess`.
     let local_ess = weight_sum * weight_sum / weight_sq_sum;
     let sigma2 = weighted_rss / (weight_sum - 3.0);
     // sigma^2 (X'WX)^-1 (X'W^2X) (X'WX)^-1 — the kernel weights are not

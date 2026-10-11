@@ -116,12 +116,12 @@ impl ParticleFilterState {
         })
     }
 
-    /// Effective sample size `1 / Σ w²` with normalized weights.
+    /// Kish effective sample size `1 / Σ w²` of the normalized weights
+    /// ([`antecedent_kernels::kish_ess`]); `NaN` when the weights are
+    /// impossible (no finite positive mass), never a uniform-looking value.
     #[must_use]
     pub fn ess(&self) -> f64 {
-        let weights = normalized_weights(&self.log_weights);
-        let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-        if sum_sq <= 0.0 { 0.0 } else { 1.0 / sum_sq }
+        antecedent_kernels::kish_ess(&normalized_weights(&self.log_weights))
     }
 
     /// Weighted mean of the latent particles.
@@ -185,8 +185,7 @@ impl ParticleFilterState {
         std::mem::swap(&mut self.particles, &mut self.scratch.particles);
         std::mem::swap(&mut self.log_weights, &mut self.scratch.log_weights);
         self.n_obs = self.n_obs.saturating_add(1);
-        let sum_sq: f64 = self.scratch.weights.iter().map(|w| w * w).sum();
-        let ess = 1.0 / sum_sq;
+        let ess = antecedent_kernels::kish_ess(&self.scratch.weights);
         if ess < 0.5 * self.n_particles as f64 {
             systematic_resample(self, &mut rng);
         }

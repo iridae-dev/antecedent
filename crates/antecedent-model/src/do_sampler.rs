@@ -156,8 +156,7 @@ impl WeightingDoSampler {
         // adaptive). We surface that concentration here rather than staying silent about it,
         // because a caller reading only `weighted_mean` has no other way to tell a
         // well-supported estimate from one that is effectively a single observation.
-        let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-        let ess = if sum_sq > 0.0 { 1.0 / sum_sq } else { 0.0 };
+        let ess = antecedent_kernels::kish_ess(&weights);
         // Flag degeneracy as a note instead of a hard error: this is a diagnostic, not a
         // correctness failure, and different callers have different tolerance for a low-ESS
         // estimate (e.g. exploratory analysis vs. a gated production report). A note keeps

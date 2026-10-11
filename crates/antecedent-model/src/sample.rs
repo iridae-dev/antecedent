@@ -15,7 +15,7 @@
 use antecedent_core::{
     CausalRng, ExecutionContext, Intervention, MechanismOverride, StochasticPolicy,
 };
-use antecedent_kernels::standard_normal;
+use antecedent_kernels::{kish_ess, standard_normal};
 
 use crate::batch::{MechanismWorkspace, NoiseBatchMut, ParentBatch, ValueBatch, ValueBatchMut};
 use crate::compile::{CompiledCausalModel, MechanismSlot};
@@ -520,11 +520,6 @@ fn weighted_particles(
     }
 
     Ok((particle_buf, log_w))
-}
-
-/// Kish effective sample size `1 / Σ w²` of normalized weights.
-fn kish_ess(weights: &[f64]) -> f64 {
-    1.0 / weights.iter().map(|w| w * w).sum::<f64>()
 }
 
 /// Self-normalised importance weights from log-weights, refusing an all-non-finite or

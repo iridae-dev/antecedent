@@ -271,10 +271,6 @@ fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {
     values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, _)| *v).fold(0.0, f64::max)
 }
 
-fn effective_draws(weights: &[f64]) -> f64 {
-    1.0 / weights.iter().map(|w| w * w).sum::<f64>()
-}
-
 /// Evaluate `contract` on `source`.
 ///
 /// # Errors
@@ -462,7 +458,7 @@ pub fn evaluate_contract(
         verdict,
         evpi,
         n_draws: n,
-        effective_draws: effective_draws(weights),
+        effective_draws: antecedent_kernels::kish_ess(weights),
         source: SourceReceipt {
             provider_id: identity_meta.provider_id.clone(),
             snapshot_id: identity_meta.snapshot_id.clone(),
