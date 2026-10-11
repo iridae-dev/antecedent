@@ -39,6 +39,7 @@ use antecedent_io::cross_world_artifact::{
     cross_world_identity,
 };
 use antecedent_model::CompiledCausalModel;
+use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::GraphClass;
 use crate::error::CausalError;
@@ -439,45 +440,28 @@ fn consume_inner(
 }
 
 /// Ordinary least squares of `columns[v]` on `columns[parents]` with an intercept,
-/// by the centered normal equations solved with Gaussian elimination and partial
-/// pivoting: `(intercept, slopes)`, or `None` when the system is numerically
-/// singular.
+/// by column-pivoted QR of the centered, column-equilibrated design
+/// ([`FaerBackend`]): `(intercept, slopes)`, or `None` when the design is
+/// numerically rank deficient.
 fn ols_on_parents(columns: &[Vec<f64>], v: usize, parents: &[usize]) -> Option<(f64, Vec<f64>)> {
     let rows = columns[v].len();
     let p = parents.len();
     let mean = |c: &[f64]| c.iter().sum::<f64>() / rows as f64;
     let ybar = mean(&columns[v]);
+    if p == 0 {
+        return Some((ybar, Vec::new()));
+    }
     let xbar: Vec<f64> = parents.iter().map(|&j| mean(&columns[j])).collect();
-    // Augmented [S | b] with S = Xc'Xc and b = Xc'yc.
-    let mut system = vec![vec![0.0; p + 1]; p];
-    for a in 0..p {
-        for b in 0..p {
-            system[a][b] = (0..rows)
-                .map(|i| (columns[parents[a]][i] - xbar[a]) * (columns[parents[b]][i] - xbar[b]))
-                .sum();
-        }
-        system[a][p] =
-            (0..rows).map(|i| (columns[parents[a]][i] - xbar[a]) * (columns[v][i] - ybar)).sum();
+    // Column-major centered design and centered response.
+    let mut design = Vec::with_capacity(rows * p);
+    for (a, &j) in parents.iter().enumerate() {
+        design.extend(columns[j].iter().map(|x| x - xbar[a]));
     }
-    let scale = (0..p).map(|a| system[a][a]).fold(0.0_f64, f64::max);
-    for col in 0..p {
-        let pivot =
-            (col..p).max_by(|&a, &b| system[a][col].abs().total_cmp(&system[b][col].abs()))?;
-        if system[pivot][col].abs() <= 1e-12 * scale.max(f64::MIN_POSITIVE) {
-            return None;
-        }
-        system.swap(col, pivot);
-        for r in 0..p {
-            if r != col {
-                let factor = system[r][col] / system[col][col];
-                for c in col..=p {
-                    let value = system[col][c];
-                    system[r][c] -= factor * value;
-                }
-            }
-        }
-    }
-    let beta: Vec<f64> = (0..p).map(|a| system[a][p] / system[a][a]).collect();
+    let centered: Vec<f64> = columns[v].iter().map(|y| y - ybar).collect();
+    let fit = FaerBackend
+        .least_squares(&design, rows, p, &centered, &mut LeastSquaresWorkspace::default())
+        .ok()?;
+    let beta = fit.coefficients;
     let intercept = ybar - beta.iter().zip(&xbar).map(|(b, x)| b * x).sum::<f64>();
     Some((intercept, beta))
 }
@@ -708,17 +692,17 @@ fn closed_form_agrees(closed: f64, replayed: f64) -> bool {
 
 /// The point of a cross-world contrast from first principles, sharing no code
 /// with the fitting or evaluation path: per variable a least-squares mean on its
-/// parents (ordinary least squares by the centered normal equations with
-/// Gaussian elimination and partial pivoting; for `outcome` under the
+/// parents (ordinary least squares by column-pivoted QR of the centered
+/// design; for `outcome` under the
 /// non-separable family the ridge-stabilized basis regression of
 /// [`fit_spline_mean`] by Givens QR), each unit's exogenous term is its residual
 /// about that mean, and each world is evaluated node by node in topological
 /// order with every edge reading the world its route names.
 ///
-/// Tolerance argument. The linear solve works on centered normal equations with
-/// pivot floor `1e-12` of the largest diagonal, so its coefficient error is of
-/// order `1e-16 * cond(S)`; the check declines (`None`) rather than compare when
-/// the design is beyond that floor. The basis solve is bounded above (condition
+/// Tolerance argument. The linear solve is a column-equilibrated pivoted QR of
+/// the centered design, so its coefficient error is of order `1e-16 * cond(X)`;
+/// the check declines (`None`) rather than compare when the backend reports the
+/// design rank deficient. The basis solve is bounded above (condition
 /// number below about `5e3` by the ridge). Both errors enter the point through
 /// one linear map of the residuals, so a relative `1e-6` on `1 + |point|` leaves
 /// several orders of magnitude for legitimate rounding and is still far below any
@@ -1303,5 +1287,27 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn ols_on_parents_recovers_a_known_fit_at_any_covariate_scale_and_declines_collinearity() {
+        // y = 2 + 3e9 x0 - 4 x1 exactly, with a covariate in units of 1e-9: the scale-free
+        // rank rule fits it where an absolute pivot floor on the Gram would decline it.
+        let n = 40;
+        let x0: Vec<f64> = (0..n).map(|i| 1e-9 * ((i * 7) % 11) as f64).collect();
+        let x1: Vec<f64> = (0..n).map(|i| ((i * 5) % 13) as f64).collect();
+        let y: Vec<f64> = (0..n).map(|i| 2.0 + 3.0e9 * x0[i] - 4.0 * x1[i]).collect();
+        let columns = vec![x0.clone(), x1.clone(), y];
+        let (intercept, slopes) = ols_on_parents(&columns, 2, &[0, 1]).expect("full rank");
+        assert!((intercept - 2.0).abs() < 1e-6, "intercept {intercept}");
+        assert!((slopes[0] / 3.0e9 - 1.0).abs() < 1e-9, "slope0 {}", slopes[0]);
+        assert!((slopes[1] + 4.0).abs() < 1e-6, "slope1 {}", slopes[1]);
+        // An exact copy of a parent is rank deficient and is declined.
+        let collinear = vec![x1.clone(), x1.clone(), x1.iter().map(|v| 2.0 * v + 1.0).collect()];
+        assert!(ols_on_parents(&collinear, 2, &[0, 1]).is_none());
+        // No parents: the mean.
+        let (mean, none) = ols_on_parents(&columns, 2, &[]).unwrap();
+        assert!(none.is_empty());
+        assert!((mean - columns[2].iter().sum::<f64>() / n as f64).abs() < 1e-9);
     }
 }
