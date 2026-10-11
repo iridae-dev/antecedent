@@ -12,7 +12,9 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{CanonicalWriter, ExternalRefusal, ScientificQuantity, SupportStatus};
+use antecedent_core::{
+    CanonicalWriter, ExternalRefusal, ScientificQuantity, SupportStatus, is_blank,
+};
 
 /// What kind of thing an action is. The kind is part of the action identity.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -592,7 +594,7 @@ impl DecisionContract {
         if self.actions.len() > MAX_ACTIONS {
             return Err(E::InvalidDeclaration("too many actions"));
         }
-        if blank(&self.utility_units) || blank(&self.target_population) {
+        if is_blank(&self.utility_units) || is_blank(&self.target_population) {
             return Err(E::InvalidDeclaration("utility units and target population are required"));
         }
         if !self.criterion.valid() {
@@ -603,7 +605,7 @@ impl DecisionContract {
         }
         let mut ids = HashSet::new();
         for action in &self.actions {
-            if blank(&action.id) {
+            if is_blank(&action.id) {
                 return Err(E::InvalidDeclaration("action id"));
             }
             if !ids.insert(action.id.as_str()) {
@@ -613,7 +615,7 @@ impl DecisionContract {
         }
         let mut constraint_ids = HashSet::new();
         for constraint in &self.constraints {
-            if blank(&constraint.id) || blank(&constraint.units) {
+            if is_blank(&constraint.id) || is_blank(&constraint.units) {
                 return Err(E::InvalidDeclaration("constraint id and units"));
             }
             if !constraint_ids.insert(constraint.id.as_str()) {
@@ -736,10 +738,6 @@ impl DecisionContract {
     }
 }
 
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
-
 /// A count-prefixed set of item digests (already sorted by the caller so order is canonical).
 fn put_list(out: &mut CanonicalWriter, items: &[[u8; 32]]) {
     out.word(items.len() as u64);
@@ -752,7 +750,7 @@ fn encode_action(action: &DecisionAction) -> [u8; 32] {
     let mut out = CanonicalWriter::new("antecedent.decision_contract.action.v1");
     out.text(&action.id).word(u64::from(action.kind.tag())).word(action.inputs.len() as u64);
     for quantity in &action.inputs {
-        out.bytes(&quantity.canonical_bytes());
+        quantity.write_canonical(&mut out);
     }
     action.utility.encode(&mut out);
     out.finish()
@@ -1011,7 +1009,7 @@ impl AdmissibleDecisionContract {
             if find(&exclusion.action_id).is_none() {
                 return Err(AdmissibilityError::UnknownAction(exclusion.action_id.clone()));
             }
-            if blank(&exclusion.reason) {
+            if is_blank(&exclusion.reason) {
                 return Err(AdmissibilityError::InvalidRule("an exclusion states its reason"));
             }
             if !excluded.insert(exclusion.action_id.as_str()) {

@@ -271,7 +271,7 @@ fn source_projection_original_artifact_replay_refuses_resealed_numerical_changes
             &mutant.report,
         ))
         .unwrap();
-        mutant.identity = antecedent_core::to_hex(blake3::hash(&sealed).as_bytes());
+        mutant.identity = antecedent_core::blake3_hex(&sealed);
         let mut resealed = b"ANTE-SOURCE-PROJECTION-1\0".to_vec();
         resealed.extend(antecedent_io::convert::to_cbor(&mutant).unwrap());
         assert!(

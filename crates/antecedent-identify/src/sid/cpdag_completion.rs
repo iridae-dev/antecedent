@@ -33,7 +33,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CanonicalWriter, EvidenceCatalog, ExecutionContext, NodeRef, SearchBudget, SearchLimits,
-    SearchReceipt, SearchStop, VariableId, reason_code, to_hex,
+    SearchReceipt, SearchStop, VariableId, reason_code,
 };
 use antecedent_graph::{Admg, Cpdag, DenseNodeId, SelectionDiagram};
 
@@ -309,7 +309,7 @@ impl Skeleton {
                 stream.word(u64::from(self.variables[*b].raw()));
             }
         }
-        Arc::from(to_hex(&stream.finish()))
+        Arc::from(stream.finish_hex())
     }
 
     fn hash_variables(&self, stream: &mut CanonicalWriter) {
@@ -336,7 +336,7 @@ impl Skeleton {
             stream.word(u64::from(parent.raw()));
             stream.word(u64::from(child.raw()));
         }
-        CompletionDag { identity: Arc::from(to_hex(&stream.finish())), edges: edges.into() }
+        CompletionDag { identity: Arc::from(stream.finish_hex()), edges: edges.into() }
     }
 }
 

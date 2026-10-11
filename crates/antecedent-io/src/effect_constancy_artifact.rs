@@ -26,7 +26,7 @@
 
 use std::io::Cursor;
 
-use antecedent_core::{CanonicalWriter, to_hex};
+use antecedent_core::{CanonicalWriter};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::effect_constancy::{
     ConstancyConclusion, ContrastFamily, EFFECT_CONSTANCY_INFERENCE_CLAIM,
@@ -550,11 +550,11 @@ fn identity_of(
         evidence.real(estimates[i].standard_error);
     }
 
-    let partition_id = to_hex(&partitions.finish());
-    let estimand_id = to_hex(&estimand.finish());
-    let covariance_id = to_hex(&covariance.finish());
-    let family_digest = to_hex(&family_id.finish());
-    let evidence_id = to_hex(&evidence.finish());
+    let partition_id = partitions.finish_hex();
+    let estimand_id = estimand.finish_hex();
+    let covariance_id = covariance.finish_hex();
+    let family_digest = family_id.finish_hex();
+    let evidence_id = evidence.finish_hex();
     let mut whole = CanonicalWriter::new("effect_constancy_v1.identity");
     for part in [
         partition_id.as_str(),
@@ -573,7 +573,7 @@ fn identity_of(
         null: EFFECT_CONSTANCY_NULL.to_owned(),
         family_id: family_digest,
         evidence_id,
-        digest: to_hex(&whole.finish()),
+        digest: whole.finish_hex(),
     }
 }
 

@@ -254,7 +254,7 @@ fn identity(payload: &Payload) -> Result<String, ConditionalRankingError> {
     if bytes.len() > MAX_BYTES {
         return Err(refuse("conditional_study_ranking.resource_limit"));
     }
-    Ok(antecedent_core::to_hex(blake3::hash(&bytes).as_bytes()))
+    Ok(antecedent_core::blake3_hex(&bytes))
 }
 impl ConditionalStudyRanking {
     /// Execute original structural ranking from the current actually issued terminal verdict.

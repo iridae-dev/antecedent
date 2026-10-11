@@ -31,7 +31,7 @@
 
 use std::io::Cursor;
 
-use antecedent_core::{CanonicalWriter, to_hex};
+use antecedent_core::{CanonicalWriter};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::mechanism_discrepancy::{
     DiscrepancyConclusion, DiscrepancyOptions, MECHANISM_DISCREPANCY_ALIGNMENT,
@@ -523,7 +523,7 @@ fn evidence_digest(tag: &str, s: &MechanismSummary) -> String {
         canon.real(*v);
     }
     canon.real(s.yty);
-    to_hex(&canon.finish())
+    canon.finish_hex()
 }
 
 fn identity_of(
@@ -548,10 +548,10 @@ fn identity_of(
         design.text(node);
     }
 
-    let measurement_id = to_hex(&measurement.finish());
+    let measurement_id = measurement.finish_hex();
     let source_evidence_id = evidence_digest("mechanism_discrepancy_v1.source", source);
     let target_evidence_id = evidence_digest("mechanism_discrepancy_v1.target", target);
-    let design_id = to_hex(&design.finish());
+    let design_id = design.finish_hex();
     let mut whole = CanonicalWriter::new("mechanism_discrepancy_v1.identity");
     for part in [
         measurement_id.as_str(),
@@ -568,7 +568,7 @@ fn identity_of(
         target_evidence_id,
         null: MECHANISM_DISCREPANCY_NULL.to_owned(),
         design_id,
-        digest: to_hex(&whole.finish()),
+        digest: whole.finish_hex(),
     }
 }
 

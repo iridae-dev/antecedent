@@ -15,7 +15,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use antecedent_core::ExternalRefusal;
+use antecedent_core::{ExternalRefusal, is_blank};
 use antecedent_io::{CompatibilityReport, PriorCatalog, TargetDesign};
 
 use crate::preposterior::DecisionPrior;
@@ -282,10 +282,6 @@ impl PriorSignalError {
     }
 }
 
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
-
 fn resolve_signal(
     source: &CandidateSignalSource,
 ) -> Result<Arc<dyn SignalProvider>, PriorSignalError> {
@@ -363,18 +359,18 @@ fn check_source(
     if !source.source_to_target.valid() {
         return Err(PriorSignalError::InvalidParameter("source_to_target"));
     }
-    if source.lineage.is_empty() || source.lineage.iter().any(|l| blank(l)) {
+    if source.lineage.is_empty() || source.lineage.iter().any(|l| is_blank(l)) {
         return Err(PriorSignalError::LineageMissing(id.clone()));
     }
-    if source.observation_ids.is_empty() || source.observation_ids.iter().any(|o| blank(o)) {
+    if source.observation_ids.is_empty() || source.observation_ids.iter().any(|o| is_blank(o)) {
         return Err(PriorSignalError::ObservationLineageMissing(id.clone()));
     }
-    if blank(&source.source_population) {
+    if is_blank(&source.source_population) {
         return Err(PriorSignalError::InvalidParameter("source_population"));
     }
     if source.source_population != request.target_population {
         match &request.transport {
-            Some(policy) if !blank(&policy.policy_id) => {}
+            Some(policy) if !is_blank(&policy.policy_id) => {}
             _ => return Err(PriorSignalError::TransportPolicyRequired(id.clone())),
         }
     }
@@ -459,7 +455,7 @@ pub fn adapt_prior_to_signal(
     request: &PriorSignalRequest,
 ) -> Result<CandidateSignalPrior, PriorSignalError> {
     let provider = resolve_signal(&request.signal)?;
-    if blank(&request.prior_id) || blank(&request.target_population) {
+    if is_blank(&request.prior_id) || is_blank(&request.target_population) {
         return Err(PriorSignalError::InvalidParameter("prior_id or target_population"));
     }
     if request.resolution == 0 || request.resolution > MAX_PRIOR_RESOLUTION {

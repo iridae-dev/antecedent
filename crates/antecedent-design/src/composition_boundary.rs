@@ -27,7 +27,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    to_hex, CanonicalWriter, ExternalCapability, ExternalRefusal, ExternalTrustState, ScientificQuantity, SupportStatus,
+    CanonicalWriter, ExternalCapability, ExternalRefusal, ExternalTrustState, ScientificQuantity,
+    SupportStatus,
 };
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
@@ -353,17 +354,6 @@ const fn calibration_status(
     }
 }
 
-fn absorb_quantity(writer: &mut CanonicalWriter, quantity: &ScientificQuantity) {
-    writer.bytes(&quantity.canonical_bytes());
-}
-
-fn absorb_values(writer: &mut CanonicalWriter, values: &[f64]) {
-    writer.word(values.len() as u64);
-    for &value in values {
-        writer.real(value);
-    }
-}
-
 fn lineage_digest(
     source: &InputSource,
     coordinates: &[(ScientificQuantity, SupportStatus)],
@@ -377,7 +367,7 @@ fn lineage_digest(
             for id in [&mean.provider_id, &mean.snapshot_id, &mean.causal_contract_id] {
                 hasher.text(id);
             }
-            absorb_values(&mut hasher, &mean.means);
+            hasher.reals(&mean.means);
         }
         InputSource::JointLaw(artifact) => {
             hasher.text("joint_law");
@@ -391,23 +381,23 @@ fn lineage_digest(
             ] {
                 hasher.text(id);
             }
-            absorb_values(&mut hasher, artifact.draws());
+            hasher.reals(artifact.draws());
         }
         InputSource::Scalar(claim) => {
             hasher.text("scalar");
             for id in [&claim.provider_id, &claim.snapshot_id, &claim.causal_contract_id] {
                 hasher.text(id);
             }
-            absorb_values(&mut hasher, &[claim.value]);
+            hasher.reals(&[claim.value]);
         }
     }
     for (quantity, status) in coordinates {
-        absorb_quantity(&mut hasher, quantity);
+        quantity.write_canonical(&mut hasher);
         hasher.text(status.as_str());
     }
     hasher.text(kind.label());
     hasher.text(trust_label(trust));
-    to_hex(&hasher.finish())
+    hasher.finish_hex()
 }
 
 fn check_id(id: &str) -> Result<(), BoundaryError> {

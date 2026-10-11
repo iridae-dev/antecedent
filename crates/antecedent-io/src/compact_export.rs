@@ -18,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::{CanonicalWriter, ScientificQuantity, to_hex};
+use antecedent_core::{CanonicalWriter, ScientificQuantity};
 use serde::{Deserialize, Serialize};
 
 use crate::container::{
@@ -347,7 +347,7 @@ impl CompactExportBody {
         canon.text(&self.scope.point);
         canon.text(&self.scope.uncertainty);
         canon.text(&self.scope.calibration);
-        to_hex(&canon.finish())
+        canon.finish_hex()
     }
 
     fn data_digest(&self) -> String {
@@ -360,7 +360,7 @@ impl CompactExportBody {
         for value in &self.covariance {
             canon.real(*value);
         }
-        to_hex(&canon.finish())
+        canon.finish_hex()
     }
 
     /// Recompute `(premises, data, identity)` from the semantic fields only.
@@ -371,7 +371,7 @@ impl CompactExportBody {
         let mut canon = CanonicalWriter::new("antecedent.compact_export.v1.identity");
         canon.text(&premises);
         canon.text(&data);
-        (premises, data, to_hex(&canon.finish()))
+        (premises, data, canon.finish_hex())
     }
 
     /// Overwrite the stored digests and identity with the recomputed ones.

@@ -3586,7 +3586,7 @@ pub fn project_claim_host(consumed: &AnalysisResultConsumption) -> ClaimHostProj
         }
     };
     ClaimHostProjection {
-        claim_id: Some(digest_hex(&claim.claim_id)),
+        claim_id: Some(antecedent_core::to_hex(&claim.claim_id)),
         kind: Some(claim.kind.clone()),
         value,
         identification_domain: domain(&claim.identification_domain),
@@ -3622,12 +3622,6 @@ pub fn project_lossy_scalar(
     view.accepts_as_claim = false;
     let claim_id = receipt_input(consumed);
     (view, HandoffReceipt::lossy_scalar(claim_id, "restricted"))
-}
-
-/// Hex-encode a digest for host/Python reports.
-#[must_use]
-pub fn digest_hex(bytes: &[u8; 32]) -> String {
-    SemanticDigest::from_bytes(*bytes).to_hex()
 }
 
 #[cfg(test)]

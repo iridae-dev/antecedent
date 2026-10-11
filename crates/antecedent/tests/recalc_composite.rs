@@ -513,7 +513,7 @@ fn actual_combined_decision_routes_original_structural_ranking_and_fresh_source_
     mutated["source"]["selected_action"] = serde_json::json!("extend");
     mutated["identity"] = serde_json::json!("");
     let digest =
-        antecedent_core::to_hex(blake3::hash(&serde_json::to_vec(&mutated).unwrap()).as_bytes());
+        antecedent_core::blake3_hex(&serde_json::to_vec(&mutated).unwrap());
     mutated["identity"] = serde_json::json!(digest);
     // Arbitrary JSON canonicalization also refuses; the independent consumer owns its canonical format.
     assert!(

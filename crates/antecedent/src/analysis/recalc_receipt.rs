@@ -684,7 +684,7 @@ fn estimator_identity_bytes(estimator: &AipwAte) -> Vec<u8> {
             }
         }
     }
-    out.extend_from_slice(&estimator.propensity.canonical_bytes());
+    out.extend_from_slice(&estimator.propensity.identity_digest());
     match estimator.cluster_dml.as_ref() {
         None => out.push(0),
         Some(cluster) => {

@@ -40,7 +40,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 
-use antecedent_core::ScientificQuantity;
+use antecedent_core::{ScientificQuantity, is_blank};
 // Re-exported so a design-level consumer can adapt a joint mechanism sensitivity result without depending on
 // the validation crate directly.
 pub use antecedent_validate::{
@@ -130,10 +130,6 @@ fn unsupported_adaptation(text: &str) -> IoError {
         code: antecedent_core::reason_code!("route_not_supported"),
         message: format!("sensitivity_decision_composition.unsupported_adaptation: {text}"),
     }
-}
-
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
 }
 
 /// Exact float equality (ties of finite utilities).
@@ -878,7 +874,7 @@ fn canonicalize(mut parts: SensitivityParts) -> Result<SensitivityParts, IoError
 
 fn validate_coordinate(parts: &SensitivityParts) -> Result<(), IoError> {
     let c = &parts.coordinate;
-    if blank(&c.id) || blank(&c.scale) || blank(&c.units) {
+    if is_blank(&c.id) || is_blank(&c.scale) || is_blank(&c.units) {
         return Err(invalid_surface("the coordinate needs an id, a scale and units"));
     }
     if !c.minimum.is_finite() || !c.maximum.is_finite() || c.minimum > c.maximum {
@@ -939,7 +935,7 @@ fn validate_actions(parts: &SensitivityParts) -> Result<(), IoError> {
     let mut ids = HashSet::new();
     let mut shared: Option<String> = None;
     for action in &parts.actions {
-        if blank(&action.id) || !ids.insert(action.id.as_str()) {
+        if is_blank(&action.id) || !ids.insert(action.id.as_str()) {
             return Err(wrong_contract("action ids must be nonblank and unique"));
         }
         if action.utility.depth() > MAX_SENSITIVITY_UTILITY_DEPTH || !action.utility.all_finite() {
@@ -963,7 +959,7 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
     let known: HashSet<&str> =
         parts.quantities.iter().map(|q| q.quantity.variable_id.as_str()).collect();
     if u.assumption_range.kind != SENSITIVITY_INFERENCE_CLAIM
-        || blank(&u.assumption_range.interpretation)
+        || is_blank(&u.assumption_range.interpretation)
     {
         return Err(wrong_contract("the surface range must be declared an assumption range"));
     }
@@ -972,14 +968,14 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
             || !bound.lower.is_finite()
             || !bound.upper.is_finite()
             || bound.lower > bound.upper
-            || blank(&bound.source)
+            || is_blank(&bound.source)
         {
             return Err(invalid_surface("identified bound is malformed"));
         }
     }
     match &u.sampling {
         SamplingStatus::Withheld { reason_code, detail } => {
-            if blank(reason_code) || blank(detail) {
+            if is_blank(reason_code) || is_blank(detail) {
                 return Err(invalid_surface(
                     "a withheld interval needs its reason code and detail",
                 ));
@@ -995,7 +991,7 @@ fn validate_uncertainty(parts: &SensitivityParts) -> Result<(), IoError> {
                 || interval.level <= 0.0
                 || interval.level >= 1.0
                 || !interval.level.is_finite()
-                || blank(&interval.method)
+                || is_blank(&interval.method)
                 || !finite
             {
                 return Err(invalid_surface("sampling interval is malformed"));
@@ -1018,8 +1014,8 @@ fn validate(parts: &SensitivityParts) -> Result<(), IoError> {
     validate_actions(parts)?;
     validate_uncertainty(parts)?;
     let p = &parts.provenance;
-    if blank(&p.source_kind)
-        || blank(&p.causal_contract_id)
+    if is_blank(&p.source_kind)
+        || is_blank(&p.causal_contract_id)
         || p.decision_threshold.is_some_and(|t| !t.is_finite())
     {
         return Err(invalid_surface("provenance needs a source kind and a causal contract id"));
@@ -1061,7 +1057,7 @@ struct Premises<'a> {
 }
 
 fn tagged_digest(tag: &str, bytes: &[u8]) -> String {
-    antecedent_core::to_hex(&antecedent_core::CanonicalWriter::new(tag).bytes(bytes).finish())
+    antecedent_core::CanonicalWriter::digest_bytes_hex(tag, bytes)
 }
 
 fn identity_of(parts: &SensitivityParts) -> Result<SensitivityIdentity, IoError> {
@@ -1102,7 +1098,7 @@ pub fn encode_parts(
     numbers: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, IoError> {
-    if blank(artifact_id) {
+    if is_blank(artifact_id) {
         return Err(IoError::Convert("missing artifact id".into()));
     }
     let meta_bytes = to_cbor(meta)?;

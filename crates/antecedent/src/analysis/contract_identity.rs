@@ -7,7 +7,9 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 
-use antecedent_core::{CausalQuery, ObservationAssumption, ObservationSpec, VariableId};
+use antecedent_core::{
+    CanonicalWriter, CausalQuery, ObservationAssumption, ObservationSpec, VariableId, to_hex,
+};
 use antecedent_data::TableView;
 use antecedent_estimate::{
     AnalyticSeKind, CaliperScale, ContinuousResponseOptions, LinearFitKind,
@@ -258,7 +260,7 @@ fn cluster_dml_key(cfg: &antecedent_estimate::AipwAte) -> Option<String> {
     let mut key = cfg.cluster_dml.as_ref()?.canonical_key();
     if let Some(second) = cfg.cluster_ids_second.as_deref() {
         key.push_str(";second_ids=");
-        key.push_str(&antecedent_core::to_hex(
+        key.push_str(&to_hex(
             &PayloadDigestWire::u32s("estimator.cluster_ids_second", second).digest,
         ));
     }
@@ -281,35 +283,23 @@ fn panel_times(times: &[i64]) -> PayloadDigestWire {
 pub(crate) fn population_registry(
     registry: &antecedent_core::PopulationRegistry,
 ) -> PayloadDigestWire {
-    let mut bytes = Vec::new();
+    let mut stream = CanonicalWriter::new("antecedent.population.registry.v1");
     let mut entries = 0u64;
     for (name, rows) in registry.predicates() {
         entries += 1;
-        bytes.push(0);
-        bytes.extend_from_slice(&(name.len() as u64).to_le_bytes());
-        bytes.extend_from_slice(name.as_bytes());
-        bytes.extend_from_slice(&(rows.len() as u64).to_le_bytes());
+        stream.word(0).text(name).word(rows.len() as u64);
         for &row in rows {
-            bytes.extend_from_slice(&(row as u64).to_le_bytes());
+            stream.word(row as u64);
         }
     }
     for (handle, weights, parents) in registry.distributions() {
         entries += 1;
-        bytes.push(1);
-        bytes.extend_from_slice(&handle.raw().to_le_bytes());
-        bytes.extend_from_slice(&(weights.len() as u64).to_le_bytes());
-        for weight in weights {
-            bytes.extend_from_slice(&weight.to_bits().to_le_bytes());
-        }
-        bytes.extend_from_slice(&(parents.len() as u64).to_le_bytes());
+        stream.word(1).word(u64::from(handle.raw())).reals(weights).word(parents.len() as u64);
         for parent in parents {
-            bytes.extend_from_slice(&parent.raw().to_le_bytes());
+            stream.word(u64::from(parent.raw()));
         }
     }
-    PayloadDigestWire {
-        digest: antecedent_io::payload_digest("population.registry", &bytes),
-        len: entries,
-    }
+    PayloadDigestWire { digest: stream.finish(), len: entries }
 }
 
 /// Backend, likelihood, draws, and the resolved prior contents.
@@ -485,12 +475,6 @@ pub(crate) fn interference_snapshot(
         .map(|edge| (edge.from, edge.to, edge.weight.to_bits()))
         .collect();
     edges.sort_unstable();
-    let mut bytes = Vec::with_capacity(edges.len() * 16);
-    for (from, to, weight) in &edges {
-        bytes.extend_from_slice(&from.to_le_bytes());
-        bytes.extend_from_slice(&to.to_le_bytes());
-        bytes.extend_from_slice(&weight.to_le_bytes());
-    }
     let assignment: Vec<u8> = spec.assignment.iter().map(|&treated| u8::from(treated)).collect();
     InterferenceSnapshotWire {
         units: antecedent_io::DataPartitionIdentityWire {
@@ -499,12 +483,19 @@ pub(crate) fn interference_snapshot(
             unit_id: None,
             regularity: None,
         },
-        edges: PayloadDigestWire {
-            digest: antecedent_io::payload_digest("interference.edges", &bytes),
-            len: edges.len() as u64,
-        },
+        edges: edges_digest(&edges),
         assignment: PayloadDigestWire::bytes("interference.assignment", &assignment),
     }
+}
+
+/// Digest of the sorted `(from, to, weight bits)` edge list of an interference network.
+fn edges_digest(edges: &[(u32, u32, u64)]) -> PayloadDigestWire {
+    let mut stream = CanonicalWriter::new("antecedent.interference.edges.v1");
+    stream.word(edges.len() as u64);
+    for &(from, to, weight_bits) in edges {
+        stream.word(u64::from(from)).word(u64::from(to)).word(weight_bits);
+    }
+    PayloadDigestWire { digest: stream.finish(), len: edges.len() as u64 }
 }
 
 fn learner_identity(spec: antecedent_estimate::LearnerSpec) -> String {
@@ -536,6 +527,37 @@ mod tests {
             .with_cluster_ids(first.to_vec())
             .with_second_cluster_ids(second.to_vec());
         estimator_spec_identity(&EstimatorSpec::Aipw(Box::new(cfg)))
+    }
+
+    #[test]
+    fn the_population_registry_digest_is_a_pinned_golden_vector() {
+        let mut registry = antecedent_core::PopulationRegistry::new();
+        registry.insert_predicate("treated_rows", vec![0_usize, 2, 3]);
+        registry.insert_distribution(
+            antecedent_core::DistributionRef::from_raw(7),
+            vec![0.25, 0.75],
+        );
+        let wire = population_registry(&registry);
+        assert_eq!(wire.len, 2);
+        assert_eq!(
+            to_hex(&wire.digest),
+            "93e97abf1d9db165c9a30fead5afd73a01b090b76483c6aa9ade151e4d5aa0de"
+        );
+        let mut other = antecedent_core::PopulationRegistry::new();
+        other.insert_predicate("treated_rows", vec![0_usize, 2, 4]);
+        assert_ne!(population_registry(&other).digest, wire.digest);
+    }
+
+    #[test]
+    fn the_interference_edge_digest_is_a_pinned_golden_vector() {
+        let edges = [(0, 1, 1.0_f64.to_bits()), (1, 2, 0.5_f64.to_bits())];
+        let wire = edges_digest(&edges);
+        assert_eq!(wire.len, 2);
+        assert_eq!(
+            to_hex(&wire.digest),
+            "658b99cf80f2cd0c065aa7fd9f8369c0a468f7ababc66d29bfdfd16d74d5578b"
+        );
+        assert_ne!(edges_digest(&edges[..1]).digest, wire.digest);
     }
 
     #[test]

@@ -27,7 +27,7 @@
 
 use std::io::Cursor;
 
-use antecedent_core::{CanonicalWriter, ExecutionContext, to_hex};
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_counterfactual::temporal_cross_world::{
     FactualUnitHistory, HistoryId, MAX_UNITS, MECHANISM_CLASS, NamedActionHistory, NodeMechanism,
     RefusingWitness, SharedAbductionReceipt, SnapshotId, TemporalCounterfactualError,
@@ -607,7 +607,7 @@ fn spec_id(request: &TemporalCounterfactualRequestWire) -> String {
             c.text(u);
         }
     }
-    to_hex(&c.finish())
+    c.finish_hex()
 }
 
 fn identity_of(

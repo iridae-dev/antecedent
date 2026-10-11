@@ -34,7 +34,7 @@
 use std::collections::BTreeSet;
 use std::io::Cursor;
 
-use antecedent_core::{CanonicalWriter, to_hex};
+use antecedent_core::{CanonicalWriter};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::vector_treatment::{
     Contrast, DesignSummary, NamedColumn, TreatmentColumn, VECTOR_TREATMENT_INFERENCE_CLAIM,
@@ -615,13 +615,13 @@ fn identity_of(
     outcome.real(result.joint_wald.p_value);
     outcome.real(result.residual_variance);
 
-    let snapshot_id = to_hex(&snapshot.finish());
-    let adjustment_set_id = to_hex(&adjustment.finish());
-    let treatment_id = to_hex(&treatment.finish());
-    let design_id = to_hex(&design.finish());
-    let covariance_id = to_hex(&covariance.finish());
-    let contrast_id = to_hex(&contrasts.finish());
-    let result_id = to_hex(&outcome.finish());
+    let snapshot_id = snapshot.finish_hex();
+    let adjustment_set_id = adjustment.finish_hex();
+    let treatment_id = treatment.finish_hex();
+    let design_id = design.finish_hex();
+    let covariance_id = covariance.finish_hex();
+    let contrast_id = contrasts.finish_hex();
+    let result_id = outcome.finish_hex();
     let mut whole = CanonicalWriter::new("vector_treatment_v1.identity");
     for part in [
         snapshot_id.as_str(),
@@ -644,7 +644,7 @@ fn identity_of(
         contrast_id,
         null: VECTOR_TREATMENT_NULL.to_owned(),
         result_id,
-        digest: to_hex(&whole.finish()),
+        digest: whole.finish_hex(),
     }
 }
 

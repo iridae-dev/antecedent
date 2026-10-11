@@ -36,7 +36,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use antecedent_core::{CanonicalWriter, to_hex};
+use antecedent_core::{CanonicalWriter};
 use antecedent_counterfactual::transported_gate::{PopulationRole, RegimeFactorKey};
 use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
@@ -803,7 +803,7 @@ fn result_digest(result: &TransportedCounterfactualResultWire) -> String {
     strings(&mut c, &result.derivation.checked);
     strings(&mut c, &result.derivation.declared);
     c.text(&result.derivation.claim);
-    to_hex(&c.finish())
+    c.finish_hex()
 }
 
 fn identity_of(
@@ -833,14 +833,14 @@ fn identity_of(
     spec.premises(request.premises);
     spec.evidence(&request.evidence);
     TransportedCounterfactualIdentity {
-        model_digest: to_hex(&model.finish()),
-        source_law_digest: to_hex(&source.finish()),
-        target_law_digest: to_hex(&target.finish()),
-        selection_digest: to_hex(&selection.finish()),
-        assignment_digest: to_hex(&assignment.finish()),
-        premises_digest: to_hex(&premises.finish()),
-        evidence_digest: to_hex(&evidence.finish()),
-        spec_id: to_hex(&spec.finish()),
+        model_digest: model.finish_hex(),
+        source_law_digest: source.finish_hex(),
+        target_law_digest: target.finish_hex(),
+        selection_digest: selection.finish_hex(),
+        assignment_digest: assignment.finish_hex(),
+        premises_digest: premises.finish_hex(),
+        evidence_digest: evidence.finish_hex(),
+        spec_id: spec.finish_hex(),
         result_digest: result_digest(result),
     }
 }

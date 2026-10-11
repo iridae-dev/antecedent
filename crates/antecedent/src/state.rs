@@ -47,12 +47,11 @@ pub fn apply_state_event(
 /// bootstrap budgets never share a lineage key.
 #[must_use]
 pub fn result_lineage_fingerprint(identities: &ContractIdentities) -> SemanticDigest {
-    let mut bytes = Vec::new();
+    let mut stream = antecedent_core::CanonicalWriter::new("antecedent.state.result_lineage.v1");
     for reference in identities.refs().iter() {
-        bytes.extend_from_slice(reference.domain.as_str().as_bytes());
-        bytes.extend_from_slice(reference.digest.as_bytes());
+        stream.text(reference.domain.as_str()).bytes(reference.digest.as_bytes());
     }
-    SemanticDigest::from_bytes(antecedent_io::payload_digest("state.result_lineage", &bytes))
+    SemanticDigest::from_bytes(stream.finish())
 }
 
 /// Leading bytes of a lineage digest, for the store's `u64` key slot.
@@ -94,4 +93,42 @@ pub fn publish_recomputed_results(
         })
         .collect();
     state.publish_results_at(expected, &updates).map_err(CausalError::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::ContractIdentities;
+
+    use super::*;
+
+    fn digest(byte: u8) -> SemanticDigest {
+        SemanticDigest::from_bytes([byte; 32])
+    }
+
+    #[test]
+    fn the_lineage_fingerprint_is_a_pinned_golden_vector_over_every_layer() {
+        let identities = ContractIdentities::new(
+            digest(1),
+            digest(2),
+            Some(digest(3)),
+            Some(digest(4)),
+            digest(5),
+            digest(6),
+            digest(7),
+        );
+        assert_eq!(
+            result_lineage_fingerprint(&identities).to_hex(),
+            "752044c4ff36b8e2237c59563c505fafb619f4eb7b3bce86a10e9d3bc04f7dca"
+        );
+        let moved = ContractIdentities::new(
+            digest(1),
+            digest(2),
+            Some(digest(3)),
+            Some(digest(4)),
+            digest(5),
+            digest(6),
+            digest(8),
+        );
+        assert_ne!(result_lineage_fingerprint(&moved), result_lineage_fingerprint(&identities));
+    }
 }

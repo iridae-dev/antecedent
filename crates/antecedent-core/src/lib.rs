@@ -74,6 +74,7 @@ pub use search::{
     SearchBudget, SearchLimits, SearchReceipt, SearchStop, DEFAULT_SEARCH_MEMORY_BYTES,
 };
 pub mod temporal;
+pub mod text;
 pub mod tolerance;
 pub mod transform;
 pub mod value;
@@ -138,6 +139,7 @@ pub use ids::{
     QueryId, RegimeId, StateVersion, VariableId,
 };
 pub use interval::IntervalMethod;
+pub use text::is_blank;
 pub use intervention::{
     Intervention, InterventionError, InterventionSequence, MechanismOverride,
     SequencedIntervention, StochasticPolicy, TemporalPolicy,

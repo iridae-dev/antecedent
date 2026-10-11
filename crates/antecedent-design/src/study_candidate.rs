@@ -20,7 +20,7 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use antecedent_core::{
     DistributionAvailability, EvidenceKind, EvidenceOffer, EvidenceRegime, InterventionAssignment,
-    MAX_OBLIGATION_COORDINATES, RegimeId, RegimeKind, VariableId, blake3_hex, reason_code,
+    MAX_OBLIGATION_COORDINATES, RegimeId, RegimeKind, VariableId, blake3_hex, is_blank, reason_code,
 };
 
 use crate::{CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, SamplingPlan};
@@ -146,10 +146,6 @@ impl StudyCandidateError {
     }
 }
 
-fn blank(text: &str) -> bool {
-    text.trim().is_empty()
-}
-
 fn distinct(variables: &[VariableId]) -> bool {
     variables.iter().collect::<BTreeSet<_>>().len() == variables.len()
 }
@@ -248,24 +244,24 @@ impl DurableStudyCandidate {
     /// the first failed rule.
     pub fn validate(&self) -> Result<(), StudyCandidateError> {
         let wrong = StudyCandidateError::wrong_contract;
-        if blank(&self.label)
-            || blank(&self.population)
-            || blank(&self.recruitment)
-            || blank(&self.timing)
-            || blank(&self.unit_rules.unit)
-            || self.unit_rules.cluster.as_deref().is_some_and(blank)
-            || self.external_provider.as_deref().is_some_and(blank)
+        if is_blank(&self.label)
+            || is_blank(&self.population)
+            || is_blank(&self.recruitment)
+            || is_blank(&self.timing)
+            || is_blank(&self.unit_rules.unit)
+            || self.unit_rules.cluster.as_deref().is_some_and(is_blank)
+            || self.external_provider.as_deref().is_some_and(is_blank)
         {
             return Err(wrong(
                 "a candidate needs a label, population, recruitment, timing and unit rules",
             ));
         }
-        if self.cost.units == 0 || blank(&self.cost.unit_label) || self.sample_size == 0 {
+        if self.cost.units == 0 || is_blank(&self.cost.unit_label) || self.sample_size == 0 {
             return Err(wrong(
                 "a candidate needs a positive cost with a unit label and a positive sample size",
             ));
         }
-        if self.feasibility_notes.iter().any(|note| blank(note)) {
+        if self.feasibility_notes.iter().any(|note| is_blank(note)) {
             return Err(wrong("a feasibility note is empty"));
         }
         if self.interventions.len() + self.measured.len() > MAX_OBLIGATION_COORDINATES

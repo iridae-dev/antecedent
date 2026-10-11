@@ -44,7 +44,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{CanonicalWriter, ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
+use antecedent_core::{
+    CanonicalWriter, ExternalRefusal, ProviderObjectIdentity, ScientificQuantity, is_blank,
+};
 use antecedent_io::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
 };
@@ -554,10 +556,6 @@ impl std::error::Error for DesignRankingArtifactError {}
 type Result<T> = std::result::Result<T, DesignRankingArtifactError>;
 
 // -- small helpers ----------------------------------------------------------------------
-
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
 
 fn close(stored: f64, recomputed: f64) -> bool {
     stored.is_finite() && (stored - recomputed).abs() <= REPLAY_TOLERANCE * (1.0 + recomputed.abs())
@@ -1096,7 +1094,7 @@ impl DesignRankingArtifactWire {
     ///
     /// A blank artifact id or an oversized payload.
     pub fn to_bytes(&self, artifact_id: &str) -> std::result::Result<Vec<u8>, IoError> {
-        if blank(artifact_id) {
+        if is_blank(artifact_id) {
             return Err(IoError::Convert("missing artifact id".into()));
         }
         let mut ordered = self.clone();
@@ -1441,12 +1439,12 @@ fn check_bounds(wire: &DesignRankingArtifactWire) -> Result<()> {
 
 fn check_decision(decision: &DecisionWire) -> Result<()> {
     let bad = DesignRankingArtifactError::InvalidWire;
-    if blank(&decision.contract_identity) || blank(&decision.utility_unit) {
+    if is_blank(&decision.contract_identity) || is_blank(&decision.utility_unit) {
         return Err(bad("decision identity and utility unit"));
     }
     let n_actions = decision.action_ids.len();
     let unique: BTreeSet<&String> = decision.action_ids.iter().collect();
-    if unique.len() != n_actions || decision.action_ids.iter().any(|id| blank(id)) {
+    if unique.len() != n_actions || decision.action_ids.iter().any(|id| is_blank(id)) {
         return Err(bad("action ids"));
     }
     if decision.admissible.len() != n_actions || !decision.admissible.iter().any(|ok| *ok) {
@@ -1478,8 +1476,8 @@ fn check_decision(decision: &DecisionWire) -> Result<()> {
 fn check_costs(wire: &DesignRankingArtifactWire) -> Result<()> {
     let utility_unit = &wire.decision.utility_unit;
     if let Some(map) = &wire.cost_map {
-        if blank(&map.cost_unit)
-            || blank(&map.utility_unit)
+        if is_blank(&map.cost_unit)
+            || is_blank(&map.utility_unit)
             || !(map.utility_per_cost.is_finite() && map.utility_per_cost > 0.0)
         {
             return Err(DesignRankingArtifactError::InvalidWire("cost mapping"));
@@ -1493,7 +1491,7 @@ fn check_costs(wire: &DesignRankingArtifactWire) -> Result<()> {
     }
     for candidate in &wire.candidates {
         if !(candidate.cost_amount.is_finite() && candidate.cost_amount >= 0.0)
-            || blank(&candidate.cost_unit)
+            || is_blank(&candidate.cost_unit)
         {
             return Err(DesignRankingArtifactError::InvalidWire("study cost"));
         }
@@ -1594,14 +1592,14 @@ fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUp
             return Err(inconsistent("trust"));
         }
         if trust == SignalTrustLabel::ExternallyAttested
-            && candidate.attestor.as_deref().is_none_or(blank)
+            && candidate.attestor.as_deref().is_none_or(is_blank)
         {
             return Err(inconsistent("attestor"));
         }
         if provider.request_id != candidate.request_fingerprint {
             return Err(inconsistent("provider_request"));
         }
-        if blank(&provider.provider_id) || blank(&provider.object_id) {
+        if is_blank(&provider.provider_id) || is_blank(&provider.object_id) {
             return Err(inconsistent("provider"));
         }
     }
@@ -1645,7 +1643,7 @@ fn verify_candidate(
         candidate: id.clone(),
         quantity,
     };
-    if blank(id) {
+    if is_blank(id) {
         return Err(DesignRankingArtifactError::InvalidWire("blank candidate id"));
     }
     let (trust, mode) = check_signal(candidate)?;

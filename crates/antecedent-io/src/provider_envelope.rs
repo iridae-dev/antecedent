@@ -140,7 +140,7 @@ fn validate(envelope: &ProviderEnvelope) -> Result<(), String> {
         (None, None) => {}
         (Some(artifact), Some(digest))
             if artifact.len() <= MAX_ARTIFACT
-                && digest == &antecedent_core::to_hex(blake3::hash(artifact).as_bytes()) => {}
+                && digest == &antecedent_core::blake3_hex(artifact) => {}
         _ => return Err("provider artifact digest or size is invalid".into()),
     }
     Ok(())
@@ -152,7 +152,7 @@ pub fn seal_provider_envelope(mut envelope: ProviderEnvelope) -> Result<Vec<u8>,
     envelope.header.external_artifact_digest = envelope
         .external_artifact
         .as_ref()
-        .map(|artifact| antecedent_core::to_hex(blake3::hash(artifact).as_bytes()));
+        .map(|artifact| antecedent_core::blake3_hex(artifact));
     validate(&envelope)?;
     let header = serde_json::to_vec(&envelope.header).map_err(|error| error.to_string())?;
     if header.len() > MAX_HEADER {

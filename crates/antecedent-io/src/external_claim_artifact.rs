@@ -332,7 +332,7 @@ impl ExternalClaimIdentity {
         for quantity in &self.quantities {
             put(&format!("{quantity:?}"));
         }
-        antecedent_core::to_hex(&hasher.finish())
+        hasher.finish_hex()
     }
 
     fn validate(&self) -> Result<(), IoError> {
@@ -455,7 +455,7 @@ pub fn values_digest(values: &[f64]) -> String {
     for value in values {
         hasher.real(*value);
     }
-    antecedent_core::to_hex(&hasher.finish())
+    hasher.finish_hex()
 }
 
 impl ExternalClaimArtifact {

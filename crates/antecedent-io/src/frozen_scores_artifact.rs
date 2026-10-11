@@ -268,6 +268,9 @@ fn columns_bytes(columns: &[ScoreColumnPlain]) -> Vec<u8> {
         .collect()
 }
 
+/// A stored stage identity read back from its hex spelling, refused with the artifact's own
+/// error. This is a parser with a typed refusal (the encoder is `StageIdentity::to_hex` over
+/// `antecedent_core::to_hex`), not a second hex encoder, so it stays here.
 fn hex_identity(
     text: &str,
     what: &'static str,

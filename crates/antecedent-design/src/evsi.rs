@@ -22,7 +22,7 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CancellationToken, ExecutionContext, ExternalRefusal};
+use antecedent_core::{CancellationToken, ExecutionContext, ExternalRefusal, is_blank};
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
 
 use crate::candidate::CandidateDesign;
@@ -367,14 +367,10 @@ impl EvsiError {
     }
 }
 
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
-
 fn validate_costs(request: &EvsiRequest) -> Result<(), EvsiError> {
     if let Some(map) = &request.cost_map {
-        if blank(&map.cost_unit)
-            || blank(&map.utility_unit)
+        if is_blank(&map.cost_unit)
+            || is_blank(&map.utility_unit)
             || !(map.utility_per_cost.is_finite() && map.utility_per_cost > 0.0)
         {
             return Err(EvsiError::InvalidCost("cost_map".into()));
@@ -390,7 +386,7 @@ fn validate_costs(request: &EvsiRequest) -> Result<(), EvsiError> {
     }
     for candidate in &request.candidates {
         let cost = &candidate.cost;
-        if !(cost.amount.is_finite() && cost.amount >= 0.0) || blank(&cost.unit) {
+        if !(cost.amount.is_finite() && cost.amount >= 0.0) || is_blank(&cost.unit) {
             return Err(EvsiError::InvalidCost(candidate.semantic_id.clone()));
         }
         if let Some(map) = &request.cost_map {
@@ -409,11 +405,11 @@ fn validate_request<A>(
     problem: &DecisionProblem<A, f64>,
     request: &EvsiRequest,
 ) -> Result<(), EvsiError> {
-    if blank(&request.decision_contract_identity) || blank(&request.utility_unit) {
+    if is_blank(&request.decision_contract_identity) || is_blank(&request.utility_unit) {
         return Err(EvsiError::InvalidRequest("decision identity and utility unit"));
     }
     if request.action_ids.len() != problem.actions.len()
-        || request.action_ids.iter().any(|id| blank(id))
+        || request.action_ids.iter().any(|id| is_blank(id))
     {
         return Err(EvsiError::InvalidRequest("action_ids must align with the problem actions"));
     }
@@ -437,7 +433,7 @@ fn validate_request<A>(
     if let Some(pair) = seen.windows(2).find(|w| w[0] == w[1]) {
         return Err(EvsiError::DuplicateCandidate(pair[0].clone()));
     }
-    if request.candidates.iter().any(|c| blank(&c.semantic_id)) {
+    if request.candidates.iter().any(|c| is_blank(&c.semantic_id)) {
         return Err(EvsiError::InvalidRequest("blank candidate id"));
     }
     validate_costs(request)

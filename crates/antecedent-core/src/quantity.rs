@@ -107,43 +107,31 @@ impl ScientificQuantity {
         result
     }
 
-    /// Length-prefixed encoding of every identity field.
-    ///
-    /// Role is a tag byte, not its `Debug` name, so a derive change cannot
-    /// move a digest.
-    #[must_use]
-    pub fn canonical_bytes(&self) -> Vec<u8> {
-        fn put_str(out: &mut Vec<u8>, value: &str) {
-            out.extend_from_slice(&(value.len() as u64).to_le_bytes());
-            out.extend_from_slice(value.as_bytes());
-        }
-        let mut out = Vec::new();
-        for field in [
-            &self.variable_id,
-            &self.variable_name,
-            &self.units,
-            &self.population_id,
-            &self.regime_id,
-            &self.functional_id,
-            &self.transform_id,
-        ] {
-            put_str(&mut out, field);
-        }
-        out.push(match self.role {
-            QuantityRole::Treatment => 1,
-            QuantityRole::Outcome => 2,
-            QuantityRole::Covariate => 3,
-            QuantityRole::Mediator => 4,
-            QuantityRole::Selection => 5,
-            QuantityRole::Utility => 6,
-        });
-        out.extend_from_slice(&self.horizon.to_le_bytes());
-        out.extend_from_slice(&(self.conditioning.len() as u64).to_le_bytes());
+    /// Write every identity field into `stream`: each id as text, the role as a tag word
+    /// (never its `Debug` name, so a derive change cannot move a digest), the horizon, then
+    /// the conditioning count and each condition.
+    pub fn write_canonical(&self, stream: &mut crate::identity::CanonicalWriter) {
+        stream
+            .text(&self.variable_id)
+            .text(&self.variable_name)
+            .text(&self.units)
+            .text(&self.population_id)
+            .text(&self.regime_id)
+            .text(&self.functional_id)
+            .text(&self.transform_id)
+            .word(match self.role {
+                QuantityRole::Treatment => 1,
+                QuantityRole::Outcome => 2,
+                QuantityRole::Covariate => 3,
+                QuantityRole::Mediator => 4,
+                QuantityRole::Selection => 5,
+                QuantityRole::Utility => 6,
+            })
+            .word(u64::from(self.horizon))
+            .word(self.conditioning.len() as u64);
         for condition in &self.conditioning {
-            put_str(&mut out, &condition.variable_id);
-            put_str(&mut out, &condition.value_id);
+            stream.text(&condition.variable_id).text(&condition.value_id);
         }
-        out
     }
 
     /// Validate required identities and canonical conditioning before binding.
@@ -301,13 +289,32 @@ mod tests {
             .answers_interventional_outcome_threshold());
     }
 
+    fn digest_of(quantity: &ScientificQuantity) -> String {
+        let mut stream = crate::identity::CanonicalWriter::new("test.quantity");
+        quantity.write_canonical(&mut stream);
+        stream.finish_hex()
+    }
+
     #[test]
-    fn canonical_bytes_do_not_embed_debug_role_names() {
-        let bytes = quantity().canonical_bytes();
-        assert!(bytes.windows(7).all(|w| w != b"Outcome"));
+    fn canonical_identity_is_a_pinned_golden_vector() {
+        assert_eq!(
+            digest_of(&quantity()),
+            "5270447c4db4d02e5214b005479722aa74dc03b066f3aba388edd8eae74b4069"
+        );
+    }
+
+    #[test]
+    fn canonical_identity_separates_roles_and_fields() {
+        let base = quantity();
+        assert_eq!(digest_of(&base), digest_of(&quantity()));
         let mut renamed = quantity();
         renamed.role = QuantityRole::Treatment;
-        assert_ne!(bytes, renamed.canonical_bytes());
+        assert_ne!(digest_of(&base), digest_of(&renamed));
+        // A field boundary moved between two adjacent ids is a different identity.
+        let mut shifted = quantity();
+        shifted.units = format!("{}{}", base.units, base.population_id);
+        shifted.population_id.clear();
+        assert_ne!(digest_of(&base), digest_of(&shifted));
     }
 
     #[test]

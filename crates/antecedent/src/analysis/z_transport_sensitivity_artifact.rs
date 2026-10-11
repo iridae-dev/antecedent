@@ -55,6 +55,15 @@ struct VersionPeek {
 }
 
 impl ZTransportSensitivityArtifactWire {
+    /// Hex digest the artifact records for its baseline artifact bytes.
+    #[must_use]
+    pub fn baseline_digest(bytes: &[u8]) -> String {
+        antecedent_core::CanonicalWriter::digest_bytes_hex(
+            "antecedent.z_transport_sensitivity.baseline.v1",
+            bytes,
+        )
+    }
+
     /// Recompute a typed sensitivity result and bind it to an exported baseline
     /// artifact, replaying the baseline point under the default consumer limits.
     ///
@@ -106,7 +115,7 @@ impl ZTransportSensitivityArtifactWire {
             },
             other => IoError::Convert(other.to_string()),
         })?;
-        let digest = digest_baseline(&baseline_artifact);
+        let digest = Self::baseline_digest(&baseline_artifact);
         Ok(Self {
             version: Z_TRANSPORT_SENSITIVITY_ARTIFACT_VERSION,
             baseline_artifact,
@@ -167,7 +176,7 @@ impl ZTransportSensitivityArtifactWire {
             return Err(IoError::UnsupportedVersion { version: peek.version });
         }
         let wire: Self = from_cbor(bytes)?;
-        if digest_baseline(&wire.baseline_artifact) != wire.baseline_artifact_digest {
+        if Self::baseline_digest(&wire.baseline_artifact) != wire.baseline_artifact_digest {
             return Err(IoError::Convert(
                 "z-transport sensitivity baseline digest mismatch".into(),
             ));
@@ -226,11 +235,19 @@ impl ZTransportSensitivityArtifactWire {
     }
 }
 
-/// Hex digest of the baseline artifact bytes.
-#[must_use]
-pub fn digest_baseline(bytes: &[u8]) -> String {
-    antecedent_core::to_hex(&antecedent_io::identity::payload_digest(
-        "z_transport_sensitivity_baseline",
-        bytes,
-    ))
+#[cfg(test)]
+mod tests {
+    use super::ZTransportSensitivityArtifactWire;
+
+    #[test]
+    fn the_baseline_digest_is_a_pinned_golden_vector() {
+        assert_eq!(
+            ZTransportSensitivityArtifactWire::baseline_digest(b"baseline"),
+            "929cda8554903c3d6e1780b7d2565bd430f592342d4498fafdf6599c407ea553"
+        );
+        assert_ne!(
+            ZTransportSensitivityArtifactWire::baseline_digest(b"baseline"),
+            ZTransportSensitivityArtifactWire::baseline_digest(b"baselinf")
+        );
+    }
 }

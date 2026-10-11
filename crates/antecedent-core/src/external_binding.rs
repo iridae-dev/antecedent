@@ -12,6 +12,7 @@ use crate::{
     IdentificationStatus, ProvenanceChain, ProvenanceChainError, ProviderObjectIdentity,
     QuantityMismatch, ScientificQuantity, SupportStatus, VerificationProbe,
 };
+use crate::text::is_blank;
 
 /// Regime identity of an unintervened conditional law.
 pub const OBSERVATIONAL_REGIME: &str = "observational";
@@ -58,7 +59,7 @@ impl CheckedEquivalence {
         offered: &ScientificQuantity,
         wanted: &ScientificQuantity,
     ) -> bool {
-        if self.graph_id != graph_id || blank(&self.justification_id) {
+        if self.graph_id != graph_id || is_blank(&self.justification_id) {
             return false;
         }
         let mut as_requested = offered.clone();
@@ -347,7 +348,7 @@ impl BoundExternalClaim {
         &self,
         causal_contract_id: &str,
     ) -> Result<ProvenanceChain, ProvenanceChainError> {
-        if blank(causal_contract_id) {
+        if is_blank(causal_contract_id) {
             return Err(ProvenanceChainError::InvalidLink);
         }
         let contract = format!("contract:{causal_contract_id}");
@@ -409,10 +410,6 @@ impl BoundExternalClaim {
     }
 }
 
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
-
 fn declared(required: &[String], declared: &[String]) -> Option<String> {
     let have: HashSet<_> = declared.iter().collect();
     required.iter().find(|id| !have.contains(id)).cloned()
@@ -468,7 +465,7 @@ fn check_contract(contract: &CheckedCausalContract) -> Result<(), ExternalBindin
     ) {
         return Err(ExternalBindingError::ContractNotIdentified(contract.identification));
     }
-    if blank(&contract.graph_id)
+    if is_blank(&contract.graph_id)
         || contract.estimand.is_empty()
         || contract.estimand.iter().any(|q| q.validate().is_err())
     {

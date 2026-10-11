@@ -654,7 +654,7 @@ fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
 
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, NonlinearMediationArtifactError> {
     let bytes = to_cbor(value)?;
-    Ok(antecedent_core::to_hex(&CanonicalWriter::new(tag).bytes(&bytes).finish()))
+    Ok(CanonicalWriter::digest_bytes_hex(tag, &bytes))
 }
 
 fn data_digest(data: &MediationDataWire) -> Result<String, NonlinearMediationArtifactError> {

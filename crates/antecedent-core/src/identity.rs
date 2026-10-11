@@ -190,6 +190,19 @@ impl CanonicalWriter {
     pub fn finish_hex(&self) -> String {
         to_hex(&self.finish())
     }
+
+    /// Digest of one opaque byte string (a stored artifact or CBOR body) under
+    /// the domain `tag`: [`Self::new`] then [`Self::bytes`].
+    #[must_use]
+    pub fn digest_bytes(tag: &str, bytes: &[u8]) -> [u8; 32] {
+        Self::new(tag).bytes(bytes).finish()
+    }
+
+    /// [`Self::digest_bytes`] as 64 lowercase hex characters.
+    #[must_use]
+    pub fn digest_bytes_hex(tag: &str, bytes: &[u8]) -> String {
+        to_hex(&Self::digest_bytes(tag, bytes))
+    }
 }
 
 /// Unframed BLAKE3 digest of `bytes` as 64 lowercase hex characters.
@@ -460,6 +473,21 @@ mod tests {
     }
 
     #[test]
+    fn one_shot_byte_digest_is_the_framed_tag_then_bytes() {
+        let mut stream = CanonicalWriter::new("test.tag");
+        stream.bytes(b"payload");
+        assert_eq!(CanonicalWriter::digest_bytes("test.tag", b"payload"), stream.finish());
+        assert_eq!(
+            CanonicalWriter::digest_bytes_hex("test.tag", b"payload"),
+            "4f754574b2b5f7d97cf0f17422e58bfd9a06e4a82f51522d5d372018766a4148"
+        );
+        assert_ne!(
+            CanonicalWriter::digest_bytes_hex("test.tag", b"payload"),
+            CanonicalWriter::digest_bytes_hex("test.tag2", b"payload")
+        );
+    }
+
+    #[test]
     fn digest_hex_is_stable_and_lowercase() {
         let mut bytes = [0u8; 32];
         bytes[0] = 0xab;
@@ -507,9 +535,9 @@ mod tests {
         let mut writer = CanonicalWriter::new("antecedent.test.canon");
         writer.word(42).text("label").real(-0.5).text("");
         assert_eq!(writer.finish(), *expected.as_bytes());
-        assert_eq!(to_hex(&writer.finish()), expected.to_hex().to_string());
+        assert_eq!(writer.finish_hex(), expected.to_hex().to_string());
         assert_eq!(
-            to_hex(&writer.finish()),
+            writer.finish_hex(),
             "77a467e6a59c1f6dca516663cb868433147eb4c625ddbdbe07207fdf3e6a11f5"
         );
 

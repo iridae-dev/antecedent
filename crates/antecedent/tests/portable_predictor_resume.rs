@@ -60,7 +60,7 @@ fn predict_bytes(bytes: &[u8]) -> (Vec<f64>, String) {
     assert!(consumed.acceptance.accepts_as_verified_program());
     assert!(consumed.acceptance.verified_references);
     let claim = consumed.contract.as_ref().unwrap().claim.as_ref().unwrap();
-    let parent = antecedent_io::digest_hex(&claim.claim_id);
+    let parent = antecedent_core::to_hex(&claim.claim_id);
     let model = consumed.body.fitted_effect.unwrap();
     let ctx = ExecutionContext::for_tests(3);
     let values = model.predict(&[VariableId::from_raw(0)], &[&[-1.0, 0.0, 1.0]], 3, &ctx).unwrap();
@@ -105,7 +105,7 @@ fn portable_predictor_zero_refits_and_fresh_process_match_full_run() {
     assert!(changed_fits > 1);
     let changed = antecedent_io::consume_analysis_result(&changed).unwrap();
     let changed_parent =
-        antecedent_io::digest_hex(&changed.contract.unwrap().claim.unwrap().claim_id);
+        antecedent_core::to_hex(&changed.contract.unwrap().claim.unwrap().claim_id);
     assert_ne!(changed_parent, one.1);
 }
 

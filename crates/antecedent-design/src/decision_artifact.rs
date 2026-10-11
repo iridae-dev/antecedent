@@ -842,7 +842,7 @@ pub fn mean_source_digest(source: &MeanSource) -> String {
     let mut hasher = CanonicalWriter::new("antecedent.decision_mean_source.v1");
     hasher.word(source.coordinates.len() as u64);
     for quantity in &source.coordinates {
-        hasher.bytes(&quantity.canonical_bytes());
+        quantity.write_canonical(&mut hasher);
     }
     hasher.reals(&source.means);
     hasher.finish_hex()

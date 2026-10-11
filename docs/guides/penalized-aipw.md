@@ -73,8 +73,8 @@ coverage records.
 - **Preserved.** The score table (scores, out-of-fold propensities, fold ids, row identity,
   adjustment set), the overlap report and clip, and retargeting, including the retarget
   covariance (a penalized table retargets exactly like an unpenalized one). The
-  configuration is part of the estimator identity (`canonical_key`, hashed with
-  `canonical_bytes`) and of the score table's provenance, so a different grid, fold count or
+  configuration is part of the estimator identity (`canonical_key`, digested by
+  `identity_digest`) and of the score table's provenance, so a different grid, fold count or
   fallback never shares a score-reuse identity or a batch nuisance fit; penalized fits are
   never served from the shared nuisance cache. The calibration key's functional label carries
   the nuisance (`...+propensity=ridge_logistic:k5:g...`), so an interval measured under one

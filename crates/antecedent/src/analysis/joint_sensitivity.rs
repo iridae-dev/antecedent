@@ -28,7 +28,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::{ExecutionContext, SearchStop, reason_code};
+use antecedent_core::{CanonicalWriter, ExecutionContext, SearchStop, reason_code};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
 use antecedent_io::{IoError, from_cbor, to_cbor};
 use antecedent_validate::{
@@ -249,9 +249,10 @@ struct VersionPeek {
     version: u32,
 }
 
-fn hex(domain: &str, bytes: &[u8]) -> String {
-    antecedent_core::to_hex(&antecedent_io::identity::payload_digest(domain, bytes))
-}
+/// Domain tags of the three identity digests of a joint sensitivity artifact.
+const BASELINE_DOMAIN: &str = "antecedent.joint_sensitivity.baseline.v1";
+const PREMISES_DOMAIN: &str = "antecedent.joint_sensitivity.premises.v1";
+const DATA_DOMAIN: &str = "antecedent.joint_sensitivity.data.v1";
 
 fn stop_name(stop: SearchStop) -> String {
     stop.code().to_owned()
@@ -338,7 +339,10 @@ impl JointSensitivityArtifactWire {
                 memory_bytes: spec.limits.memory_bytes,
             },
             provenance: JointProvenanceWire {
-                baseline_artifact_digest: hex("joint_sensitivity_baseline", &baseline_artifact),
+                baseline_artifact_digest: CanonicalWriter::digest_bytes_hex(
+                    BASELINE_DOMAIN,
+                    &baseline_artifact,
+                ),
                 baseline_premises_digest: consumed.wire.premises_digest.clone(),
                 provider_snapshots: consumed
                     .data
@@ -430,7 +434,7 @@ impl JointSensitivityArtifactWire {
                 &self.body.sampling.reason_code,
             ),
         );
-        Ok(hex("joint_sensitivity_premises", &to_cbor(&premises)?))
+        Ok(CanonicalWriter::digest_bytes_hex(PREMISES_DOMAIN, &to_cbor(&premises)?))
     }
 
     /// Digest of the data identity: the baseline bytes, provider snapshots
@@ -441,12 +445,12 @@ impl JointSensitivityArtifactWire {
     /// Serialization failure.
     pub fn computed_data_digest(&self) -> Result<String, IoError> {
         let data = (
-            hex("joint_sensitivity_baseline", &self.baseline_artifact),
+            CanonicalWriter::digest_bytes_hex(BASELINE_DOMAIN, &self.baseline_artifact),
             &self.body.provenance.baseline_artifact_digest,
             &self.body.provenance.provider_snapshots,
             self.body.provenance.source_regime,
         );
-        Ok(hex("joint_sensitivity_data", &to_cbor(&data)?))
+        Ok(CanonicalWriter::digest_bytes_hex(DATA_DOMAIN, &to_cbor(&data)?))
     }
 
     /// Export as a portable CBOR item.
@@ -606,5 +610,21 @@ impl JointSensitivityArtifactWire {
                 memory_bytes: self.body.receipt.memory_limit_bytes,
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::CanonicalWriter;
+
+    use super::{BASELINE_DOMAIN, DATA_DOMAIN, PREMISES_DOMAIN};
+
+    #[test]
+    fn the_identity_domains_are_distinct_and_pinned() {
+        let digests = [BASELINE_DOMAIN, PREMISES_DOMAIN, DATA_DOMAIN]
+            .map(|domain| CanonicalWriter::digest_bytes_hex(domain, b"bytes"));
+        assert_eq!(digests[0], "c6656142fe2d4f75d9b3232b154aa964fabc5711b7b9fa4e42c359bae6a1d062");
+        assert_eq!(digests[1], "648397a45d24351ac76f930f5c354b1e9d6dd962ecc7b2f9286cb770465c4d2e");
+        assert_eq!(digests[2], "d0c7caccfeebe3f7bb2674d9bd495e2909870d411701d1ec103513d603b1dd8c");
     }
 }

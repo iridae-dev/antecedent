@@ -260,7 +260,7 @@ fn arrival_original_artifact_and_raw_provider_replay_refuses_resealed_changes() 
         let sealed =
             antecedent_io::convert::to_cbor(&(forged.version, &forged.request, &forged.result))
                 .unwrap();
-        forged.identity = antecedent_core::to_hex(blake3::hash(&sealed).as_bytes());
+        forged.identity = antecedent_core::blake3_hex(&sealed);
         assert!(
             detail(
                 ArrivalArtifact::consume(

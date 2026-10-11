@@ -574,6 +574,11 @@ impl TargetIdentityWire {
 /// families (row indices, weights, cluster ids, prior bytes, ...), so equal
 /// bytes of different families never share a digest. This is the only
 /// sub-digest convention inside identity wires.
+///
+/// It frames exactly one homogeneous payload (an array of fixed-width values
+/// or one opaque byte string) under a label, in the same derive-key family as
+/// [`digest_canonical`]. A digest over several named fields is not a payload:
+/// it is a [`antecedent_core::CanonicalWriter`] stream with its own domain tag.
 #[must_use]
 pub fn payload_digest(kind: &str, bytes: &[u8]) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new_derive_key("antecedent.identity.payload");

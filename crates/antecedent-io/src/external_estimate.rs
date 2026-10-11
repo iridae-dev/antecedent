@@ -7,15 +7,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    AverageEffectQuery, CausalQuery, CausalSchemaBuilder, IdentityDomain, MeasurementSpec,
-    RoleHint, SmallRoleSet, ValueType, VariableId, IDENTITY_FORMAT,
+    AverageEffectQuery, CanonicalWriter, CausalQuery, CausalSchemaBuilder, IdentityDomain,
+    MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId, IDENTITY_FORMAT,
 };
 
 use crate::analysis_result_artifact::{encode_analysis_result_artifact, AnalysisResultWire};
 use crate::analysis_wire::{DiagnosticWire, IdentificationResultWire};
 use crate::container::{pack_section_shared, CompressPolicy};
 use crate::contract_section::{
-    claim_domains, contract_seal, digest_hex, result_digest, AnalysisResultContractWire,
+    claim_domains, contract_seal, result_digest, AnalysisResultContractWire,
     AttestedEvidenceWire, CalibrationSlotWire, ClaimSectionWire, ContractIdentitiesWire,
     IdentificationSlotWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
     CONTRACT_SECTION, CONTRACT_SECTION_FORMAT,
@@ -27,7 +27,6 @@ use crate::identity::{
     claim_digest, ClaimIdentityWire, IdentificationProductWire, ObservationIdentityWire,
     TargetIdentityWire,
 };
-use crate::payload_digest;
 use crate::query_wire::causal_query_to_wire;
 use crate::to_cbor;
 
@@ -100,14 +99,14 @@ pub fn attested_external_estimate(attach: &ExternalEstimateAttach) -> AttestedEv
         informative: true,
         failure_condition: None,
         reverifiable: false,
-        config_digest: Some(digest_hex(&payload_digest(
-            "external_estimate.config",
+        config_digest: Some(CanonicalWriter::digest_bytes_hex(
+            "antecedent.external_estimate.config.v1",
             &attach.config,
-        ))),
-        payload_digest: Some(digest_hex(&payload_digest(
-            "external_estimate.payload",
+        )),
+        payload_digest: Some(CanonicalWriter::digest_bytes_hex(
+            "antecedent.external_estimate.payload.v1",
             &attach.payload,
-        ))),
+        )),
     }
 }
 
@@ -302,18 +301,13 @@ fn receipt_contract(
     };
     let observation_digest = crate::digest_wire(IdentityDomain::Observation, &observation)?;
     let identification = attach.identification.unwrap_or_else(|| {
-        payload_digest(
-            "external_estimate.identification",
-            format!(
-                "{}|{}|{}|{}|{}",
-                attach.status,
-                attach.identifier,
-                attach.treatment,
-                attach.outcome,
-                attach.confounders.join(",")
-            )
-            .as_bytes(),
-        )
+        CanonicalWriter::new("antecedent.external_estimate.identification.v1")
+            .text(&attach.status)
+            .text(&attach.identifier)
+            .text(&attach.treatment)
+            .text(&attach.outcome)
+            .texts(&attach.confounders)
+            .finish()
     });
     let identification_product = IdentificationProductWire {
         format: IDENTITY_FORMAT,
@@ -574,8 +568,15 @@ mod tests {
         assert_eq!(evidence.kind, "external_estimate");
         assert!(!evidence.reverifiable);
         assert_eq!(evidence.name, "econml.dml.CausalForestDML");
-        assert!(evidence.config_digest.is_some());
-        assert!(evidence.payload_digest.is_some());
+        // Golden vectors: the domain tags and the framing are part of the digest.
+        assert_eq!(
+            evidence.config_digest.as_deref().unwrap(),
+            "20f8a6c6bd415488f33118732829f6708cdd382bc17fe855ef89f1474df6b2d7"
+        );
+        assert_eq!(
+            evidence.payload_digest.as_deref().unwrap(),
+            "26b36a3b81f9d3f0abc2a81580de5a8c7b89453f84b9a6c0373d743adf0915d7"
+        );
         let encoded = to_cbor(&evidence).unwrap();
         let decoded: AttestedEvidenceWire = from_cbor(&encoded).unwrap();
         assert_eq!(decoded, evidence);

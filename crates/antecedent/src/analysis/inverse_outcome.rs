@@ -515,7 +515,7 @@ fn identity(
             canon.flag(constraint.satisfied);
         }
     }
-    antecedent_core::to_hex(&canon.finish())
+    canon.finish_hex()
 }
 
 fn validate_forward(

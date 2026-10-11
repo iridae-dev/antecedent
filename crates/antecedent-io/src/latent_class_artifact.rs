@@ -516,7 +516,7 @@ fn responsibilities_summary(result: &LatentClassResult) -> ResponsibilitiesSumma
         class_means: sums.iter().map(|s| s / rows_f).collect(),
         hard_counts: counts,
         separation: result.separation,
-        digest: antecedent_core::to_hex(&hasher.finish()),
+        digest: hasher.finish_hex(),
     }
 }
 
@@ -535,7 +535,7 @@ fn likelihood_record(result: &LatentClassResult) -> LatentClassLikelihoodWire {
             .copied()
             .collect(),
         trace_len: count_u64(result.log_likelihood_trace.len()),
-        trace_digest: antecedent_core::to_hex(&hasher.finish()),
+        trace_digest: hasher.finish_hex(),
         bic: result.bic,
         restarts_attempted: count_u32(result.restarts_attempted),
         restarts_converged: count_u32(result.restarts_converged),
@@ -559,7 +559,7 @@ fn premise_records(result: &LatentClassResult) -> Vec<LatentClassPremiseRecord> 
 
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, LatentClassArtifactError> {
     let bytes = to_cbor(value)?;
-    Ok(antecedent_core::to_hex(&CanonicalWriter::new(tag).bytes(&bytes).finish()))
+    Ok(CanonicalWriter::digest_bytes_hex(tag, &bytes))
 }
 
 fn data_digest(data: &LatentClassDataWire) -> Result<String, LatentClassArtifactError> {

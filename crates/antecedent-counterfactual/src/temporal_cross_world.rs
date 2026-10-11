@@ -30,7 +30,7 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{CanonicalWriter, ExecutionContext, StructuredRefusal, to_hex};
+use antecedent_core::{CanonicalWriter, ExecutionContext, StructuredRefusal};
 use thiserror::Error;
 
 /// Maximum number of units.
@@ -322,11 +322,6 @@ fn digest(component: &str) -> CanonicalWriter {
     CanonicalWriter::new(&format!("antecedent.counterfactual.temporal_cross_world.{component}.v1"))
 }
 
-/// The hex rendering of a component stream's digest.
-fn hex(stream: &CanonicalWriter) -> String {
-    to_hex(&stream.finish())
-}
-
 /// One unit's exogenous-draw digest.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnitDrawDigest {
@@ -378,7 +373,7 @@ impl SharedAbductionReceipt {
             d.text(draw.history.as_str());
             d.text(&draw.digest);
         }
-        hex(&d)
+        d.finish_hex()
     }
 
     /// Recompute the overall digest and the exogenous digest from the retained
@@ -397,7 +392,7 @@ impl SharedAbductionReceipt {
         d.word(self.n_worlds as u64);
         d.word(self.horizon as u64);
         d.word(u64::from(self.shared_by_both_worlds));
-        hex(&d)
+        d.finish_hex()
     }
 
     /// Whether the retained digests recompute from the retained components.
@@ -645,7 +640,7 @@ fn digest_graph(graph: &TemporalGraph) -> String {
         d.word(p as u64);
         d.word(c as u64);
     }
-    hex(&d)
+    d.finish_hex()
 }
 
 fn digest_fit(fit: &TemporalMechanismFit) -> String {
@@ -672,7 +667,7 @@ fn digest_fit(fit: &TemporalMechanismFit) -> String {
             }
         }
     }
-    hex(&d)
+    d.finish_hex()
 }
 
 fn digest_factual(factual: &[&FactualUnitHistory]) -> String {
@@ -687,7 +682,7 @@ fn digest_factual(factual: &[&FactualUnitHistory]) -> String {
             d.real(v);
         }
     }
-    hex(&d)
+    d.finish_hex()
 }
 
 fn digest_history(history: &NamedActionHistory) -> String {
@@ -702,7 +697,7 @@ fn digest_history(history: &NamedActionHistory) -> String {
     for unit in units {
         d.text(unit.as_str());
     }
-    hex(&d)
+    d.finish_hex()
 }
 
 fn digest_draw(snapshot: &SnapshotId, unit: &FactualUnitHistory, noise: &[f64; 3]) -> String {
@@ -713,7 +708,7 @@ fn digest_draw(snapshot: &SnapshotId, unit: &FactualUnitHistory, noise: &[f64; 3
     for u in noise {
         d.real(*u);
     }
-    hex(&d)
+    d.finish_hex()
 }
 
 /// Abduce one unit's exogenous history `[U_L0, U_L1, U_Y]` from its factual values.

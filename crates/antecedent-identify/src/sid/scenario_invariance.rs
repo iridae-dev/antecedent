@@ -43,7 +43,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use antecedent_core::{CanonicalWriter, NodeRef, VariableId, reason_code, to_hex};
+use antecedent_core::{CanonicalWriter, NodeRef, VariableId, reason_code};
 use antecedent_expr::LeafSignature;
 use antecedent_graph::{BitSet, DenseNodeId, SelectionDiagram};
 
@@ -359,7 +359,7 @@ fn canonical_text(status: &str, selection: &SelectionDifferences, body: &Invaria
 fn digest(text: &str) -> String {
     let mut stream = CanonicalWriter::new("antecedent.scenario_invariance.report.v1");
     stream.text(text);
-    format!("inv.v1.{}", to_hex(&stream.finish()))
+    format!("inv.v1.{}", stream.finish_hex())
 }
 
 fn sorted(mut values: Vec<VariableId>) -> Vec<VariableId> {

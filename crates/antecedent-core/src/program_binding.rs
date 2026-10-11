@@ -17,6 +17,7 @@
 use std::num::FpCategory;
 
 use crate::identity::CanonicalWriter;
+use crate::text::is_blank;
 use crate::{
     BoundExternalClaim, CheckedCausalContract, ExternalRefusal, ExternalResult, QuantityRole,
     ScientificQuantity, bind_external_result,
@@ -56,10 +57,6 @@ pub fn dose_label(value: f64) -> String {
     } else {
         fixed
     }
-}
-
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
 }
 
 /// The full identified-program and request identity an external claim must answer.
@@ -113,7 +110,7 @@ impl ProgramBinding {
             ("transform_id", &self.transform_id),
         ]
         .into_iter()
-        .find(|(_, value)| blank(value));
+        .find(|(_, value)| is_blank(value));
         if let Some((name, _)) = blank_field {
             return Err(invalid(name));
         }

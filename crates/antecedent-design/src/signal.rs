@@ -19,8 +19,7 @@ use std::sync::Arc;
 
 use antecedent_core::{
     CanonicalWriter, CausalRng, ExternalCapability, ExternalRefusal, ExternalScientificObject,
-    ExternalTrustState,
-    ProviderObjectIdentity, ScientificQuantity,
+    ExternalTrustState, ProviderObjectIdentity, ScientificQuantity, is_blank,
 };
 
 use crate::candidate::CandidateDesign;
@@ -89,10 +88,6 @@ fn rows(hasher: &mut CanonicalWriter, table: &[Vec<f64>]) {
     }
 }
 
-fn blank(value: &str) -> bool {
-    value.trim().is_empty()
-}
-
 impl SignalRequest {
     /// Check the request is complete and within its own limits.
     ///
@@ -101,17 +96,17 @@ impl SignalRequest {
     /// Blank identities, missing lineage or conditional-independence assumption,
     /// invalid coordinates, a zero sample size, or one above the declared limit.
     pub fn validate(&self) -> Result<(), SignalError> {
-        if blank(&self.candidate_id) || blank(&self.prior_id) {
+        if is_blank(&self.candidate_id) || is_blank(&self.prior_id) {
             return Err(SignalError::InvalidRequest("candidate and prior identities"));
         }
         if self.state_quantity.validate().is_err() || self.observation_quantity.validate().is_err()
         {
             return Err(SignalError::InvalidRequest("state and observation coordinates"));
         }
-        if self.evidence_lineage.is_empty() || self.evidence_lineage.iter().any(|l| blank(l)) {
+        if self.evidence_lineage.is_empty() || self.evidence_lineage.iter().any(|l| is_blank(l)) {
             return Err(SignalError::MissingLineage);
         }
-        if blank(&self.conditional_independence) {
+        if is_blank(&self.conditional_independence) {
             return Err(SignalError::ConditionalIndependenceMissing);
         }
         if self.sample_size == 0 {
@@ -128,13 +123,10 @@ impl SignalRequest {
     #[must_use]
     pub fn fingerprint(&self) -> String {
         let mut hasher = CanonicalWriter::new("antecedent.signal_request.v1");
-        hasher
-            .text(&self.candidate_id)
-            .text(&self.prior_id)
-            .bytes(&self.state_quantity.canonical_bytes())
-            .bytes(&self.observation_quantity.canonical_bytes())
-            .word(self.sample_size)
-            .word(self.rng_seed);
+        hasher.text(&self.candidate_id).text(&self.prior_id);
+        self.state_quantity.write_canonical(&mut hasher);
+        self.observation_quantity.write_canonical(&mut hasher);
+        hasher.word(self.sample_size).word(self.rng_seed);
         let mut lineage = self.evidence_lineage.clone();
         lineage.sort();
         hasher.texts(&lineage);
@@ -756,7 +748,7 @@ fn validate_values(values: &ExternalDecisionValues) -> Result<(), SignalError> {
     }
     let mut ids: Vec<&String> = values.action_ids.iter().collect();
     ids.sort();
-    if values.action_ids.iter().any(|id| blank(id)) || ids.windows(2).any(|w| w[0] == w[1]) {
+    if values.action_ids.iter().any(|id| is_blank(id)) || ids.windows(2).any(|w| w[0] == w[1]) {
         return Err(SignalError::InvalidTable("blank or duplicate action id"));
     }
     if !all_probabilities(&values.branch_probabilities)
@@ -809,11 +801,9 @@ impl ExternalSignalBody {
 
     fn digest(&self) -> String {
         let mut hasher = CanonicalWriter::new("antecedent.signal.external_law.v1");
-        hasher
-            .text(self.mode().as_str())
-            .word(self.sample_size)
-            .bytes(&self.state_quantity.canonical_bytes())
-            .bytes(&self.observation_quantity.canonical_bytes());
+        hasher.text(self.mode().as_str()).word(self.sample_size);
+        self.state_quantity.write_canonical(&mut hasher);
+        self.observation_quantity.write_canonical(&mut hasher);
         match &self.law {
             ExternalLaw::Likelihood { states, statistics, probabilities } => {
                 hasher.reals(states).reals(statistics);
@@ -966,7 +956,7 @@ impl ExternalSignal {
         match &trust {
             ExternalTrustState::NativeLicensed => return Err(SignalError::TrustNativeClaimed),
             ExternalTrustState::ExternallyAttested { attestor } => {
-                if blank(attestor) {
+                if is_blank(attestor) {
                     return Err(SignalError::TrustMismatch);
                 }
             }
