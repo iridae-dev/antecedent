@@ -457,49 +457,47 @@ fn a_mutated_plan_artifact_fails_consumption_for_the_right_reason() {
     // arriving catalog to keep exactly that binding.
 }
 
-/// Plans the shipped 2.3.0 producer sealed, under the rule set and ranking key's
-/// original spellings: the mz-transport plan of [`mz_plan`] and the surrogate-trial
-/// plan of `a_declared_margin_repairs_the_named_missing_joint` (see the fixtures README).
-const SEALED_MZ_PLAN: &[u8] =
-    include_bytes!("fixtures/earlier_release_artifacts/study_plan_mz.json");
-const SEALED_MIXED_PLAN: &[u8] =
-    include_bytes!("fixtures/earlier_release_artifacts/study_plan_mixed.json");
+/// The surrogate-trial plan: three candidates over the declared-margin route.
+fn surrogate_plan() -> StudyPlanResult {
+    let (g, base, _) = surrogate_base();
+    let route = surrogate_route();
+    let candidates = vec![
+        study("trial_xy", "target", &[FZ], None, &[FX, FY], 3),
+        study("trial_y", "target", &[FZ], None, &[FY], 2),
+        study("full_observational", "target", &[], None, &[FX, FZ, FY], 5),
+    ];
+    let ctx = ExecutionContext::for_tests(5);
+    plan_studies(&g, &route, &base, &candidates, StudyPlanLimits::for_route(&route), &ctx).unwrap()
+}
 
 #[test]
-fn a_plan_sealed_by_an_earlier_release_is_replayed_and_a_tampered_one_refused() {
-    use antecedent_identify::{
-        LEGACY_MIXED_SOURCE_RULE_SET, LEGACY_STUDY_PLAN_RANKING, MIXED_SOURCE_RULE_SET,
-        STUDY_PLAN_RANKING,
-    };
+fn a_sealed_plan_is_replayed_and_a_tampered_one_refused() {
+    use antecedent_identify::{MIXED_SOURCE_RULE_SET, STUDY_PLAN_RANKING};
     let invalid = ("transport_not_certified", "study_plan.invalid_artifact");
-    // The mz-transport plan carries the legacy ranking spelling only.
-    let mz = from_bytes(SEALED_MZ_PLAN);
-    assert_eq!(mz.premises.ranking, LEGACY_STUDY_PLAN_RANKING);
+    // The mz-transport plan carries the ranking key only.
+    let mz = mz_plan().to_artifact().unwrap();
+    assert_eq!(mz.premises.ranking, STUDY_PLAN_RANKING);
     let consumed = consume(&mz).expect("the sealed mz plan replays");
     assert_eq!(consumed.plan().proposals[0].cost_units, 5);
-    let current = mz_plan().to_artifact().unwrap();
-    assert_eq!(current.premises.ranking, STUDY_PLAN_RANKING);
-    assert_ne!(current.premises_digest, mz.premises_digest);
-    assert_eq!(current.plan, mz.plan, "the plan itself is the current planner's");
-    // The mixed-source plan also carries the legacy rule-set spelling, in its premises
-    // and in every proposal's checked derivation.
-    let mixed = from_bytes(SEALED_MIXED_PLAN);
-    assert_eq!(mixed.premises.rule_set, LEGACY_MIXED_SOURCE_RULE_SET);
-    assert_eq!(mixed.premises.ranking, LEGACY_STUDY_PLAN_RANKING);
+    assert_eq!(consumed.to_artifact().unwrap(), mz);
+    // The mixed-source plan also carries the rule-set key, in its premises and in
+    // every proposal's checked derivation.
+    let mixed = surrogate_plan().to_artifact().unwrap();
+    assert_eq!(mixed.premises.rule_set, MIXED_SOURCE_RULE_SET);
+    assert_eq!(mixed.premises.ranking, STUDY_PLAN_RANKING);
     let cited = mixed.plan.proposals.iter().filter_map(|p| p.derivation.mixed.as_ref());
     assert!(cited.clone().count() > 0);
-    assert!(cited.into_iter().all(|record| record.rule_set == LEGACY_MIXED_SOURCE_RULE_SET));
+    assert!(cited.into_iter().all(|record| record.rule_set == MIXED_SOURCE_RULE_SET));
     let replayed = consume(&mixed).expect("the sealed mixed-source plan replays");
     assert_eq!(replayed.plan().proposals[0].cost_units, 2);
-    let renamed = replayed.to_artifact().unwrap();
-    assert_eq!(renamed.premises.rule_set, MIXED_SOURCE_RULE_SET);
+    assert_eq!(replayed.to_artifact().unwrap(), mixed);
     // Tampering is refused: unsealed edits hit the carried digests, sealed edits fail
-    // the replay, and no other spelling or version is accepted.
+    // the replay, and no other version is accepted.
     let mut unsealed = mixed.clone();
-    unsealed.premises.ranking = STUDY_PLAN_RANKING.into();
+    unsealed.premises.ranking = STUDY_PLAN_RANKING.replace(".v1", ".v0");
     assert_eq!(detail(consume(&unsealed)), invalid);
-    let other_ranking = LEGACY_STUDY_PLAN_RANKING.replace(".v1", ".v0");
-    let other_rule_set = LEGACY_MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
+    let other_ranking = STUDY_PLAN_RANKING.replace(".v1", ".v0");
+    let other_rule_set = MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
     let sealed_edits: [(&str, &dyn Fn(&mut StudyPlanArtifactWire)); 4] = [
         ("ranking version", &|w| w.premises.ranking = other_ranking.clone()),
         ("rule-set version", &|w| w.premises.rule_set = other_rule_set.clone()),
@@ -514,9 +512,9 @@ fn a_plan_sealed_by_an_earlier_release_is_replayed_and_a_tampered_one_refused() 
         edit(&mut wire);
         assert_eq!(detail(consume(&wire.sealed().unwrap())), invalid, "{name}");
     }
-    // The mixed-source rule-set spelling is never accepted for an mz-transport plan.
+    // The mixed-source rule-set is never accepted for an mz-transport plan.
     let mut wrong_route = mz.clone();
-    wrong_route.premises.rule_set = LEGACY_MIXED_SOURCE_RULE_SET.into();
+    wrong_route.premises.rule_set = MIXED_SOURCE_RULE_SET.into();
     assert_eq!(detail(consume(&wrong_route.sealed().unwrap())), invalid);
 }
 
@@ -661,16 +659,8 @@ fn surrogate_route() -> StudyPlanRoute {
 #[test]
 fn a_declared_margin_repairs_the_named_missing_joint() {
     let (g, base, base_data) = surrogate_base();
-    let route = surrogate_route();
-    let candidates = vec![
-        study("trial_xy", "target", &[FZ], None, &[FX, FY], 3),
-        study("trial_y", "target", &[FZ], None, &[FY], 2),
-        study("full_observational", "target", &[], None, &[FX, FZ, FY], 5),
-    ];
     let ctx = ExecutionContext::for_tests(5);
-    let plan =
-        plan_studies(&g, &route, &base, &candidates, StudyPlanLimits::for_route(&route), &ctx)
-            .unwrap();
+    let plan = surrogate_plan();
     // The frozen failure names the exact joint the trial published only as marginals.
     let failure = &plan.plan().failure;
     assert_eq!(

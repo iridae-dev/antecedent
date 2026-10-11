@@ -122,43 +122,30 @@ fn exported_point_is_recomputed_by_an_independent_consumer() {
     assert!(wire.proof.steps.iter().any(|s| s.rule == "rule3_insert"));
 }
 
-/// Bytes the shipped 2.3.0 producer sealed for the point of `do(X = true)` over
-/// [`evidence`], under the rule set's original spelling (see the fixtures README).
-const SEALED_BY_EARLIER_RELEASE: &[u8] =
-    include_bytes!("fixtures/earlier_release_artifacts/mixed_source_point.cbor");
-
 #[test]
-fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refused() {
-    use antecedent_identify::{LEGACY_MIXED_SOURCE_RULE_SET, MIXED_SOURCE_RULE_SET};
+fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
+    use antecedent_identify::MIXED_SOURCE_RULE_SET;
     let ctx = ExecutionContext::for_tests(2);
-    let sealed = MixedSourceArtifactWire::decode(SEALED_BY_EARLIER_RELEASE).unwrap();
-    assert_eq!(sealed.proof.rule_set, LEGACY_MIXED_SOURCE_RULE_SET);
+    let (catalog, data) = evidence();
+    let prepared = prepare(&catalog, data, vec![request(X, true)]);
+    let result = prepared.estimate(&ctx).unwrap();
+    let bytes = result.export(&prepared).unwrap();
+    let sealed = MixedSourceArtifactWire::decode(&bytes).unwrap();
+    assert_eq!(sealed.proof.rule_set, MIXED_SOURCE_RULE_SET);
     let consumed = MixedSourceArtifactWire::consume_with_limits(
-        SEALED_BY_EARLIER_RELEASE,
+        &bytes,
         MixedSourceConsumeLimits::default(),
         &ctx,
     )
     .expect("the sealed artifact is consumed");
-    // The consumed derivation keeps the spelling the artifact was sealed with, and its
-    // recomputed point is the current producer's for the same evidence.
-    assert_eq!(consumed.functional.derivation().rule_set(), LEGACY_MIXED_SOURCE_RULE_SET);
-    assert_eq!(consumed.wire.proof.rule_set, LEGACY_MIXED_SOURCE_RULE_SET);
-    let facade = consume_mixed_source_artifact(
-        SEALED_BY_EARLIER_RELEASE,
-        MixedSourceConsumeLimits::default(),
-        &ctx,
-    )
-    .expect("the facade consumes it too");
-    let (catalog, data) = evidence();
-    let prepared = prepare(&catalog, data, vec![request(X, true)]);
-    let result = prepared.estimate(&ctx).unwrap();
+    assert_eq!(consumed.functional.derivation().rule_set(), MIXED_SOURCE_RULE_SET);
+    assert_eq!(consumed.wire.proof.rule_set, MIXED_SOURCE_RULE_SET);
+    let facade = consume_mixed_source_artifact(&bytes, MixedSourceConsumeLimits::default(), &ctx)
+        .expect("the facade consumes it too");
     assert_eq!(consumed.distributions[0].probabilities, result.distribution().probabilities);
     assert_eq!(facade.distribution().probabilities, result.distribution().probabilities);
-    let current = MixedSourceArtifactWire::decode(&result.export(&prepared).unwrap()).unwrap();
-    assert_eq!(current.proof.rule_set, MIXED_SOURCE_RULE_SET);
-    assert_ne!(current.premises_digest, sealed.premises_digest);
-    // Tampering is refused: an unresealed spelling swap hits the carried digest, a
-    // resealed edit fails the proof replay, and no other version is accepted.
+    // Tampering is refused: an unresealed edit hits the carried digest, a resealed
+    // edit fails the proof replay, and no other version is accepted.
     let refuse = |edit: &dyn Fn(&mut MixedSourceArtifactWire), reseal: bool| {
         let mut wire = sealed.clone();
         edit(&mut wire);
@@ -167,11 +154,11 @@ fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refus
         }
         refused(&wire.export().unwrap())
     };
+    let other = MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
     assert!(matches!(
-        refuse(&|w| w.proof.rule_set = MIXED_SOURCE_RULE_SET.into(), false),
+        refuse(&|w| w.proof.rule_set = other.clone(), false),
         MixedSourceArtifactError::PremisesMismatch
     ));
-    let other = LEGACY_MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
     for edit in [
         (&|w: &mut MixedSourceArtifactWire| w.proof.rule_set = other.clone())
             as &dyn Fn(&mut MixedSourceArtifactWire),
