@@ -1982,6 +1982,12 @@ impl crate::common::EffectRefit for FixedBlockRefit {
                         assert_eq!(pair[1], (pair[0] + 1) % rows, "block shorter than {block}");
                     }
                 }
+                // The full-sample refit (the identity row map) is the interval's centre; put
+                // it far outside the replicate means (row-index averages near 31.5) so the
+                // refit falls outside its own bootstrap interval and the report fails.
+                if map.iter().copied().eq(0..rows) {
+                    return Some(1_000.0);
+                }
                 Some(map.iter().map(|&r| r as f64).sum::<f64>() / map.len() as f64)
             }),
         }))
@@ -2011,7 +2017,7 @@ fn composed_bootstrap_refute_uses_the_interval_block_length_and_reports_the_stan
         panel: None,
     };
     let ate_q = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
-    // Far outside the replicate means (row-index averages near 31.5).
+    // The check centres on the full-sample refit, not on this published value.
     let original = antecedent_estimate::EffectEstimate::new(
         1_000.0,
         f64::NAN,
