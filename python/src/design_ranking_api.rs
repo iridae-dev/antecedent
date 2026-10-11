@@ -11,12 +11,11 @@
 
 use std::collections::BTreeMap;
 
-use crate::bridge::{check_declared_size, serialization};
+use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::design_ranking::{
     ConsumeExpectation, CostMapDeclWire, DesignRankingError, DesignRankingRequestWire,
     StructuralCandidateDeclWire, consume, evaluate, rank_structural,
 };
-use antecedent_core::ExternalRefusal;
 use pyo3::prelude::*;
 use serde::Deserialize;
 
@@ -70,19 +69,6 @@ impl From<ExpectationWire> for ConsumeExpectation {
     }
 }
 
-fn refusal_json(value: &ExternalRefusal) -> String {
-    serde_json::json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
 fn check_size(text: &str) -> PyResult<()> {
     check_declared_size(text, MAX_JSON_BYTES, "design ranking")
 }
@@ -96,7 +82,7 @@ fn invalid_declaration(error: &serde_json::Error) -> PyErr {
 
 /// A refusal becomes structured JSON; anything else is a serialization failure.
 fn payload_error(error: &DesignRankingError) -> Result<String, PyErr> {
-    error.refusal().map(|r| refusal_json(&r)).ok_or_else(|| serialization(error))
+    error.refusal().map(|r| external_refusal_json(&r)).ok_or_else(|| serialization(error))
 }
 
 /// Evaluate every declared candidate's EVSI and seal the ranking:

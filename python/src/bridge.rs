@@ -22,3 +22,19 @@ pub(crate) fn check_declared_size(text: &str, limit: usize, what: &str) -> PyRes
 pub(crate) fn serialization(e: impl std::fmt::Display) -> PyErr {
     crate::CausalSerializationError::new_err(e.to_string())
 }
+
+/// The wire JSON of one structured external refusal.
+///
+/// Every `ExternalRefusal` a binding returns to Python is spelled here once.
+pub(crate) fn external_refusal_json(value: &antecedent_core::ExternalRefusal) -> String {
+    serde_json::json!({
+        "code": value.code,
+        "stage": value.stage,
+        "detail": value.detail,
+        "offending": value.offending,
+        "expected": value.expected,
+        "supplied": value.supplied,
+        "remedy": value.remedy,
+    })
+    .to_string()
+}

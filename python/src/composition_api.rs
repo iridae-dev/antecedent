@@ -16,7 +16,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use crate::bridge::{check_declared_size, serialization};
+use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::decision_claims::{
     ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
 };
@@ -69,21 +69,8 @@ use crate::value_err;
 /// A result JSON paired with a refusal JSON; exactly one is present.
 type Pair = (Option<String>, Option<String>);
 
-fn refusal_json(value: &ExternalRefusal) -> String {
-    json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
 fn boundary_refusal(error: &BoundaryError) -> String {
-    refusal_json(&error.to_refusal())
+    external_refusal_json(&error.to_refusal())
 }
 
 fn check_size(json: &str) -> PyResult<()> {
@@ -92,7 +79,7 @@ fn check_size(json: &str) -> PyResult<()> {
 
 /// Refusal JSON for a malformed argument that never reached Rust validation.
 fn invalid_json(detail: &str, offending: Option<String>) -> String {
-    refusal_json(&ExternalRefusal {
+    external_refusal_json(&ExternalRefusal {
         code: antecedent_core::reason_code!("invalid_argument"),
         stage: "adapt",
         detail: detail.to_owned(),
@@ -672,7 +659,7 @@ fn composition_evaluate(
     };
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     let owned: Vec<DecisionInput> = inputs.iter().map(|input| input.inner.clone()).collect();
     Ok(match evaluate_with_support(&contract, &owned, &policy) {
@@ -746,7 +733,7 @@ fn composition_functional(
         .ok_or_else(|| PyValueError::new_err("an unknown or incomplete functional"))?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     Ok(
         match evaluate_functional_on_input(&contract, action_id, functional, &input.inner, weakest)
@@ -1079,7 +1066,7 @@ const fn policy_name(policy: StructuralPolicy) -> &'static str {
 }
 
 fn claim_refusal(error: &ClaimError) -> String {
-    refusal_json(&error.to_refusal())
+    external_refusal_json(&error.to_refusal())
 }
 
 /// Declared weights must be the scenario set's own: all of them, equal to the
@@ -1245,7 +1232,7 @@ fn decide_scenario_claims(
     }
     let run = || -> Result<String, String> {
         let contract = admissible_contract_from_json_refusal(declaration_json)
-            .map_err(|refusal| refusal_json(&refusal))?;
+            .map_err(|refusal| external_refusal_json(&refusal))?;
         let policy = policy_from(policy)?;
         let weights: Option<BTreeMap<String, f64>> = weights_json
             .map(serde_json::from_str)
@@ -1282,7 +1269,7 @@ fn decide_scenario_claims(
             }
         };
         let decision = evaluate_adapted(&contract, &claims.adapted)
-            .map_err(|e| refusal_json(&e.to_refusal()))?;
+            .map_err(|e| external_refusal_json(&e.to_refusal()))?;
         let leaders = atom_leaders(&decision);
         let atoms: Vec<Value> = claims
             .atoms

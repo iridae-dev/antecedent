@@ -9,7 +9,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::bridge::check_declared_size;
+use crate::bridge::{check_declared_size, external_refusal_json};
 use antecedent::analysis::composition::{
     BundleBuilder, BundleError, BundleStage, ClaimLabel, CompositionBundle, ConsumedBundle,
     ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus, ProviderOrData,
@@ -30,22 +30,9 @@ const MAX_DECLARATION_BYTES: usize = 1024 * 1024;
 
 type Refusal = Option<String>;
 
-fn refusal_json(value: &ExternalRefusal) -> String {
-    json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
 pub(crate) fn error_refusal(error: &BundleError) -> String {
     if let Some(refusal) = error.to_refusal() {
-        return refusal_json(&refusal);
+        return external_refusal_json(&refusal);
     }
     let (code, detail) = match error {
         BundleError::Container(io)
@@ -58,7 +45,7 @@ pub(crate) fn error_refusal(error: &BundleError) -> String {
         }
         _ => (reason_code!("invalid_argument"), "composition_bundle.invalid_container"),
     };
-    refusal_json(&ExternalRefusal {
+    external_refusal_json(&ExternalRefusal {
         code,
         stage: "bind",
         detail: detail.to_owned(),
@@ -416,7 +403,7 @@ fn composition_mean_decision<'py>(
     check_size(contract_json)?;
     let contract = match contract_from_json_refusal(contract_json) {
         Ok(contract) => contract,
-        Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
     };
     Ok(match mean_decision_bytes(&contract, claim_data, artifact_id) {
         Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),

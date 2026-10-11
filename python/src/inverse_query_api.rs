@@ -7,7 +7,7 @@
 //! `decision_evaluation.joint_law_required` or
 //! `decision_evaluation.mean_source_insufficient`).
 
-use crate::bridge::{check_declared_size, serialization};
+use crate::bridge::{check_declared_size, external_refusal_json, serialization};
 use antecedent::analysis::inverse_query::{
     AtomEvidence, Comparison, EnumeratedForwardValue, ForwardClaim, ForwardEvidence, IdentifiedSet,
     IntervalRegion, InverseQueryArtifact, InverseQueryError, InverseQueryIdentity,
@@ -30,21 +30,8 @@ fn check_size(text: &str) -> PyResult<()> {
     check_declared_size(text, MAX_INVERSE_QUERY_ARTIFACT_BYTES, "inverse query")
 }
 
-fn refusal_json(value: &ExternalRefusal) -> String {
-    json!({
-        "code": value.code,
-        "stage": value.stage,
-        "detail": value.detail,
-        "offending": value.offending,
-        "expected": value.expected,
-        "supplied": value.supplied,
-        "remedy": value.remedy,
-    })
-    .to_string()
-}
-
 fn plain_refusal(code: &'static str, detail: &str, offending: Option<String>) -> String {
-    refusal_json(&ExternalRefusal {
+    external_refusal_json(&ExternalRefusal {
         code,
         stage: "inverse_query",
         detail: detail.to_owned(),
@@ -65,7 +52,7 @@ fn declaration_refusal(message: &str) -> String {
 }
 
 fn query_refusal(error: &InverseQueryError) -> String {
-    refusal_json(&error.to_refusal())
+    external_refusal_json(&error.to_refusal())
 }
 
 // `*code` is required: `plain_refusal` needs `&'static str`, and auto-deref would shorten it.
@@ -253,7 +240,7 @@ impl PyInverseQueryArtifact {
         check_size(query_json)?;
         let contract = match contract_from_json_refusal(contract_json) {
             Ok(contract) => contract,
-            Err(refusal) => return Ok((None, Some(refusal_json(&refusal)))),
+            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
         };
         let wire: InverseQueryWire = match serde_json::from_str(query_json) {
             Ok(wire) => wire,
