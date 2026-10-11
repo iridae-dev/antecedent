@@ -441,6 +441,202 @@ fn fit_hmc_resolved(
     )
 }
 
+/// A posterior the leapfrog integrator can traverse.
+///
+/// The two implementors differ only in how they evaluate the gradient and the
+/// log density, and in which sweep errors mean "this trajectory diverged":
+///
+/// * the GLM score path sweeps the data once per leapfrog step for `∇U` and once
+///   more per transition for the final log posterior (`L + 1` sweeps), and
+///   propagates every [`ProbError`] except [`ProbError::Numerical`];
+/// * the Gaussian target returns the log density with its gradient (`L` sweeps)
+///   and treats any error as a divergent trajectory.
+///
+/// Both leave the gradient in a [`LaplaceWorkspace`] slot (`step` for GLM, which
+/// holds `∇U`; `grad` for Gaussian, which holds the log-posterior score), and the
+/// slot is also the convention of the carried gradient between transitions.
+trait HmcTarget {
+    /// Log density at `q` and, in `carried`, the gradient in this target's slot
+    /// convention. Uses `ws` as scratch.
+    fn init(
+        &mut self,
+        q: &[f64],
+        ws: &mut LaplaceWorkspace,
+        carried: &mut [f64],
+    ) -> Result<f64, ProbError>;
+
+    /// Gradient at `ws.q[..dim]`, written to [`Self::slot`]. `Some(logp)` when the
+    /// same sweep also yields the log density.
+    fn eval_grad(
+        &mut self,
+        dim: usize,
+        ws: &mut LaplaceWorkspace,
+    ) -> Result<Option<f64>, ProbError>;
+
+    /// Log density at the trajectory's final state `ws.q[..dim]`; `lp_last` is the
+    /// last value [`Self::eval_grad`] returned (or the old density if none).
+    fn final_logp(
+        &mut self,
+        dim: usize,
+        ws: &mut LaplaceWorkspace,
+        lp_last: f64,
+    ) -> Result<f64, ProbError>;
+
+    /// Whether a sweep error means a divergent trajectory (otherwise it aborts).
+    fn is_divergent(error: &ProbError) -> bool;
+
+    /// Workspace slice holding this target's gradient after [`Self::eval_grad`].
+    fn slot(ws: &LaplaceWorkspace) -> &[f64];
+
+    /// `∇U` component from a value stored in the gradient slot.
+    fn grad_u(slot_value: f64) -> f64;
+}
+
+/// GLM score-path target (every likelihood but Gaussian identity).
+struct GlmTarget<'a> {
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'a>,
+    coef_prior: &'a GaussianCoefficientPrior,
+    prec: &'a CoefficientPrecision,
+}
+
+impl HmcTarget for GlmTarget<'_> {
+    fn init(
+        &mut self,
+        q: &[f64],
+        ws: &mut LaplaceWorkspace,
+        carried: &mut [f64],
+    ) -> Result<f64, ProbError> {
+        let nrows = self.design.nrows;
+        let ncols = self.design.ncols;
+        // The current state's log-posterior and ∇U are carried across transitions:
+        // after an accept they are exactly the trajectory's final-state values, after
+        // a reject they are unchanged, so no transition re-sweeps the data for them.
+        let lp = log_posterior_value(
+            self.likelihood,
+            self.design,
+            q,
+            self.coef_prior,
+            self.prec,
+            &mut ws.eta[..nrows],
+            1.0,
+        )?;
+        neg_log_posterior_grad_slices(
+            self.likelihood,
+            self.design,
+            self.coef_prior,
+            self.prec,
+            q,
+            &mut ws.grad[..ncols],
+            &mut ws.neg_hessian[..ncols * ncols],
+            &mut ws.eta[..nrows],
+            &mut ws.work_w[..nrows],
+            carried,
+        )?;
+        Ok(lp)
+    }
+
+    fn eval_grad(
+        &mut self,
+        dim: usize,
+        ws: &mut LaplaceWorkspace,
+    ) -> Result<Option<f64>, ProbError> {
+        let nrows = self.design.nrows;
+        neg_log_posterior_grad_slices(
+            self.likelihood,
+            self.design,
+            self.coef_prior,
+            self.prec,
+            &ws.q[..dim],
+            &mut ws.grad[..dim],
+            &mut ws.neg_hessian[..dim * dim],
+            &mut ws.eta[..nrows],
+            &mut ws.work_w[..nrows],
+            &mut ws.step[..dim],
+        )?;
+        Ok(None)
+    }
+
+    fn final_logp(
+        &mut self,
+        dim: usize,
+        ws: &mut LaplaceWorkspace,
+        _lp_last: f64,
+    ) -> Result<f64, ProbError> {
+        let nrows = self.design.nrows;
+        log_posterior_value(
+            self.likelihood,
+            self.design,
+            &ws.q[..dim],
+            self.coef_prior,
+            self.prec,
+            &mut ws.eta[..nrows],
+            1.0,
+        )
+    }
+
+    fn is_divergent(error: &ProbError) -> bool {
+        matches!(error, ProbError::Numerical { .. })
+    }
+
+    fn slot(ws: &LaplaceWorkspace) -> &[f64] {
+        // `step` holds ∇U afterwards, disjoint from `grad` (log-posterior score).
+        &ws.step
+    }
+
+    fn grad_u(slot_value: f64) -> f64 {
+        slot_value
+    }
+}
+
+/// Gaussian-identity target behind [`PosteriorTarget`].
+struct GaussianRef<'a>(&'a mut dyn PosteriorTarget);
+
+impl HmcTarget for GaussianRef<'_> {
+    fn init(
+        &mut self,
+        q: &[f64],
+        ws: &mut LaplaceWorkspace,
+        carried: &mut [f64],
+    ) -> Result<f64, ProbError> {
+        let dim = q.len();
+        // Log-posterior and its gradient at the current state, carried across transitions.
+        let lp = self.0.logp_and_grad(q, &mut ws.grad[..dim])?;
+        carried.copy_from_slice(&ws.grad[..dim]);
+        Ok(lp)
+    }
+
+    fn eval_grad(
+        &mut self,
+        dim: usize,
+        ws: &mut LaplaceWorkspace,
+    ) -> Result<Option<f64>, ProbError> {
+        self.0.logp_and_grad(&ws.q[..dim], &mut ws.grad[..dim]).map(Some)
+    }
+
+    fn final_logp(
+        &mut self,
+        _dim: usize,
+        _ws: &mut LaplaceWorkspace,
+        lp_last: f64,
+    ) -> Result<f64, ProbError> {
+        // The last leapfrog evaluation already produced the final density.
+        Ok(lp_last)
+    }
+
+    fn is_divergent(_error: &ProbError) -> bool {
+        true
+    }
+
+    fn slot(ws: &LaplaceWorkspace) -> &[f64] {
+        &ws.grad
+    }
+
+    fn grad_u(slot_value: f64) -> f64 {
+        -slot_value
+    }
+}
+
 fn run_glm_chain(
     chain: usize,
     likelihood: BayesLikelihood,
@@ -451,101 +647,13 @@ fn run_glm_chain(
     hmc: HmcOptions,
     ws: &mut LaplaceWorkspace,
 ) -> Result<ChainRun, ProbError> {
-    let nrows = design.nrows;
-    let ncols = design.ncols;
-    let n_keep = fit_opts.n_draws;
     let mut rng = chain_rng(fit_opts.seed, chain);
     let mut beta = coef_prior.mean.to_vec();
     for bi in &mut beta {
         *bi += 0.1 * standard_normal(&mut rng);
     }
-    let mut step_size = hmc.step_size;
-    let mut log_eps_bar = step_size.ln();
-    let mut h_bar = 0.0;
-    let mut metric = DiagonalMetric::new(ncols, hmc);
-    // Step-size adaptation is anchored at the step it (re)started from, counting from `since`.
-    let mut anchor = hmc;
-    let mut since = 0usize;
-
-    // The current state's log-posterior and ∇U are carried across transitions:
-    // after an accept they are exactly the trajectory's final-state values, after
-    // a reject they are unchanged, so no transition re-sweeps the data for them.
-    let mut lp_curr = log_posterior_value(
-        likelihood,
-        design,
-        &beta,
-        coef_prior,
-        prec,
-        &mut ws.eta[..nrows],
-        1.0,
-    )?;
-    let mut gradu_curr = vec![0.0; ncols];
-    neg_log_posterior_grad_slices(
-        likelihood,
-        design,
-        coef_prior,
-        prec,
-        &beta,
-        &mut ws.grad[..ncols],
-        &mut ws.neg_hessian[..ncols * ncols],
-        &mut ws.eta[..nrows],
-        &mut ws.work_w[..nrows],
-        &mut gradu_curr,
-    )?;
-
-    let mut samples = vec![0.0; n_keep * ncols];
-    let mut stats = TransitionStats::default();
-    let mut kept = 0usize;
-    for t in 0..hmc.n_warmup.saturating_add(n_keep) {
-        if t == hmc.n_warmup {
-            // Warmup is over before this transition runs: every retained draw
-            // uses the averaged step, not the last exploratory one.
-            step_size = dual_average_finalize(log_eps_bar);
-        }
-        let exec_step = jittered_step(step_size, &mut rng);
-        let step = hmc_step_glm(
-            likelihood,
-            design,
-            coef_prior,
-            prec,
-            &beta,
-            &gradu_curr,
-            exec_step,
-            hmc.leapfrog_steps,
-            &metric.inv_mass,
-            lp_curr,
-            ws,
-            &mut rng,
-        )?;
-        stats.record(&step, t < hmc.n_warmup);
-        if step.accepted {
-            beta.copy_from_slice(&ws.q[..ncols]);
-            gradu_curr.copy_from_slice(&ws.step[..ncols]);
-            lp_curr = step.logp;
-        }
-        if t < hmc.n_warmup {
-            dual_average_update(
-                &mut h_bar,
-                &mut log_eps_bar,
-                &mut step_size,
-                anchor,
-                t - since,
-                step.accept_prob,
-            );
-            metric.observe(t, &beta);
-            if metric.install_if_window_closed(t) {
-                // The trajectory geometry changed: restart step-size adaptation from the
-                // current step under the new metric.
-                anchor = HmcOptions { step_size, ..hmc };
-                since = t + 1;
-                (h_bar, log_eps_bar) = (0.0, step_size.ln());
-            }
-        } else {
-            samples[kept * ncols..(kept + 1) * ncols].copy_from_slice(&beta);
-            kept += 1;
-        }
-    }
-    Ok(ChainRun { samples, stats, final_step: step_size })
+    let mut target = GlmTarget { likelihood, design, coef_prior, prec };
+    run_chain(&mut target, beta, rng, fit_opts.n_draws, hmc, ws)
 }
 
 fn run_gaussian_chain(
@@ -562,7 +670,6 @@ fn run_gaussian_chain(
     let mut target =
         gaussian_target_from_model_with_precision(design, coef_prior.clone(), prec.clone(), model)?;
     let dim = target.dim();
-    let n_keep = fit_opts.n_draws;
     let mut rng = chain_rng(fit_opts.seed, chain);
     let mut q = coef_prior.mean.to_vec();
     for qi in &mut q {
@@ -575,31 +682,46 @@ fn run_gaussian_chain(
     }
     debug_assert_eq!(q.len(), dim);
     debug_assert!(dim >= ncols);
+    run_chain(&mut GaussianRef(&mut target), q, rng, fit_opts.n_draws, hmc, ws)
+}
 
+/// One chain: dual-averaged step size, optional windowed diagonal metric, `n_keep`
+/// retained states after `hmc.n_warmup` transitions, from the initial state `q`.
+fn run_chain<T: HmcTarget>(
+    target: &mut T,
+    mut q: Vec<f64>,
+    mut rng: CausalRng,
+    n_keep: usize,
+    hmc: HmcOptions,
+    ws: &mut LaplaceWorkspace,
+) -> Result<ChainRun, ProbError> {
+    let dim = q.len();
     let mut step_size = hmc.step_size;
     let mut log_eps_bar = step_size.ln();
     let mut h_bar = 0.0;
     let mut metric = DiagonalMetric::new(dim, hmc);
+    // Step-size adaptation is anchored at the step it (re)started from, counting from `since`.
     let mut anchor = hmc;
     let mut since = 0usize;
 
-    // Log-posterior and its gradient at the current state, carried across transitions.
-    let mut lp_curr = target.logp_and_grad(&q, &mut ws.grad[..dim])?;
-    let mut grad_curr = ws.grad[..dim].to_vec();
+    let mut carried = vec![0.0; dim];
+    let mut lp_curr = target.init(&q, ws, &mut carried)?;
 
     let mut samples = vec![0.0; n_keep * dim];
     let mut stats = TransitionStats::default();
     let mut kept = 0usize;
     for t in 0..hmc.n_warmup.saturating_add(n_keep) {
         if t == hmc.n_warmup {
+            // Warmup is over before this transition runs: every retained draw
+            // uses the averaged step, not the last exploratory one.
             step_size = dual_average_finalize(log_eps_bar);
         }
         let exec_step = jittered_step(step_size, &mut rng);
-        let step = hmc_step_target(
-            &mut target,
+        let step = hmc_step(
+            target,
             &q,
+            &carried,
             lp_curr,
-            &grad_curr,
             exec_step,
             hmc.leapfrog_steps,
             &metric.inv_mass,
@@ -609,7 +731,7 @@ fn run_gaussian_chain(
         stats.record(&step, t < hmc.n_warmup);
         if step.accepted {
             q.copy_from_slice(&ws.q[..dim]);
-            grad_curr.copy_from_slice(&ws.grad[..dim]);
+            carried.copy_from_slice(&T::slot(ws)[..dim]);
             lp_curr = step.logp;
         }
         if t < hmc.n_warmup {
@@ -623,6 +745,8 @@ fn run_gaussian_chain(
             );
             metric.observe(t, &q);
             if metric.install_if_window_closed(t) {
+                // The trajectory geometry changed: restart step-size adaptation from the
+                // current step under the new metric.
                 anchor = HmcOptions { step_size, ..hmc };
                 since = t + 1;
                 (h_bar, log_eps_bar) = (0.0, step_size.ln());
@@ -775,6 +899,127 @@ fn pack_and_gate_hmc(
     Ok(BayesFitResult { draws, map, diagnostics, cov: None })
 }
 
+/// Leapfrog trajectory from `ws.q` with momentum `ws.p`, given the carried gradient
+/// at the start. `Some(logp)` is the density of the last evaluated state (`lp_old`
+/// when no sweep produced one); `None` means the trajectory diverged.
+fn leapfrog<T: HmcTarget>(
+    target: &mut T,
+    dim: usize,
+    step_size: f64,
+    leapfrog_steps: u32,
+    inv_mass: &[f64],
+    carried: &[f64],
+    lp_old: f64,
+    ws: &mut LaplaceWorkspace,
+) -> Result<Option<f64>, ProbError> {
+    // ∇U at q0 is supplied by the caller (carried from the previous transition
+    // rather than re-swept).
+    for i in 0..dim {
+        ws.p[i] -= 0.5 * step_size * T::grad_u(carried[i]);
+    }
+
+    let mut divergent = false;
+    // Log-density at the trajectory's final state: the last leapfrog evaluation.
+    let mut lp_last = lp_old;
+    for step in 0..leapfrog_steps {
+        for i in 0..dim {
+            ws.q[i] += step_size * ws.p[i] * inv_mass[i];
+            if !ws.q[i].is_finite() {
+                divergent = true;
+                break;
+            }
+        }
+        if divergent {
+            break;
+        }
+        match target.eval_grad(dim, ws) {
+            Ok(Some(v)) => lp_last = v,
+            Ok(None) => {}
+            Err(e) if T::is_divergent(&e) => {
+                divergent = true;
+                break;
+            }
+            Err(e) => return Err(e),
+        }
+        let last = step + 1 == leapfrog_steps;
+        let scale = if last { 0.5 } else { 1.0 };
+        for i in 0..dim {
+            let grad_u = T::grad_u(T::slot(ws)[i]);
+            ws.p[i] -= scale * step_size * grad_u;
+            if !ws.p[i].is_finite() {
+                divergent = true;
+            }
+        }
+        if divergent {
+            break;
+        }
+    }
+    Ok(if divergent { None } else { Some(lp_last) })
+}
+
+/// One HMC transition from `q0`; `carried` is the gradient at `q0` in the target's
+/// slot convention and `lp_old` the density there. The proposal is left in
+/// `ws.q` / the target's gradient slot for the caller to copy on accept.
+fn hmc_step<T: HmcTarget>(
+    target: &mut T,
+    q0: &[f64],
+    carried: &[f64],
+    lp_old: f64,
+    step_size: f64,
+    leapfrog_steps: u32,
+    inv_mass: &[f64],
+    ws: &mut LaplaceWorkspace,
+    rng: &mut CausalRng,
+) -> Result<HmcStepResult, ProbError> {
+    let dim = q0.len();
+    ws.q[..dim].copy_from_slice(q0);
+    let mut p0_energy = 0.0;
+    for i in 0..dim {
+        ws.p[i] = standard_normal(rng) / inv_mass[i].sqrt();
+        p0_energy += 0.5 * ws.p[i] * ws.p[i] * inv_mass[i];
+    }
+
+    let reject_divergent = |delta_h: f64| HmcStepResult {
+        logp: lp_old,
+        accepted: false,
+        accept_prob: 0.0,
+        delta_h,
+        divergent: true,
+    };
+
+    let Some(lp_last) =
+        leapfrog(target, dim, step_size, leapfrog_steps, inv_mass, carried, lp_old, ws)?
+    else {
+        return Ok(reject_divergent(1_001.0));
+    };
+
+    let lp_new = match target.final_logp(dim, ws, lp_last) {
+        Ok(v) => v,
+        Err(e) if T::is_divergent(&e) => return Ok(reject_divergent(1_001.0)),
+        Err(e) => return Err(e),
+    };
+    let mut p_new_energy = 0.0;
+    for i in 0..dim {
+        p_new_energy += 0.5 * ws.p[i] * ws.p[i] * inv_mass[i];
+    }
+
+    let h_old = -lp_old + p0_energy;
+    let h_new = -lp_new + p_new_energy;
+    let delta_h = h_new - h_old;
+    let (divergent, accept_prob) = finalize_energy(delta_h);
+    if divergent {
+        return Ok(reject_divergent(delta_h));
+    }
+    let accepted = rng.next_f64() < accept_prob;
+    if accepted {
+        Ok(HmcStepResult { logp: lp_new, accepted: true, accept_prob, delta_h, divergent: false })
+    } else {
+        Ok(HmcStepResult { logp: lp_old, accepted: false, accept_prob, delta_h, divergent: false })
+    }
+}
+
+/// [`hmc_step`] for a [`PosteriorTarget`]; `grad_old` is the log-posterior score at `q0`.
+#[cfg(test)]
 fn hmc_step_target(
     target: &mut dyn PosteriorTarget,
     q0: &[f64],
@@ -786,91 +1031,21 @@ fn hmc_step_target(
     workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
 ) -> Result<HmcStepResult, ProbError> {
-    let dim = q0.len();
-    workspace.q[..dim].copy_from_slice(q0);
-    let mut p0_energy = 0.0;
-    for i in 0..dim {
-        workspace.p[i] = standard_normal(rng) / inv_mass[i].sqrt();
-        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
-    }
-
-    // ∇U = -∇ log π at q0, supplied by the caller (carried from the previous
-    // transition rather than re-swept).
-    for i in 0..dim {
-        workspace.p[i] -= 0.5 * step_size * (-grad_old[i]);
-    }
-
-    let mut divergent = false;
-    // Log-density at the trajectory's final state: the last leapfrog evaluation.
-    let mut lp_last = lp_old;
-    for step in 0..leapfrog_steps {
-        for i in 0..dim {
-            workspace.q[i] += step_size * workspace.p[i] * inv_mass[i];
-            if !workspace.q[i].is_finite() {
-                divergent = true;
-                break;
-            }
-        }
-        if divergent {
-            break;
-        }
-        match target.logp_and_grad(&workspace.q[..dim], &mut workspace.grad[..dim]) {
-            Ok(v) => lp_last = v,
-            Err(_) => {
-                divergent = true;
-                break;
-            }
-        }
-        let last = step + 1 == leapfrog_steps;
-        let scale = if last { 0.5 } else { 1.0 };
-        for i in 0..dim {
-            workspace.p[i] -= scale * step_size * (-workspace.grad[i]);
-            if !workspace.p[i].is_finite() {
-                divergent = true;
-            }
-        }
-        if divergent {
-            break;
-        }
-    }
-
-    if divergent {
-        return Ok(HmcStepResult {
-            logp: lp_old,
-            accepted: false,
-            accept_prob: 0.0,
-            delta_h: 1_001.0,
-            divergent: true,
-        });
-    }
-
-    let lp_new = lp_last;
-    let mut p_new_energy = 0.0;
-    for i in 0..dim {
-        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
-    }
-
-    let h_old = -lp_old + p0_energy;
-    let h_new = -lp_new + p_new_energy;
-    let delta_h = h_new - h_old;
-    let (divergent, accept_prob) = finalize_energy(delta_h);
-    if divergent {
-        return Ok(HmcStepResult {
-            logp: lp_old,
-            accepted: false,
-            accept_prob: 0.0,
-            delta_h,
-            divergent: true,
-        });
-    }
-    let accepted = rng.next_f64() < accept_prob;
-    if accepted {
-        Ok(HmcStepResult { logp: lp_new, accepted: true, accept_prob, delta_h, divergent: false })
-    } else {
-        Ok(HmcStepResult { logp: lp_old, accepted: false, accept_prob, delta_h, divergent: false })
-    }
+    hmc_step(
+        &mut GaussianRef(target),
+        q0,
+        grad_old,
+        lp_old,
+        step_size,
+        leapfrog_steps,
+        inv_mass,
+        workspace,
+        rng,
+    )
 }
 
+/// [`hmc_step`] for the GLM score path; `gradu_old` is `∇U` at `beta`.
+#[cfg(test)]
 fn hmc_step_glm(
     likelihood: BayesLikelihood,
     design: BayesDesignRef<'_>,
@@ -885,114 +1060,17 @@ fn hmc_step_glm(
     workspace: &mut LaplaceWorkspace,
     rng: &mut CausalRng,
 ) -> Result<HmcStepResult, ProbError> {
-    let ncols = beta.len();
-    let nrows = design.nrows;
-    workspace.q[..ncols].copy_from_slice(beta);
-    let mut p0_energy = 0.0;
-    for i in 0..ncols {
-        workspace.p[i] = standard_normal(rng) / inv_mass[i].sqrt();
-        p0_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
-    }
-
-    let reject_divergent = || HmcStepResult {
-        logp: lp_old,
-        accepted: false,
-        accept_prob: 0.0,
-        delta_h: 1_001.0,
-        divergent: true,
-    };
-
-    // ∇U at the current state comes from the caller. `workspace.step` holds the
-    // running ∇U afterwards, disjoint from `workspace.grad` (log-posterior score).
-    for i in 0..ncols {
-        workspace.p[i] -= 0.5 * step_size * gradu_old[i];
-    }
-
-    let mut divergent = false;
-    for lf in 0..leapfrog_steps {
-        for i in 0..ncols {
-            workspace.q[i] += step_size * workspace.p[i] * inv_mass[i];
-            if !workspace.q[i].is_finite() {
-                divergent = true;
-                break;
-            }
-        }
-        if divergent {
-            break;
-        }
-        match neg_log_posterior_grad_slices(
-            likelihood,
-            design,
-            coef_prior,
-            prec,
-            &workspace.q[..ncols],
-            &mut workspace.grad[..ncols],
-            &mut workspace.neg_hessian[..ncols * ncols],
-            &mut workspace.eta[..nrows],
-            &mut workspace.work_w[..nrows],
-            &mut workspace.step[..ncols],
-        ) {
-            Ok(()) => {}
-            Err(ProbError::Numerical { .. }) => {
-                divergent = true;
-                break;
-            }
-            Err(e) => return Err(e),
-        }
-        let last = lf + 1 == leapfrog_steps;
-        let scale = if last { 0.5 } else { 1.0 };
-        for i in 0..ncols {
-            workspace.p[i] -= scale * step_size * workspace.step[i];
-            if !workspace.p[i].is_finite() {
-                divergent = true;
-            }
-        }
-        if divergent {
-            break;
-        }
-    }
-
-    if divergent {
-        return Ok(reject_divergent());
-    }
-
-    let lp_new = match log_posterior_value(
-        likelihood,
-        design,
-        &workspace.q[..ncols],
-        coef_prior,
-        prec,
-        &mut workspace.eta[..nrows],
-        1.0,
-    ) {
-        Ok(v) => v,
-        Err(ProbError::Numerical { .. }) => return Ok(reject_divergent()),
-        Err(e) => return Err(e),
-    };
-    let mut p_new_energy = 0.0;
-    for i in 0..ncols {
-        p_new_energy += 0.5 * workspace.p[i] * workspace.p[i] * inv_mass[i];
-    }
-
-    let h_old = -lp_old + p0_energy;
-    let h_new = -lp_new + p_new_energy;
-    let delta_h = h_new - h_old;
-    let (divergent, accept_prob) = finalize_energy(delta_h);
-    if divergent {
-        return Ok(HmcStepResult {
-            logp: lp_old,
-            accepted: false,
-            accept_prob: 0.0,
-            delta_h,
-            divergent: true,
-        });
-    }
-    let accepted = rng.next_f64() < accept_prob;
-    if accepted {
-        Ok(HmcStepResult { logp: lp_new, accepted: true, accept_prob, delta_h, divergent: false })
-    } else {
-        Ok(HmcStepResult { logp: lp_old, accepted: false, accept_prob, delta_h, divergent: false })
-    }
+    hmc_step(
+        &mut GlmTarget { likelihood, design, coef_prior, prec },
+        beta,
+        gradu_old,
+        lp_old,
+        step_size,
+        leapfrog_steps,
+        inv_mass,
+        workspace,
+        rng,
+    )
 }
 
 fn neg_log_posterior_grad_slices(
@@ -1015,7 +1093,8 @@ fn neg_log_posterior_grad_slices(
     Ok(())
 }
 
-/// Leapfrog integration used by reversibility tests (no Metropolis).
+/// Leapfrog integration used by reversibility tests (no Metropolis): the shared
+/// [`leapfrog`] at a scalar `mass`.
 #[cfg(test)]
 fn leapfrog_trajectory(
     target: &mut dyn PosteriorTarget,
@@ -1026,25 +1105,19 @@ fn leapfrog_trajectory(
     mass: f64,
 ) -> Result<(Vec<f64>, Vec<f64>), ProbError> {
     let dim = q0.len();
-    let mut q = q0.to_vec();
-    let mut p = p0.to_vec();
-    let mut grad = vec![0.0; dim];
-    let _ = target.logp_and_grad(&q, &mut grad)?;
-    for i in 0..dim {
-        p[i] -= 0.5 * step_size * (-grad[i]);
+    let mut ws = LaplaceWorkspace::default();
+    ws.prepare(0, dim, dim);
+    ws.q[..dim].copy_from_slice(q0);
+    ws.p[..dim].copy_from_slice(p0);
+    let mut target = GaussianRef(target);
+    let mut carried = vec![0.0; dim];
+    let lp0 = target.init(q0, &mut ws, &mut carried)?;
+    let inv_mass = vec![1.0 / mass; dim];
+    match leapfrog(&mut target, dim, step_size, leapfrog_steps, &inv_mass, &carried, lp0, &mut ws)?
+    {
+        Some(_) => Ok((ws.q[..dim].to_vec(), ws.p[..dim].to_vec())),
+        None => Err(ProbError::Numerical { message: "leapfrog trajectory diverged".into() }),
     }
-    for step in 0..leapfrog_steps {
-        for i in 0..dim {
-            q[i] += step_size * p[i] / mass;
-        }
-        let _ = target.logp_and_grad(&q, &mut grad)?;
-        let last = step + 1 == leapfrog_steps;
-        let scale = if last { 0.5 } else { 1.0 };
-        for i in 0..dim {
-            p[i] -= scale * step_size * (-grad[i]);
-        }
-    }
-    Ok((q, p))
 }
 
 #[cfg(test)]
