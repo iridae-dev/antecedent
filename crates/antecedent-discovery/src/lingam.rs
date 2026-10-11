@@ -718,16 +718,18 @@ mod tests {
     #[test]
     fn direct_lingam_reports_two_gaussian_consistent_residuals() {
         let n = 500;
-        // With only the small cubic error of `x2` non-Gaussian, the Jarque-Bera verdict on
-        // each exogenous residual is sample-limited at n = 500: a scan of seed pairs 1..12
-        // names exactly {x0, x1} for about half of them and misattributes the Gaussian pair
-        // or reports fewer than two for the rest. This pair is one where the sample
-        // recovers the population answer; the test checks the reporting, not the power.
-        let x0 = gaussian(n, 2);
-        let x1 = gaussian(n, 3);
-        let x2: Vec<f64> = (0..n)
-            .map(|i| x0[i] + x1[i] + (((i as f64 * 0.419) % 1.0) - 0.5).powi(3) * 8.0)
-            .collect();
+        // The two exogenous errors are Gaussian by construction: each is the exact normal
+        // quantile sequence at (i + 1/2) / n, put in a different deterministic order by a
+        // stride coprime to n, so the Jarque-Bera verdict on each does not depend on a draw.
+        // The third error is strongly skewed (centred exponential quantiles in a third
+        // order), so the non-Gaussian variable is identified with high power at n = 500.
+        let quantiles = |stride: usize, f: &dyn Fn(f64) -> f64| -> Vec<f64> {
+            (0..n).map(|i| f((((i * stride) % n) as f64 + 0.5) / n as f64)).collect()
+        };
+        let x0 = quantiles(7, &antecedent_kernels::norm_inv);
+        let x1 = quantiles(13, &antecedent_kernels::norm_inv);
+        let skew = quantiles(11, &|p: f64| -(1.0 - p).ln() - 1.0);
+        let x2: Vec<f64> = (0..n).map(|i| x0[i] + x1[i] + 2.0 * skew[i]).collect();
         let (data, vars) = table(vec![x0, x1, x2]);
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(1);
