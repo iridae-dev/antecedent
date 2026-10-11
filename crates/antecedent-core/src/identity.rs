@@ -137,11 +137,70 @@ impl CanonicalWriter {
         self
     }
 
+    /// A count-prefixed sequence of reals: the length as a word, then each `to_bits` word.
+    pub fn reals(&mut self, values: &[f64]) -> &mut Self {
+        self.word(values.len() as u64);
+        for &value in values {
+            self.real(value);
+        }
+        self
+    }
+
+    /// A count-prefixed sequence of texts: the length as a word, then each as [`Self::text`].
+    pub fn texts<S: AsRef<str>>(&mut self, values: &[S]) -> &mut Self {
+        self.word(values.len() as u64);
+        for value in values {
+            self.text(value.as_ref());
+        }
+        self
+    }
+
+    /// An optional text: a presence word (`0` or `1`), then the text when present.
+    pub fn opt_text(&mut self, value: Option<&str>) -> &mut Self {
+        match value {
+            Some(text) => self.word(1).text(text),
+            None => self.word(0),
+        }
+    }
+
+    /// An optional word: a presence word (`0` or `1`), then the value when present.
+    pub fn opt_word(&mut self, value: Option<u64>) -> &mut Self {
+        match value {
+            Some(word) => self.word(1).word(word),
+            None => self.word(0),
+        }
+    }
+
+    /// An optional real: a presence word (`0` or `1`), then its bit pattern when present.
+    pub fn opt_real(&mut self, value: Option<f64>) -> &mut Self {
+        match value {
+            Some(real) => self.word(1).real(real),
+            None => self.word(0),
+        }
+    }
+
     /// The 32-byte BLAKE3 digest of everything written so far (non-consuming).
     #[must_use]
     pub fn finish(&self) -> [u8; 32] {
         *self.hasher.finalize().as_bytes()
     }
+
+    /// [`Self::finish`] as 64 lowercase hex characters.
+    #[must_use]
+    pub fn finish_hex(&self) -> String {
+        to_hex(&self.finish())
+    }
+}
+
+/// Unframed BLAKE3 digest of `bytes` as 64 lowercase hex characters.
+///
+/// For content addressing of an opaque byte string (an artifact container, a
+/// CBOR body) where the digest must equal what `b3sum` reports. Anything built
+/// from several fields goes through [`CanonicalWriter`] instead, which frames
+/// and domain-separates them.
+#[must_use]
+pub fn blake3_hex(bytes: &[u8]) -> String {
+    blake3::hash(bytes).to_hex().to_string()
 }
 
 /// Identity encoding format. Bump only when the canonical payload changes.
@@ -453,6 +512,15 @@ mod tests {
             to_hex(&writer.finish()),
             "77a467e6a59c1f6dca516663cb868433147eb4c625ddbdbe07207fdf3e6a11f5"
         );
+
+        // Optional and sequence fields are word-framed and separate absent from empty.
+        let mut some = CanonicalWriter::new("t");
+        some.opt_text(Some("")).reals(&[1.0]).texts(&["a"]).opt_word(None).opt_real(Some(0.5));
+        let mut none = CanonicalWriter::new("t");
+        none.opt_text(None).reals(&[1.0]).texts(&["a"]).opt_word(None).opt_real(Some(0.5));
+        assert_ne!(some.finish(), none.finish());
+        assert_eq!(some.finish_hex().len(), 64);
+        assert_eq!(blake3_hex(b"abc"), blake3::hash(b"abc").to_hex().to_string());
 
         // `bytes` is the same framing as `text` over the same octets.
         let mut a = CanonicalWriter::new("t");

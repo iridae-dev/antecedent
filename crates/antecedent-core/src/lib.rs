@@ -130,7 +130,7 @@ pub use external_refusal::{
 };
 pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};
 pub use identity::{
-    fnv1a_u64, to_hex, CanonicalWriter, ContractIdentities, Fnv1a64, IdentityDomain, IdentityRef,
+    blake3_hex, fnv1a_u64, to_hex, CanonicalWriter, ContractIdentities, Fnv1a64, IdentityDomain, IdentityRef,
     SemanticDigest, FNV1A_64_OFFSET, FNV1A_64_PRIME, IDENTITY_FORMAT, IDENTITY_FORMAT_TAG,
 };
 pub use ids::{
