@@ -34,12 +34,41 @@ pub enum CholeskyError {
 ///
 /// [`CholeskyError::BufferTooShort`] or [`CholeskyError::NotPositiveDefinite`].
 pub fn cholesky_spd_into(a: &[f64], n: usize, l: &mut [f64]) -> Result<(), CholeskyError> {
+    cholesky_spd_pivots_into(a, n, l).map(|_| ()).map_err(|refusal| refusal.error)
+}
+
+/// A refused factorization together with the relative size of the pivot that failed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CholeskyRefusal {
+    /// Why the factorization was refused.
+    pub error: CholeskyError,
+    /// The failing pivot `sᵢ / aᵢᵢ`, reduced from a diagonal entry floored at the smallest
+    /// positive `f64`; `NaN` when the pivot is NaN or the buffer was too short.
+    pub ratio: f64,
+}
+
+/// [`cholesky_spd_into`] with the pivot diagnostics a caller reports.
+///
+/// On success returns the smallest relative pivot `minᵢ sᵢ / aᵢᵢ` (a floor on how far the
+/// matrix is from singular, 1 for the identity); on refusal returns the failing position
+/// and its relative pivot. The acceptance rule is exactly that of [`cholesky_spd_into`].
+///
+/// # Errors
+///
+/// A [`CholeskyRefusal`] carrying [`CholeskyError::BufferTooShort`] or
+/// [`CholeskyError::NotPositiveDefinite`].
+pub fn cholesky_spd_pivots_into(
+    a: &[f64],
+    n: usize,
+    l: &mut [f64],
+) -> Result<f64, CholeskyRefusal> {
     let nn = n.saturating_mul(n);
     if a.len() < nn || l.len() < nn {
-        return Err(CholeskyError::BufferTooShort);
+        return Err(CholeskyRefusal { error: CholeskyError::BufferTooShort, ratio: f64::NAN });
     }
     l[..nn].fill(0.0);
     let rel_tol = 64.0 * f64::EPSILON;
+    let mut smallest = f64::INFINITY;
     for i in 0..n {
         for j in 0..=i {
             let mut sum = a[i * n + j];
@@ -47,13 +76,72 @@ pub fn cholesky_spd_into(a: &[f64], n: usize, l: &mut [f64]) -> Result<(), Chole
                 sum -= l[i * n + k] * l[j * n + k];
             }
             if i == j {
-                let floor = rel_tol * a[i * n + i].max(0.0);
+                let diagonal = a[i * n + i];
+                let floor = rel_tol * diagonal.max(0.0);
                 if !(sum.is_finite() && sum > 0.0 && sum > floor) {
-                    return Err(CholeskyError::NotPositiveDefinite { index: i });
+                    return Err(CholeskyRefusal {
+                        error: CholeskyError::NotPositiveDefinite { index: i },
+                        ratio: sum / diagonal.abs().max(f64::MIN_POSITIVE),
+                    });
                 }
+                smallest = smallest.min(sum / diagonal.abs().max(f64::MIN_POSITIVE));
                 l[i * n + j] = sum.sqrt();
             } else {
                 l[i * n + j] = sum / l[j * n + j];
+            }
+        }
+    }
+    Ok(smallest)
+}
+
+/// Lower-triangular factor of a symmetric positive *semi*-definite matrix (row-major
+/// `n×n`), written into `l`; a rank-deficient direction becomes a zero column.
+///
+/// The one PSD-tolerant variant, for correlation and covariance matrices that are
+/// singular by construction (perfectly collinear scores). With `scale = maxᵢ aᵢᵢ` and
+/// `slack = tolerance · scale`, a pivot below `−slack` refuses the matrix as indefinite; a
+/// pivot at or below `slack` is a rank-deficient direction whose column is zero, and every
+/// entry below it must then lie within `slack` of zero (otherwise the matrix is
+/// indefinite). Use [`cholesky_spd_into`] when singularity must be refused.
+///
+/// # Errors
+///
+/// [`CholeskyError::BufferTooShort`], or [`CholeskyError::NotPositiveDefinite`] (at the
+/// offending position) for a non-finite entry or an indefinite matrix.
+pub fn cholesky_psd_into(
+    a: &[f64],
+    n: usize,
+    tolerance: f64,
+    l: &mut [f64],
+) -> Result<(), CholeskyError> {
+    let nn = n.saturating_mul(n);
+    if a.len() < nn || l.len() < nn {
+        return Err(CholeskyError::BufferTooShort);
+    }
+    l[..nn].fill(0.0);
+    let scale = (0..n).map(|i| a[i * n + i]).fold(0.0_f64, f64::max);
+    let slack = tolerance * scale;
+    if !(scale.is_finite() && slack.is_finite()) {
+        return Err(CholeskyError::NotPositiveDefinite { index: 0 });
+    }
+    for i in 0..n {
+        for j in 0..=i {
+            let mut sum = a[i * n + j];
+            for k in 0..j {
+                sum -= l[i * n + k] * l[j * n + k];
+            }
+            if !sum.is_finite() {
+                return Err(CholeskyError::NotPositiveDefinite { index: i });
+            }
+            if i == j {
+                if sum < -slack {
+                    return Err(CholeskyError::NotPositiveDefinite { index: i });
+                }
+                l[i * n + j] = if sum <= slack { 0.0 } else { sum.sqrt() };
+            } else if l[j * n + j] > 0.0 {
+                l[i * n + j] = sum / l[j * n + j];
+            } else if sum.abs() > slack {
+                return Err(CholeskyError::NotPositiveDefinite { index: i });
             }
         }
     }
@@ -186,6 +274,52 @@ mod tests {
         );
         // A small but resolvable pivot (1e-8 relative) is still accepted.
         assert!(cholesky_spd_into(&[1.0, 1.0, 1.0, 1.0 + 1e-8], 2, &mut l).is_ok());
+    }
+
+    #[test]
+    fn pivot_diagnostics_report_the_smallest_and_the_failing_relative_pivot() {
+        let mut l = [0.0; 4];
+        // [[4, 2], [2, 5]]: pivots 4 and 5 - 1 = 4, relative 1 and 4/5.
+        let smallest = cholesky_spd_pivots_into(&[4.0, 2.0, 2.0, 5.0], 2, &mut l).unwrap();
+        assert!((smallest - 0.8).abs() < 1e-15, "{smallest}");
+        // [[1, 1], [1, 1 + 1e-8]]: the second pivot is 1e-8 against a diagonal of 1 + 1e-8.
+        let ok = cholesky_spd_pivots_into(&[1.0, 1.0, 1.0, 1.0 + 1e-8], 2, &mut l).unwrap();
+        assert!((ok - 1e-8 / (1.0 + 1e-8)).abs() < 1e-12, "{ok}");
+        // Singular: refused at index 1 with a relative pivot at rounding level.
+        let refused = cholesky_spd_pivots_into(&[1.0, 1.0, 1.0, 1.0], 2, &mut l).unwrap_err();
+        assert_eq!(refused.error, CholeskyError::NotPositiveDefinite { index: 1 });
+        assert!(refused.ratio.abs() < 1e-15, "{}", refused.ratio);
+        // Indefinite: [[1, 2], [2, 1]] has pivot 1 - 4 = -3.
+        let indefinite = cholesky_spd_pivots_into(&[1.0, 2.0, 2.0, 1.0], 2, &mut l).unwrap_err();
+        assert!((indefinite.ratio + 3.0).abs() < 1e-15, "{}", indefinite.ratio);
+        let short = cholesky_spd_pivots_into(&[1.0, 0.0, 0.0, 1.0], 2, &mut [0.0; 3]);
+        assert_eq!(short.unwrap_err().error, CholeskyError::BufferTooShort);
+    }
+
+    #[test]
+    fn psd_variant_zeroes_rank_deficient_directions_and_refuses_indefinite_matrices() {
+        let mut l = [9.0; 4];
+        // Perfectly correlated pair: [[1, 1], [1, 1]] = L L' with L = [[1, 0], [1, 0]].
+        cholesky_psd_into(&[1.0, 1.0, 1.0, 1.0], 2, 1e-10, &mut l).unwrap();
+        assert_eq!(l, [1.0, 0.0, 1.0, 0.0]);
+        // A full-rank matrix factors as the SPD factorization does.
+        let mut spd = [0.0; 4];
+        cholesky_spd_into(&[4.0, 2.0, 2.0, 5.0], 2, &mut spd).unwrap();
+        cholesky_psd_into(&[4.0, 2.0, 2.0, 5.0], 2, 1e-10, &mut l).unwrap();
+        assert_eq!(l, spd);
+        // Indefinite, and a zero pivot with a non-zero entry below it, are refused.
+        assert_eq!(
+            cholesky_psd_into(&[1.0, 2.0, 2.0, 1.0], 2, 1e-10, &mut l),
+            Err(CholeskyError::NotPositiveDefinite { index: 1 })
+        );
+        assert_eq!(
+            cholesky_psd_into(&[0.0, 0.5, 0.5, 1.0], 2, 1e-10, &mut l),
+            Err(CholeskyError::NotPositiveDefinite { index: 1 })
+        );
+        assert!(cholesky_psd_into(&[f64::NAN, 0.0, 0.0, 1.0], 2, 1e-10, &mut l).is_err());
+        // The slack is relative to the largest diagonal entry.
+        assert!(cholesky_psd_into(&[1e8, 1e8, 1e8, 1e8 - 1e-4], 2, 1e-10, &mut l).is_ok());
+        assert!(cholesky_psd_into(&[1.0, 1.0, 1.0, 1.0 - 1e-4], 2, 1e-10, &mut l).is_err());
     }
 
     #[test]
