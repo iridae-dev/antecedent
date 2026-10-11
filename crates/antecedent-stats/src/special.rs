@@ -437,6 +437,19 @@ pub fn student_t_ppf(p: f64, df: f64) -> f64 {
     if p > 0.5 { t } else { -t }
 }
 
+/// Chi-square survival function `P(χ²_df > statistic)` through the regularized upper
+/// incomplete gamma, `Q(df / 2, statistic / 2)`.
+///
+/// A non-positive `statistic` gives `1.0`. `df` is converted through `u32` (saturating),
+/// so a degrees-of-freedom count beyond `u32::MAX` is treated as `u32::MAX`.
+#[must_use]
+pub fn chi_square_sf(statistic: f64, df: usize) -> f64 {
+    if statistic <= 0.0 {
+        return 1.0;
+    }
+    gamma_q(f64::from(u32::try_from(df).unwrap_or(u32::MAX)) * 0.5, statistic * 0.5)
+}
+
 /// Regularized upper incomplete gamma `Q(a, x)`.
 #[must_use]
 pub fn gamma_q(a: f64, x: f64) -> f64 {
@@ -507,6 +520,18 @@ fn gamma_q_cf(a: f64, x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn chi_square_sf_matches_closed_forms() {
+        // df = 2: survival is exp(-x / 2).
+        for x in [0.5, 2.0, 7.3] {
+            assert!((chi_square_sf(x, 2) - (-x / 2.0).exp()).abs() < 1e-12);
+        }
+        assert!((chi_square_sf(0.0, 3) - 1.0).abs() < f64::EPSILON);
+        assert!((chi_square_sf(-1.0, 3) - 1.0).abs() < f64::EPSILON);
+        // 95th percentile of chi-square(1) is 3.841458820694124.
+        assert!((chi_square_sf(3.841_458_820_694_124, 1) - 0.05).abs() < 1e-9);
+    }
 
     #[test]
     fn gauss_hermite_reproduces_normal_moments_exactly() {

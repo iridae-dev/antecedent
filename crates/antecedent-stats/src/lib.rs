@@ -10,6 +10,7 @@ pub mod cluster;
 pub mod covariance;
 mod cox_ipcw;
 pub mod dcor;
+pub mod describe;
 pub mod design;
 pub mod divergence;
 pub mod error;
@@ -52,6 +53,7 @@ pub use cluster::{
 };
 pub use covariance::{SandwichKind, coefficient_covariance, score_coefficient_covariance};
 pub use dcor::distance_correlation;
+pub use describe::{iid_se, mean_and_se};
 pub use design::{
     BasisKind, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
     RecordedContrast, RecordedSmooth, StandardizationRecord, StandardizedColumn,
@@ -118,8 +120,8 @@ pub use response::{
     gaussian_local_quadratic_weighted, silverman_bandwidth, silverman_normal_reference_factor,
 };
 pub use special::{
-    NORMAL_Q975, digamma, gamma_q, gauss_hermite_standard_normal, ln_gamma, normal_ppf,
-    regularized_incomplete_beta, student_t_ppf, student_t_sf, trigamma,
+    NORMAL_Q975, chi_square_sf, digamma, gamma_q, gauss_hermite_standard_normal, ln_gamma,
+    normal_ppf, regularized_incomplete_beta, student_t_ppf, student_t_sf, trigamma,
 };
 pub use twosls::{
     FirstStageDiagnostics, TwoSlsFit, anderson_rubin_confidence_set, anderson_rubin_kf_critical,
