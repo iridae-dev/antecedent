@@ -197,21 +197,7 @@ pub fn bayesian_rd_prior_sensitivity(
 }
 
 fn q(a: &[f64], p: f64) -> f64 {
-    let k = p * (a.len() - 1) as f64;
-    // `p` is one of the fixed posterior quantile probabilities and `a` is nonempty.
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "quantile rank is bounded by the slice length"
-    )]
-    let lo = k.floor() as usize;
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "quantile rank is bounded by the slice length"
-    )]
-    let hi = k.ceil() as usize;
-    a[lo] + (k - lo as f64) * (a[hi] - a[lo])
+    antecedent_stats::quantile_sorted(a, p, antecedent_stats::QuantileRule::ExchangeableRank)
 }
 fn posterior(
     x: &[[f64; 4]],
@@ -284,27 +270,18 @@ fn draw_column(
     n: usize,
     seed: u64,
 ) -> Result<Vec<f64>, EstimationError> {
-    let mut l = [[0.0; 4]; 4];
-    for i in 0..4 {
-        for j in 0..=i {
-            let s = cov[i][j] - (0..j).map(|k| l[i][k] * l[j][k]).sum::<f64>();
-            if i == j {
-                if s <= 0.0 {
-                    return Err(EstimationError::stats_msg(
-                        "Bayesian RD posterior covariance is not positive definite",
-                    ));
-                }
-                l[i][j] = s.sqrt();
-            } else {
-                l[i][j] = s / l[j][j];
-            }
-        }
+    let var = cov[col][col];
+    if !(var.is_finite() && var > 0.0) {
+        return Err(EstimationError::stats_msg(
+            "Bayesian RD posterior covariance is not positive definite",
+        ));
     }
-    let mut state = seed.max(1);
+    let sd = var.sqrt();
+    // An unmixed xorshift state makes the first draw nearly linear in the seed.
+    let mut state = crate::splitmix::seed_mix(seed).max(1);
     let mut out = Vec::with_capacity(n);
     for _ in 0..n {
-        let z = [normal(&mut state), normal(&mut state), normal(&mut state), normal(&mut state)];
-        out.push(mean[col] + (0..4).map(|j| l[col][j] * z[j]).sum::<f64>());
+        out.push(mean[col] + sd * normal(&mut state));
     }
     Ok(out)
 }
@@ -349,6 +326,16 @@ mod tests {
         assert_eq!(prior.len(), 2);
         assert!((prior[0].mean - prior[1].mean).abs() > 1e-3);
     }
+    #[test]
+    fn adjacent_seeds_do_not_produce_the_same_first_draw() {
+        let mean = [0.0; 4];
+        let mut cov = [[0.0; 4]; 4];
+        cov[1][1] = 1.0;
+        let a = draw_column(mean, &cov, 1, 1, 1).unwrap();
+        let b = draw_column(mean, &cov, 1, 1, 2).unwrap();
+        assert!((a[0] - b[0]).abs() > 1e-3, "{} vs {}", a[0], b[0]);
+    }
+
     #[test]
     fn non_sharp_assignment_is_refused() {
         let r: Vec<f64> = (0..20).map(|i| f64::from(i) - 10.0).collect();
