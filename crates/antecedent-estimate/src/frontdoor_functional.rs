@@ -395,7 +395,6 @@ fn level_index(levels: &[f64], value: f64) -> Option<usize> {
     levels.binary_search_by(|probe| probe.total_cmp(&(value + 0.0))).ok()
 }
 
-#[allow(clippy::too_many_arguments)]
 fn contrast(
     sample: &Sample<'_>,
     active: f64,

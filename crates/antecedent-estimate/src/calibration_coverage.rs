@@ -946,7 +946,6 @@ fn wald_coverage(test: &'static str, label: &str, se_kind: AnalyticSeKind, seed:
 
 /// Anderson–Rubin coverage of the Wald estimator on the design `make` draws (`dgp` names it).
 /// A `boundary` cell records the measured coverage without gating it.
-#[allow(clippy::too_many_arguments)]
 fn wald_coverage_on(
     test: &'static str,
     label: &str,
@@ -1798,7 +1797,6 @@ fn rd_sharp_hc1_curved_adversarial_ci_coverage() {
 
 /// Matching with the homoskedastic SE on `make`'s design, scored against `truth` for
 /// `population`; recorded as a boundary, never gated.
-#[allow(clippy::too_many_arguments)]
 fn matching_coverage_on(
     test: &'static str,
     label: &str,

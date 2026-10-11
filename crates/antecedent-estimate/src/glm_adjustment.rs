@@ -644,7 +644,6 @@ fn gcomp_delta_method_se(
 }
 
 /// Coefficient Fisher covariance shared by ordinary and retained GLM adjustment.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn adjustment_glm_covariance(
     family: GlmFamily,
     x_colmajor: &[f64],

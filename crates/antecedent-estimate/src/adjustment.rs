@@ -33,7 +33,7 @@ use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::prepare::{
     require_adjustment_shaped, treatment_contrast, validate_ate_query_with_targets,
 };
-use crate::se::{AnalyticSeKind, residual_sandwich_coef_se, score_sandwich_coef_se};
+use crate::se::{AnalyticSeKind, SeSpec, residual_sandwich_coef_se, score_sandwich_coef_se};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -1091,15 +1091,17 @@ impl LinearAdjustmentAte {
                 // the influence function its treatment row.
                 let xtx_inv = crate::util::xtx_inverse(x, nrows, ncols);
                 let se_coef = if let Some(se) = residual_sandwich_coef_se(
-                    self.se_kind,
+                    SeSpec {
+                        kind: self.se_kind,
+                        cluster_ids: self.cluster_ids.as_deref(),
+                        multiway_ids: self.multiway_ids.as_deref(),
+                        panel_times: self.panel_times.as_deref(),
+                    },
                     x,
                     nrows,
                     ncols,
                     &fit.residuals,
                     t_col,
-                    self.cluster_ids.as_deref(),
-                    self.multiway_ids.as_deref(),
-                    self.panel_times.as_deref(),
                 )? {
                     se
                 } else {
@@ -1137,16 +1139,18 @@ impl LinearAdjustmentAte {
                 let bread = curvature_gram_inverse(x, nrows, ncols, curvature);
                 let mean_curvature = curvature.iter().sum::<f64>() / n;
                 let se_coef = if let Some(se) = score_sandwich_coef_se(
-                    self.se_kind,
+                    SeSpec {
+                        kind: self.se_kind,
+                        cluster_ids: self.cluster_ids.as_deref(),
+                        multiway_ids: self.multiway_ids.as_deref(),
+                        panel_times: self.panel_times.as_deref(),
+                    },
                     x,
                     nrows,
                     ncols,
                     scores,
                     curvature,
                     t_col,
-                    self.cluster_ids.as_deref(),
-                    self.multiway_ids.as_deref(),
-                    self.panel_times.as_deref(),
                 )? {
                     se
                 } else if mean_curvature > 0.0 && n > p {

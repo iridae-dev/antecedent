@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(clippy::manual_map, clippy::too_many_arguments)]
+#![allow(clippy::manual_map)]
 #![cfg_attr(
     test,
     allow(
@@ -160,34 +160,29 @@ pub(crate) fn require_multiway(
     Ok(ids)
 }
 
+/// The SE kind together with the row labels its clustered and HAC variants require.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SeSpec<'a> {
+    pub(crate) kind: AnalyticSeKind,
+    pub(crate) cluster_ids: Option<&'a [u32]>,
+    pub(crate) multiway_ids: Option<&'a [Vec<u32>]>,
+    pub(crate) panel_times: Option<&'a [i64]>,
+}
+
 /// Coefficient SE from residual sandwich, or `None` when [`AnalyticSeKind::Homoskedastic`].
 ///
 /// # Errors
 ///
 /// Missing cluster / multiway / panel labels when required.
 pub(crate) fn residual_sandwich_coef_se(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     residuals: &[f64],
     t_col: usize,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<f64>, EstimationError> {
-    sandwich_coef_se(
-        kind,
-        x,
-        nrows,
-        ncols,
-        residuals,
-        None,
-        t_col,
-        cluster_ids,
-        multiway_ids,
-        panel_times,
-    )
+    sandwich_coef_se(spec, x, nrows, ncols, residuals, None, t_col)
 }
 
 /// Treatment-coefficient SE of an M-estimator: the sandwich `A⁻¹ (Σ s_i² x_i x_iᵀ) A⁻¹` with
@@ -199,43 +194,27 @@ pub(crate) fn residual_sandwich_coef_se(
 ///
 /// Missing cluster / multiway / panel labels when required.
 pub(crate) fn score_sandwich_coef_se(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     scores: &[f64],
     curvature: &[f64],
     t_col: usize,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<f64>, EstimationError> {
-    sandwich_coef_se(
-        kind,
-        x,
-        nrows,
-        ncols,
-        scores,
-        Some(curvature),
-        t_col,
-        cluster_ids,
-        multiway_ids,
-        panel_times,
-    )
+    sandwich_coef_se(spec, x, nrows, ncols, scores, Some(curvature), t_col)
 }
 
 fn sandwich_coef_se(
-    kind: AnalyticSeKind,
+    spec: SeSpec<'_>,
     x: &[f64],
     nrows: usize,
     ncols: usize,
     residuals: &[f64],
     fisher_weights: Option<&[f64]>,
     t_col: usize,
-    cluster_ids: Option<&[u32]>,
-    multiway_ids: Option<&[Vec<u32>]>,
-    panel_times: Option<&[i64]>,
 ) -> Result<Option<f64>, EstimationError> {
+    let SeSpec { kind, cluster_ids, multiway_ids, panel_times } = spec;
     if matches!(kind, AnalyticSeKind::Homoskedastic) {
         return Ok(None);
     }

@@ -441,7 +441,6 @@ pub fn evaluate_statistical_transport_grid(
 /// Bootstrap datasets are still refitted jointly for every outer replicate.
 /// # Errors
 /// Invalid requests, support failure, cancellation, or exceeded resources.
-#[allow(clippy::too_many_arguments)]
 pub fn evaluate_statistical_transport_grid_with_point_laws(
     functional: &BoundTransportFunctional,
     input: &StatisticalTransportInput,

@@ -23,7 +23,6 @@
 #![allow(
     clippy::manual_flatten,
     clippy::needless_pass_by_value,
-    clippy::too_many_arguments,
     clippy::type_complexity,
     clippy::zero_sized_map_values
 )]

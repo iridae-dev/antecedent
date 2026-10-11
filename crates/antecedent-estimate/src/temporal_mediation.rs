@@ -228,7 +228,6 @@ impl TemporalMediationEstimator {
     /// Point estimates only, plus iid analytic SEs when [`Self::allow_iid_sobel_se`]
     /// is set (NaN otherwise, for every contrast). Dependence-honest uncertainty
     /// comes from [`Self::estimate_with_block_bootstrap`].
-    #[allow(clippy::too_many_arguments)] // Keep existing estimator entry points source-compatible.
     pub fn estimate_with_adjustment(
         &self,
         data: &TimeSeriesData,

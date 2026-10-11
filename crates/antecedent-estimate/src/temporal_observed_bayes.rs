@@ -10,7 +10,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(
-    clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::cast_possible_wrap,
     clippy::doc_markdown,

@@ -504,15 +504,17 @@ impl SharpRegressionDiscontinuity {
             | AnalyticSeKind::Hc1
             | AnalyticSeKind::Hc2
             | AnalyticSeKind::Hc3 => crate::se::residual_sandwich_coef_se(
-                self.se_kind,
+                crate::se::SeSpec {
+                    kind: self.se_kind,
+                    cluster_ids: None,
+                    multiway_ids: None,
+                    panel_times: None,
+                },
                 &problem.matrix,
                 problem.nrows,
                 RD_NCOLS,
                 &fit.residuals,
                 RD_TREATMENT_COL,
-                None,
-                None,
-                None,
             )?
             .unwrap_or(f64::NAN),
             _ => {
