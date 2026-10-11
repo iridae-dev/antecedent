@@ -105,6 +105,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::StructuredRefusal;
+use antecedent_graph::{Dag, DenseNodeId};
 
 use crate::transported_gate::{
     PopulationRole, RegimeFactorKey, TransportedCounterfactualPrerequisites,
@@ -401,28 +402,33 @@ fn check_slopes(name: &str, affine: &Affine, covariates: &BTreeSet<&str>) -> Res
     }
 }
 
+/// Mechanism nodes in an order every mechanism follows its mechanism parents,
+/// from the graph owner's topological order over the mechanism-to-mechanism
+/// edges. Covariate and treatment parents are not mechanism nodes.
 fn topological_order(
     model: &AdditiveLinearScm,
     mechanism_names: &BTreeSet<&str>,
 ) -> Result<Vec<String>, String> {
-    let by_name: BTreeMap<&str, &LinearMechanism> =
-        model.mechanisms.iter().map(|(n, m)| (n.as_str(), m)).collect();
-    let mut order: Vec<String> = Vec::new();
-    let mut done: BTreeSet<&str> = BTreeSet::new();
-    while done.len() < mechanism_names.len() {
-        let next = by_name.iter().find(|(name, mechanism)| {
-            !done.contains(**name)
-                && mechanism.parents.iter().all(|(p, _)| {
-                    !mechanism_names.contains(p.as_str()) || done.contains(p.as_str())
-                })
-        });
-        let Some((name, _)) = next else {
-            return Err("the mechanism graph has a cycle".to_owned());
-        };
-        done.insert(*name);
-        order.push((*name).to_owned());
+    let cyclic = || "the mechanism graph has a cycle".to_owned();
+    let names: Vec<&str> = mechanism_names.iter().copied().collect();
+    let node_of = |name: &str| names.binary_search(&name).ok();
+    let count = u32::try_from(names.len()).map_err(|_| cyclic())?;
+    let mut graph = Dag::with_variables(count);
+    for (name, mechanism) in &model.mechanisms {
+        let child = node_of(name).ok_or_else(cyclic)?;
+        for (parent, _) in &mechanism.parents {
+            if let Some(parent) = node_of(parent) {
+                graph
+                    .insert_directed(
+                        DenseNodeId::from_index(parent),
+                        DenseNodeId::from_index(child),
+                    )
+                    .map_err(|_| cyclic())?;
+            }
+        }
     }
-    Ok(order)
+    let order = graph.topological_order().ok_or_else(cyclic)?;
+    Ok(order.into_iter().map(|id| names[id.as_usize()].to_owned()).collect())
 }
 
 fn validate_query(model: &AdditiveLinearScm, query: &PathSpecificQuery) -> Result<(), String> {
