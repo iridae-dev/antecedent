@@ -29,7 +29,7 @@ use antecedent_core::{
     EvidenceCatalog, ExecutionContext, NodeRef, RegimeId, SearchBudget, SearchLimits,
     SearchReceipt, SearchStop, Value, VariableDomain, VariableId, reason_code,
 };
-use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram, TemporalDag};
+use antecedent_graph::{Admg, BitSet, DenseNodeId, SelectionDiagram, TemporalDag};
 
 use super::scenarios::ScenarioCoordinate;
 use super::{
@@ -761,18 +761,12 @@ fn dense(diagram: &SelectionDiagram, variable: VariableId) -> Option<DenseNodeId
 /// Whether a directed path from `from` reaches `to` without passing through
 /// `avoid`: a cause of `to` that is not merely mediated by `avoid`.
 fn reaches_avoiding(graph: &Admg, from: DenseNodeId, to: DenseNodeId, avoid: DenseNodeId) -> bool {
-    let mut seen = vec![false; graph.node_count()];
-    let mut stack = vec![from];
-    while let Some(node) = stack.pop() {
-        if node == to {
-            return true;
-        }
-        if node == avoid || std::mem::replace(&mut seen[node.as_usize()], true) {
-            continue;
-        }
-        stack.extend(graph.children(node).iter().copied());
-    }
-    false
+    let n = graph.node_count();
+    let (mut seeds, mut cut) = (BitSet::with_len(n), BitSet::with_len(n));
+    seeds.insert(from);
+    cut.insert(avoid);
+    let mut ws = antecedent_graph::GraphWorkspace::default();
+    graph.descendants_within(&seeds, &BitSet::full(n), Some(&cut), &mut ws).contains(to)
 }
 
 /// Covariates of step 2 that confound the second action and the outcome while
