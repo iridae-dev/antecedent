@@ -280,7 +280,8 @@ mod tests {
                 "mu1",
                 "provenance",
                 "diagnostics",
-                "overlap"
+                "overlap",
+                "scores"
             ]
         );
         assert_eq!(
