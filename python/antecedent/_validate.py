@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from numbers import Complex, Real
+from typing import Any
 
 import numpy as np
 
@@ -131,11 +132,13 @@ def names(
     entry_message: str = "{what} must be non-empty strings",
     duplicate_message: str = "{what} must be distinct",
     empty_message: str = "{what} must not be empty",
-) -> tuple[str, ...]:
+    as_list: bool = False,
+) -> Any:
     """``values`` as a tuple of distinct, non-blank strings.
 
     A single string is never a sequence of names. ``sequence_message`` (when given) also refuses
-    any non-:class:`~collections.abc.Sequence` input with that message.
+    any non-:class:`~collections.abc.Sequence` input with that message. The result is a tuple, or a
+    list with ``as_list``.
     """
     if isinstance(values, str) or (
         sequence_message is not None and not isinstance(values, Sequence)
@@ -152,7 +155,7 @@ def names(
         raise CausalValueError(duplicate_message.format(what=what))
     if not allow_empty and not out:
         raise CausalValueError(empty_message.format(what=what))
-    return out
+    return list(out) if as_list else out
 
 
 def choice(value: str, what: str, allowed: Sequence[str]) -> str:

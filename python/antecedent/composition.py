@@ -43,6 +43,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Literal, cast
 
 from . import _native
@@ -55,6 +56,7 @@ from ._native import composition_input_from_distribution as _from_distribution
 from ._native import composition_input_from_means as _from_means
 from ._native import composition_input_from_scalar as _from_scalar
 from ._refusal import raise_refusal
+from ._validate import choice, text
 from .decision import ActionOutcome, ConstraintExclusion, Contract, DecisionRefusal
 from .decision_robust import SupportLabel
 from .errors import CausalTypeError, CausalValueError
@@ -146,19 +148,9 @@ def _raise(refusal: str | None) -> None:
     raise_refusal(refusal, _refusal_type)
 
 
-def _label(name: str, value: str, allowed: Sequence[str]) -> str:
-    if value not in allowed:
-        raise CausalValueError(f"{name} is one of {', '.join(allowed)}; got {value!r}")
-    return value
+_label = choice
 
-
-def _text(name: str, value: object) -> str:
-    if not isinstance(value, str):
-        raise CausalTypeError(f"{name} must be a string")
-    if not value.strip():
-        raise CausalValueError(f"{name} must be non-empty")
-    return value
-
+_text = partial(text, non_empty=True)
 
 # --------------------------------------------------------------------------- trust
 
@@ -188,7 +180,7 @@ class TrustEvidence:
     @classmethod
     def attested(cls, attestor: str) -> TrustEvidence:
         """An external attestation by ``attestor``; never native, never verified."""
-        return cls(_native.TrustEvidence.attested(_text("attestor", attestor)))
+        return cls(_native.TrustEvidence.attested(_text(attestor, "attestor")))
 
     @property
     def kind(self) -> str:
@@ -287,10 +279,10 @@ class DecisionInput:
         if not isinstance(artifact, JointDistributionArtifact):
             raise CausalTypeError("artifact must be a JointDistributionArtifact")
         native, refusal = _from_distribution(
-            _text("input_id", input_id),
+            _text(input_id, "input_id"),
             artifact._native,
             _evidence(evidence),
-            _label("requirement", requirement, _REQUIREMENTS),
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
         return cls._built(native, refusal)
 
@@ -306,7 +298,7 @@ class DecisionInput:
         if not isinstance(claim, NativeClaim):
             raise CausalTypeError("claim must be an issued NativeClaim")
         native, refusal = _native.composition_input_from_native_claim(
-            _text("input_id", input_id), claim._native, json.dumps(contract._wire())
+            _text(input_id, "input_id"), claim._native, json.dumps(contract._wire())
         )
         return cls._built(native, refusal)
 
@@ -336,15 +328,15 @@ class DecisionInput:
             raise CausalValueError("one mean per coordinate")
         labels = _labels(support, len(quantities))
         native, refusal = _from_means(
-            _text("input_id", input_id),
+            _text(input_id, "input_id"),
             json.dumps([q._wire() for q in quantities]),
             values,
             labels,
-            _text("provider_id", provider_id),
-            _text("snapshot_id", snapshot_id),
-            _text("causal_contract_id", causal_contract_id),
+            _text(provider_id, "provider_id"),
+            _text(snapshot_id, "snapshot_id"),
+            _text(causal_contract_id, "causal_contract_id"),
             _evidence(evidence),
-            _label("requirement", requirement, _REQUIREMENTS),
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
         return cls._built(native, refusal)
 
@@ -364,15 +356,15 @@ class DecisionInput:
     ) -> DecisionInput:
         """An input from one scalar claim for one coordinate."""
         native, refusal = _from_scalar(
-            _text("input_id", input_id),
+            _text(input_id, "input_id"),
             json.dumps(quantity._wire()),
             float(value),
-            _label("support", support, _SUPPORT_NAMES),
-            _text("provider_id", provider_id),
-            _text("snapshot_id", snapshot_id),
-            _text("causal_contract_id", causal_contract_id),
+            _label(support, "support", _SUPPORT_NAMES),
+            _text(provider_id, "provider_id"),
+            _text(snapshot_id, "snapshot_id"),
+            _text(causal_contract_id, "causal_contract_id"),
             _evidence(evidence),
-            _label("requirement", requirement, _REQUIREMENTS),
+            _label(requirement, "requirement", _REQUIREMENTS),
         )
         return cls._built(native, refusal)
 
@@ -496,8 +488,8 @@ def _evidence(evidence: TrustEvidence | None) -> _native.TrustEvidence:
 
 def _labels(support: str | Sequence[str], count: int) -> list[str]:
     if isinstance(support, str):
-        return [_label("support", support, _SUPPORT_NAMES)] * count
-    labels = [_label("support", s, _SUPPORT_NAMES) for s in support]
+        return [_label(support, "support", _SUPPORT_NAMES)] * count
+    labels = [_label(s, "support", _SUPPORT_NAMES) for s in support]
     if len(labels) != count:
         raise CausalValueError("one support label per coordinate")
     return labels
@@ -526,8 +518,8 @@ class SupportPolicy:
     weakest_support: SupportLabel = "supported"
 
     def __post_init__(self) -> None:
-        _label("unsupported", self.unsupported, ("compare_supported", "require_all"))
-        _label("weakest_support", self.weakest_support, _SUPPORT_NAMES)
+        _label(self.unsupported, "unsupported", ("compare_supported", "require_all"))
+        _label(self.weakest_support, "weakest_support", _SUPPORT_NAMES)
 
     @classmethod
     def compare_supported(cls, weakest_support: SupportLabel = "supported") -> SupportPolicy:
@@ -916,10 +908,10 @@ def evaluate_functional(
         raise CausalTypeError("source must be a DecisionInput")
     result, refusal = _functional(
         json.dumps(contract._wire()),
-        _text("action_id", action_id),
+        _text(action_id, "action_id"),
         json.dumps(functional._wire()),
         source._native_value,
-        _label("weakest_support", weakest_support, _SUPPORT_NAMES),
+        _label(weakest_support, "weakest_support", _SUPPORT_NAMES),
     )
     _raise(refusal)
     assert result is not None
@@ -983,12 +975,12 @@ class EvidenceRelation:
     @classmethod
     def shared_prior(cls, prior_id: str) -> EvidenceRelation:
         """The two inputs share the prior ``prior_id``."""
-        return cls("shared_prior", (_text("prior_id", prior_id),))
+        return cls("shared_prior", (_text(prior_id, "prior_id"),))
 
     @classmethod
     def shared_fitted_model(cls, model_id: str) -> EvidenceRelation:
         """The two inputs come from the one fitted model ``model_id``."""
-        return cls("shared_fitted_model", (_text("model_id", model_id),))
+        return cls("shared_fitted_model", (_text(model_id, "model_id"),))
 
     @classmethod
     def unknown(cls) -> EvidenceRelation:
@@ -1115,7 +1107,7 @@ def check_composition(
     Raises :class:`DependenceRefusal`.
     """
     if operation is not None:
-        _label("operation", operation, OPERATIONS)
+        _label(operation, "operation", OPERATIONS)
     result, refusal = _check(_natives(inputs), _relations_wire(relations), operation)
     _raise(refusal)
     return _receipt(result)
@@ -1173,8 +1165,8 @@ def check_atom_combination(
     if any(not isinstance(a, StructuralAtom) for a in items):
         raise CausalTypeError("atoms must be StructuralAtom values")
     _label(
-        "combination",
         combination,
+        "combination",
         ("report_each", "worst_case", "weighted_by_declared_probabilities"),
     )
     result, refusal = _check_atoms(

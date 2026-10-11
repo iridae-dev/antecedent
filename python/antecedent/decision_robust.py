@@ -51,6 +51,7 @@ from ._native import identified_utility_interval as _interval
 from ._native import load_admissible_contract as _load_contract
 from ._native import replay_robust_decision as _replay_robust
 from ._refusal import raise_refusal
+from ._validate import choice
 from .decision import Contract, DecisionRefusal
 from .errors import CausalValueError
 from .external import BoundExternalClaim, LineageLink
@@ -95,11 +96,6 @@ def _raise(refusal: str | None) -> None:
     raise_refusal(refusal, DecisionRefusal)
 
 
-def _check_label(value: str, allowed: Sequence[str], what: str) -> None:
-    if value not in allowed:
-        raise CausalValueError(f"{what} is one of {', '.join(allowed)}; got {value!r}")
-
-
 _SUPPORT_LABELS = (
     "supported",
     "weak_overlap",
@@ -122,7 +118,7 @@ class SupportRule:
     weakest_allowed: SupportLabel
 
     def __post_init__(self) -> None:
-        _check_label(self.weakest_allowed, _SUPPORT_LABELS, "weakest_allowed")
+        choice(self.weakest_allowed, "weakest_allowed", _SUPPORT_LABELS)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -163,8 +159,8 @@ class AdmissibilityRules:
         object.__setattr__(self, "support_rules", tuple(self.support_rules))
         object.__setattr__(self, "declared_exclusions", tuple(self.declared_exclusions))
         if self.default_weakest_support is not None:
-            _check_label(self.default_weakest_support, _SUPPORT_LABELS, "default_weakest_support")
-        _check_label(self.uncertainty, _UNCERTAINTY_LABELS, "uncertainty")
+            choice(self.default_weakest_support, "default_weakest_support", _SUPPORT_LABELS)
+        choice(self.uncertainty, "uncertainty", _UNCERTAINTY_LABELS)
 
     def _wire(self) -> dict[str, Any]:
         return {
@@ -261,9 +257,9 @@ class Support:
     per_input: Mapping[tuple[str, int], SupportLabel] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        _check_label(self.overall, _SUPPORT_LABELS, "overall")
+        choice(self.overall, "overall", _SUPPORT_LABELS)
         for label in self.per_input.values():
-            _check_label(label, _SUPPORT_LABELS, "per-input support")
+            choice(label, "per-input support", _SUPPORT_LABELS)
 
     @classmethod
     def unassessed(cls) -> Support:
@@ -402,7 +398,7 @@ class ExternalReceipt:
 
 
 def _claims_payload(claims: Sequence[Claim], kind: str) -> tuple[str, list[Any]]:
-    _check_label(kind, _CLAIM_KINDS, "kind")
+    choice(kind, "kind", _CLAIM_KINDS)
     sources = [None if c.source is None else c.source._native for c in claims]
     return json.dumps([c._wire() for c in claims]), sources
 

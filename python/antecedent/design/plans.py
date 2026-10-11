@@ -19,19 +19,18 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Literal
 
+from .._validate import count
 from ..errors import CausalTypeError, CausalValueError
 
 PlanKind = Literal["measure", "intervene", "observe_environment", "increase_sampling_rate"]
 
 
-def _count(value: object, what: str, *, minimum: int = 0) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise CausalTypeError(f"{what} must be an integer, not {type(value).__name__}")
-    if value < minimum:
-        raise CausalValueError(f"{what} must be at least {minimum}, got {value}")
-    return value
+_count = partial(
+    count, minimum=0, types=(int,), type_message="{what} must be an integer, not {got}"
+)
 
 
 def _ids(values: Sequence[int], what: str) -> tuple[int, ...]:
