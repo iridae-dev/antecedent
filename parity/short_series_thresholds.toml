@@ -4,9 +4,10 @@
 # scripts/short_series_thresholds.py yields on the measurement sweep and on its
 # independent-seed replication (ANTECEDENT_SHORT_SERIES_SEED_OFFSET=5000, 1000
 # replicates); `threshold` is the larger, or a stated pin above it. Rows are written
-# by `python3 scripts/short_series_thresholds.py write`; the docs tables are
-# generated from them and gate_docs_support_matrix.sh ties `threshold` to
-# min_effective_rows in crates/antecedent-estimate/src/temporal_block.rs.
+# by `python3 scripts/short_series_thresholds.py write`; the docs tables and
+# RESPONSE_SHORT_SERIES_ROWS are generated from this file.
+# `python3 scripts/short_series_thresholds.py check` ties each family's `threshold`
+# to min_effective_rows in crates/antecedent-estimate/src/temporal_block.rs.
 
 [[family]]
 name = "single-window adjustment"
@@ -36,3 +37,8 @@ se_path = "TemporalCpdag / TemporalPag envelopes, DBN posteriors"
 sweep = 155
 replication = 90
 threshold = 155
+
+[response]
+# RESPONSE_SHORT_SERIES_ROWS. Generated into temporal_response_dispersion.rs
+# and the response prose on docs/short-series-thresholds.md.
+rows = 15
