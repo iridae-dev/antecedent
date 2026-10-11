@@ -23,9 +23,9 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
-    fit_huber_m, fit_lasso_with_ones_column, fit_ridge, form_xtx, invert_square, predict_lasso,
-    ridge_gram_inverse, CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics,
-    LassoOptions, LeastSquaresWorkspace, MEstimateOptions,
+    fit_huber_m, fit_lasso_with_ones_column, fit_ridge, predict_lasso, ridge_gram_inverse,
+    CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
+    LeastSquaresWorkspace, MEstimateOptions,
 };
 
 use crate::error::EstimationError;
@@ -1089,7 +1089,7 @@ impl LinearAdjustmentAte {
             FitVariance::Ols => {
                 // `(XᵀX)⁻¹` once: the homoskedastic SE reads its treatment diagonal and
                 // the influence function its treatment row.
-                let xtx_inv = gram_inverse(x, nrows, ncols);
+                let xtx_inv = crate::util::xtx_inverse(x, nrows, ncols);
                 let se_coef = if let Some(se) = residual_sandwich_coef_se(
                     self.se_kind,
                     x,
@@ -1157,7 +1157,7 @@ impl LinearAdjustmentAte {
                     let tau2 = scores.iter().map(|e| e * e).sum::<f64>()
                         / (n - p)
                         / (mean_curvature * mean_curvature);
-                    gram_inverse(x, nrows, ncols).map_or(f64::NAN, |inv| {
+                    crate::util::xtx_inverse(x, nrows, ncols).map_or(f64::NAN, |inv| {
                         (kappa * kappa * tau2 * inv[t_col * ncols + t_col].max(0.0)).sqrt()
                     })
                 } else {
@@ -1554,14 +1554,7 @@ fn curvature_gram_inverse(
             *v *= w.sqrt();
         }
     }
-    gram_inverse(&scaled, nrows, ncols)
-}
-
-/// `(XᵀX)⁻¹` (row-major) of a column-major design; `None` when singular.
-fn gram_inverse(x_colmajor: &[f64], nrows: usize, ncols: usize) -> Option<Vec<f64>> {
-    let mut xtx = vec![0.0; ncols * ncols];
-    form_xtx(x_colmajor, nrows, ncols, &mut xtx);
-    invert_square(&xtx, ncols)
+    crate::util::xtx_inverse(&scaled, nrows, ncols)
 }
 
 /// Frisch–Waugh influence of the treatment coefficient, scaled by `delta`.
@@ -1674,6 +1667,7 @@ mod tests {
     use antecedent_expr::IdentifiedEstimand;
     use antecedent_expr::{Assignment, DomainRef, EmpiricalTableProvider, ExprId, FactorSpec};
     use antecedent_identify::{DerivationTrace, IdentificationPerformanceRecord};
+    use antecedent_stats::{form_xtx, invert_square};
 
     use super::*;
 

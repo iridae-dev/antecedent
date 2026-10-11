@@ -733,26 +733,14 @@ fn cholesky(a: &[f64], n: usize) -> Result<Vec<f64>, (usize, f64)> {
 /// Solve `L y = b`.
 fn forward_solve(l: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut s = b[i];
-        for k in 0..i {
-            s -= l[i * n + k] * y[k];
-        }
-        y[i] = s / l[i * n + i];
-    }
+    antecedent_kernels::forward_solve_into(l, n, b, &mut y);
     y
 }
 
 /// Solve `L' x = y`.
 fn back_solve(l: &[f64], n: usize, y: &[f64]) -> Vec<f64> {
     let mut x = vec![0.0; n];
-    for i in (0..n).rev() {
-        let mut s = y[i];
-        for k in (i + 1)..n {
-            s -= l[k * n + i] * x[k];
-        }
-        x[i] = s / l[i * n + i];
-    }
+    antecedent_kernels::back_solve_into(l, n, y, &mut x);
     x
 }
 
@@ -761,17 +749,7 @@ fn chol_solve(l: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
 }
 
 fn chol_inverse(l: &[f64], n: usize) -> Vec<f64> {
-    let mut inverse = vec![0.0; n * n];
-    let mut unit = vec![0.0; n];
-    for j in 0..n {
-        unit.fill(0.0);
-        unit[j] = 1.0;
-        let column = chol_solve(l, n, &unit);
-        for i in 0..n {
-            inverse[i * n + j] = column[i];
-        }
-    }
-    inverse
+    antecedent_kernels::chol_inverse(l, n)
 }
 
 fn mat_vec(a: &[f64], n: usize, x: &[f64]) -> Vec<f64> {

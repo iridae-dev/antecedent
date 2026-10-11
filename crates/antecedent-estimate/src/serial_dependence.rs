@@ -988,23 +988,12 @@ fn cholesky_into(a: &[f64], l: &mut [f64], m: usize) -> bool {
     antecedent_kernels::cholesky_spd_into(a, m, l).is_ok()
 }
 
-/// Solve `L L' x = b` from a Cholesky factor.
+/// Solve `L L' x = b` from a Cholesky factor (the shared kernel substitutions).
 fn cholesky_solve(l: &[f64], b: &[f64], m: usize) -> Vec<f64> {
+    let mut y = vec![0.0; m];
     let mut x = vec![0.0; m];
-    cholesky_solve_into(l, b, &mut x, m);
+    antecedent_kernels::chol_solve_into(l, m, b, &mut y, &mut x);
     x
-}
-
-/// [`cholesky_solve`] into `x` (used as the forward-substitution scratch).
-fn cholesky_solve_into(l: &[f64], b: &[f64], x: &mut [f64], m: usize) {
-    for i in 0..m {
-        let s: f64 = (0..i).map(|k| l[i * m + k] * x[k]).sum();
-        x[i] = (b[i] - s) / l[i * m + i];
-    }
-    for i in (0..m).rev() {
-        let s: f64 = (i + 1..m).map(|k| l[k * m + i] * x[k]).sum();
-        x[i] = (x[i] - s) / l[i * m + i];
-    }
 }
 
 /// Gaussian elimination with partial pivoting for a small dense system, in
@@ -1068,7 +1057,8 @@ struct RemlKernel {
     /// `block(j, k)`.
     lagged: Vec<f64>,
     /// Per-evaluation scratch: the whitened Gram (`m × m`), its `p × p`
-    /// leading block, the factor, `X̃'ẽ` and `β̃`.
+    /// leading block, the factor, `X̃'ẽ`, `β̃` and the
+    /// forward-substitution scratch.
     scratch: std::cell::RefCell<Vec<f64>>,
 }
 
@@ -1116,7 +1106,7 @@ impl RemlKernel {
                 }
             }
         }
-        let scratch = std::cell::RefCell::new(vec![0.0; m * m + 2 * p * p + 2 * p]);
+        let scratch = std::cell::RefCell::new(vec![0.0; m * m + 2 * p * p + 3 * p]);
         Self { n, p, m, max_order: big_q, top, lagged, scratch }
     }
 
@@ -1193,7 +1183,8 @@ fn reml_log_likelihood(z: &[f64], kernel: &RemlKernel) -> f64 {
     let (g, rest) = scratch.split_at_mut(m * m);
     let (gxx, rest) = rest.split_at_mut(p * p);
     let (l, rest) = rest.split_at_mut(p * p);
-    let (xy, beta) = rest.split_at_mut(p);
+    let (xy, rest) = rest.split_at_mut(p);
+    let (beta, y) = rest.split_at_mut(p);
     kernel.whitened_gram(&w, g);
     for a in 0..p {
         gxx[a * p..(a + 1) * p].copy_from_slice(&g[a * m..a * m + p]);
@@ -1202,7 +1193,7 @@ fn reml_log_likelihood(z: &[f64], kernel: &RemlKernel) -> f64 {
     if !cholesky_into(gxx, l, p) {
         return f64::NEG_INFINITY;
     }
-    cholesky_solve_into(l, xy, beta, p);
+    antecedent_kernels::chol_solve_into(l, p, xy, &mut y[..p], beta);
     let rss = g[p * m + p] - beta.iter().zip(&*xy).map(|(b, v)| b * v).sum::<f64>();
     if rss <= 0.0 || rss.is_nan() {
         return f64::NEG_INFINITY;

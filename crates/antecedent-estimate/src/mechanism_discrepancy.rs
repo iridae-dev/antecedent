@@ -604,27 +604,15 @@ fn cholesky(matrix: &[f64], n: usize) -> Option<Vec<f64>> {
 /// Solve `L y = b` (forward substitution).
 fn forward_solve(lower: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
     let mut y = vec![0.0; n];
-    for i in 0..n {
-        let mut sum = b[i];
-        for k in 0..i {
-            sum -= lower[i * n + k] * y[k];
-        }
-        y[i] = sum / lower[i * n + i];
-    }
+    antecedent_kernels::forward_solve_into(lower, n, b, &mut y);
     y
 }
 
 /// Solve `L L' x = b`.
 fn chol_solve(lower: &[f64], n: usize, b: &[f64]) -> Vec<f64> {
-    let y = forward_solve(lower, n, b);
+    let mut y = vec![0.0; n];
     let mut x = vec![0.0; n];
-    for i in (0..n).rev() {
-        let mut sum = y[i];
-        for k in (i + 1)..n {
-            sum -= lower[k * n + i] * x[k];
-        }
-        x[i] = sum / lower[i * n + i];
-    }
+    antecedent_kernels::chol_solve_into(lower, n, b, &mut y, &mut x);
     x
 }
 
