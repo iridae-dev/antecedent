@@ -7,12 +7,12 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{FaerBackend, GlmOptions, fit_propensity};
+use antecedent_stats::{fit_propensity, FaerBackend, GlmOptions};
 
 use super::prepare::{
-    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry,
-    restrict_to_rows, trim_of, trim_retained_rows,
+    clamp_scores, clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry,
+    restrict_to_rows, trim_of, trim_retained_rows, PreparedPropensityProblem,
+    PropensityEstimationWorkspace, PropensityModel,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -280,14 +280,27 @@ impl PropensityStratification {
 pub(crate) fn assign_strata(scores: &[f64], n_strata: usize) -> Vec<usize> {
     let n = scores.len();
     let k = n_strata.max(1);
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by(|&a, &b| scores[a].partial_cmp(&scores[b]).unwrap_or(std::cmp::Ordering::Equal));
-    let mut stratum = vec![0usize; n];
-    for (rank, &orig) in order.iter().enumerate() {
-        let s = (rank * k) / n.max(1);
-        stratum[orig] = s.min(k - 1);
+    if n == 0 {
+        return Vec::new();
     }
-    stratum
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| scores[a].total_cmp(&scores[b]).then(a.cmp(&b)));
+    // Cut on score quantiles and assign by `score <= cut`, so identical scores
+    // stay in one stratum. Rank cuts split a tie across strata by row position.
+    let mut cuts = Vec::with_capacity(k.saturating_sub(1));
+    for s in 1..k {
+        let idx = (s * n) / k;
+        cuts.push(scores[order[idx.min(n - 1)]]);
+    }
+    scores
+        .iter()
+        .map(|score| {
+            cuts.iter()
+                .position(|cut| score.total_cmp(cut).is_le())
+                .unwrap_or(cuts.len())
+                .min(k - 1)
+        })
+        .collect()
 }
 
 pub(crate) struct StratifiedResult {
@@ -376,6 +389,15 @@ pub(crate) fn stratified_ate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tied_propensity_scores_share_a_stratum() {
+        let scores = [0.1, 0.9, 0.1, 0.1];
+        let stratum = assign_strata(&scores, 2);
+        assert_eq!(stratum[0], stratum[2]);
+        assert_eq!(stratum[0], stratum[3]);
+        assert_ne!(stratum[0], stratum[1]);
+    }
 
     #[test]
     fn stratification_rejects_singleton_arm_uncertainty() {
