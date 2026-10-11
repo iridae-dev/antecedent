@@ -351,9 +351,7 @@ fn evaluate_temporal_class_atom_frequentist(
                 assumption: antecedent_core::Assumption::ParametricRestriction(
                     antecedent_core::ParametricAssumption {
                         id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(
-                            "linear additive mechanisms on the identified unfolded DAG",
-                        ),
+                        description: Arc::from(UNFOLDED_LINEAR_SEM),
                     },
                 ),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault {
@@ -589,9 +587,7 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
             assumption: antecedent_core::Assumption::ParametricRestriction(
                 antecedent_core::ParametricAssumption {
                     id: Arc::from("temporal.sequential.linear_sem"),
-                    description: Arc::from(
-                        "linear additive mechanisms on the identified unfolded DAG",
-                    ),
+                    description: Arc::from(UNFOLDED_LINEAR_SEM),
                 },
             ),
             source: antecedent_core::AssumptionSource::AlgorithmDefault {
@@ -867,7 +863,7 @@ fn refute_temporal_class_graph_posterior(
     }
     let mix_scalar = matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean);
     let tabular = TabularData::new(data.storage().clone());
-    let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+    let ate_q = temporal_refuter_average(query);
     let mut per_atom = Vec::new();
     let mut diagnostics = Vec::new();
     for eval in evals {

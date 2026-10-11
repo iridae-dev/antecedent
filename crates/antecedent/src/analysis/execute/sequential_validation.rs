@@ -217,10 +217,7 @@ pub(super) fn validate_sequential(
     predictive_sims: u32,
 ) -> Result<SequentialValidationResults, CausalError> {
     let table = TabularData::new(data.storage().clone());
-    let mut average = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-    average.active = query.active.clone();
-    average.control = query.control.clone();
-    average.target_population = query.target_population.clone();
+    let average = temporal_refuter_average(query);
     let mut reports: std::collections::BTreeMap<
         Arc<str>,
         Vec<(f64, antecedent_validate::RefutationReport)>,

@@ -208,10 +208,7 @@ impl CheckedTemporalClassEffectExecution {
         )
         .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
         let tabular = TabularData::new(data.storage().clone());
-        let mut ate_query = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-        ate_query.active = query.active.clone();
-        ate_query.control = query.control.clone();
-        ate_query.target_population = query.target_population.clone();
+        let ate_query = temporal_refuter_average(query);
         let (refutations, refute_diagnostics) = run_envelope_effect_refuters(
             &tabular,
             &ate_query,
@@ -329,9 +326,7 @@ impl CheckedTemporalClassEffectExecution {
                 assumption: antecedent_core::Assumption::ParametricRestriction(
                     antecedent_core::ParametricAssumption {
                         id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(
-                            "linear additive mechanisms on the identified unfolded DAG",
-                        ),
+                        description: Arc::from(UNFOLDED_LINEAR_SEM),
                     },
                 ),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault {

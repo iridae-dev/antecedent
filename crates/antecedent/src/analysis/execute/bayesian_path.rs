@@ -1615,10 +1615,7 @@ impl super::Study {
                     assumption: antecedent_core::Assumption::ParametricRestriction(
                         antecedent_core::ParametricAssumption {
                             id: Arc::from("temporal.sequential.linear_sem"),
-                            description: Arc::from(
-                                "linear additive mechanisms on each identified DBN atom; fixed posterior \
-                                 graph weights; uncertainty uses shared outer circular-block replicates",
-                            ),
+                            description: Arc::from(DBN_LINEAR_SEM),
                         },
                     ),
                     source: antecedent_core::AssumptionSource::AlgorithmDefault {
@@ -1706,7 +1703,7 @@ impl super::Study {
             })
             .collect::<Vec<_>>();
         let tabular = TabularData::new(data.storage().clone());
-        let ate_query = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_query = temporal_refuter_average(query);
         let (refutations, mut diagnostics) =
             if self.refute == RefuteSuite::None && self.custom_validators.is_empty() {
                 (Vec::new(), Vec::new())
@@ -1935,11 +1932,7 @@ impl super::Study {
                     assumption: antecedent_core::Assumption::ParametricRestriction(
                         antecedent_core::ParametricAssumption {
                             id: Arc::from("temporal.sequential.linear_sem"),
-                            description: Arc::from(
-                                "linear additive mechanisms on the identified unfolded DAG; \
-                                 every sustained time is intervened on; Bayesian intervals share \
-                                 each stationary mechanism posterior across time copies",
-                            ),
+                            description: Arc::from(SUSTAINED_LINEAR_SEM),
                         },
                     ),
                     source: antecedent_core::AssumptionSource::AlgorithmDefault {
@@ -2163,7 +2156,7 @@ impl super::Study {
         }
 
         let tabular = TabularData::new(data.storage().clone());
-        let ate_query = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_query = temporal_refuter_average(query);
         let (mut refutations, notes, sequential_predictive) = if multi_step {
             validate_sequential(
                 data,

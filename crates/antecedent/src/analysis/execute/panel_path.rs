@@ -144,7 +144,7 @@ impl super::Study {
         };
 
         let stacked = stack_panel_tabular(panel).map_err(CausalError::from)?;
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_q = temporal_refuter_average(query);
         let mut refute_ws = EstimationWorkspace::default();
         let temporal_ctx = TemporalRefitContext {
             indexer: &indexer,
@@ -691,7 +691,7 @@ impl super::Study {
             return Ok((reports, diagnostics));
         }
         let stacked = stack_panel_tabular(panel).map_err(CausalError::from)?;
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_q = temporal_refuter_average(query);
         let mut workspace = EstimationWorkspace::default();
         for atom in atoms {
             let temporal_ctx = TemporalRefitContext {
@@ -1262,9 +1262,7 @@ impl super::Study {
                 assumption: antecedent_core::Assumption::ParametricRestriction(
                     antecedent_core::ParametricAssumption {
                         id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(
-                            "linear additive mechanisms on the identified unfolded DAG",
-                        ),
+                        description: Arc::from(UNFOLDED_LINEAR_SEM),
                     },
                 ),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault {

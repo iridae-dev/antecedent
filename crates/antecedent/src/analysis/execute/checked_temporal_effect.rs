@@ -85,7 +85,7 @@ impl CheckedTemporalEffectExecution {
                     assumption: antecedent_core::Assumption::ParametricRestriction(
                         antecedent_core::ParametricAssumption {
                             id: Arc::from("temporal.sequential.linear_sem"),
-                            description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared circular-block row bootstrap"),
+                            description: Arc::from(SUSTAINED_LINEAR_SEM),
                         },
                     ),
                     source: antecedent_core::AssumptionSource::AlgorithmDefault {
@@ -186,10 +186,7 @@ impl CheckedTemporalEffectExecution {
                 .with_block_family(antecedent_estimate::CircularBlockFamily::SingleWindow)
                 .with_n_obs(u64::try_from(prep.design.nrows).unwrap_or(u64::MAX));
             let tabular = TabularData::new(data.storage().clone());
-            let mut average = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
-            average.active = query.active.clone();
-            average.control = query.control.clone();
-            average.target_population = query.target_population.clone();
+            let average = temporal_refuter_average(query);
             let mut workspace = EstimationWorkspace::default();
             let temporal_ctx = TemporalRefitContext {
                 indexer,

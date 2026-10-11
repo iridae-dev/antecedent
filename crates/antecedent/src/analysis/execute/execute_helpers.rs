@@ -1267,6 +1267,23 @@ pub(super) fn graph_posterior_mixture_status(
     }
 }
 
+pub(super) fn temporal_refuter_average(query: &TemporalEffectQuery) -> AverageEffectQuery {
+    let mut average = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+    average.active = query.active.clone();
+    average.control = query.control.clone();
+    average.target_population = query.target_population.clone();
+    average
+}
+
+pub(super) const SUSTAINED_LINEAR_SEM: &str = "linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared circular-block row bootstrap whose replicate SD carries the circular-Bartlett fixed-b correction for the block length, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once";
+
+pub(super) const SEQUENCE_LINEAR_SEM: &str = "linear additive mechanisms on the identified unfolded DAG; each Sequence step transforms deterministic propagated means: fixed level, mean + shift, factor * mean, or clip(mean + shift, lower, upper); clipping is not integration over stochastic realizations; no last-step collapse";
+
+pub(super) const UNFOLDED_LINEAR_SEM: &str =
+    "linear additive mechanisms on the identified unfolded DAG";
+
+pub(super) const DBN_LINEAR_SEM: &str = "linear additive mechanisms on each identified DBN atom; fixed posterior graph weights; uncertainty uses shared outer circular-block replicates";
+
 pub(super) fn identified_weight_for_key(graphs: &WeightedGraphSamples, key: u64) -> f64 {
     graphs
         .graph_keys
@@ -2763,5 +2780,23 @@ mod posterior_status_ladder_tests {
             PosteriorMassSummary::default(),
         );
         assert_eq!(partial, IdentificationStatus::PartiallyIdentified);
+    }
+
+    #[test]
+    fn temporal_refuter_keeps_the_query_contrast() {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(1);
+        let mut query = TemporalEffectQuery::pulse(treatment, outcome, 1.0);
+        query.active = Intervention::set(treatment, antecedent_core::Value::f64(2.0));
+        query.control = Intervention::set(treatment, antecedent_core::Value::f64(-1.0));
+        let average = temporal_refuter_average(&query);
+        let bare = AverageEffectQuery::binary_ate(treatment, outcome);
+        assert_eq!(average.active, query.active);
+        assert_eq!(average.control, query.control);
+        assert_eq!(average.target_population, query.target_population);
+        assert_ne!(average.active, bare.active);
+        assert_ne!(SUSTAINED_LINEAR_SEM, UNFOLDED_LINEAR_SEM);
+        assert_ne!(SUSTAINED_LINEAR_SEM, SEQUENCE_LINEAR_SEM);
+        assert_ne!(UNFOLDED_LINEAR_SEM, DBN_LINEAR_SEM);
     }
 }

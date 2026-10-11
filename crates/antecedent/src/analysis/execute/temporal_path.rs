@@ -729,7 +729,7 @@ impl super::Study {
             let mut assumptions = identification.required_assumptions.clone();
             assumptions.push(antecedent_core::AssumptionRecord {
                 assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from("linear additive mechanisms on the identified unfolded DAG; every sustained time is intervened on; frequentist intervals use a shared circular-block row bootstrap whose replicate SD carries the circular-Bartlett fixed-b correction for the block length, Bayesian intervals share each stationary mechanism posterior across time copies, fitting its unique complete observed rows once"),
+                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from(SUSTAINED_LINEAR_SEM),
                 }),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("temporal.sequential.gcomp") },
                 scope: antecedent_core::AssumptionScope::Estimation, status: antecedent_core::AssumptionStatus::Declared,
@@ -942,7 +942,7 @@ impl super::Study {
             ));
         }
         let tabular = TabularData::new(data.storage().clone());
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_q = temporal_refuter_average(query);
         let mut refute_ws = EstimationWorkspace::default();
         let temporal_ctx = TemporalRefitContext {
             indexer: &indexer,
@@ -1984,12 +1984,7 @@ impl super::Study {
             assumption: antecedent_core::Assumption::ParametricRestriction(
                 antecedent_core::ParametricAssumption {
                     id: Arc::from("temporal.sequential.linear_sem"),
-                    description: Arc::from(
-                        "linear additive mechanisms on the identified unfolded DAG; each Sequence \
-                         step transforms deterministic propagated means: fixed level, mean + shift, \
-                         factor * mean, or clip(mean + shift, lower, upper); clipping is not \
-                         integration over stochastic realizations; no last-step collapse",
-                    ),
+                    description: Arc::from(SEQUENCE_LINEAR_SEM),
                 },
             ),
             source: antecedent_core::AssumptionSource::AlgorithmDefault {
@@ -3168,7 +3163,7 @@ impl super::Study {
             CausalQuery::TemporalEffect(query.clone()),
         );
         let tabular = TabularData::new(data.storage().clone());
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_q = temporal_refuter_average(query);
         let mut refute_ws = EstimationWorkspace::default();
         let (refutations, na_diagnostics) = run_envelope_effect_refuters(
             &tabular,
@@ -3354,9 +3349,7 @@ impl super::Study {
                 assumption: antecedent_core::Assumption::ParametricRestriction(
                     antecedent_core::ParametricAssumption {
                         id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(
-                            "linear additive mechanisms on the identified unfolded DAG",
-                        ),
+                        description: Arc::from(UNFOLDED_LINEAR_SEM),
                     },
                 ),
                 source: antecedent_core::AssumptionSource::AlgorithmDefault {
@@ -3852,7 +3845,7 @@ impl super::Study {
                 .flat_map(identified_set_interval_diagnostics),
         );
         let tabular = TabularData::new(data.storage().clone());
-        let ate_q = AverageEffectQuery::binary_ate(query.treatment, query.outcome);
+        let ate_q = temporal_refuter_average(query);
         let mut refute_ws = EstimationWorkspace::default();
         let mut refutations = Vec::new();
         let mut predictive_checks = Vec::new();
