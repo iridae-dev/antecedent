@@ -361,16 +361,14 @@ mod tests {
         }
     }
 
-    fn uniform(state: &mut u64) -> f64 {
-        *state =
-            state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
-        ((*state >> 11) as f64) / ((1u64 << 53) as f64)
+    fn uniform(rng: &mut antecedent_core::CausalRng) -> f64 {
+        rng.next_f64()
     }
 
     /// `[1 | z_1 .. z_q]` with independent uniform-centered columns and a logistic response
     /// that depends on the first `active.len()` columns with the given coefficients.
     fn design(n: usize, q: usize, active: &[f64], seed: u64) -> (Vec<f64>, Vec<f64>) {
-        let mut state = seed;
+        let mut state = antecedent_core::CausalRng::from_seed(seed);
         let mut x = vec![1.0; n * (q + 1)];
         for j in 1..=q {
             for i in 0..n {

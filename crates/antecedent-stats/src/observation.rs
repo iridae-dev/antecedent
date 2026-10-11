@@ -658,11 +658,8 @@ mod tests {
     fn sorted_sweep_kaplan_meier_matches_the_brute_force_definition() {
         // Deterministic pseudo-random data with heavy ties in time and entry.
         let n = 300usize;
-        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
-        let mut next = || {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            (state >> 33) as f64 / f64::from(1u32 << 31)
-        };
+        let mut rng = antecedent_core::CausalRng::from_seed(0x9E37_79B9_7F4A_7C15);
+        let mut next = || rng.next_f64();
         let mut time = Vec::with_capacity(n);
         let mut event = Vec::with_capacity(n);
         let mut entry = Vec::with_capacity(n);

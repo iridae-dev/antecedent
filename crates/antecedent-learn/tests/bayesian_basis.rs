@@ -184,11 +184,8 @@ fn posterior_prediction_preserves_joint_draw_row_and_fold_identity() {
 
 #[test]
 fn basis_all_observed_credible_interval_has_scoped_repeated_sampling_coverage() {
-    let mut state = 0x52A9_8D31_7E64_20B1_u64;
-    let mut uniform = || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
-    };
+    let mut rng = antecedent_core::CausalRng::from_seed(0x52A9_8D31_7E64_20B1);
+    let mut uniform = || rng.next_f64();
     let n = 96;
     let repetitions = 100_usize;
     let mut covered = 0;

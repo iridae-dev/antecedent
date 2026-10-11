@@ -600,14 +600,8 @@ mod tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        let mut state = seed;
-        let mut next_gauss = || {
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let u1 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-            let u2 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-            (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-        };
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
+        let mut next_gauss = || antecedent_kernels::standard_normal(&mut rng);
         let owned: Vec<OwnedColumn> = (0..ncols)
             .map(|i| {
                 let vals: Vec<f64> = (0..nrows).map(|_| next_gauss()).collect();

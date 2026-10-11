@@ -229,17 +229,7 @@ pub(crate) const EXPLAINED_BY_Z_REL_SS: f64 = 1e-20;
 mod tests {
     use super::*;
 
-    fn lcg(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        (0..n)
-            .map(|_| {
-                s = s
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
-            })
-            .collect()
-    }
+    use crate::test_util::centered_uniform as lcg;
 
     /// Ordinary least squares on `[1, z]` for one conditioner, from closed-form simple
     /// regression: `beta = cov(z,t) / var(z)`.

@@ -32,15 +32,8 @@ fn gaussian_chain(n: usize, seed: u64, middle_offset: f64) -> TabularData {
     let mut x0 = vec![0.0; n];
     let mut x1 = vec![0.0; n];
     let mut x2 = vec![0.0; n];
-    let mut state = seed;
-    // Box–Muller from a simple LCG.
-    let mut next_gauss = || {
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        let u1 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-        state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        let u2 = ((state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
-    };
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
+    let mut next_gauss = || antecedent_kernels::standard_normal(&mut rng);
     for i in 0..n {
         x0[i] = next_gauss();
         x1[i] = 0.9 * x0[i] + 0.1 * next_gauss();

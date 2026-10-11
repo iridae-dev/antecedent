@@ -689,10 +689,9 @@ mod tests {
         let y: Vec<_> = (0..n).map(|i| -1.2 * z[i] + (i as f64 * 0.29).sin() + 4.0).collect();
         let mut ws = ParCorrWorkspace::default();
         let reference = partial_correlation_scalar(&x, &y, &[&z], &mut ws).unwrap();
-        let mut state = 0x5eed_cafe_f00d_beefu64;
+        let mut rng = antecedent_core::CausalRng::from_seed(0x5eed_cafe_f00d_beef);
         for _ in 0..100 {
-            state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-            let unit = (state >> 11) as f64 / (1u64 << 53) as f64;
+            let unit = rng.next_f64();
             let offset = -10_000.0 + 20_000.0 * unit;
             let shifted: Vec<_> = z.iter().map(|value| value + offset).collect();
             let scalar = partial_correlation_scalar(&x, &y, &[&shifted], &mut ws).unwrap();

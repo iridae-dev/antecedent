@@ -934,13 +934,8 @@ mod tests {
     #[test]
     fn reassignment_compares_regimes_on_all_variables_standardised() {
         let n = 240usize;
-        let mut state = 12345u64;
-        let mut unif = move || {
-            state = state
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5
-        };
+        let mut rng = antecedent_core::CausalRng::from_seed(12345);
+        let mut unif = move || rng.next_f64() - 0.5;
         // Uniform(-0.5, 0.5) has variance 1/12: scale to unit variance.
         let unit = 12.0f64.sqrt();
         let mut x = vec![0.0; n];
@@ -996,13 +991,8 @@ mod tests {
     #[test]
     fn reassignment_does_not_score_invalid_rows() {
         let n = 240usize;
-        let mut state = 12345u64;
-        let mut unif = move || {
-            state = state
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5
-        };
+        let mut rng = antecedent_core::CausalRng::from_seed(12345);
+        let mut unif = move || rng.next_f64() - 0.5;
         let unit = 12.0f64.sqrt();
         let mut x = vec![0.0; n];
         let mut y = vec![0.0; n];

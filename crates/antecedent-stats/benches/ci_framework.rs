@@ -46,14 +46,13 @@ fn masked_complete_case<'a>(
 }
 
 fn keep_mask(n: usize, drop_frac: f64, seed: u64) -> Vec<bool> {
-    let mut rng = seed;
+    let mut rng = antecedent_core::CausalRng::from_seed(seed);
     let mut keep = vec![true; n];
     let drop_n = ((n as f64) * drop_frac) as usize;
     let mut dropped = 0usize;
     let mut i = 0usize;
     while dropped < drop_n && i < n {
-        rng = rng.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        if (rng >> 33) % 5 == 0 {
+        if rng.next_u64() % 5 == 0 {
             keep[i] = false;
             dropped += 1;
         }

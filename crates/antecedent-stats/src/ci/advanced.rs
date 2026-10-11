@@ -1033,17 +1033,7 @@ mod tests {
         assert!((0.0..=1.0).contains(&out.results[0].p_value));
     }
 
-    fn lcg_noise(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        (0..n)
-            .map(|_| {
-                s = s
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
-            })
-            .collect()
-    }
+    use crate::test_util::centered_uniform as lcg_noise;
 
     #[test]
     fn gpdc_permutation_pvalue_separates_dependence() {

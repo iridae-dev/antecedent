@@ -965,17 +965,7 @@ mod tests {
         assert!(out.statistic.abs() > 0.5);
     }
 
-    fn lcg_unit(n: usize, seed: u64) -> Vec<f64> {
-        let mut s = seed;
-        (0..n)
-            .map(|_| {
-                s = s
-                    .wrapping_mul(6_364_136_223_846_793_005)
-                    .wrapping_add(1_442_695_040_888_963_407);
-                ((s >> 33) as f64) / ((1u64 << 31) as f64) - 0.5
-            })
-            .collect()
-    }
+    use crate::test_util::centered_uniform as lcg_unit;
 
     fn analytic_req<'a>(
         cols: &'a [&'a [f64]],

@@ -938,15 +938,8 @@ mod tests {
 
     /// A deterministic seeded sampler standing in for the provider's callback.
     fn seeded_draws(seed: u64, n: usize) -> Vec<f64> {
-        let mut state = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-        (0..n)
-            .map(|_| {
-                state ^= state << 13;
-                state ^= state >> 7;
-                state ^= state << 17;
-                f64::from(u8::from((state >> 11) as f64 / (1_u64 << 53) as f64 >= 0.75))
-            })
-            .collect()
+        let mut rng = crate::CausalRng::from_seed(seed);
+        (0..n).map(|_| f64::from(u8::from(rng.next_f64() >= 0.75))).collect()
     }
 
     fn bernoulli(capabilities: Vec<ExternalCapability>) -> ExternalScientificObject {

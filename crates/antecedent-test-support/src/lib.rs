@@ -67,12 +67,19 @@ pub fn near_lt_1e9(a: f64, b: f64) -> bool {
 }
 
 /// Dot product of two slices, truncated to the shorter.
+///
+/// Kept here rather than calling `antecedent_kernels::dot`: this crate depends on no Antecedent
+/// crate, and a test oracle should not share code with the function it checks.
 #[must_use]
 pub fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// The logistic function `1 / (1 + exp(-x))`.
+///
+/// The textbook formula on purpose: it is the independent oracle the tests compare
+/// `antecedent_kernels::sigmoid` and the model code against, and it is accurate on the moderate
+/// arguments tests use.
 #[must_use]
 pub fn sigmoid(x: f64) -> f64 {
     1.0 / (1.0 + (-x).exp())

@@ -187,13 +187,8 @@ mod tests {
     }
 
     fn series(n: usize, seed: u64, ties: bool) -> (Vec<f64>, Vec<f64>) {
-        let mut state = seed;
-        let mut next = move || {
-            state = state
-                .wrapping_mul(6_364_136_223_846_793_005)
-                .wrapping_add(1_442_695_040_888_963_407);
-            ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5
-        };
+        let mut rng = antecedent_core::CausalRng::from_seed(seed);
+        let mut next = move || rng.next_f64() - 0.5;
         let x: Vec<f64> = (0..n)
             .map(|_| {
                 let v = next() * 4.0;

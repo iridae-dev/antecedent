@@ -161,12 +161,8 @@ mod calibration_tests {
 
     use crate::constraints::{DiscoveryConstraints, TemporalConstraints};
 
-    fn next_gauss(state: &mut u64) -> f64 {
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-        let u1 = ((*state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-        *state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
-        let u2 = ((*state >> 33) as f64 / f64::from(u32::MAX)).clamp(1e-12, 1.0 - 1e-12);
-        (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos()
+    fn next_gauss(rng: &mut antecedent_core::CausalRng) -> f64 {
+        antecedent_kernels::standard_normal(rng)
     }
 
     fn independent_noise_series(n_vars: usize, n_obs: usize, seed: u64) -> TimeSeriesData {
@@ -183,7 +179,7 @@ mod calibration_tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        let mut state = seed;
+        let mut state = antecedent_core::CausalRng::from_seed(seed);
         let owned: Vec<OwnedColumn> = (0..n_vars)
             .map(|i| {
                 let vals: Vec<f64> = (0..n_obs).map(|_| next_gauss(&mut state)).collect();
@@ -227,7 +223,7 @@ mod calibration_tests {
         )
         .unwrap();
         let schema = b.build().unwrap();
-        let mut state = seed;
+        let mut state = antecedent_core::CausalRng::from_seed(seed);
         let mut x = vec![0.0; n_obs];
         let mut y = vec![0.0; n_obs];
         for t in 0..n_obs {

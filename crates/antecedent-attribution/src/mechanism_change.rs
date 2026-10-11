@@ -211,9 +211,7 @@ pub fn detect_mechanism_changes_with_correction(
                 (s, p, "classifier_two_sample", None)
             }
             MechanismChangeMethod::KernelTwoSample => {
-                let seed = 0x_4E12_A001u64
-                    .wrapping_add(target.as_usize() as u64)
-                    .wrapping_mul(0x9E37_79B9);
+                let seed = antecedent_core::derive_stream(0x_4E12_A001, target.as_usize() as u64);
                 let r = kernel_two_sample_with_permutations(
                     &rb,
                     &rc,
@@ -262,10 +260,10 @@ pub fn detect_mechanism_changes_with_correction(
 /// under [`ExecutionContext::for_tests`] / any fixed `master_seed` but doesn't
 /// alias across targets or across the baseline/comparison populations.
 fn residual_stream_id(target: VariableId, population: u64) -> u64 {
-    0x_5EED_C0DEu64
-        .wrapping_add(target.as_usize() as u64)
-        .wrapping_mul(0x9E37_79B9)
-        .wrapping_add(population)
+    antecedent_core::derive_stream(
+        antecedent_core::derive_stream(0x_5EED_C0DE, target.as_usize() as u64),
+        population,
+    )
 }
 
 fn residuals(
