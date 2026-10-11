@@ -1,81 +1,29 @@
 #!/usr/bin/env python3
+"""Fail when upstream package names appear outside the parity allowlist.
+
+Scans code and TOML only. Hand-written markdown is not read, so rewording
+CONTRIBUTING, ROADMAP, SECURITY, or a file under docs/guides cannot fail
+this gate.
+"""
 from pathlib import Path
 import re
 import subprocess
 import sys
+import tomllib
 
 root = Path(".")
-pat = re.compile(r"(?i)dowhy|tigramite")
-
-# Paths (relative) where upstream names are allowed.
-def allowed(path: Path) -> bool:
-    s = path.as_posix()
-    if s.startswith("parity/baselines/"):
-        return True
-    if s == "parity/oracle_closure.toml":
-        return True
-    if s.startswith("provenance/"):
-        return True
-    if s.startswith("adr/0009"):
-        return True
-    # Recorded oracle fixtures may name the baseline in reference blocks / generation audit.
-    if "/expected.json" in s and s.startswith("conformance/"):
-        return True
-    # Fixture pointer TOMLs may cite baseline_pin path containing project name.
-    if s.startswith("parity/fixtures/") and s.endswith(".toml"):
-        return True
-    # Native frozen-oracle tests must identify their baseline source.
-    if s.startswith("crates/") and "/tests/" in s and "oracle" in Path(s).name:
-        return True
-    # The allowlist gate itself must mention the pattern.
-    if s in {"scripts/gate_upstream_names.sh", "scripts/gate_upstream_names.py"}:
-        return True
-    # Same reason: the metadata-consistency gate checks that the oracle ledger
-    # never names an upstream package its fixture does not record, which requires
-    # holding the list of upstream package names.
-    if s in {"scripts/gate_metadata_consistency.sh", "scripts/gate_metadata_consistency.py"}:
-        return True
-    # Parity manifests carry structured `external_oracle` / `limitations`
-    # fields whose entire purpose is naming the oracle behind a done row (same
-    # category as oracle_closure.toml above). The schema gate enforces that a
-    # named oracle actually appears in the cited fixture, so a stray vendor
-    # name here fails gate_parity_schema.sh rather than passing silently.
-    if s.startswith("parity/") and s.endswith(".toml"):
-        return True
-    if s == "parity/README.md":
-        return True
-    # Positioning / comparison docs intentionally name upstream libraries.
-    if s in {"README.md", "docs/README.md", "docs/comparison.md", "docs/index.md"}:
-        return True
-    # Interop pages and their example scripts/tests exist specifically to name the
-    # upstream tool they hand off to or benchmark against (black-box only; see the
-    # scripts' own "do not vendor" wording).
-    # The example index names the optional integration its linked script uses.
-    if s in {"docs/examples.md", "docs/interop_dowhy.md", "examples/README.md"}:
-        return True
-    if s.startswith("examples/python/") and s.endswith(".py") and (
-        "dowhy" in s.lower() or "pcmci" in s.lower()
-    ):
-        return True
-    # Python tests naming their upstream baseline, same reason as the Rust oracle-test rule.
-    if s.startswith("python/tests/") and "dowhy" in s.lower():
-        return True
-    # Conformance READMEs and their generated docs mirror /expected.json's oracle citation.
-    if s.startswith("conformance/") and Path(s).name == "README.md":
-        return True
-    if s.startswith("docs/conformance/") and s.endswith(".md"):
-        return True
-    # The changelog records which external baseline a release was validated
-    # against ("LPCMCI aligned to the pinned Tigramite reference behavior"),
-    # which is provenance in the same category as the parity inventories --
-    # naming the oracle is the point of the entry.
-    if s == "CHANGELOG.md":
-        return True
-    # Release notes are the reader-facing form of the changelog entry and describe the
-    # same verification story, so they name the conformance oracles for the same reason.
-    if s.startswith("docs/release-notes/") and s.endswith(".md"):
-        return True
-    return False
+allowlist_path = root / "parity/upstream_name_allowlist.toml"
+# Prose suffixes are refused even if the allowlist lists them. This gate must
+# not extract facts from hand-written markdown.
+PROSE_SUFFIXES = {".md", ".markdown", ".rst", ".txt"}
+MATCH_KEYS = {
+    "prefix",
+    "suffix",
+    "contains",
+    "name_contains",
+    "path_contains",
+    "path_contains_any",
+}
 
 skip_dirs = {
     ".git",
@@ -90,6 +38,93 @@ skip_dirs = {
     ".codeql-results",
     "uv.lock",
 }
+
+
+def fail(message: str) -> None:
+    print(message)
+    sys.exit(1)
+
+
+def string_list(data: dict, key: str, *, required: bool) -> list[str]:
+    if key not in data:
+        if required:
+            fail(f"upstream-name allowlist: {allowlist_path} missing `{key}`")
+        return []
+    value = data[key]
+    if not isinstance(value, list) or not all(isinstance(item, str) and item.strip() for item in value):
+        fail(f"upstream-name allowlist: `{key}` must be a list of non-empty strings")
+    return value
+
+
+def load_allowlist(path: Path) -> dict:
+    if not path.is_file():
+        fail(f"upstream-name allowlist: missing {path}")
+    try:
+        data = tomllib.loads(path.read_text())
+    except tomllib.TOMLDecodeError as exc:
+        fail(f"upstream-name allowlist: {path} is not valid TOML: {exc}")
+    names = string_list(data, "names", required=True)
+    suffixes = [item.lower() for item in string_list(data, "scan_suffixes", required=True)]
+    prose = sorted(set(suffixes) & PROSE_SUFFIXES)
+    if prose:
+        fail(
+            "upstream-name allowlist: refusing prose scan suffixes "
+            f"{prose}; this gate reads code and TOML only"
+        )
+    rules = data.get("match", [])
+    if not isinstance(rules, list):
+        fail("upstream-name allowlist: `match` must be an array of tables")
+    for i, rule in enumerate(rules, 1):
+        if not isinstance(rule, dict) or not rule:
+            fail(f"upstream-name allowlist: match #{i} must be a non-empty table")
+        unknown = sorted(set(rule) - MATCH_KEYS)
+        if unknown:
+            fail(f"upstream-name allowlist: match #{i} has unknown keys {unknown}")
+        any_of = rule.get("path_contains_any")
+        if any_of is not None and (
+            not isinstance(any_of, list) or not any_of or not all(isinstance(item, str) and item for item in any_of)
+        ):
+            fail(f"upstream-name allowlist: match #{i} path_contains_any must be a non-empty string list")
+        for key in ("prefix", "suffix", "contains", "name_contains", "path_contains"):
+            if key in rule and (not isinstance(rule[key], str) or not rule[key]):
+                fail(f"upstream-name allowlist: match #{i} `{key}` must be a non-empty string")
+    return {
+        "names": names,
+        "suffixes": set(suffixes),
+        "exact": set(string_list(data, "exact", required=False)),
+        "prefix": string_list(data, "prefix", required=False),
+        "match": rules,
+    }
+
+
+def rule_matches(path: str, name: str, rule: dict) -> bool:
+    if "prefix" in rule and not path.startswith(rule["prefix"]):
+        return False
+    if "suffix" in rule and not path.endswith(rule["suffix"]):
+        return False
+    if "contains" in rule and rule["contains"] not in path:
+        return False
+    if "name_contains" in rule and rule["name_contains"] not in name:
+        return False
+    if "path_contains" in rule and rule["path_contains"].lower() not in path.lower():
+        return False
+    any_of = rule.get("path_contains_any")
+    if any_of is not None and not any(item.lower() in path.lower() for item in any_of):
+        return False
+    return True
+
+
+def allowed(path: Path, spec: dict) -> bool:
+    text = path.as_posix()
+    if text in spec["exact"]:
+        return True
+    if any(text.startswith(prefix) for prefix in spec["prefix"]):
+        return True
+    return any(rule_matches(text, path.name, rule) for rule in spec["match"])
+
+
+spec = load_allowlist(allowlist_path)
+pat = re.compile("|".join(re.escape(name) for name in spec["names"]), re.IGNORECASE)
 
 hits = []
 tracked = subprocess.run(
@@ -107,14 +142,11 @@ for raw_path in tracked:
     if parts & skip_dirs:
         continue
     if any(p.startswith(".") and p not in {".github"} for p in path.parts if p != "."):
-        # allow .github
         if ".github" not in path.parts and any(p.startswith(".") for p in path.parts[1:]):
             continue
-    if path.suffix.lower() not in {
-        ".rs", ".py", ".pyi", ".md", ".toml", ".sh", ".yml", ".yaml", ".json", ".txt",
-    }:
+    if path.suffix.lower() not in spec["suffixes"]:
         continue
-    if allowed(path):
+    if allowed(path, spec):
         continue
     try:
         text = path.read_text(errors="ignore")
