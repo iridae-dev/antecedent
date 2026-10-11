@@ -20,7 +20,7 @@ use antecedent_core::{
     VariableId,
 };
 use antecedent_graph::algo::implicit_closure;
-use antecedent_graph::{DenseNodeId, Endpoint, NodeRef, Pag, TemporalPag};
+use antecedent_graph::{DenseNodeId, Endpoint, NodeRef, TemporalPag, UnfoldedTemporalPag};
 
 pub(crate) fn window(
     graph: &TemporalPag,
@@ -132,11 +132,11 @@ fn closure(
 pub(crate) fn identify(
     graph: &TemporalPag,
     query: &TemporalEffectQuery,
-    indexer: &TemporalIndexer,
+    unfolded: &UnfoldedTemporalPag,
     max_candidates: usize,
     max_examinations: u64,
-) -> Result<(IdentificationResult, Pag), IdentificationError> {
-    let unfolded = graph.unfold(indexer.clone())?;
+) -> Result<IdentificationResult, IdentificationError> {
+    let indexer = &unfolded.indexer;
     let keys = query_keys(query)?;
     let id = |key| indexer.dense_id(key).map_err(|e| IdentificationError::msg(e.to_string()));
     let treatment = id(keys[0])?;
@@ -196,7 +196,7 @@ pub(crate) fn identify(
         indexer.history(),
         indexer.horizon(),
     );
-    Ok((result, unfolded.pag))
+    Ok(result)
 }
 
 #[cfg(test)]

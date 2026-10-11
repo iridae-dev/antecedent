@@ -41,9 +41,7 @@ use antecedent_core::{
     AverageEffectQuery, CausalQuery, Intervention, TemporalEffectQuery, TemporalPolicy, VariableId,
 };
 use antecedent_data::{TemporalIndexer, TemporalNodeKey};
-use antecedent_graph::{
-    BitSet, DenseNodeId, GraphWorkspace, NodeRef, TemporalDag, UnfoldedTemporalGraph,
-};
+use antecedent_graph::{DenseNodeId, NodeRef, TemporalDag, UnfoldedTemporalGraph};
 
 use crate::backdoor::BackdoorIdentifier;
 use crate::error::IdentificationError;
@@ -83,6 +81,9 @@ pub struct TemporalIdentificationResult {
     pub result: IdentificationResult,
     /// Indexer used for the finite unfolding (dense id <-> temporal key).
     pub indexer: TemporalIndexer,
+    /// Unfolded DAG [`Self::indexer`] addresses. Callers read this graph
+    /// instead of unfolding the template again.
+    pub unfolded: UnfoldedTemporalGraph,
     /// Temporal key of the treatment node used for identification.
     pub treatment_key: TemporalNodeKey,
     /// Temporal key of the outcome node used for identification.
@@ -189,48 +190,32 @@ impl TemporalBackdoorIdentifier {
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: treatment_at };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
-        let truncatable = truncatable_variables(template, variable_count);
 
-        // Grow the history until no ancestor of {treatment, outcome} in the
-        // unfolded graph sits at the deepest slice with cut template parents;
-        // at that point deeper windows cannot add backdoor paths.
-        let mut history = base_history;
-        let (history, unfolded, treatment_dense, outcome_dense) = loop {
-            let indexer = TemporalIndexer::new(variable_count, history, horizon)
-                .map_err(|e| IdentificationError::msg(e.to_string()))?;
-            let unfolded =
-                template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
-
-            let treatment_dense = unfolded
-                .indexer
-                .dense_id(treatment_key)
-                .map_err(|_| IdentificationError::UnknownVariable { id: query.treatment })?;
-            let outcome_dense = unfolded
-                .indexer
-                .dense_id(outcome_key)
-                .map_err(|_| IdentificationError::UnknownVariable { id: query.outcome })?;
-
-            if !ancestry_touches_boundary(
-                &unfolded,
-                &[treatment_dense, outcome_dense],
-                history,
-                &truncatable,
-            ) {
-                break (history, unfolded, treatment_dense, outcome_dense);
-            }
-            if history >= history_cap {
-                let refusal = history_cap_refusal(history_cap, chain_cap);
+        // Grow until no ancestor of {treatment, outcome} sits at the deepest
+        // slice with cut template parents. The helper unfolds that window once.
+        let grown = match crate::temporal_window::grow_window(
+            template,
+            &[treatment_key, outcome_key],
+            variable_count,
+            horizon,
+            base_history,
+            history_cap,
+            chain_cap,
+        ) {
+            Ok(grown) => grown,
+            Err(IdentificationError::NotCertified { message })
                 if self.parent_adjustment_fallback
-                    && matches!(query.policy, TemporalPolicy::Pulse { .. })
-                {
-                    let IdentificationError::NotCertified { message } = refusal else {
-                        return Err(refusal);
-                    };
-                    return self.parent_adjustment(template, query, Some(message));
-                }
-                return Err(refusal);
+                    && matches!(query.policy, TemporalPolicy::Pulse { .. }) =>
+            {
+                return self.parent_adjustment(template, query, Some(message));
             }
-            history += 1;
+            Err(error) => return Err(error),
+        };
+        let crate::temporal_window::GrownWindow { history, unfolded, dense } = grown;
+        let &[treatment_dense, outcome_dense] = dense.as_slice() else {
+            return Err(IdentificationError::InvariantViolated {
+                message: "temporal window growth returned a different seed count",
+            });
         };
 
         // Unfolded DAGs are built via `Dag::with_variables`, so dense node i is labeled
@@ -263,7 +248,8 @@ impl TemporalBackdoorIdentifier {
 
         Ok(TemporalIdentificationResult {
             result,
-            indexer: unfolded.indexer,
+            indexer: unfolded.indexer.clone(),
+            unfolded,
             treatment_key,
             outcome_key,
         })
@@ -472,7 +458,8 @@ impl TemporalBackdoorIdentifier {
         annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
         Ok(TemporalIdentificationResult {
             result,
-            indexer: unfolded.indexer,
+            indexer: unfolded.indexer.clone(),
+            unfolded,
             treatment_key,
             outcome_key,
         })
@@ -579,42 +566,27 @@ impl TemporalBackdoorIdentifier {
 
         let treatment_key = TemporalNodeKey { variable: query.treatment, offset: from };
         let outcome_key = TemporalNodeKey { variable: query.outcome, offset: outcome_at };
-        let truncatable = truncatable_variables(template, variable_count);
-
-        let mut history = base_history;
-        let (history, unfolded, treatment_nodes, outcome_dense) = loop {
-            let indexer = TemporalIndexer::new(variable_count, history, horizon)
-                .map_err(|e| IdentificationError::msg(e.to_string()))?;
-            let unfolded =
-                template.unfold(indexer).map_err(|e| IdentificationError::msg(e.to_string()))?;
-
-            let mut treatment_nodes = Vec::with_capacity(schedule.len());
-            for &(variable, offset) in schedule {
-                let key = TemporalNodeKey { variable, offset };
-                let dense = unfolded
-                    .indexer
-                    .dense_id(key)
-                    .map_err(|_| IdentificationError::UnknownVariable { id: variable })?;
-                treatment_nodes.push(dense);
-            }
-            let outcome_dense = unfolded
-                .indexer
-                .dense_id(outcome_key)
-                .map_err(|_| IdentificationError::UnknownVariable { id: query.outcome })?;
-
-            if treatment_nodes.is_empty() {
-                return Err(IdentificationError::msg("empty treatment schedule"));
-            }
-            let mut boundary_nodes = treatment_nodes.clone();
-            boundary_nodes.push(outcome_dense);
-            if !ancestry_touches_boundary(&unfolded, &boundary_nodes, history, &truncatable) {
-                break (history, unfolded, treatment_nodes, outcome_dense);
-            }
-            if history >= history_cap {
-                return Err(history_cap_refusal(history_cap, chain_cap));
-            }
-            history += 1;
+        let mut seeds = Vec::with_capacity(schedule.len() + 1);
+        for &(variable, offset) in schedule {
+            seeds.push(TemporalNodeKey { variable, offset });
+        }
+        seeds.push(outcome_key);
+        let grown = crate::temporal_window::grow_window(
+            template,
+            &seeds,
+            variable_count,
+            horizon,
+            base_history,
+            history_cap,
+            chain_cap,
+        )?;
+        let crate::temporal_window::GrownWindow { history, unfolded, dense } = grown;
+        let Some((&outcome_dense, treatment_nodes)) = dense.split_last() else {
+            return Err(IdentificationError::msg("empty treatment schedule"));
         };
+        if treatment_nodes.is_empty() {
+            return Err(IdentificationError::msg("empty treatment schedule"));
+        }
 
         // Both sides of the temporal contrast, not just the active level: the
         // historical path applied only `active` to every treatment-time node
@@ -663,7 +635,8 @@ impl TemporalBackdoorIdentifier {
         annotate_temporal(&mut result, query, treatment_key, outcome_key, history, horizon);
         Ok(TemporalIdentificationResult {
             result,
-            indexer: unfolded.indexer,
+            indexer: unfolded.indexer.clone(),
+            unfolded,
             treatment_key,
             outcome_key,
         })
@@ -708,31 +681,6 @@ fn resolve_schedule_active_level(
     }
 }
 
-/// The refusal when window growth stops at `history_cap` with ancestry still
-/// crossing the truncated boundary.
-///
-/// A confounder chain that repeats no variable reaches at most `chain_cap`
-/// slices back (`variable_count * template_max_lag + |min_offset|`). Reaching
-/// that depth therefore means an ancestor lies on a lagged cycle, such as an
-/// autoregressive edge `x(t-1) -> x(t)`, whose ancestry never ends: no finite
-/// window certifies it, and a larger `max_history_lag` cannot help. Only a
-/// caller-set `max_history_lag` below `chain_cap` can stop growth early, and
-/// then raising it is the remedy.
-fn history_cap_refusal(history_cap: u32, chain_cap: u32) -> IdentificationError {
-    let message = if history_cap < chain_cap {
-        "temporal unfolding reached the query's max_history_lag while confounder ancestry \
-         still crossed the truncated boundary; cannot certify backdoor identification over \
-         the finite window (raise max_history_lag)"
-    } else {
-        "temporal unfolding reached its history cap while confounder ancestry still crossed \
-         the truncated boundary: an ancestor of the treatment or outcome lies on a lagged \
-         cycle (for example an autoregressive edge x(t-1) -> x(t)), so no finite window \
-         certifies backdoor identification; review whether that lagged edge belongs in the \
-         graph"
-    };
-    IdentificationError::NotCertified { message }
-}
-
 fn template_max_lag(template: &TemporalDag) -> u32 {
     template
         .nodes()
@@ -743,67 +691,6 @@ fn template_max_lag(template: &TemporalDag) -> u32 {
         })
         .max()
         .unwrap_or(0)
-}
-
-/// Per-variable flag: `true` when some template edge into that variable spans
-/// strictly backwards in time (parent lag greater than child lag), i.e. when
-/// an unfolded node of the variable at the deepest window slice would have
-/// parents cut off by the truncation.
-fn truncatable_variables(template: &TemporalDag, variable_count: u32) -> Vec<bool> {
-    let mut truncatable = vec![false; variable_count as usize];
-    for edge in template.edges() {
-        let Some((from, to)) = edge.parent_child() else {
-            continue;
-        };
-        let (Some(from_key), Some(to_key)) =
-            (template.temporal_key(from), template.temporal_key(to))
-        else {
-            continue;
-        };
-        if from_key.offset < to_key.offset {
-            if let Some(slot) = truncatable.get_mut(to_key.variable.raw() as usize) {
-                *slot = true;
-            }
-        }
-    }
-    truncatable
-}
-
-/// Whether any ancestor of `nodes` in the unfolded graph sits at the deepest
-/// slice (`offset == -history`) with in-template parents that the truncation
-/// cut off. When this returns `false`, growing the window further cannot add
-/// backdoor paths through those nodes.
-///
-/// Callers must pass **every** treatment-time node in a multi-time schedule
-/// plus the outcome. Checking only the first offset can stop growth while a
-/// later treatment time still has cut template parents.
-fn ancestry_touches_boundary(
-    unfolded: &UnfoldedTemporalGraph,
-    nodes: &[u32],
-    history: u32,
-    truncatable: &[bool],
-) -> bool {
-    let dag = &unfolded.dag;
-    let mut ancestors = BitSet::with_len(dag.node_count());
-    let mut gws = GraphWorkspace::default();
-    let dense: Vec<DenseNodeId> = nodes.iter().copied().map(DenseNodeId::from_raw).collect();
-    dag.ancestors_of(&dense, &mut ancestors, &mut gws);
-    let boundary = -i64::from(history);
-    for i in 0..dag.node_count() {
-        let id = DenseNodeId::from_index(i);
-        if !ancestors.contains(id) {
-            continue;
-        }
-        let Ok(key) = unfolded.indexer.key_of(id.raw()) else {
-            continue;
-        };
-        if i64::from(key.offset) == boundary
-            && truncatable.get(key.variable.raw() as usize).copied().unwrap_or(false)
-        {
-            return true;
-        }
-    }
-    false
 }
 
 /// Populate [`AdjustmentSearchConfig`] history-lag filter from an unfolded indexer.
@@ -934,14 +821,12 @@ mod tests {
             IdentificationStatus::NonparametricallyIdentified
         );
         assert!(temporal_result.result.estimands[0].adjustment_set.is_empty());
-        assert!(
-            temporal_result
-                .result
-                .required_assumptions
-                .entries
-                .iter()
-                .any(|a| a.assumption == Assumption::Stationarity)
-        );
+        assert!(temporal_result
+            .result
+            .required_assumptions
+            .entries
+            .iter()
+            .any(|a| a.assumption == Assumption::Stationarity));
     }
 
     #[test]
@@ -1033,13 +918,11 @@ mod tests {
         let step =
             result.derivation.steps.iter().find(|s| s.rule.as_ref() == PARENT_ADJUSTMENT_RULE);
         assert!(step.unwrap().detail.contains("lagged cycle"));
-        assert!(
-            result
-                .required_assumptions
-                .entries
-                .iter()
-                .any(|record| matches!(record.assumption, Assumption::CausalSufficiency))
-        );
+        assert!(result
+            .required_assumptions
+            .entries
+            .iter()
+            .any(|record| matches!(record.assumption, Assumption::CausalSufficiency)));
         assert!(result.required_assumptions.entries.iter().any(|record| matches!(
             &record.assumption,
             Assumption::Custom { id, .. }
@@ -1260,9 +1143,12 @@ mod tests {
             IdentificationStatus::NonparametricallyIdentified
         );
         // The window must have grown to history 2 to expose B_{-2}.
-        assert!(
-            temporal_result.result.derivation.steps.iter().any(|s| s.detail.contains("history=2"))
-        );
+        assert!(temporal_result
+            .result
+            .derivation
+            .steps
+            .iter()
+            .any(|s| s.detail.contains("history=2")));
         // The confounding must not vanish: no empty adjustment set, and the
         // minimal blockers are exactly A_{-1}, B_{-2}, and C_{-1}.
         assert!(!temporal_result.result.estimands.is_empty());

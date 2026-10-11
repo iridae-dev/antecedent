@@ -50,81 +50,81 @@ pub mod temporal_backdoor;
 pub mod temporal_generalized;
 mod temporal_mag;
 pub mod temporal_mediation;
+mod temporal_window;
 pub mod tiered;
 pub mod transport;
 pub use recovery::{
-    ObservationRecoveryQuery, PartiallyObserved,
-    RECOVERY_DEFAULT_LIMITS, RECOVERY_MAX_FULLY_OBSERVED, RECOVERY_MAX_OBSERVED_CELLS,
-    RECOVERY_MAX_PARTIALLY_OBSERVED, RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery,
+    decide_observation_recovery, verify_observation_recovery, verify_recovery_witness,
+    ObservationRecoveryQuery, PartiallyObserved, RecoveredEffect, RecoveredEffectQuery,
     RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord,
     RecoveryDetail, RecoveryError, RecoveryFactorRecord, RecoveryLimits, RecoveryMarginRecord,
     RecoveryReceiptRecord, RecoveryWitness, WitnessCheck, WitnessMechanism,
-    decide_observation_recovery, verify_observation_recovery, verify_recovery_witness,
+    RECOVERY_DEFAULT_LIMITS, RECOVERY_MAX_FULLY_OBSERVED, RECOVERY_MAX_OBSERVED_CELLS,
+    RECOVERY_MAX_PARTIALLY_OBSERVED, RECOVERY_RULE_VERSION,
 };
 pub use recovery_chain::{
-    CHAIN_RECOVERY_LIMITS, CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision,
+    decide_chain_recovery, verify_chain_witness, ChainPartial, ChainRecoveryDecision,
     ChainRecoveryDetail, ChainRecoveryError, ChainRecoveryPlan, ChainRecoveryQuery,
-    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism,
-    decide_chain_recovery, verify_chain_witness,
+    ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism, CHAIN_RECOVERY_LIMITS,
+    CHAIN_RECOVERY_RULE_VERSION,
 };
 pub use sid::{
-    ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
-    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS, ADMG_CONDITIONAL_MEMORY_BYTES,
+    admg_conditional_refusal, decide_admg_conditional_transport,
     BoundConditionalTransportFunctional, ConditionalObstructionCandidate,
     ConditionalObstructionRecord, ConditionalStageRecord, ConditionalTransportDecision,
     ConditionalTransportDerivation, ConditionalTransportInspection, ConditionalTransportQuery,
-    ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
+    ConditionalTransportRecord, ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
+    ADMG_CONDITIONAL_MAX_OBSERVED, ADMG_CONDITIONAL_MAX_TREATMENTS, ADMG_CONDITIONAL_MEMORY_BYTES,
 };
 pub use sid::{
-    BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS,
-    MIXED_SOURCE_MAX_DISTRIBUTIONS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE,
-    MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET, MixedExclusion, MixedInput,
-    MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule, MixedSearchInspection,
-    MixedSearchSummary, MixedSourceDecision, MixedSourceDerivation, MixedSourceDerivationRecord,
-    MixedSourceLeaf, MixedSourceQuery, MixedStageRecord, MixedStep, MixedStepRecord,
-    ValidatedMixedSourceQuery, bind_mixed_source_catalog, decide_mixed_source,
-    mixed_source_rule_names, render_frontier, render_quantity, validate_mixed_source_query,
-    verify_mixed_source_derivation,
+    bind_mixed_source_catalog, decide_mixed_source, mixed_source_rule_names, render_frontier,
+    render_quantity, validate_mixed_source_query, verify_mixed_source_derivation,
+    BoundMixedSourceFunctional, MixedExclusion, MixedInput, MixedMissingEvidence, MixedMissingLeaf,
+    MixedQuantity, MixedRule, MixedSearchInspection, MixedSearchSummary, MixedSourceDecision,
+    MixedSourceDerivation, MixedSourceDerivationRecord, MixedSourceLeaf, MixedSourceQuery,
+    MixedStageRecord, MixedStep, MixedStepRecord, ValidatedMixedSourceQuery,
+    MIXED_SOURCE_DEFAULT_LIMITS, MIXED_SOURCE_MAX_DISTRIBUTIONS, MIXED_SOURCE_MAX_DO,
+    MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET,
 };
 pub use sid::{
-    BoundMzTransportFunctional, BoundTransportFunctional, BoundZTransportFunctional,
-    CatalogTransportResult, CheckedTransportDerivation, ClassicalTransportDerivation,
-    ClassicalTransportQuery, ClassicalTransportResult, ComponentFactorization,
-    MZ_TRANSPORT_DEFAULT_LIMITS, MZ_TRANSPORT_MAX_CANDIDATE_REGIMES,
-    MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE, MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES,
-    MZ_TRANSPORT_MEMORY_BYTES, MetaSource, MetaTransportQuery, MzSearchInspection, MzSearchRecord,
+    bind_mz_transport_catalog, bind_z_transport_catalog, decide_mz_transport,
+    decide_two_source_z_transport, decide_z_transport_inspecting, decide_z_transport_with_catalog,
+    identify_catalog_transport, identify_classical_transport, identify_meta_catalog,
+    identify_meta_transport, identify_z_transport, identify_z_transport_reporting,
+    intervention_ancestral_treatments, intervention_levels_conflict, intervention_mutilated_admg,
+    mz_transport_refusal, validate_mz_transport_query, validate_z_experiment_family,
+    validate_z_transport_query, verify_classical_transport, verify_meta_s_hedge,
+    verify_meta_transport, verify_mz_transport_obstruction, verify_z_transport_derivation,
+    verify_z_transport_obstruction, BoundMzTransportFunctional, BoundTransportFunctional,
+    BoundZTransportFunctional, CatalogTransportResult, CheckedTransportDerivation,
+    ClassicalTransportDerivation, ClassicalTransportQuery, ClassicalTransportResult,
+    ComponentFactorization, MetaSource, MetaTransportQuery, MzSearchInspection, MzSearchRecord,
     MzStageRecord, MzTransportDecision, MzTransportDerivation, MzTransportDerivationRecord,
     MzTransportObstruction, MzTransportQuery, MzTransportRoute, SidLimits,
     TwoSourceZTransportComponent, TwoSourceZTransportDecision, TwoSourceZTransportQuery,
-    ValidatedMzTransportQuery, Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES,
-    Z_TRANSPORT_MAX_OBSERVED, ZExperimentFamilyError, ZFactorObligation, ZProofOperation,
+    ValidatedMzTransportQuery, ZExperimentFamilyError, ZFactorObligation, ZProofOperation,
     ZTransportBudgetKind, ZTransportDecision, ZTransportDerivation, ZTransportDerivationRecord,
     ZTransportLimitsReceipt, ZTransportMissingEvidence, ZTransportNotCertifiedInspection,
     ZTransportNotCertifiedKind, ZTransportObstruction, ZTransportObstructionRecord,
     ZTransportOutcome, ZTransportProofInspection, ZTransportQuery, ZTransportResult,
-    ZTransportSourceSpec, ZTransportTerminalRecord, bind_mz_transport_catalog,
-    bind_z_transport_catalog, decide_mz_transport, decide_two_source_z_transport,
-    decide_z_transport_inspecting, decide_z_transport_with_catalog, identify_catalog_transport,
-    identify_classical_transport, identify_meta_catalog, identify_meta_transport,
-    identify_z_transport, identify_z_transport_reporting, intervention_ancestral_treatments,
-    intervention_levels_conflict, intervention_mutilated_admg, mz_transport_refusal,
-    validate_mz_transport_query, validate_z_experiment_family, validate_z_transport_query,
-    verify_classical_transport, verify_meta_s_hedge, verify_meta_transport,
-    verify_mz_transport_obstruction, verify_z_transport_derivation, verify_z_transport_obstruction,
+    ZTransportSourceSpec, ZTransportTerminalRecord, MZ_TRANSPORT_DEFAULT_LIMITS,
+    MZ_TRANSPORT_MAX_CANDIDATE_REGIMES, MZ_TRANSPORT_MAX_CONTROLLABLE_PER_SOURCE,
+    MZ_TRANSPORT_MAX_OBSERVED, MZ_TRANSPORT_MAX_SOURCES, MZ_TRANSPORT_MEMORY_BYTES,
+    Z_TRANSPORT_MAX_CONTROLLABLE, Z_TRANSPORT_MAX_FAMILY_REGIMES, Z_TRANSPORT_MAX_OBSERVED,
 };
 pub use sid::{
+    plan_study_additions, StudyBaseFailure, StudyFactor, StudyPlan, StudyPlanCandidate,
+    StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute, StudyPlanStop, StudyProposal,
+    StudyProposalDerivation, StudyRepair, StudySubsetOutcome, StudySubsetRecord,
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES, STUDY_PLAN_MAX_COST_UNITS,
+    STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE, STUDY_PLAN_MAX_SUBSET,
+    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING,
+};
+pub use sid::{
+    search_conditional_witness, verify_conditional_witness, ConditionalNonTransportabilityProof,
+    ConditionalNonTransportabilityRecord, ConditionalWitnessCheck, ConditionalWitnessRecord,
+    WitnessKernelRecord, WitnessLatentRecord, WitnessModelRecord, WitnessSearch,
     CONDITIONAL_WITNESS_MAX_LATENT_LEVELS, CONDITIONAL_WITNESS_MAX_WORK,
-    ConditionalNonTransportabilityProof, ConditionalNonTransportabilityRecord,
-    ConditionalWitnessCheck, ConditionalWitnessRecord, WitnessKernelRecord, WitnessLatentRecord,
-    WitnessModelRecord, WitnessSearch, search_conditional_witness, verify_conditional_witness,
-};
-pub use sid::{
-    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES,
-    STUDY_PLAN_MAX_COST_UNITS, STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE,
-    STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure,
-    StudyFactor, StudyPlan, StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute,
-    StudyPlanStop, StudyProposal, StudyProposalDerivation, StudyRepair, StudySubsetOutcome,
-    StudySubsetRecord, plan_study_additions,
 };
 mod transport_lower;
 
@@ -142,22 +142,22 @@ pub mod oracle_dot;
 
 pub use auto::{AutoIdentifier, PreparedAutoGraph};
 pub use backdoor::{
-    AdjustmentSearchConfig, BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, BackdoorIdentifier,
-    PreparedIdentificationGraph, RankedAdjustmentSet,
+    AdjustmentSearchConfig, BackdoorIdentifier, PreparedIdentificationGraph, RankedAdjustmentSet,
+    BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
-pub use bounds::{BinaryIvLaw, binary_iv_ate_bounds};
+pub use bounds::{binary_iv_ate_bounds, BinaryIvLaw};
 pub use efficient::EfficientBackdoorIdentifier;
 pub use envelope::{
-    GraphFeature, GraphIdentificationCase, IdentificationEnvelope, ProbabilityMass,
-    carries_identified_mass, search_truncated,
+    carries_identified_mass, search_truncated, GraphFeature, GraphIdentificationCase,
+    IdentificationEnvelope, ProbabilityMass,
 };
 pub use error::{IdentificationBudget, IdentificationError};
 pub use frontdoor::{
-    FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE, FrontDoorIdentifier, FrontDoorSearchConfig,
+    FrontDoorIdentifier, FrontDoorSearchConfig, FRONTDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use generalized::{
-    CAPPED_COMPLETION_DIAGNOSTIC_CODE, CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
     GeneralizedAdjustmentConfig, GeneralizedAdjustmentIdentifier,
+    CAPPED_COMPLETION_DIAGNOSTIC_CODE, CONDITIONAL_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
     MAG_SEARCH_BOUNDED_DIAGNOSTIC_CODE,
 };
 pub use hedge::{HedgeCertificate, HedgeProblem};
@@ -167,7 +167,7 @@ pub use identifier::{IdentificationWorkspace, Identifier};
 pub use iv::{InstrumentSearchConfig, InstrumentalVariableIdentifier};
 pub use joint_response::JOINT_SEARCH_BOUNDED_DIAGNOSTIC_CODE;
 pub use path_specific::PathSpecificIdentifier;
-pub use prepared::{PreparedAdmg, dag_to_admg};
+pub use prepared::{dag_to_admg, PreparedAdmg};
 pub use rd::{SharpRdConfig, SharpRdIdentifier};
 pub use response::ResponseIdentifier;
 pub use response_id::{identify_cpdag_response_general, identify_pag_response_general};
@@ -176,14 +176,14 @@ pub use result::{
     IdentificationResult, IdentificationStatus, IdentifiedEstimand,
 };
 pub use temporal_backdoor::{
-    PARENT_ADJUSTMENT_RULE, TemporalBackdoorIdentifier, TemporalIdentificationResult,
+    TemporalBackdoorIdentifier, TemporalIdentificationResult, PARENT_ADJUSTMENT_RULE,
 };
 pub use temporal_generalized::{TemporalClassEnvelope, TemporalCompletionGraph};
 pub use temporal_mediation::TemporalMediationIdentifier;
 pub use tiered::{
+    identify_tiered, identify_tiered_joint, identify_tiered_joint_on, identify_tiered_on,
     NO_LATENT_TO_OUTCOME, TIERED_ADJUSTMENT_REFUSE, TIERED_JOINT_ADJUSTMENT_REFUSE,
-    TIERED_JOINT_UNKNOWN_REFUSE, identify_tiered, identify_tiered_joint, identify_tiered_joint_on,
-    identify_tiered_on,
+    TIERED_JOINT_UNKNOWN_REFUSE,
 };
 pub use transport::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,

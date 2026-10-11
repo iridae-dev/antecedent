@@ -226,14 +226,15 @@ impl GeneralizedAdjustmentIdentifier {
         let mut cases = Vec::new();
         let mut unfolded = Vec::new();
         for completion in sampler.by_ref() {
-            let (result, finite) = crate::temporal_mag::identify(
+            let finite = completion.graph.unfold(indexer.clone())?;
+            let result = crate::temporal_mag::identify(
                 &completion.graph,
                 query,
-                &indexer,
+                &finite,
                 self.config.max_candidates,
                 self.config.max_examinations,
             )?;
-            unfolded.push(finite);
+            unfolded.push(finite.pag);
             cases.push(GraphIdentificationCase {
                 graph: TemporalCompletionGraph::Mag(completion.graph),
                 result,
@@ -445,11 +446,10 @@ mod tests {
             .envelope;
         assert_eq!(env.cases.len(), 2);
         assert_eq!(env.status, IdentificationStatus::NotIdentified);
-        assert!(
-            env.critical_graph_features
-                .iter()
-                .any(|f| f.kind.as_ref() == "temporal_pag_mixed_completion_audit")
-        );
+        assert!(env
+            .critical_graph_features
+            .iter()
+            .any(|f| f.kind.as_ref() == "temporal_pag_mixed_completion_audit"));
     }
 
     #[test]
