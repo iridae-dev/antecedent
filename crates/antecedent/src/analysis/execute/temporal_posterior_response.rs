@@ -292,7 +292,15 @@ impl super::Study {
         let conditional = super::response_path::mix_response_values(&conditional_refs)?;
         let structural_set = super::response_path::response_envelope_from_weighted(&weighted);
         let first = &weighted[0].2;
-        let graph_dependent = unidentified_mass > 0.0 || failed_mass > 0.0;
+        let graph_dependent = resolve_posterior_status(
+            identification.status,
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                failed: failed_mass,
+                ..PosteriorMassSummary::default()
+            },
+        ) == IdentificationStatus::GraphDependent;
         if graph_dependent {
             identification.status = IdentificationStatus::GraphDependent;
         }
@@ -355,25 +363,23 @@ impl super::Study {
             OverlapPolicy::ExplicitOverride,
         );
 
-        let mut diagnostics = vec![
-            Diagnostic::new(
-                "estimate.response.dbn_posterior",
-                DiagnosticKind::Scientific,
-                DiagnosticSeverity::Info,
-                format!(
-                    "frozen posterior_probability weights; identified_mass={}, \
+        let mut diagnostics = vec![Diagnostic::new(
+            "estimate.response.dbn_posterior",
+            DiagnosticKind::Scientific,
+            DiagnosticSeverity::Info,
+            format!(
+                "frozen posterior_probability weights; identified_mass={}, \
                      unidentified_mass={}; unevaluable_mass={}; TemporalDag atoms, not \
                      completion enumeration",
-                    identified_mass / total_mass,
-                    unidentified_mass / total_mass,
-                    failed_mass / total_mass
-                ),
-            )
-            .with_fields(super::mass_fields(
-                Some(identified_mass / total_mass),
+                identified_mass / total_mass,
                 unidentified_mass / total_mass,
-            )),
-        ];
+                failed_mass / total_mass
+            ),
+        )
+        .with_fields(super::mass_fields(
+            Some(identified_mass / total_mass),
+            unidentified_mass / total_mass,
+        ))];
         let aligned_all = identified
             .atoms
             .iter()

@@ -85,18 +85,17 @@ impl super::Study {
             options.confidence_level,
         )?;
         let mut identification = mixed.identification;
-        identification.status = if unidentified_mass > 0.0
-            || mixed.mixture.unevaluable_mass > 0.0
-            || !mixed.mixture.full_mass_scope
-            || mixed.failed_mass > 0.0
-            || matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms)
-        {
-            IdentificationStatus::GraphDependent
-        } else if matches!(mixed.policy, StructuralAggregationPolicy::IdentifiedSetEnvelope) {
-            IdentificationStatus::PartiallyIdentified
-        } else {
-            identification.status
-        };
+        identification.status = resolve_posterior_status(
+            identification.status,
+            mixed.policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                unevaluable: mixed.mixture.unevaluable_mass,
+                failed: mixed.failed_mass,
+                full_scope: mixed.mixture.full_mass_scope,
+                ..PosteriorMassSummary::default()
+            },
+        );
 
         let (scalar, standard_error) = response_scalar_summary(&mixed.response);
         let estimate = EffectEstimate::new(
@@ -534,11 +533,17 @@ fn mix_class_posterior_responses(
             message: "class graph-posterior response mix: no evaluable atom values".into(),
         })?;
 
-    let graph_dependent = unidentified_mass > 0.0
-        || identified.class_atoms.iter().any(|a| a.truncated_completions > 0)
-        || failed_mass > 0.0
-        || unevaluable_mass > 0.0
-        || matches!(policy, StructuralAggregationPolicy::GraphDependentAtoms);
+    let graph_dependent = resolve_posterior_status(
+        IdentificationStatus::NonparametricallyIdentified,
+        policy,
+        PosteriorMassSummary {
+            unidentified: unidentified_mass,
+            unevaluable: unevaluable_mass,
+            failed: failed_mass,
+            truncated: identified.class_atoms.iter().any(|atom| atom.truncated_completions > 0),
+            ..PosteriorMassSummary::default()
+        },
+    ) == IdentificationStatus::GraphDependent;
     let mixed_if_se = (!graph_dependent
         && weighted.len() > 1
         && matches!(policy, StructuralAggregationPolicy::SameEstimandWeightedMean)
@@ -582,13 +587,17 @@ fn mix_class_posterior_responses(
     };
     let response = CausalResponse {
         estimand: query.functional.clone(),
-        identification_status: if graph_dependent {
-            IdentificationStatus::GraphDependent
-        } else if matches!(policy, StructuralAggregationPolicy::IdentifiedSetEnvelope) {
-            IdentificationStatus::PartiallyIdentified
-        } else {
-            first.identification_status
-        },
+        identification_status: resolve_posterior_status(
+            first.identification_status,
+            policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                unevaluable: unevaluable_mass,
+                failed: failed_mass,
+                truncated: identified.class_atoms.iter().any(|atom| atom.truncated_completions > 0),
+                ..PosteriorMassSummary::default()
+            },
+        ),
         estimate: estimate_kind,
         uncertainty,
         support: mix_support_reports(

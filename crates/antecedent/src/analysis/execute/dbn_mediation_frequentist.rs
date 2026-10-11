@@ -160,7 +160,15 @@ impl super::Study {
         let total_mass = identified.graphs.total_weight();
         let identified_mass: f64 = weights.iter().sum();
         let unidentified_mass = identified.graphs.unidentified_mass();
-        let incomplete = unidentified_mass > 0.0 || failed_mass > 0.0;
+        let incomplete = resolve_posterior_status(
+            identification.status,
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                failed: failed_mass,
+                ..PosteriorMassSummary::default()
+            },
+        ) == IdentificationStatus::GraphDependent;
         if incomplete {
             identification.status = IdentificationStatus::GraphDependent;
         }

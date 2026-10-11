@@ -900,8 +900,11 @@ impl super::Study {
             })?;
         let point = weighted_derivative_mean(&pairs)?;
         let unidentified = cache.graphs.unidentified_mass();
-        identification.status =
-            if unidentified > 1e-12 { IdentificationStatus::GraphDependent } else { atom_status };
+        identification.status = resolve_posterior_status(
+            atom_status,
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+            PosteriorMassSummary { unidentified, ..PosteriorMassSummary::default() },
+        );
         if identify_cached {
             diagnostics.push(identify_cached_diagnostic());
         }

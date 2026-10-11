@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sequential_validation::{SequentialValidationAtom, validate_sequential};
+use super::sequential_validation::{validate_sequential, SequentialValidationAtom};
 use super::*;
 
 impl super::Study {
@@ -862,7 +862,8 @@ impl super::Study {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::Unsupported {
-                    message: "graph-posterior discovery requires inference=Bayesian for effect mixture",
+                    message:
+                        "graph-posterior discovery requires inference=Bayesian for effect mixture",
                 });
             }
         };
@@ -1039,18 +1040,16 @@ impl super::Study {
         let mut identification = primary_identification.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: no identified graph atoms".into(),
         })?;
-        identification.status = if unidentified_mass > 1e-12
-            || subsample_drop.mass > 1e-12
-            || matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms)
-        {
-            IdentificationStatus::GraphDependent
-        } else if matches!(mixed.policy, StructuralAggregationPolicy::IdentifiedSetEnvelope) {
-            IdentificationStatus::PartiallyIdentified
-        } else if posterior.identification == IdentificationStatus::GraphDependent {
-            IdentificationStatus::GraphDependent
-        } else {
-            identification.status
-        };
+        identification.status = resolve_posterior_status(
+            identification.status,
+            mixed.policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass.max(posterior.unidentified_mass),
+                unevaluable: posterior.unevaluable_mass,
+                subsampled: subsample_drop.mass.max(posterior.subsampled_out_mass),
+                ..PosteriorMassSummary::default()
+            },
+        );
         let estimand = primary_estimand.ok_or_else(|| CausalError::Compile {
             message: "graph-posterior envelope: missing estimand".into(),
         })?;
@@ -1408,16 +1407,15 @@ impl super::Study {
                 estimate.influence = Some(inf);
             }
         }
-        identification.status = if unidentified_mass > 1e-12
-            || subsampled_out_mass > 1e-12
-            || matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms)
-        {
-            IdentificationStatus::GraphDependent
-        } else if matches!(mixed.policy, StructuralAggregationPolicy::IdentifiedSetEnvelope) {
-            IdentificationStatus::PartiallyIdentified
-        } else {
-            identification.status
-        };
+        identification.status = resolve_posterior_status(
+            identification.status,
+            mixed.policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                subsampled: subsampled_out_mass,
+                ..PosteriorMassSummary::default()
+            },
+        );
 
         let mut diagnostics = identification.diagnostics.clone();
         diagnostics.extend(subsample_notes);
@@ -1670,7 +1668,15 @@ impl super::Study {
             ctx,
         );
         let se = block.se;
-        if identified.graphs.unidentified_mass() > 0.0 {
+        if resolve_posterior_status(
+            identification.status,
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+            PosteriorMassSummary {
+                unidentified: identified.graphs.unidentified_mass(),
+                ..PosteriorMassSummary::default()
+            },
+        ) == IdentificationStatus::GraphDependent
+        {
             identification.status = IdentificationStatus::GraphDependent;
         }
         let estimate = EffectEstimate::from_parts(
@@ -1860,7 +1866,8 @@ impl super::Study {
             if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
             {
                 return Err(CausalError::Unsupported {
-                    message: "multi-step sustained inference requires isotropic per-mechanism priors",
+                    message:
+                        "multi-step sustained inference requires isotropic per-mechanism priors",
                 });
             }
         }
@@ -2666,12 +2673,16 @@ impl super::Study {
         // The envelope must preserve structural restrictions and disclose this
         // horizon's unidentified / unevaluable graph mass, independently of
         // other horizons.
-        if posterior.unidentified_mass > 0.0
-            || posterior.unevaluable_mass > 0.0
-            || posterior.subsampled_out_mass > 0.0
-        {
-            identification.status = IdentificationStatus::GraphDependent;
-        }
+        identification.status = resolve_posterior_status(
+            identification.status,
+            crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean,
+            PosteriorMassSummary {
+                unidentified: posterior.unidentified_mass,
+                unevaluable: posterior.unevaluable_mass,
+                subsampled: posterior.subsampled_out_mass,
+                ..PosteriorMassSummary::default()
+            },
+        );
         posterior.identification = identification.status;
         let estimate = effect_from_posterior(&posterior)?;
         let mut mediation = mix_dbn_mediation_estimate(&estimate, &refute_atoms);

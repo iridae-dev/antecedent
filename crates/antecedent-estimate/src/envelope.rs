@@ -231,7 +231,9 @@ pub fn aggregate_effect_envelope(
     // a reader recomputing them from the draws gets the same numbers.
     let (draws, summaries) = moment_matched(&draws, exact_mean, Some(exact_sd))?;
 
-    let identification = if identified_mass > 0.0 && retained_unidentified > 0.0 {
+    let identification = if identified_mass > 0.0
+        && retained_unidentified > antecedent_core::POSTERIOR_MASS_TOLERANCE
+    {
         IdentificationStatus::GraphDependent
     } else if identified_mass > 0.0 {
         IdentificationStatus::NonparametricallyIdentified

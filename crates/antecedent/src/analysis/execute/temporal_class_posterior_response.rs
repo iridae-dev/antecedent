@@ -203,16 +203,16 @@ impl super::Study {
         )
         .or_else(|| response_envelope_from_weighted(&weighted));
         let first = &weighted[0].2;
-        let graph_dependent = unidentified_mass > 0.0
-            || failed_mass > 0.0
-            || matches!(aggregation_policy, StructuralAggregationPolicy::GraphDependentAtoms);
-        if graph_dependent {
-            identification.status = IdentificationStatus::GraphDependent;
-        } else if matches!(aggregation_policy, StructuralAggregationPolicy::IdentifiedSetEnvelope) {
-            identification.status = IdentificationStatus::PartiallyIdentified;
-        } else if mixable {
-            identification.status = IdentificationStatus::NonparametricallyIdentified;
-        }
+        identification.status = resolve_posterior_status(
+            identification.status,
+            aggregation_policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                failed: failed_mass,
+                ..PosteriorMassSummary::default()
+            },
+        );
+        let graph_dependent = identification.status == IdentificationStatus::GraphDependent;
         let uncertainty = if weighted.len() == 1 {
             first.uncertainty.clone()
         } else if let (true, Some(ResponseValue::Scalar(value))) = (mixable, conditional.as_ref()) {

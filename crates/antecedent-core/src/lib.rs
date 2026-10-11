@@ -65,13 +65,13 @@ pub use transport_result::TransportGridFailure;
 pub mod response;
 pub mod response_coordinates;
 pub use response_coordinates::{
-    ResponseCoordinateLabels, ResponseCoordinateSkeleton, label_coordinates,
-    response_coordinate_skeleton, response_coordinates,
+    label_coordinates, response_coordinate_skeleton, response_coordinates,
+    ResponseCoordinateLabels, ResponseCoordinateSkeleton,
 };
 pub mod schema;
 pub mod search;
 pub use search::{
-    DEFAULT_SEARCH_MEMORY_BYTES, SearchBudget, SearchLimits, SearchReceipt, SearchStop,
+    SearchBudget, SearchLimits, SearchReceipt, SearchStop, DEFAULT_SEARCH_MEMORY_BYTES,
 };
 pub mod temporal;
 pub mod tolerance;
@@ -87,50 +87,51 @@ pub use capability::{
     OperationReport, PremiseChange, SemanticApplicability,
 };
 pub use claim::{
-    AcceptanceReport, AttestedEvidence, CalibrationBasis, CalibrationView, ClaimCompatibility,
-    ClaimDomainAxis, ClaimDomains, ClaimEnvelope, ClaimFreshness, ClaimKind, ClaimOperation,
-    ConsumerProfile, DerivedClaim, DerivedClaimOutcome, DomainStatus, EvidenceDependence,
-    HandoffReceipt, HostOperation, SharedEvidenceRef, claim_compatibility, compose_claims,
+    claim_compatibility, compose_claims, AcceptanceReport, AttestedEvidence, CalibrationBasis,
+    CalibrationView, ClaimCompatibility, ClaimDomainAxis, ClaimDomains, ClaimEnvelope,
+    ClaimFreshness, ClaimKind, ClaimOperation, ConsumerProfile, DerivedClaim, DerivedClaimOutcome,
+    DomainStatus, EvidenceDependence, HandoffReceipt, HostOperation, SharedEvidenceRef,
 };
 pub use composition_provenance::{
-    CompositionLink, CompositionStage, MAX_CHAIN_LINKS, ProvenanceChain, ProvenanceChainError,
+    CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, MAX_CHAIN_LINKS,
 };
 pub use diagnostic::{Diagnostic, DiagnosticKind, DiagnosticSet, DiagnosticSeverity};
 pub use error::SchemaError;
 pub use evidence_obligation::{
-    EvidenceObligation, EvidenceObligationError, EvidenceObligationKind, EvidenceObligationSpec,
-    EvidenceOffer, MAX_OBLIGATION_COORDINATES, ObligationProvenance, ObligationRegime,
-    unresolved_assumption_obligations,
+    unresolved_assumption_obligations, EvidenceObligation, EvidenceObligationError,
+    EvidenceObligationKind, EvidenceObligationSpec, EvidenceOffer, ObligationProvenance,
+    ObligationRegime, MAX_OBLIGATION_COORDINATES,
 };
 pub use execution::{
-    ARCH_SIMD_COMPILED, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
-    CancellationToken, CausalRng, DEFAULT_USER_THREAD_CAP, Determinism, ExecutionContext,
-    ExecutionReceipt, ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget,
-    MonteCarloError, NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory,
-    StreamDomain, default_user_threads,
+    default_user_threads, AdaptiveBootstrapBudget, AdaptiveDrawBudget, CacheBudget, CachePolicy,
+    CancellationToken, CausalRng, Determinism, ExecutionContext, ExecutionReceipt,
+    ExecutionRequestState, KernelPolicy, MemoryBudget, MonteCarloBudget, MonteCarloError,
+    NonZeroThreadCount, Parallelism, ProgressSink, RequestIdentity, RngFactory, StreamDomain,
+    ARCH_SIMD_COMPILED, DEFAULT_USER_THREAD_CAP,
 };
+pub use execution::{derive_stream, mix64, splitmix64, GOLDEN_GAMMA};
 pub use external::{
-    EvidenceProviderContract, ExternalCapability, ExternalCapabilityRequest, ExternalContractError,
-    ExternalEvidenceKind, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
-    ExternalVerificationError, LawProviderContract, NegotiatedExternalOperation,
-    ObjectVerificationReceipt, PosteriorProviderContract, ProviderObjectIdentity,
-    SignalProviderContract, UtilityMonotonicity, UtilityProviderContract, VerificationProbe,
-    VerificationProbeKind, verify_external_object,
+    verify_external_object, EvidenceProviderContract, ExternalCapability,
+    ExternalCapabilityRequest, ExternalContractError, ExternalEvidenceKind, ExternalPosteriorKind,
+    ExternalScientificObject, ExternalTrustState, ExternalVerificationError, LawProviderContract,
+    NegotiatedExternalOperation, ObjectVerificationReceipt, PosteriorProviderContract,
+    ProviderObjectIdentity, SignalProviderContract, UtilityMonotonicity, UtilityProviderContract,
+    VerificationProbe, VerificationProbeKind,
 };
 pub use external_binding::{
-    BoundExternalClaim, BoundTrustLevel, CheckedCausalContract, CheckedEquivalence,
-    EquivalenceScope, ExternalBindingError, ExternalDistribution, ExternalPosterior,
-    ExternalResponse, ExternalResult, ExternalResultHeader, ExternalUncertaintyMeaning,
-    OBSERVATIONAL_REGIME, bind_external_result,
+    bind_external_result, BoundExternalClaim, BoundTrustLevel, CheckedCausalContract,
+    CheckedEquivalence, EquivalenceScope, ExternalBindingError, ExternalDistribution,
+    ExternalPosterior, ExternalResponse, ExternalResult, ExternalResultHeader,
+    ExternalUncertaintyMeaning, OBSERVATIONAL_REGIME,
 };
 pub use external_refusal::{
-    ExternalRefusal, StructuredRefusal, capability_from_name, capability_name, probe_from_name,
-    probe_name,
+    capability_from_name, capability_name, probe_from_name, probe_name, ExternalRefusal,
+    StructuredRefusal,
 };
-pub use identification::IdentificationStatus;
+pub use identification::{IdentificationStatus, POSTERIOR_MASS_TOLERANCE};
 pub use identity::{
-    ContractIdentities, IDENTITY_FORMAT, IDENTITY_FORMAT_TAG, IdentityDomain, IdentityRef,
-    SemanticDigest,
+    to_hex, CanonicalWriter, ContractIdentities, IdentityDomain, IdentityRef, SemanticDigest,
+    IDENTITY_FORMAT, IDENTITY_FORMAT_TAG,
 };
 pub use ids::{
     CategoryDomainId, ComponentId, DistributionRef, DynamicRuleId, EnvironmentId, Lag, ModelId,
@@ -148,25 +149,25 @@ pub use plan::{
     LogicalAnalysisPlanRecord, ParallelTaskSpec, PhysicalExecutionPlanRecord,
 };
 pub use program_binding::{
-    ExternalProgramClaim, ProgramBinding, ProgramBoundClaim, ProgramCheck,
     bind_external_result_to_program, check_external_against_program, dose_label,
+    ExternalProgramClaim, ProgramBinding, ProgramBoundClaim, ProgramCheck,
 };
 pub use provenance::{ArtifactId, ProvenanceError, ProvenanceGraph, ProvenanceNode};
 pub use quantity::{
     DistributionMeaning, QuantityCondition, QuantityMismatch, QuantityRole, ScientificQuantity,
 };
 pub use query::{
-    AllocationMethod, AnomalyAttributionQuery, AnomalyReference, AssignmentDesign,
-    AttributionComponents, AverageEffectQuery, CatalogDistribution, CausalQuery,
-    ChangeAttributionQuery, ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery,
-    CounterfactualQuery, DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
-    DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
-    EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime, ExposureLevel,
-    ExposureMapping, ExposurePropensityProvenance, FactorNeed, FixedCandidateRegretInputs,
-    FixedGroupDosePolicy, GridSpec, InterferenceFunctional, InterferenceQuery,
-    InterventionAssignment, InterventionalDistributionQuery, KnownCensoringSurvival, LawOrigin,
-    LicensedWeights, LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
-    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
+    policy_graphless_coordinate, randomized_graphless_coordinate, AllocationMethod,
+    AnomalyAttributionQuery, AnomalyReference, AssignmentDesign, AttributionComponents,
+    AverageEffectQuery, CatalogDistribution, CausalQuery, ChangeAttributionQuery,
+    ConditionalEffectQuery, ContinuousDomain, ContinuousDoseResponseQuery, CounterfactualQuery,
+    DependenceGroup, DerivativeScale, DerivativeWeighting, DidSamplingDesign,
+    DistributionAvailability, Environment, EvidenceCatalog, EvidenceCatalogDelta, EvidenceKind,
+    EvidenceProjection, EvidenceRegime, ExposureLevel, ExposureMapping,
+    ExposurePropensityProvenance, FactorNeed, FixedCandidateRegretInputs, FixedGroupDosePolicy,
+    GridSpec, InterferenceFunctional, InterferenceQuery, InterventionAssignment,
+    InterventionalDistributionQuery, KnownCensoringSurvival, LawOrigin, LicensedWeights,
+    LocalPolynomialRatioQuery, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,
     OutcomeFunctional, PanelDidQuery, PathSpecificEffectQuery, PolicyValueQuery,
@@ -174,17 +175,18 @@ pub use query::{
     RandomizationDesign, RandomizedEffectQuery, RandomizedEstimand, RegimeBinding, RegimeKind,
     ResponseFunctional, ResponseQuery, SamplingDesign, SamplingSelection, ShapleyConfig,
     ShapleyMode, SharedData, SurvivalFunctional, SurvivalQuery, SyntheticControlQuery,
-    SyntheticPanelMethod, TEMPORAL_OBSERVATION_UNLICENSED, TargetPopulation, TargetSampling,
-    TemporalEffectQuery, TemporalResponseLicense, TemporalResponseSpec, TheoremFamily,
-    TheoremScope, TransportEvaluateSupport, TransportIdentifySupport, TransportLocation,
-    TransportOutcome, TransportOutcomeKind, TransportQuery, TransportSupportCoordinate,
-    TransportUncertaintySupport, UnitChangeQuery, UnmetDependency, VariableCoordinate,
-    VariableDomain, policy_graphless_coordinate, randomized_graphless_coordinate,
+    SyntheticPanelMethod, TargetPopulation, TargetSampling, TemporalEffectQuery,
+    TemporalResponseLicense, TemporalResponseSpec, TheoremFamily, TheoremScope,
+    TransportEvaluateSupport, TransportIdentifySupport, TransportLocation, TransportOutcome,
+    TransportOutcomeKind, TransportQuery, TransportSupportCoordinate, TransportUncertaintySupport,
+    UnitChangeQuery, UnmetDependency, VariableCoordinate, VariableDomain, EXPOSURE_LEVEL_TOLERANCE,
+    MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS, MAX_TEMPORAL_RESPONSE_HORIZONS,
+    TEMPORAL_OBSERVATION_UNLICENSED,
 };
 pub use query::{CounterfactualEvent, CounterfactualEventQuery};
 pub use query::{
-    CrossWorldQuery, EdgeRoute, ExogenousCoupling, MAX_CROSS_WORLDS, WorldId, WorldObservation,
-    WorldSpec,
+    CrossWorldQuery, EdgeRoute, ExogenousCoupling, WorldId, WorldObservation, WorldSpec,
+    MAX_CROSS_WORLDS,
 };
 pub use query::{SmoothedDoseTransportQuery, SmoothingKernel};
 pub use reasoning::{
@@ -192,10 +194,10 @@ pub use reasoning::{
     UncertaintyComponent, UncertaintySlot, UncertaintySource,
 };
 pub use response::{
-    CausalResponse, CredibleDraws, DiagnosticScope, HorizonIdentification, IdentifiedSet,
-    IntervalInterpretation, ResponseEnvelope, ResponseIdentification, ResponseUncertainty,
-    ResponseValue, SupportDiagnostic, SupportRegion, SupportReport, SupportStatus,
-    check_static_point_labels,
+    check_static_point_labels, CausalResponse, CredibleDraws, DiagnosticScope,
+    HorizonIdentification, IdentifiedSet, IntervalInterpretation, ResponseEnvelope,
+    ResponseIdentification, ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion,
+    SupportReport, SupportStatus,
 };
 pub use schema::{
     CausalSchema, CausalSchemaBuilder, MeasurementSpec, RoleHint, ScalarType, SmallRoleSet,
@@ -204,10 +206,10 @@ pub use schema::{
 pub use temporal::{TemporalIndexError, TemporalIndexer, TemporalNodeKey};
 pub use tolerance::ToleranceClass;
 pub use transform::{
-    LayerEffect, SemanticLayer, TransformEffect, TransformIntent, TransformationReport,
-    intent_effects,
+    intent_effects, LayerEffect, SemanticLayer, TransformEffect, TransformIntent,
+    TransformationReport,
 };
-pub use value::{Value, same_intervention_level};
+pub use value::{same_intervention_level, Value};
 
 /// Library crate version string from Cargo.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

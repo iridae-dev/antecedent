@@ -143,12 +143,20 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
             AnalysisRoute::RandomizedEffect
         }
         (DataModality::Tabular, CausalQuery::PolicyValue(_)) => AnalysisRoute::PolicyValue,
-        (DataModality::Tabular, CausalQuery::ContinuousDoseResponse(_)) => AnalysisRoute::ContinuousDoseResponse,
+        (DataModality::Tabular, CausalQuery::ContinuousDoseResponse(_)) => {
+            AnalysisRoute::ContinuousDoseResponse
+        }
         (DataModality::Tabular, CausalQuery::PanelDid(_)) => AnalysisRoute::PanelDid,
-        (DataModality::Tabular, CausalQuery::SyntheticControl(_)) => AnalysisRoute::SyntheticControl,
-        (DataModality::Tabular, CausalQuery::LocalPolynomialRatio(_)) => AnalysisRoute::LocalPolynomialRatio,
+        (DataModality::Tabular, CausalQuery::SyntheticControl(_)) => {
+            AnalysisRoute::SyntheticControl
+        }
+        (DataModality::Tabular, CausalQuery::LocalPolynomialRatio(_)) => {
+            AnalysisRoute::LocalPolynomialRatio
+        }
         (DataModality::Tabular, CausalQuery::Survival(_)) => AnalysisRoute::Survival,
-        (DataModality::Tabular, CausalQuery::LongitudinalRegime(_)) => AnalysisRoute::LongitudinalRegime,
+        (DataModality::Tabular, CausalQuery::LongitudinalRegime(_)) => {
+            AnalysisRoute::LongitudinalRegime
+        }
         _ => return None,
     })
 }
@@ -451,7 +459,9 @@ pub(super) fn report_subsampled_out_mass(
             + posterior.subsampled_out_mass
             <= 1.0 + 1e-9
     );
-    if posterior.unidentified_mass > 0.0 || posterior.subsampled_out_mass > 0.0 {
+    if posterior.unidentified_mass > antecedent_core::POSTERIOR_MASS_TOLERANCE
+        || posterior.subsampled_out_mass > antecedent_core::POSTERIOR_MASS_TOLERANCE
+    {
         posterior.identification = IdentificationStatus::GraphDependent;
     }
 }
@@ -1181,6 +1191,58 @@ pub(super) fn most_conservative_identification_status(
         .unwrap_or(IdentificationStatus::NotIdentified)
 }
 
+pub(super) struct PosteriorMassSummary {
+    pub unidentified: f64,
+    pub unevaluable: f64,
+    pub subsampled: f64,
+    pub failed: f64,
+    pub full_scope: bool,
+    pub truncated: bool,
+}
+
+impl Default for PosteriorMassSummary {
+    fn default() -> Self {
+        Self {
+            unidentified: 0.0,
+            unevaluable: 0.0,
+            subsampled: 0.0,
+            failed: 0.0,
+            full_scope: true,
+            truncated: false,
+        }
+    }
+}
+
+/// One posterior downgrade ladder.
+///
+/// Mass above [`antecedent_core::POSTERIOR_MASS_TOLERANCE`], a truncated
+/// completion search, an incomplete scope, or disagreeing estimands is
+/// [`IdentificationStatus::GraphDependent`]. An identified-set policy is
+/// [`IdentificationStatus::PartiallyIdentified`]. Otherwise the atom status
+/// is kept. This never promotes `base` to
+/// [`IdentificationStatus::NonparametricallyIdentified`].
+pub(super) fn resolve_posterior_status(
+    base: IdentificationStatus,
+    policy: crate::result::StructuralAggregationPolicy,
+    mass: PosteriorMassSummary,
+) -> IdentificationStatus {
+    let exceeds = |value: f64| value > antecedent_core::POSTERIOR_MASS_TOLERANCE;
+    if exceeds(mass.unidentified)
+        || exceeds(mass.unevaluable)
+        || exceeds(mass.subsampled)
+        || exceeds(mass.failed)
+        || !mass.full_scope
+        || mass.truncated
+        || matches!(policy, crate::result::StructuralAggregationPolicy::GraphDependentAtoms)
+    {
+        IdentificationStatus::GraphDependent
+    } else if matches!(policy, crate::result::StructuralAggregationPolicy::IdentifiedSetEnvelope) {
+        IdentificationStatus::PartiallyIdentified
+    } else {
+        base
+    }
+}
+
 /// Status for a Frequentist graph-posterior mixture.
 ///
 /// Unidentified mass is [`IdentificationStatus::GraphDependent`]. Multiple
@@ -1192,7 +1254,7 @@ pub(super) fn graph_posterior_mixture_status(
     contributing: &[&IdentifiedEstimand],
     primary: IdentificationStatus,
 ) -> IdentificationStatus {
-    if unidentified_mass > 1e-12 {
+    if unidentified_mass > antecedent_core::POSTERIOR_MASS_TOLERANCE {
         return IdentificationStatus::GraphDependent;
     }
     let Some(first) = contributing.first() else {
@@ -1992,9 +2054,9 @@ pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
 pub(crate) fn temporal_admg_projection(
     graph: &antecedent_graph::TemporalAdmg,
 ) -> Result<Admg, CausalError> {
-    graph.project_preserving_functional().map_err(|error| CausalError::Compile {
-        message: error.to_string(),
-    })
+    graph
+        .project_preserving_functional()
+        .map_err(|error| CausalError::Compile { message: error.to_string() })
 }
 
 /// The directed part of an ADMG as a DAG.
@@ -2586,7 +2648,7 @@ pub(super) const PERCENTILE_95_BAND_MIN_SUCCESSES: usize =
 
 #[cfg(test)]
 mod bootstrap_success_floor_tests {
-    use super::{PERCENTILE_95_BAND_MIN_SUCCESSES, bootstrap_has_enough_successes};
+    use super::{bootstrap_has_enough_successes, PERCENTILE_95_BAND_MIN_SUCCESSES};
 
     #[test]
     fn cancelled_two_success_bootstrap_cannot_license_nominal_band() {
@@ -2670,5 +2732,36 @@ pub(super) fn retain_envelope_assumptions(
                 record
             }),
         );
+    }
+}
+
+#[cfg(test)]
+mod posterior_status_ladder_tests {
+    use super::*;
+
+    #[test]
+    fn resolve_posterior_status_uses_one_tolerance() {
+        let base = IdentificationStatus::IdentifiedUnderParametricRestrictions;
+        let policy = crate::result::StructuralAggregationPolicy::SameEstimandWeightedMean;
+        let dust = resolve_posterior_status(
+            base,
+            policy,
+            PosteriorMassSummary { unidentified: 1e-13, ..PosteriorMassSummary::default() },
+        );
+        let real = resolve_posterior_status(
+            base,
+            policy,
+            PosteriorMassSummary { unidentified: 1e-11, ..PosteriorMassSummary::default() },
+        );
+        assert_eq!(dust, base);
+        assert_eq!(real, IdentificationStatus::GraphDependent);
+        let kept = resolve_posterior_status(base, policy, PosteriorMassSummary::default());
+        assert_eq!(kept, base);
+        let partial = resolve_posterior_status(
+            base,
+            crate::result::StructuralAggregationPolicy::IdentifiedSetEnvelope,
+            PosteriorMassSummary::default(),
+        );
+        assert_eq!(partial, IdentificationStatus::PartiallyIdentified);
     }
 }

@@ -761,13 +761,16 @@ fn mix_temporal_class_mediation_posterior(
         message: "temporal class graph-posterior mediation: missing estimand".into(),
     })?;
     let estimate = EffectEstimate::new(ate, f64::NAN, assumptions, OverlapPolicy::ExplicitOverride);
-    if unidentified_mass > 0.0
-        || unevaluable_mass > 0.0
-        || !mixture.full_mass_scope
-        || matches!(policy, StructuralAggregationPolicy::GraphDependentAtoms)
-    {
-        identification.status = IdentificationStatus::GraphDependent;
-    }
+    identification.status = resolve_posterior_status(
+        identification.status,
+        policy,
+        PosteriorMassSummary {
+            unidentified: unidentified_mass,
+            unevaluable: unevaluable_mass,
+            full_scope: mixture.full_mass_scope,
+            ..PosteriorMassSummary::default()
+        },
+    );
     let slice_identified_set = if lo.is_finite() && hi.is_finite() {
         Some(antecedent_estimate::TemporalMediationIdentifiedSet { lower: lo, upper: hi })
     } else {

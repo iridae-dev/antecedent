@@ -5,6 +5,12 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+/// Unidentified, unevaluable, subsampled, or failed posterior mass at or below
+/// this value is numerical dust. Every posterior status ladder uses this
+/// cutoff, so `1e-13` is not graph-dependent on one route and point-identified
+/// on another.
+pub const POSTERIOR_MASS_TOLERANCE: f64 = 1e-12;
+
 /// Status of an identification attempt.
 ///
 /// [`Self::IdentifiedUnderParametricRestrictions`] and

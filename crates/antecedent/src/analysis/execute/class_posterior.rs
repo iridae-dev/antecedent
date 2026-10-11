@@ -66,17 +66,16 @@ impl super::Study {
         let unidentified_mass = identified.graphs.unidentified_mass();
         let mixed = mix_class_posterior_evals(&identified, &evals, unidentified_mass)?;
         let mut identification = mixed.identification;
-        identification.status = if unidentified_mass > 0.0
-            || mixed.mixture.unevaluable_mass > 0.0
-            || !mixed.mixture.full_mass_scope
-            || matches!(mixed.policy, StructuralAggregationPolicy::GraphDependentAtoms)
-        {
-            IdentificationStatus::GraphDependent
-        } else if matches!(mixed.policy, StructuralAggregationPolicy::IdentifiedSetEnvelope) {
-            IdentificationStatus::PartiallyIdentified
-        } else {
-            identification.status
-        };
+        identification.status = resolve_posterior_status(
+            identification.status,
+            mixed.policy,
+            PosteriorMassSummary {
+                unidentified: unidentified_mass,
+                unevaluable: mixed.mixture.unevaluable_mass,
+                full_scope: mixed.mixture.full_mass_scope,
+                ..PosteriorMassSummary::default()
+            },
+        );
 
         let mut diagnostics = identification.diagnostics.clone();
         if matches!(self.inference, InferenceMode::Bayesian(_)) && mixed.posterior.is_none() {
