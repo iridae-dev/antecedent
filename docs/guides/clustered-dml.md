@@ -98,7 +98,7 @@ library checks (C3) and part of (C1) and none of the others.
   for the cluster sums, and a bound on the within-cluster variance inflation of the
   remainder: by Cauchy-Schwarz the conditional variance of a cluster's remainder sum is at
   most `m_g` times the row-level mean square error).
-- **(C3) Many clusters**: `G` at least the declared `min_clusters` (default 20, floor 10).
+- **(C3) Many clusters**: `G` at least the declared `min_clusters` (default {{bound:estimate.clustered_dml_aipw.default_min_clusters}}, floor {{bound:estimate.clustered_dml_aipw.min_clusters_floor}}).
   Below it the route refuses `too_few_clusters` before any fit. The default and the floor
   are conventions, not thresholds derived from a theorem; they stop the sandwich over a
   handful of cluster sums from being reported at all.
@@ -215,7 +215,7 @@ whole-component folds:
   `cluster_dml.dyadic_giant_component`. A giant component is the common case of real
   networks, and the whole graph then has no honest cross-fit;
 - fewer than `min_components_per_fold` components in the smallest fold (components divided
-  by five, rounded down; default 4, floor 2): `too_few_clusters`,
+  by five, rounded down; default {{bound:estimate.clustered_dml_aipw.default_min_components_per_fold}}, floor {{bound:estimate.clustered_dml_aipw.min_components_per_fold_floor}}): `too_few_clusters`,
   `cluster_dml.too_few_components`;
 - fewer than `min_clusters` distinct labels at either endpoint (`too_few_clusters`,
   `cluster_dml.too_few_clusters`).
@@ -260,7 +260,7 @@ asymptotics):
 
 - (D1) rows with no shared endpoint are independent (a correctly declared pair of
   dimensions, no third dimension of dependence, no entity in both roles);
-- (D2) `G_a` and `G_b` are both at least `min_clusters` (default 20, floor 10), and the
+- (D2) `G_a` and `G_b` are both at least `min_clusters` (default {{bound:estimate.clustered_dml_aipw.default_min_clusters}}, floor {{bound:estimate.clustered_dml_aipw.min_clusters_floor}}), and the
   connected components number at least `5 * min_components_per_fold`;
 - (D3) no dominant endpoint or component (the Lindeberg-type condition of the one-way cell
   applies to each of `S_a`, `S_b`; the library refuses only a component above one fold's

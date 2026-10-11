@@ -42,11 +42,11 @@ Refused by design, each with a `joint_sensitivity.*` detail:
 
 ## Declared bounds
 
-At most 2 factors declared (the outcome kernel and the shared parent marginal), 64 parent levels, 32 outcome categories,
-a frontier grid of 1 to 33 points, at most 100000 search operations, a bisection depth of
-64 iterations per frontier line, and a declared memory cap of at most 512 MiB (default
+At most {{bound:sensitivity.joint_mechanism.max_factors}} factors declared (the outcome kernel and the shared parent marginal), {{bound:sensitivity.joint_mechanism.max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.max_outcome_categories}} outcome categories,
+a frontier grid of 1 to {{bound:sensitivity.joint_mechanism.max_frontier_points}} points, at most {{bound:sensitivity.joint_mechanism.max_operations}} search operations, a bisection depth of
+{{bound:sensitivity.joint_mechanism.max_bisection_iterations}} iterations per frontier line, and a declared memory cap of at most 512 MiB (default
 64 MiB). The internal estimator of the uncertainty record has a
-bootstrap request cap of 2000 (no public route reaches it). A request above a bound refuses as
+bootstrap request cap of {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} (no public route reaches it). A request above a bound refuses as
 `joint_sensitivity.bounds_exceeded`.
 
 The parent-level and outcome-category bounds are checked on the law's shape,

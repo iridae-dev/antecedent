@@ -8,8 +8,8 @@ design row, not a conversion of the AIPW result, and its claim is `point_only`.
 The record is `estimate.matched_case_control_odds_ratio` in
 `parity/promotion.toml`.
 
-The safeguarded solve takes at most 500 Newton iterations. Artifact replay expands at
-most 10,000,000 reconstructed rows from the stored sufficient statistics.
+The safeguarded solve takes at most {{bound:estimate.matched_case_control_odds_ratio.max_iterations}} Newton iterations. Artifact replay expands at
+most {{bound:estimate.matched_case_control_odds_ratio.replay_max_rows}} reconstructed rows from the stored sufficient statistics.
 
 ```python
 from antecedent.matched import matched_case_control_odds_ratio

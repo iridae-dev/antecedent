@@ -1,6 +1,6 @@
 # Penalized propensity for AIPW
 
-The tuning grid accepts at most 64 penalty candidates and at most 20 inner folds.
+The tuning grid accepts at most {{bound:estimate.penalized_propensity_aipw.max_grid}} penalty candidates and at most {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} inner folds.
 
 `Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
 `AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
@@ -236,7 +236,7 @@ advance and triggered only by a fit failure.
 
 | code | detail | when |
 | --- | --- | --- |
-| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty or oversized grid, non-positive or non-finite penalty, inner folds outside 2 to 20 |
+| `invalid_argument` | `penalized_propensity.invalid_penalty` | empty or oversized grid, non-positive or non-finite penalty, inner folds outside 2 to {{bound:estimate.penalized_propensity_aipw.max_inner_folds}} |
 | `invalid_argument` | `penalized_propensity.fallback_with_penalty` | a fallback declared beside a penalized primary |
 | `route_not_supported` | `penalized_propensity.scope` | a ridge penalty with a non-mean functional, a population other than `AllObserved`, or trimming |
 | `selection_inference_not_licensed` | `penalized_propensity.selection_closed` | a lasso outside the cross-fitted untrimmed `AllObserved` mean ATE |

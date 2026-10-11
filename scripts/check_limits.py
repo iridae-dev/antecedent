@@ -67,9 +67,45 @@ def constants_in(text: str) -> dict[str, str]:
     )
 
 
+_CRATE_CONST = re.compile(r"\bcrate::([A-Za-z0-9_]+)::([A-Z][A-Z0-9_]*)\b")
+
+
+def _expand_paths(expr: str, source: Path, seen: frozenset[str]) -> str:
+    """Replace `crate::module::CONST` with that sibling module's integer expression.
+
+    Binding size checks alias `python/src/bridge.rs`. The published bound is the
+    bridge constant; the local `const` is only the name the guard uses.
+    """
+
+    def repl(match: re.Match[str]) -> str:
+        token = match.group(0)
+        if token in seen:
+            raise ValueError(f"constant alias cycle at {token}")
+        sibling = source.parent / f"{match.group(1)}.rs"
+        if not sibling.is_file():
+            raise ValueError(f"{token} does not name a sibling module")
+        raw = constants_in(sibling.read_text(encoding="utf-8"))
+        name = match.group(2)
+        if name not in raw:
+            raise ValueError(f"{token} is not an integer constant")
+        expanded = {
+            key: _expand_paths(value.strip(), sibling, seen | {token})
+            for key, value in raw.items()
+        }
+        return str(integer_expression(expanded[name], expanded, frozenset({name})))
+
+    return _CRATE_CONST.sub(repl, expr)
+
+
+def _module_constants(source: Path) -> dict[str, str]:
+    raw = constants_in(source.read_text(encoding="utf-8"))
+    return {name: _expand_paths(expr.strip(), source, frozenset()) for name, expr in raw.items()}
+
+
 def read_values(root: Path, place: dict[str, str]) -> list[int]:
-    text = (root / place["path"]).read_text(encoding="utf-8")
-    constants = constants_in(text)
+    source = root / place["path"]
+    text = source.read_text(encoding="utf-8")
+    constants = _module_constants(source)
     if "constant" in place:
         name = place["constant"]
         if name not in constants:
@@ -79,7 +115,10 @@ def read_values(root: Path, place: dict[str, str]) -> list[int]:
     if pattern.groups != 1:
         raise ValueError("numeric place must have exactly one capture group")
     values = [
-        integer_expression(match.group(1).replace(",", ""), constants)
+        integer_expression(
+            _expand_paths(match.group(1).replace(",", "").strip(), source, frozenset()),
+            constants,
+        )
         for match in pattern.finditer(text)
     ]
     if not values:

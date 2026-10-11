@@ -5,10 +5,12 @@ listed input or default consumer scope; they do not authorize inference or
 calibration. Python preflight limits can be stricter than the native API. A caller
 can supply a separate execution/search budget where the API explicitly allows it;
 a default budget is not a universal hard cap. Semantic-only policies do not acquire
-a coordinate limit from an unrelated distribution artifact. The accompanying
-`parity/limits.toml` compares each numeric declaration with its source guard,
-original refusal path and an original executing fixture for that family. A fixture
-entry is not a claim that every listed cap was independently stress-tested.
+a coordinate limit from an unrelated distribution artifact. Each value in the
+generated table is the integer `bounds` entry of that record in
+`parity/promotion.toml`. `parity/limits.toml` names the implementation place, the
+source guard, the original refusal path and an original executing fixture for that
+family. A fixture entry is not a claim that every listed cap was independently
+stress-tested.
 
 Measured inference adds exact protocol restrictions to these general native
 input limits. A native maximum does not mean its entire range was measured:
@@ -20,10 +22,10 @@ functional records are required separately for every reported scalar. See the
 [population and uncertainty guide](population-time-uncertainty.md) for all
 protocol checks; underlying engine bounds do not confer measured authority.
 
-Run `python3 scripts/check_limits_agreement.py --strict` to check
-these statements; it also runs the exact-record comparison against
-`parity/limits.toml`.
+`python3 scripts/check_limits_agreement.py` regenerates the table between the
+markers below and compares it. Prose outside those markers is not read.
 
+<!-- generated:supported-bounds:begin -->
 | Record | Bound | Value | Implementation |
 | --- | --- | ---: | --- |
 | distribution.joint_alignment | max_draws | 100000 | `crates/antecedent-io/src/distribution_artifact.rs` |
@@ -176,16 +178,20 @@ these statements; it also runs the exact-record comparison against
 | composition.source_evidence | max_projection_bytes | 1048576 | `crates/antecedent-design/src/source_evidence.rs` |
 | composition.source_evidence | max_actions | 4096 | `crates/antecedent-design/src/source_evidence.rs` |
 | composition.source_projection | max_artifact_bytes | 18874368 | `crates/antecedent-design/src/source_projection_artifact.rs` |
-| composition.source_projection | max_action_id_bytes | 256 | `crates/antecedent-design/src/source_projection_artifact.rs` |
 | composition.source_lineage | max_functional_artifact_bytes | 16777216 | `crates/antecedent-design/src/functional_source.rs` |
 | sensitivity.source_lineage | max_artifact_bytes | 16777216 | `crates/antecedent/src/analysis/sensitivity_source.rs` |
-
-| design.conditional_study_ranking | max_actions | 64 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
-| design.conditional_study_ranking | max_candidates_per_action | 128 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
-| design.conditional_study_ranking | max_candidates | 512 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
-| design.conditional_study_ranking | max_name_bytes | 256 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
-| design.conditional_study_ranking | max_artifact_bytes | 4,194,304 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
-| design.conditional_study_ranking | max_policy_json_bytes | 262,144 | Bounded original conditional ranking and full source replay; excess refuses before scientific work. |
+| design.conditional_study_ranking | max_actions | 64 | `crates/antecedent/src/analysis/conditional_study_ranking.rs` |
+| design.conditional_study_ranking | max_candidates_per_action | 128 | `crates/antecedent/src/analysis/conditional_study_ranking.rs` |
+| design.conditional_study_ranking | max_candidates | 512 | `crates/antecedent/src/analysis/conditional_study_ranking.rs` |
+| design.conditional_study_ranking | max_name_bytes | 256 | `crates/antecedent/src/analysis/conditional_study_ranking.rs` |
+| design.conditional_study_ranking | max_artifact_bytes | 4194304 | `crates/antecedent/src/analysis/conditional_study_ranking.rs` |
+| design.conditional_study_ranking | max_policy_json_bytes | 262144 | `python/src/recalc_composite_api.rs` |
+| composition.source_projection | max_action_id_bytes | 256 | `crates/antecedent-design/src/source_projection_artifact.rs` |
+| sensitivity.marginal_structural_model | max_sample_rows | 1000000 | `python/antecedent/msm_sensitivity.py` |
+| sensitivity.marginal_structural_model | max_outcomes_per_arm | 256 | `python/antecedent/msm_sensitivity.py` |
+| decision.contract | max_effect_unit_bytes | 256 | `python/src/scalar_decision_api.rs` |
+| inference.measured_scalar | max_bytes | 67108864 | `crates/antecedent-io/src/measured_inference.rs` |
+<!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.
 The portable study-artifact `max_candidates` budget applies to signal-provider
@@ -194,18 +200,11 @@ native plan scoring. No portable-artifact or calibrated EVSI guarantee transfers
 to graph-channel entropy, model-gap heuristics, Gram-SE reduction or callable
 utilities.
 
-Additional public adapter bounds:
-
-| Record | Bound | Value | Implementation |
-| --- | --- | ---: | --- |
-| sensitivity.marginal_structural_model | max_sample_rows | 1000000 | `python/antecedent/msm_sensitivity.py` |
-| sensitivity.marginal_structural_model | max_outcomes_per_arm | 256 | `python/antecedent/msm_sensitivity.py` |
-| decision.contract | max_effect_unit_bytes | 256 | `python/src/scalar_decision_api.rs` |
-
-Empirical MSM requires an explicit supplemental sample, at most 4096 finite strata
-and 256 distinct outcomes per arm/stratum. Both treatment arms must appear in each
-stratum. These bounds do not validate sampling uncertainty or certify equality
-with the original analysis snapshot. Scalar effect units label the original
-outcome scale and do not perform a unit conversion.
-
-| inference.measured_scalar | max_bytes | 67,108,864 | Original measured envelope decode/source bound; caller limits may only tighten it. |
+Empirical MSM requires an explicit supplemental sample, bounded by
+`sensitivity.marginal_structural_model.max_strata` and
+`sensitivity.marginal_structural_model.max_outcomes_per_arm` in the table above.
+Both treatment arms must appear in each stratum. These bounds do not validate
+sampling uncertainty or certify equality with the original analysis snapshot.
+Scalar effect units label the original outcome scale and do not perform a unit
+conversion. `inference.measured_scalar.max_bytes` is the original measured
+envelope decode/source bound; caller limits may only tighten it.
