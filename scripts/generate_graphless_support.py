@@ -11,8 +11,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "parity/support_graphless.toml"
-RUST = ROOT / "crates/antecedent/src/support_graphless_data.rs"
-IO_RUST = ROOT / "crates/antecedent-io/src/support_graphless_data.rs"
+RUST = ROOT / "crates/antecedent-io/src/support_graphless_data.rs"
 DOC = ROOT / "docs/graphless-support-matrix.md"
 KEYS = ("family", "design", "method", "inference_claim")
 INTEGER_LIMITS = (
@@ -104,22 +103,21 @@ def load_rows() -> list[dict]:
     return sorted(rows, key=lambda row: tuple(row[field] for field in KEYS))
 
 
-def rust(rows: list[dict], *, io: bool = False) -> str:
+def rust(rows: list[dict]) -> str:
     fields = (*KEYS, "assignment_unit", "known_truth_test", "retained_route_test", "limitations")
     lines = [
         "//! Generated from `parity/support_graphless.toml`; do not edit by hand.",
         "#[allow(clippy::struct_excessive_bools)] // One flat support row; the requires_* flags are independent gates.",
-        *(["#[allow(dead_code)] // Evidence citations are used by the generator gate, not IO validation."] if io else []),
-        "pub(super) struct GraphlessLicenseRow {",
-        *(f"    pub(super) {field}: &'static str," for field in fields),
-        *(f"    pub(super) {field}: usize," for field in INTEGER_LIMITS),
-        *(f"    pub(super) {field}: f64," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)),
-        "    pub(super) max_covariates: usize,",
-        "    pub(super) min_probability: f64,",
-        "    pub(super) all_reported_intervals: bool,",
-        *(f"    pub(super) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
+        "pub(crate) struct GraphlessLicenseRow {",
+        *(f"    pub(crate) {field}: &'static str," for field in fields),
+        *(f"    pub(crate) {field}: usize," for field in INTEGER_LIMITS),
+        *(f"    pub(crate) {field}: f64," for field in (*FLOAT_LOWER_LIMITS, *FLOAT_UPPER_LIMITS)),
+        "    pub(crate) max_covariates: usize,",
+        "    pub(crate) min_probability: f64,",
+        "    pub(crate) all_reported_intervals: bool,",
+        *(f"    pub(crate) {field}: bool," for field in BOOLEAN_REQUIREMENTS),
         "}",
-        "pub(super) const LICENSES: &[GraphlessLicenseRow] = &[",
+        "pub(crate) const LICENSES: &[GraphlessLicenseRow] = &[",
     ]
     for row in rows:
         lines.append("    GraphlessLicenseRow {")
@@ -180,7 +178,7 @@ def main() -> None:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     rows = load_rows()
-    for target, expected in ((RUST, rust(rows)), (IO_RUST, rust(rows, io=True)), (DOC, docs(rows))):
+    for target, expected in ((RUST, rust(rows)), (DOC, docs(rows))):
         if args.check:
             if not target.exists() or target.read_text() != expected:
                 raise SystemExit(f"{target.relative_to(ROOT)} is stale; regenerate graphless support")

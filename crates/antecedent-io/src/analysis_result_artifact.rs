@@ -8,8 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-#[path = "support_graphless_data.rs"]
-mod graphless_data;
+use crate::graphless_support as graphless_data;
 
 use crate::{
     ArtifactKind, ArtifactManifest, AssumptionRecordWire, CausalQueryWire, CausalResponseWire,
