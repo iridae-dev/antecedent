@@ -82,6 +82,9 @@ impl CheckedTemporalClassEffectExecution {
         }
         let (identifier_id, estimator_id, bootstrap_replicates, split, refute, custom_validators) =
             operation.procedure();
+        if !query.effect_modifiers.is_empty() {
+            return self.execute_conditional(started, data, ctx, identifier_id, estimator_id, refute);
+        }
         if query.is_multi_step_sustained() {
             self.execute_sequential(
                 started,
@@ -475,6 +478,49 @@ impl CheckedTemporalClassEffectExecution {
                 structure_version: operation.structure_version(),
             }),
         ))
+    }
+
+    fn execute_conditional(
+        &self,
+        started: Instant,
+        data: &TimeSeriesData,
+        ctx: &ExecutionContext,
+        identifier_id: IdentifierId,
+        estimator_id: EstimatorId,
+        refute: RefuteSuite,
+    ) -> Result<StudyResult, CausalError> {
+        let operation = &self.operation;
+        let query = operation.query();
+        let (estimate, estimand, identification, diagnostics, structural) =
+            super::temporal_class_point::assemble_temporal_class_conditional(
+                data,
+                query,
+                &operation.bundle().envelope,
+                operation.graph_class(),
+                refute,
+                &self.result_context.inference,
+                &ctx.kernel_policy,
+            )?;
+        let mut result = self.finish(
+            started,
+            identifier_id,
+            estimator_id,
+            estimand,
+            estimate,
+            Vec::new(),
+            diagnostics,
+            Some(structural),
+            None,
+            Some(crate::Identification::TemporalEnvelope {
+                envelope: operation.bundle().envelope.clone(),
+                strategy: identifier_id,
+                structure_version: operation.structure_version(),
+            }),
+        );
+        let _ = identification;
+        result.interval = None;
+        result.posterior = None;
+        Ok(result)
     }
 
     #[allow(clippy::too_many_arguments)]

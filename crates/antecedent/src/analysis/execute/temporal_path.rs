@@ -2280,6 +2280,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if super::response_functional_is_derivative(&query.functional) {
+            return self.execute_temporal_class_derivative(data, query, physical, ctx);
+        }
         let started = Instant::now();
         query
             .require_licensed_temporal_observation()
@@ -3035,6 +3038,9 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
+        if !query.effect_modifiers.is_empty() {
+            return self.execute_temporal_class_conditional(data, query, physical, ctx);
+        }
         if matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
         {
             return self.execute_temporal_class_sequential(data, query, physical, ctx);

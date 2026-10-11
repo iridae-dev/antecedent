@@ -2631,3 +2631,483 @@ estimator = "temporal.linear.adjustment"
 coordinate = "PathSpecificEffect:TemporalDag:accepted:Bayesian:none"
 identifier = "temporal.backdoor.unfolded"
 estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Counterfactual:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalCpdag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalCpdag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalCpdag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalCpdag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalPag:explicit:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalPag:explicit:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalPag:accepted:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalPag:accepted:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"

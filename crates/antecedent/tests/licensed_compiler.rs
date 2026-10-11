@@ -985,12 +985,16 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
         other => return Err(format!("{expected}: unhandled structure {other}")),
     };
 
-    if cell.query == "PathSpecificEffect" && cell.graph_class != "TemporalDag" {
+    if cell.query == "PathSpecificEffect"
+        && !matches!(cell.graph_class, "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+    {
         builder = builder
             .identifier(IdentifierId::PathSpecificNatural)
             .estimator(EstimatorId::FunctionalEffect);
     }
-    if cell.query == "InterventionalDistribution" && cell.graph_class != "TemporalDag" {
+    if cell.query == "InterventionalDistribution"
+        && !matches!(cell.graph_class, "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+    {
         builder = builder
             .identifier(IdentifierId::GeneralId)
             .estimator(EstimatorId::FunctionalDistribution);

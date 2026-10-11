@@ -153,7 +153,12 @@ impl super::Study {
                         DataInput::Tabular(_),
                         GraphClass::Dag | GraphClass::Admg | GraphClass::TemporalAdmg
                     )
-                        | (DataInput::Temporal(_) | DataInput::Event(_), GraphClass::TemporalDag)
+                        | (
+                            DataInput::Temporal(_) | DataInput::Event(_),
+                            GraphClass::TemporalDag
+                                | GraphClass::TemporalCpdag
+                                | GraphClass::TemporalPag
+                        )
                 ) =>
             {
                 return Err(CausalError::Unsupported {
@@ -164,7 +169,12 @@ impl super::Study {
                 if !matches!(
                     (&self.data, class),
                     (DataInput::Tabular(_), GraphClass::Dag)
-                        | (DataInput::Temporal(_) | DataInput::Event(_), GraphClass::TemporalDag)
+                        | (
+                            DataInput::Temporal(_) | DataInput::Event(_),
+                            GraphClass::TemporalDag
+                                | GraphClass::TemporalCpdag
+                                | GraphClass::TemporalPag
+                        )
                 ) =>
             {
                 return Err(CausalError::Unsupported {
