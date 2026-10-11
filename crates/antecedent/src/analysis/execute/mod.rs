@@ -274,6 +274,7 @@ mod admg_posterior;
 mod admg_posterior_response;
 mod attribution_path;
 mod checked_attribution;
+mod temporal_attribution;
 pub(crate) use attribution_path::{CheckedCounterfactualPlan, CounterfactualProcedure};
 pub(crate) use checked_attribution::CheckedAttributionOperation;
 mod bayesian_basis_path;

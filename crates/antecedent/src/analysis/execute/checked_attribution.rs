@@ -27,6 +27,8 @@ pub(crate) struct CheckedAttributionOperation {
     estimator: EstimatorId,
     physical: PhysicalExecutionPlan,
     result_context: IdentifiedResultContext,
+    /// Present when the source graph was a TemporalDag. The static `graph` is its unfolding.
+    lag_aligned: Option<super::temporal_attribution::LagAlignedScm>,
 }
 
 impl std::fmt::Debug for CheckedAttributionOperation {
@@ -49,9 +51,25 @@ impl CheckedAttributionOperation {
         physical: &PhysicalExecutionPlan,
         cache: &crate::analysis::prepared::CachedStaticIdentification,
     ) -> Result<Self, CausalError> {
-        let graph = study.graph.as_dag().ok_or(CausalError::Unsupported {
-            message: "checked attribution requires a supplied DAG",
-        })?;
+        let (graph, lag_aligned) = if let Some(dag) = study.graph.as_dag() {
+            (dag.clone(), None)
+        } else if let Some(temporal) = study.graph.as_temporal_dag() {
+            let series = match &study.data {
+                DataInput::Temporal(series) | DataInput::Event(series) => series,
+                _ => {
+                    return Err(CausalError::Unsupported {
+                        message: "temporal attribution requires a time series",
+                    });
+                }
+            };
+            let aligned = super::temporal_attribution::LagAlignedScm::unfold(temporal, series)?;
+            let dag = aligned.dag.clone();
+            (dag, Some(aligned))
+        } else {
+            return Err(CausalError::Unsupported {
+                message: "checked attribution requires a supplied DAG or TemporalDag",
+            });
+        };
         let target = match &study.query {
             CausalQuery::AnomalyAttribution(query) => {
                 query.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -137,7 +155,25 @@ impl CheckedAttributionOperation {
             estimator,
             physical: physical.clone(),
             result_context: IdentifiedResultContext::from_study(study),
+            lag_aligned,
         })
+    }
+
+    /// Fit the frozen unfolding on a fresh lag-aligned table.
+    ///
+    /// # Errors
+    ///
+    /// The operation was sealed on a static DAG, or fitting and scoring fail.
+    pub(crate) fn execute_series(
+        &self,
+        series: &TimeSeriesData,
+        ctx: &ExecutionContext,
+    ) -> Result<StudyResult, CausalError> {
+        let aligned = self.lag_aligned.as_ref().ok_or_else(|| CausalError::Compile {
+            message: "temporal attribution lost its lag-aligned unfolding".into(),
+        })?;
+        let table = aligned.table(series)?;
+        self.execute(&table, ctx)
     }
 
     pub(crate) fn query(&self) -> CausalQuery {
@@ -190,7 +226,8 @@ impl CheckedAttributionOperation {
                 })?;
                 let posterior =
                     self.anomaly_posterior(query, data, &fitted, &scores, outcome, ctx)?;
-                let mut extra_diagnostics = Vec::new();
+                let (estimate, posterior, mut extra_diagnostics) =
+                    publish_lag_aligned(self.lag_aligned.is_some(), nan_effect(), posterior);
                 if posterior.is_some() {
                     let disclosure = match query.reference {
                         antecedent_core::AnomalyReference::Empirical => {
@@ -209,7 +246,7 @@ impl CheckedAttributionOperation {
                         physical: &self.physical,
                         identification: self.identification.clone(),
                         estimand: self.estimand.clone(),
-                        estimate: nan_effect(),
+                        estimate,
                         identifier_id: IdentifierId::GcmParametric,
                         estimator_id: self.estimator,
                         treatment: outcome,
@@ -226,11 +263,15 @@ impl CheckedAttributionOperation {
                         early_stopped: false,
                         extras: IdentifiedExecuteExtras {
                             posterior,
-                            n_draws: match self.procedure {
-                                AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
+                            n_draws: if self.lag_aligned.is_some() {
+                                None
+                            } else {
+                                match self.procedure {
+                                    AttributionProcedure::SharedDirichletRowWeights { draws } => {
+                                        Some(u32::try_from(draws).unwrap_or(u32::MAX))
+                                    }
+                                    AttributionProcedure::Point => None,
                                 }
-                                AttributionProcedure::Point => None,
                             },
                             gcm: Some(GcmSlot::Anomaly(scores)),
                             empty_provenance: true,
@@ -256,13 +297,16 @@ impl CheckedAttributionOperation {
                     OverlapPolicy::ExplicitOverride,
                 );
                 let posterior = self.change_posterior(query, data, &fitted.model, ctx)?;
-                if let Some(posterior) = &posterior {
-                    if let Some(index) = posterior.effect_column() {
-                        estimate.ate = posterior.summaries.mean[index];
-                        estimate.se_analytic = posterior.summaries.sd[index];
+                if self.lag_aligned.is_none() {
+                    if let Some(posterior) = &posterior {
+                        if let Some(index) = posterior.effect_column() {
+                            estimate.ate = posterior.summaries.mean[index];
+                            estimate.se_analytic = posterior.summaries.sd[index];
+                        }
                     }
                 }
-                let mut extra_diagnostics = Vec::new();
+                let (estimate, posterior, mut extra_diagnostics) =
+                    publish_lag_aligned(self.lag_aligned.is_some(), estimate, posterior);
                 if posterior.is_some() {
                     extra_diagnostics.push(bayesian_attribution_diagnostic("Each population has one Dirichlet(1,…,1) row-weight vector per draw shared across mechanisms; total and Shapley components use the same weighted attribution."));
                 }
@@ -290,11 +334,15 @@ impl CheckedAttributionOperation {
                         early_stopped: false,
                         extras: IdentifiedExecuteExtras {
                             posterior,
-                            n_draws: match self.procedure {
-                                AttributionProcedure::SharedDirichletRowWeights { draws } => {
-                                    Some(u32::try_from(draws).unwrap_or(u32::MAX))
+                            n_draws: if self.lag_aligned.is_some() {
+                                None
+                            } else {
+                                match self.procedure {
+                                    AttributionProcedure::SharedDirichletRowWeights { draws } => {
+                                        Some(u32::try_from(draws).unwrap_or(u32::MAX))
+                                    }
+                                    AttributionProcedure::Point => None,
                                 }
-                                AttributionProcedure::Point => None,
                             },
                             gcm: Some(GcmSlot::Change(change)),
                             empty_provenance: true,
@@ -453,6 +501,40 @@ impl CheckedAttributionOperation {
             true,
         )?))
     }
+}
+
+/// A TemporalDag publishes the point, and for Bayesian the posterior mean, with no interval.
+fn publish_lag_aligned(
+    lag_aligned: bool,
+    mut estimate: EffectEstimate,
+    posterior: Option<CausalPosterior>,
+) -> (EffectEstimate, Option<CausalPosterior>, Vec<Diagnostic>) {
+    if !lag_aligned {
+        return (estimate, posterior, Vec::new());
+    }
+    let mut diagnostics = vec![Diagnostic::new(
+        "gcm.attribution.lag_aligned",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "attribution ran on the lag-aligned static unfolding of the TemporalDag",
+    )];
+    let Some(posterior) = posterior else {
+        return (estimate, None, diagnostics);
+    };
+    let mean = posterior.summaries.mean.first().copied().unwrap_or(f64::NAN);
+    if mean.is_finite() {
+        estimate.ate = mean;
+    }
+    estimate.se_analytic = f64::NAN;
+    estimate.se_bootstrap = None;
+    estimate.bootstrap_replicates_ok = None;
+    diagnostics.push(Diagnostic::new(
+        "gcm.attribution.posterior_mean_only",
+        DiagnosticKind::Execution,
+        DiagnosticSeverity::Info,
+        "published value is the posterior mean of the lag-aligned attribution; posterior draws and the interval are withheld",
+    ));
+    (estimate, None, diagnostics)
 }
 
 fn bayesian_attribution_diagnostic(detail: &str) -> Diagnostic {

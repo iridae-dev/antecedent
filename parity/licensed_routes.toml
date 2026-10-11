@@ -2258,6 +2258,26 @@ identifier = "gcm.parametric"
 estimator = "gcm.attribution.bayesian"
 
 [[route]]
+coordinate = "AnomalyAttribution:TemporalDag:explicit:Frequentist:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+
+[[route]]
+coordinate = "ChangeAttribution:TemporalDag:explicit:Frequentist:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit"
+
+[[route]]
+coordinate = "AnomalyAttribution:TemporalDag:explicit:Bayesian:none"
+identifier = "gcm.parametric"
+estimator = "gcm.fit.bayesian"
+
+[[route]]
+coordinate = "ChangeAttribution:TemporalDag:explicit:Bayesian:none"
+identifier = "gcm.parametric"
+estimator = "gcm.attribution.bayesian"
+
+[[route]]
 coordinate = "TransportQuery:Admg:explicit:Frequentist:none"
 identifier = "transport.sid"
 estimator = "transport.trial_ipw"
