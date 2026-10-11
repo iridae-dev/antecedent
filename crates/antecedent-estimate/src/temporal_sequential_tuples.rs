@@ -34,8 +34,8 @@ use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::EstimationError;
 use crate::temporal_sequential::SequentialMechanismOverlay;
+use crate::EstimationError;
 
 /// Replacement values for one `(variable, lag)` column of a [`PreparedSequenceLevel`]
 /// replicate, aligned with the replicate's anchors.
@@ -439,10 +439,10 @@ mod tests {
         AssumptionSet, ExecutionContext, IdentificationStatus, Lag, TargetPopulation, VariableId,
     };
     use antecedent_data::{TemporalIndexer, TimeSeriesData};
-    use antecedent_graph::{TemporalDag, ensure_lagged};
+    use antecedent_graph::{ensure_lagged, TemporalDag};
 
     use super::*;
-    use crate::temporal_sequential::{SequentialNodeOverlay, estimate_sequence_mechanisms};
+    use crate::temporal_sequential::{estimate_sequence_mechanisms, SequentialNodeOverlay};
 
     /// `Z_s ~ N`, `T_s = 0.5 Z_s + u`, `Y_s = 1 + 2 T_{s-1} + 0.8 T_{s-2} + 0.5 Z_{s-1} + e`.
     fn fixture() -> (TimeSeriesData, TemporalDag) {

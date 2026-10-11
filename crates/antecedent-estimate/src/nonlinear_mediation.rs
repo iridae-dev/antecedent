@@ -30,9 +30,9 @@
     clippy::needless_range_loop,
     reason = "dense numeric kernels index several parallel columns by row"
 )]
-use crate::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 use crate::vector_treatment::DesignSummary;
+use crate::EstimationError;
 use std::f64::consts::{PI, SQRT_2};
 
 /// Calibration status of the estimator's inference. Coverage is unmeasured.
@@ -536,7 +536,10 @@ fn design_summary(cols: &[Vec<f64>], y: &[f64], rss: f64) -> DesignSummary {
         n_rows: n,
         first_treatment: 1,
         gram,
-        xty: cols.iter().map(|col| col.iter().zip(y).map(|(left, right)| left * right).sum()).collect(),
+        xty: cols
+            .iter()
+            .map(|col| col.iter().zip(y).map(|(left, right)| left * right).sum())
+            .collect(),
         rss,
     }
 }

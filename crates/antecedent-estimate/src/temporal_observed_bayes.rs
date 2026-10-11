@@ -27,8 +27,8 @@
 )]
 
 use crate::{
-    BayesianGComputationAte, CausalPosterior, EstimationError, SequentialMechanismOverlay,
-    SequentialNodeOverlay, TemporalInterventionPlan, plan_from_response_query,
+    plan_from_response_query, BayesianGComputationAte, CausalPosterior, EstimationError,
+    SequentialMechanismOverlay, SequentialNodeOverlay, TemporalInterventionPlan,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
@@ -43,10 +43,9 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_kernels::{quantile_type7_sorted, standard_normal};
 use antecedent_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, GaussianCoefficientPrior,
-    HessianFactorization, InferenceDiagnostics, LaplaceWorkspace, PosteriorDraws,
-    PosteriorQuantityKind, PosteriorSchema, PriorSet, PriorSpec, fit_conjugate_gaussian,
-    mcmc_summary,
+    fit_conjugate_gaussian, mcmc_summary, BayesDesignRef, BayesFitOptions, BayesLikelihood,
+    GaussianCoefficientPrior, HessianFactorization, InferenceDiagnostics, LaplaceWorkspace,
+    PosteriorDraws, PosteriorQuantityKind, PosteriorSchema, PriorSet, PriorSpec,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -1024,23 +1023,21 @@ mod evaluation_boundary_tests {
             &indexer,
             variable,
             1,
-            vec![
-                SequentialNodeOverlay { variable, offset: -1, level: Some(10.0), shift: 0.0 }
-                    .into(),
-            ],
+            vec![SequentialNodeOverlay { variable, offset: -1, level: Some(10.0), shift: 0.0 }
+                .into()],
         )
         .unwrap();
         assert!((intervention.value(&models, &means) - 7.0).abs() < 1e-12);
-        let hard_outcome = Evaluation::new(
-            &graph,
-            &indexer,
-            variable,
-            1,
-            vec![
-                SequentialNodeOverlay { variable, offset: 0, level: Some(9.0), shift: 0.0 }.into(),
-            ],
-        )
-        .unwrap();
+        let hard_outcome =
+            Evaluation::new(
+                &graph,
+                &indexer,
+                variable,
+                1,
+                vec![SequentialNodeOverlay { variable, offset: 0, level: Some(9.0), shift: 0.0 }
+                    .into()],
+            )
+            .unwrap();
         // A hard level needs neither its own natural mean nor any ancestors.
         assert_eq!(hard_outcome.order.len(), 1);
         assert!((hard_outcome.value(&[], &BTreeMap::new()) - 9.0).abs() < 1e-12);

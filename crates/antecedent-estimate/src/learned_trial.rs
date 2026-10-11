@@ -8,10 +8,10 @@
 )]
 use crate::EstimationError;
 use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
-use antecedent_data::{ResamplingPlan, fill_resample_indexes};
+use antecedent_data::{fill_resample_indexes, ResamplingPlan};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
-    DesignView, LearnerSpec, PredictionTask, TargetView, cross_fit_selected, resolve_for,
+    cross_fit_selected, resolve_for, DesignView, LearnerSpec, PredictionTask, TargetView,
 };
 use serde::{Deserialize, Serialize};
 

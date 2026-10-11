@@ -15,8 +15,8 @@
     )
 )]
 use crate::{
-    EffectEstimate, EstimationError, HydrateMapping, OverlapPolicy, TemporalMediationEstimate,
-    hydrate_prior,
+    hydrate_prior, EffectEstimate, EstimationError, HydrateMapping, OverlapPolicy,
+    TemporalMediationEstimate,
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,

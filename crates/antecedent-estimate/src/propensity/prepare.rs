@@ -10,8 +10,8 @@ use antecedent_core::{AverageEffectQuery, PopulationRegistry, TargetPopulation, 
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
-    FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit, PropensityWorkspace,
-    fit_propensity,
+    fit_propensity, FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit,
+    PropensityWorkspace,
 };
 
 use crate::adjustment::intervention_f64;

@@ -321,7 +321,11 @@ fn arm_ess(weights: &[f64], treatment: &[f64], treated: bool) -> f64 {
         sum += w;
         sum_sq += w * w;
     }
-    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+    if sum_sq > 0.0 {
+        (sum * sum) / sum_sq
+    } else {
+        0.0
+    }
 }
 
 /// Rebuild estimand-specific observed-arm weights at a clip threshold.

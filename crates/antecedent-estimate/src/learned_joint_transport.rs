@@ -54,17 +54,17 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::joint_bayesian_transport::{
-    FailedFitDiagnostics, GaussianPrior, IdentificationRecord, JOINT_TRANSPORT_MAX_DRAWS,
-    JOINT_TRANSPORT_MAX_PARAMETERS, JointDraws, JointPriors, JointTransportCalibration,
-    JointTransportOptions, JointTransportRefusal, OverlapDiagnostic, PairDisagreement, SourceData,
-    SourceDependence, SourceDisagreement, SourceEffectSummary, SourceSharing, TargetData,
-    TransportGraphClass, VaryingBlock, check_prior_data_overlap,
+    check_prior_data_overlap, FailedFitDiagnostics, GaussianPrior, IdentificationRecord,
+    JointDraws, JointPriors, JointTransportCalibration, JointTransportOptions,
+    JointTransportRefusal, OverlapDiagnostic, PairDisagreement, SourceData, SourceDependence,
+    SourceDisagreement, SourceEffectSummary, SourceSharing, TargetData, TransportGraphClass,
+    VaryingBlock, JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS,
 };
 use antecedent_core::ExecutionContext;
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
-    BasisDesign, BasisRegressionPosterior, KnownVarianceBasisRegression, KnownVarianceBasisSpec,
-    LearnError, PolynomialBasis, information_rank,
+    information_rank, BasisDesign, BasisRegressionPosterior, KnownVarianceBasisRegression,
+    KnownVarianceBasisSpec, LearnError, PolynomialBasis,
 };
 use antecedent_prob::ProbError;
 use std::collections::BTreeSet;
@@ -383,7 +383,11 @@ impl Layout {
     }
 
     const fn index(&self, k: usize, block: usize) -> usize {
-        if k < self.q { k } else { self.q + block * self.r + (k - self.q) }
+        if k < self.q {
+            k
+        } else {
+            self.q + block * self.r + (k - self.q)
+        }
     }
 
     /// Row features `[w, v]` of one unit from its basis row `phi`.

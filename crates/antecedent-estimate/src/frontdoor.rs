@@ -60,14 +60,14 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
-    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
+    form_xtx, invert_square, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
 };
 
-use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::adjustment::{intervention_f64, EffectEstimate};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
-use crate::se::{AnalyticSeKind, require_clusters};
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::se::{require_clusters, AnalyticSeKind};
+use crate::util::{stats_err, BootstrapSeResult};
 
 /// Stable id of the functional-form restriction the product-of-coefficients shortcut relies on.
 pub const LINEAR_PATH_PRODUCT_ASSUMPTION_ID: &str = "frontdoor.linear_path_product";
@@ -288,7 +288,8 @@ pub(crate) fn prepare_frontdoor_checked(
         || roles.contains(&query.outcome)
     {
         return Err(EstimationError::IncompatibleEstimand {
-            message: "checked front-door requires unique mediator roles distinct from treatment/outcome",
+            message:
+                "checked front-door requires unique mediator roles distinct from treatment/outcome",
         });
     }
     let active = intervention_f64(&query.active)?;

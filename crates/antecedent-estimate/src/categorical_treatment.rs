@@ -51,12 +51,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use antecedent_core::reason_code;
 use antecedent_kernels::erfc;
 
-use crate::effect_constancy::{CalibrationStatus, holm_adjust};
+use crate::effect_constancy::{holm_adjust, CalibrationStatus};
 use crate::error::EstimationError;
 use crate::vector_treatment::{
-    CoefficientEstimate, Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn,
-    TreatmentColumn, VectorCovariance, VectorTreatmentFit, VectorTreatmentInput,
-    VectorTreatmentOptions, count, fit_joint, fit_joint_from_summary, refuse, summarize_joint,
+    count, fit_joint, fit_joint_from_summary, refuse, summarize_joint, CoefficientEstimate,
+    Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn, TreatmentColumn,
+    VectorCovariance, VectorTreatmentFit, VectorTreatmentInput, VectorTreatmentOptions,
 };
 
 /// Null of the non-decreasing monotonicity test.

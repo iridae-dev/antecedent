@@ -585,7 +585,8 @@ impl SequentialSetup {
         modifiers: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
-        let modifiers = if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
+        let modifiers =
+            if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
         let unfolded =
             graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
         let dag = &unfolded.dag;
@@ -660,8 +661,7 @@ impl SequentialSetup {
         let mut modifier_at: Vec<(VariableId, u32, usize)> = Vec::new();
         if !modifiers.is_empty() {
             for &i in &order {
-                let hard =
-                    overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
+                let hard = overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
                 let parent_ids: Vec<usize> = dag
                     .parents(DenseNodeId::from_raw(i as u32))
                     .iter()
@@ -677,9 +677,10 @@ impl SequentialSetup {
                     .map_err(|_| EstimationError::unsupported("invalid unfolded time offset"))?;
                 max_lag = max_lag.max(lag);
                 for &modifier in modifiers {
-                    if modifier_at.iter().any(|(variable, stored, _)| {
-                        *variable == modifier && *stored == lag
-                    }) {
+                    if modifier_at
+                        .iter()
+                        .any(|(variable, stored, _)| *variable == modifier && *stored == lag)
+                    {
                         continue;
                     }
                     modifier_at.push((modifier, lag, columns.len()));
@@ -723,12 +724,8 @@ impl SequentialSetup {
                 .skip(1)
                 .map(|&p| (VariableId::from_raw(p as u32), sample.column(column_of[p])))
                 .collect();
-            let design = CompiledDesign::linear_adjustment(
-                t,
-                &covs,
-                sample.column(column_of[i]),
-                &[],
-            )?;
+            let design =
+                CompiledDesign::linear_adjustment(t, &covs, sample.column(column_of[i]), &[])?;
             let parent_values: Vec<&[f64]> =
                 parents[i].iter().map(|&p| sample.column(column_of[p])).collect();
             let intervened: Vec<bool> = parents[i].iter().map(|&p| intervention[p]).collect();
@@ -757,10 +754,8 @@ impl SequentialSetup {
                 .iter()
                 .map(|&p| indexer.key_of(p as u32).expect("unfolded parent").variable)
                 .collect();
-            let modifier_is_parent: Vec<bool> = modifiers
-                .iter()
-                .map(|modifier| parent_variables.contains(modifier))
-                .collect();
+            let modifier_is_parent: Vec<bool> =
+                modifiers.iter().map(|modifier| parent_variables.contains(modifier)).collect();
             let (design, slots) = extend_mechanism_design(
                 design,
                 &parent_values,
@@ -824,12 +819,7 @@ impl SequentialSetup {
         slope
     }
 
-    fn propagate(
-        &self,
-        coefficients: &[Vec<f64>],
-        factual: &[f64],
-        rows: Option<&[usize]>,
-    ) -> f64 {
+    fn propagate(&self, coefficients: &[Vec<f64>], factual: &[f64], rows: Option<&[usize]>) -> f64 {
         match self.eval {
             SequentialEval::Contrast { delta } => {
                 let mut differences = vec![0.0; self.node_count];
@@ -1091,9 +1081,7 @@ fn extend_mechanism_design(
     let n_main = extras.len();
     let mut products = 0usize;
     for (modifier, values) in modifier_values.iter().enumerate() {
-        for (parent, (column, &is_intervened)) in
-            parent_values.iter().zip(intervened).enumerate()
-        {
+        for (parent, (column, &is_intervened)) in parent_values.iter().zip(intervened).enumerate() {
             if !is_intervened {
                 continue;
             }
@@ -1115,9 +1103,8 @@ fn append_design_columns(
         return design;
     }
     let mut matrix = design.matrix.to_vec();
-    let mut column_roles: Vec<DesignColumnRole> = (0..design.ncols)
-        .map(|index| design.columns.role(index).expect("design column"))
-        .collect();
+    let mut column_roles: Vec<DesignColumnRole> =
+        (0..design.ncols).map(|index| design.columns.role(index).expect("design column")).collect();
     for (extra, &role) in extras.iter().zip(roles) {
         matrix.extend_from_slice(extra);
         column_roles.push(DesignColumnRole::Covariate(role));
@@ -1150,7 +1137,15 @@ fn estimate_sequential(
     mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
     let setup = SequentialSetup::build(
-        data, graph, indexer, outcome, outcome_offset, overlays, eval, modifiers, ctx,
+        data,
+        graph,
+        indexer,
+        outcome,
+        outcome_offset,
+        overlays,
+        eval,
+        modifiers,
+        ctx,
     )?;
     let order = &setup.order;
     let parents = &setup.parents;
@@ -1231,10 +1226,8 @@ fn estimate_sequential(
                 let use_modifiers = setup.interaction_at[i].iter().any(|slots| !slots.is_empty());
                 if use_modifiers {
                     for &modifier in &setup.modifiers {
-                        columns.push(LaggedColumn {
-                            variable: modifier,
-                            lag: Lag::CONTEMPORANEOUS,
-                        });
+                        columns
+                            .push(LaggedColumn { variable: modifier, lag: Lag::CONTEMPORANEOUS });
                     }
                 }
                 let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
@@ -1618,10 +1611,8 @@ mod tests {
         };
         assert!(has(crate::serial_dependence::DEPENDENCE_ASSUMPTION_ID), "tempering recorded");
         assert!(has("temporal.sequential.level_posterior"), "root-mean shift recorded");
-        assert!(
-            crate::serial_dependence::tempering_kappa_from_notes(&posterior.diagnostics.notes)
-                .is_some_and(|kappa| kappa >= 1.0)
-        );
+        assert!(crate::serial_dependence::tempering_kappa_from_notes(&posterior.diagnostics.notes)
+            .is_some_and(|kappa| kappa >= 1.0));
     }
 
     /// A level reads the sample mean of its exogenous root `Z_{s-1}` through the outcome

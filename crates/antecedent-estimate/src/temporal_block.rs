@@ -40,7 +40,7 @@ use antecedent_core::ExecutionContext;
 use antecedent_core::StreamDomain;
 use antecedent_data::{circular_block_length, fill_circular_block_indexes};
 
-use crate::util::{BootstrapSeResult, finalize_bootstrap_se_ex};
+use crate::util::{finalize_bootstrap_se_ex, BootstrapSeResult};
 
 /// The circular-block SE families that carry their own short-series threshold.
 ///
@@ -70,7 +70,11 @@ impl CircularBlockFamily {
     /// plain temporal mediation, several are a mixture resampled on one shared replicate.
     #[must_use]
     pub const fn for_mediation_atoms(atoms: usize) -> Self {
-        if atoms == 1 { Self::Mediation } else { Self::Mixture }
+        if atoms == 1 {
+            Self::Mediation
+        } else {
+            Self::Mixture
+        }
     }
 
     /// Threshold on [`score_effective_rows`] of the family's estimating scores

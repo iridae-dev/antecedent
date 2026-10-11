@@ -24,13 +24,13 @@ use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::adjustment::{intervention_f64, EffectEstimate};
 use crate::error::EstimationError;
 use crate::util::{coefficient_variance, ols_sigma2};
 
 mod shared;
 pub use shared::{
-    PreparedTemporalMediation, SharedMediationBlockSe, shared_mediation_block_bootstrap,
+    shared_mediation_block_bootstrap, PreparedTemporalMediation, SharedMediationBlockSe,
 };
 
 /// Temporal mediation effect estimate with optional decomposition.

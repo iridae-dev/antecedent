@@ -21,33 +21,33 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, ContinuousDomain, CredibleDraws, Diagnostic, DiagnosticKind,
     DiagnosticScope, DiagnosticSeverity, ExecutionContext, GridSpec, HorizonIdentification,
-    IdentificationStatus, Intervention, InterventionSequence, MAX_TEMPORAL_RESPONSE_CELLS,
-    MechanismOverride, ObservationSpec, ParametricAssumption, ResponseFunctional,
-    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, SupportDiagnostic,
-    SupportRegion, SupportReport, SupportStatus, TargetPopulation, TemporalEffectQuery,
-    TemporalNodeKey, TemporalResponseSpec, Value, VariableId,
+    IdentificationStatus, Intervention, InterventionSequence, MechanismOverride, ObservationSpec,
+    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
+    ResponseUncertainty, ResponseValue, SupportDiagnostic, SupportRegion, SupportReport,
+    SupportStatus, TargetPopulation, TemporalEffectQuery, TemporalNodeKey, TemporalResponseSpec,
+    Value, VariableId, MAX_TEMPORAL_RESPONSE_CELLS,
 };
-use antecedent_data::{TableView, TemporalIndexer, TimeSeriesData, fill_circular_block_indexes};
+use antecedent_data::{fill_circular_block_indexes, TableView, TemporalIndexer, TimeSeriesData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
-    CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, normal_ppf,
+    normal_ppf, CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
 };
 
 use crate::adjustment::{LinearAdjustmentAte, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::serial_dependence::{
-    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, tempering_capped_from_notes,
-    tempering_inestimable_from_notes, tempering_kappa_from_notes,
+    tempering_capped_from_notes, tempering_inestimable_from_notes, tempering_kappa_from_notes,
+    DependenceScope, SerialDependence, DEPENDENCE_ASSUMPTION_ID,
 };
 use crate::temporal_adjustment::TemporalLinearAdjustment;
 use crate::temporal_block::{
-    AlignedRows, aligned_block_bootstrap, common_time_window, normal_equation_scores_of_residuals,
-    testing_block_length,
+    aligned_block_bootstrap, common_time_window, normal_equation_scores_of_residuals,
+    testing_block_length, AlignedRows,
 };
 use crate::temporal_response_dispersion::{CellDispersion, RESPONSE_SHORT_SERIES_ROWS};
 use crate::temporal_sequential::{SequentialMechanismOverlay, SequentialNodeOverlay};
-use crate::util::{BOOTSTRAP_MAX_FAILURE_FRAC, monte_carlo_critical, range, sample_std};
+use crate::util::{monte_carlo_critical, range, sample_std, BOOTSTRAP_MAX_FAILURE_FRAC};
 
 /// Licensed temporal `InterventionResponse` overlay.
 #[derive(Clone, Debug, PartialEq)]
@@ -636,7 +636,11 @@ pub fn block_dispersion_inflation(rows: usize, block: usize, parameters: usize) 
     let hc1 =
         if rows > parameters + 1 { (rows as f64 / (rows - parameters) as f64).sqrt() } else { 1.0 };
     let ratio = crate::temporal_block::circular_fixed_b_scale(block, rows) * hc1;
-    if ratio.is_finite() && ratio >= 1.0 { ratio } else { 1.0 }
+    if ratio.is_finite() && ratio >= 1.0 {
+        ratio
+    } else {
+        1.0
+    }
 }
 
 /// Scale each replicate's deviation from `center` by `factor`, in place.
@@ -2994,11 +2998,9 @@ mod tests {
             overlays.iter().map(|overlay| overlay.offset).collect::<Vec<_>>(),
             vec![-3, -2, -1]
         );
-        assert!(
-            overlays.iter().all(
-                |overlay| overlay.level.is_none() && (overlay.shift - 0.5).abs() < f64::EPSILON
-            )
-        );
+        assert!(overlays
+            .iter()
+            .all(|overlay| overlay.level.is_none() && (overlay.shift - 0.5).abs() < f64::EPSILON));
     }
 
     #[test]
@@ -3036,7 +3038,7 @@ mod tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
         ValidityBitmap,
     };
-    use antecedent_graph::{TemporalDag, ensure_lagged};
+    use antecedent_graph::{ensure_lagged, TemporalDag};
     use antecedent_identify::TemporalBackdoorIdentifier;
 
     /// Deterministic AR(2)-ish series: `t` is a mildly autocorrelated continuous
@@ -3395,12 +3397,10 @@ mod tests {
                 .as_slice()
             )
         );
-        assert!(
-            report
-                .warnings
-                .iter()
-                .any(|w| w.code.as_ref() == "response.temporal.partial_horizon_support")
-        );
+        assert!(report
+            .warnings
+            .iter()
+            .any(|w| w.code.as_ref() == "response.temporal.partial_horizon_support"));
         let ranges_diag = report
             .diagnostics
             .iter()
@@ -3416,27 +3416,26 @@ mod tests {
         let ranges = [(-1.0, 1.0), (-0.5, 0.5)];
         let outside = mean_curve_support(&[10.0], &temporal, &ranges);
         assert_eq!(outside.status, SupportStatus::OutsideEmpiricalSupport);
-        assert!(
-            outside
-                .point_status
-                .as_ref()
-                .unwrap()
-                .iter()
-                .all(|s| { *s == SupportStatus::OutsideEmpiricalSupport })
-        );
-        assert!(
-            outside
-                .warnings
-                .iter()
-                .any(|w| w.code.as_ref() == "response.outside_empirical_support")
-        );
+        assert!(outside
+            .point_status
+            .as_ref()
+            .unwrap()
+            .iter()
+            .all(|s| { *s == SupportStatus::OutsideEmpiricalSupport }));
+        assert!(outside
+            .warnings
+            .iter()
+            .any(|w| w.code.as_ref() == "response.outside_empirical_support"));
 
         let inside = mean_curve_support(&[0.0], &temporal, &ranges);
         assert_eq!(inside.status, SupportStatus::Supported);
         assert!(inside.warnings.is_empty());
-        assert!(
-            inside.point_status.as_ref().unwrap().iter().all(|s| *s == SupportStatus::Supported)
-        );
+        assert!(inside
+            .point_status
+            .as_ref()
+            .unwrap()
+            .iter()
+            .all(|s| *s == SupportStatus::Supported));
     }
 
     #[test]
@@ -3748,13 +3747,11 @@ mod tests {
             )
             .unwrap();
         assert!(diagnostic(&analytic, SIMULTANEOUS_BAND_LOWER).is_none());
-        assert!(
-            analytic
-                .support
-                .warnings
-                .iter()
-                .any(|warning| warning.code.as_ref() == SIMULTANEOUS_BAND_WITHHELD)
-        );
+        assert!(analytic
+            .support
+            .warnings
+            .iter()
+            .any(|warning| warning.code.as_ref() == SIMULTANEOUS_BAND_WITHHELD));
     }
 
     /// Every horizon of one replicate resamples the same calendar times, in circular

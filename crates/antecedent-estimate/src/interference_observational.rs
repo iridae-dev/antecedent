@@ -283,7 +283,7 @@ mod tests {
     };
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
-    use super::{ObservationalExposureSpec, estimate_observational_exposure};
+    use super::{estimate_observational_exposure, ObservationalExposureSpec};
 
     struct XorShift(u64);
 

@@ -881,34 +881,30 @@ mod tests {
     #[test]
     fn refuses_missing_support_and_positivity() {
         let mut p = [0.5; 4];
-        assert!(
-            evaluate_regime_value(
-                &[1.0, 2.0],
-                &[false; 4],
-                &[true; 4],
-                &p,
-                &[true; 2],
-                &[1.0; 4],
-                2,
-                0.01
-            )
-            .unwrap_err()
-            .contains("no observed")
-        );
+        assert!(evaluate_regime_value(
+            &[1.0, 2.0],
+            &[false; 4],
+            &[true; 4],
+            &p,
+            &[true; 2],
+            &[1.0; 4],
+            2,
+            0.01
+        )
+        .unwrap_err()
+        .contains("no observed"));
         p[0] = 0.0;
-        assert!(
-            evaluate_regime_value(
-                &[1.0, 2.0],
-                &[false; 4],
-                &[true; 4],
-                &p,
-                &[true; 2],
-                &[1.0; 4],
-                2,
-                0.01
-            )
-            .unwrap_err()
-            .contains("positivity")
-        );
+        assert!(evaluate_regime_value(
+            &[1.0, 2.0],
+            &[false; 4],
+            &[true; 4],
+            &p,
+            &[true; 2],
+            &[1.0; 4],
+            2,
+            0.01
+        )
+        .unwrap_err()
+        .contains("positivity"));
     }
 }

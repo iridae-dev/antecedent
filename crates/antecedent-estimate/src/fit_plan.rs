@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 
 use crate::error::EstimationError;
-use crate::joint_cell_factorized::{FactorizedJointConfig, prefix_mask, validate_orderings};
+use crate::joint_cell_factorized::{prefix_mask, validate_orderings, FactorizedJointConfig};
 use crate::propensity::{NuisanceFallback, PropensityNuisance, PropensityPenalty, RidgeTuning};
 
 fn count(n: usize) -> u64 {

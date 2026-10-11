@@ -754,20 +754,18 @@ mod tests {
         assert_eq!(first.replicates_ok, 399);
         assert!(first.rmst_difference.unwrap()[0] <= 0.2);
         assert!(first.rmst_difference.unwrap()[1] >= 0.2);
-        assert!(
-            randomized_survival_bootstrap_intervals(
-                &durations[..8],
-                &events[..8],
-                &treated[..8],
-                None,
-                None,
-                3.0,
-                SurvivalEndpoint::Survival,
-                399,
-                17,
-            )
-            .is_err()
-        );
+        assert!(randomized_survival_bootstrap_intervals(
+            &durations[..8],
+            &events[..8],
+            &treated[..8],
+            None,
+            None,
+            3.0,
+            SurvivalEndpoint::Survival,
+            399,
+            17,
+        )
+        .is_err());
         let short_censoring = vec![1.0; 79];
         assert_eq!(
             randomized_survival_bootstrap_intervals(
@@ -783,37 +781,33 @@ mod tests {
             ),
             Err("survival bootstrap subject arrays must be row-aligned")
         );
-        assert!(
-            randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                None,
-                None,
-                3.0,
-                SurvivalEndpoint::Survival,
-                198,
-                17,
-            )
-            .is_err()
-        );
+        assert!(randomized_survival_bootstrap_intervals(
+            &durations,
+            &events,
+            &treated,
+            None,
+            None,
+            3.0,
+            SurvivalEndpoint::Survival,
+            198,
+            17,
+        )
+        .is_err());
         // Delayed entry is now a supported, separately calibrated bootstrap route
         // (see delayed_entry_subject_bootstrap_covers_left_truncated_survival_truth),
         // so supplying entry times is accepted rather than refused.
-        assert!(
-            randomized_survival_bootstrap_intervals(
-                &durations,
-                &events,
-                &treated,
-                Some(&vec![0.0; 80]),
-                None,
-                3.0,
-                SurvivalEndpoint::Survival,
-                399,
-                17,
-            )
-            .is_ok()
-        );
+        assert!(randomized_survival_bootstrap_intervals(
+            &durations,
+            &events,
+            &treated,
+            Some(&vec![0.0; 80]),
+            None,
+            3.0,
+            SurvivalEndpoint::Survival,
+            399,
+            17,
+        )
+        .is_ok());
     }
 
     #[test]
@@ -1511,19 +1505,17 @@ mod tests {
         }
         eprintln!("simultaneous survival-grid band coverage: {covered}/400");
         assert!(covered >= 360, "simultaneous survival-grid coverage: {covered}/400");
-        assert!(
-            randomized_survival_bootstrap_difference_band(
-                &[1.0, 3.0, 1.0, 3.0],
-                &[1, 0, 1, 0],
-                &[false, false, true, true],
-                3.0,
-                SurvivalEndpoint::Survival,
-                399,
-                7,
-            )
-            .unwrap_err()
-            .contains("80 subjects")
-        );
+        assert!(randomized_survival_bootstrap_difference_band(
+            &[1.0, 3.0, 1.0, 3.0],
+            &[1, 0, 1, 0],
+            &[false, false, true, true],
+            3.0,
+            SurvivalEndpoint::Survival,
+            399,
+            7,
+        )
+        .unwrap_err()
+        .contains("80 subjects"));
         let duration = (0..160).map(|i| if i % 5 == 0 { 1.0 } else { 3.0 }).collect::<Vec<_>>();
         let event = duration.iter().map(|time| i64::from(*time == 1.0)).collect::<Vec<_>>();
         let treated = (0..160).map(|i| i >= 80).collect::<Vec<_>>();
@@ -1738,19 +1730,17 @@ mod tests {
     fn known_censoring_ipcw_refuses_positivity_failure() {
         let mut g = [1.0; 12];
         g[4] = 0.05;
-        assert!(
-            randomized_survival_ipcw_summary(
-                &[1.0, 2.0, 2.0, 2.0],
-                &[1, 0, 0, 0],
-                &[false, false, true, true],
-                &[0.0, 1.0, 2.0],
-                &g,
-                2.0,
-                0.1,
-                SurvivalEndpoint::Survival,
-            )
-            .is_err()
-        );
+        assert!(randomized_survival_ipcw_summary(
+            &[1.0, 2.0, 2.0, 2.0],
+            &[1, 0, 0, 0],
+            &[false, false, true, true],
+            &[0.0, 1.0, 2.0],
+            &g,
+            2.0,
+            0.1,
+            SurvivalEndpoint::Survival,
+        )
+        .is_err());
     }
 
     #[test]
@@ -1820,27 +1810,23 @@ mod tests {
 
     #[test]
     fn refuses_unsupported_risk_sets_and_codes() {
-        assert!(
-            randomized_survival_summary(
-                &[1.0, 2.0],
-                &[1, 2],
-                &[false, true],
-                None,
-                2.0,
-                SurvivalEndpoint::Survival,
-            )
-            .is_err()
-        );
-        assert!(
-            randomized_survival_summary(
-                &[1.0, 2.0],
-                &[1, 0],
-                &[false, true],
-                Some(&[0.0, 2.0]),
-                2.0,
-                SurvivalEndpoint::Survival,
-            )
-            .is_err()
-        );
+        assert!(randomized_survival_summary(
+            &[1.0, 2.0],
+            &[1, 2],
+            &[false, true],
+            None,
+            2.0,
+            SurvivalEndpoint::Survival,
+        )
+        .is_err());
+        assert!(randomized_survival_summary(
+            &[1.0, 2.0],
+            &[1, 0],
+            &[false, true],
+            Some(&[0.0, 2.0]),
+            2.0,
+            SurvivalEndpoint::Survival,
+        )
+        .is_err());
     }
 }

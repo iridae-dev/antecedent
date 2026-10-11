@@ -630,15 +630,13 @@ mod tests {
             vec![1, 2],
         )
         .unwrap();
-        assert!(
-            aggregate_effect_envelope(
-                &imbalanced,
-                &per,
-                InferenceDiagnostics::analytic("tiny"),
-                EnvelopeOptions::default()
-            )
-            .is_ok()
-        );
+        assert!(aggregate_effect_envelope(
+            &imbalanced,
+            &per,
+            InferenceDiagnostics::analytic("tiny"),
+            EnvelopeOptions::default()
+        )
+        .is_ok());
     }
 
     #[test]

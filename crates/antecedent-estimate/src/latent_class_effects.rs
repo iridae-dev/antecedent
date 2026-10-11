@@ -140,7 +140,8 @@ pub const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";
 
 /// Statement attached to every result.
-pub const LATENT_CLASS_CAVEAT: &str = "bootstrap standard errors are unmeasured for coverage; class \
+pub const LATENT_CLASS_CAVEAT: &str =
+    "bootstrap standard errors are unmeasured for coverage; class \
                                        labels are an effect ordering, not a discovered meaning; \
                                        identification rests on the declared within-class \
                                        randomization and Gaussian-linear class models";

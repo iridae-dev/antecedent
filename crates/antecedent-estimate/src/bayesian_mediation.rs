@@ -12,7 +12,7 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
 use antecedent_stats::CompiledDesign;
 
-use crate::serial_dependence::{DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence};
+use crate::serial_dependence::{DependenceScope, SerialDependence, DEPENDENCE_ASSUMPTION_ID};
 use crate::{
     BayesianGComputationAte, CausalPosterior, EstimationError, OverlapPolicy,
     PreparedBayesianProblem,

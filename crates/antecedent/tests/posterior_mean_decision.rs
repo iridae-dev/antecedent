@@ -166,7 +166,10 @@ fn inverse_on(weights: &[f64]) -> Vec<String> {
         contract: contract(),
         grid_order: vec!["Y".into(), "ref".into()],
         grid_scope: GridScope::FiniteEnumeration,
-        constraints: vec![InverseConstraint::TargetMean { target: 1.0, comparison: Comparison::AtLeast }],
+        constraints: vec![InverseConstraint::TargetMean {
+            target: 1.0,
+            comparison: Comparison::AtLeast,
+        }],
         selection: SelectionRule::FirstInGridOrder,
         tolerance: 1e-12,
         max_evaluations: None,

@@ -219,17 +219,30 @@ fn bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interv
     assert!(result.interval.is_none());
     assert!(result.posterior.is_none());
     assert!(result.estimate.se_analytic.is_nan());
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "counterfactual.nested.posterior_mean_only"));
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "counterfactual.nested.shared_exogenous"));
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "counterfactual.nested.posterior_mean_only")
+    );
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "counterfactual.nested.shared_exogenous")
+    );
 
-    let refused = Study::tabular(TabularData::from_f64_columns([
-        ("x", x.as_slice()),
-        ("m", m.as_slice()),
-        ("y", y.as_slice()),
-    ]).unwrap())
-        .graph(AcceptedGraph::from(graph))
-        .query(CausalQuery::NestedCounterfactual(query))
-        .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
-        .build();
+    let refused = Study::tabular(
+        TabularData::from_f64_columns([
+            ("x", x.as_slice()),
+            ("m", m.as_slice()),
+            ("y", y.as_slice()),
+        ])
+        .unwrap(),
+    )
+    .graph(AcceptedGraph::from(graph))
+    .query(CausalQuery::NestedCounterfactual(query))
+    .inference(InferenceMode::Bayesian(BayesianConfig::conjugate()))
+    .build();
     assert!(refused.is_err(), "accepted structures stay refused");
 }

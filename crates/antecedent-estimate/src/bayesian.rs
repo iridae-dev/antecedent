@@ -28,22 +28,23 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_prob::{
-    BayesDesignRef, BayesFitOptions, BayesLikelihood, ConflictSummary, ConjugateGaussianBackend,
-    EffectBatch, EffectPrior, GaussianCoefficientPrior, GaussianVarianceModel, HmcGlmBackend,
-    HmcOptions, InferenceBackend, InferenceDiagnostics, LaplaceGlmBackend, LaplaceWorkspace,
-    PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace, PosteriorQuantityKind, PosteriorSchema,
-    PosteriorSummary, PriorSensitivitySummary, PriorSet, PriorSpec, sample_gaussian_mvn,
+    sample_gaussian_mvn, BayesDesignRef, BayesFitOptions, BayesLikelihood, ConflictSummary,
+    ConjugateGaussianBackend, EffectBatch, EffectPrior, GaussianCoefficientPrior,
+    GaussianVarianceModel, HmcGlmBackend, HmcOptions, InferenceBackend, InferenceDiagnostics,
+    LaplaceGlmBackend, LaplaceWorkspace, PosteriorBatch, PosteriorDraws, PosteriorEvalWorkspace,
+    PosteriorQuantityKind, PosteriorSchema, PosteriorSummary, PriorSensitivitySummary, PriorSet,
+    PriorSpec,
 };
 use antecedent_stats::{
     CompiledDesign, DenseLinearAlgebra, DesignColumnRole, FaerBackend, GlmFamily,
     LeastSquaresWorkspace,
 };
 
-use crate::adjustment::{PreparedEstimationProblem, intervention_f64};
+use crate::adjustment::{intervention_f64, PreparedEstimationProblem};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::serial_dependence::{
-    DEPENDENCE_ASSUMPTION_ID, DependenceScope, SerialDependence, long_run_tempering_factor,
+    long_run_tempering_factor, DependenceScope, SerialDependence, DEPENDENCE_ASSUMPTION_ID,
 };
 use crate::util::require_explicit_override;
 
@@ -107,14 +108,16 @@ pub const HMC_DRAW_FLOOR_NOTE_PREFIX: &str = "hmc.draw_floor";
 /// Diagnostics note when `unit_ids` request random-intercept GLS whitening under a
 /// non-Gaussian likelihood. Whitening is a Gaussian linear transform and must not be
 /// applied to count or binary outcomes.
-pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str = "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
+pub const RANDOM_INTERCEPT_WHITEN_SKIP_NOTE: &str =
+    "random_intercept.gls_whiten.skipped: compound-symmetry GLS whitening applies only under \
      GaussianIdentity; unit_ids were ignored for this likelihood";
 
 /// Diagnostics note when `unit_ids` request random-intercept GLS whitening of a
 /// Gaussian fit but whitening cannot apply (fewer than two units, no unit with
 /// repeated rows, or no positive between-unit variance component), so the rows are
 /// fitted as independent.
-pub const RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE: &str = "random_intercept.gls_whiten.fallback_iid: unit_ids were supplied but compound-symmetry GLS \
+pub const RANDOM_INTERCEPT_WHITEN_FALLBACK_NOTE: &str =
+    "random_intercept.gls_whiten.fallback_iid: unit_ids were supplied but compound-symmetry GLS \
      whitening did not apply (degenerate grouping or no positive between-unit variance), so \
      the rows were fitted as independent";
 
@@ -2574,11 +2577,9 @@ mod tests {
         let mut duplicate = query.inner.clone();
         duplicate.effect_modifiers = Arc::from(vec![w1, w1]);
         let duplicate = antecedent_core::ConditionalEffectQuery::try_new(duplicate).unwrap();
-        assert!(
-            BayesianGComputationAte::new()
-                .prepare_conditional(&data, &estimand, &duplicate)
-                .is_err()
-        );
+        assert!(BayesianGComputationAte::new()
+            .prepare_conditional(&data, &estimand, &duplicate)
+            .is_err());
     }
 
     #[test]
@@ -2833,17 +2834,15 @@ mod tests {
         assert!((mean + 3.0).abs() < 0.04, "mean={mean}");
         assert!((sd - 0.5).abs() < 0.03, "sd={sd}");
         for (mean, sd) in [(f64::NAN, 1.0), (0.0, 0.0), (0.0, f64::INFINITY), (0.0, -1.0)] {
-            assert!(
-                nonidentified_with_prior(
-                    &prior,
-                    mean,
-                    sd,
-                    InferenceDiagnostics::analytic("none"),
-                    8,
-                    1
-                )
-                .is_err()
-            );
+            assert!(nonidentified_with_prior(
+                &prior,
+                mean,
+                sd,
+                InferenceDiagnostics::analytic("none"),
+                8,
+                1
+            )
+            .is_err());
         }
     }
 
@@ -2857,7 +2856,7 @@ mod tests {
             Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TimeIndex,
             TimeSeriesData, ValidityBitmap,
         };
-        use antecedent_graph::{TemporalDag, ensure_lagged};
+        use antecedent_graph::{ensure_lagged, TemporalDag};
         use antecedent_identify::TemporalBackdoorIdentifier;
 
         use crate::temporal_adjustment::TemporalLinearAdjustment;
@@ -3404,7 +3403,7 @@ mod tests {
 
     fn pulse_graph() -> antecedent_graph::TemporalDag {
         use antecedent_core::Lag;
-        use antecedent_graph::{TemporalDag, ensure_lagged};
+        use antecedent_graph::{ensure_lagged, TemporalDag};
         let mut g = TemporalDag::empty();
         let x1 = ensure_lagged(&mut g, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
         let y0 = ensure_lagged(&mut g, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
@@ -4083,92 +4082,76 @@ mod tests {
         let names3: Vec<Arc<str>> =
             vec![Arc::from("intercept"), Arc::from("coef_t"), Arc::from("coef_w")];
         let baseline3 = PriorSet::weakly_informative(3);
-        assert!(
-            hydrate_prior(
-                &HydrateMapping::IdenticalCoefficientSubspace,
-                &quantities,
-                &mean,
-                &sd,
-                &baseline3,
-                &names3,
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(hydrate_prior(
+            &HydrateMapping::IdenticalCoefficientSubspace,
+            &quantities,
+            &mean,
+            &sd,
+            &baseline3,
+            &names3,
+            None,
+            None,
+        )
+        .is_err());
 
-        assert!(
-            hydrate_prior(
-                &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
-                &quantities,
-                &mean,
-                &sd,
-                &baseline2,
-                &names2,
-                Some(1),
-                Some(1.0),
-            )
-            .is_err()
-        );
+        assert!(hydrate_prior(
+            &HydrateMapping::EffectFunctional { source_quantity: "missing".into() },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline2,
+            &names2,
+            Some(1),
+            Some(1.0),
+        )
+        .is_err());
 
-        assert!(
-            hydrate_prior(
-                &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-                &quantities,
-                &mean,
-                &sd,
-                &baseline2,
-                &names2,
-                Some(1),
-                None,
-            )
-            .is_err()
-        );
-        assert!(
-            hydrate_prior(
-                &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
-                &quantities,
-                &mean,
-                &sd,
-                &baseline2,
-                &names2,
-                Some(1),
-                Some(0.0),
-            )
-            .is_err()
-        );
+        assert!(hydrate_prior(
+            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline2,
+            &names2,
+            Some(1),
+            None,
+        )
+        .is_err());
+        assert!(hydrate_prior(
+            &HydrateMapping::EffectFunctional { source_quantity: "ate".into() },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline2,
+            &names2,
+            Some(1),
+            Some(0.0),
+        )
+        .is_err());
 
-        assert!(
-            hydrate_prior(
-                &HydrateMapping::NamedParameters {
-                    pairs: vec![("ate".into(), "no_such_coef".into())]
-                },
-                &quantities,
-                &mean,
-                &sd,
-                &baseline2,
-                &names2,
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(hydrate_prior(
+            &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "no_such_coef".into())] },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline2,
+            &names2,
+            None,
+            None,
+        )
+        .is_err());
 
-        assert!(
-            hydrate_prior(
-                &HydrateMapping::NamedParameters {
-                    pairs: vec![("no_src".into(), "coef_t".into())]
-                },
-                &quantities,
-                &mean,
-                &sd,
-                &baseline2,
-                &names2,
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(hydrate_prior(
+            &HydrateMapping::NamedParameters { pairs: vec![("no_src".into(), "coef_t".into())] },
+            &quantities,
+            &mean,
+            &sd,
+            &baseline2,
+            &names2,
+            None,
+            None,
+        )
+        .is_err());
     }
 
     #[test]
@@ -4261,49 +4244,42 @@ mod tests {
         assert_eq!(coefficients.variance.as_ref(), &[9.0, 4.0]);
         let correlation = prior.coefficient_correlation().unwrap();
         assert!((correlation.matrix()[1] - 1.0 / 6.0).abs() < 1e-12);
-        assert!(
-            prior.restrictions.iter().any(|restriction| {
-                restriction.id.as_ref() == HYDRATED_COEFFICIENT_COVARIANCE_ID
-            })
-        );
-        assert!(
-            hydrate_prior_with_coefficient_covariance(
-                &HydrateMapping::NamedParameters {
-                    pairs: vec![
-                        ("beta_x".into(), "target_x".into()),
-                        ("beta_x".into(), "target_y".into()),
-                    ],
-                },
-                &quantities,
-                &[1.0, 2.0, 1.0],
-                &[2.0, 3.0, 0.0],
-                Some(&[4.0, 1.0, 1.0, 9.0]),
-                &PriorSet::weakly_informative(2),
-                &names,
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(prior
+            .restrictions
+            .iter()
+            .any(|restriction| { restriction.id.as_ref() == HYDRATED_COEFFICIENT_COVARIANCE_ID }));
+        assert!(hydrate_prior_with_coefficient_covariance(
+            &HydrateMapping::NamedParameters {
+                pairs: vec![
+                    ("beta_x".into(), "target_x".into()),
+                    ("beta_x".into(), "target_y".into()),
+                ],
+            },
+            &quantities,
+            &[1.0, 2.0, 1.0],
+            &[2.0, 3.0, 0.0],
+            Some(&[4.0, 1.0, 1.0, 9.0]),
+            &PriorSet::weakly_informative(2),
+            &names,
+            None,
+            None,
+        )
+        .is_err());
         let mut ambiguous = quantities.clone();
         ambiguous[1] =
             PosteriorQuantityKind::Coefficient { index: 1, name: Some(Arc::from("beta_x")) };
-        assert!(
-            hydrate_prior_with_coefficient_covariance(
-                &HydrateMapping::NamedParameters {
-                    pairs: vec![("beta_x".into(), "target_x".into())],
-                },
-                &ambiguous,
-                &[1.0, 2.0, 1.0],
-                &[2.0, 3.0, 0.0],
-                Some(&[4.0, 1.0, 1.0, 9.0]),
-                &PriorSet::weakly_informative(2),
-                &names,
-                None,
-                None,
-            )
-            .is_err()
-        );
+        assert!(hydrate_prior_with_coefficient_covariance(
+            &HydrateMapping::NamedParameters { pairs: vec![("beta_x".into(), "target_x".into())] },
+            &ambiguous,
+            &[1.0, 2.0, 1.0],
+            &[2.0, 3.0, 0.0],
+            Some(&[4.0, 1.0, 1.0, 9.0]),
+            &PriorSet::weakly_informative(2),
+            &names,
+            None,
+            None,
+        )
+        .is_err());
     }
 
     #[test]
@@ -4420,11 +4396,9 @@ mod tests {
         assert_eq!(effect.gaussian_coefficients().unwrap().variance.as_ref(), &[100.0, 1.0 / 4.0]);
         assert!(effect.absolute_coefficient_scale().is_none());
         assert_eq!(effect.restrictions.len(), 1);
-        assert!(
-            effect.restrictions[0]
-                .description
-                .ends_with("absolute Var(β) converted to V0 with source σ²=4")
-        );
+        assert!(effect.restrictions[0]
+            .description
+            .ends_with("absolute Var(β) converted to V0 with source σ²=4"));
 
         let named = hydrate_prior(
             &HydrateMapping::NamedParameters { pairs: vec![("ate".into(), "coef_t".into())] },
@@ -4580,9 +4554,10 @@ mod tests {
 
         let dense = hydrate_prior_from_posterior(&post_a, Some(prep_a.design.ncols)).unwrap();
         assert!(dense.coefficient_correlation().is_some(), "confounded source is correlated");
-        assert!(
-            dense.restrictions.iter().any(|r| r.id.as_ref() == HYDRATED_COEFFICIENT_COVARIANCE_ID)
-        );
+        assert!(dense
+            .restrictions
+            .iter()
+            .any(|r| r.id.as_ref() == HYDRATED_COEFFICIENT_COVARIANCE_ID));
         let mut diagonal = dense.clone();
         diagonal.specs.retain(|s| !matches!(s, PriorSpec::CoefficientCorrelation(_)));
         let with_known = |mut p: PriorSet| {
@@ -4639,11 +4614,9 @@ mod tests {
         .unwrap();
         assert!(prior.coefficient_correlation().is_none());
         assert!(coefficient_covariance_from_draws(&quantities, &[], 0).unwrap().is_none());
-        assert!(
-            coefficient_covariance_from_draws(&quantities, &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 2)
-                .unwrap()
-                .is_none()
-        );
+        assert!(coefficient_covariance_from_draws(&quantities, &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], 2)
+            .unwrap()
+            .is_none());
         assert!(coefficient_covariance_from_draws(&quantities, &[0.0; 5], 2).is_err());
         // A non-positive-definite covariance falls back to the diagonal, recorded.
         let singular = [1.0, 1.0, 1.0, 1.0];

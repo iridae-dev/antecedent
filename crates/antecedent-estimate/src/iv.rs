@@ -53,11 +53,11 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
-    FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, anderson_rubin_confidence_set,
-    fit_2sls,
+    anderson_rubin_confidence_set, fit_2sls, FaerBackend, FirstStageDiagnostics,
+    LeastSquaresWorkspace,
 };
 
-use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::adjustment::{intervention_f64, EffectEstimate};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;

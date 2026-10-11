@@ -27,22 +27,22 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
     AssumptionStatus, CausalResponse, CausalRng, CredibleDraws, DerivativeScale,
     DerivativeWeighting, Diagnostic, DiagnosticKind, DiagnosticScope, DiagnosticSeverity,
-    IdentificationStatus, Intervention, MAX_NONPARAMETRIC_RESPONSE_DIM, ObservationSpec,
-    ParametricAssumption, ResponseFunctional, ResponseIdentification, ResponseQuery,
-    ResponseUncertainty, ResponseValue, StreamDomain, SupportDiagnostic, SupportRegion,
-    SupportReport, SupportStatus, TargetPopulation, VariableId,
+    IdentificationStatus, Intervention, ObservationSpec, ParametricAssumption, ResponseFunctional,
+    ResponseIdentification, ResponseQuery, ResponseUncertainty, ResponseValue, StreamDomain,
+    SupportDiagnostic, SupportRegion, SupportReport, SupportStatus, TargetPopulation, VariableId,
+    MAX_NONPARAMETRIC_RESPONSE_DIM,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_stats::{
+    equal_tail_interval_sorted, fit_gam, fit_gam_weighted_design, gaussian_density,
+    gaussian_local_quadratic_influence_prechecked, invert_square, normal_ppf, silverman_bandwidth,
     AdditiveDesign, DenseLinearAlgebra, FaerBackend, GamOptions, GamWorkspace,
     GaussianMixtureDensity, LeastSquaresWorkspace, LocalQuadraticWorkspace, QuantileRule,
-    SmoothSpec, StatsError, equal_tail_interval_sorted, fit_gam, fit_gam_weighted_design,
-    gaussian_density, gaussian_local_quadratic_influence_prechecked, invert_square, normal_ppf,
-    silverman_bandwidth,
+    SmoothSpec, StatsError,
 };
 
-use crate::EstimationError;
 use crate::util::range;
+use crate::EstimationError;
 
 mod band;
 mod crossfit;
@@ -51,12 +51,12 @@ mod support;
 mod transform;
 use band::{simultaneous_multiplier_band, simultaneous_posterior_band};
 use crossfit::{
-    CrossFitFold, ensure_crossfit_size, fit_additive, fit_additive_design, require_converged_gam,
-    treatment_sigma, treatment_sigma_train_weighted,
+    ensure_crossfit_size, fit_additive, fit_additive_design, require_converged_gam,
+    treatment_sigma, treatment_sigma_train_weighted, CrossFitFold,
 };
 use policy::{
-    DiscreteAtom, additive_policy_rows, exact_discrete_intervention_rows,
-    intervention_needs_quadrature, policy_support, static_bayesian_policy,
+    additive_policy_rows, exact_discrete_intervention_rows, intervention_needs_quadrature,
+    policy_support, static_bayesian_policy, DiscreteAtom,
 };
 #[cfg(test)]
 use support::outcome_tail_ratio;
@@ -3412,13 +3412,11 @@ mod tests {
         assert_eq!(tail.values.len(), 2);
         assert!(tail.values[0] < OUTCOME_TAIL_RATIO_BOUND, "ratio={}", tail.values[0]);
         assert!((tail.values[1] - OUTCOME_TAIL_RATIO_BOUND).abs() < 1e-12);
-        assert!(
-            response
-                .support
-                .warnings
-                .iter()
-                .all(|w| w.code.as_ref() != "response.heavy_tailed_outcome")
-        );
+        assert!(response
+            .support
+            .warnings
+            .iter()
+            .all(|w| w.code.as_ref() != "response.heavy_tailed_outcome"));
         let winsor = response
             .support
             .diagnostics
@@ -3455,13 +3453,11 @@ mod tests {
                 AssumptionSet::new(),
             )
             .unwrap();
-        assert!(
-            response
-                .support
-                .warnings
-                .iter()
-                .any(|d| d.code.as_ref() == "response.kennedy_dr.additive_covariate_if")
-        );
+        assert!(response
+            .support
+            .warnings
+            .iter()
+            .any(|d| d.code.as_ref() == "response.kennedy_dr.additive_covariate_if"));
         assert!(matches!(
             response.estimate,
             ResponseIdentification::PointIdentified(ResponseValue::Surface { .. })
@@ -3725,9 +3721,11 @@ mod tests {
             panic!("expected simultaneous band");
         };
         assert_eq!(*replicates, 200);
-        assert!(
-            mean.iter().zip(lower.iter()).zip(upper.iter()).all(|((m, lo), hi)| lo < m && m < hi)
-        );
+        assert!(mean
+            .iter()
+            .zip(lower.iter())
+            .zip(upper.iter())
+            .all(|((m, lo), hi)| lo < m && m < hi));
         assert_eq!(first.provenance_id.as_ref(), "estimate.response.kennedy_dr_simultaneous");
     }
 
@@ -4087,13 +4085,11 @@ mod tests {
         };
         assert!((value - 2.0).abs() < 0.2, "ade={value}");
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.riesz_ade");
-        assert!(
-            response
-                .support
-                .diagnostics
-                .iter()
-                .any(|d| d.id.as_ref() == "response.outcome_tail_ratio")
-        );
+        assert!(response
+            .support
+            .diagnostics
+            .iter()
+            .any(|d| d.id.as_ref() == "response.outcome_tail_ratio"));
     }
 
     #[test]
@@ -4225,12 +4221,10 @@ mod tests {
 
     #[test]
     fn elasticity_refuses_nonpositive_fitted_response() {
-        assert!(
-            transform_derivative(1.0, 2.0, 0.0, DerivativeScale::LogLog)
-                .unwrap_err()
-                .to_string()
-                .contains("positive fitted response")
-        );
+        assert!(transform_derivative(1.0, 2.0, 0.0, DerivativeScale::LogLog)
+            .unwrap_err()
+            .to_string()
+            .contains("positive fitted response"));
         let n: usize = 80;
         let a: Vec<f64> = (0..n).map(|i| -0.4 + i as f64 * 0.01).collect();
         let y: Vec<f64> = a.iter().map(|av| -4.0 - 2.0 * av).collect();

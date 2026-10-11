@@ -55,7 +55,7 @@ use antecedent_core::{
     SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_stats::{
-    LocalPolynomialInfluence, LocalQuadraticWorkspace, gaussian_local_quadratic_influence_with,
+    gaussian_local_quadratic_influence_with, LocalPolynomialInfluence, LocalQuadraticWorkspace,
 };
 
 use crate::error::{EstimationError, RefusalFields};
@@ -400,7 +400,11 @@ fn kish_ess(dose: &[f64], at: f64, bandwidth: f64) -> f64 {
         sum += w;
         sum_sq += w * w;
     }
-    if sum_sq > f64::EPSILON { sum * sum / sum_sq } else { 0.0 }
+    if sum_sq > f64::EPSILON {
+        sum * sum / sum_sq
+    } else {
+        0.0
+    }
 }
 
 fn observed_range(dose: &[f64]) -> (f64, f64) {

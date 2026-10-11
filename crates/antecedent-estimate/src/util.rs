@@ -11,8 +11,8 @@
 )]
 
 use antecedent_core::{AdaptiveBootstrapBudget, ExecutionContext};
-use antecedent_data::{DataError, ResamplingPlan, fill_resample_index_batch};
-use antecedent_stats::{StatsError, chol_solve, cholesky_spd, form_xtx, invert_square};
+use antecedent_data::{fill_resample_index_batch, DataError, ResamplingPlan};
+use antecedent_stats::{chol_solve, cholesky_spd, form_xtx, invert_square, StatsError};
 
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
@@ -220,7 +220,11 @@ pub(crate) fn finalize_bootstrap_se_ex(
         None
     } else {
         let s = sample_std(ates);
-        if s.is_finite() { Some(s) } else { None }
+        if s.is_finite() {
+            Some(s)
+        } else {
+            None
+        }
     };
     BootstrapSeResult { se, replicates_ok: ok, replicates_failed: failed, cancelled, early_stopped }
 }

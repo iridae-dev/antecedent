@@ -7,16 +7,16 @@ use antecedent_core::{
     CatalogDistribution, EvidenceCatalog, EvidenceProjection, ExecutionContext, StreamDomain,
     VariableId,
 };
-use antecedent_data::{ResamplingPlan, fill_resample_indexes};
+use antecedent_data::{fill_resample_indexes, ResamplingPlan};
 use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits};
 use antecedent_identify::BoundTransportFunctional;
-use antecedent_stats::{QuantileRule, equal_tail_interval_sorted};
+use antecedent_stats::{equal_tail_interval_sorted, QuantileRule};
 
 use crate::empirical_table::{
-    BayesianLawDrawer, BayesianTransportLawProvider, EmpiricalTableOptions,
-    StatisticalTransportInput, assemble_point_laws, assemble_statistical_laws, bound_sample_key,
-    dependence_refusal, dirichlet_posterior_probabilities, licensed_iid_dependence,
-    licensed_iid_regimes, validate_dataset_aliases, validate_options,
+    assemble_point_laws, assemble_statistical_laws, bound_sample_key, dependence_refusal,
+    dirichlet_posterior_probabilities, licensed_iid_dependence, licensed_iid_regimes,
+    validate_dataset_aliases, validate_options, BayesianLawDrawer, BayesianTransportLawProvider,
+    EmpiricalTableOptions, StatisticalTransportInput,
 };
 use crate::error::EstimationError;
 use crate::transport::{is_support_failure, prepare_exact_transport, refuse_budget, refuse_eval};

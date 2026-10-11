@@ -644,7 +644,11 @@ impl Layout {
 
     /// Global parameter index of local row feature `k` (`0..q+r`) in `block`.
     const fn index(&self, k: usize, block: usize) -> usize {
-        if k < self.q { k } else { self.q + block * self.r + (k - self.q) }
+        if k < self.q {
+            k
+        } else {
+            self.q + block * self.r + (k - self.q)
+        }
     }
 
     /// Row features `[w, v]` of one unit.

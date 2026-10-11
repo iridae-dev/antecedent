@@ -16,10 +16,9 @@ use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance};
 
 use super::matching::matching_contrast;
 use super::prepare::{
-    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap, gather_optional_multiway, gather_optional_row_labels,
     prepare_propensity_problem_with_registry, restrict_to_rows, to_row_major, trim_of,
-    trim_retained_rows,
+    trim_retained_rows, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;

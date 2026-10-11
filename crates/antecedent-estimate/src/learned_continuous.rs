@@ -49,8 +49,8 @@
 //! not change. `fit_point` applies no preprocessing beyond an intercept column, so
 //! "preprocessing inside folds" holds trivially today.
 use crate::learned_trial::{
-    TrialAipwInput, TrialAipwOptions, TrialNuisanceDiagnostics, TrialSampling, estimate_trial_aipw,
-    trial_fold_assignment, validate_trial_aipw,
+    estimate_trial_aipw, trial_fold_assignment, validate_trial_aipw, TrialAipwInput,
+    TrialAipwOptions, TrialNuisanceDiagnostics, TrialSampling,
 };
 use crate::{EstimationError, TransportOverlapReport};
 use antecedent_core::ExecutionContext;

@@ -303,20 +303,16 @@ mod tests {
     #[test]
     fn sparse_or_low_probability_action_withholds_interval() {
         let (outcomes, assignments, mut probabilities, _) = study(3, 2, 100);
-        assert!(
-            independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
-                .unwrap()
-                .interval_95
-                .is_none()
-        );
+        assert!(independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
+            .unwrap()
+            .interval_95
+            .is_none());
         let (outcomes, assignments, _, _) = study(3, 2, 400);
         probabilities = vec![vec![0.89, 0.01, 0.10]; 400];
-        assert!(
-            independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
-                .unwrap()
-                .interval_95
-                .is_none()
-        );
+        assert!(independent_action_contrast(&outcomes, &assignments, &probabilities, 0, 1)
+            .unwrap()
+            .interval_95
+            .is_none());
         assert!(
             independent_action_contrast(&outcomes, &assignments, &probabilities, 1, 1).is_none()
         );
@@ -482,12 +478,10 @@ mod tests {
     fn complier_effect_withholds_interval_without_support() {
         let (outcomes, assignment, received, probabilities) =
             complier_study(7, 200, 0.5, 0.25, 1.5, false);
-        assert!(
-            complier_wald_effect(&outcomes, &assignment, &received, &probabilities)
-                .unwrap()
-                .interval_95
-                .is_none()
-        );
+        assert!(complier_wald_effect(&outcomes, &assignment, &received, &probabilities)
+            .unwrap()
+            .interval_95
+            .is_none());
     }
 
     #[test]

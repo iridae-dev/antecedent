@@ -44,7 +44,7 @@ use antecedent_core::reason_code;
 use antecedent_kernels::erfc;
 use antecedent_stats::gamma_q;
 
-use crate::effect_constancy::{CalibrationStatus, holm_adjust};
+use crate::effect_constancy::{holm_adjust, CalibrationStatus};
 use crate::error::EstimationError;
 use crate::vector_treatment::DesignSummary;
 

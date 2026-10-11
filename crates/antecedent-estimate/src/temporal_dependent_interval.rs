@@ -28,10 +28,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{ExecutionContext, reason_code};
+use antecedent_core::{reason_code, ExecutionContext};
 
 use crate::error::EstimationError;
-use crate::splitmix::{GOLDEN_GAMMA, mix64, seed_mix, splitmix64};
+use crate::splitmix::{mix64, seed_mix, splitmix64, GOLDEN_GAMMA};
 
 /// Most replicates one interval may use.
 pub const INTERVAL_MAX_REPLICATES: usize = 2000;
@@ -734,8 +734,10 @@ fn prepare_studentization<E: TemporalEstimator + ?Sized>(
             "temporal_interval.studentized_estimator_not_certified",
         )
     })?;
-    let (mean, standard_error) = mean_se(&scores).ok_or_else(|| unsupported_history(
-        "temporal_interval.studentized_zero_variance: unit scores need positive finite variance"))?;
+    let (mean, standard_error) = mean_se(&scores).ok_or_else(|| {
+        unsupported_history(
+        "temporal_interval.studentized_zero_variance: unit scores need positive finite variance")
+    })?;
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-10 * (1.0 + a.abs() + b.abs());
     if scores.len() != all.len() || !close(mean, point) {
         return Err(unsupported_history("temporal_interval.studentized_score_mismatch"));

@@ -81,15 +81,15 @@
 //! actually allocated, one training-design copy and normal matrix per concurrently fitted
 //! fold and the concurrent quadrature chunks exceeds it. Learner internals beyond that
 //! copy (tree storage, boosting state) are not modelled.
-use crate::EstimationError;
 use crate::estimator_menu::{EstimatorMenu, EstimatorMenuEntry, MenuRefusal};
 use crate::learned_continuous::FoldProvenance;
 use crate::learned_trial::TrialSampling;
+use crate::EstimationError;
 use antecedent_core::{ExecutionContext, SmoothedDoseTransportQuery, SmoothingKernel, VariableId};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
-    DesignView, FittedPredictor, LearnerProvenance, LearnerSpec, PortablePredictor, PredictionMap,
-    PredictionTask, RowSelection, TargetView, resolve_for,
+    resolve_for, DesignView, FittedPredictor, LearnerProvenance, LearnerSpec, PortablePredictor,
+    PredictionMap, PredictionTask, RowSelection, TargetView,
 };
 use serde::{Deserialize, Serialize};
 

@@ -23,7 +23,7 @@ use antecedent_data::TabularData;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions};
 
 use crate::aipw::{predict_colmajor, select_rows_colmajor};
-use crate::crossfit_aipw::{DEFAULT_AIPW_FOLDS, thresholds_of};
+use crate::crossfit_aipw::{thresholds_of, DEFAULT_AIPW_FOLDS};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::clip_of;

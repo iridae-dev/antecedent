@@ -12,18 +12,18 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
-use antecedent_core::{ExecutionContext, Value, VariableId, reason_code};
+use antecedent_core::{reason_code, ExecutionContext, Value, VariableId};
 use antecedent_expr::{
     Assignment, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan,
     ExactTransportData, InterventionAssignment,
 };
 use antecedent_identify::sid::temporal_sequence::{
-    SliceEvidence, SliceInvariance, TEMPORAL_CHECKED_OBSTRUCTION, TEMPORAL_HISTORY_BUDGET,
-    TEMPORAL_MISSING_EVIDENCE, TEMPORAL_SEARCH_INCOMPLETE, TemporalOutcome, TemporalRefusal,
-    TemporalSequenceDecision,
+    SliceEvidence, SliceInvariance, TemporalOutcome, TemporalRefusal, TemporalSequenceDecision,
+    TEMPORAL_CHECKED_OBSTRUCTION, TEMPORAL_HISTORY_BUDGET, TEMPORAL_MISSING_EVIDENCE,
+    TEMPORAL_SEARCH_INCOMPLETE,
 };
 
 use crate::error::EstimationError;

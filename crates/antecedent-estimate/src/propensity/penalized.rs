@@ -25,8 +25,8 @@ use std::hash::{Hash, Hasher};
 
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_learn::{
-    DesignView, FittedPredictor, LassoLogisticLearner, LearnError, LearnerFactory,
-    LearnerProvenance, PredictionMap, RidgeLogisticLearner, TargetView, cross_fit_with_folds,
+    cross_fit_with_folds, DesignView, FittedPredictor, LassoLogisticLearner, LearnError,
+    LearnerFactory, LearnerProvenance, PredictionMap, RidgeLogisticLearner, TargetView,
 };
 
 use super::penalized_report::{FailedFit, FoldSupport};
@@ -792,7 +792,7 @@ pub(crate) fn fit_penalized_fold(
 mod tests {
     use std::collections::hash_map::DefaultHasher;
 
-    use antecedent_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
+    use antecedent_stats::{fit_propensity, FaerBackend, GlmOptions, PropensityWorkspace};
 
     use super::*;
     use crate::splitmix::splitmix64_unit;
@@ -852,11 +852,9 @@ mod tests {
     fn lasso_is_licensed_inside_the_cross_fit_and_refused_outside_it() {
         assert!(PropensityNuisance::lasso().validate_for_execution().is_ok());
         assert!(PropensityNuisance::default().validate_for_execution().is_ok());
-        assert!(
-            PropensityNuisance::ridge_logistic(RidgeTuning::default())
-                .validate_for_execution()
-                .is_ok()
-        );
+        assert!(PropensityNuisance::ridge_logistic(RidgeTuning::default())
+            .validate_for_execution()
+            .is_ok());
         let error = PropensityNuisance::lasso_not_cross_fitted();
         assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
         assert!(
@@ -870,12 +868,10 @@ mod tests {
             let error = penalized.with_fallback(NuisanceFallback::Ml).validate_for_execution();
             assert!(error.unwrap_err().to_string().contains("invalid_argument"));
         }
-        assert!(
-            PropensityNuisance::default()
-                .with_fallback(NuisanceFallback::RidgeLogistic(RidgeTuning::default()))
-                .validate_for_execution()
-                .is_ok()
-        );
+        assert!(PropensityNuisance::default()
+            .with_fallback(NuisanceFallback::RidgeLogistic(RidgeTuning::default()))
+            .validate_for_execution()
+            .is_ok());
     }
 
     #[test]

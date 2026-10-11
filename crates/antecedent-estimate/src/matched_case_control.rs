@@ -415,7 +415,7 @@ pub fn conditional_odds_ratio(
 
 #[cfg(test)]
 mod tests {
-    use super::{SetType, score_information};
+    use super::{score_information, SetType};
 
     /// One informative 1:2 set type (n = 3, k = 1, t = 1) for the derivative check.
     fn type_with(sets: f64, sum_a: f64) -> SetType {

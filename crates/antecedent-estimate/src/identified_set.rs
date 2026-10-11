@@ -382,18 +382,14 @@ mod tests {
     #[test]
     fn review_nonfinite_completion_point_cannot_be_silently_dropped() {
         let draws = vec![vec![0.0, 1.0], vec![1.0, 2.0], vec![2.0, 3.0]];
-        assert!(
-            imbens_manski_shared_replicates(&[1.0, f64::NAN], &draws, 1.0, 100, 0.95).is_none()
-        );
-        assert!(
-            imbens_manski_posterior_draws(
-                &[1.0, f64::NAN],
-                &[&[0.0, 1.0, 2.0], &[1.0, 2.0, 3.0]],
-                100,
-                0.95
-            )
-            .is_none()
-        );
+        assert!(imbens_manski_shared_replicates(&[1.0, f64::NAN], &draws, 1.0, 100, 0.95).is_none());
+        assert!(imbens_manski_posterior_draws(
+            &[1.0, f64::NAN],
+            &[&[0.0, 1.0, 2.0], &[1.0, 2.0, 3.0]],
+            100,
+            0.95
+        )
+        .is_none());
     }
 
     #[test]

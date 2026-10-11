@@ -128,30 +128,30 @@ impl CheckedTemporalResponseExecution {
             )?
         } else {
             match self.operation.inference() {
-            InferenceMode::Frequentist => self.operation.execute(data, ctx)?,
-            InferenceMode::Bayesian(cfg) => {
-                let mut bayes = bayesian_gcomp(cfg, ctx);
-                let aligned = self
-                    .operation
-                    .evidence()
-                    .iter()
-                    .map(crate::analysis::TemporalResponseHorizonEvidence::cached_horizon)
-                    .collect::<Vec<_>>();
-                let aligned_refs = aligned.iter().collect::<Vec<_>>();
-                let (resolved, conflict) = super::resolve_temporal_response_prior(
-                    cfg,
-                    data,
-                    temporal,
-                    &aligned_refs,
-                    treatment,
-                    outcome,
-                    ctx,
-                )?;
-                bayes.prior = resolved;
-                conflict_summary = conflict;
-                self.operation.execute_bayesian(data, &bayes, ctx)?
+                InferenceMode::Frequentist => self.operation.execute(data, ctx)?,
+                InferenceMode::Bayesian(cfg) => {
+                    let mut bayes = bayesian_gcomp(cfg, ctx);
+                    let aligned = self
+                        .operation
+                        .evidence()
+                        .iter()
+                        .map(crate::analysis::TemporalResponseHorizonEvidence::cached_horizon)
+                        .collect::<Vec<_>>();
+                    let aligned_refs = aligned.iter().collect::<Vec<_>>();
+                    let (resolved, conflict) = super::resolve_temporal_response_prior(
+                        cfg,
+                        data,
+                        temporal,
+                        &aligned_refs,
+                        treatment,
+                        outcome,
+                        ctx,
+                    )?;
+                    bayes.prior = resolved;
+                    conflict_summary = conflict;
+                    self.operation.execute_bayesian(data, &bayes, ctx)?
+                }
             }
-        }
         };
         // The estimator accepts one aggregate status; the sealed route keeps the
         // richer per-horizon proof statuses on the surface, as the fresh path does.

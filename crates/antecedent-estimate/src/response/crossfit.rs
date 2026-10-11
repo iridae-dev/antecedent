@@ -7,8 +7,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_stats::{
-    AdditiveDesign, FaerBackend, GamOptions, GamWorkspace, SmoothSpec, fit_gam,
-    fit_gam_weighted_design,
+    fit_gam, fit_gam_weighted_design, AdditiveDesign, FaerBackend, GamOptions, GamWorkspace,
+    SmoothSpec,
 };
 
 use super::CompleteSample;

@@ -1,11 +1,11 @@
 //! Retained existing two-step history mechanisms and empirical source joint.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::EstimationError;
 use crate::temporal_dependent_interval::{SequenceTallies, TemporalUnitPanel, UnitHistories};
 use crate::temporal_initial_state::{InitialStateLaw, InitialStatePopulation, StateContribution};
-use antecedent_core::{RegimeId, Value, VariableId, reason_code};
-use antecedent_expr::execution_counts::{StaticWork, note_static_work};
+use crate::EstimationError;
+use antecedent_core::{reason_code, RegimeId, Value, VariableId};
+use antecedent_expr::execution_counts::{note_static_work, StaticWork};
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
 use std::sync::Arc;
 
@@ -174,7 +174,11 @@ pub fn history_interval_candidate(
     }
     impl crate::temporal_dependent_interval::TemporalEstimator for PairedHistory<'_> {
         fn label(&self) -> &'static str {
-            if self.control.is_some() { "paired_sequence_effect" } else { "sequence_response" }
+            if self.control.is_some() {
+                "paired_sequence_effect"
+            } else {
+                "sequence_response"
+            }
         }
         fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
             let sequences =

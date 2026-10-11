@@ -13,10 +13,10 @@
 )]
 
 use antecedent_stats::{
-    MAX_CLUSTER_DIMENSIONS, SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar,
-    coefficient_covariance, combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples,
-    multiway_subset_masks, newey_west_meat_scalar, panel_hac_meat_scalar,
-    score_coefficient_covariance,
+    bartlett_weight, cluster_meat_scalar, coefficient_covariance, combine_inclusion_exclusion,
+    effective_nw_lag, intern_cluster_tuples, multiway_subset_masks, newey_west_meat_scalar,
+    panel_hac_meat_scalar, score_coefficient_covariance, SandwichKind, StatsError,
+    MAX_CLUSTER_DIMENSIONS,
 };
 
 use crate::error::EstimationError;

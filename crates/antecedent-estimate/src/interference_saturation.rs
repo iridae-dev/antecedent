@@ -8,7 +8,7 @@ use antecedent_core::{
     AssignmentDesign, ExposureLevel, ExposureMapping, InterferenceFunctional, InterferenceQuery,
 };
 use antecedent_data::{NetworkData, TableView};
-use antecedent_stats::{ExposureProbabilityMethod, RandomizationContrast, exposures};
+use antecedent_stats::{exposures, ExposureProbabilityMethod, RandomizationContrast};
 
 use crate::{EstimationError, InterferenceEstimate};
 

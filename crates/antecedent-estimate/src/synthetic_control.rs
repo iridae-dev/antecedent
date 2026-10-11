@@ -598,11 +598,9 @@ mod tests {
         assert!((fit.control.effect - 9.0).abs() < 1e-5);
         assert!((fit.outcome_model_correction - 4.0).abs() < 1e-4);
         assert!((fit.effect - 5.0).abs() < 1e-4);
-        assert!(
-            fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 0.0)
-                .unwrap_err()
-                .contains("positive ridge penalty")
-        );
+        assert!(fit_augmented_synthetic_control(&outcome, &units, &periods, "treated", 4, 0.0)
+            .unwrap_err()
+            .contains("positive ridge penalty"));
     }
 
     #[test]
@@ -714,12 +712,10 @@ mod tests {
             let rejections = tests.iter().filter(|test| test.p_value <= alpha).count();
             assert!(rejections <= numerator);
         }
-        assert!(
-            exact_augmented_synthetic_unit_randomization_test(
-                &outcome, &units, &periods, "absent", 5, 0.1,
-            )
-            .is_err()
-        );
+        assert!(exact_augmented_synthetic_unit_randomization_test(
+            &outcome, &units, &periods, "absent", 5, 0.1,
+        )
+        .is_err());
     }
 }
 
@@ -981,11 +977,9 @@ mod synthetic_did_tests {
         assert!(
             (fit.time_weights.iter().map(|(_, weight)| weight).sum::<f64>() - 1.0).abs() < 1e-8
         );
-        assert!(
-            fit_synthetic_did(&outcome, &units, &periods, "treated", 2)
-                .unwrap_err()
-                .contains("at least two pre-periods")
-        );
+        assert!(fit_synthetic_did(&outcome, &units, &periods, "treated", 2)
+            .unwrap_err()
+            .contains("at least two pre-periods"));
     }
 
     #[test]
@@ -1023,10 +1017,10 @@ mod synthetic_did_tests {
             let rejects = fits.iter().filter(|fit| fit.p_value <= alpha).count();
             assert!(rejects as f64 / 8.0 <= alpha);
         }
-        assert!(
-            exact_synthetic_did_unit_randomization_test(&outcome, &units, &periods, "missing", 5,)
-                .is_err()
-        );
+        assert!(exact_synthetic_did_unit_randomization_test(
+            &outcome, &units, &periods, "missing", 5,
+        )
+        .is_err());
     }
 }
 
@@ -1041,8 +1035,8 @@ mod constant_effect_null_tests {
         )
     )]
     use super::{
-        SyntheticConstantEffectMethod, exact_augmented_synthetic_unit_randomization_test,
-        exact_synthetic_constant_effect_test, exact_synthetic_did_unit_randomization_test,
+        exact_augmented_synthetic_unit_randomization_test, exact_synthetic_constant_effect_test,
+        exact_synthetic_did_unit_randomization_test, SyntheticConstantEffectMethod,
     };
 
     #[test]
@@ -1092,19 +1086,17 @@ mod constant_effect_null_tests {
                 (0..2_000).filter(|draw| p_values[draw % candidates.len()] <= alpha).count();
             assert!(rejections as f64 / 2_000.0 <= alpha);
         }
-        assert!(
-            exact_synthetic_constant_effect_test(
-                &untreated,
-                &units,
-                &periods,
-                "a",
-                5,
-                f64::NAN,
-                SyntheticConstantEffectMethod::Control,
-            )
-            .unwrap_err()
-            .contains("finite")
-        );
+        assert!(exact_synthetic_constant_effect_test(
+            &untreated,
+            &units,
+            &periods,
+            "a",
+            5,
+            f64::NAN,
+            SyntheticConstantEffectMethod::Control,
+        )
+        .unwrap_err()
+        .contains("finite"));
     }
 
     #[test]

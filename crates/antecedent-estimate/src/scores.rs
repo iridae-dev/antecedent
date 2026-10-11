@@ -12,7 +12,7 @@ use std::sync::Arc;
 use antecedent_core::VariableId;
 
 use crate::error::EstimationError;
-use crate::joint_if::{JointCovariance, joint_influence_covariance, kish_n_eff, weighted_mean};
+use crate::joint_if::{joint_influence_covariance, kish_n_eff, weighted_mean, JointCovariance};
 
 /// Column key: one interventional arm, optionally at an exceedance threshold.
 #[derive(Clone, Debug, PartialEq)]

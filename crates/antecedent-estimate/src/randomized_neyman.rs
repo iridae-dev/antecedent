@@ -410,12 +410,10 @@ mod tests {
             assert!((0.93..=0.985).contains(&rate));
         }
         let sparse = std::array::from_fn::<_, 4, _>(|_| vec![0.0, 1.0]);
-        assert!(
-            factorial_2x2(sparse.each_ref().map(Vec::as_slice))
-                .unwrap()
-                .interaction_interval_95
-                .is_none()
-        );
+        assert!(factorial_2x2(sparse.each_ref().map(Vec::as_slice))
+            .unwrap()
+            .interaction_interval_95
+            .is_none());
     }
 
     #[test]

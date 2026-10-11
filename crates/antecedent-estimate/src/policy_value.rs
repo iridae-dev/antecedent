@@ -660,12 +660,10 @@ mod tests {
             reference_budget: None,
             cate_groups: Arc::from(vec![Arc::<str>::from("g0"); 299]),
         };
-        assert!(
-            evaluate_multi_action_cate(&outcome, &policy)
-                .unwrap()
-                .iter()
-                .all(|p| p.interval_95.is_none())
-        );
+        assert!(evaluate_multi_action_cate(&outcome, &policy)
+            .unwrap()
+            .iter()
+            .all(|p| p.interval_95.is_none()));
         let mut sparse = policy.clone();
         sparse.assignment = Arc::from(
             (0..300)
@@ -820,20 +818,18 @@ mod tests {
 
     #[test]
     fn refuses_missing_overlap() {
-        assert!(
-            evaluate_policy_value_scores(
-                &[1.0, 2.0],
-                &[false, true],
-                &[false, true],
-                &[0.0],
-                &[1.0; 2],
-                &[2.0; 2],
-                &[false; 2],
-                &[0.0],
-                &[0.0],
-            )
-            .is_err()
-        );
+        assert!(evaluate_policy_value_scores(
+            &[1.0, 2.0],
+            &[false, true],
+            &[false, true],
+            &[0.0],
+            &[1.0; 2],
+            &[2.0; 2],
+            &[false; 2],
+            &[0.0],
+            &[0.0],
+        )
+        .is_err());
     }
 
     #[test]
@@ -1189,7 +1185,15 @@ mod tests {
                     .enumerate()
                     .map(|(i, &treated)| {
                         1.0 + f64::from(i % 2 == 1) * 0.5
-                            + if treated { if i % 2 == 0 { 2.0 } else { -1.0 } } else { 0.0 }
+                            + if treated {
+                                if i % 2 == 0 {
+                                    2.0
+                                } else {
+                                    -1.0
+                                }
+                            } else {
+                                0.0
+                            }
                             + 2.0 * (uniform() - 0.5)
                     })
                     .collect::<Vec<_>>();
@@ -1241,17 +1245,15 @@ mod tests {
         assert!(evaluate(&assignments, 0.5, false).is_err());
         assert!(evaluate(&assignments, 0.1, true).is_err());
         assert!(evaluate(&vec![true; n], 0.5, true).is_err());
-        assert!(
-            evaluate_fixed_candidate_regret(
-                &outcome,
-                &assignments,
-                &[0.5],
-                &candidates,
-                2,
-                &[0.0],
-                true,
-            )
-            .is_err()
-        );
+        assert!(evaluate_fixed_candidate_regret(
+            &outcome,
+            &assignments,
+            &[0.5],
+            &candidates,
+            2,
+            &[0.0],
+            true,
+        )
+        .is_err());
     }
 }

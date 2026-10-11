@@ -17,8 +17,8 @@ use antecedent_core::reason_code;
 
 use crate::error::EstimationError;
 use crate::temporal_dependent_interval::{
-    ResponseGap, SequenceTallies, TemporalEstimator, TemporalUnitPanel, UnitHistories, fold,
-    fold_text,
+    fold, fold_text, ResponseGap, SequenceTallies, TemporalEstimator, TemporalUnitPanel,
+    UnitHistories,
 };
 
 /// Most support points of an initial-state law.

@@ -31,7 +31,7 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{ExecutionContext, reason_code};
+use antecedent_core::{reason_code, ExecutionContext};
 use antecedent_expr::ExactTransportData;
 
 use crate::error::EstimationError;

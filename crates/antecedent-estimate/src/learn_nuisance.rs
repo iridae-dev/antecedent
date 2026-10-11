@@ -18,8 +18,8 @@
 
 use antecedent_core::{CausalRng, ExecutionContext};
 use antecedent_learn::{
-    CrossFittedPrediction, DesignView, LearnerFactory, LearnerSpec, NuisanceDiagnostics,
-    PredictionTask, RowSelection, TargetView, cross_fit_with_folds, diagnose, resolve_for,
+    cross_fit_with_folds, diagnose, resolve_for, CrossFittedPrediction, DesignView, LearnerFactory,
+    LearnerSpec, NuisanceDiagnostics, PredictionTask, RowSelection, TargetView,
 };
 
 use crate::error::EstimationError;
@@ -220,7 +220,11 @@ pub(crate) fn cross_fit_aipw_nuisances(
             )
         })
         .map_err(|error| {
-            if ctx.cancellation.is_cancelled() { nuisance_cancelled() } else { learn_err(error) }
+            if ctx.cancellation.is_cancelled() {
+                nuisance_cancelled()
+            } else {
+                learn_err(error)
+            }
         })?;
 
     let mut mu0 = vec![0.0; nrows];
@@ -431,7 +435,11 @@ pub(crate) fn cached_aipw_nuisances(
 ) -> Result<std::sync::Arc<AipwPredictions>, EstimationError> {
     use std::sync::Arc;
     let check_cancel = || {
-        if ctx.cancellation.is_cancelled() { Err(nuisance_cancelled()) } else { Ok(()) }
+        if ctx.cancellation.is_cancelled() {
+            Err(nuisance_cancelled())
+        } else {
+            Ok(())
+        }
     };
     check_cancel()?;
     require_populated_arms(&problem.treatment)?;

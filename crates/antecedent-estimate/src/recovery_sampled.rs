@@ -41,13 +41,13 @@ use antecedent_expr::{
 use antecedent_graph::Admg;
 use antecedent_identify::recovery::MISSING_LEVEL;
 use antecedent_identify::{
-    ObservationRecoveryQuery, RecoveredEffectQuery, RecoveryDecision, RecoveryDerivation,
-    RecoveryDetail, RecoveryError, RecoveryLimits, decide_observation_recovery,
+    decide_observation_recovery, ObservationRecoveryQuery, RecoveredEffectQuery, RecoveryDecision,
+    RecoveryDerivation, RecoveryDetail, RecoveryError, RecoveryLimits,
 };
 
 use antecedent_kernels::{norm_cdf, norm_inv};
 
-use crate::recovery::{RecoveredLaw, evaluate_exact_recovery, evaluate_recovered_effect};
+use crate::recovery::{evaluate_exact_recovery, evaluate_recovered_effect, RecoveredLaw};
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 
 /// Most bootstrap replicates one request may run.
@@ -901,7 +901,11 @@ fn outcome_one_probability(distribution: &ExactDistribution, outcome: VariableId
             one += *p;
         }
     }
-    if total > 0.0 { one / total } else { f64::NAN }
+    if total > 0.0 {
+        one / total
+    } else {
+        f64::NAN
+    }
 }
 
 struct Replicated {

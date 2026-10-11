@@ -44,7 +44,11 @@ impl JointCovariance {
     #[must_use]
     pub fn se(&self, i: usize) -> f64 {
         let variance = self.get(i, i);
-        if variance.is_finite() && variance >= 0.0 { variance.sqrt() } else { f64::NAN }
+        if variance.is_finite() && variance >= 0.0 {
+            variance.sqrt()
+        } else {
+            f64::NAN
+        }
     }
 }
 

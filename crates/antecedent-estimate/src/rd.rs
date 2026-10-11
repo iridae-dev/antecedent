@@ -74,11 +74,11 @@ use antecedent_expr::{
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::adjustment::{EffectEstimate, intervention_f64};
+use crate::adjustment::{intervention_f64, EffectEstimate};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{BootstrapSeResult, stats_err};
+use crate::util::{stats_err, BootstrapSeResult};
 
 /// Local-linear RD design column count: `[1, T, (R-c), T·(R-c)]`.
 const RD_NCOLS: usize = 4;
