@@ -20,6 +20,7 @@ test_sources = [
   "crates/antecedent-estimate/tests/nested_markov_uncertainty.rs",
   "crates/antecedent-io/tests/nested_markov_artifact.rs",
   "python/tests/test_closed_pilots.py",
+  "python/tests/test_transport_route_contracts.py",
   "crates/antecedent-io/src/measured_inference.rs",
   "python/tests/test_measured_inference.py",
 ]

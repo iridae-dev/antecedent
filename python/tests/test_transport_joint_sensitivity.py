@@ -193,6 +193,8 @@ def counted_stage():
 
 def test_the_endpoint_bootstrap_interval_replays():
     prepared = counted_stage()
+    plan = json.loads(prepared.estimate())
+    assert plan["status"] == "available"
     first = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=20)
     second = transport.joint_mechanism_sensitivity_interval(prepared, DEVIATION, replicates=20)
     assert first[0] <= first[1]

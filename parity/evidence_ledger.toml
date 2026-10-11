@@ -2506,7 +2506,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "transport.multi_source_limited_experiment.bayesian"
-route = "antecedent.transport.multi_source.posterior_mean"
+route = "antecedent_estimate.multi_source_posterior_mean"
 algorithm_provenance = ["provenance/transport.multi_source_limited_experiment.bayesian.toml"]
 parity_registry = "parity/promotion.toml"
 support_registry = "parity/transport_stages.toml"
@@ -2523,7 +2523,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "transport.two_step_temporal.bayesian"
-route = "antecedent.transport.two_step_temporal.posterior_mean"
+route = "antecedent_estimate.two_step_temporal_posterior_mean"
 algorithm_provenance = ["provenance/transport.two_step_temporal.bayesian.toml"]
 parity_registry = "parity/promotion.toml"
 support_registry = "parity/transport_stages.toml"
@@ -2540,7 +2540,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "transport.admg_conditional.bayesian"
-route = "antecedent.transport.admg_conditional.posterior_mean"
+route = "antecedent_estimate.admg_conditional_posterior_mean"
 algorithm_provenance = ["provenance/transport.admg_conditional.bayesian.toml"]
 parity_registry = "parity/promotion.toml"
 support_registry = "parity/transport_stages.toml"
@@ -2557,7 +2557,7 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "transport.shared_scenario_covariance.bayesian"
-route = "antecedent.transport.shared_scenario_covariance.posterior_mean"
+route = "antecedent_estimate.scenario_covariance_posterior_mean"
 algorithm_provenance = ["provenance/transport.shared_scenario_covariance.bayesian.toml"]
 parity_registry = "parity/promotion.toml"
 support_registry = "parity/transport_stages.toml"

@@ -2900,7 +2900,7 @@ evidence = "iid_count_table_of_the_cited_source_joint"
 functional = "conservative_endpoint_percentile_bootstrap"
 guarantee = "conservative_one_sided_coverage_target_paper_inherited"
 evidence_test = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
-evidence_assertion = "the_endpoint_bootstrap_interval_replays"
+evidence_assertion = "the_declared_composition_names_the_endpoint_bootstrap"
 notes = "The declared composition. Coverage records z_joint_sensitivity_zero_box and z_joint_sensitivity_positive_box."
 
 # Bounded ADMG counterfactual identification, effect of treatment on the treated
@@ -5866,7 +5866,7 @@ evidence_assertion = "batch_retarget_posterior_mean_stays_near_the_cross_fitted_
 notes = "Point-only posterior mean. No interval."
 
 [[routes]]
-route = "antecedent.transport.multi_source.posterior_mean"
+route = "antecedent_estimate.multi_source_posterior_mean"
 stage = "evaluate"
 status = "licensed"
 graph = "delegated_to_the_frequentist_record"
@@ -5878,7 +5878,7 @@ evidence_assertion = "multi_source_posterior_mean_stays_at_the_target_truth"
 notes = "Point-only posterior mean. No interval."
 
 [[routes]]
-route = "antecedent.transport.two_step_temporal.posterior_mean"
+route = "antecedent_estimate.two_step_temporal_posterior_mean"
 stage = "evaluate"
 status = "licensed"
 graph = "delegated_to_the_frequentist_record"
@@ -5890,7 +5890,7 @@ evidence_assertion = "two_step_posterior_mean_stays_at_the_target_truth"
 notes = "Point-only posterior mean. No interval."
 
 [[routes]]
-route = "antecedent.transport.admg_conditional.posterior_mean"
+route = "antecedent_estimate.admg_conditional_posterior_mean"
 stage = "evaluate"
 status = "licensed"
 graph = "delegated_to_the_frequentist_record"
@@ -5902,7 +5902,7 @@ evidence_assertion = "admg_conditional_posterior_mean_stays_at_the_enumerated_tr
 notes = "Point-only posterior mean. No interval."
 
 [[routes]]
-route = "antecedent.transport.shared_scenario_covariance.posterior_mean"
+route = "antecedent_estimate.scenario_covariance_posterior_mean"
 stage = "evaluate"
 status = "licensed"
 graph = "delegated_to_the_frequentist_record"

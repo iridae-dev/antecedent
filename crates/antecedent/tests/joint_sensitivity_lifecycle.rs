@@ -731,11 +731,14 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
 
 #[test]
 fn the_endpoint_bootstrap_interval_replays() {
-    let mut built = builder();
-    built.data = empirical_counts();
-    let prepared = prepare(&built);
-    drop(built);
+    let mut stage_builder = builder();
+    stage_builder.data = empirical_counts();
+    let prepared = prepare(&stage_builder);
+    drop(stage_builder);
     let ctx = ExecutionContext::for_tests(1);
+    // The retained plan executes; the interval reads that plan's laws.
+    let point = prepared.estimate(&ctx).unwrap();
+    assert!(!point.distribution().probabilities.is_empty());
     let first = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
     let second = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
     assert!(first.lower.is_finite() && first.upper.is_finite() && first.lower <= first.upper);
@@ -746,6 +749,24 @@ fn the_endpoint_bootstrap_interval_replays() {
         refused(&error),
         ("route_not_supported", "joint_sensitivity.bounds_exceeded".into())
     );
+}
+
+#[test]
+fn the_declared_composition_names_the_endpoint_bootstrap() {
+    let mut stage_builder = builder();
+    stage_builder.data = empirical_counts();
+    let prepared = prepare(&stage_builder);
+    drop(stage_builder);
+    let ctx = ExecutionContext::for_tests(1);
+    // The retained plan executes; the composition reads that plan's laws.
+    let point = prepared.estimate(&ctx).unwrap();
+    assert!(!point.distribution().probabilities.is_empty());
+    assert!(!prepared.program().factor_requirements().is_empty());
+    let interval = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
+    assert_eq!(interval.method, "conservative_endpoint_percentile_bootstrap");
+    assert!(interval.coverage_target.starts_with("one_sided:"));
+    assert_eq!(interval.level, 0.95);
+    assert_eq!(interval.replicates_requested, 20);
 }
 
 #[test]
