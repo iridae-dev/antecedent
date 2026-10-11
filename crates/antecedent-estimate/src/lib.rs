@@ -322,12 +322,12 @@ pub use statistical_transport::{
     TransportUncertaintyRow, Z_TRANSPORT_INTERVAL_NOT_MEASURED, bayesian_z_transport_interval,
     evaluate_bayesian_statistical_transport, evaluate_bayesian_statistical_transport_grid,
     evaluate_statistical_transport, mz_interval_withheld_reason, mz_sampling_dependence,
-    nominal_z_transport_interval, percentile_interval,
+    nominal_z_transport_interval, percentile_interval, z_transport_bootstrap_law_draws,
 };
 #[cfg(feature = "calibration-internal")]
 pub use statistical_transport::{
     MzRequestInterval, MzTransportIntervals, mz_transport_bootstrap_interval,
-    mz_transport_bootstrap_law_draws, z_transport_bootstrap_law_draws,
+    mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
     TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe, TemporalLinearAdjustment,

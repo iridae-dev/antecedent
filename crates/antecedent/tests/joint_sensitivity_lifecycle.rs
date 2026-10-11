@@ -129,6 +129,36 @@ fn probabilities(shift: f64) -> Vec<f64> {
     out
 }
 
+fn empirical_counts() -> ExactTransportData {
+    let n = 80u64;
+    let mut counts: Vec<u64> =
+        probabilities(0.0).iter().map(|p| (*p * n as f64).round() as u64).collect();
+    let sum: u64 = counts.iter().sum();
+    if sum < n {
+        *counts.last_mut().unwrap() += n - sum;
+    } else if sum > n {
+        counts[0] -= sum - n;
+    }
+    let total = counts.iter().sum::<u64>() as f64;
+    let binary = |variable| DiscreteAxis {
+        variable,
+        values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+    };
+    let law = ExactDiscreteLaw::try_empirical(
+        "source",
+        RegimeId::from_raw(0),
+        [antecedent_expr::InterventionAssignment::concrete(Z, Value::Bool(false))],
+        [binary(W), binary(X), binary(Y)],
+        counts.iter().map(|c| *c as f64 / total).collect::<Vec<_>>(),
+        "snapshot-0",
+        LawTolerance::default(),
+    )
+    .unwrap()
+    .with_empirical_counts(counts)
+    .unwrap();
+    ExactTransportData::try_new([law], 64).unwrap()
+}
+
 fn data(shift: f64) -> ExactTransportData {
     let binary = |variable| DiscreteAxis {
         variable,
@@ -700,21 +730,33 @@ fn the_producer_binds_premises_and_data_and_refuses_a_cancelled_frontier() {
 }
 
 #[test]
-fn the_unmeasured_interval_route_refuses_with_cell_not_licensed() {
+fn the_endpoint_bootstrap_interval_replays() {
+    let mut built = builder();
+    built.data = empirical_counts();
+    let prepared = prepare(&built);
+    drop(built);
+    let ctx = ExecutionContext::for_tests(1);
+    let first = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
+    let second = prepared.joint_mechanism_sensitivity_interval(&spec(), 20, 0.95, &ctx).unwrap();
+    assert!(first.lower.is_finite() && first.upper.is_finite() && first.lower <= first.upper);
+    assert_eq!(first.lower.to_bits(), second.lower.to_bits());
+    assert_eq!(first.upper.to_bits(), second.upper.to_bits());
+    let error = prepared.joint_mechanism_sensitivity_interval(&spec(), 1, 0.95, &ctx).unwrap_err();
+    assert_eq!(
+        refused(&error),
+        ("route_not_supported", "joint_sensitivity.bounds_exceeded".into())
+    );
+}
+
+#[test]
+fn the_range_artifact_refuses_a_forged_sampling_interval() {
     let built = builder();
     let prepared = prepare(&built);
     drop(built);
     let ctx = ExecutionContext::for_tests(1);
-    let error = prepared.joint_mechanism_sensitivity_interval(&spec(), &ctx).unwrap_err();
-    assert_eq!(
-        refused(&error),
-        ("cell_not_licensed", "joint_sensitivity.interval_withheld".into())
-    );
-    // Every evaluation reports the interval withheld, never attaches one.
     let result = prepared.joint_mechanism_sensitivity(&spec(), &ctx).unwrap();
     assert_eq!(result.uncertainty.reason_code, "cell_not_licensed");
     assert_eq!(result.uncertainty.detail, "joint_sensitivity.interval_withheld");
-    // A consumer refuses an artifact that carries an interval.
     let mut wire = artifact();
     wire.body.sampling.interval = Some([0.0, 1.0]);
     reseal(&mut wire);

@@ -55,11 +55,8 @@ pub use joint_mechanism_sensitivity::{
     AxisTipping, FrontierPoint, JointDeviationSpec, JointFactor, JointFactorBound,
     JointMechanismSensitivityResult, JointSensitivityError, JointSensitivityLimits,
     JointSensitivityRange, JointSensitivityReceipt, JointSensitivityUncertainty, TippingBracket,
-    TippingStatus, z_transport_joint_mechanism_sensitivity,
-};
-#[cfg(feature = "calibration-internal")]
-pub use joint_mechanism_sensitivity::{
-    JointSensitivityInterval, joint_sensitivity_bootstrap_interval_internal,
+    JointSensitivityInterval, TippingStatus, joint_sensitivity_bootstrap_interval_internal,
+    z_transport_joint_mechanism_sensitivity,
 };
 pub use mechanism_sensitivity::{
     DiscreteKernelOptimizationReceipt, DiscreteKernelSensitivity, DiscreteKernelSensitivityError,

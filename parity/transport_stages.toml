@@ -2870,23 +2870,38 @@ evidence_assertion = "test_consume_joint_sensitivity_artifact_replays_the_retain
 [[routes]]
 route = "antecedent.PreparedZTransport.joint_mechanism_sensitivity_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Record sensitivity.joint_uncertainty (in progress). Rust facade of the closed interval route; always refuses (joint_sensitivity.interval_withheld). Runtime refusal: crates/antecedent/tests/joint_sensitivity_lifecycle.rs::the_unmeasured_interval_route_refuses_with_cell_not_licensed."
+status = "licensed"
+graph = "registered_surrogate_selection_admg"
+evidence = "iid_count_table_of_the_cited_source_joint"
+functional = "conservative_endpoint_percentile_bootstrap"
+guarantee = "conservative_one_sided_coverage_target_paper_inherited"
+evidence_test = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
+evidence_assertion = "the_endpoint_bootstrap_interval_replays"
+notes = "Public conservative endpoint bootstrap. The range artifact still refuses a forged interval."
 
 [[routes]]
 route = "antecedent.transport.advanced.joint_mechanism_sensitivity_interval"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Record sensitivity.joint_uncertainty (in progress). Python surface of the closed interval route; always refuses (joint_sensitivity.interval_withheld). Runtime refusal: python/tests/test_transport_joint_sensitivity.py::test_the_unmeasured_interval_route_refuses_with_cell_not_licensed."
+status = "licensed"
+graph = "registered_surrogate_selection_admg"
+evidence = "iid_count_table_of_the_cited_source_joint"
+functional = "conservative_endpoint_percentile_bootstrap"
+guarantee = "conservative_one_sided_coverage_target_paper_inherited"
+evidence_test = "python/tests/test_transport_joint_sensitivity.py"
+evidence_assertion = "test_the_endpoint_bootstrap_interval_replays"
+notes = "Python surface of the public endpoint bootstrap."
 
 [[routes]]
 route = "antecedent.transport.joint_sensitivity.uncertainty_conservative_endpoint_bootstrap"
 stage = "uncertainty"
-status = "closed"
-reason_code = "cell_not_licensed"
-notes = "Record sensitivity.joint_uncertainty (in progress). The one declared composition (conservative endpoint percentile bootstrap, one-sided coverage target), closed until cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.z_joint_sensitivity_zero_box (gated) and ...z_joint_sensitivity_positive_box (one_sided, side upper) are measured (crates/antecedent/tests/joint_sensitivity_calibration.rs, gate_calibration.sh run_js). The internal estimator is antecedent_validate::joint_sensitivity_bootstrap_interval_internal (calibration-internal only)."
+status = "licensed"
+graph = "registered_surrogate_selection_admg"
+evidence = "iid_count_table_of_the_cited_source_joint"
+functional = "conservative_endpoint_percentile_bootstrap"
+guarantee = "conservative_one_sided_coverage_target_paper_inherited"
+evidence_test = "crates/antecedent/tests/joint_sensitivity_lifecycle.rs"
+evidence_assertion = "the_endpoint_bootstrap_interval_replays"
+notes = "The declared composition. Coverage records z_joint_sensitivity_zero_box and z_joint_sensitivity_positive_box."
 
 # Bounded ADMG counterfactual identification, effect of treatment on the treated
 # (record counterfactual.admg_identification). A counterfactual stage API with no Study query, so it uses this registry.
@@ -5705,6 +5720,7 @@ limits = "At most67108864 envelope bytes; original method budgets and cancellati
 evidence_test = "crates/antecedent-io/src/measured_inference/transport.rs"
 evidence_assertion = "every_measured_transport_variant_matches_original_execution_basis_bit_for_bit"
 notes = "Independent original-source consumer with factory-only native authority. Serialized calibrated flags, arbitrary caller bases and generic aligned draws cannot mint measured scalar authority."
+
 [[routes]]
 route = "antecedent.treatment.joint_effects.posterior_mean"
 stage = "evaluate"

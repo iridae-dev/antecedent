@@ -1426,13 +1426,12 @@ pub fn mz_transport_bootstrap_law_draws(
     Ok(Ok(out))
 }
 
-#[cfg(feature = "calibration-internal")]
 /// The law sets of the iid row bootstrap of a single-source z functional's cited
 /// count tables, one per replicate (`None` for a replicate whose draw failed).
 ///
 /// Same stream, alias policy and dependence rule as [`nominal_z_transport_interval`];
 /// the joint-sensitivity endpoint bootstrap evaluates its exact range on
-/// each draw. Compiled only under `calibration-internal` (dev-dependencies alone).
+/// each draw.
 ///
 /// # Errors
 /// Fewer than two replicates, a provider/catalog disagreement, or cancellation.

@@ -267,24 +267,27 @@ fn consume_z_transport_joint_sensitivity_artifact(
     to_py_json(py, &value)
 }
 
-/// The closed sampling-uncertainty interval route: always refuses.
+/// Conservative endpoint percentile bootstrap of the joint range.
 #[pyfunction]
-#[pyo3(signature=(stage, factors, *, decision_threshold=None, memory_bytes=None, cancel=None))]
+#[pyo3(signature=(stage, factors, *, replicates=40, level=0.95, decision_threshold=None, memory_bytes=None, cancel=None))]
 #[doc(hidden)]
 fn z_transport_joint_sensitivity_interval(
     stage: PyRef<'_, PreparedZTransportStage>,
     factors: Vec<(String, f64)>,
+    replicates: u32,
+    level: f64,
     decision_threshold: Option<f64>,
     memory_bytes: Option<u64>,
     cancel: Option<crate::PyCancellationToken>,
-) -> PyResult<()> {
+) -> PyResult<(f64, f64)> {
     let mut spec = JointDeviationSpec::new(parse_factors(factors)?);
     spec.decision_threshold = decision_threshold;
     let ctx = stage.ctx(memory_bytes, cancel);
-    match stage.prepared().joint_mechanism_sensitivity_interval(&spec, &ctx) {
-        Ok(never) => match never {},
-        Err(error) => Err(joint_py_err(error)),
-    }
+    let interval = stage
+        .prepared()
+        .joint_mechanism_sensitivity_interval(&spec, replicates, level, &ctx)
+        .map_err(joint_py_err)?;
+    Ok((interval.lower, interval.upper))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

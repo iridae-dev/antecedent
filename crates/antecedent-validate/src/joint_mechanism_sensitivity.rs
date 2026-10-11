@@ -1084,8 +1084,7 @@ pub fn z_transport_joint_mechanism_sensitivity(
     })
 }
 
-/// Conservative endpoint percentile-bootstrap interval (calibration-internal).
-#[cfg(feature = "calibration-internal")]
+/// Conservative endpoint percentile-bootstrap interval.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct JointSensitivityInterval {
@@ -1115,13 +1114,10 @@ pub struct JointSensitivityInterval {
 ///
 /// For any fixed true deviation inside the box, `L*_b <= psi*_b <= U*_b`, so
 /// the interval contains the pointwise percentile interval of `psi(delta0)`.
-/// Compiled only under `calibration-internal`; no public route reaches it.
-///
 /// # Errors
 ///
 /// An invalid spec, a formula or provider refusal on the observed data, fewer
 /// than two replicates or cancellation.
-#[cfg(feature = "calibration-internal")]
 #[doc(hidden)]
 pub fn joint_sensitivity_bootstrap_interval_internal(
     diagram: &SelectionDiagram,
