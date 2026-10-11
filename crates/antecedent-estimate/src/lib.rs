@@ -42,6 +42,7 @@ pub mod empirical_table;
 pub mod envelope;
 pub mod error;
 pub mod estimator;
+pub mod factorial_bernoulli;
 pub mod frontdoor;
 pub mod frontdoor_functional;
 pub mod functional_distribution;

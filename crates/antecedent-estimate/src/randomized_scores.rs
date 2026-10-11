@@ -210,6 +210,125 @@ pub fn complier_wald_effect(
     })
 }
 
+/// Horvitz–Thompson contrast after pooled covariate residualization.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CupedHtEffect {
+    /// Contrast of the residualized outcome.
+    pub effect: f64,
+    /// Pooled outcome-on-covariate slope.
+    pub beta: f64,
+    /// Independent-row score standard error of [`Self::effect`].
+    pub standard_error: f64,
+}
+
+/// CUPED residualization with a known-propensity Horvitz–Thompson contrast.
+///
+/// The slope is the pooled outcome–covariate covariance divided by the
+/// covariate's second moment. Refusal strings match the historical Python entry.
+pub fn cuped_ht_effect(
+    outcome: &[f64],
+    covariate: &[f64],
+    assignment: &[bool],
+    propensity: &[f64],
+) -> Result<CupedHtEffect, &'static str> {
+    let n = outcome.len();
+    if n < 2
+        || covariate.len() != n
+        || assignment.len() != n
+        || (propensity.len() != 1 && propensity.len() != n)
+    {
+        return Err("outcome, covariate, assignment, and propensity must have compatible rows");
+    }
+    if outcome.iter().chain(covariate).any(|value| !value.is_finite()) {
+        return Err("outcomes and covariates must be finite");
+    }
+    let y_mean = outcome.iter().sum::<f64>() / n as f64;
+    let x_mean = covariate.iter().sum::<f64>() / n as f64;
+    let covariance =
+        outcome.iter().zip(covariate).map(|(a, b)| (a - y_mean) * (b - x_mean)).sum::<f64>();
+    let x_variance = covariate.iter().map(|value| (value - x_mean).powi(2)).sum::<f64>();
+    if x_variance <= f64::EPSILON {
+        return Err("CUPED covariate must have non-zero variance");
+    }
+    let beta = covariance / x_variance;
+    let mut scores = Vec::with_capacity(n);
+    for i in 0..n {
+        let pi = propensity[if propensity.len() == 1 { 0 } else { i }];
+        if !pi.is_finite() || pi <= 0.0 || pi >= 1.0 {
+            return Err("assignment propensities must be strictly between zero and one");
+        }
+        let adjusted = outcome[i] - beta * (covariate[i] - x_mean);
+        let sign = if assignment[i] { 1.0 / pi } else { -1.0 / (1.0 - pi) };
+        scores.push(sign * adjusted);
+    }
+    let effect = scores.iter().sum::<f64>() / n as f64;
+    let variance = scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>()
+        / ((n - 1) as f64 * n as f64);
+    Ok(CupedHtEffect { effect, beta, standard_error: variance.sqrt() })
+}
+
+/// Sharp-null Bernoulli randomization test of a Horvitz–Thompson contrast.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BernoulliExactTest {
+    /// Observed Horvitz–Thompson contrast.
+    pub observed: f64,
+    /// Probability-weighted two-sided tail under the sharp no-effect null.
+    pub p_value: f64,
+    /// Enumerated allocations, `2^n`.
+    pub allocations: usize,
+}
+
+/// Exact Bernoulli randomization test for one to twenty units.
+///
+/// Every allocation is weighted by its known assignment probability. This is
+/// not the equal-probability complete-randomization test.
+pub fn bernoulli_exact_randomization_test(
+    outcome: &[f64],
+    assignment: &[bool],
+    propensity: &[f64],
+) -> Result<BernoulliExactTest, &'static str> {
+    let n = outcome.len();
+    if n == 0 || n > 20 || assignment.len() != n || (propensity.len() != 1 && propensity.len() != n)
+    {
+        return Err("exact randomization inference requires 1–20 aligned rows and propensities");
+    }
+    if outcome.iter().any(|value| !value.is_finite()) {
+        return Err("outcomes must be finite");
+    }
+    let probabilities =
+        (0..n).map(|i| propensity[if propensity.len() == 1 { 0 } else { i }]).collect::<Vec<_>>();
+    if probabilities.iter().any(|value| !value.is_finite() || *value <= 0.0 || *value >= 1.0) {
+        return Err("assignment propensities must be strictly between zero and one");
+    }
+    let observed = (0..n)
+        .map(|i| {
+            if assignment[i] {
+                outcome[i] / probabilities[i]
+            } else {
+                -outcome[i] / (1.0 - probabilities[i])
+            }
+        })
+        .sum::<f64>()
+        / n as f64;
+    let mut p_value = 0.0;
+    let allocations = 1_usize << n;
+    for mask in 0..allocations {
+        let mut probability = 1.0;
+        let mut statistic = 0.0;
+        for i in 0..n {
+            let treated = (mask & (1_usize << i)) != 0;
+            let pi = probabilities[i];
+            probability *= if treated { pi } else { 1.0 - pi };
+            statistic += if treated { outcome[i] / pi } else { -outcome[i] / (1.0 - pi) };
+        }
+        statistic /= n as f64;
+        if statistic.abs() + 1e-12 >= observed.abs() {
+            p_value += probability;
+        }
+    }
+    Ok(BernoulliExactTest { observed, p_value: p_value.min(1.0), allocations })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

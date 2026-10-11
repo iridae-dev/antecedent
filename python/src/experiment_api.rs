@@ -184,42 +184,14 @@ fn estimate_cuped_effect(
     assignment: Vec<bool>,
     propensity: PyReadonlyArray1<'_, f64>,
 ) -> PyResult<(f64, f64, f64)> {
-    let y = outcome.as_array();
-    let x = covariate.as_array();
-    let p = propensity.as_array();
-    let n = y.len();
-    if n < 2 || x.len() != n || assignment.len() != n || (p.len() != 1 && p.len() != n) {
-        return Err(PyValueError::new_err(
-            "outcome, covariate, assignment, and propensity must have compatible rows",
-        ));
-    }
-    if y.iter().chain(x.iter()).any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes and covariates must be finite"));
-    }
-    let y_mean = y.iter().sum::<f64>() / n as f64;
-    let x_mean = x.iter().sum::<f64>() / n as f64;
-    let covariance = y.iter().zip(x.iter()).map(|(a, b)| (a - y_mean) * (b - x_mean)).sum::<f64>();
-    let x_variance = x.iter().map(|value| (value - x_mean).powi(2)).sum::<f64>();
-    if x_variance <= f64::EPSILON {
-        return Err(PyValueError::new_err("CUPED covariate must have non-zero variance"));
-    }
-    let beta = covariance / x_variance;
-    let mut scores = Vec::with_capacity(n);
-    for i in 0..n {
-        let pi = p[if p.len() == 1 { 0 } else { i }];
-        if !pi.is_finite() || pi <= 0.0 || pi >= 1.0 {
-            return Err(PyValueError::new_err(
-                "assignment propensities must be strictly between zero and one",
-            ));
-        }
-        let adjusted = y[i] - beta * (x[i] - x_mean);
-        let sign = if assignment[i] { 1.0 / pi } else { -1.0 / (1.0 - pi) };
-        scores.push(sign * adjusted);
-    }
-    let estimate = scores.iter().sum::<f64>() / n as f64;
-    let variance = scores.iter().map(|score| (score - estimate).powi(2)).sum::<f64>()
-        / ((n - 1) as f64 * n as f64);
-    Ok((estimate, beta, variance.sqrt()))
+    let fit = antecedent_estimate::randomized_scores::cuped_ht_effect(
+        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
+        &covariate.as_array().iter().copied().collect::<Vec<_>>(),
+        &assignment,
+        &propensity.as_array().iter().copied().collect::<Vec<_>>(),
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((fit.effect, fit.beta, fit.standard_error))
 }
 
 /// Stratified complete-randomization effect with a conservative variance bound.
@@ -229,51 +201,13 @@ fn estimate_stratified_effect(
     assignment: Vec<bool>,
     blocks: Vec<String>,
 ) -> PyResult<(f64, f64, f64, usize)> {
-    let y = outcome.as_array();
-    let n = y.len();
-    if n == 0 || assignment.len() != n || blocks.len() != n {
-        return Err(PyValueError::new_err(
-            "outcome, assignment, and block labels must have equal non-zero length",
-        ));
-    }
-    if y.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
-    }
-    let mut labels = blocks.clone();
-    labels.sort();
-    labels.dedup();
-    let mut effect = 0.0;
-    let mut variance = 0.0;
-    let mut minimum_probability: f64 = 1.0;
-    for label in &labels {
-        let rows = blocks
-            .iter()
-            .enumerate()
-            .filter_map(|(i, value)| (value == label).then_some(i))
-            .collect::<Vec<_>>();
-        let treated = rows.iter().filter(|&&i| assignment[i]).copied().collect::<Vec<_>>();
-        let control = rows.iter().filter(|&&i| !assignment[i]).copied().collect::<Vec<_>>();
-        if treated.len() < 2 || control.len() < 2 {
-            return Err(PyValueError::new_err(
-                "each stratum needs at least two treated and two control units for variance estimation",
-            ));
-        }
-        let mean =
-            |indices: &[usize]| indices.iter().map(|&i| y[i]).sum::<f64>() / indices.len() as f64;
-        let treated_mean = mean(&treated);
-        let control_mean = mean(&control);
-        let treated_var = treated.iter().map(|&i| (y[i] - treated_mean).powi(2)).sum::<f64>()
-            / (treated.len() - 1) as f64;
-        let control_var = control.iter().map(|&i| (y[i] - control_mean).powi(2)).sum::<f64>()
-            / (control.len() - 1) as f64;
-        let block_weight = rows.len() as f64 / n as f64;
-        effect += block_weight * (treated_mean - control_mean);
-        variance += block_weight.powi(2)
-            * (treated_var / treated.len() as f64 + control_var / control.len() as f64);
-        let p = treated.len() as f64 / rows.len() as f64;
-        minimum_probability = minimum_probability.min(p.min(1.0 - p));
-    }
-    Ok((effect, variance, minimum_probability, labels.len()))
+    let fit = antecedent_estimate::randomized_neyman::stratified_neyman_effect(
+        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
+        &assignment,
+        &blocks,
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((fit.effect, fit.variance, fit.minimum_probability, fit.strata))
 }
 
 /// Exact Bernoulli randomization test of the sharp no-effect null.
@@ -283,51 +217,13 @@ fn exact_randomization_test(
     assignment: Vec<bool>,
     propensity: PyReadonlyArray1<'_, f64>,
 ) -> PyResult<(f64, f64, usize)> {
-    let y = outcome.as_array();
-    let p = propensity.as_array();
-    let n = y.len();
-    if n == 0 || n > 20 || assignment.len() != n || (p.len() != 1 && p.len() != n) {
-        return Err(PyValueError::new_err(
-            "exact randomization inference requires 1–20 aligned rows and propensities",
-        ));
-    }
-    if y.iter().any(|value| !value.is_finite()) {
-        return Err(PyValueError::new_err("outcomes must be finite"));
-    }
-    let probabilities = (0..n).map(|i| p[if p.len() == 1 { 0 } else { i }]).collect::<Vec<_>>();
-    if probabilities.iter().any(|value| !value.is_finite() || *value <= 0.0 || *value >= 1.0) {
-        return Err(PyValueError::new_err(
-            "assignment propensities must be strictly between zero and one",
-        ));
-    }
-    let observed =
-        (0..n)
-            .map(|i| {
-                if assignment[i] {
-                    y[i] / probabilities[i]
-                } else {
-                    -y[i] / (1.0 - probabilities[i])
-                }
-            })
-            .sum::<f64>()
-            / n as f64;
-    let mut p_value = 0.0;
-    let allocations = 1usize << n;
-    for mask in 0..allocations {
-        let mut probability = 1.0;
-        let mut statistic = 0.0;
-        for i in 0..n {
-            let treated = mask & (1 << i) != 0;
-            let pi = probabilities[i];
-            probability *= if treated { pi } else { 1.0 - pi };
-            statistic += if treated { y[i] / pi } else { -y[i] / (1.0 - pi) };
-        }
-        statistic /= n as f64;
-        if statistic.abs() + 1e-12 >= observed.abs() {
-            p_value += probability;
-        }
-    }
-    Ok((observed, p_value.min(1.0), allocations))
+    let fit = antecedent_estimate::randomized_scores::bernoulli_exact_randomization_test(
+        &outcome.as_array().iter().copied().collect::<Vec<_>>(),
+        &assignment,
+        &propensity.as_array().iter().copied().collect::<Vec<_>>(),
+    )
+    .map_err(PyValueError::new_err)?;
+    Ok((fit.observed, fit.p_value, fit.allocations))
 }
 
 /// Horvitz--Thompson switchback ITT with independent-sequence sandwich variance.
