@@ -13,7 +13,7 @@ use antecedent_stats::{coefficient_covariance, SandwichKind};
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
-    aipw_scores, cached_aipw_nuisances, clip_propensity, design_for_spec, learn_err,
+    aipw_scores, cached_aipw_nuisances, design_for_spec, guarded_propensity, learn_err,
     resolve_nuisance,
 };
 use crate::overlap::OverlapPolicy;
@@ -244,8 +244,7 @@ impl DrLearner {
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let (mu0, mu1, raw_e, treat) = nuisance.as_ref();
-        let mut ehat = raw_e.clone();
-        clip_propensity(&mut ehat, clip_of(problem.overlap));
+        let ehat = guarded_propensity(raw_e, clip_of(problem.overlap))?;
         let phi =
             aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
         let (factory, _) = resolve_nuisance(

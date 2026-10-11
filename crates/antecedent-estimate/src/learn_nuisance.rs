@@ -272,6 +272,26 @@ pub(crate) fn clip_propensity(scores: &mut [f64], clip: Option<f64>) {
     }
 }
 
+/// The clipped retained propensities, refusing an exact 0 or 1 (or a non-finite value).
+///
+/// With a clip every value is interior; without one such a propensity carries an infinite
+/// inverse-probability weight, which is refused here as it is by the cross-fit AIPW score
+/// table instead of surfacing later as non-finite scores.
+///
+/// # Errors
+///
+/// An overlap refusal naming the propensity-score fields when a clipped value is not in
+/// the open unit interval.
+pub(crate) fn guarded_propensity(
+    raw: &[f64],
+    clip: Option<f64>,
+) -> Result<Vec<f64>, EstimationError> {
+    let mut ehat = raw.to_vec();
+    clip_propensity(&mut ehat, clip);
+    crate::propensity::require_interior_propensities(&ehat)?;
+    Ok(ehat)
+}
+
 pub(crate) fn iid_se(values: &[f64]) -> f64 {
     antecedent_stats::iid_se(values)
 }
@@ -478,6 +498,17 @@ pub(crate) fn cached_aipw_nuisances(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn guarded_propensity_refuses_boundary_values_unless_a_clip_makes_them_interior() {
+        let raw = [0.4, 0.0, 1.0, 0.7];
+        let refused = guarded_propensity(&raw, None).unwrap_err();
+        assert!(matches!(refused, EstimationError::OverlapWithFields { .. }), "{refused}");
+        assert!(guarded_propensity(&[0.4, f64::NAN], None).is_err());
+        let clipped = guarded_propensity(&raw, Some(0.05)).unwrap();
+        assert_eq!(clipped, vec![0.4, 0.05, 0.95, 0.7]);
+        assert_eq!(guarded_propensity(&[0.2, 1e-12], None).unwrap(), vec![0.2, 1e-12]);
+    }
 
     #[test]
     fn populated_arm_guard_preserves_prepared_binary_tolerance() {

@@ -14,7 +14,7 @@ use antecedent_learn::{diagnose, LearnerSpec, LogisticSpec, PredictionTask, Ridg
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
-    aipw_scores, cached_aipw_nuisances, clip_propensity, cross_fit_nuisance, iid_se,
+    aipw_scores, cached_aipw_nuisances, cross_fit_nuisance, guarded_propensity, iid_se,
     AipwPredictions,
 };
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
@@ -214,8 +214,7 @@ impl DmlAte {
         let nuisance =
             cached_aipw_nuisances(problem, self.outcome, self.treatment, self.folds, ctx)?;
         let (mu0, mu1, raw_e, treat) = nuisance.as_ref();
-        let mut ehat = raw_e.clone();
-        clip_propensity(&mut ehat, clip_of(problem.overlap));
+        let ehat = guarded_propensity(raw_e, clip_of(problem.overlap))?;
         let phi =
             aipw_scores(problem.treatment.as_ref(), problem.outcome.as_ref(), &ehat, mu0, mu1);
         let yhat: Vec<f64> = problem
@@ -375,8 +374,7 @@ pub(crate) fn aipw_score_table(
             let (mu0, mu1, raw_e, treat) = nuisance;
             let n = problem.nrows;
             let clip = clip_of(problem.overlap);
-            let mut ehat = raw_e.clone();
-            clip_propensity(&mut ehat, clip);
+            let ehat = guarded_propensity(raw_e, clip)?;
             let mut scores = vec![0.0; 2 * n];
             let mut propensities = vec![0.0; 2 * n];
             for i in 0..n {
