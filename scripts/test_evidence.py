@@ -900,6 +900,7 @@ GRAPH_TOKENS: dict[str, list[str]] = {
     "Admg": [r"Admg", r"admg"],
     "Cpdag": [r"(?<![A-Za-z])Cpdag(?![A-Za-z])", r"\bcpdag", r"AcceptedGraph::cpdag"],
     "Pag": [r"(?<![A-Za-z])Pag(?![A-Za-z])", r"\bpag", r"AcceptedGraph::pag", r"Mag"],
+    "TemporalAdmg": [r"TemporalAdmg", r"temporal_admg"],
     "TemporalDag": [r"TemporalDag", r"temporal_dag", r"DbnPosterior", r"dbn"],
     "TemporalCpdag": [r"TemporalCpdag", r"temporal_cpdag"],
     "TemporalPag": [r"TemporalPag", r"temporal_pag"],

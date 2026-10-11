@@ -8201,6 +8201,78 @@ limitations = "Bayesian-bootstrap posterior of mechanism-change Shapley contribu
 calibration = ["cov.change_attribution.dag.bayesian.posterior_quantile.l90.change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage", "cov.change_attribution.dag.bayesian.posterior_quantile.l95.change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage"]
 
 [[cell]]
+query = "AnomalyAttribution"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["gcm.fit"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs"
+evidence_assertion = "temporal_attribution_frequentist_known_truth"
+checked_execution = [
+  { estimator = "gcm.fit", test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs", assertion = "temporal_attribution_frequentist_known_truth" },
+]
+limitations = "GCM anomaly scores on an explicit TemporalDag unfolded to a lag-aligned static SCM. Identification is parametric (gcm.parametric); estimator gcm.fit. Point only. Sampling uncertainty is unavailable. cheap/full, accepted, graph-posterior, and temporal class graphs remain refused."
+calibration_reason = "no_interval_reported"
+
+[[cell]]
+query = "ChangeAttribution"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["gcm.fit"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs"
+evidence_assertion = "temporal_attribution_frequentist_known_truth"
+checked_execution = [
+  { estimator = "gcm.fit", test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs", assertion = "temporal_attribution_frequentist_known_truth" },
+]
+limitations = "GCM distribution-change Shapley on an explicit TemporalDag unfolded to a lag-aligned static SCM, two time-range populations. Identification is parametric (gcm.parametric); estimator gcm.fit. Point only. Pins total_change from conformance/estimate/staged_attribution. cheap/full, accepted, graph-posterior, and temporal class graphs remain refused."
+calibration_reason = "no_interval_reported"
+
+[[cell]]
+query = "AnomalyAttribution"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["gcm.fit.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs"
+evidence_assertion = "temporal_attribution_bayesian_known_truth"
+checked_execution = [
+  { estimator = "gcm.fit.bayesian", test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs", assertion = "temporal_attribution_bayesian_known_truth" },
+]
+limitations = "Posterior mean of target mean anomaly scores on an explicit TemporalDag unfolded to a lag-aligned static SCM. The Dirichlet bootstrap runs; the posterior object and its interval are withheld. Conditional on mechanism-family selection from unweighted observed data. Does not address model misspecification or identification uncertainty."
+calibration_reason = "no_interval_reported"
+
+[[cell]]
+query = "ChangeAttribution"
+graph_class = "TemporalDag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["gcm.attribution.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_attribution"
+evidence_test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs"
+evidence_assertion = "temporal_attribution_bayesian_known_truth"
+checked_execution = [
+  { estimator = "gcm.attribution.bayesian", test = "crates/antecedent/tests/temporal_attribution_route_evidence.rs", assertion = "temporal_attribution_bayesian_known_truth" },
+]
+limitations = "Posterior mean of mechanism-change Shapley contributions on an explicit TemporalDag unfolded to a lag-aligned static SCM. The Dirichlet bootstrap runs; the posterior object and its interval are withheld. Conditional on mechanism-family selection from unweighted populations. Does not address model misspecification or identification uncertainty."
+calibration_reason = "no_interval_reported"
+
+[[cell]]
 query = "TransportQuery"
 graph_class = "Admg"
 structure = "explicit"
@@ -9451,4 +9523,2596 @@ checked_execution = [
   { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_cross_world_effect.rs", assertion = "temporal_dag_cross_world_points_match_the_linear_mechanism" },
 ]
 limitations = "Linear unfolded point on an explicit or accepted TemporalDag, one lag, empty back-door set. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean, not a discrete atom table. Point-only: no interval and no coverage record. A mapped coefficient prior and cheap/full refuters are refused."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalPulse"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TemporalConditionalSustained"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_conditional"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point" },
+]
+limitations = "One-modifier marginal effect on each identified completion of the temporal class, using the existing temporal linear adjustment fit. The published point is the completion-weighted mean; enumeration is not a posterior probability. W is contemporaneous with the outcome. A single step only. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. More than one modifier, a multi-step window, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageDerivative"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PointDerivative"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Elasticity"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "SemiElasticity"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "DirectionalDerivative"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.response.gcomp"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "temporal.response.gcomp", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseJacobian"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["response.temporal.bayesian"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_derivative"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_derivatives_publish_the_linear_slope"
+checked_execution = [
+  { estimator = "response.temporal.bayesian", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_derivatives_publish_the_linear_slope" },
+]
+limitations = "Local linear slope on each identified completion, using the existing temporal derivative response. The published point is the completion-weighted mean of those slopes; enumeration is not a posterior probability. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. Order other than one, more than one horizon, a mapped coefficient prior, and cheap/full refuters are refused. Cheap and full stay n/a. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "Counterfactual"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "NestedCounterfactualEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalCpdag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalCpdag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalCpdag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalPag"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, explicit, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Frequentist."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "PathSpecificEffect"
+graph_class = "TemporalPag"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["temporal.linear.adjustment"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/temporal_cross_world"
+evidence_test = "crates/antecedent/tests/temporal_class_point_queries.rs"
+evidence_assertion = "temporal_class_cross_world_points_match_the_linear_mechanism"
+checked_execution = [
+  { estimator = "temporal.linear.adjustment", test = "crates/antecedent/tests/temporal_class_point_queries.rs", assertion = "temporal_class_cross_world_points_match_the_linear_mechanism" },
+]
+limitations = "Linear point on each identified completion whose back-door set is empty, using the existing temporal linear adjustment slopes. The published point is the completion-weighted mean; enumeration is not a posterior probability. Nested is the direct slope times the treatment contrast. Path-specific is the one-mediator edge product. Counterfactual is the total slope times the contrast. InterventionalDistribution publishes the linear interventional mean. Point-only: no interval and no coverage record. Bayesian is the completion-weighted mean of isotropic posterior means, not a new estimator. A nonempty back-door set, a mapped coefficient prior, and cheap/full refuters are refused. TemporalPag, accepted, Bayesian."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_response_curve_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_response_curve_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "graph_posterior"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_response_curve_graph_posterior"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_response_curve_graph_posterior" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "AverageEffect"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_average_effect_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_average_effect_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.distribution"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_interventional_distribution_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.distribution", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_interventional_distribution_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.distribution"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_interventional_distribution_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.distribution", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_interventional_distribution_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.distribution"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_interventional_distribution_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.distribution", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_interventional_distribution_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionalDistribution"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.distribution"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_distribution"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_interventional_distribution_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.distribution", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_interventional_distribution_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_response_curve_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_response_curve_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_response_curve_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_response_curve_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_response_curve_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_response_curve_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "ResponseCurve"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_response_curve_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_response_curve_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "none"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Frequentist"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "cheap"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "InterventionResponse"
+graph_class = "TemporalAdmg"
+structure = "accepted"
+inference = "Bayesian"
+validation = "full"
+estimators = ["functional.effect"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/admg_frontdoor_functional"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_intervention_response_explicit_and_accepted"
+checked_execution = [
+  { estimator = "functional.effect", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_intervention_response_explicit_and_accepted" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TransportQuery"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Frequentist"
+validation = "none"
+estimators = ["transport.trial_ipw"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/staged_transport"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_transport_explicit"
+checked_execution = [
+  { estimator = "transport.trial_ipw", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_transport_explicit" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
+calibration_reason = "estimator_grid_not_measured"
+
+[[cell]]
+query = "TransportQuery"
+graph_class = "TemporalAdmg"
+structure = "explicit"
+inference = "Bayesian"
+validation = "none"
+estimators = ["transport.trial_bayesian_bootstrap"]
+staged = true
+evidence_kind = "internal_known_truth"
+known_truth_fixture = "conformance/estimate/bayesian_trial_transport"
+evidence_test = "crates/antecedent/tests/temporal_admg_route_evidence.rs"
+evidence_assertion = "temporal_admg_transport_explicit"
+checked_execution = [
+  { estimator = "transport.trial_bayesian_bootstrap", test = "crates/antecedent/tests/temporal_admg_route_evidence.rs", assertion = "temporal_admg_transport_explicit" }
+]
+limitations = "The TemporalAdmg functional is the static ADMG functional after the contemporaneous projection: each variable appears once, at lag 0, with the same directed and bidirected edges. general.id and the static estimator run on that projection. A variable at more than one lag is refused rather than retargeted onto a different estimand. Point-only cells stay point-only. Calibration is not claimed."
 calibration_reason = "estimator_grid_not_measured"

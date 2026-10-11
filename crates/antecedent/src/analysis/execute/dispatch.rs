@@ -47,48 +47,50 @@ impl super::Study {
         let class = self.graph.class();
         if let CausalQuery::NestedCounterfactual(q) = &self.query {
             q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
-            if self.graph.as_temporal_dag().is_some()
-                && matches!(self.data, DataInput::Temporal(_) | DataInput::Event(_))
+            if matches!(
+                self.graph.class(),
+                GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+            ) && matches!(self.data, DataInput::Temporal(_) | DataInput::Event(_))
             {
                 // The temporal twin is the linear direct slope on a TemporalDag.
             } else {
-            let Some(graph) = self.graph.as_dag() else {
-                return Err(crate::unsupported_reason!(
-                    "cross_world_not_identified",
-                    "natural direct effect requires the licensed three-node DAG"
-                ));
-            };
-            let expected = [
-                (q.treatment.raw(), q.mediator.raw()),
-                (q.treatment.raw(), q.outcome.raw()),
-                (q.mediator.raw(), q.outcome.raw()),
-            ];
-            let mut observed: Vec<_> =
-                graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
-            observed.sort_unstable();
-            let mut expected = expected.to_vec();
-            expected.sort_unstable();
-            if graph.node_count() != 3 || observed != expected {
-                return Err(crate::unsupported_reason!(
-                    "cross_world_not_identified",
-                    "query requires exactly X -> M, X -> Y, M -> Y with no other nodes or edges"
-                ));
-            }
-            if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) {
-                return Err(crate::unsupported_reason!(
-                    "cross_world_not_identified",
-                    "nested effect requires tabular data and the fixed DAG"
-                ));
-            }
-            if self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
-                || self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
-                || self.bootstrap_replicates != 0
-            {
-                return Err(crate::unsupported_reason!(
-                    "cross_world_not_identified",
-                    "only the point-only linear Gaussian mediation route is licensed for this query"
-                ));
-            }
+                let Some(graph) = self.graph.as_dag() else {
+                    return Err(crate::unsupported_reason!(
+                        "cross_world_not_identified",
+                        "natural direct effect requires the licensed three-node DAG"
+                    ));
+                };
+                let expected = [
+                    (q.treatment.raw(), q.mediator.raw()),
+                    (q.treatment.raw(), q.outcome.raw()),
+                    (q.mediator.raw(), q.outcome.raw()),
+                ];
+                let mut observed: Vec<_> =
+                    graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
+                observed.sort_unstable();
+                let mut expected = expected.to_vec();
+                expected.sort_unstable();
+                if graph.node_count() != 3 || observed != expected {
+                    return Err(crate::unsupported_reason!(
+                        "cross_world_not_identified",
+                        "query requires exactly X -> M, X -> Y, M -> Y with no other nodes or edges"
+                    ));
+                }
+                if !matches!((&self.data, class), (DataInput::Tabular(_), GraphClass::Dag)) {
+                    return Err(crate::unsupported_reason!(
+                        "cross_world_not_identified",
+                        "nested effect requires tabular data and the fixed DAG"
+                    ));
+                }
+                if self.estimator.is_some_and(|id| id != EstimatorId::StaticMediationLinear)
+                    || self.identifier.is_some_and(|id| id != IdentifierId::PathSpecificNatural)
+                    || self.bootstrap_replicates != 0
+                {
+                    return Err(crate::unsupported_reason!(
+                        "cross_world_not_identified",
+                        "only the point-only linear Gaussian mediation route is licensed for this query"
+                    ));
+                }
             }
         }
         if self.estimator == Some(EstimatorId::BayesianBasisGcomp)
@@ -124,6 +126,7 @@ impl super::Study {
                                 | GraphClass::Cpdag
                                 | GraphClass::Pag
                                 | GraphClass::Admg
+                                | GraphClass::TemporalAdmg
                         )
                     ))
                     || (q.is_temporal()
@@ -146,11 +149,11 @@ impl super::Study {
             (_, CausalQuery::Distribution(_), class)
                 if !matches!(
                     (&self.data, class),
-                    (DataInput::Tabular(_), GraphClass::Dag | GraphClass::Admg)
-                        | (
-                            DataInput::Temporal(_) | DataInput::Event(_),
-                            GraphClass::TemporalDag
-                        )
+                    (
+                        DataInput::Tabular(_),
+                        GraphClass::Dag | GraphClass::Admg | GraphClass::TemporalAdmg
+                    )
+                        | (DataInput::Temporal(_) | DataInput::Event(_), GraphClass::TemporalDag)
                 ) =>
             {
                 return Err(CausalError::Unsupported {
@@ -161,10 +164,7 @@ impl super::Study {
                 if !matches!(
                     (&self.data, class),
                     (DataInput::Tabular(_), GraphClass::Dag)
-                        | (
-                            DataInput::Temporal(_) | DataInput::Event(_),
-                            GraphClass::TemporalDag
-                        )
+                        | (DataInput::Temporal(_) | DataInput::Event(_), GraphClass::TemporalDag)
                 ) =>
             {
                 return Err(CausalError::Unsupported {
@@ -541,6 +541,9 @@ impl super::Study {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = data else {
                     unreachable!()
                 };
+                if self.graph.class().is_incomplete_temporal() {
+                    return self.execute_temporal_class_cross_world(data, physical, ctx);
+                }
                 let graph = physical.temporal_graph().ok_or_else(|| CausalError::Compile {
                     message: "temporal cross-world plan is missing its TemporalDag".into(),
                 })?;
@@ -659,7 +662,8 @@ impl super::Study {
                 antecedent_discovery::GraphPosteriorAtomKind::Dag => {
                     return self.execute_graph_posterior_response(data, gp, q, physical, ctx);
                 }
-                antecedent_discovery::GraphPosteriorAtomKind::Admg => {
+                antecedent_discovery::GraphPosteriorAtomKind::Admg
+                | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
                     return self.execute_admg_graph_posterior_response(data, gp, q, physical, ctx);
                 }
                 _ => {
@@ -669,7 +673,8 @@ impl super::Study {
             _ => return Err(CausalError::Unsupported { message: GRAPH_POSTERIOR_QUERY_REFUSAL }),
         };
         match gp.atom_kind {
-            antecedent_discovery::GraphPosteriorAtomKind::Admg => {
+            antecedent_discovery::GraphPosteriorAtomKind::Admg
+            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
                 return self.execute_admg_graph_posterior(data, gp, query, physical, ctx);
             }
             antecedent_discovery::GraphPosteriorAtomKind::Dag => {}
@@ -738,6 +743,23 @@ impl super::Study {
                             let graph = physical.static_graph().ok_or(CausalError::Compile {
                                 message: "Ready ADMG (DAG-coerced) response plan missing resolved \
                                      static DAG"
+                                    .into(),
+                            })?;
+                            self.execute_response(data, graph, q, physical, None, ctx)
+                        }
+                    }
+                    GraphClass::TemporalAdmg => {
+                        let admg = temporal_admg_projection(
+                            self.graph.as_temporal_admg().expect(
+                                "class() == TemporalAdmg implies as_temporal_admg() is Some",
+                            ),
+                        )?;
+                        if admg_has_bidirected(&admg) {
+                            self.execute_admg_response(data, &admg, q, physical, ctx)
+                        } else {
+                            let graph = physical.static_graph().ok_or(CausalError::Compile {
+                                message: "Ready TemporalAdmg (DAG-coerced) response plan missing \
+                                          resolved static DAG"
                                     .into(),
                             })?;
                             self.execute_response(data, graph, q, physical, None, ctx)
@@ -823,6 +845,34 @@ impl super::Study {
                         })?;
                         self.execute_pag(data, pag, q, physical, ctx)
                     }
+                    GraphClass::TemporalAdmg => {
+                        let admg = temporal_admg_projection(
+                            self.graph.as_temporal_admg().expect(
+                                "class() == TemporalAdmg implies as_temporal_admg() is Some",
+                            ),
+                        )?;
+                        if admg_has_bidirected(&admg) {
+                            self.execute_admg(data, &admg, q, physical, ctx)
+                        } else {
+                            let graph = physical.static_graph().ok_or(CausalError::Compile {
+                                message: "Ready TemporalAdmg (DAG-coerced) plan missing resolved \
+                                          static DAG"
+                                    .into(),
+                            })?;
+                            self.execute_static(
+                                data,
+                                graph,
+                                q,
+                                physical,
+                                execution.linear_operation(),
+                                execution.aipw_operation(),
+                                execution.frontdoor_linear(),
+                                execution.bayesian_gcomp(),
+                                execution.iv(),
+                                ctx,
+                            )
+                        }
+                    }
                     GraphClass::TemporalDag
                     | GraphClass::TemporalCpdag
                     | GraphClass::TemporalPag => Err(CausalError::Unsupported {
@@ -856,6 +906,21 @@ impl super::Study {
                         self.execute_distribution(
                             data,
                             super::static_path::DistributionGraph::Admg(admg),
+                            q,
+                            physical,
+                            execution.distribution(),
+                            ctx,
+                        )
+                    }
+                    GraphClass::TemporalAdmg => {
+                        let admg = temporal_admg_projection(
+                            self.graph.as_temporal_admg().expect(
+                                "class() == TemporalAdmg implies as_temporal_admg() is Some",
+                            ),
+                        )?;
+                        self.execute_distribution(
+                            data,
+                            super::static_path::DistributionGraph::Admg(&admg),
                             q,
                             physical,
                             execution.distribution(),

@@ -18,7 +18,8 @@ use std::sync::Arc;
 use antecedent_core::{CausalSchema, NodeRef, TemporalNodeKey, VariableId};
 use antecedent_graph::{
     Admg, Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, Pag, PagReview, TemporalCpdag,
-    TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag, TemporalPagReview,
+    TemporalAdmg, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
+    TemporalPagReview,
 };
 
 use crate::error::{CausalError, PendingEdge, ReviewKind};
@@ -182,6 +183,8 @@ pub enum GraphClass {
     TemporalCpdag,
     /// Temporal partial ancestral graph (circle marks allowed).
     TemporalPag,
+    /// Lagged ADMG: directed edges plus bidirected latent confounding.
+    TemporalAdmg,
     /// Schema-bound randomized trial contract; carries no causal graph.
     RandomizedTrial,
 }
@@ -198,6 +201,7 @@ impl GraphClass {
             Self::TemporalDag => "TemporalDag",
             Self::TemporalCpdag => "TemporalCpdag",
             Self::TemporalPag => "TemporalPag",
+            Self::TemporalAdmg => "TemporalAdmg",
             Self::RandomizedTrial => "RandomizedTrial",
         }
     }
@@ -222,6 +226,7 @@ enum GraphKind {
     TemporalDag(TemporalDag),
     TemporalCpdag(TemporalCpdag),
     TemporalPag(TemporalPag),
+    TemporalAdmg(TemporalAdmg),
     RandomizedTrial,
 }
 
@@ -287,6 +292,13 @@ impl AcceptedGraph {
     #[must_use]
     pub fn temporal_pag(g: TemporalPag) -> Self {
         Self::from_kind(GraphKind::TemporalPag(g), None)
+    }
+
+    /// Accept a temporal ADMG. Cannot fail: bidirected edges are latent-confounder
+    /// information, not pending review.
+    #[must_use]
+    pub fn temporal_admg(g: TemporalAdmg) -> Self {
+        Self::from_kind(GraphKind::TemporalAdmg(g), None)
     }
 
     /// Create a schema-bound randomized-trial source with no graph structure.
@@ -372,6 +384,7 @@ impl AcceptedGraph {
             GraphKind::TemporalDag(_) => GraphClass::TemporalDag,
             GraphKind::TemporalCpdag(_) => GraphClass::TemporalCpdag,
             GraphKind::TemporalPag(_) => GraphClass::TemporalPag,
+            GraphKind::TemporalAdmg(_) => GraphClass::TemporalAdmg,
             GraphKind::RandomizedTrial => GraphClass::RandomizedTrial,
         }
     }
@@ -464,6 +477,15 @@ impl AcceptedGraph {
         }
     }
 
+    /// Borrow the temporal ADMG when [`Self::class`] is [`GraphClass::TemporalAdmg`].
+    #[must_use]
+    pub fn as_temporal_admg(&self) -> Option<&TemporalAdmg> {
+        match &self.kind {
+            GraphKind::TemporalAdmg(g) => Some(g),
+            _ => None,
+        }
+    }
+
     /// Produce a new accepted structure that supersedes this one, bumping the version.
     ///
     /// `next`'s own class, contents, and algorithm id are kept; only the version
@@ -541,6 +563,12 @@ impl From<TemporalCpdag> for AcceptedGraph {
 impl From<TemporalPag> for AcceptedGraph {
     fn from(g: TemporalPag) -> Self {
         Self::from_kind(GraphKind::TemporalPag(g), None)
+    }
+}
+
+impl From<TemporalAdmg> for AcceptedGraph {
+    fn from(g: TemporalAdmg) -> Self {
+        Self::temporal_admg(g)
     }
 }
 

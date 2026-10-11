@@ -311,7 +311,7 @@ impl CheckedPathSpecificEffectOperation {
 
 impl CheckedFunctionalEffectOperation {
     fn sealed_for_direct_execution(&self) -> bool {
-        self.graph_class == GraphClass::Admg
+        matches!(self.graph_class, GraphClass::Admg | GraphClass::TemporalAdmg)
             && matches!(
                 self.structure_source,
                 crate::support::StructureSource::Explicit
@@ -2319,7 +2319,7 @@ impl CheckedDistributionOperation {
     }
 
     fn sealed_for_direct_execution(&self) -> bool {
-        matches!(self.graph_class, GraphClass::Dag | GraphClass::Admg)
+        matches!(self.graph_class, GraphClass::Dag | GraphClass::Admg | GraphClass::TemporalAdmg)
             && matches!(
                 self.structure_source,
                 crate::support::StructureSource::Explicit
@@ -2332,7 +2332,7 @@ impl CheckedDistributionOperation {
                     self.refute,
                     RefuteSuite::None | RefuteSuite::Cheap | RefuteSuite::Full
                 ),
-                GraphClass::Admg => {
+                GraphClass::Admg | GraphClass::TemporalAdmg => {
                     self.refute == RefuteSuite::None && self.query.conditioning.is_empty()
                 }
                 _ => false,
@@ -2346,7 +2346,9 @@ impl CheckedDistributionOperation {
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
         let prepared = self.rebind(data)?;
-        if matches!(self.graph_class, GraphClass::Admg) && !self.query.conditioning.is_empty() {
+        if matches!(self.graph_class, GraphClass::Admg | GraphClass::TemporalAdmg)
+            && !self.query.conditioning.is_empty()
+        {
             return Err(CausalError::Unsupported {
                 message: "ADMG InterventionalDistribution is licensed for unconditional finite-discrete tables; IDC conditionals are a follow-up",
             });
@@ -5849,9 +5851,11 @@ impl PreparedStudy {
             let mut click_analysis = self.analysis.clone();
             click_analysis.data = DataInput::Tabular(data.clone());
             click_analysis.query = operation.target().causal_query();
-            let result = if operation.posterior().atom_kind
-                == antecedent_discovery::GraphPosteriorAtomKind::Admg
-            {
+            let result = if matches!(
+                operation.posterior().atom_kind,
+                antecedent_discovery::GraphPosteriorAtomKind::Admg
+                    | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+            ) {
                 click_analysis
                     .execute_checked_admg_graph_posterior(data, &self.plan, operation, ctx)?
             } else {
@@ -6528,6 +6532,7 @@ impl PreparedStudy {
                 }
                 study.execute_checked_temporal_graph_posterior_effect(series, operation, ctx)?
             }
+            PreparedExecution::Attribution(operation) => operation.execute_series(series, ctx)?,
             _ => return Ok(None),
         };
         Ok(Some(result))
@@ -6845,7 +6850,8 @@ impl Study {
                 )?))
             }
             (
-                antecedent_discovery::GraphPosteriorAtomKind::Admg,
+                antecedent_discovery::GraphPosteriorAtomKind::Admg
+                | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
                 InferenceMode::Frequentist | InferenceMode::Bayesian(_),
             ) if !target.is_conditional()
                 && plan_record_is(
@@ -6978,7 +6984,11 @@ impl Study {
         ) else {
             return Ok(None);
         };
-        if posterior.atom_kind != antecedent_discovery::GraphPosteriorAtomKind::Admg
+        if !matches!(
+            posterior.atom_kind,
+            antecedent_discovery::GraphPosteriorAtomKind::Admg
+                | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+        )
             || !analysis.custom_validators.is_empty()
             || !matches!(
                 analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
@@ -7421,7 +7431,14 @@ impl Study {
         ensure_prepared_supported(self)?;
         let plan = self.compile(ctx)?;
         let counterfactual = match (&self.graph, &self.query) {
-            (graph, CausalQuery::Counterfactual(_)) if graph.as_temporal_dag().is_some() => None,
+            (graph, CausalQuery::Counterfactual(_))
+                if matches!(
+                    graph.class(),
+                    GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+                ) =>
+            {
+                None
+            }
             (_, CausalQuery::Counterfactual(query)) => {
                 let graph = self
                     .graph
@@ -7435,7 +7452,12 @@ impl Study {
             _ => None,
         };
         let nested_counterfactual = match (&self.graph, &self.query) {
-            (graph, CausalQuery::NestedCounterfactual(_)) if graph.as_temporal_dag().is_some() => {
+            (graph, CausalQuery::NestedCounterfactual(_))
+                if matches!(
+                    graph.class(),
+                    GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+                ) =>
+            {
                 None
             }
             (_, CausalQuery::NestedCounterfactual(query)) => {
@@ -7484,6 +7506,7 @@ impl Study {
                     if matches!(
                         posterior.atom_kind,
                         antecedent_discovery::GraphPosteriorAtomKind::Admg
+                            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
                     ) {
                         build_admg_graph_posterior_response_identification_cache(
                             posterior, query, ctx,
@@ -7671,6 +7694,14 @@ impl Study {
                     analysis.temporal_identification_cache =
                         self.prepare_temporal_identification()?.map(Arc::new);
                 }
+            }
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+                None,
+            ) => {
+                analysis.identification_cache =
+                    self.prepare_static_identification(&plan)?.map(Arc::new);
             }
             (_, _, None) => {
                 analysis.temporal_identification_cache =
@@ -8491,7 +8522,7 @@ impl Study {
                 DataInput::Tabular(data),
                 CausalQuery::AverageEffect(query),
                 Some(cache),
-                GraphClass::Admg,
+                GraphClass::Admg | GraphClass::TemporalAdmg,
                 inference,
             ) if analysis.graph_posterior.is_none()
                 && analysis.tiered.is_none()
@@ -8534,7 +8565,7 @@ impl Study {
                     prepared,
                     inference: inference.clone(),
                     refute: analysis.refute,
-                    graph_class: GraphClass::Admg,
+                    graph_class: analysis.graph.class(),
                     graph_version: analysis.graph.version(),
                     support_status: analysis.support_status,
                     structure_source: analysis.structure_source,
@@ -8624,7 +8655,11 @@ impl Study {
         };
         let admg_response_curve_operation = match (&self.data, &self.query, analysis.graph.class())
         {
-            (DataInput::Tabular(data), CausalQuery::Response(query), GraphClass::Admg)
+            (
+                DataInput::Tabular(data),
+                CausalQuery::Response(query),
+                GraphClass::Admg | GraphClass::TemporalAdmg,
+            )
                 if analysis.graph_posterior.is_none()
                     && analysis.tiered.is_none()
                     && query.temporal.is_none()
@@ -8705,7 +8740,14 @@ impl Study {
                         message: "ADMG response curve has no grid members".into(),
                     });
                 }
-                let admg = analysis.graph.as_admg().ok_or_else(|| CausalError::Compile {
+                let admg = match analysis.graph.class() {
+                    GraphClass::Admg => analysis.graph.as_admg().cloned(),
+                    GraphClass::TemporalAdmg => analysis.graph.as_temporal_admg().map(|graph| {
+                        super::execute::temporal_admg_projection(graph)
+                    }).transpose()?,
+                    _ => None,
+                }
+                .ok_or_else(|| CausalError::Compile {
                     message: "ADMG response operation lacks an ADMG graph".into(),
                 })?;
                 let mut fitter = antecedent_estimate::FunctionalEffect::new();
@@ -8729,7 +8771,7 @@ impl Study {
                     let member_causal_query = CausalQuery::Response(member_query.clone());
                     let identification = crate::strategy_table::identify_admg_query(
                         crate::strategy_table::IdentifierId::GeneralId,
-                        admg,
+                        &admg,
                         &member_causal_query,
                     )?;
                     let estimand = crate::strategy_table::select_estimand(
@@ -9816,6 +9858,15 @@ impl Study {
             ) if analysis.structure_source == crate::support::StructureSource::Explicit => {
                 Some(super::execute::CheckedAttributionOperation::checked(&analysis, &plan, cache)?)
             }
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+                Some(cache),
+                GraphClass::TemporalDag,
+                InferenceMode::Frequentist | InferenceMode::Bayesian(_),
+            ) if analysis.structure_source == crate::support::StructureSource::Explicit => {
+                Some(super::execute::CheckedAttributionOperation::checked(&analysis, &plan, cache)?)
+            }
             _ => None,
         };
         let score_table = analysis.prepare_score_table(ctx)?;
@@ -10071,21 +10122,30 @@ impl Study {
                     })?;
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
-                if self.graph.class() == GraphClass::Admg
-                    && self.graph.as_admg().is_some_and(super::execute::admg_has_bidirected)
-                {
+                if matches!(self.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg) {
                     use crate::strategy_table::identify_admg;
 
-                    let admg = self.graph.as_admg().ok_or_else(|| CausalError::Compile {
-                        message: "ADMG prepare missing supplied graph".into(),
-                    })?;
-                    let identification = identify_admg(identifier_id, admg, query)?;
-                    let estimand = select_estimand(&identification, estimator_id)?;
-                    return Ok(Some(CachedStaticIdentification { identification, estimand }));
+                    let admg = match self.graph.class() {
+                        GraphClass::Admg => self.graph.as_admg().cloned(),
+                        GraphClass::TemporalAdmg => self.graph.as_temporal_admg().map(|graph| {
+                            super::execute::temporal_admg_projection(graph)
+                        }).transpose()?,
+                        _ => None,
+                    };
+                    let Some(admg) = admg else {
+                        return Err(CausalError::Compile {
+                            message: "ADMG prepare missing supplied graph".into(),
+                        });
+                    };
+                    if super::execute::admg_has_bidirected(&admg) {
+                        let identification = identify_admg(identifier_id, &admg, query)?;
+                        let estimand = select_estimand(&identification, estimator_id)?;
+                        return Ok(Some(CachedStaticIdentification { identification, estimand }));
+                    }
                 }
                 let graph = match self.graph.class() {
                     GraphClass::Dag => self.graph.as_dag().cloned(),
-                    GraphClass::Admg => plan.static_graph().cloned(),
+                    GraphClass::Admg | GraphClass::TemporalAdmg => plan.static_graph().cloned(),
                     GraphClass::Cpdag => return Ok(None),
                     _ => None,
                 };
@@ -10143,14 +10203,19 @@ impl Study {
                     )?;
                     return Ok(Some(CachedStaticIdentification { identification, estimand }));
                 }
-                if self.graph.class() == GraphClass::Admg
-                    && self.graph.as_admg().is_some_and(super::execute::admg_has_bidirected)
-                {
+                let response_admg = match self.graph.class() {
+                    GraphClass::Admg => self.graph.as_admg().cloned(),
+                    GraphClass::TemporalAdmg => self
+                        .graph
+                        .as_temporal_admg()
+                        .map(|graph| super::execute::temporal_admg_projection(graph))
+                        .transpose()?,
+                    _ => None,
+                };
+                if let Some(admg) = response_admg.as_ref().filter(|admg| {
+                    super::execute::admg_has_bidirected(admg)
+                }) {
                     use crate::strategy_table::identify_admg_query;
-
-                    let admg = self.graph.as_admg().ok_or_else(|| CausalError::Compile {
-                        message: "ADMG prepare missing supplied graph".into(),
-                    })?;
                     // `execute_admg_response` reuses this cache verbatim as the *first grid
                     // level's* claim for a MeanCurve (it only re-identifies per level from the
                     // second level on, mirroring the graph-posterior ADMG response cache). A
@@ -10192,7 +10257,12 @@ impl Study {
                 }
                 let graph = match (self.graph.as_dag(), plan.static_graph()) {
                     (Some(dag), _) => Some(dag.clone()),
-                    (None, Some(dag)) if self.graph.class() == GraphClass::Admg => {
+                    (None, Some(dag))
+                        if matches!(
+                            self.graph.class(),
+                            GraphClass::Admg | GraphClass::TemporalAdmg
+                        ) =>
+                    {
                         Some(dag.clone())
                     }
                     _ => None,
@@ -10285,8 +10355,12 @@ impl Study {
                     .unwrap_or(DEFAULT_DISTRIBUTION_ESTIMATOR);
                 let identifier_id: IdentifierId = identifier.parse()?;
                 let estimator_id: EstimatorId = estimator.parse()?;
+                let projected;
                 let graph = if let Some(admg) = self.graph.as_admg() {
                     DistributionGraph::Admg(admg)
+                } else if let Some(temporal) = self.graph.as_temporal_admg() {
+                    projected = super::execute::temporal_admg_projection(temporal)?;
+                    DistributionGraph::Admg(&projected)
                 } else if let Some(dag) = self.graph.as_dag() {
                     DistributionGraph::Dag(dag)
                 } else {
@@ -11051,7 +11125,11 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             // (the functional-effect estimator serves it), so no tier condition narrows it.
             if !matches!(
                 analysis.graph.class(),
-                GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg
+                GraphClass::Dag
+                    | GraphClass::Cpdag
+                    | GraphClass::Pag
+                    | GraphClass::Admg
+                    | GraphClass::TemporalAdmg
             ) {
                 return Err(CausalError::Unsupported {
                     message: "PreparedStudy supports ResponseCurve on a supplied Dag, Cpdag, Pag, \
@@ -11117,9 +11195,21 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 });
             }
         }
+        (
+            DataInput::Temporal(_) | DataInput::Event(_),
+            CausalQuery::AnomalyAttribution(_) | CausalQuery::ChangeAttribution(_),
+        ) => {
+            if analysis.graph.class() != GraphClass::TemporalDag {
+                return Err(CausalError::Unsupported {
+                    message: "AnomalyAttribution and ChangeAttribution on a time series require a TemporalDag",
+                });
+            }
+        }
         (DataInput::Tabular(_), CausalQuery::Transport(_)) => {
-            if analysis.graph.class() != GraphClass::Admg {
-                return Err(CausalError::Unsupported { message: "TransportQuery requires Admg" });
+            if !matches!(analysis.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg) {
+                return Err(CausalError::Unsupported {
+                    message: "TransportQuery requires Admg or TemporalAdmg",
+                });
             }
         }
         (DataInput::Tabular(_), CausalQuery::Interference(_)) => {
@@ -11223,7 +11313,10 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             }
         }
         (DataInput::Tabular(_), CausalQuery::Distribution(_)) => {
-            if !matches!(analysis.graph.class(), GraphClass::Dag | GraphClass::Admg) {
+            if !matches!(
+                analysis.graph.class(),
+                GraphClass::Dag | GraphClass::Admg | GraphClass::TemporalAdmg
+            ) {
                 return Err(CausalError::Unsupported {
                     message: "PreparedStudy supports Distribution on a supplied Dag or Admg",
                 });
@@ -11266,10 +11359,13 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
             | CausalQuery::PathSpecific(_)
             | CausalQuery::NestedCounterfactual(_),
         ) => {
-            if analysis.graph.class() != GraphClass::TemporalDag {
+            if !matches!(
+                analysis.graph.class(),
+                GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag
+            ) {
                 return Err(crate::unsupported_reason!(
                     "data_modality_not_licensed",
-                    "temporal cross-world effects require a TemporalDag"
+                    "temporal cross-world effects require a TemporalDag, TemporalCpdag, or TemporalPag"
                 ));
             }
         }
@@ -11288,7 +11384,14 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
 }
 
 fn is_supplied_static_graph(class: GraphClass) -> bool {
-    matches!(class, GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag | GraphClass::Admg)
+    matches!(
+        class,
+        GraphClass::Dag
+            | GraphClass::Cpdag
+            | GraphClass::Pag
+            | GraphClass::Admg
+            | GraphClass::TemporalAdmg
+    )
 }
 
 impl PreparedStudy {

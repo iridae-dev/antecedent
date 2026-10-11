@@ -2,6 +2,22 @@
 
 use super::*;
 
+fn mixed_admg(study: &super::Study) -> Result<Admg, CausalError> {
+    match study.graph.class() {
+        GraphClass::Admg => {
+            Ok(study.graph.as_admg().expect("class() == Admg implies as_admg() is Some").clone())
+        }
+        GraphClass::TemporalAdmg => {
+            let temporal = study
+                .graph
+                .as_temporal_admg()
+                .expect("class() == TemporalAdmg implies as_temporal_admg() is Some");
+            temporal_admg_projection(temporal)
+        }
+        _ => Err(CausalError::Compile { message: "mixed graph required".into() }),
+    }
+}
+
 fn temporal_response_estimator_id(inference: &InferenceMode) -> &'static str {
     if matches!(inference, InferenceMode::Bayesian(_)) {
         EstimatorId::TemporalResponseBayesian.as_str()
@@ -96,14 +112,14 @@ impl super::Study {
                     estimator,
                 )
             }
-            (Some(AnalysisRoute::Response), GraphClass::Admg) => {
+            (Some(AnalysisRoute::Response), GraphClass::Admg | GraphClass::TemporalAdmg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Response(q) = &self.query else { unreachable!() };
-                let admg = self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
-                if admg_has_bidirected(admg) {
+                let admg = mixed_admg(self)?;
+                if admg_has_bidirected(&admg) {
                     compile_logical_admg_response(data, q, self.validation_suite_id(), self)
                 } else {
-                    let dag = admg_without_latents_to_dag(admg)?;
+                    let dag = admg_without_latents_to_dag(&admg)?;
                     let (identifier, estimator) = self.resolve_response_pair(q);
                     compile_logical_static_response(StaticResponseCompileInput {
                         data,
@@ -144,7 +160,7 @@ impl super::Study {
                     estimator,
                 })
             }
-            (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
+            (Some(AnalysisRoute::Distribution), GraphClass::Admg | GraphClass::TemporalAdmg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Distribution(q) = &self.query else { unreachable!() };
                 super::static_path::ensure_admg_distribution_licensed(q, self.refute)?;
@@ -515,7 +531,7 @@ impl super::Study {
                 };
                 Ok(plan)
             }
-            (Some(AnalysisRoute::Transport), GraphClass::Admg) => {
+            (Some(AnalysisRoute::Transport), GraphClass::Admg | GraphClass::TemporalAdmg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::Transport(q) = &self.query else { unreachable!() };
                 q.validate().map_err(|e| CausalError::Compile { message: e.to_string() })?;
@@ -915,6 +931,70 @@ impl super::Study {
                     row_count_hint: data.row_count() as u64,
                 })
             }
+            (
+                Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution),
+                GraphClass::TemporalDag,
+            ) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+                    unreachable!()
+                };
+                let (treatment, outcome) = gcm_query_vars(&self.query)?;
+                self.query
+                    .validate()
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?;
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from("gcm_temporal_query"),
+                        data_classification: DataClassification::Temporal,
+                        discovery_algorithm: None,
+                        graph_review_required: false,
+                        identifier: Some(Arc::from("gcm.parametric")),
+                        estimator: Some(Arc::from(match (&self.query, &self.inference) {
+                            (CausalQuery::AnomalyAttribution(_), InferenceMode::Bayesian(_)) => {
+                                "gcm.fit.bayesian"
+                            }
+                            (CausalQuery::ChangeAttribution(_), InferenceMode::Bayesian(_)) => {
+                                "gcm.attribution.bayesian"
+                            }
+                            _ => "gcm.fit",
+                        })),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([treatment, outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
+            (
+                Some(AnalysisRoute::TemporalCrossWorld),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => {
+                let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
+                    unreachable!()
+                };
+                let (treatment, outcome) = temporal_cross_world_endpoints(&self.query)?;
+                let plan_id = match self.graph.class() {
+                    GraphClass::TemporalCpdag => "temporal_cpdag_cross_world",
+                    GraphClass::TemporalPag => "temporal_pag_cross_world",
+                    _ => unreachable!(),
+                };
+                Ok(LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from(plan_id),
+                        data_classification: antecedent_core::DataClassification::Temporal,
+                        discovery_algorithm: self.graph.algorithm_id().map(Arc::from),
+                        graph_review_required: false,
+                        identifier: Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str())),
+                        estimator: Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str())),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([treatment, outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                })
+            }
             (Some(AnalysisRoute::TemporalCrossWorld), GraphClass::TemporalDag) => {
                 let (DataInput::Temporal(data) | DataInput::Event(data)) = &self.data else {
                     unreachable!()
@@ -926,7 +1006,9 @@ impl super::Study {
                         data_classification: antecedent_core::DataClassification::Temporal,
                         discovery_algorithm: None,
                         graph_review_required: false,
-                        identifier: Some(Arc::from(IdentifierId::TemporalBackdoorUnfolded.as_str())),
+                        identifier: Some(Arc::from(
+                            IdentifierId::TemporalBackdoorUnfolded.as_str(),
+                        )),
                         estimator: Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str())),
                         validation_suite: self.validation_suite_id(),
                         query_variables: Arc::from([treatment, outcome]),
@@ -967,10 +1049,17 @@ impl super::Study {
                 ),
                 GraphClass::Dag,
             ) => self.compile_logical()?.compile_physical(ctx),
-            (Some(AnalysisRoute::Distribution), GraphClass::Admg) => {
+            (Some(AnalysisRoute::Distribution), GraphClass::Admg | GraphClass::TemporalAdmg) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
-            (Some(AnalysisRoute::TemporalEffect | AnalysisRoute::TemporalCrossWorld), GraphClass::TemporalDag) => {
+            (
+                Some(AnalysisRoute::TemporalCrossWorld),
+                GraphClass::TemporalCpdag | GraphClass::TemporalPag,
+            ) => self.compile_logical()?.compile_physical(ctx),
+            (
+                Some(AnalysisRoute::TemporalEffect | AnalysisRoute::TemporalCrossWorld),
+                GraphClass::TemporalDag,
+            ) => {
                 let graph = self
                     .graph
                     .as_temporal_dag()
@@ -1047,20 +1136,20 @@ impl super::Study {
             {
                 self.compile_logical()?.compile_physical(ctx)
             }
-            (Some(AnalysisRoute::Response), GraphClass::Admg) => {
-                let admg = self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
-                if admg_has_bidirected(admg) {
+            (Some(AnalysisRoute::Response), GraphClass::Admg | GraphClass::TemporalAdmg) => {
+                let admg = mixed_admg(self)?;
+                if admg_has_bidirected(&admg) {
                     self.compile_logical()?.compile_physical(ctx)
                 } else {
-                    let dag = admg_without_latents_to_dag(admg)?;
+                    let dag = admg_without_latents_to_dag(&admg)?;
                     self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(dag))
                 }
             }
-            (Some(AnalysisRoute::StaticAte), GraphClass::Admg) => {
+            (Some(AnalysisRoute::StaticAte), GraphClass::Admg | GraphClass::TemporalAdmg) => {
                 let DataInput::Tabular(data) = &self.data else { unreachable!() };
                 let CausalQuery::AverageEffect(q) = &self.query else { unreachable!() };
-                let admg = self.graph.as_admg().expect("class() == Admg implies as_admg() is Some");
-                if admg_has_bidirected(admg) {
+                let admg = mixed_admg(self)?;
+                if admg_has_bidirected(&admg) {
                     let (identifier, estimator) = self.resolve_admg_pair();
                     validate_static_pair(
                         identifier.parse::<IdentifierId>()?,
@@ -1086,7 +1175,7 @@ impl super::Study {
                     logical.validate()?;
                     logical.compile_physical(ctx)
                 } else {
-                    let dag = admg_without_latents_to_dag(admg)?;
+                    let dag = admg_without_latents_to_dag(&admg)?;
                     let (identifier, estimator) = self.resolve_static_pair();
                     self.ensure_rd_config_present(&estimator)?;
                     let logical = compile_logical_static_ate(StaticAteCompileInput {
@@ -1115,7 +1204,7 @@ impl super::Study {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
             }
-            (Some(AnalysisRoute::Transport), GraphClass::Admg) => {
+            (Some(AnalysisRoute::Transport), GraphClass::Admg | GraphClass::TemporalAdmg) => {
                 self.compile_logical()?.compile_physical(ctx)
             }
             (Some(AnalysisRoute::Interference), GraphClass::Dag) => {
@@ -1150,6 +1239,10 @@ impl super::Study {
                 let graph = self.graph.as_dag().expect("class() == Dag implies as_dag() is Some");
                 self.compile_logical()?.compile_physical_with_graphs(ctx, None, Some(graph.clone()))
             }
+            (
+                Some(AnalysisRoute::Anomaly | AnalysisRoute::ChangeAttribution),
+                GraphClass::TemporalDag,
+            ) => self.compile_logical()?.compile_physical(ctx),
             _ => Err(CausalError::Unsupported {
                 message: "unsupported data/graph/query combination",
             }),
@@ -1247,7 +1340,8 @@ impl super::Study {
         if q.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
+        } else if matches!(self.inference, InferenceMode::Bayesian(_)) && q.effect_modifiers.is_empty()
+        {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }
         logical.record.discovery_algorithm = self.graph.algorithm_id().map(Arc::from);
@@ -1262,7 +1356,9 @@ impl super::Study {
     }
 }
 
-fn temporal_cross_world_endpoints(query: &CausalQuery) -> Result<(VariableId, VariableId), CausalError> {
+fn temporal_cross_world_endpoints(
+    query: &CausalQuery,
+) -> Result<(VariableId, VariableId), CausalError> {
     let pair = match query {
         CausalQuery::Distribution(q) => q
             .interventions

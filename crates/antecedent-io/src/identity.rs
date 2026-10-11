@@ -36,7 +36,7 @@ use antecedent_discovery::{
 };
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{
-    Admg, Cpdag, Dag, MarkedEdge, Pag, TemporalCpdag, TemporalDag, TemporalPag,
+    Admg, Cpdag, Dag, MarkedEdge, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
 };
 use antecedent_identify::IdentificationResult;
 use serde::{Deserialize, Serialize};
@@ -46,7 +46,7 @@ use crate::convert::{
     admg_to_wire, cpdag_to_wire, dag_to_wire, endpoint_to_wire, pag_to_wire, schema_to_wire,
     vars_to_raw,
 };
-use crate::discovery_wire::{TemporalGraphWire, temporal_dag_to_wire};
+use crate::discovery_wire::{TemporalGraphWire, TemporalNodeKeyWire, temporal_dag_to_wire};
 use crate::error::IoError;
 use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
 use crate::query_wire::{
@@ -644,6 +644,19 @@ impl PayloadDigestWire {
     }
 }
 
+/// Temporal ADMG identity: lagged nodes plus directed and bidirected edges.
+///
+/// Node order is `(variable, lag)`. Edge endpoints are indexes into that order.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TemporalAdmgIdentityWire {
+    /// Lagged nodes.
+    pub nodes: Vec<TemporalNodeKeyWire>,
+    /// Directed edges `(from, to)`.
+    pub directed: Vec<(u32, u32)>,
+    /// Bidirected edges `(a, b)` with `a < b`.
+    pub bidirected: Vec<(u32, u32)>,
+}
+
 /// Graph payload for identification identity. Uses existing wire types.
 ///
 /// Edge lists are in canonical (sorted) order, so a graph's identity never
@@ -661,6 +674,8 @@ pub enum GraphIdentityWire {
     Pag(PagWire),
     /// Temporal DAG (nodes sorted by `(variable, lag)`).
     TemporalDag(TemporalGraphWire),
+    /// Temporal ADMG (nodes sorted by `(variable, lag)`; edges re-indexed).
+    TemporalAdmg(TemporalAdmgIdentityWire),
     /// Temporal class with lagged/context nodes and marked edges.
     TemporalClass(TemporalClassIdentityWire),
     /// No causal graph was supplied; design metadata defines the experiment.
@@ -908,6 +923,65 @@ pub fn temporal_dag_identity(graph: &TemporalDag) -> Result<GraphIdentityWire, I
     Ok(GraphIdentityWire::TemporalDag(canonical_temporal_dag_wire(graph)?))
 }
 
+/// Encode a temporal ADMG for identification identity.
+///
+/// # Errors
+///
+/// Non-lagged nodes or an edge index outside the node list.
+pub fn temporal_admg_identity(graph: &TemporalAdmg) -> Result<GraphIdentityWire, IoError> {
+    Ok(GraphIdentityWire::TemporalAdmg(canonical_temporal_admg_wire(graph)?))
+}
+
+fn canonical_temporal_admg_wire(graph: &TemporalAdmg) -> Result<TemporalAdmgIdentityWire, IoError> {
+    use antecedent_core::NodeRef;
+    let mut nodes = Vec::with_capacity(graph.node_count());
+    for node in graph.nodes() {
+        match node {
+            NodeRef::Lagged { variable, lag } => {
+                nodes.push(TemporalNodeKeyWire { variable: variable.raw(), lag: lag.raw() });
+            }
+            other => {
+                return Err(IoError::Convert(format!(
+                    "temporal ADMG identity requires lagged nodes, got {other:?}"
+                )));
+            }
+        }
+    }
+    let mut order: Vec<usize> = (0..nodes.len()).collect();
+    order.sort_by_key(|&index| (nodes[index].variable, nodes[index].lag));
+    let mut position = vec![0u32; nodes.len()];
+    for (new, &old) in order.iter().enumerate() {
+        position[old] = u32::try_from(new).map_err(|_| IoError::TooLarge)?;
+    }
+    let remap = |index: u32| {
+        position.get(index as usize).copied().ok_or_else(|| {
+            IoError::Convert("temporal ADMG edge references a node outside the graph".into())
+        })
+    };
+    let mut directed = Vec::new();
+    let mut bidirected = Vec::new();
+    for edge in graph.edges() {
+        if edge.is_bidirected() {
+            let mut a = remap(edge.a.raw())?;
+            let mut b = remap(edge.b.raw())?;
+            if a > b {
+                std::mem::swap(&mut a, &mut b);
+            }
+            bidirected.push((a, b));
+        } else if let Some((from, to)) = edge.parent_child() {
+            directed.push((remap(from.raw())?, remap(to.raw())?));
+        }
+    }
+    directed.sort_unstable();
+    bidirected.sort_unstable();
+    bidirected.dedup();
+    Ok(TemporalAdmgIdentityWire {
+        nodes: order.into_iter().map(|index| nodes[index]).collect(),
+        directed,
+        bidirected,
+    })
+}
+
 /// Encode a temporal CPDAG, including lagged and contemporaneous edges.
 #[must_use]
 pub fn temporal_cpdag_identity(graph: &TemporalCpdag) -> GraphIdentityWire {
@@ -946,6 +1020,8 @@ pub enum PosteriorAtomGraphWire {
     Pag(PagWire),
     /// Lagged and contemporaneous DBN structure (canonical temporal wire).
     Temporal(TemporalGraphWire),
+    /// Lagged ADMG atom (canonical temporal mixed-graph wire).
+    TemporalAdmg(TemporalAdmgIdentityWire),
     /// Temporal class structure (lagged/context nodes and marked edges).
     TemporalClass(TemporalClassIdentityWire),
     /// Posterior weight whose mask is not a graph of the atom class.
@@ -1027,6 +1103,12 @@ fn posterior_atom_graph_wire(
                 };
                 Ok(PosteriorAtomGraphWire::TemporalClass(wire))
             }
+            GraphPosteriorAtomKind::TemporalAdmg => {
+                return Err(IoError::Convert(
+                    "TemporalAdmg posterior identity keeps lag masks; they are not a temporal DAG"
+                        .into(),
+                ));
+            }
             GraphPosteriorAtomKind::Pag => {
                 let mark_mask = posterior
                     .mark_masks
@@ -1069,6 +1151,19 @@ fn posterior_atom_graph_wire(
                 return Ok(PosteriorAtomGraphWire::Unrepresentable);
             };
             Ok(PosteriorAtomGraphWire::Admg(canonical_admg_wire(&admg)?))
+        }
+        GraphPosteriorAtomKind::TemporalAdmg => {
+            let Ok(admg) = admg_from_adjacency_mask(adjacency, posterior.n_vars) else {
+                return Ok(PosteriorAtomGraphWire::Unrepresentable);
+            };
+            let temporal = TemporalAdmg::from_static_contemporaneous(&admg)
+                .map_err(|err| IoError::Convert(err.to_string()))?;
+            let GraphIdentityWire::TemporalAdmg(wire) = temporal_admg_identity(&temporal)? else {
+                return Err(IoError::Convert(
+                    "temporal ADMG posterior atom must encode as TemporalAdmg".into(),
+                ));
+            };
+            Ok(PosteriorAtomGraphWire::TemporalAdmg(wire))
         }
         GraphPosteriorAtomKind::Cpdag => {
             let cpdag = cpdag_from_adjacency_mask(adjacency, posterior.n_vars)

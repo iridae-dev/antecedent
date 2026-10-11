@@ -67,7 +67,11 @@ impl super::Study {
                 message: "ConditionalEffect graph-posterior mixing is licensed only for DAG atoms",
             });
         }
-        if !matches!(gp.atom_kind, antecedent_discovery::GraphPosteriorAtomKind::Admg) {
+        if !matches!(
+            gp.atom_kind,
+            antecedent_discovery::GraphPosteriorAtomKind::Admg
+                | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+        ) {
             return Err(CausalError::Compile {
                 message: "execute_admg_graph_posterior requires Admg posterior atoms".into(),
             });

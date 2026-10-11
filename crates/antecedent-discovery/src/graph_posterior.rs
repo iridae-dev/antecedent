@@ -122,6 +122,10 @@ pub enum GraphPosteriorAtomKind {
     /// bidirected (latent-confounder) edge. Circle marks are unused: this is
     /// ADMG semantics, not PAG.
     Admg,
+    /// Contemporaneous temporal ADMG atoms. Packing matches [`Self::Admg`]:
+    /// both directed bits are a bidirected edge. Each variable is one lag-0
+    /// node, so general identification is the static ADMG functional.
+    TemporalAdmg,
 }
 
 impl GraphPosteriorAtomKind {
@@ -133,6 +137,7 @@ impl GraphPosteriorAtomKind {
             Self::Cpdag => "Cpdag",
             Self::Pag => "Pag",
             Self::Admg => "Admg",
+            Self::TemporalAdmg => "TemporalAdmg",
         }
     }
 }

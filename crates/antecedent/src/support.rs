@@ -23,7 +23,9 @@ use antecedent_core::{
     TemporalPolicy,
 };
 
-use antecedent_graph::{Admg, Cpdag, Dag, Pag, TemporalCpdag, TemporalDag, TemporalPag};
+use antecedent_graph::{
+    Admg, Cpdag, Dag, Pag, TemporalAdmg, TemporalCpdag, TemporalDag, TemporalPag,
+};
 
 use crate::accepted::{AcceptedGraph, GraphClass};
 use crate::analysis::RefuteSuite;
@@ -700,7 +702,9 @@ macro_rules! explicit_graph_input {
     };
 }
 
-explicit_graph_input!(Dag, Admg, Pag, Cpdag, TemporalDag, TemporalCpdag, TemporalPag);
+explicit_graph_input!(
+    Dag, Admg, Pag, Cpdag, TemporalDag, TemporalCpdag, TemporalPag, TemporalAdmg
+);
 
 impl StructureSource {
     /// Matrix axis value.
@@ -879,9 +883,11 @@ pub fn query_axis_name(query: &CausalQuery, graph_class: GraphClass) -> Option<&
             GraphClass::TemporalDag | GraphClass::TemporalCpdag | GraphClass::TemporalPag => {
                 Some("TemporalMediationEffect")
             }
-            GraphClass::Dag | GraphClass::Admg | GraphClass::Cpdag | GraphClass::Pag => {
-                Some("MediationEffect")
-            }
+            GraphClass::Dag
+            | GraphClass::Admg
+            | GraphClass::Cpdag
+            | GraphClass::Pag
+            | GraphClass::TemporalAdmg => Some("MediationEffect"),
             GraphClass::RandomizedTrial => None,
         },
         CausalQuery::TemporalEffect(q) => match &q.policy {
@@ -1055,6 +1061,7 @@ fn naming_class(matrix: &str) -> Option<GraphClass> {
         "TemporalDag" => GraphClass::TemporalDag,
         "TemporalCpdag" => GraphClass::TemporalCpdag,
         "TemporalPag" => GraphClass::TemporalPag,
+        "TemporalAdmg" => GraphClass::TemporalAdmg,
         _ => return None,
     })
 }
@@ -1097,6 +1104,16 @@ pub(crate) fn effective_graph_class(graph: &AcceptedGraph, query: &CausalQuery) 
         (GraphClass::Admg, CausalQuery::AverageEffect(_)) => {
             let admg = graph.as_admg().expect("class() == Admg implies as_admg() is Some");
             if admg.has_bidirected() { GraphClass::Admg } else { GraphClass::Dag }
+        }
+        (GraphClass::TemporalAdmg, CausalQuery::AverageEffect(_)) => {
+            let temporal = graph
+                .as_temporal_admg()
+                .expect("class() == TemporalAdmg implies as_temporal_admg() is Some");
+            match temporal.project_preserving_functional() {
+                Ok(admg) if admg.has_bidirected() => GraphClass::TemporalAdmg,
+                Ok(_) => GraphClass::Dag,
+                Err(_) => GraphClass::TemporalAdmg,
+            }
         }
         (GraphClass::Cpdag, CausalQuery::AverageEffect(_)) => GraphClass::Cpdag,
         (class, _) => class,

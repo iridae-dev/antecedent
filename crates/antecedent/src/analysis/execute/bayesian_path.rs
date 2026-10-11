@@ -533,7 +533,10 @@ impl super::Study {
                 let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
                 let mut logical = if matches!(
                     atom_kind,
-                    Some(antecedent_discovery::GraphPosteriorAtomKind::Admg)
+                    Some(
+                        antecedent_discovery::GraphPosteriorAtomKind::Admg
+                            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
+                    )
                 ) {
                     super::compile_logical_admg_response(data, q, self.validation_suite_id(), self)?
                 } else {
@@ -598,7 +601,10 @@ impl super::Study {
                 let stub = Dag::with_variables(n_vars);
                 let atom_kind = self.graph_posterior.as_ref().map(|gp| gp.atom_kind);
                 let (identifier, estimator) = match atom_kind {
-                    Some(antecedent_discovery::GraphPosteriorAtomKind::Admg) => {
+                    Some(
+                        antecedent_discovery::GraphPosteriorAtomKind::Admg
+                            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
+                    ) => {
                         (Arc::from("general.id"), Arc::from("functional.effect"))
                     }
                     Some(

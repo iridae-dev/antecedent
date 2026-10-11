@@ -278,6 +278,27 @@ fn identify_with_source(
                 structure_version,
             })
         }
+        GraphClass::TemporalAdmg => {
+            let temporal = structure
+                .as_temporal_admg()
+                .expect("class() == TemporalAdmg implies as_temporal_admg() is Some");
+            let admg = temporal.project_preserving_functional().map_err(|error| {
+                CausalError::Compile { message: error.to_string() }
+            })?;
+            let CausalQuery::AverageEffect(average_effect) = query else {
+                return Err(CausalError::Unsupported {
+                    message: "TemporalAdmg identification supports only CausalQuery::AverageEffect \
+                              through the static ADMG projection",
+                });
+            };
+            let result = identify_admg(strategy, &admg, average_effect)?;
+            Ok(Identification::Point {
+                result,
+                temporal_indexer: None,
+                strategy,
+                structure_version,
+            })
+        }
         GraphClass::TemporalDag => {
             let dag = structure
                 .as_temporal_dag()
@@ -414,7 +435,7 @@ fn default_strategy(class: GraphClass) -> IdentifierId {
     match class {
         GraphClass::Dag => DEFAULT_IDENTIFIER_ID,
 
-        GraphClass::Admg => DEFAULT_ADMG_IDENTIFIER_ID,
+        GraphClass::Admg | GraphClass::TemporalAdmg => DEFAULT_ADMG_IDENTIFIER_ID,
         GraphClass::TemporalDag => IdentifierId::TemporalBackdoorUnfolded,
         GraphClass::Cpdag
         | GraphClass::Pag

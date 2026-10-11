@@ -183,7 +183,8 @@ pub use identity::{
     identification_product_digest, identification_product_digest_wire, identification_product_wire,
     inference_binding_digest, observation_identity_wire, pag_identity, payload_digest,
     prior_set_identity, program_digest, score_reuse_digest, target_weights_digest,
-    temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity, transport_identity,
+    temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
+    transport_identity,
 };
 pub use mechanism_wire::{
     MechanismSlotWire, MechanismStoreWire, ModelKindWire, mechanisms_from_wire, mechanisms_to_wire,

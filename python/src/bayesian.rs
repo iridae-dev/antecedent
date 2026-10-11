@@ -350,6 +350,7 @@ fn parse_atom_kind(name: &str) -> PyResult<GraphPosteriorAtomKind> {
         "Cpdag" | "cpdag" => Ok(GraphPosteriorAtomKind::Cpdag),
         "Pag" | "pag" => Ok(GraphPosteriorAtomKind::Pag),
         "Admg" | "admg" => Ok(GraphPosteriorAtomKind::Admg),
+        "TemporalAdmg" | "temporal_admg" => Ok(GraphPosteriorAtomKind::TemporalAdmg),
         other => Err(PyValueError::new_err(format!(
             "atom_kind must be Dag, Cpdag, Pag, or Admg; got {other:?}"
         ))),

@@ -8,14 +8,12 @@ reason = "Temporal contrast queries require a temporal graph class."
 
 [[n_a]]
 queries = [
-  "AnomalyAttribution",
   "AverageEffect",
-  "ChangeAttribution",
   "ConditionalEffect",
   "MediationEffect",
 ]
 graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
-reason = "No TemporalAdmg is licensed. Latent confounding over time is outside the licensed graph classes, so a static Admg or other static query does not denote on TemporalDag, TemporalCpdag, or TemporalPag. AnomalyAttribution and ChangeAttribution stay on the static DAG: the attribution engine has no lagged slice. TemporalPag stays the equivalence class only for the temporal queries licensed on it."
+reason = "Static queries do not denote on TemporalDag, TemporalCpdag, or TemporalPag. TemporalPag stays the equivalence class only for the temporal queries licensed on it. Latent confounding over time denotes on TemporalAdmg."
 
 [[n_a]]
 queries = ["TransportQuery", "InterferenceQuery"]
@@ -24,7 +22,7 @@ reason = "TransportQuery and InterferenceQuery are typed against static graphs; 
 
 [[n_a]]
 queries = ["ResponseCurve"]
-graph_classes = ["Dag", "Admg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
+graph_classes = ["Dag", "Admg", "TemporalAdmg", "TemporalDag", "Cpdag", "Pag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "cheap and full denote the ATE-shaped scalar refuter suite; a function-valued curve has no such state."
@@ -53,7 +51,7 @@ reason = "Bayesian InterventionResponse has no licensed scalar-refuter state; ch
 
 [[n_a]]
 queries = ["PointDerivative", "Elasticity", "SemiElasticity", "AverageDerivative", "DirectionalDerivative", "ResponseJacobian"]
-graph_classes = ["Dag", "TemporalDag"]
+graph_classes = ["Dag", "TemporalDag", "TemporalCpdag", "TemporalPag"]
 structures = ["explicit", "accepted"]
 validations = ["cheap", "full"]
 reason = "Derivative-native validation is not implemented; ATE refuters do not apply."

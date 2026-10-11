@@ -2987,6 +2987,7 @@ fn register_native_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<graphs::Pag>()?;
     m.add_class::<graphs::Admg>()?;
     m.add_class::<graphs::TemporalDag>()?;
+    m.add_class::<graphs::TemporalAdmg>()?;
     m.add_class::<graphs::TemporalCpdag>()?;
     m.add_class::<graphs::TemporalPag>()?;
     Ok(())

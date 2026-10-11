@@ -314,7 +314,8 @@ pub(crate) fn build_graph_posterior_identification_cache(
     }
     match posterior.atom_kind {
         antecedent_discovery::GraphPosteriorAtomKind::Dag => {}
-        antecedent_discovery::GraphPosteriorAtomKind::Admg => {
+        antecedent_discovery::GraphPosteriorAtomKind::Admg
+        | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
             return build_admg_graph_posterior_identification_cache(posterior, query, ctx);
         }
         _ => return build_class_graph_posterior_identification_cache(posterior, query, ctx),

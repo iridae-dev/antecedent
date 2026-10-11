@@ -53,7 +53,11 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         let started = Instant::now();
-        if !matches!(gp.atom_kind, antecedent_discovery::GraphPosteriorAtomKind::Admg) {
+        if !matches!(
+            gp.atom_kind,
+            antecedent_discovery::GraphPosteriorAtomKind::Admg
+                | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
+        ) {
             return Err(CausalError::Compile {
                 message: "execute_admg_graph_posterior_response requires Admg posterior atoms"
                     .into(),

@@ -76,7 +76,7 @@ impl CheckedTransportTrialOperation {
         else {
             return Ok(None);
         };
-        if study.graph.class() != GraphClass::Admg
+        if !matches!(study.graph.class(), GraphClass::Admg | GraphClass::TemporalAdmg)
             || study.selection_diagram.is_none()
             || study.graph_posterior.is_some()
             || study.tiered.is_some()

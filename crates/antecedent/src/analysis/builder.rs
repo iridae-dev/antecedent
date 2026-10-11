@@ -367,6 +367,16 @@ fn stub_accepted_graph_for(
                     }
                     Ok(AcceptedGraph::admg(admg))
                 }
+                antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
+                    let mut admg = Admg::with_variables(n);
+                    if n >= 2 {
+                        admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
+                            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    }
+                    let temporal = antecedent_graph::TemporalAdmg::from_static_contemporaneous(&admg)
+                        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    Ok(AcceptedGraph::temporal_admg(temporal))
+                }
                 _ => Err(CausalError::Unsupported {
                     message: "graph-posterior stub supports only static Dag, Cpdag, Pag, or Admg atoms",
                 }),
@@ -381,6 +391,12 @@ fn stub_accepted_graph_for(
             }
             antecedent_discovery::GraphPosteriorAtomKind::Pag => {
                 Ok(AcceptedGraph::temporal_pag(TemporalPag::empty()))
+            }
+            antecedent_discovery::GraphPosteriorAtomKind::Admg
+            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg => {
+                Err(CausalError::Unsupported {
+                    message: "Admg and TemporalAdmg graph posteriors require tabular data",
+                })
             }
             _ => Err(CausalError::Unsupported {
                 message: "graph-posterior stub supports only TemporalDag, TemporalCpdag, or \
@@ -446,6 +462,7 @@ fn static_node_count(graph: &AcceptedGraph) -> Option<usize> {
         GraphClass::TemporalDag
         | GraphClass::TemporalCpdag
         | GraphClass::TemporalPag
+        | GraphClass::TemporalAdmg
         | GraphClass::RandomizedTrial => None,
     }
 }
@@ -1939,7 +1956,7 @@ impl StudyBuilder {
                                 )
                     );
                 let admg_functional_ok = spec.id() == EstimatorId::FunctionalEffect
-                    && graph_class == GraphClass::Admg
+                    && matches!(graph_class, GraphClass::Admg | GraphClass::TemporalAdmg)
                     && matches!(
                         &query,
                         CausalQuery::Response(q)
@@ -2123,8 +2140,15 @@ impl StudyBuilder {
                         message: "interference network is not used by TransportQuery",
                     });
                 }
-                let admg = graph.as_admg().ok_or(CausalError::Unsupported {
-                    message: "TransportQuery requires a supplied Admg",
+                let admg = match graph.class() {
+                    GraphClass::Admg => graph.as_admg().cloned(),
+                    GraphClass::TemporalAdmg => graph.as_temporal_admg().map(|temporal| {
+                        super::execute::temporal_admg_projection(temporal)
+                    }).transpose()?,
+                    _ => None,
+                }
+                .ok_or(CausalError::Unsupported {
+                    message: "TransportQuery requires a supplied Admg or TemporalAdmg",
                 })?;
                 let targets = self.selection_targets.clone().unwrap_or_default();
                 let diagram = antecedent_graph::SelectionDiagram::try_new(admg.clone(), targets)

@@ -119,6 +119,12 @@ pub(super) fn classify_route(modality: DataModality, query: &CausalQuery) -> Opt
         (DataModality::Tabular, CausalQuery::ChangeAttribution(_)) => {
             AnalysisRoute::ChangeAttribution
         }
+        (DataModality::TemporalOrEvent, CausalQuery::AnomalyAttribution(_)) => {
+            AnalysisRoute::Anomaly
+        }
+        (DataModality::TemporalOrEvent, CausalQuery::ChangeAttribution(_)) => {
+            AnalysisRoute::ChangeAttribution
+        }
         (DataModality::Tabular, CausalQuery::MechanismChange(_)) => AnalysisRoute::MechanismChange,
         (DataModality::Tabular, CausalQuery::UnitChange(_)) => AnalysisRoute::UnitChange,
         (DataModality::TemporalOrEvent, CausalQuery::TemporalEffect(_)) => {
@@ -1977,6 +1983,18 @@ pub(super) fn envelope_to_identification_result_for<G>(
 
 pub(crate) fn admg_has_bidirected(admg: &Admg) -> bool {
     admg.has_bidirected()
+}
+
+/// Static ADMG whose general-ID functional matches this temporal ADMG.
+///
+/// The projection exists only when each variable appears once. Identification
+/// and estimation then reuse the static ADMG path on that graph.
+pub(crate) fn temporal_admg_projection(
+    graph: &antecedent_graph::TemporalAdmg,
+) -> Result<Admg, CausalError> {
+    graph.project_preserving_functional().map_err(|error| CausalError::Compile {
+        message: error.to_string(),
+    })
 }
 
 /// The directed part of an ADMG as a DAG.

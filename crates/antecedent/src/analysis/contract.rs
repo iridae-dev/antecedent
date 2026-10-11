@@ -40,7 +40,7 @@ use antecedent_io::{
     identification_digest, identification_product_digest_wire, identification_product_wire,
     identification_to_wire_with_registry, inference_binding_digest, observation_identity_wire,
     pag_identity, program_digest, schema_to_wire, score_reuse_digest, target_weights_digest,
-    temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
+    temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity, temporal_pag_identity,
 };
 
 use crate::accepted::{AcceptedGraph, GraphClass};
@@ -2433,6 +2433,10 @@ fn accepted_graph_identity(graph: &AcceptedGraph) -> Result<GraphIdentityWire, C
         GraphClass::TemporalPag => {
             Ok(temporal_pag_identity(graph.as_temporal_pag().expect("TemporalPag class")))
         }
+        GraphClass::TemporalAdmg => temporal_admg_identity(
+            graph.as_temporal_admg().expect("TemporalAdmg class"),
+        )
+        .map_err(|err| io_err(&err)),
         GraphClass::RandomizedTrial => Ok(GraphIdentityWire::RandomizedTrial),
     }
 }

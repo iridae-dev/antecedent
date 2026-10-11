@@ -37,7 +37,7 @@ use antecedent::io::{
 use antecedent_core::{Lag, VariableId};
 use antecedent_graph::{
     Dag as RustDag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef,
-    TemporalDag as RustTemporalDag,
+    TemporalAdmg as RustTemporalAdmg, TemporalDag as RustTemporalDag,
 };
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -1132,6 +1132,62 @@ impl TemporalPag {
         let py = slf.py();
         let list = PyList::new(py, names)?;
         Ok(list.try_iter()?.into_any().unbind())
+    }
+}
+
+/// Named temporal ADMG: lagged nodes, directed edges, and bidirected latent edges.
+#[pyclass(name = "TemporalAdmg", from_py_object)]
+#[derive(Clone)]
+pub struct TemporalAdmg {
+    pub(crate) graph: RustTemporalAdmg,
+    pub(crate) names: Vec<String>,
+}
+
+#[pymethods]
+impl TemporalAdmg {
+    #[classmethod]
+    #[pyo3(signature = (names, directed, bidirected=None))]
+    fn from_lagged_edges(
+        _cls: &Bound<'_, PyType>,
+        names: Vec<String>,
+        directed: Vec<(String, u32, String, u32)>,
+        bidirected: Option<Vec<(String, u32, String, u32)>>,
+    ) -> PyResult<Self> {
+        let var_of = |nm: &str| -> PyResult<VariableId> {
+            names
+                .iter()
+                .position(|n| n == nm)
+                .map(|i| VariableId::from_raw(u32::try_from(i).expect("var index fits u32")))
+                .ok_or_else(|| unknown_node(nm))
+        };
+        let mut graph = RustTemporalAdmg::empty();
+        let mut ensure = |name: &str, lag: u32| -> PyResult<DenseNodeId> {
+            let variable = var_of(name)?;
+            let lag = Lag::from_raw(lag);
+            for (i, node) in graph.nodes().iter().enumerate() {
+                if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
+                    if *existing == variable && *existing_lag == lag {
+                        return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+                    }
+                }
+            }
+            graph.add_lagged(variable, lag).map_err(py_err)
+        };
+        for (src, src_lag, tgt, tgt_lag) in &directed {
+            let from = ensure(src, *src_lag)?;
+            let to = ensure(tgt, *tgt_lag)?;
+            graph.insert_directed(from, to).map_err(py_err)?;
+        }
+        for (a, a_lag, b, b_lag) in bidirected.unwrap_or_default() {
+            let left = ensure(&a, a_lag)?;
+            let right = ensure(&b, b_lag)?;
+            graph.insert_bidirected(left, right).map_err(py_err)?;
+        }
+        Ok(Self { graph, names })
+    }
+
+    fn node_count(&self) -> usize {
+        self.graph.node_count()
     }
 }
 

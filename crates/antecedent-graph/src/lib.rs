@@ -41,6 +41,7 @@ pub mod pag;
 pub mod projection;
 pub mod selection;
 pub mod temporal;
+pub mod temporal_admg;
 pub mod temporal_cpdag_completion;
 pub mod temporal_pag;
 pub mod temporal_pag_completion;
@@ -67,6 +68,7 @@ pub use pag::{DefiniteStatusPath, DefiniteStatusPathSearch, Pag, PagReview};
 pub use projection::{latent_project, projection_preserves_msep_sample};
 pub use selection::SelectionDiagram;
 pub use temporal::TemporalDag;
+pub use temporal_admg::TemporalAdmg;
 pub use temporal_cpdag_completion::{
     TemporalCpdagCompletion, TemporalCpdagCompletionSampler, is_temporal_mec_member,
 };

@@ -862,14 +862,14 @@ pub fn verify_contract_against_body(
         unresolved.push(Arc::from("dependencies.checked_bayesian_class_conditional_operation"));
     }
     if contract.structure_source == "graph_posterior"
-        && contract.graph_class == "Admg"
+        && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
         && resolved_estimator == Some("functional.effect")
     {
         unresolved.push(Arc::from("dependencies.checked_graph_posterior_effect_operation"));
     }
     if contract.structure_source == "graph_posterior"
-        && contract.graph_class == "Admg"
+        && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && matches!(contract.target.query, CausalQueryWire::Response(_))
         && resolved_estimator == Some("functional.effect")
     {
@@ -940,7 +940,7 @@ pub fn verify_contract_against_body(
     {
         unresolved.push(Arc::from("dependencies.checked_bayesian_mediation_operation"));
     }
-    if contract.graph_class == "Dag"
+    if matches!(contract.graph_class.as_str(), "Dag" | "TemporalDag")
         && contract.structure_source == "explicit"
         && matches!(
             contract.target.query,
@@ -1133,7 +1133,7 @@ pub fn verify_contract_against_body(
             .is_some_and(|binding| binding.inference == "bayesian" || binding.bayesian.is_some()));
     let functional_effect = is_scalar_functional_effect_contract(contract);
     let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
-        && contract.graph_class == "Admg"
+        && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
             .program
             .as_ref()
@@ -1172,7 +1172,7 @@ pub fn verify_contract_against_body(
     }
     if is_response_functional_effect_contract(contract) {
         let graph_posterior = contract.structure_source == "graph_posterior"
-            && contract.graph_class == "Admg"
+            && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
             && contract
                 .program
                 .as_ref()
@@ -1646,7 +1646,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         program_digest,
     );
     let graph_posterior_functional_effect = contract.structure_source == "graph_posterior"
-        && contract.graph_class == "Admg"
+        && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && contract
             .program
             .as_ref()

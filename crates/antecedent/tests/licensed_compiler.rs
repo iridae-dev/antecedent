@@ -40,7 +40,7 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
     Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag,
-    TemporalDag, TieredBackground, WithinTier, ensure_lagged,
+    TemporalAdmg, TemporalDag, TemporalPag, TieredBackground, WithinTier, ensure_lagged,
 };
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
@@ -301,7 +301,38 @@ fn uses_pag_envelope(cell: &antecedent::SupportCell) -> bool {
 }
 
 fn uses_identified_temporal_pag(cell: &antecedent::SupportCell) -> bool {
-    cell.graph_class == "TemporalPag" && cell.structure != "graph_posterior"
+    cell.graph_class == "TemporalPag"
+        && cell.structure != "graph_posterior"
+        && !matches!(
+            cell.query,
+            "TemporalConditionalPulse"
+                | "TemporalConditionalSustained"
+                | "AverageDerivative"
+                | "PointDerivative"
+                | "Elasticity"
+                | "SemiElasticity"
+                | "DirectionalDerivative"
+                | "ResponseJacobian"
+                | "Counterfactual"
+                | "InterventionalDistribution"
+                | "NestedCounterfactualEffect"
+                | "PathSpecificEffect"
+        )
+}
+
+/// Directed mediation PAG with a lag-1 parent of treatment, so `t → y` is visible
+/// and the back-door set of the licensed point queries stays empty.
+fn visible_mediation_pag() -> TemporalPag {
+    let mut g = TemporalPag::empty();
+    let t1 = g.add_lagged(vid(0), Lag::from_raw(1)).unwrap();
+    let m0 = g.add_lagged(vid(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = g.add_lagged(vid(2), Lag::CONTEMPORANEOUS).unwrap();
+    let r1 = g.add_lagged(vid(3), Lag::from_raw(1)).unwrap();
+    g.insert_directed(r1, t1).unwrap();
+    g.insert_directed(t1, m0).unwrap();
+    g.insert_directed(t1, y0).unwrap();
+    g.insert_directed(m0, y0).unwrap();
+    g
 }
 
 fn identified_pag_pin() -> serde_json::Value {
@@ -645,11 +676,7 @@ fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
             ResponseQuery::new(ResponseFunctional::DirectionalDerivative {
                 outcomes: Arc::from([vid(2), vid(3)]),
                 treatments: Arc::from([vid(0), vid(1)]),
-                at: if temporal_graph {
-                    Arc::from([2.0, 1.0])
-                } else {
-                    Arc::from([0.5, 0.0])
-                },
+                at: if temporal_graph { Arc::from([2.0, 1.0]) } else { Arc::from([0.5, 0.0]) },
                 direction: Arc::from([1.0, 1.0]),
             }),
             temporal_graph,
@@ -658,11 +685,7 @@ fn query_for(cell: &antecedent::SupportCell) -> CausalQuery {
             ResponseQuery::new(ResponseFunctional::Jacobian {
                 outcomes: Arc::from([vid(2), vid(3)]),
                 treatments: Arc::from([vid(0), vid(1)]),
-                at: if temporal_graph {
-                    Arc::from([2.0, 1.0])
-                } else {
-                    Arc::from([0.5, 0.0])
-                },
+                at: if temporal_graph { Arc::from([2.0, 1.0]) } else { Arc::from([0.5, 0.0]) },
                 scale: DerivativeScale::Identity,
             }),
             temporal_graph,
@@ -704,7 +727,9 @@ fn needs_series(cell: &antecedent::SupportCell) -> bool {
 
 fn n_vars(cell: &antecedent::SupportCell) -> u32 {
     match cell.query {
-        "PathSpecificEffect" | "MediationEffect" | "TemporalMediationEffect"
+        "PathSpecificEffect"
+        | "MediationEffect"
+        | "TemporalMediationEffect"
         | "NestedCounterfactualEffect" => 3,
         "AverageDerivative"
         | "PointDerivative"
@@ -748,10 +773,15 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
         let series = identified_pag_series(&pin);
         (Study::series(series.clone()), CellData::Series(series))
     } else if series {
-        let names: Vec<&str> = match n {
-            2 => vec!["x", "y"],
-            3 => vec!["t", "m", "y"],
-            _ => vec!["x", "y", "z", "w"][..n as usize].to_vec(),
+        let names: Vec<&str> = if cell.graph_class == "TemporalPag" && !uses_identified_temporal_pag(cell)
+        {
+            vec!["t", "m", "y", "r"]
+        } else {
+            match n {
+                2 => vec!["x", "y"],
+                3 => vec!["t", "m", "y"],
+                _ => vec!["x", "y", "z", "w"][..n as usize].to_vec(),
+            }
         };
         let series = if cell.query == "TemporalMediationEffect" {
             temporal_mediation_series()
@@ -818,7 +848,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
             static_table(&[("y", 0), ("x", 1)])
         } else if cell.query == "InterventionalDistribution"
             || (matches!(cell.query, "AverageEffect" | "ResponseCurve" | "InterventionResponse")
-                && cell.graph_class == "Admg")
+                && matches!(cell.graph_class, "Admg" | "TemporalAdmg"))
         {
             discrete_joint_table(&["t", "y", "z"][..n.min(3) as usize])
         } else if matches!(
@@ -862,6 +892,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
                 "Cpdag" | "TemporalCpdag" => gp.with_atom_kind(GraphPosteriorAtomKind::Cpdag),
                 "Pag" | "TemporalPag" => gp.with_atom_kind(GraphPosteriorAtomKind::Pag),
                 "Admg" => gp.with_atom_kind(GraphPosteriorAtomKind::Admg),
+                "TemporalAdmg" => gp.with_atom_kind(GraphPosteriorAtomKind::TemporalAdmg),
                 _ => gp,
             };
             builder.graph_posterior(gp)
@@ -879,6 +910,17 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
                     } else {
                         confounder_admg()
                     };
+                    if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
+                }
+                "TemporalAdmg" => {
+                    let g = TemporalAdmg::from_static_contemporaneous(&if cell.query
+                        == "TransportQuery"
+                    {
+                        transport_admg()
+                    } else {
+                        confounder_admg()
+                    })
+                    .map_err(|e| format!("{expected}: {e}"))?;
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "Cpdag" => {
@@ -904,7 +946,11 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "TemporalPag" => {
-                    let g = identified_pag(&identified_pag_pin());
+                    let g = if uses_identified_temporal_pag(cell) {
+                        identified_pag(&identified_pag_pin())
+                    } else {
+                        visible_mediation_pag()
+                    };
                     if accepted { builder.graph(AcceptedGraph::from(g)) } else { builder.graph(g) }
                 }
                 "CoDetermined" => {
@@ -950,7 +996,7 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
             .estimator(EstimatorId::FunctionalDistribution);
     }
     if matches!(cell.query, "AverageEffect" | "ResponseCurve" | "InterventionResponse")
-        && cell.graph_class == "Admg"
+        && matches!(cell.graph_class, "Admg" | "TemporalAdmg")
     {
         builder =
             builder.identifier(IdentifierId::GeneralId).estimator(EstimatorId::FunctionalEffect);
@@ -976,6 +1022,13 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
             selection_probability: vid(3),
             treatment_probability: vid(4),
         });
+        if cell.graph_class == "TemporalAdmg" {
+            builder = builder.estimator(if cell.inference == "Bayesian" {
+                EstimatorId::TransportTrialBayesianBootstrap
+            } else {
+                EstimatorId::TransportTrialIpw
+            });
+        }
     }
     if cell.query == "InterferenceQuery" {
         let units = static_table(&[("y", 0)]);
@@ -1290,7 +1343,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 521, "licensed inventory drifted");
+    assert_eq!(n, 669, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1329,7 +1382,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
             Err(err) => failures.push(err),
         }
     }
-    assert_eq!(n, 521, "licensed inventory drifted");
+    assert_eq!(n, 669, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -1350,7 +1403,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
 }
 
 /// Diagnostic sweep for retained checked execution after every source owner is
-/// dropped. This stays opt-in because the full 521-cell execution is expensive.
+/// dropped. This stays opt-in because the full 669-cell execution is expensive.
 #[test]
 #[ignore = "opt-in registry closure diagnostic; run with --ignored --exact"]
 fn diagnostic_registry_closure_after_builder_and_study_drop() {
@@ -1463,7 +1516,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 521, "licensed support inventory drifted");
+    assert_eq!(count, 669, "licensed support inventory drifted");
 }
 
 /// Opt-in probe for the separately licensed alternate estimators. It keeps
@@ -1687,7 +1740,7 @@ fn functional_effect_replay_dependency_only(
             | "dependencies.functional_effect_response_posterior_draws" => bayesian,
             "program.functional_effect_response_grid" => {
                 !bayesian
-                    && contract.graph_class.as_str() == "Admg"
+                    && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
                     && matches!(contract.target.query, antecedent_io::CausalQueryWire::Response(_))
             }
             _ => false,

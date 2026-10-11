@@ -204,7 +204,10 @@ impl CheckedAdmgGraphPosteriorResponse {
         inference: crate::InferenceMode,
         validation: RefuteSuite,
     ) -> Result<Self, CausalError> {
-        if posterior.atom_kind != GraphPosteriorAtomKind::Admg {
+        if !matches!(
+            posterior.atom_kind,
+            GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg
+        ) {
             return Err(CausalError::Unsupported {
                 message: "checked graph-posterior response requires ADMG atoms",
             });
@@ -304,7 +307,7 @@ impl CheckedGraphPosteriorEffect {
     ) -> Result<Self, CausalError> {
         let licensed = match posterior.atom_kind {
             GraphPosteriorAtomKind::Dag => procedure.id() == target.frequentist_estimator(),
-            GraphPosteriorAtomKind::Admg => {
+            GraphPosteriorAtomKind::Admg | GraphPosteriorAtomKind::TemporalAdmg => {
                 !target.is_conditional() && procedure.id() == EstimatorId::FunctionalEffect
             }
             _ => false,
