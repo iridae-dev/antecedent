@@ -351,7 +351,7 @@ fn mean(family: GlmFamily, eta: f64) -> f64 {
         GlmFamily::GaussianIdentity => eta,
         GlmFamily::BinomialLogit => {
             if eta >= 0. {
-                1. / (1. + (-eta).exp())
+                antecedent_kernels::sigmoid(eta)
             } else {
                 let e = eta.exp();
                 e / (1. + e)

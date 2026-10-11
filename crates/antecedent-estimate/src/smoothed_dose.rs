@@ -85,6 +85,7 @@ use crate::estimator_menu::{EstimatorMenu, EstimatorMenuEntry, MenuRefusal};
 use crate::learned_continuous::FoldProvenance;
 use crate::learned_trial::TrialSampling;
 use crate::EstimationError;
+use crate::util::refuse;
 use antecedent_core::{ExecutionContext, SmoothedDoseTransportQuery, SmoothingKernel, VariableId};
 use antecedent_identify::{TransportFormula, TransportIdentification};
 use antecedent_learn::{
@@ -468,10 +469,6 @@ pub struct SmoothedDoseEvaluation {
     pub diagnostics: SmoothedDoseDiagnostics,
     /// Membership overlap.
     pub overlap: MembershipOverlap,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 fn support_refusal(detail: &str, message: &str) -> EstimationError {

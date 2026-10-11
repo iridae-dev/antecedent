@@ -496,7 +496,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;
@@ -982,7 +982,7 @@ mod tests {
                 assert!(influence.iter().sum::<f64>().abs() < 1e-7);
                 assert!((iid_se(influence) - effect.se_analytic).abs() < 1e-10);
                 covered += usize::from(
-                    (effect.ate - truth).abs() <= 1.959_963_984_540_054 * effect.se_analytic,
+                    (effect.ate - truth).abs() <= antecedent_stats::NORMAL_Q975 * effect.se_analytic,
                 );
                 bias += effect.ate - truth;
             }

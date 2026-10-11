@@ -35,10 +35,10 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
-use antecedent_kernels::erfc;
 use antecedent_stats::chi_square_sf;
 
 use crate::error::EstimationError;
+use crate::util::{count, refuse};
 
 /// The frozen null of the global test.
 pub const EFFECT_CONSTANCY_NULL: &str = "effect equal across all declared partitions";
@@ -223,14 +223,6 @@ pub struct EffectConstancyResult {
     pub pooled_effect: Option<f64>,
     /// [`EFFECT_CONSTANCY_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    n as f64
 }
 
 /// Holm step-down adjustment of raw p-values; the result is in the input order.
@@ -463,7 +455,7 @@ fn contrast_reports(
                 "a contrast overflows at the supplied scale",
             ));
         }
-        rows.push((a, b, difference, se, z, erfc(z.abs() / std::f64::consts::SQRT_2)));
+        rows.push((a, b, difference, se, z, crate::util::normal_two_sided_p(z)));
     }
     let raw: Vec<f64> = rows.iter().map(|r| r.5).collect();
     let adjusted = holm_adjust(&raw);

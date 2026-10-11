@@ -440,6 +440,17 @@ pub fn normal_equation_scores_of_residuals(
         .collect()
 }
 
+/// The `b → 0` intercept of the fixed-b critical-value polynomials: the normal 95% critical
+/// value as the polynomials' source tables print it (two decimals), not
+/// [`antecedent_stats::NORMAL_Q975`].
+///
+/// Both [`circular_fixed_b_scale`] and [`fixed_b_scale`] are `cv_95(b) / FIXED_B_INTERCEPT`
+/// with `cv_95(b) = FIXED_B_INTERCEPT + c₁b + c₂b² + c₃b³`: the cubics were fitted with this
+/// intercept, so the scale is exactly 1 at `b = 0` and the coefficients keep the meaning they
+/// were fitted with; swapping in the unrounded quantile would put the scale about `2e-5` away
+/// from 1 at `b = 0` and mix two constants inside one fitted cubic.
+pub(crate) const FIXED_B_INTERCEPT: f64 = 1.96;
+
 /// Fixed-b correction for a circular-block SE: `cv_95(ℓ/n) / 1.96`, with `cv_95`
 /// the fixed-b two-sided 95% critical value of a mean studentized by the
 /// *circular* Bartlett long-run variance at bandwidth `ℓ`,
@@ -484,7 +495,7 @@ pub fn circular_fixed_b_scale(block_length: usize, rows: usize) -> f64 {
         return 1.0;
     }
     let b = (block_length as f64 / rows as f64).clamp(0.0, 1.0);
-    (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96
+    (FIXED_B_INTERCEPT + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / FIXED_B_INTERCEPT
 }
 
 /// Bartlett kernel-bias factor of a circular-block SE over `block_length`: the largest
@@ -528,7 +539,7 @@ pub fn fixed_b_scale(block_length: usize, rows: usize) -> f64 {
         return 1.0;
     }
     let b = (block_length as f64 / rows as f64).clamp(0.0, 1.0);
-    (1.96 + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / 1.96
+    (FIXED_B_INTERCEPT + 2.9694 * b + 0.4160 * b * b - 0.5324 * b * b * b) / FIXED_B_INTERCEPT
 }
 
 /// Outcome of a shared circular-block bootstrap of a run-time number of targets
@@ -1078,7 +1089,8 @@ mod tests {
         assert!(circular_fixed_b_scale(8, 399) < circular_fixed_b_scale(4, 59));
         // Simulated circular-Bartlett 97.5% quantiles (n = 2000, 10⁶ series).
         for (b, simulated) in [(0.10, 2.2396), (0.20, 2.5791), (0.33, 3.0979), (0.40, 3.3958)] {
-            let cv = 1.96 * circular_fixed_b_scale((b * 10_000.0_f64).round() as usize, 10_000);
+            let block = (b * 10_000.0_f64).round() as usize;
+            let cv = FIXED_B_INTERCEPT * circular_fixed_b_scale(block, 10_000);
             assert!((cv - simulated).abs() < 0.006, "b={b}: {cv} vs {simulated}");
         }
         // Above the non-circular Kiefer–Vogelsang value at long blocks.

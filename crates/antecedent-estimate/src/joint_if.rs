@@ -89,23 +89,15 @@ pub fn weighted_mean(scores: &[f64], weights: Option<&[f64]>) -> Result<f64, Est
 
 /// Kish effective sample size of non-negative relative weights.
 /// Zero mass returns zero; negative or non-finite weights return NaN.
+///
+/// The kernel owner [`antecedent_kernels::kish_ess`] with the additional refusal of negative
+/// weights, which it takes as given.
 #[must_use]
 pub fn kish_n_eff(weights: &[f64]) -> f64 {
-    if weights.iter().any(|w| !w.is_finite() || *w < 0.0) {
+    if weights.iter().any(|w| *w < 0.0) {
         return f64::NAN;
     }
-    let scale = weights.iter().copied().fold(0.0_f64, f64::max);
-    if scale == 0.0 {
-        return 0.0;
-    }
-    let mut sum = 0.0;
-    let mut sum_sq = 0.0;
-    for &w in weights {
-        let relative = w / scale;
-        sum += relative;
-        sum_sq += relative * relative;
-    }
-    (sum / sum_sq) * sum
+    antecedent_kernels::kish_ess(weights)
 }
 
 /// Rescale relative weights before sums or products so their arbitrary units

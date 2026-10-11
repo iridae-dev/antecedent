@@ -1717,7 +1717,7 @@ impl FittedSurface {
             })
             .collect();
         let band = self.bootstrap.as_ref().map(|boot| {
-            let z = normal_ppf(0.975);
+            let z = antecedent_stats::NORMAL_Q975;
             let mut draws: Vec<Vec<f64>> = boot
                 .draws
                 .iter()
@@ -3709,13 +3709,13 @@ mod tests {
         assert_eq!(sim_hi.len(), mean.len());
         assert!((critical[0] - 0.95).abs() < 1e-12);
         assert!((critical[2] - 80.0).abs() < 1e-12);
-        assert!(critical[1] >= normal_ppf(0.975), "sup-t critical {} < z", critical[1]);
+        assert!(critical[1] >= antecedent_stats::NORMAL_Q975, "sup-t critical {} < z", critical[1]);
         for cell in 0..mean.len() {
             assert!(sim_lo[cell] <= lower[cell] && upper[cell] <= sim_hi[cell], "cell {cell}");
             let half_pointwise = mean[cell] - lower[cell];
             let half_sim = mean[cell] - sim_lo[cell];
             assert!(
-                (half_sim / half_pointwise - critical[1] / normal_ppf(0.975)).abs() < 1e-9,
+                (half_sim / half_pointwise - critical[1] / antecedent_stats::NORMAL_Q975).abs() < 1e-9,
                 "simultaneous band must scale the same bootstrap SE by the sup-t critical value"
             );
         }
@@ -3952,7 +3952,8 @@ mod tests {
         // 159 rows in blocks of 13, 3 coefficients: circular-Bartlett fixed-b ratio at
         // b = 13/159 times the HC1 factor sqrt(159/156).
         let b = 13.0 / 159.0;
-        let circular = (1.96 + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / 1.96;
+        let intercept = crate::temporal_block::FIXED_B_INTERCEPT;
+        let circular = (intercept + 2.4389 * b + 3.7072 * b * b - 2.1055 * b * b * b) / intercept;
         let expected = circular * (159.0_f64 / 156.0).sqrt();
         assert!((block_dispersion_inflation(159, 13, 3) - expected).abs() < 1e-12);
         assert!(expected > 1.12 && expected < 1.13, "{expected}");
@@ -4000,7 +4001,7 @@ mod tests {
         let uniform: Vec<Vec<f64>> =
             (0..99).map(|r| vec![f64::from(r) - 49.0, 10.0 + f64::from(r) - 49.0]).collect();
         let floored = max_deviation_band(&center, &uniform, 0.95).unwrap();
-        assert!((floored.critical - normal_ppf(0.975)).abs() < 1e-12, "{}", floored.critical);
+        assert!((floored.critical - antecedent_stats::NORMAL_Q975).abs() < 1e-12, "{}", floored.critical);
     }
 
     #[test]

@@ -77,13 +77,13 @@ use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::propensity::{
     clamp_scores, clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports,
-    gather, gather_into, prepare_propensity_problem_with_registry, refuse, split_by_treatment,
+    gather, gather_into, prepare_propensity_problem_with_registry, split_by_treatment,
     trim_of, trim_retained_rows, PenalizedReport, PenalizedVarianceReport,
     PreparedPropensityProblem, PropensityModel, PropensityNuisance, ReplicatePenalties,
     REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
 };
 use crate::se::AnalyticSeKind;
-use crate::util::{bootstrap_se, stats_err, BootstrapSeResult};
+use crate::util::{bootstrap_se, refuse, stats_err, BootstrapSeResult};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -1709,7 +1709,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             z[i] = zi;
@@ -1967,7 +1967,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2015,7 +2015,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2048,7 +2048,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2081,7 +2081,7 @@ mod tests {
         for i in 0..n {
             let z = standard_normal(&mut rng);
             let logit = -0.5 + z;
-            let pi_i = 1.0 / (1.0 + (-logit).exp());
+            let pi_i = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < pi_i { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             t[i] = ti;
@@ -2200,7 +2200,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + 0.3 * zi + 1.2 * (zi * zi - 1.0);
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;

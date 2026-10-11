@@ -391,20 +391,16 @@ fn validate_inputs(request: &DoseGridRequest<'_>, points: &[f64]) -> Result<(), 
     Ok(())
 }
 
-fn kish_ess(dose: &[f64], at: f64, bandwidth: f64) -> f64 {
-    let mut sum = 0.0;
-    let mut sum_sq = 0.0;
-    for &d in dose {
-        let z = (d - at) / bandwidth;
-        let w = (-0.5 * z * z).exp();
-        sum += w;
-        sum_sq += w * w;
-    }
-    if sum_sq > f64::EPSILON {
-        sum * sum / sum_sq
-    } else {
-        0.0
-    }
+/// Kish effective sample size of the Gaussian kernel weights of `dose` around `at`.
+fn kernel_ess(dose: &[f64], at: f64, bandwidth: f64) -> f64 {
+    let weights: Vec<f64> = dose
+        .iter()
+        .map(|&d| {
+            let z = (d - at) / bandwidth;
+            (-0.5 * z * z).exp()
+        })
+        .collect();
+    antecedent_kernels::kish_ess(&weights)
 }
 
 fn observed_range(dose: &[f64]) -> (f64, f64) {
@@ -418,7 +414,7 @@ fn label_points(
     minimum_ess: f64,
 ) -> (Vec<SupportStatus>, Vec<f64>) {
     let (minimum, maximum) = observed_range(dose);
-    let ess: Vec<f64> = points.iter().map(|&at| kish_ess(dose, at, bandwidth)).collect();
+    let ess: Vec<f64> = points.iter().map(|&at| kernel_ess(dose, at, bandwidth)).collect();
     let labels = points
         .iter()
         .zip(&ess)

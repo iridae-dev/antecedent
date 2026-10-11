@@ -911,7 +911,7 @@ mod tests {
             let effect = fit(&est, &draw(1000 + seed), &frontdoor_estimand()).unwrap();
             estimates.push(effect.ate);
             mean_se += effect.se_analytic / reps as f64;
-            if (effect.ate - truth).abs() <= 1.959_963_984_540_054 * effect.se_analytic {
+            if (effect.ate - truth).abs() <= antecedent_stats::NORMAL_Q975 * effect.se_analytic {
                 covered += 1.0 / reps as f64;
             }
         }

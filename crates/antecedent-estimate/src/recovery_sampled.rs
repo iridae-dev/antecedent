@@ -1095,21 +1095,10 @@ impl Run<'_> {
     }
 }
 
-/// Linear-interpolation percentile (type 7) of a sorted, nonempty sample.
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "the position is in [0, len - 1]"
-)]
-fn percentile(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return f64::NAN;
-    }
-    let position = p * (sorted.len() - 1) as f64;
-    let lower = position.floor() as usize;
-    let upper = (lower + 1).min(sorted.len() - 1);
-    let fraction = position - lower as f64;
-    sorted[lower] + (sorted[upper] - sorted[lower]) * fraction
+/// Hyndman–Fan type-7 quantile of a sorted sample: the rule the receipt names
+/// (`midrank_exact_ties:type7:delete_one_row`) for the bootstrap endpoints.
+fn type7_quantile(sorted: &[f64], p: f64) -> f64 {
+    antecedent_stats::quantile_sorted(sorted, p, antecedent_stats::QuantileRule::Interpolated)
 }
 
 /// Sample covariance (divisor `n - 1`) of equal-length rows, row-major.
@@ -1253,13 +1242,10 @@ pub fn estimate_sampled_recovery(
     let bca = Some(corrected);
     let interval = SampledEffectInterval {
         level: SAMPLED_RECOVERY_INTERVAL_LEVEL,
-        lower: percentile(&sorted, probabilities[0]),
-        upper: percentile(&sorted, probabilities[1]),
+        lower: type7_quantile(&sorted, probabilities[0]),
+        upper: type7_quantile(&sorted, probabilities[1]),
         calibration: SAMPLED_RECOVERY_CALIBRATION,
     };
-    let used = boot.effects.len() as f64;
-    let mean = boot.effects.iter().sum::<f64>() / used;
-    let variance = boot.effects.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / (used - 1.0);
     let mut receipt = SampledRecoveryReceipt {
         snapshot_id: input.snapshot_id.clone(),
         rows: input.rows.len(),
@@ -1273,6 +1259,7 @@ pub fn estimate_sampled_recovery(
         receipt_digest: String::new(),
     };
     receipt.receipt_digest = receipt.recompute_digest();
+    let effect_standard_error = antecedent_stats::sample_std(&boot.effects);
     Ok(SampledRecoveryResult {
         recovered_cells: recovered_law.law().probabilities().len(),
         recovered_cell_covariance: covariance(&boot.cells),
@@ -1282,7 +1269,7 @@ pub fn estimate_sampled_recovery(
         interval,
         replicate_effects: boot.effects,
         failed_replicates: failed,
-        effect_standard_error: variance.sqrt(),
+        effect_standard_error,
         receipt,
     })
 }

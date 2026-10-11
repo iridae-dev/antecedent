@@ -408,7 +408,7 @@ fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         let ui = standard_normal(&mut rng);
         // Logistic treatment so IPW propensity (logit) is correctly specified.
         let logit = 0.8 * zi;
-        let p = 1.0 / (1.0 + (-logit).exp());
+        let p = antecedent_kernels::sigmoid(logit);
         let ti = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
         let yi = TRUE_ATE * ti + 1.5 * zi + 0.5 * ui + 0.5 * standard_normal(&mut rng);
         t.push(ti);
@@ -521,7 +521,7 @@ fn propensity_ipw_conformance_scm(n: usize, rng: &mut CausalRng) -> TabularData 
     let (mut t, mut y, mut z) = (vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 0..n {
         let zi = standard_normal(rng);
-        let p = 1.0 / (1.0 + (-(-0.4 + 0.9 * zi)).exp());
+        let p = antecedent_kernels::sigmoid(-0.4 + 0.9 * zi);
         let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
         let noise = standard_normal(rng) * 0.4;
         z[i] = zi;
@@ -606,7 +606,7 @@ fn penalized_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         for column in &mut z {
             column[i] = standard_normal(&mut rng);
         }
-        let p = 1.0 / (1.0 + (-(0.8 * z[0][i] - 0.5 * z[1][i])).exp());
+        let p = antecedent_kernels::sigmoid(0.8 * z[0][i] - 0.5 * z[1][i]);
         t[i] = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
         y[i] = TRUE_ATE * t[i]
             + 1.5 * z[0][i]
@@ -752,7 +752,7 @@ fn heterogeneous_binary_scm(n: usize, seed: u64, cluster_sd: f64) -> (TabularDat
         }
         g[i] = (i / 10) as u32;
         z[i] = standard_normal(&mut rng);
-        let p = 1.0 / (1.0 + (-0.8 * z[i]).exp());
+        let p = antecedent_kernels::sigmoid(0.8 * z[i]);
         t[i] = if uniform01(&mut rng) < p { 1.0 } else { 0.0 };
         y[i] = 2.0 * t[i] + t[i] * z[i] + z[i] + cluster_shock + 0.6 * standard_normal(&mut rng);
     }
@@ -764,7 +764,7 @@ fn heterogeneous_arm_mean_z(treated: bool) -> f64 {
     let (mut num, mut den) = (0.0, 0.0);
     for k in 0..18_000 {
         let z = -9.0 + f64::from(k) * 1e-3;
-        let p = 1.0 / (1.0 + (-0.8 * z).exp());
+        let p = antecedent_kernels::sigmoid(0.8 * z);
         let w = (-0.5 * z * z).exp() * if treated { p } else { 1.0 - p };
         num += w * z;
         den += w;

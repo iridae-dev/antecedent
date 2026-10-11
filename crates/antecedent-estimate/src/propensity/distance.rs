@@ -326,7 +326,7 @@ mod tests {
         for i in 0..n {
             let zi = standard_normal(&mut rng);
             let logit = -0.5 + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             let noise = standard_normal(&mut rng) * 0.5;
             z[i] = zi;

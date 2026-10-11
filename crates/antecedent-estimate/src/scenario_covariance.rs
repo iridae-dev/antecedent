@@ -36,6 +36,7 @@ use std::sync::Arc;
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use crate::error::EstimationError;
+use crate::util::refuse;
 use crate::splitmix::{mix64, seed_mix, splitmix64, GOLDEN_GAMMA};
 
 /// Most scenarios one covariance may span.
@@ -261,10 +262,6 @@ impl ScenarioCovariance {
     pub fn position(&self, id: &str) -> Option<usize> {
         self.scenario_ids.iter().position(|s| &**s == id)
     }
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 fn unknown_dependence(message: &str) -> EstimationError {

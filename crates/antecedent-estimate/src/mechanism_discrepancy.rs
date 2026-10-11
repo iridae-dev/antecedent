@@ -45,7 +45,9 @@ use antecedent_kernels::erfc;
 use antecedent_stats::chi_square_sf;
 
 use crate::effect_constancy::{holm_adjust, CalibrationStatus};
+use crate::util::dot;
 use crate::error::EstimationError;
+use crate::util::{count, refuse};
 use crate::vector_treatment::DesignSummary;
 
 /// The frozen null of the diagnostic.
@@ -290,18 +292,6 @@ pub struct MechanismDiscrepancyResult {
     pub source_summary: MechanismSummary,
     /// Canonical sufficient statistics of the target fit (`X'X`, `X'y`, `y'y`).
     pub target_summary: MechanismSummary,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    n as f64
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// `z` with `P(Z > z) = tail`, for `tail` in `(0, 0.5]`, from the shared refined normal

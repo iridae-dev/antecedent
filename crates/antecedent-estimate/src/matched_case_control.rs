@@ -48,6 +48,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::util::refuse;
 use antecedent_core::ExecutionContext;
 use std::collections::BTreeMap;
 
@@ -92,10 +93,6 @@ pub struct ConditionalOddsRatio {
     pub odds_ratio: f64,
     /// What every declared set contributed.
     pub counts: MatchedSetCounts,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 /// Accept only the declared sampling design.

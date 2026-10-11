@@ -278,22 +278,16 @@ pub fn randomized_survival_bootstrap_intervals(
     })
 }
 
+/// The 95% bootstrap percentile interval of `draws`: type-7 quantiles at 2.5% and 97.5%,
+/// the crate's rule for resampling percentiles (`statistical_transport::percentile_interval`).
 fn percentile_95(draws: &mut [f64]) -> [f64; 2] {
     draws.sort_by(f64::total_cmp);
-    let n = draws.len();
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "ceil of a positive quantile position yields a small nonnegative rank index"
-    )]
-    let lower = ((n as f64 + 1.0) * 0.025).ceil() as usize;
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "ceil of a positive quantile position yields a small nonnegative rank index"
-    )]
-    let upper = ((n as f64 + 1.0) * 0.975).ceil() as usize;
-    [draws[lower.saturating_sub(1).min(n - 1)], draws[upper.saturating_sub(1).min(n - 1)]]
+    let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
+        draws,
+        0.95,
+        antecedent_stats::QuantileRule::Interpolated,
+    );
+    [lower, upper]
 }
 
 /// Compute randomized arm curves with optional left truncation.

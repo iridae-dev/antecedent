@@ -654,7 +654,7 @@ mod tests {
         let mut y = vec![0.0; n];
         for i in 0..n {
             let zi = standard_normal(&mut rng);
-            let p = 1.0 / (1.0 + (-(-0.3 + 0.6 * zi)).exp());
+            let p = antecedent_kernels::sigmoid(-0.3 + 0.6 * zi);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;

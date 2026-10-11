@@ -295,7 +295,7 @@ fn build_scores_pass(
                 return Err(if problem.fold_units.is_some() {
                     crate::cluster_dml_aipw::cancelled()
                 } else {
-                    crate::propensity::refuse(
+                    crate::util::refuse(
                         antecedent_core::reason_code!("cancelled_no_claim"),
                         "aipw.cancelled",
                         "the cross-fitted AIPW fit was cancelled before every fold was fit; no \
@@ -597,7 +597,7 @@ mod tests {
         let mut y = vec![0.0; n];
         for i in 0..n {
             let zi = standard_normal(&mut rng);
-            let p = 1.0 / (1.0 + (0.5 - zi).exp());
+            let p = antecedent_kernels::sigmoid(zi - 0.5);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;

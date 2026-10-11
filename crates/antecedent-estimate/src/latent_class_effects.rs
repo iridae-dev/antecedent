@@ -120,7 +120,9 @@ use std::f64::consts::TAU as TWO_PI;
 use antecedent_core::reason_code;
 
 use crate::effect_constancy::CalibrationStatus;
+use crate::util::dot;
 use crate::error::EstimationError;
+use crate::util::{count, refuse};
 use crate::splitmix::{mix64, splitmix64};
 use crate::vector_treatment::DesignSummary;
 
@@ -316,14 +318,6 @@ pub struct LatentClassResult {
     pub caveat: &'static str,
 }
 
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    n as f64
-}
-
 fn as_u64(n: usize) -> u64 {
     u64::try_from(n).unwrap_or(u64::MAX)
 }
@@ -332,10 +326,6 @@ fn as_u64(n: usize) -> u64 {
 #[allow(clippy::cast_precision_loss, reason = "a 53-bit integer is exact in f64")]
 fn unit_draw(bits: u64) -> f64 {
     (bits >> 11) as f64 / (1_u64 << 53) as f64
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// The prepared regression problem: rows `z_i = [1, a_i, x_i...]`.
@@ -817,10 +807,6 @@ fn permutations(k: usize) -> Vec<Vec<usize>> {
     out
 }
 
-fn sample_sd(values: &[f64]) -> f64 {
-    antecedent_stats::sample_std(values)
-}
-
 fn mixture_average(params: &Params) -> f64 {
     params.weights.iter().zip(&params.beta).map(|(w, b)| w * b[1]).sum()
 }
@@ -901,10 +887,10 @@ fn bootstrap_se(
         ));
     }
     let effects =
-        (0..k).map(|c| sample_sd(&replicates.iter().map(|r| r.0[c]).collect::<Vec<_>>())).collect();
+        (0..k).map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.0[c]).collect::<Vec<_>>())).collect();
     let weights =
-        (0..k).map(|c| sample_sd(&replicates.iter().map(|r| r.1[c]).collect::<Vec<_>>())).collect();
-    let average = sample_sd(&replicates.iter().map(|r| r.2).collect::<Vec<_>>());
+        (0..k).map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.1[c]).collect::<Vec<_>>())).collect();
+    let average = crate::util::sample_std(&replicates.iter().map(|r| r.2).collect::<Vec<_>>());
     let summary = LatentClassBootstrap { requested, succeeded, failed: requested - succeeded };
     Ok(Some(BootstrapSe { effects, weights, average, summary }))
 }

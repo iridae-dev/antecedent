@@ -40,6 +40,7 @@
 use antecedent_core::ExecutionContext;
 
 use crate::error::EstimationError;
+use crate::util::refuse;
 use crate::joint_if::JointCovariance;
 
 /// Tolerance for treatment codes and covariance symmetry, matching the propensity
@@ -89,10 +90,6 @@ impl<T> Availability<T> {
             Self::Unavailable(reason) => Some(reason),
         }
     }
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 fn invalid_data(message: &str) -> EstimationError {

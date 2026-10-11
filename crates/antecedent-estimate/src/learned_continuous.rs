@@ -53,6 +53,7 @@ use crate::learned_trial::{
     TrialAipwOptions, TrialNuisanceDiagnostics, TrialSampling,
 };
 use crate::{EstimationError, TransportOverlapReport};
+use crate::util::refuse;
 use antecedent_core::ExecutionContext;
 use antecedent_identify::TransportIdentification;
 use antecedent_learn::{LearnerProvenance, LearnerSpec};
@@ -232,10 +233,6 @@ pub struct LearnedContinuousEstimate {
     /// Per-row AIPW scores whose sample mean is [`Self::estimate`].
     #[serde(default)]
     pub scores: Vec<f64>,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 fn support_refusal(detail: &str, message: &str) -> EstimationError {

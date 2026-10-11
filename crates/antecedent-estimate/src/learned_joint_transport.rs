@@ -53,6 +53,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::util::dot;
 use crate::joint_bayesian_transport::{
     check_prior_data_overlap, FailedFitDiagnostics, GaussianPrior, IdentificationRecord,
     JointDraws, JointPriors, JointTransportCalibration, JointTransportOptions,
@@ -446,10 +447,6 @@ fn quadratic(a: &[f64], n: usize, left: &[f64], right: &[f64]) -> f64 {
         total += left[i] * image;
     }
     total
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// Whether a symmetric matrix is positive definite under the shared Cholesky rule.

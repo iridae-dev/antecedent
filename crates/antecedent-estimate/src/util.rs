@@ -93,15 +93,27 @@ pub(crate) fn refuse_explicit_override(
     Ok(())
 }
 
-/// Arithmetic mean; `NaN` for an empty slice.
-pub(crate) fn mean(values: &[f64]) -> f64 {
-    values.iter().sum::<f64>() / values.len() as f64
+/// A structured refusal whose message is `"{detail}: {message}"`: `detail` is the namespaced
+/// reason literal a caller keys on, `message` the human text.
+pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
+    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
-/// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
-pub(crate) fn sample_std(values: &[f64]) -> f64 {
-    antecedent_stats::sample_std(values)
+/// Two-sided normal p-value `2·(1 − Φ(|z|))` of a standardized statistic; `NaN` propagates.
+pub(crate) fn normal_two_sided_p(z: f64) -> f64 {
+    2.0 * antecedent_kernels::norm_sf(z.abs())
 }
+
+/// A row or parameter count as `f64`.
+#[allow(clippy::cast_precision_loss, reason = "counts are far below 2^53")]
+pub(crate) const fn count(n: usize) -> f64 {
+    n as f64
+}
+
+pub(crate) use antecedent_kernels::{dot, mean};
+
+/// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
+pub(crate) use antecedent_kernels::sample_std;
 
 /// Monte Carlo critical value of a max-statistic band: the `⌈level·(B+1)⌉`-th
 /// smallest of `B` ascending-sorted replicate maxima.

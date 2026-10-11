@@ -89,7 +89,7 @@ pub fn pointwise_interval_95(
     {
         return None;
     }
-    let span = antecedent_stats::normal_ppf(0.975) * effect.standard_error;
+    let span = antecedent_stats::NORMAL_Q975 * effect.standard_error;
     let bounds = [effect.effect - span, effect.effect + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some(bounds)
 }
@@ -292,13 +292,13 @@ mod tests {
                     assert_eq!(supported.is_some(), clusters_per_group >= 24);
                     covered_95[target] += usize::from(
                         (fit.effect - 2.0).abs()
-                            <= antecedent_stats::normal_ppf(0.975) * fit.standard_error,
+                            <= antecedent_stats::NORMAL_Q975 * fit.standard_error,
                     );
                     if let Some(bounds) = supported {
                         assert_eq!(
                             bounds[0] <= 2.0 && 2.0 <= bounds[1],
                             (fit.effect - 2.0).abs()
-                                <= antecedent_stats::normal_ppf(0.975) * fit.standard_error
+                                <= antecedent_stats::NORMAL_Q975 * fit.standard_error
                         );
                     }
                     covered_90[target] += usize::from(

@@ -11,7 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
-use crate::util::mean;
+use crate::util::{dot, mean};
 
 /// Scoped Bayesian IV output. Intervals are equal-tailed posterior intervals conditional on
 /// the selected model, prior scale, and plug-in Gaussian residual variance.
@@ -276,7 +276,7 @@ fn fit_bayesian_iv_inner(
             weighted_resample(&effect_draws, &log_weights, draws, seed.wrapping_add(0xD1B5_4A32));
     }
     effect_draws.sort_by(f64::total_cmp);
-    let mean_effect = effect_draws.iter().sum::<f64>() / draws as f64;
+    let mean_effect = mean(&effect_draws);
     let lower = quantile(&effect_draws, 0.025);
     let upper = quantile(&effect_draws, 0.975);
     Ok(BayesianIvEstimate {
@@ -422,9 +422,6 @@ fn invert(a: [[f64; 3]; 3]) -> Result<[[f64; 3]; 3], EstimationError> {
 }
 fn mul_vec(a: [[f64; 3]; 3], b: [f64; 3]) -> [f64; 3] {
     std::array::from_fn(|i| (0..3).map(|j| a[i][j] * b[j]).sum())
-}
-fn dot(a: &[f64; 3], b: &[f64; 3]) -> f64 {
-    (0..3).map(|i| a[i] * b[i]).sum()
 }
 #[cfg(test)]
 mod tests {

@@ -665,22 +665,9 @@ fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationErr
     Ok(())
 }
 
-/// Linear-interpolated quantile (type 7) of an ascending non-empty slice.
-#[allow(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "indices of a bounded replicate vector"
-)]
+/// Hyndman–Fan type-7 quantile of an ascending slice, the bootstrap-percentile rule.
 fn quantile(sorted: &[f64], p: f64) -> f64 {
-    if sorted.is_empty() {
-        return f64::NAN;
-    }
-    let h = p.clamp(0.0, 1.0) * (sorted.len() - 1) as f64;
-    let lo = h.floor() as usize;
-    let hi = (lo + 1).min(sorted.len() - 1);
-    let frac = h - lo as f64;
-    sorted[lo] + frac * (sorted[hi] - sorted[lo])
+    antecedent_stats::quantile_sorted(sorted, p, antecedent_stats::QuantileRule::Interpolated)
 }
 
 fn draw_units(panel: &TemporalUnitPanel, replicate_id: u64) -> (Vec<&UnitHistories>, u64) {

@@ -52,8 +52,9 @@ use antecedent_core::reason_code;
 
 use crate::effect_constancy::{holm_adjust, CalibrationStatus};
 use crate::error::EstimationError;
+use crate::util::{count, refuse};
 use crate::vector_treatment::{
-    count, fit_joint, fit_joint_from_summary, refuse, summarize_joint, CoefficientEstimate,
+    fit_joint, fit_joint_from_summary, summarize_joint, CoefficientEstimate,
     Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn, TreatmentColumn,
     VectorCovariance, VectorTreatmentFit, VectorTreatmentInput, VectorTreatmentOptions,
 };
@@ -409,10 +410,6 @@ fn declared_contrasts(
     (contrasts, n_levels, n_pairs)
 }
 
-fn normal_cdf(t: f64) -> f64 {
-    antecedent_kernels::norm_cdf(t)
-}
-
 fn monotonicity_result(
     direction: MonotonicityDirection,
     order: &[String],
@@ -438,7 +435,7 @@ fn monotonicity_result(
         })
         .collect();
     let statistic = steps.iter().map(|s| sign * s.z).fold(f64::INFINITY, f64::min);
-    let p_value = (count(steps.len()) * normal_cdf(statistic)).min(1.0);
+    let p_value = (count(steps.len()) * antecedent_kernels::norm_cdf(statistic)).min(1.0);
     MonotonicityResult {
         direction,
         null,

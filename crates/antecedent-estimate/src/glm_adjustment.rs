@@ -502,7 +502,7 @@ fn include_gcomp_row(target: &TargetPopulation, t: f64) -> bool {
 pub(crate) fn mean_derivative(family: GlmFamily, eta: f64) -> f64 {
     match family {
         GlmFamily::BinomialLogit => {
-            let mu = 1.0 / (1.0 + (-eta).exp());
+            let mu = antecedent_kernels::sigmoid(eta);
             mu * (1.0 - mu)
         }
         GlmFamily::BinomialProbit => {
@@ -523,9 +523,8 @@ pub(crate) fn fisher_weight(family: GlmFamily, eta: f64, nb_alpha: f64) -> f64 {
     match family {
         GlmFamily::BinomialProbit => {
             let phi = mean_derivative(GlmFamily::BinomialProbit, eta);
-            // Φ(η) via erf; clamp away from {0,1} for numerical stability.
-            let mu = (0.5 * (1.0 + antecedent_kernels::erf(eta / std::f64::consts::SQRT_2)))
-                .clamp(1e-12, 1.0 - 1e-12);
+            // Φ(η), clamped away from {0, 1} for numerical stability.
+            let mu = antecedent_kernels::norm_cdf(eta).clamp(1e-12, 1.0 - 1e-12);
             (phi * phi) / (mu * (1.0 - mu))
         }
         GlmFamily::NegativeBinomial => {
@@ -994,7 +993,7 @@ mod tests {
             let ti = (i % 2) as f64;
             let zi = (i as f64) / (n as f64) - 0.5;
             let logit = -0.5 + 2.0 * ti + zi;
-            let p = 1.0 / (1.0 + (-logit).exp());
+            let p = antecedent_kernels::sigmoid(logit);
             let yi = if rng.next_f64() < p { 1.0 } else { 0.0 };
             t[i] = ti;
             z[i] = zi;

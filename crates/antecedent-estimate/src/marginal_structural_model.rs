@@ -1,6 +1,8 @@
 //! Additive binary marginal structural model with subject-level stabilized IPTW.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::util::dot;
+
 /// Point coefficients and pointwise subject-clustered CR1 sandwich errors.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MsmSummary {
@@ -41,7 +43,7 @@ pub fn pointwise_intervals_95(fit: &MsmSummary, subjects: usize) -> Option<MsmIn
     {
         return None;
     }
-    let z = antecedent_stats::normal_ppf(0.975);
+    let z = antecedent_stats::NORMAL_Q975;
     let interval = |center: f64, se: f64| [center - z * se, center + z * se];
     let result = MsmIntervals95 {
         intercept: interval(fit.intercept, fit.intercept_standard_error),
@@ -99,8 +101,6 @@ pub fn fit_binary_msm(
     let mut design = vec![vec![0.0; columns]; n];
     let mut weights = vec![0.0; n];
     let mut max_weight: f64 = 0.0;
-    let mut sum = 0.0;
-    let mut sumsq = 0.0;
     for i in 0..n {
         design[i][0] = 1.0;
         if observed[i] && !y[i].is_finite() {
@@ -132,11 +132,6 @@ pub fn fit_binary_msm(
         if observed[i] {
             weights[i] = weight;
             max_weight = max_weight.max(weight);
-            sum += weight;
-            sumsq += weight * weight;
-            if !sum.is_finite() || !sumsq.is_finite() {
-                return Err("stabilized weight diagnostics overflowed");
-            }
         }
     }
     let mut bread_input = vec![vec![0.0; columns]; columns];
@@ -185,7 +180,7 @@ pub fn fit_binary_msm(
     let intercept_standard_error = covariance[0][0].max(0.0).sqrt();
     let standard_errors =
         (1..columns).map(|j| covariance[j][j].max(0.0).sqrt()).collect::<Vec<_>>();
-    let ess = sum * sum / sumsq;
+    let ess = antecedent_kernels::kish_ess(&weights);
     if covariance.iter().flatten().any(|v| !v.is_finite())
         || !intercept_standard_error.is_finite()
         || standard_errors.iter().any(|v| !v.is_finite())
@@ -204,9 +199,6 @@ pub fn fit_binary_msm(
     })
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
 fn matvec(a: &[Vec<f64>], b: &[f64]) -> Vec<f64> {
     a.iter().map(|row| dot(row, b)).collect()
 }

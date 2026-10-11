@@ -4206,10 +4206,10 @@ mod tests {
     #[test]
     fn fieller_elasticity_interval_accounts_for_denominator_uncertainty() {
         let covariance = [[0.01, 0.002, 0.0], [0.002, 0.04, 0.0], [0.0; 3]];
-        let (lower, upper) = fieller_elasticity_interval(1.0, 2.0, 0.5, &covariance, 1.96).unwrap();
+        let (lower, upper) = fieller_elasticity_interval(1.0, 2.0, 0.5, &covariance, antecedent_stats::NORMAL_Q975).unwrap();
         assert!(lower < 1.0 && 1.0 < upper);
         assert!(upper - 1.0 > 1.0 - lower, "denominator uncertainty makes asymmetric bounds");
-        assert!(fieller_elasticity_interval(0.1, 2.0, 0.5, &covariance, 1.96).is_none());
+        assert!(fieller_elasticity_interval(0.1, 2.0, 0.5, &covariance, antecedent_stats::NORMAL_Q975).is_none());
     }
 
     #[test]

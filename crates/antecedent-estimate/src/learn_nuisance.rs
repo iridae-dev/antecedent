@@ -33,7 +33,7 @@ pub(crate) fn learn_err(err: antecedent_learn::LearnError) -> EstimationError {
 
 /// The stop of a cancelled cross-fit: no nuisance bundle is returned or cached.
 fn nuisance_cancelled() -> EstimationError {
-    crate::propensity::refuse(
+    crate::util::refuse(
         antecedent_core::reason_code!("cancelled_no_claim"),
         "dml.cancelled",
         "the cross-fitted nuisance fit was cancelled; no estimate or score table is reported \
@@ -376,7 +376,7 @@ fn require_populated_arms(treatment: &[f64]) -> Result<(), EstimationError> {
     if treatment.iter().any(|&value| value <= 0.5) && treatment.iter().any(|&value| value > 0.5) {
         return Ok(());
     }
-    Err(crate::propensity::refuse(
+    Err(crate::util::refuse(
         antecedent_core::reason_code!("arm_not_populated"),
         "dml.arm_not_populated",
         "both treatment arms must remain populated after complete-case selection",

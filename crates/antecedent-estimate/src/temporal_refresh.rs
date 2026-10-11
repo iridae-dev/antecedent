@@ -35,6 +35,7 @@ use antecedent_core::{reason_code, CanonicalWriter, ExecutionContext};
 use antecedent_expr::ExactTransportData;
 
 use crate::error::EstimationError;
+use crate::util::refuse;
 use crate::temporal_transport::PreparedTemporalSequence;
 
 /// Inference claim of the route.
@@ -338,10 +339,6 @@ pub struct HeldTemporalResult<T> {
     pub value: T,
     /// Whether an interval or fit exists for this window.
     pub interval_present: bool,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
 }
 
 /// Refresh a held result onto a replacement identity by re-evaluating it there.

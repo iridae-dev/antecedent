@@ -281,7 +281,7 @@ pub struct AtomUncertainty {
 }
 
 /// Logit-scale delta-method interval for a probability from its bootstrap SE:
-/// `expit(logit(p̂) ± z·se / (p̂(1 − p̂)))`, `z = Φ⁻¹(1/2 + level/2)`.
+/// `antecedent_kernels::sigmoid(logit(p̂) ± z·se / (p̂(1 − p̂)))`, `z = Φ⁻¹(1/2 + level/2)`.
 ///
 /// Why this construction: a probability's sampling law is skewed toward the
 /// interior near 0 and 1, so the symmetric `p̂ ± z·se` both leaves `[0, 1]` and
@@ -319,17 +319,7 @@ pub fn logit_probability_interval(p: f64, se: Option<f64>, level: f64) -> Probab
     }
     let centre = (p / (1.0 - p)).ln();
     let half = z * se / (p * (1.0 - p));
-    ProbabilityInterval::Bounded { level, lower: expit(centre - half), upper: expit(centre + half) }
-}
-
-/// Numerically stable logistic function; always in `[0, 1]`.
-fn expit(x: f64) -> f64 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        let e = x.exp();
-        e / (1.0 + e)
-    }
+    ProbabilityInterval::Bounded { level, lower: antecedent_kernels::sigmoid(centre - half), upper: antecedent_kernels::sigmoid(centre + half) }
 }
 
 /// Reusable scratch for [`FunctionalDistribution`] estimation.
@@ -2389,7 +2379,7 @@ mod tests {
         let (lo1, hi1) = logit_probability_interval(1.0 - p, Some(se), 0.95).bounds().unwrap();
         assert!((lo1 - (1.0 - hi)).abs() < 1e-12 && (hi1 - (1.0 - lo)).abs() < 1e-12);
         // Delta-method width on the logit scale.
-        let z = antecedent_stats::normal_ppf(0.975);
+        let z = antecedent_stats::NORMAL_Q975;
         let logit = |x: f64| (x / (1.0 - x)).ln();
         let half = z * 0.05 / (0.4 * 0.6);
         let (lo, hi) = logit_probability_interval(0.4, Some(0.05), 0.95).bounds().unwrap();

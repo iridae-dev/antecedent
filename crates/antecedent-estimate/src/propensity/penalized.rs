@@ -31,6 +31,7 @@ use antecedent_learn::{
 
 use super::penalized_report::{FailedFit, FoldSupport};
 use crate::error::EstimationError;
+use crate::util::refuse;
 use crate::crossfit_plan::{derive_fold_ids, FoldSource, SHARED_FOLD_ID_ERRORS};
 use crate::learn_nuisance::{intercept_is_constant, learn_err};
 use crate::splitmix::mix64;
@@ -61,11 +62,7 @@ const LASSO_PROVENANCE_TAG: &str = ";propensity=lasso";
 const INNER_PLAN_TAG: u64 = 0x1AE5_17D0_F01D_0001;
 
 /// A refusal carrying its registered reason code and the namespaced detail callers switch on.
-pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn invalid(message: &str) -> EstimationError {
+pub(crate) fn invalid(message: &str) -> EstimationError {
     refuse(
         antecedent_core::reason_code!("invalid_argument"),
         "penalized_propensity.invalid_penalty",
@@ -1031,7 +1028,7 @@ mod tests {
             let b = splitmix64_unit(&mut state) - 0.5;
             cols[1][i] = a;
             cols[2][i] = b;
-            let p = 1.0 / (1.0 + (-(2.0 * a - b)).exp());
+            let p = antecedent_kernels::sigmoid(2.0 * a - b);
             t[i] = f64::from(u8::from(splitmix64_unit(&mut state) < p));
         }
         let design = |rows: std::ops::Range<usize>| -> Vec<f64> {

@@ -44,7 +44,7 @@ pub fn ipw_pointwise_interval_95(
     {
         return None;
     }
-    let span = antecedent_stats::normal_ppf(0.975) * se;
+    let span = antecedent_stats::NORMAL_Q975 * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|value| value.is_finite()).then_some(bounds)
 }
@@ -247,7 +247,7 @@ pub fn sequential_dr_pointwise_interval_95(
     if !se.is_finite() || se <= 0.0 {
         return None;
     }
-    let span = antecedent_stats::normal_ppf(0.975) * se;
+    let span = antecedent_stats::NORMAL_Q975 * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
 }
@@ -353,7 +353,7 @@ pub fn g_formula_fixed_q_pointwise_interval_95(
     if !se.is_finite() || se <= 0.0 {
         return None;
     }
-    let span = antecedent_stats::normal_ppf(0.975) * se;
+    let span = antecedent_stats::NORMAL_Q975 * se;
     let bounds = [summary.value - span, summary.value + span];
     bounds.iter().all(|bound| bound.is_finite()).then_some((se, bounds))
 }
@@ -394,8 +394,7 @@ pub fn evaluate_regime_value(
         return Err("minimum probability must be finite and in (0, 0.5]");
     }
     let mut total = 0.0;
-    let mut weight_sum = 0.0;
-    let mut weight_squares = 0.0;
+    let mut matched_weights = Vec::new();
     let mut maximum_weight: f64 = 0.0;
     let mut minimum_action_probability: f64 = 1.0;
     let mut minimum_censoring_probability: f64 = 1.0;
@@ -431,8 +430,7 @@ pub fn evaluate_regime_value(
         if follows && outcome_observed[i] {
             matched += 1;
             total += weight * outcomes[i];
-            weight_sum += weight;
-            weight_squares += weight * weight;
+            matched_weights.push(weight);
             maximum_weight = maximum_weight.max(weight);
             scores.push(weight * outcomes[i]);
         } else {
@@ -442,7 +440,7 @@ pub fn evaluate_regime_value(
     if matched == 0 {
         return Err("no observed subjects followed the requested regime");
     }
-    if !total.is_finite() || !weight_squares.is_finite() {
+    if !total.is_finite() {
         return Err("longitudinal weighted score overflowed");
     }
     let value = total / n as f64;
@@ -459,7 +457,7 @@ pub fn evaluate_regime_value(
     };
     Ok(RegimeValueSummary {
         value,
-        effective_sample_size: weight_sum * weight_sum / weight_squares,
+        effective_sample_size: antecedent_kernels::kish_ess(&matched_weights),
         matched_observed_fraction: matched as f64 / n as f64,
         maximum_weight,
         minimum_action_probability,
@@ -654,7 +652,7 @@ mod tests {
             covered_90 +=
                 usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
             covered_95 += usize::from(
-                (summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.975) * se,
+                (summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se,
             );
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
@@ -739,7 +737,7 @@ mod tests {
             covered_90 +=
                 usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
             covered_95 += usize::from(
-                (summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.975) * se,
+                (summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se,
             );
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {

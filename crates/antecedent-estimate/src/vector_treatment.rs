@@ -40,7 +40,9 @@ use antecedent_core::reason_code;
 use antecedent_stats::chi_square_sf;
 
 use crate::effect_constancy::{holm_adjust, CalibrationStatus};
+use crate::util::dot;
 use crate::error::EstimationError;
+use crate::util::{count, refuse};
 
 /// The frozen null of the joint Wald test.
 pub const VECTOR_TREATMENT_NULL: &str = "all treatment coefficients are zero";
@@ -259,19 +261,6 @@ impl VectorTreatmentFit {
     }
 }
 
-pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-pub(crate) fn count(n: usize) -> f64 {
-    n as f64
-}
-
-/// Two-sided normal p-value.
-pub(crate) fn normal_two_sided(z: f64) -> f64 {
-    2.0 * antecedent_kernels::norm_sf(z.abs())
-}
-
 /// The design: intercept, shared adjustment columns, then the treatments (column-major).
 struct Design {
     names: Vec<String>,
@@ -401,10 +390,6 @@ fn validate_shared(input: &VectorTreatmentInput) -> Result<(), EstimationError> 
         ));
     }
     Ok(())
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// Index of the first column that is a linear combination of the earlier ones.
@@ -700,7 +685,7 @@ fn evaluate_contrasts(
             standard_error,
             naive_independent_standard_error: naive.sqrt(),
             z,
-            p_value: normal_two_sided(z),
+            p_value: crate::util::normal_two_sided_p(z),
             p_holm: 0.0,
         });
     }
@@ -815,7 +800,7 @@ fn assemble(
             estimate: beta[i],
             standard_error,
             z,
-            p_value: normal_two_sided(z),
+            p_value: crate::util::normal_two_sided_p(z),
         });
     }
     let identity: Vec<Vec<f64>> =

@@ -464,7 +464,7 @@ mod tests {
             let mut score = [0.0; 2];
             let mut information = [0.0; 3];
             for i in 0..t.len() {
-                let e = 1.0 / (1.0 + (-beta[0] - beta[1] * x[i]).exp());
+                let e = antecedent_kernels::sigmoid(beta[0] + beta[1] * x[i]);
                 let residual = mass[i] * (t[i] - e);
                 let v = mass[i] * e * (1.0 - e);
                 score[0] += residual;
@@ -484,7 +484,7 @@ mod tests {
                 break;
             }
         }
-        let e: Vec<f64> = x.iter().map(|x| 1.0 / (1.0 + (-beta[0] - beta[1] * x).exp())).collect();
+        let e: Vec<f64> = x.iter().map(|x| antecedent_kernels::sigmoid(beta[0] + beta[1] * x)).collect();
         let mut numerator = [0.0; 2];
         let mut denominator = [0.0; 2];
         for i in 0..t.len() {

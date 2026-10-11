@@ -542,7 +542,7 @@ mod tests {
         let mut y = vec![0.0; n];
         for i in 0..n {
             let zi = standard_normal(&mut rng);
-            let p = 1.0 / (1.0 + (-(-0.3 + 0.6 * zi)).exp());
+            let p = antecedent_kernels::sigmoid(-0.3 + 0.6 * zi);
             let ti = if rng.next_f64() < p { 1.0 } else { 0.0 };
             z[i] = zi;
             t[i] = ti;
@@ -748,7 +748,7 @@ mod tests {
             );
             assert!(se[row].is_finite() && se[row] > 0.0, "profile {profile}: {}", se[row]);
             assert!(
-                (cate[row] - truth).abs() <= 1.96 * se[row],
+                (cate[row] - truth).abs() <= antecedent_stats::NORMAL_Q975 * se[row],
                 "pointwise interval at profile {profile} misses known truth: estimate={}, se={}, truth={truth}",
                 cate[row],
                 se[row]

@@ -66,9 +66,10 @@ use crate::error::EstimationError;
 use crate::crossfit_plan::{rows_colmajor, CrossfitPlan, FoldSource, SHARED_FOLD_ID_ERRORS};
 use crate::learn_nuisance::design_for_spec;
 use crate::propensity::{
-    fit_ridge_fold, refuse, PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning,
+    fit_ridge_fold, PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
+use crate::util::refuse;
 
 /// Most jointly intervened binary components of a factorized joint cell.
 pub const MAX_FACTORIZED_COMPONENTS: usize = 3;

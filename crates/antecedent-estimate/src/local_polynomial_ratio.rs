@@ -374,7 +374,7 @@ pub fn fit_local_polynomial_ratio(
         ));
     }
     let se_first = variance_t.max(0.0).sqrt();
-    if first_stage.abs() <= 1.96 * se_first {
+    if first_stage.abs() <= antecedent_stats::NORMAL_Q975 * se_first {
         return Err(String::from(
             "weak first stage: local treatment change is not separated from zero by its HC0 95% interval",
         ));

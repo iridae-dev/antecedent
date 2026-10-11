@@ -5,6 +5,7 @@
 use antecedent_core::{ExecutionContext, StreamDomain};
 
 use crate::crossfit_plan::{CrossfitPlan, FoldIdErrors, FoldSource};
+use crate::util::dot;
 use crate::EstimationError;
 
 /// Key of the seeded fold shuffle. The route carries no seed of its own and the fold
@@ -129,10 +130,8 @@ pub fn estimate_bayesian_robust_ate(
         effects.push(estimate);
         refits.push(audit);
     }
-    let estimate = effects.iter().sum::<f64>() / effects.len() as f64;
-    let standard_deviation = (effects.iter().map(|v| (v - estimate).powi(2)).sum::<f64>()
-        / (effects.len() - 1) as f64)
-        .sqrt();
+    let estimate = crate::util::mean(&effects);
+    let standard_deviation = crate::util::sample_std(&effects);
     let interval = interval(&effects, options.coverage);
     Ok(BayesianRobustAteResult {
         estimate,
@@ -250,7 +249,8 @@ fn fit_draw(
     for fold in 0..plan.folds() {
         let (train, valid) = (plan.train(fold), plan.valid(fold));
         let p = fit_logistic(x, &input.treatment, weights, train, opt.ridge_penalty)?;
-        let raw: Vec<f64> = valid.iter().map(|&i| logistic(dot(&p, &x[i]))).collect();
+        let raw: Vec<f64> =
+            valid.iter().map(|&i| antecedent_kernels::sigmoid(dot(&p, &x[i]))).collect();
         let guarded = crate::learn_nuisance::guarded_propensity(&raw, Some(opt.propensity_clip))?;
         for (&i, &ehat) in valid.iter().zip(&guarded) {
             e[i] = ehat;
@@ -332,7 +332,7 @@ fn fit_logistic(
         let mut info = vec![0.0; p * p];
         let mut score = vec![0.0; p];
         for &i in rows {
-            let prob = logistic(dot(&beta, &x[i]));
+            let prob = antecedent_kernels::sigmoid(dot(&beta, &x[i]));
             let variance = (prob * (1.0 - prob)).max(1e-8);
             for j in 0..p {
                 score[j] += weights[i] * x[i][j] * (f64::from(t[i]) - prob);
@@ -380,12 +380,6 @@ fn solve_spd_system(a: &[f64], b: &[f64]) -> Result<Vec<f64>, EstimationError> {
         .ok_or_else(|| EstimationError::stats_msg("singular weighted nuisance system"))
 }
 
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-fn logistic(x: f64) -> f64 {
-    1.0 / (1.0 + (-x.clamp(-30.0, 30.0)).exp())
-}
 /// Domain tag of the draw-specific weight fingerprint.
 const WEIGHT_FINGERPRINT_TAG: &str = "antecedent.estimate.bayesian_robust_ate.weights";
 
@@ -398,19 +392,16 @@ fn fingerprint(values: &[f64]) -> u64 {
     }
     crate::util::canonical_word(&writer)
 }
+/// Equal-tailed posterior interval of the draws under the crate's exchangeable-rank rule
+/// (rank `p·(D + 1)`, so a finite draw count covers at its level).
 fn interval(draws: &[f64], coverage: f64) -> (f64, f64) {
     let mut sorted = draws.to_vec();
     sorted.sort_by(f64::total_cmp);
-    let q = |p: f64| {
-        // Validated coverage gives a probability and `draws` contains at least two entries.
-        #[expect(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "rank is clamped to the nonempty draw slice"
-        )]
-        sorted[((p * (sorted.len() + 1) as f64).floor() as usize).clamp(1, sorted.len()) - 1]
-    };
-    (q((1.0 - coverage) / 2.0), q((1.0 + coverage) / 2.0))
+    antecedent_stats::equal_tail_interval_sorted(
+        &sorted,
+        coverage,
+        antecedent_stats::QuantileRule::ExchangeableRank,
+    )
 }
 
 #[cfg(test)]
@@ -428,7 +419,7 @@ mod tests {
             .iter()
             .map(|v| {
                 let z = if nonlinear_propensity { 0.25 + 1.2 * v * v } else { -0.1 + 0.8 * v };
-                rng.next_f64() < logistic(z)
+                rng.next_f64() < antecedent_kernels::sigmoid(z)
             })
             .collect();
         let outcome = x
@@ -532,7 +523,7 @@ mod tests {
         let digest = writer.finish();
         let expected = u64::from_le_bytes(digest[..8].try_into().unwrap());
         assert_eq!(fingerprint(&weights), expected);
-        assert_ne!(fingerprint(&[0.5, 1.0, 1.5000000000000002]), expected);
+        assert_ne!(fingerprint(&[0.5, 1.0, 1.500_000_000_000_000_2]), expected);
         assert_eq!(expected, 18_274_849_298_044_415_906_u64);
     }
 }

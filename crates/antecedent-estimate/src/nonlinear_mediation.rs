@@ -34,6 +34,7 @@ use crate::splitmix::{mix64, seed_mix, splitmix64};
 use crate::util::mean;
 use crate::vector_treatment::DesignSummary;
 use crate::EstimationError;
+use crate::util::{count, refuse};
 use std::f64::consts::{PI, SQRT_2};
 
 /// Calibration status of the estimator's inference. Coverage is unmeasured.
@@ -228,14 +229,6 @@ pub struct NonlinearMediationEstimate {
     pub mediator_design: DesignSummary,
     /// Sufficient statistics of the outcome polynomial regression.
     pub outcome_design: DesignSummary,
-}
-
-fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
-    EstimationError::refused(code, format!("{detail}: {message}"))
-}
-
-fn count(n: usize) -> f64 {
-    n as f64
 }
 
 
