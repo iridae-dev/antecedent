@@ -648,12 +648,12 @@ fn gaussian_segment_lr(left: &[f64], right: &[f64]) -> Result<(f64, f64), StatsE
 fn segment_order_seed(pooled: &[f64], n_left: usize) -> u64 {
     let mut idx: Vec<usize> = (0..pooled.len()).collect();
     idx.sort_by(|&i, &j| pooled[i].total_cmp(&pooled[j]).then(i.cmp(&j)));
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ (pooled.len() as u64) ^ ((n_left as u64) << 32);
+    let mut h = antecedent_core::Fnv1a64::new();
+    h.fold(pooled.len() as u64).fold(n_left as u64);
     for i in idx {
-        h ^= u64::from(i < n_left) + 1;
-        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        h.fold(u64::from(i < n_left) + 1);
     }
-    h
+    h.finish()
 }
 
 /// Max absolute CUSUM of demeaned `series` (interior points only).

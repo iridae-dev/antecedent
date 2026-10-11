@@ -30,10 +30,9 @@ const TIE_REL_TOL: f64 = 1e-12;
 /// data, seed and query therefore draw the same permutations wherever the query sits in a
 /// batch.
 pub(crate) fn query_stream_salt(x: &[usize], y: &[usize], z: &[usize]) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    let mut h = antecedent_core::Fnv1a64::new();
     let mut mix = |v: u64| {
-        h ^= v;
-        h = h.wrapping_mul(0x0100_0000_01b3);
+        h.fold(v);
     };
     for part in [x, y] {
         mix(part.len() as u64);
@@ -47,7 +46,7 @@ pub(crate) fn query_stream_salt(x: &[usize], y: &[usize], z: &[usize]) -> u64 {
     for c in zs {
         mix(c as u64);
     }
-    h
+    h.finish()
 }
 
 /// Row permutation `perm[dst] = src` that reorders `n` rows by contiguous blocks of

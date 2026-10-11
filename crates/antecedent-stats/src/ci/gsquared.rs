@@ -224,13 +224,12 @@ pub(super) fn discrete_strata(
         let key = if z.is_empty() {
             0u64
         } else {
-            let mut h = 0xcbf2_9ce4_8422_2325_u64;
+            let mut h = antecedent_core::Fnv1a64::new();
             for zc in &codes {
                 let v = zc[r];
-                h ^= u64::from(u32::from_ne_bytes(v.to_ne_bytes()));
-                h = h.wrapping_mul(0x0100_0000_01b3);
+                h.fold(u64::from(u32::from_ne_bytes(v.to_ne_bytes())));
             }
-            h
+            h.finish()
         };
         strata.entry(key).or_default().push(r);
     }

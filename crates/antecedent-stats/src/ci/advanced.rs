@@ -226,10 +226,9 @@ fn permutation_floor(significance: SignificanceMethod) -> f64 {
 /// Hashes query indexes and the full contents of each involved column. Pointers
 /// are not identity: allocator reuse or an unsampled mutation must miss.
 fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n: usize) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    let mut h = antecedent_core::Fnv1a64::new();
     let mut mix = |v: u64| {
-        h ^= v;
-        h = h.wrapping_mul(0x0100_0000_01b3);
+        h.fold(v);
     };
     mix(x as u64);
     mix(y as u64);
@@ -245,7 +244,7 @@ fn knn_input_fingerprint(columns: &[&[f64]], x: usize, y: usize, z: &[usize], n:
             mix(v.to_bits());
         }
     }
-    h
+    h.finish()
 }
 
 fn ensure_knn_index(
@@ -363,15 +362,14 @@ fn ensure_finite_z(columns: &[&[f64]], z: &[usize], n: usize) -> Result<(), Stat
 }
 
 fn joint_z_keys(columns: &[&[f64]], z: &[usize], n: usize) -> Vec<u64> {
-    let mut keys = vec![0xcbf2_9ce4_8422_2325_u64; n];
+    let mut keys = vec![antecedent_core::Fnv1a64::new(); n];
     for &zc in z {
         let col = columns[zc];
         for (r, key) in keys.iter_mut().enumerate() {
-            *key ^= col[r].to_bits();
-            *key = key.wrapping_mul(0x0100_0000_01b3);
+            key.fold(col[r].to_bits());
         }
     }
-    keys
+    keys.iter().map(antecedent_core::Fnv1a64::finish).collect()
 }
 
 /// Sort rows by univariate Z, then cut into contiguous windows of size `neighbourhood`.
