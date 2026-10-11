@@ -4,32 +4,18 @@
     python3 scripts/coverage_citations.py check   # used by gate_coverage_citations.sh
     python3 scripts/coverage_citations.py cite    # add record citations to parity/support_licensed.toml
 
+A cell that quotes a measured coverage declares `coverage_figures`. Each entry
+names the coverage-record ids already cited for that figure (`cites`) or a probe
+disclosure (`written` + `probe`). Record ids are never invented: an entry only
+repeats ids the sentence already cites, and the number in the sentence is the
+cited record's `observed` value. `check` renders that value back into the
+sentence (the figure must match `observed` within half a unit in the last place).
+
 A *coverage figure* is a three- or four-decimal rate in [0.1, 1] written in a
 sentence about coverage (`cover`, `covers`, `coverage`) that is not a location,
 bias, standard error or pinned value (see `EXEMPT_BEFORE`). Known-truth values,
 standard errors and seeded pins are never coverage figures, and pins with five
 or more decimals are never matched.
-
-Every coverage figure must be attributed by the first attribution that follows
-it in the same sentence:
-
-* a record citation, one or more backticked ids from parity/coverage_records.toml
-  (`` (record `cov.…`) `` or `` (records `cov.…`, `cov.…`) ``); the figure must equal
-  the `observed` value of one cited record to three decimals, so a re-measured
-  record forces the prose to follow it; or
-* the disclosure `not a registry value`, for a figure a probe or an earlier run
-  measured that no registry row carries at that value. The figure stays public; the
-  text says where it comes from: a new disclosure names its source,
-  `not a registry value (probe <module>::<test_fn>)`, which must resolve to a
-  compiled, non-ignored test in crates/antecedent/tests/<module>.rs.
-
-Two-decimal rates (`0.93`) and percentages (`93 %`, `93.5%`) in a coverage
-sentence are coverage figures too, except the nominal levels 0.90/0.95/90%/95%.
-Those forms predate the gate, and the figures written before it existed, together
-with the bare disclosures written before disclosures named a source, are listed in
-parity/_coverage_citation_backlog.txt. The backlog only shrinks: a figure or
-bare disclosure that is not listed fails, and a listed one that no longer exists
-must be removed (`python3 scripts/coverage_citations.py backlog` rewrites it).
 
 `cite` inserts record citations after figures whose value matches a record of a
 test the sentence already names, marks the remaining figures as disclosures, and
@@ -259,41 +245,177 @@ def write_backlog() -> int:
     return len(items)
 
 
+def figure_entries(text: str, records: dict[str, dict]) -> list[dict]:
+    """Structured figures already cited in `text`. Ids are copied from the sentence."""
+    entries: list[dict] = []
+    for lo, hi in sentences(text):
+        figs = figures(text, lo, hi)
+        if not figs:
+            continue
+        tagged = []
+        for fig in figs:
+            kind, ids = attribution_after(text, fig.end(), hi)
+            tagged.append((fig, kind, ids))
+        i = 0
+        while i < len(tagged):
+            j = i
+            kind = tagged[i][1]
+            while j + 1 < len(tagged) and tagged[j + 1][1] == kind:
+                gap = text[tagged[j][0].end() : tagged[j + 1][0].start()]
+                if "(" in gap or ";" in gap or len(gap) > 40:
+                    break
+                j += 1
+            if kind == "records":
+                cites: list[str] = []
+                for _, _, group in tagged[i : j + 1]:
+                    for rid in group or []:
+                        if rid not in cites:
+                            cites.append(rid)
+                boundary = any(records[rid].get("boundary") for rid in cites if rid in records)
+                entries.append({"cites": cites, "boundary": boundary})
+            elif kind == "disclosure":
+                for fig, _, _ in tagged[i : j + 1]:
+                    dis = DISCLOSURE_RE.search(text, fig.end(), hi)
+                    probe = PROBE_RE.match(text, dis.end()) if dis else None
+                    entries.append(
+                        {
+                            "written": fig.group(0),
+                            "probe": f"{probe.group(1)}::{probe.group(2)}" if probe else "",
+                        }
+                    )
+            i = j + 1
+    return entries
+
+
+def _legacy_figure_problems(text: str, label: str, records: dict[str, dict]) -> list[str]:
+    """Cells with no `coverage_figures` still cannot hide a rate in the sentence."""
+    problems = []
+    for lo, hi in sentences(text):
+        for fig in figures(text, lo, hi):
+            kind, ids = attribution_after(text, fig.end(), hi)
+            value = float(fig.group(0))
+            if kind is None:
+                problems.append(
+                    f"{label}: coverage figure {fig.group(0)} has no record citation and is not "
+                    f"marked '{DISCLOSURE}'"
+                )
+            elif kind == "records":
+                known = [records[i] for i in ids if i in records]
+                if known and not any(abs(float(r["observed"]) - value) <= TOLERANCE for r in known):
+                    observed = ", ".join(f"{float(r['observed']):.4f}" for r in known)
+                    problems.append(
+                        f"{label}: coverage figure {fig.group(0)} does not match its cited "
+                        f"record(s) ({observed})"
+                    )
+                if known and any(r.get("boundary") for r in known) and not _discloses_boundary(
+                    text[lo:hi]
+                ):
+                    problems.append(
+                        f"{label}: coverage figure {fig.group(0)} cites a boundary record "
+                        "without naming it a boundary"
+                    )
+    return problems
+
+
+def _structured_problems(cell: dict, records: dict[str, dict]) -> list[str]:
+    """Render each declared figure from its record and require that sentence."""
+    text = str(cell.get("limitations", ""))
+    label = row_label(cell)
+    problems: list[str] = []
+    scan_from = 0
+    for entry in cell.get("coverage_figures") or []:
+        if "cites" in entry:
+            cites = [str(rid) for rid in entry["cites"]]
+            known = [records[rid] for rid in cites if rid in records]
+            for rid in cites:
+                if rid not in records:
+                    problems.append(f"{label}: cites unknown coverage record {rid}")
+            if not known:
+                continue
+            pos = -1
+            for rid in cites:
+                found = text.find(f"`{rid}`", scan_from)
+                if found >= 0 and (pos < 0 or found < pos):
+                    pos = found
+            if pos < 0:
+                shown = None
+                for lo, hi in sentences(text):
+                    for fig in figures(text, lo, hi):
+                        if fig.start() < scan_from:
+                            continue
+                        if attribution_after(text, fig.end(), hi)[0] is None:
+                            shown = fig.group(0)
+                            break
+                    if shown:
+                        break
+                if shown is None:
+                    shown = _format_observed(float(known[0]["observed"]), "0.000")
+                problems.append(
+                    f"{label}: coverage figure {shown} has no record citation and is not "
+                    f"marked '{DISCLOSURE}'"
+                )
+                continue
+            sent = next(((lo, hi) for lo, hi in sentences(text) if lo <= pos < hi), (0, len(text)))
+            lo, hi = sent
+            prose = [fig for fig in figures(text, lo, pos) if fig.start() >= scan_from]
+            scan_from = pos + 1
+            for fig in prose:
+                value = float(fig.group(0))
+                if not any(abs(float(rec["observed"]) - value) <= TOLERANCE for rec in known):
+                    observed = ", ".join(f"{float(rec['observed']):.4f}" for rec in known)
+                    problems.append(
+                        f"{label}: coverage figure {fig.group(0)} does not match its cited "
+                        f"record(s) ({observed})"
+                    )
+            if entry.get("boundary") and any(rec.get("boundary") for rec in known):
+                if not _discloses_boundary(text[lo:hi]):
+                    shown = prose[-1].group(0) if prose else _format_observed(
+                        float(known[0]["observed"]), "0.000"
+                    )
+                    problems.append(
+                        f"{label}: coverage figure {shown} cites a boundary record "
+                        "without naming it a boundary"
+                    )
+            continue
+        written = str(entry.get("written") or "")
+        probe = str(entry.get("probe") or "")
+        if written and written not in text:
+            problems.append(
+                f"{label}: coverage figure {written} is not rendered into the limitations sentence"
+            )
+        if probe:
+            module, _, name = probe.partition("::")
+            if DISCLOSURE not in text:
+                problems.append(
+                    f"{label}: coverage figure {written} has no record citation and is not "
+                    f"marked '{DISCLOSURE}'"
+                )
+            elif (why := probe_problem(module, name)) is not None:
+                problems.append(
+                    f"{label}: disclosure of {written} names probe {module}::{name}, "
+                    f"which is not a test: {why}"
+                )
+        elif written:
+            problems.append(
+                f"{label}: {written} is a disclosure that names no source; write "
+                f"'{DISCLOSURE} (probe <module>::<test_fn>)'"
+            )
+    return problems
+
+
 def check() -> list[str]:
     records = load_records()
-    problems = backlog_problems()
+    problems: list[str] = []
     for cell in tomllib.loads(LICENSED.read_text()).get("cell", []):
         text = str(cell.get("limitations", ""))
         label = row_label(cell)
         for rid in RECORD_RE.findall(text):
             if rid not in records:
                 problems.append(f"{label}: cites unknown coverage record {rid}")
-        for lo, hi in sentences(text):
-            for fig in figures(text, lo, hi):
-                kind, ids = attribution_after(text, fig.end(), hi)
-                value = float(fig.group(0))
-                if kind is None:
-                    problems.append(
-                        f"{label}: coverage figure {fig.group(0)} has no record citation and is not "
-                        f"marked '{DISCLOSURE}'"
-                    )
-                elif kind == "records":
-                    known = [records[i] for i in ids if i in records]
-                    if known and not any(
-                        abs(float(r["observed"]) - value) <= TOLERANCE for r in known
-                    ):
-                        observed = ", ".join(f"{float(r['observed']):.4f}" for r in known)
-                        problems.append(
-                            f"{label}: coverage figure {fig.group(0)} does not match its cited "
-                            f"record(s) ({observed})"
-                        )
-                    if known and any(r.get("boundary") for r in known) and not _discloses_boundary(
-                        text[lo:hi]
-                    ):
-                        problems.append(
-                            f"{label}: coverage figure {fig.group(0)} cites a boundary record "
-                            "without naming it a boundary"
-                        )
+        if cell.get("coverage_figures"):
+            problems.extend(_structured_problems(cell, records))
+        else:
+            problems.extend(_legacy_figure_problems(text, label, records))
     return problems
 
 

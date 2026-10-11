@@ -212,5 +212,5 @@ certified; Unknown tiers do not. `continuous_cell` does not license a point
 intervention on a continuous mediator.
 
 See the [support matrix](support-matrix.md) for the current scope and per-cell
-evidence, and the [artifact guide](artifacts.md#package-15-payloads) for saved
+evidence, and the [artifact guide](artifacts.md#score-tables-and-distribution-payloads) for saved
 payload semantics.
