@@ -5,7 +5,9 @@
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::{DecisionContract, DecisionFunctional};
 use crate::decision_eval::{evaluate_functional, FunctionalValue};
-use antecedent_core::{reason_code, CompositionLink, CompositionStage, ProvenanceChain};
+use antecedent_core::{
+    blake3_hex, reason_code, CompositionLink, CompositionStage, ProvenanceChain,
+};
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
 use antecedent_io::{from_cbor, to_cbor, IoError};
 use serde::{Deserialize, Serialize};
@@ -123,7 +125,7 @@ impl LawFunctionalArtifact {
         );
         let transform = format!(
             "functional:{}",
-            blake3::hash(&to_cbor(&(&self.action, &self.functional, &decision))?).to_hex()
+            blake3_hex(&to_cbor(&(&self.action, &self.functional, &decision))?)
         );
         let link = |id, stage, parents| CompositionLink {
             id,
@@ -153,7 +155,7 @@ impl LawFunctionalArtifact {
             .find(|action| action.id == self.action)
             .expect("evaluated action");
         Ok(serde_json::json!({
-            "identity":blake3::hash(&self.export()?).to_hex().to_string(),
+            "identity":blake3_hex(&self.export()?),
             "value":self.result.value,"standard_error":self.result.standard_error,"source_mode":format!("{}:{}", self.result.source_mode.representation.label(), self.result.source_mode.needs_error_receipt),
             "source_metadata":self.source.metadata(),
             "source_evidence":self.source_evidence.as_ref().map(crate::source_evidence::SourceEvidence::summary),
@@ -209,7 +211,7 @@ impl LawFunctionalArtifact {
         if bytes.len() > MAX_BYTES {
             return Err(functional_invalid("functional_source.limits_exceeded"));
         }
-        if expected.is_some_and(|id| id != blake3::hash(bytes).to_hex().as_str()) {
+        if expected.is_some_and(|id| id != blake3_hex(bytes).as_str()) {
             return Err(functional_invalid("functional_source.expected_identity_mismatch"));
         }
         let payload = bytes

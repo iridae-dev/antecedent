@@ -14,7 +14,7 @@
 
 use std::collections::BTreeMap;
 
-use antecedent_core::ExternalRefusal;
+use antecedent_core::{CanonicalWriter, ExternalRefusal};
 
 use crate::evsi::{CostToUtilityMap, EvsiReport, IntegrationMethod, SearchReceipt};
 use crate::signal::{SignalTrustLabel, SignalUpdateMode, make_refusal};
@@ -176,27 +176,6 @@ impl RankingError {
     }
 }
 
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
-}
-
-fn put_f64(hasher: &mut blake3::Hasher, value: f64) {
-    hasher.update(&value.to_le_bytes());
-}
-
-fn put_opt_f64(hasher: &mut blake3::Hasher, value: Option<f64>) {
-    match value {
-        Some(v) => {
-            hasher.update(&[1]);
-            put_f64(hasher, v);
-        }
-        None => {
-            hasher.update(&[0]);
-        }
-    }
-}
-
 impl DesignRanking {
     /// Build the probabilistic ranking from an EVSI report and the digests of the
     /// source distributions (prior sources and external laws) it was computed from.
@@ -320,59 +299,62 @@ impl DesignRanking {
     /// supplied in.
     #[must_use]
     pub fn identity(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.design_ranking.v1");
-        put_str(&mut hasher, self.basis.as_str());
-        put_str(&mut hasher, self.decision_contract_identity.as_deref().unwrap_or(""));
-        put_str(&mut hasher, self.utility_unit.as_deref().unwrap_or(""));
-        if let Some(map) = &self.cost_mapping {
-            hasher.update(&[1]);
-            put_str(&mut hasher, &map.cost_unit);
-            put_str(&mut hasher, &map.utility_unit);
-            put_f64(&mut hasher, map.utility_per_cost);
-        } else {
-            hasher.update(&[0]);
+        let mut hasher = CanonicalWriter::new("antecedent.design_ranking.v1");
+        hasher
+            .text(self.basis.as_str())
+            .opt_text(self.decision_contract_identity.as_deref())
+            .opt_text(self.utility_unit.as_deref());
+        match &self.cost_mapping {
+            Some(map) => {
+                hasher
+                    .word(1)
+                    .text(&map.cost_unit)
+                    .text(&map.utility_unit)
+                    .real(map.utility_per_cost);
+            }
+            None => {
+                hasher.word(0);
+            }
         }
-        hasher.update(&self.rng_seed.unwrap_or(0).to_le_bytes());
-        for digest in &self.source_digests {
-            put_str(&mut hasher, digest);
-        }
+        hasher.opt_word(self.rng_seed).texts(&self.source_digests);
         let mut entries: Vec<&RankingEntry> = self.entries.iter().collect();
         entries.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
+        hasher.word(entries.len() as u64);
         for e in entries {
-            put_str(&mut hasher, &e.semantic_id);
-            hasher.update(&(e.rank as u64).to_le_bytes());
-            put_f64(&mut hasher, e.evsi);
-            put_f64(&mut hasher, e.mc_stderr);
-            hasher.update(&e.replicates.to_le_bytes());
-            put_str(&mut hasher, e.integration.as_str());
-            put_f64(&mut hasher, e.evpi);
-            hasher.update(&e.sample_size.to_le_bytes());
-            put_f64(&mut hasher, e.study_cost_amount);
-            put_str(&mut hasher, &e.study_cost_unit);
-            put_opt_f64(&mut hasher, e.net_value);
-            hasher.update(&[u8::from(e.rank_uncertain)]);
-            put_str(&mut hasher, &e.signal_identity);
-            put_str(&mut hasher, &e.request_fingerprint);
-            put_str(&mut hasher, e.update_mode.as_str());
-            put_str(&mut hasher, e.provider_trust.as_str());
+            hasher
+                .text(&e.semantic_id)
+                .word(e.rank as u64)
+                .real(e.evsi)
+                .real(e.mc_stderr)
+                .word(u64::from(e.replicates))
+                .text(e.integration.as_str())
+                .real(e.evpi)
+                .word(u64::from(e.sample_size))
+                .real(e.study_cost_amount)
+                .text(&e.study_cost_unit)
+                .opt_real(e.net_value)
+                .word(u64::from(e.rank_uncertain))
+                .text(&e.signal_identity)
+                .text(&e.request_fingerprint)
+                .text(e.update_mode.as_str())
+                .text(e.provider_trust.as_str());
         }
         let mut structural: Vec<&StructuralEntry> = self.structural.iter().collect();
         structural.sort_by(|a, b| a.semantic_id.cmp(&b.semantic_id));
+        hasher.word(structural.len() as u64);
         for s in structural {
-            put_str(&mut hasher, &s.semantic_id);
-            hasher.update(&(s.rank as u64).to_le_bytes());
-            hasher.update(&[u8::from(s.verified_sufficient)]);
-            hasher.update(&s.cost.units.to_le_bytes());
-            hasher.update(&s.cost.sample_budget.to_le_bytes());
+            hasher
+                .text(&s.semantic_id)
+                .word(s.rank as u64)
+                .word(u64::from(s.verified_sufficient))
+                .word(u64::from(s.cost.units))
+                .word(u64::from(s.cost.sample_budget));
         }
-        hasher.update(&[u8::from(self.search.truncated)]);
+        hasher.word(u64::from(self.search.truncated));
         let mut unevaluated = self.search.unevaluated_ids.clone();
         unevaluated.sort();
-        for id in &unevaluated {
-            put_str(&mut hasher, id);
-        }
-        hasher.finalize().to_hex().to_string()
+        hasher.texts(&unevaluated);
+        hasher.finish_hex()
     }
 
     /// Replay check against independently retained inputs: the decision contract

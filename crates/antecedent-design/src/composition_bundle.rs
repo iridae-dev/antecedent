@@ -34,7 +34,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use antecedent_core::{
-    CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
+    blake3_hex, CanonicalWriter, CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain,
+    ProvenanceChainError,
 };
 use antecedent_io::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
@@ -618,40 +619,27 @@ impl Default for BundleLimits {
 // Digests and graph derivation
 // ---------------------------------------------------------------------------
 
-fn put(hasher: &mut blake3::Hasher, text: &str) {
-    hasher.update(&(text.len() as u64).to_le_bytes());
-    hasher.update(text.as_bytes());
-}
-
 /// Digest of one node's own content (not of its upstream nodes).
 fn node_digest(node: &BundleNode) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_bundle.node.v1");
-    put(&mut hasher, &node.id);
-    put(&mut hasher, node.kind.as_str());
-    put(&mut hasher, &node.identity);
+    let mut hasher = CanonicalWriter::new("antecedent.composition_bundle.node.v1");
+    hasher.text(&node.id).text(node.kind.as_str()).text(&node.identity);
     match &node.source {
         NodeSource::Embedded { bytes } => {
-            put(&mut hasher, "embedded");
-            put(&mut hasher, blake3::hash(bytes).to_hex().as_str());
+            hasher.text("embedded").text(&blake3_hex(bytes));
         }
         NodeSource::Reference { identity, requires } => {
-            put(&mut hasher, "reference");
-            put(&mut hasher, identity);
-            put(&mut hasher, &requires.canonical());
-            hasher.update(&(node.facts.len() as u64).to_le_bytes());
+            hasher.text("reference").text(identity).text(&requires.canonical());
+            hasher.word(node.facts.len() as u64);
             for (key, value) in &node.facts {
-                put(&mut hasher, key);
-                put(&mut hasher, value);
+                hasher.text(key).text(value);
             }
-            hasher.update(&(node.inspected.len() as u64).to_le_bytes());
+            hasher.word(node.inspected.len() as u64);
             for (key, value) in &node.inspected {
-                put(&mut hasher, key);
-                hasher.update(&value.to_bits().to_le_bytes());
+                hasher.text(key).real(*value);
             }
         }
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 struct Derived {
@@ -794,21 +782,16 @@ fn derive(
 }
 
 fn bundle_identity(nodes: &[BundleNode], digests: &[String], edges: &[BundleEdge]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_bundle.v1");
-    hasher.update(&(nodes.len() as u64).to_le_bytes());
+    let mut hasher = CanonicalWriter::new("antecedent.composition_bundle.v1");
+    hasher.word(nodes.len() as u64);
     for (node, digest) in nodes.iter().zip(digests) {
-        put(&mut hasher, &node.id);
-        put(&mut hasher, &node_digest(node));
-        put(&mut hasher, digest);
+        hasher.text(&node.id).text(&node_digest(node)).text(digest);
     }
-    hasher.update(&(edges.len() as u64).to_le_bytes());
+    hasher.word(edges.len() as u64);
     for edge in edges {
-        put(&mut hasher, &edge.from);
-        put(&mut hasher, &edge.to);
-        put(&mut hasher, &edge.upstream_digest);
+        hasher.text(&edge.from).text(&edge.to).text(&edge.upstream_digest);
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 fn embedded_section(id: &str) -> String {

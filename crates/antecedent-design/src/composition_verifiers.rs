@@ -43,7 +43,7 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use antecedent_core::{ExecutionContext, ScientificQuantity};
+use antecedent_core::{blake3_hex, CanonicalWriter, ExecutionContext, ScientificQuantity};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionMetadata, DistributionTrust, DrawAlignment,
@@ -178,18 +178,12 @@ fn io_failure(kind: NodeKind, error: &IoError) -> NodeFailure {
     failure(stage, error.to_string())
 }
 
-fn put(hasher: &mut blake3::Hasher, text: &str) {
-    hasher.update(&(text.len() as u64).to_le_bytes());
-    hasher.update(text.as_bytes());
-}
-
 fn digest_parts(parts: &[&str]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_verifiers.v1");
+    let mut hasher = CanonicalWriter::new("antecedent.composition_verifiers.v1");
     for part in parts {
-        put(&mut hasher, part);
+        hasher.text(part);
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 fn open(bytes: &[u8], limit: usize) -> Result<ArtifactReader<Cursor<&[u8]>>, IoError> {
@@ -229,24 +223,18 @@ fn container_label(bytes: &[u8], limit: usize) -> Result<String, IoError> {
 fn content_identity(tag: &str, bytes: &[u8], limit: usize) -> Result<String, IoError> {
     let mut reader = open(bytes, limit)?;
     let ids: Vec<String> = reader.manifest().sections.iter().map(|s| s.id.clone()).collect();
-    let mut hasher = blake3::Hasher::new();
-    put(&mut hasher, "antecedent.composition_verifiers.content.v1");
-    put(&mut hasher, tag);
+    let mut hasher = CanonicalWriter::new("antecedent.composition_verifiers.content.v1");
+    hasher.text(tag);
     for id in ids {
         let section = reader.load_section(&id)?;
-        put(&mut hasher, &id);
-        hasher.update(blake3::hash(section.as_bytes()).as_bytes());
+        hasher.text(&id).text(&blake3_hex(section.as_bytes()));
     }
-    Ok(hasher.finalize().to_hex().to_string())
+    Ok(hasher.finish_hex())
 }
 
 fn coordinate_id(quantity: &ScientificQuantityWire) -> String {
-    let mut bytes = Vec::new();
-    let put = |out: &mut Vec<u8>, value: &str| {
-        out.extend_from_slice(&(value.len() as u64).to_le_bytes());
-        out.extend_from_slice(value.as_bytes());
-    };
-    bytes.extend_from_slice(&quantity.version.to_le_bytes());
+    let mut writer = CanonicalWriter::new("antecedent.composition_verifiers.coordinate.v1");
+    writer.word(u64::from(quantity.version));
     for field in [
         &quantity.variable_id,
         &quantity.variable_name,
@@ -257,16 +245,14 @@ fn coordinate_id(quantity: &ScientificQuantityWire) -> String {
         &quantity.functional_id,
         &quantity.transform_id,
     ] {
-        put(&mut bytes, field);
+        writer.text(field);
     }
-    bytes.extend_from_slice(&quantity.horizon.to_le_bytes());
-    bytes.extend_from_slice(&(quantity.conditioning.len() as u64).to_le_bytes());
+    writer.word(u64::from(quantity.horizon));
+    writer.word(quantity.conditioning.len() as u64);
     for condition in &quantity.conditioning {
-        put(&mut bytes, &condition.variable_id);
-        put(&mut bytes, &condition.value_id);
+        writer.text(&condition.variable_id).text(&condition.value_id);
     }
-    let digest = blake3::hash(&bytes).to_hex().to_string();
-    digest[..16].to_owned()
+    writer.finish_hex()[..16].to_owned()
 }
 
 fn coordinate_ids<'a>(
@@ -382,7 +368,7 @@ fn inspect_distribution(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let identity = &metadata.identity;
     let draws = source_digest(&artifact);
     let metadata_bytes = to_cbor(metadata).map_err(|e| io_failure(kind, &e))?;
-    let metadata_digest = blake3::hash(&metadata_bytes).to_hex().to_string();
+    let metadata_digest = blake3_hex(&metadata_bytes);
     let mut facts = BTreeMap::new();
     let law = match identity.alignment {
         DrawAlignment::Joint => LAW_JOINT,
@@ -515,7 +501,7 @@ fn inspect_external_claim(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     publish(&mut facts, FACT_MEAN_SOURCE, mean_source_digest(&mean_source));
     publish_coordinates(&mut facts, &coordinate_ids(&identity.quantities), true);
     let identity_bytes = to_cbor(identity).map_err(|e| io_failure(kind, &e))?;
-    let identity_digest = blake3::hash(&identity_bytes).to_hex().to_string();
+    let identity_digest = blake3_hex(&identity_bytes);
     let mut values = Vec::new();
     for (index, value) in artifact.values().iter().enumerate() {
         push_value(&mut values, format!("value.{index}"), *value);

@@ -5,7 +5,7 @@
 
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::DecisionContract;
-use antecedent_core::{ScientificQuantity, reason_code};
+use antecedent_core::{ScientificQuantity, blake3_hex, reason_code, to_hex};
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::response_wire::{ResponseIdentificationWire, ResponseValueWire};
 use antecedent_io::{AnalysisResultConsumption, consume_analysis_result};
@@ -282,7 +282,7 @@ impl SourceEvidence {
             .native_original()
             .contract
             .as_ref()
-            .map(|contract| hex(&contract.identities.data_snapshot));
+            .map(|contract| to_hex(&contract.identities.data_snapshot));
         if snapshot.as_deref() != Some(source.snapshot_id.as_str())
             || source.coordinates.len() != source.means.len()
         {
@@ -315,7 +315,7 @@ impl SourceEvidence {
                 self.original
                     .as_ref()
                     .and_then(|original| original.contract.as_ref())
-                    .map(|contract| hex(&contract.identities.data_snapshot))
+                    .map(|contract| to_hex(&contract.identities.data_snapshot))
             });
         if expected.as_deref() != Some(snapshot)
             || quantities.iter().any(|quantity| {
@@ -372,7 +372,7 @@ impl SourceEvidence {
                 .ok_or_else(|| invalid("source_evidence.invalid_source_artifact"))?
                 .id
                 .clone();
-            let source = format!("source_artifact:{}", blake3::hash(&self.source).to_hex());
+            let source = format!("source_artifact:{}", blake3_hex(&self.source));
             links.push(CompositionLink {
                 id: source.clone(),
                 stage: CompositionStage::Evidence,
@@ -401,10 +401,10 @@ impl SourceEvidence {
                 .map_err(|_| invalid("source_evidence.invalid_source_artifact"));
         }
         let original = self.native_original().contract.as_ref().expect("validated contract");
-        let causal = format!("causal_contract:{}", hex(&original.seal));
-        let data = format!("snapshot:{}", hex(&original.identities.data_snapshot));
-        let program = format!("native_program:{}", hex(&original.identities.program));
-        let source = format!("source_artifact:{}", hex(&self.native_original().artifact_digest));
+        let causal = format!("causal_contract:{}", to_hex(&original.seal));
+        let data = format!("snapshot:{}", to_hex(&original.identities.data_snapshot));
+        let program = format!("native_program:{}", to_hex(&original.identities.program));
+        let source = format!("source_artifact:{}", to_hex(&self.native_original().artifact_digest));
         let link = |id: String, stage, parents: Vec<String>| CompositionLink {
             id,
             stage,
@@ -425,11 +425,10 @@ impl SourceEvidence {
             links.push(link(decision.clone(), CompositionStage::DecisionContract, vec![]));
             let transform = format!(
                 "source_projection:{}",
-                hex(blake3::hash(
+                blake3_hex(
                     &antecedent_io::to_cbor(&(&decision, &self.actions))
                         .map_err(|_| invalid("source_evidence.invalid_contract"))?
                 )
-                .as_bytes())
             );
             links.push(link(
                 transform.clone(),
@@ -494,7 +493,7 @@ impl SourceEvidence {
             })
             .unwrap_or_default();
         if let Some(external) = &self.external {
-            return json!({"source_artifact_digest":blake3::hash(&self.source).to_hex().to_string(),
+            return json!({"source_artifact_digest":blake3_hex(&self.source),
                 "source_kind":"external_bound_claim", "provenance_id":external.metadata().identity.provider_fingerprint, "source_execution":null, "original_acceptance":{"recognized":true,"claim_present":true,"verified_references":false,"unresolved_dependencies":[],"restriction":"external attestation; original provider verification covers only its exact declared request"},
                 "source_identities":external.metadata().identity, "lineage":self.lineage().expect("validated original source chain"),
                 "coordinates":self.coordinates.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>(),
@@ -505,7 +504,7 @@ impl SourceEvidence {
                 "scope":"original_external_source; no transformed numeric diagnostic or trust/calibration upgrade"});
         }
         let response = self.native_original().body.response.as_ref().expect("validated response");
-        json!({"source_artifact_digest":hex(&self.native_original().artifact_digest),
+        json!({"source_artifact_digest":to_hex(&self.native_original().artifact_digest),
             "original_acceptance": {"recognized":self.native_original().acceptance.recognized,"verified_references":self.native_original().acceptance.verified_references,"claim_present":self.native_original().acceptance.claim_present,"unresolved_dependencies":self.native_original().acceptance.unresolved.iter().map(AsRef::as_ref).collect::<Vec<_>>(),"restriction":self.native_original().acceptance.restriction.as_deref()},
             "source_identities":self.native_original().contract.as_ref().map(|contract| &contract.identities),
             "lineage":self.lineage().expect("validated original source chain"),
@@ -574,6 +573,4 @@ impl SourceEvidence {
         }
     }
 }
-fn hex(bytes: &[u8]) -> String {
-    antecedent_core::to_hex(bytes)
-}
+

@@ -6,6 +6,8 @@
 //! inference or provider-verification standing.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+use antecedent_core::blake3_hex;
+
 use crate::decision_artifact::source_digest;
 use crate::design_ranking_artifact::{
     ConsumeExpectation, DecisionWire, DesignRankingArtifactWire, PriorWire,
@@ -187,7 +189,7 @@ impl RolloutArtifact {
             source_evidence: &self.source_evidence,
             digest: "",
         };
-        Ok(blake3::hash(&to_cbor(&body)?).to_hex().to_string())
+        Ok(blake3_hex(&to_cbor(&body)?))
     }
 
     fn check_bounds(&self) -> Result<(), IoError> {
@@ -332,7 +334,7 @@ impl RolloutArtifact {
         let data = format!("snapshot:{}", self.binding.source.identity.snapshot_id);
         let law = format!("distribution:{}", self.binding.source_digest);
         let state =
-            format!("state_projection:{}", blake3::hash(&to_cbor(&self.binding.state)?).to_hex());
+            format!("state_projection:{}", blake3_hex(&to_cbor(&self.binding.state)?));
         let link = |id, stage, parents| CompositionLink {
             id,
             stage,
@@ -416,7 +418,7 @@ impl RolloutArtifact {
 /// # Errors
 /// Wire encoding failure.
 pub fn decision_digest(decision: &DecisionWire) -> Result<String, IoError> {
-    Ok(blake3::hash(&to_cbor(decision)?).to_hex().to_string())
+    Ok(blake3_hex(&to_cbor(decision)?))
 }
 
 /// Independently consume source-backed finite rollout bytes.

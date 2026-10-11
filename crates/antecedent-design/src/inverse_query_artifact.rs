@@ -39,7 +39,7 @@
 
 use std::io::Cursor;
 
-use antecedent_core::ScientificQuantity;
+use antecedent_core::{CanonicalWriter, ScientificQuantity};
 use antecedent_io::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
 };
@@ -991,11 +991,13 @@ struct Premises<'a> {
 }
 
 fn tagged_digest(tag: &str, bytes: &[u8]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&wide(bytes.len()).to_le_bytes());
-    hasher.update(bytes);
-    hasher.finalize().to_hex().to_string()
+    CanonicalWriter::new(tag).bytes(bytes).finish_hex()
+}
+
+fn whole_identity(premises_digest: &str, data_digest: &str) -> String {
+    let mut whole = CanonicalWriter::new("antecedent.inverse_query.identity.v1");
+    whole.text(premises_digest).text(data_digest);
+    whole.finish_hex()
 }
 
 fn identity_of(
@@ -1014,15 +1016,8 @@ fn identity_of(
     })?;
     let premises_digest = tagged_digest("antecedent.inverse_query.premises.v1", &premises);
     let data_digest = tagged_digest("antecedent.inverse_query.data.v1", &encoded.data);
-    let mut whole = blake3::Hasher::new();
-    whole.update(b"antecedent.inverse_query.identity.v1");
-    whole.update(premises_digest.as_bytes());
-    whole.update(data_digest.as_bytes());
-    Ok(InverseQueryIdentity {
-        premises_digest,
-        data_digest,
-        digest: whole.finalize().to_hex().to_string(),
-    })
+    let digest = whole_identity(&premises_digest, &data_digest);
+    Ok(InverseQueryIdentity { premises_digest, data_digest, digest })
 }
 
 fn identity_diff(
@@ -1300,11 +1295,8 @@ impl InverseQueryArtifact {
                 "antecedent.inverse_query.source_evidence.v1",
                 &to_cbor(&(original.premises_digest, bytes))?,
             );
-            let mut whole = blake3::Hasher::new();
-            whole.update(b"antecedent.inverse_query.identity.v1");
-            whole.update(self.identity.premises_digest.as_bytes());
-            whole.update(self.identity.data_digest.as_bytes());
-            self.identity.digest = whole.finalize().to_hex().to_string();
+            self.identity.digest =
+                whole_identity(&self.identity.premises_digest, &self.identity.data_digest);
         }
         self.source_evidence = sources;
         Ok(self)

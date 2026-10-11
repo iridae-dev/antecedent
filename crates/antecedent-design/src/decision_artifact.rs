@@ -8,7 +8,8 @@
 //! a stored number never needs the producing process to be explained.
 
 use antecedent_core::{
-    CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
+    CanonicalWriter, CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError,
+    ScientificQuantity,
 };
 use antecedent_io::container::{
     section_descriptor, ArtifactManifest, EncodedArtifact, SectionBytes,
@@ -400,20 +401,19 @@ impl DecisionContractArtifact {
 /// BLAKE3 of a source's aligned draws and coordinates, retained by a result.
 #[must_use]
 pub fn source_digest(source: &DistributionArtifact) -> String {
-    let mut hasher = blake3::Hasher::new();
+    let mut hasher = CanonicalWriter::new("antecedent.decision_source.v1");
+    hasher.word(source.quantities().len() as u64);
     for quantity in source.quantities() {
-        hasher.update(&to_cbor(quantity).unwrap_or_default());
+        hasher.bytes(&to_cbor(quantity).unwrap_or_default());
     }
-    hasher.update(&(source.n_draws() as u64).to_le_bytes());
-    for value in source.draws() {
-        hasher.update(&value.to_le_bytes());
-    }
+    hasher.word(source.n_draws() as u64).reals(source.draws());
+    hasher.opt_word(source.metadata().weights.as_ref().map(|w| w.len() as u64));
     if let Some(weights) = &source.metadata().weights {
-        for weight in weights {
-            hasher.update(&weight.to_le_bytes());
+        for &weight in weights {
+            hasher.real(weight);
         }
     }
-    hasher.finalize().to_hex().to_string()
+    hasher.finish_hex()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -839,15 +839,13 @@ pub fn result_to_json(
 /// BLAKE3 of a mean source's coordinates and means.
 #[must_use]
 pub fn mean_source_digest(source: &MeanSource) -> String {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"antecedent.decision_mean_source.v1");
+    let mut hasher = CanonicalWriter::new("antecedent.decision_mean_source.v1");
+    hasher.word(source.coordinates.len() as u64);
     for quantity in &source.coordinates {
-        hasher.update(&quantity.canonical_bytes());
+        hasher.bytes(&quantity.canonical_bytes());
     }
-    for value in &source.means {
-        hasher.update(&value.to_le_bytes());
-    }
-    hasher.finalize().to_hex().to_string()
+    hasher.reals(&source.means);
+    hasher.finish_hex()
 }
 
 /// The JSON form of a result computed from a mean source, bound to the mean

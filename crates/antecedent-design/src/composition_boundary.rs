@@ -27,7 +27,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    ExternalCapability, ExternalRefusal, ExternalTrustState, ScientificQuantity, SupportStatus,
+    to_hex, CanonicalWriter, ExternalCapability, ExternalRefusal, ExternalTrustState, ScientificQuantity, SupportStatus,
 };
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
@@ -353,19 +353,14 @@ const fn calibration_status(
     }
 }
 
-fn absorb(hasher: &mut blake3::Hasher, part: &str) {
-    hasher.update(&u64::try_from(part.len()).unwrap_or(u64::MAX).to_le_bytes());
-    hasher.update(part.as_bytes());
+fn absorb_quantity(writer: &mut CanonicalWriter, quantity: &ScientificQuantity) {
+    writer.bytes(&quantity.canonical_bytes());
 }
 
-fn absorb_quantity(hasher: &mut blake3::Hasher, quantity: &ScientificQuantity) {
-    hasher.update(&quantity.canonical_bytes());
-}
-
-fn absorb_values(hasher: &mut blake3::Hasher, values: &[f64]) {
-    hasher.update(&u64::try_from(values.len()).unwrap_or(u64::MAX).to_le_bytes());
-    for value in values {
-        hasher.update(&value.to_le_bytes());
+fn absorb_values(writer: &mut CanonicalWriter, values: &[f64]) {
+    writer.word(values.len() as u64);
+    for &value in values {
+        writer.real(value);
     }
 }
 
@@ -375,18 +370,17 @@ fn lineage_digest(
     kind: ProviderKind,
     trust: DistributionTrust,
 ) -> String {
-    let mut hasher = blake3::Hasher::new();
-    absorb(&mut hasher, "antecedent.composition_boundary.input.v1");
+    let mut hasher = CanonicalWriter::new("antecedent.composition_boundary.input.v1");
     match source {
         InputSource::Mean(mean) => {
-            absorb(&mut hasher, "mean");
+            hasher.text("mean");
             for id in [&mean.provider_id, &mean.snapshot_id, &mean.causal_contract_id] {
-                absorb(&mut hasher, id);
+                hasher.text(id);
             }
             absorb_values(&mut hasher, &mean.means);
         }
         InputSource::JointLaw(artifact) => {
-            absorb(&mut hasher, "joint_law");
+            hasher.text("joint_law");
             let identity = &artifact.metadata().identity;
             for id in [
                 &identity.source_id,
@@ -395,25 +389,25 @@ fn lineage_digest(
                 &identity.snapshot_id,
                 &identity.causal_contract_id,
             ] {
-                absorb(&mut hasher, id);
+                hasher.text(id);
             }
             absorb_values(&mut hasher, artifact.draws());
         }
         InputSource::Scalar(claim) => {
-            absorb(&mut hasher, "scalar");
+            hasher.text("scalar");
             for id in [&claim.provider_id, &claim.snapshot_id, &claim.causal_contract_id] {
-                absorb(&mut hasher, id);
+                hasher.text(id);
             }
             absorb_values(&mut hasher, &[claim.value]);
         }
     }
     for (quantity, status) in coordinates {
         absorb_quantity(&mut hasher, quantity);
-        absorb(&mut hasher, status.as_str());
+        hasher.text(status.as_str());
     }
-    absorb(&mut hasher, kind.label());
-    absorb(&mut hasher, trust_label(trust));
-    hasher.finalize().to_hex().to_string()
+    hasher.text(kind.label());
+    hasher.text(trust_label(trust));
+    to_hex(&hasher.finish())
 }
 
 fn check_id(id: &str) -> Result<(), BoundaryError> {

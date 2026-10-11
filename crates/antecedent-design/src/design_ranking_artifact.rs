@@ -44,7 +44,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, ExternalRefusal, ProviderObjectIdentity, ScientificQuantity};
 use antecedent_io::container::{
     ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
 };
@@ -555,18 +555,6 @@ type Result<T> = std::result::Result<T, DesignRankingArtifactError>;
 
 // -- small helpers ----------------------------------------------------------------------
 
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
-}
-
-fn put_f64s(hasher: &mut blake3::Hasher, values: &[f64]) {
-    hasher.update(&(values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(&value.to_le_bytes());
-    }
-}
-
 fn blank(value: &str) -> bool {
     value.trim().is_empty()
 }
@@ -599,15 +587,6 @@ fn parse_method(label: &str) -> Option<IntegrationMethod> {
     [IntegrationMethod::Exact, IntegrationMethod::MonteCarlo, IntegrationMethod::ExternallyComputed]
         .into_iter()
         .find(|method| method.as_str() == label)
-}
-
-fn native_digest(family: &str, parameters: &[f64]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    put_str(&mut hasher, family);
-    if family == "gaussian_mean" {
-        put_f64s(&mut hasher, parameters);
-    }
-    hasher.finalize().to_hex().to_string()
 }
 
 fn rank_basis(label: &str) -> Option<DesignRankingBasis> {
@@ -1097,10 +1076,7 @@ impl DesignRankingArtifactWire {
     /// A CBOR encoding failure.
     pub fn compute_digest(&self) -> std::result::Result<String, IoError> {
         let bytes = to_cbor(&self.canonical())?;
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.design_ranking_artifact.v1");
-        hasher.update(&bytes);
-        Ok(hasher.finalize().to_hex().to_string())
+        Ok(CanonicalWriter::new("antecedent.design_ranking_artifact.v1").bytes(&bytes).finish_hex())
     }
 
     /// Recompute and store the digest (used to seal; a consumer-independent check is
@@ -1607,7 +1583,7 @@ fn check_signal(candidate: &CandidateWire) -> Result<(SignalTrustLabel, SignalUp
         {
             return Err(inconsistent("trust"));
         }
-        if candidate.law_digest != native_digest(family, &parameters) {
+        if candidate.law_digest != crate::signal::native_law_digest(family, &parameters) {
             return Err(inconsistent("law_digest"));
         }
     } else {

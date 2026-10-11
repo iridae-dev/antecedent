@@ -5,7 +5,7 @@
 //! They do not authenticate observations, issue native authority, or license
 //! uncertainty. Native unresolved operations require a separate actual executor.
 
-use antecedent_core::{ScientificQuantity, SemanticDigest};
+use antecedent_core::{ScientificQuantity, SemanticDigest, blake3_hex};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::error::IoError;
 use antecedent_io::external_claim_artifact::{
@@ -208,7 +208,7 @@ impl SourceProjectionArtifact {
     fn recomputed_identity(&self) -> Result<String, IoError> {
         let bytes = to_cbor(&(self.version, &self.source, &self.projection, &self.report))
             .map_err(original_refusal)?;
-        Ok(blake3::hash(&bytes).to_hex().to_string())
+        Ok(blake3_hex(&bytes))
     }
 }
 
@@ -315,7 +315,7 @@ fn external_source(bytes: &[u8]) -> Result<OriginalSource, IoError> {
         return Err(invalid_projection("source_projection.limits_exceeded"));
     }
     Ok(OriginalSource {
-        digest: blake3::hash(bytes).to_hex().to_string(),
+        digest: blake3_hex(bytes),
         quantities: identity.quantities.clone(),
         means: claim.values().to_vec(),
         supported: identity.point_status.iter().map(|status| status == "supported").collect(),

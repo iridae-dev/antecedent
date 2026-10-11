@@ -516,16 +516,12 @@ fn combine(
     for source in sources {
         lineage.extend(source.lineage.iter().cloned());
     }
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"antecedent.prior_signal.v1");
+    let mut hasher = antecedent_core::CanonicalWriter::new("antecedent.prior_signal.v1");
+    hasher.word(sources.len() as u64);
     for (source, weight) in sources.iter().zip(&weights) {
-        hasher.update(&(source.artifact_id.len() as u64).to_le_bytes());
-        hasher.update(source.artifact_id.as_bytes());
-        hasher.update(&weight.to_le_bytes());
+        hasher.text(&source.artifact_id).real(*weight);
     }
-    for draw in &draws {
-        hasher.update(&draw.to_le_bytes());
-    }
+    hasher.reals(&draws);
     let diagnostics = PriorSignalDiagnostics {
         source_ids: sources.iter().map(|s| s.artifact_id.clone()).collect(),
         effective_weights: weights,
@@ -535,7 +531,7 @@ fn combine(
         observations_checked,
         overlapping_observations: Vec::new(),
         transport_policy_id: request.transport.as_ref().map(|t| t.policy_id.clone()),
-        source_digest: hasher.finalize().to_hex().to_string(),
+        source_digest: hasher.finish_hex(),
     };
     (draws, diagnostics)
 }

@@ -24,7 +24,8 @@
 use std::collections::HashSet;
 
 use antecedent_core::{
-    CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain, ProvenanceChainError,
+    CanonicalWriter, CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain,
+    ProvenanceChainError,
     SupportStatus,
 };
 use antecedent_io::convert::to_cbor;
@@ -288,17 +289,9 @@ pub fn bound_decision_identity(
     causal_target: &str,
     causal_identification: &str,
 ) -> String {
-    let mut hasher = blake3::Hasher::new();
-    for part in [
-        "antecedent.bound_decision_contract.v1",
-        decision_identity,
-        causal_target,
-        causal_identification,
-    ] {
-        hasher.update(&(part.len() as u64).to_le_bytes());
-        hasher.update(part.as_bytes());
-    }
-    hasher.finalize().to_hex().to_string()
+    let mut hasher = CanonicalWriter::new("antecedent.bound_decision_contract.v1");
+    hasher.text(decision_identity).text(causal_target).text(causal_identification);
+    hasher.finish_hex()
 }
 
 /// An admissible decision contract with its canonical identity.

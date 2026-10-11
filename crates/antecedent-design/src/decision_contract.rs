@@ -12,7 +12,7 @@
 
 use std::collections::HashSet;
 
-use antecedent_core::{ExternalRefusal, ScientificQuantity, SupportStatus};
+use antecedent_core::{CanonicalWriter, ExternalRefusal, ScientificQuantity, SupportStatus};
 
 /// What kind of thing an action is. The kind is part of the action identity.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -181,18 +181,16 @@ impl UtilityExpr {
         })
     }
 
-    fn encode(&self, out: &mut Vec<u8>) {
+    fn encode(&self, out: &mut CanonicalWriter) {
         match self {
             Self::Const(value) => {
-                out.push(1);
-                out.extend_from_slice(&value.to_bits().to_le_bytes());
+                out.word(1).real(*value);
             }
             Self::Input(k) => {
-                out.push(2);
-                out.extend_from_slice(&(*k as u64).to_le_bytes());
+                out.word(2).word(*k as u64);
             }
             Self::Neg(a) => {
-                out.push(3);
+                out.word(3);
                 a.encode(out);
             }
             Self::Add(a, b) => binary(out, 4, a, b),
@@ -204,8 +202,8 @@ impl UtilityExpr {
     }
 }
 
-fn binary(out: &mut Vec<u8>, tag: u8, a: &UtilityExpr, b: &UtilityExpr) {
-    out.push(tag);
+fn binary(out: &mut CanonicalWriter, tag: u64, a: &UtilityExpr, b: &UtilityExpr) {
+    out.word(tag);
     a.encode(out);
     b.encode(out);
 }
@@ -438,22 +436,32 @@ impl DecisionCriterion {
         }
     }
 
-    fn encode(&self, out: &mut Vec<u8>) {
+    fn encode(&self, out: &mut CanonicalWriter) {
         match self {
-            Self::PosteriorExpectedUtility => out.push(1),
-            Self::PosteriorExpectedLoss => out.push(2),
+            Self::PosteriorExpectedUtility => {
+                out.word(1);
+            }
+            Self::PosteriorExpectedLoss => {
+                out.word(2);
+            }
             Self::ThresholdProbability { threshold } => {
-                out.push(3);
-                out.extend_from_slice(&threshold.to_bits().to_le_bytes());
+                out.word(3).real(*threshold);
             }
             Self::Quantile { p } => {
-                out.push(4);
-                out.extend_from_slice(&p.to_bits().to_le_bytes());
+                out.word(4).real(*p);
             }
-            Self::MinimaxOverIdentifiedSet => out.push(5),
-            Self::MaximinOverStructures => out.push(6),
-            Self::Regret => out.push(7),
-            Self::ExpectedRegret => out.push(8),
+            Self::MinimaxOverIdentifiedSet => {
+                out.word(5);
+            }
+            Self::MaximinOverStructures => {
+                out.word(6);
+            }
+            Self::Regret => {
+                out.word(7);
+            }
+            Self::ExpectedRegret => {
+                out.word(8);
+            }
         }
     }
 }
@@ -713,20 +721,18 @@ impl DecisionContract {
     /// An invalid contract has no identity.
     pub fn identity(&self) -> Result<String, DecisionContractError> {
         self.validate()?;
-        let mut actions: Vec<Vec<u8>> = self.actions.iter().map(encode_action).collect();
-        actions.sort();
-        let mut constraints: Vec<Vec<u8>> =
+        let mut actions: Vec<[u8; 32]> = self.actions.iter().map(encode_action).collect();
+        actions.sort_unstable();
+        let mut constraints: Vec<[u8; 32]> =
             self.constraints.iter().map(encode_constraint).collect();
-        constraints.sort();
-        let mut out = b"antecedent.decision_contract.v1".to_vec();
-        put_str(&mut out, &self.utility_units);
-        put_str(&mut out, &self.target_population);
-        out.extend_from_slice(&self.horizon.to_le_bytes());
+        constraints.sort_unstable();
+        let mut out = CanonicalWriter::new("antecedent.decision_contract.v1");
+        out.text(&self.utility_units).text(&self.target_population).word(u64::from(self.horizon));
         self.criterion.encode(&mut out);
-        out.push(self.structural_policy.tag());
+        out.word(u64::from(self.structural_policy.tag()));
         put_list(&mut out, &actions);
         put_list(&mut out, &constraints);
-        Ok(blake3::hash(&out).to_hex().to_string())
+        Ok(out.finish_hex())
     }
 }
 
@@ -734,49 +740,33 @@ fn blank(value: &str) -> bool {
     value.trim().is_empty()
 }
 
-fn put_str(out: &mut Vec<u8>, value: &str) {
-    out.extend_from_slice(&(value.len() as u64).to_le_bytes());
-    out.extend_from_slice(value.as_bytes());
-}
-
-fn put_list(out: &mut Vec<u8>, items: &[Vec<u8>]) {
-    out.extend_from_slice(&(items.len() as u64).to_le_bytes());
+/// A count-prefixed set of item digests (already sorted by the caller so order is canonical).
+fn put_list(out: &mut CanonicalWriter, items: &[[u8; 32]]) {
+    out.word(items.len() as u64);
     for item in items {
-        out.extend_from_slice(&(item.len() as u64).to_le_bytes());
-        out.extend_from_slice(item);
+        out.bytes(item);
     }
 }
 
-fn encode_quantity(out: &mut Vec<u8>, q: &ScientificQuantity) {
-    out.extend(q.canonical_bytes());
-}
-
-fn encode_action(action: &DecisionAction) -> Vec<u8> {
-    let mut out = Vec::new();
-    put_str(&mut out, &action.id);
-    out.push(action.kind.tag());
-    out.extend_from_slice(&(action.inputs.len() as u64).to_le_bytes());
+fn encode_action(action: &DecisionAction) -> [u8; 32] {
+    let mut out = CanonicalWriter::new("antecedent.decision_contract.action.v1");
+    out.text(&action.id).word(u64::from(action.kind.tag())).word(action.inputs.len() as u64);
     for quantity in &action.inputs {
-        encode_quantity(&mut out, quantity);
+        out.bytes(&quantity.canonical_bytes());
     }
     action.utility.encode(&mut out);
-    out
+    out.finish()
 }
 
-fn encode_constraint(constraint: &HardConstraint) -> Vec<u8> {
-    let mut out = Vec::new();
-    put_str(&mut out, &constraint.id);
+fn encode_constraint(constraint: &HardConstraint) -> [u8; 32] {
+    let mut out = CanonicalWriter::new("antecedent.decision_contract.constraint.v1");
+    out.text(&constraint.id);
     constraint.expr.encode(&mut out);
-    out.extend_from_slice(&constraint.bound.to_bits().to_le_bytes());
-    out.extend_from_slice(&constraint.min_probability.to_bits().to_le_bytes());
-    put_str(&mut out, &constraint.units);
+    out.real(constraint.bound).real(constraint.min_probability).text(&constraint.units);
     let mut applies: Vec<&String> = constraint.applies_to.iter().collect();
     applies.sort();
-    out.extend_from_slice(&(applies.len() as u64).to_le_bytes());
-    for id in applies {
-        put_str(&mut out, id);
-    }
-    out
+    out.texts(&applies);
+    out.finish()
 }
 
 /// The uncertainty representation a claim carries.
@@ -1039,43 +1029,35 @@ impl AdmissibleDecisionContract {
     pub fn identity(&self) -> Result<String, AdmissibilityError> {
         self.validate()?;
         let base = self.contract.identity().map_err(AdmissibilityError::Contract)?;
-        let mut support: Vec<Vec<u8>> =
+        let mut support: Vec<[u8; 32]> =
             self.rules.support_rules.iter().map(encode_support_rule).collect();
-        support.sort();
-        let mut exclusions: Vec<Vec<u8>> = self
+        support.sort_unstable();
+        let mut exclusions: Vec<[u8; 32]> = self
             .rules
             .declared_exclusions
             .iter()
             .map(|exclusion| {
-                let mut out = Vec::new();
-                put_str(&mut out, &exclusion.action_id);
-                put_str(&mut out, &exclusion.reason);
-                out
+                let mut item =
+                    CanonicalWriter::new("antecedent.decision_contract.admissibility.exclusion.v1");
+                item.text(&exclusion.action_id).text(&exclusion.reason);
+                item.finish()
             })
             .collect();
-        exclusions.sort();
-        let mut out = b"antecedent.decision_contract.admissibility.v1".to_vec();
-        put_str(&mut out, &base);
-        match self.rules.default_weakest_support {
-            None => out.push(0),
-            Some(status) => {
-                out.push(1);
-                out.push(status.severity());
-            }
-        }
+        exclusions.sort_unstable();
+        let mut out = CanonicalWriter::new("antecedent.decision_contract.admissibility.v1");
+        out.text(&base);
+        out.opt_word(self.rules.default_weakest_support.map(|s| u64::from(s.severity())));
         put_list(&mut out, &support);
         put_list(&mut out, &exclusions);
-        out.push(self.rules.uncertainty.tag());
-        Ok(blake3::hash(&out).to_hex().to_string())
+        out.word(u64::from(self.rules.uncertainty.tag()));
+        Ok(out.finish_hex())
     }
 }
 
-fn encode_support_rule(rule: &SupportRule) -> Vec<u8> {
-    let mut out = Vec::new();
-    put_str(&mut out, &rule.action_id);
-    out.extend_from_slice(&(rule.input as u64).to_le_bytes());
-    out.push(rule.weakest_allowed.severity());
-    out
+fn encode_support_rule(rule: &SupportRule) -> [u8; 32] {
+    let mut out = CanonicalWriter::new("antecedent.decision_contract.admissibility.support.v1");
+    out.text(&rule.action_id).word(rule.input as u64).word(u64::from(rule.weakest_allowed.severity()));
+    out.finish()
 }
 
 #[cfg(test)]

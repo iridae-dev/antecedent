@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, sync::Arc};
 
-use antecedent_core::{EvidenceCatalog, EvidenceCatalogDelta};
+use antecedent_core::{EvidenceCatalog, EvidenceCatalogDelta, blake3_hex};
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
     BoundTransportFunctional, CatalogTransportResult, ClassicalTransportQuery, SidLimits,
@@ -285,7 +285,7 @@ fn catalog_digest(catalog: &EvidenceCatalog) -> Result<String, antecedent_io::Io
     let wire = antecedent_io::transport_catalog_wire::EvidenceCatalogWire::from_catalog(catalog);
     let bytes = serde_json::to_vec(&wire)
         .map_err(|error| antecedent_io::IoError::Convert(error.to_string()))?;
-    Ok(blake3::hash(&bytes).to_hex().to_string())
+    Ok(blake3_hex(&bytes))
 }
 
 pub(crate) fn candidate_design_record(design: &CandidateDesign) -> CandidateDesignRecord {

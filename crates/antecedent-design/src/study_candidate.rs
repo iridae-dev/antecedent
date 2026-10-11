@@ -20,7 +20,7 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use antecedent_core::{
     DistributionAvailability, EvidenceKind, EvidenceOffer, EvidenceRegime, InterventionAssignment,
-    MAX_OBLIGATION_COORDINATES, RegimeId, RegimeKind, VariableId, reason_code,
+    MAX_OBLIGATION_COORDINATES, RegimeId, RegimeKind, VariableId, blake3_hex, reason_code,
 };
 
 use crate::{CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, SamplingPlan};
@@ -328,8 +328,8 @@ impl DurableStudyCandidate {
             self.external_provider.as_deref().unwrap_or(""),
             evidence.join(" ; "),
         );
-        let digest = blake3::hash(content.as_bytes()).to_hex();
-        Arc::from(format!("sc1:{}", &digest.as_str()[..32]))
+        let digest = blake3_hex(content.as_bytes());
+        Arc::from(format!("sc1:{}", &digest[..32]))
     }
 
     /// What the study could supply, as screens an obligation can test with

@@ -27,10 +27,10 @@ antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-blake3 = { workspace = true }
 ciborium = { workspace = true }
 
 [dev-dependencies]
+blake3 = { workspace = true }
 antecedent-test-support = { path = "../antecedent-test-support" }
 criterion = { workspace = true }
 serde_json = { workspace = true }

@@ -18,7 +18,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use antecedent_core::{
-    CausalRng, ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
+    CanonicalWriter, CausalRng, ExternalCapability, ExternalRefusal, ExternalScientificObject,
+    ExternalTrustState,
     ProviderObjectIdentity, ScientificQuantity,
 };
 
@@ -68,15 +69,23 @@ pub struct SignalRequest {
     pub limits: SignalLimits,
 }
 
-fn put_str(hasher: &mut blake3::Hasher, value: &str) {
-    hasher.update(&(value.len() as u64).to_le_bytes());
-    hasher.update(value.as_bytes());
+/// Digest of a native signal law: the family label, and for the Gaussian-mean family its noise
+/// variance. The one implementation behind both the provider's `law_digest` and the design
+/// ranking artifact's replay of it.
+pub(crate) fn native_law_digest(family: &str, parameters: &[f64]) -> String {
+    let mut hasher = CanonicalWriter::new("antecedent.signal.native_law.v1");
+    hasher.text(family);
+    if family == "gaussian_mean" {
+        hasher.reals(parameters);
+    }
+    hasher.finish_hex()
 }
 
-fn put_f64s(hasher: &mut blake3::Hasher, values: &[f64]) {
-    hasher.update(&(values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(&value.to_le_bytes());
+/// A count-prefixed table of rows, each a count-prefixed sequence of reals.
+fn rows(hasher: &mut CanonicalWriter, table: &[Vec<f64>]) {
+    hasher.word(table.len() as u64);
+    for row in table {
+        hasher.reals(row);
     }
 }
 
@@ -118,24 +127,22 @@ impl SignalRequest {
     /// leaves it unchanged; any other change alters it.
     #[must_use]
     pub fn fingerprint(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.signal_request.v1");
-        put_str(&mut hasher, &self.candidate_id);
-        put_str(&mut hasher, &self.prior_id);
-        hasher.update(&self.state_quantity.canonical_bytes());
-        hasher.update(&self.observation_quantity.canonical_bytes());
-        hasher.update(&self.sample_size.to_le_bytes());
-        hasher.update(&self.rng_seed.to_le_bytes());
+        let mut hasher = CanonicalWriter::new("antecedent.signal_request.v1");
+        hasher
+            .text(&self.candidate_id)
+            .text(&self.prior_id)
+            .bytes(&self.state_quantity.canonical_bytes())
+            .bytes(&self.observation_quantity.canonical_bytes())
+            .word(self.sample_size)
+            .word(self.rng_seed);
         let mut lineage = self.evidence_lineage.clone();
         lineage.sort();
-        hasher.update(&(lineage.len() as u64).to_le_bytes());
-        for item in &lineage {
-            put_str(&mut hasher, item);
-        }
-        put_str(&mut hasher, &self.conditional_independence);
-        hasher.update(&self.limits.max_sample_size.to_le_bytes());
-        hasher.update(&(self.limits.max_support as u64).to_le_bytes());
-        hasher.finalize().to_hex().to_string()
+        hasher.texts(&lineage);
+        hasher
+            .text(&self.conditional_independence)
+            .word(self.limits.max_sample_size)
+            .word(self.limits.max_support as u64);
+        hasher.finish_hex()
     }
 }
 
@@ -229,26 +236,32 @@ impl SignalReceipt {
     /// request, provider, update mode, trust or law changes it.
     #[must_use]
     pub fn identity(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "antecedent.signal_receipt.v1");
-        put_str(&mut hasher, &self.request_fingerprint);
-        put_str(&mut hasher, &self.family);
-        put_str(&mut hasher, self.update_mode.as_str());
-        put_str(&mut hasher, self.trust.as_str());
-        put_str(&mut hasher, self.attestor.as_deref().unwrap_or(""));
-        if let Some(identity) = &self.provider_identity {
-            for part in [
-                &identity.provider_id,
-                &identity.object_id,
-                &identity.version_id,
-                &identity.snapshot_id,
-                &identity.request_id,
-            ] {
-                put_str(&mut hasher, part);
+        let mut hasher = CanonicalWriter::new("antecedent.signal_receipt.v1");
+        hasher
+            .text(&self.request_fingerprint)
+            .text(&self.family)
+            .text(self.update_mode.as_str())
+            .text(self.trust.as_str())
+            .opt_text(self.attestor.as_deref());
+        match &self.provider_identity {
+            Some(identity) => {
+                hasher.word(1);
+                for part in [
+                    &identity.provider_id,
+                    &identity.object_id,
+                    &identity.version_id,
+                    &identity.snapshot_id,
+                    &identity.request_id,
+                ] {
+                    hasher.text(part);
+                }
+            }
+            None => {
+                hasher.word(0);
             }
         }
-        put_str(&mut hasher, &self.law_digest);
-        hasher.finalize().to_hex().to_string()
+        hasher.text(&self.law_digest);
+        hasher.finish_hex()
     }
 }
 
@@ -549,10 +562,7 @@ impl NativeGaussianMeanSignal {
 impl SignalProvider for NativeGaussianMeanSignal {
     fn prepare(&self, request: &SignalRequest) -> Result<PreparedSignal, SignalError> {
         request.validate()?;
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "gaussian_mean");
-        put_f64s(&mut hasher, &[self.signal.noise_variance()]);
-        let digest = hasher.finalize().to_hex().to_string();
+        let digest = native_law_digest("gaussian_mean", &[self.signal.noise_variance()]);
         Ok(native_prepared(request, "gaussian_mean", Arc::new(self.signal), digest))
     }
 }
@@ -572,9 +582,7 @@ impl SignalProvider for NativeBinomialSignal {
         if too_large {
             return Err(SignalError::ComputationalLimit("support"));
         }
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, "binomial");
-        let digest = hasher.finalize().to_hex().to_string();
+        let digest = native_law_digest("binomial", &[]);
         Ok(native_prepared(request, "binomial", Arc::new(BinomialSignal), digest))
     }
 }
@@ -800,30 +808,27 @@ impl ExternalSignalBody {
     }
 
     fn digest(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
-        put_str(&mut hasher, self.mode().as_str());
-        hasher.update(&self.sample_size.to_le_bytes());
-        hasher.update(&self.state_quantity.canonical_bytes());
-        hasher.update(&self.observation_quantity.canonical_bytes());
+        let mut hasher = CanonicalWriter::new("antecedent.signal.external_law.v1");
+        hasher
+            .text(self.mode().as_str())
+            .word(self.sample_size)
+            .bytes(&self.state_quantity.canonical_bytes())
+            .bytes(&self.observation_quantity.canonical_bytes());
         match &self.law {
             ExternalLaw::Likelihood { states, statistics, probabilities } => {
-                put_f64s(&mut hasher, states);
-                put_f64s(&mut hasher, statistics);
-                probabilities.iter().for_each(|row| put_f64s(&mut hasher, row));
+                hasher.reals(states).reals(statistics);
+                rows(&mut hasher, probabilities);
             }
             ExternalLaw::Posterior { states, statistics, predictive, posterior } => {
-                put_f64s(&mut hasher, states);
-                put_f64s(&mut hasher, statistics);
-                put_f64s(&mut hasher, predictive);
-                posterior.iter().for_each(|row| put_f64s(&mut hasher, row));
+                hasher.reals(states).reals(statistics).reals(predictive);
+                rows(&mut hasher, posterior);
             }
             ExternalLaw::DecisionValues(values) => {
-                put_f64s(&mut hasher, &values.branch_probabilities);
-                values.action_ids.iter().for_each(|id| put_str(&mut hasher, id));
-                values.values.iter().for_each(|row| put_f64s(&mut hasher, row));
+                hasher.reals(&values.branch_probabilities).texts(&values.action_ids);
+                rows(&mut hasher, &values.values);
             }
         }
-        hasher.finalize().to_hex().to_string()
+        hasher.finish_hex()
     }
 }
 
