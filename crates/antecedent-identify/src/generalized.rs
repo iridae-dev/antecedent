@@ -977,23 +977,14 @@ fn adjustment_candidates(admg: &Admg, t: DenseNodeId, y: DenseNodeId) -> Vec<Den
 
 /// Directed ancestors (or descendants) of `seeds`, seeds included.
 pub(crate) fn directed_closure(admg: &Admg, seeds: &[DenseNodeId], ancestors: bool) -> BitSet {
-    let n = admg.node_count();
     let mut ws = antecedent_graph::GraphWorkspace::default();
+    let mut out = BitSet::with_len(admg.node_count());
     if ancestors {
-        let mut seed_set = BitSet::with_len(n);
-        let mut active = BitSet::with_len(n);
-        for &s in seeds {
-            seed_set.insert(s);
-        }
-        for i in 0..n {
-            active.insert(DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")));
-        }
-        admg.ancestors_within(&seed_set, &active, None, &mut ws)
+        admg.ancestors_of(seeds, &mut out, &mut ws);
     } else {
-        let mut out = BitSet::with_len(n);
         admg.descendants_of(seeds, &mut out, &mut ws);
-        out
     }
+    out
 }
 
 pub(crate) fn not_identified(query: CausalQuery, detail: &str) -> IdentificationResult {

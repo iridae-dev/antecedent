@@ -1287,7 +1287,12 @@ pub fn intervention_ancestral_treatments(
         .iter()
         .map(|variable| dense_of(graph, *variable).ok_or_else(build_unknown))
         .collect::<Result<Vec<_>, _>>()?;
-    let ancestors = directed_ancestors(mutilated, &seeds);
+    let mut ancestors = BitSet::with_len(mutilated.node_count());
+    mutilated.ancestors_of(
+        &seeds,
+        &mut ancestors,
+        &mut antecedent_graph::GraphWorkspace::default(),
+    );
     let mut retained = treatments
         .iter()
         .copied()
@@ -1297,24 +1302,6 @@ pub fn intervention_ancestral_treatments(
         .collect::<Vec<_>>();
     retained.sort_unstable_by_key(|variable| variable.raw());
     Ok(retained)
-}
-
-/// Directed-ancestor closure of `seeds` in `graph` (seeds included).
-fn directed_ancestors(graph: &antecedent_graph::Admg, seeds: &[DenseNodeId]) -> BitSet {
-    let mut closure = BitSet::with_len(graph.node_count());
-    let mut stack = seeds.to_vec();
-    for seed in seeds {
-        closure.insert(*seed);
-    }
-    while let Some(node) = stack.pop() {
-        for parent in graph.parents(node) {
-            if !closure.contains(*parent) {
-                closure.insert(*parent);
-                stack.push(*parent);
-            }
-        }
-    }
-    closure
 }
 
 /// Partition the queried outcomes into exactly two groups that are m-separated
