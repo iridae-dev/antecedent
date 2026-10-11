@@ -49,4 +49,4 @@ In project docs, "port" means capability parity, not source translation.
 ## Toolchain
 
 - Rust **1.85**, edition **2024** (see `rust-toolchain.toml`).
-- Format with `cargo fmt`; lint with `cargo clippy -- -D warnings`.
+- Format with `cargo fmt --all` from the repo root, or `cargo fmt -p <crate>` for one crate. Do not invoke `rustfmt` directly and do not pass `--edition`: `rustfmt.toml` sets edition 2024, and `--edition` overrides it and rewrites imports. Format only crates you changed. Lint with `cargo clippy -- -D warnings`.

@@ -495,7 +495,8 @@ fn combine(
     let raw: Vec<f64> = sources.iter().map(|s| s.weight * s.prior_strength).collect();
     let total: f64 = raw.iter().sum();
     let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
-    let pooled: f64 = weights.iter().zip(&mapped).map(|(w, m)| w * antecedent_kernels::mean(m)).sum();
+    let pooled: f64 =
+        weights.iter().zip(&mapped).map(|(w, m)| w * antecedent_kernels::mean(m)).sum();
     let counts = allocate(&weights, request.resolution);
     let mut draws = Vec::with_capacity(request.resolution);
     for ((source, values), &count) in sources.iter().zip(&mapped).zip(&counts) {

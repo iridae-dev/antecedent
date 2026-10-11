@@ -12,15 +12,15 @@
 #![allow(clippy::float_cmp, reason = "exact dyadic hand values")]
 
 use antecedent::CausalError;
-use antecedent_io::transported_counterfactual_artifact::TransportedCounterfactualMechanismWire;
 use antecedent::analysis::temporal_counterfactual::{
     TransportedCounterfactualPrerequisites, transported_path_specific,
 };
 use antecedent::analysis::transported_counterfactual::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, ModelWire, PremisesWire,
-    SelectionWire, SupportPointWire, TransportedCounterfactual,
-    TransportedCounterfactualArtifactError, TransportedCounterfactualRequestWire,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, ModelWire, PremisesWire, SelectionWire,
+    SupportPointWire, TransportedCounterfactual, TransportedCounterfactualArtifactError,
+    TransportedCounterfactualRequestWire,
 };
+use antecedent_io::transported_counterfactual_artifact::TransportedCounterfactualMechanismWire;
 
 const TOL: f64 = 1e-12;
 

@@ -28,7 +28,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use antecedent_core::{reason_code, CanonicalWriter, ExecutionContext};
+use antecedent_core::{CanonicalWriter, ExecutionContext, reason_code};
 
 use crate::error::EstimationError;
 use crate::splitmix::{seed_mix, splitmix64};
@@ -949,8 +949,7 @@ mod digest_tests {
         }
 
         fn estimate(&self, units: &[&UnitHistories]) -> Result<f64, EstimationError> {
-            let ys: Vec<f64> =
-                units.iter().flat_map(|u| u.histories.iter().map(|h| h.y)).collect();
+            let ys: Vec<f64> = units.iter().flat_map(|u| u.histories.iter().map(|h| h.y)).collect();
             Ok(ys.iter().sum::<f64>() / ys.len() as f64)
         }
     }

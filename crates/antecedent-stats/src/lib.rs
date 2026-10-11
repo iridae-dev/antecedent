@@ -31,9 +31,9 @@ pub mod quantile;
 pub mod regularized;
 pub mod response;
 pub mod special;
-pub mod twosls;
 #[cfg(test)]
 mod test_util;
+pub mod twosls;
 mod welford;
 
 pub use ci::{

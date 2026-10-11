@@ -4,12 +4,12 @@
 
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::{DecisionContract, DecisionFunctional};
-use crate::decision_eval::{evaluate_functional, FunctionalValue};
+use crate::decision_eval::{FunctionalValue, evaluate_functional};
 use antecedent_core::{
-    blake3_hex, reason_code, CompositionLink, CompositionStage, ProvenanceChain,
+    CompositionLink, CompositionStage, ProvenanceChain, blake3_hex, reason_code,
 };
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
-use antecedent_io::{from_cbor, to_cbor, IoError};
+use antecedent_io::{IoError, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

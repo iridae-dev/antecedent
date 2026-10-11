@@ -31,10 +31,10 @@ use antecedent_prob::{
     GaussianCoefficientPrior, GraphIdentFlag, InferenceBackend, InferenceDiagnostics,
     LaplaceGlmBackend, LaplaceWorkspace, PriorSet, PriorSpec, WeightedGraphSamples,
 };
+use antecedent_test_support::{conformance_dir, load_expected_json};
 use antecedent_validate::{
     PosteriorPredictiveCheck, PredictiveCheckKind, PriorPredictiveCheck, PriorSensitivity,
 };
-use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir(name: &str) -> PathBuf {
     conformance_dir("bayesian").join(name)

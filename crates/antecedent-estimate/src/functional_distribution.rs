@@ -319,7 +319,11 @@ pub fn logit_probability_interval(p: f64, se: Option<f64>, level: f64) -> Probab
     }
     let centre = (p / (1.0 - p)).ln();
     let half = z * se / (p * (1.0 - p));
-    ProbabilityInterval::Bounded { level, lower: antecedent_kernels::sigmoid(centre - half), upper: antecedent_kernels::sigmoid(centre + half) }
+    ProbabilityInterval::Bounded {
+        level,
+        lower: antecedent_kernels::sigmoid(centre - half),
+        upper: antecedent_kernels::sigmoid(centre + half),
+    }
 }
 
 /// Reusable scratch for [`FunctionalDistribution`] estimation.
@@ -2696,9 +2700,11 @@ mod tests {
             .probability(&spec, &Assignment::from_pairs([(x, f(1.0))]), &EvalContext::default())
             .unwrap();
         assert!((p1 - 2.0 / 3.0).abs() < 1e-15);
-        assert!(provider
-            .probability(&spec, &Assignment::from_pairs([(x, f(2.0))]), &EvalContext::default())
-            .is_err());
+        assert!(
+            provider
+                .probability(&spec, &Assignment::from_pairs([(x, f(2.0))]), &EvalContext::default())
+                .is_err()
+        );
     }
 
     /// Frozen two-path table (`t, m, y, c`) from

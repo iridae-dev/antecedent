@@ -381,9 +381,7 @@ fn latent_class_posterior_refuses_an_external_power_prior() {
 
 #[test]
 fn latent_class_posterior_consumer_replays_the_class_design() {
-    use antecedent_estimate::posterior_mean::{
-        PosteriorRequest, latent_class_effect_posterior,
-    };
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, latent_class_effect_posterior};
     use antecedent_estimate::vector_treatment::DesignSummary;
     let design = DesignSummary {
         n_rows: 4,

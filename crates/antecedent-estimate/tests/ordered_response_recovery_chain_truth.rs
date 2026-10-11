@@ -270,7 +270,9 @@ fn chain_posterior_mean_stays_at_the_enumerated_recovery() {
     .unwrap();
     let recovered = evaluate_chain_recovery(&plan, &pattern_from(&mean)).unwrap();
     let frequentist = evaluate_chain_recovery(&plan, &observed).unwrap();
-    for (got, expected) in recovered.cells().iter().flatten().zip(frequentist.cells().iter().flatten()) {
+    for (got, expected) in
+        recovered.cells().iter().flatten().zip(frequentist.cells().iter().flatten())
+    {
         assert!((got - expected).abs() < 1e-5, "{got} vs {expected}");
     }
     let _ = truth;

@@ -39,8 +39,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_core::{
-    DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, ExecutionContext,
-    IdentityDomain, RegimeId, RegimeKind, VariableId, CanonicalWriter,
+    CanonicalWriter, DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime,
+    ExecutionContext, IdentityDomain, RegimeId, RegimeKind, VariableId,
 };
 use antecedent_io::transport_catalog_wire::{EvidenceCatalogWire, EvidenceRegimeWire};
 

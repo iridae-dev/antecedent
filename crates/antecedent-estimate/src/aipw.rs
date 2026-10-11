@@ -76,14 +76,13 @@ use crate::cluster_dml_aipw::ClusterDml;
 use crate::error::EstimationError;
 use crate::overlap::{IpwTarget, OverlapPolicy};
 use crate::propensity::{
-    clamp_scores, clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports,
-    gather, gather_into, prepare_propensity_problem_with_registry, split_by_treatment,
-    trim_of, trim_retained_rows, PenalizedReport, PenalizedVarianceReport,
-    PreparedPropensityProblem, PropensityModel, PropensityNuisance, ReplicatePenalties,
-    REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
+    PenalizedReport, PenalizedVarianceReport, PreparedPropensityProblem, PropensityModel,
+    PropensityNuisance, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties, clamp_scores,
+    clip_of, crossfit_influence_se, default_propensity_overlap, fold_supports, gather, gather_into,
+    prepare_propensity_problem_with_registry, split_by_treatment, trim_of, trim_retained_rows,
 };
 use crate::se::AnalyticSeKind;
-use crate::util::{bootstrap_se, refuse, stats_err, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, bootstrap_se, refuse, stats_err};
 
 /// Reusable scratch for AIPW point-estimate and bootstrap fits.
 ///
@@ -1560,13 +1559,8 @@ fn center_population_psi(
     estimate: f64,
 ) {
     let n = treatment.len() as f64;
-    let arm_indicator = |t: f64, treated: bool| -> f64 {
-        if (t > 0.5) == treated {
-            1.0
-        } else {
-            0.0
-        }
-    };
+    let arm_indicator =
+        |t: f64, treated: bool| -> f64 { if (t > 0.5) == treated { 1.0 } else { 0.0 } };
     let treated = match target {
         TargetPopulation::Treated => true,
         TargetPopulation::Untreated => false,
@@ -1877,10 +1871,9 @@ mod tests {
         assert_eq!(sealed.se_analytic.to_bits(), plain.se_analytic.to_bits());
         assert_eq!(sealed.se_bootstrap.map(f64::to_bits), plain.se_bootstrap.map(f64::to_bits));
         assert!(sealed.score_table.is_none(), "the trimmed fit has no cross-fitted score table");
-        assert!(sealed
-            .overlap_report
-            .as_ref()
-            .is_some_and(|report| report.excluded_fraction > 0.0));
+        assert!(
+            sealed.overlap_report.as_ref().is_some_and(|report| report.excluded_fraction > 0.0)
+        );
 
         // An estimator whose policy differs from the receipt cannot execute it.
         let untrimmed = AipwAte { bootstrap_replicates: 6, ..AipwAte::new() };

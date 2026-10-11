@@ -21,7 +21,7 @@ use antecedent_core::{
 };
 use antecedent_kernels::sample_categorical;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
-use antecedent_stats::{invert_square, normal_ppf, Welford};
+use antecedent_stats::{Welford, invert_square, normal_ppf};
 
 use crate::candidate::{CandidateDesign, DesignCost};
 use crate::decision::DecisionProblem;
@@ -754,11 +754,7 @@ impl EntropyChannel {
     /// expected information gain is non-decreasing in reliability.
     fn likelihood(&self, reliability: f64, y: usize, cat: usize) -> f64 {
         let uniform = (1.0 - reliability) / self.k as f64;
-        if cat == y {
-            reliability + uniform
-        } else {
-            uniform
-        }
+        if cat == y { reliability + uniform } else { uniform }
     }
 
     /// Entropy of the graph posterior after observing category `y`.
@@ -938,11 +934,7 @@ fn gram_side_len(xtx: &[f64]) -> usize {
     while k * k < n2 {
         k += 1;
     }
-    if k * k == n2 {
-        k
-    } else {
-        0
-    }
+    if k * k == n2 { k } else { 0 }
 }
 
 /// Baseline `(p, se₀)` of the treatment coefficient.
@@ -1118,11 +1110,7 @@ fn model_distinguish_score(
         let b = ll.loglik[rj * ll.n_draws + draw];
         gap += (a - b).abs();
     }
-    if pairs.is_empty() {
-        0.0
-    } else {
-        strength * gap / pairs.len() as f64
-    }
+    if pairs.is_empty() { 0.0 } else { strength * gap / pairs.len() as f64 }
 }
 
 /// How non-decision objectives are evaluated: deterministic functionals are exact;

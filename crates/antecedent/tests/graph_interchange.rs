@@ -10,8 +10,8 @@ use antecedent::io::{
     dag_to_json, dag_to_networkx_node_link,
 };
 use antecedent_graph::DenseNodeId;
+use antecedent_test_support::conformance_dir;
 use serde_json::Value;
-use antecedent_test_support::{conformance_dir};
 
 fn fixture_dir() -> PathBuf {
     conformance_dir("interchange/graph_dot_json")

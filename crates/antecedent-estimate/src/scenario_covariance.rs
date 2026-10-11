@@ -36,8 +36,8 @@ use std::sync::Arc;
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 
 use crate::error::EstimationError;
+use crate::splitmix::{GOLDEN_GAMMA, mix64, seed_mix, splitmix64};
 use crate::util::refuse;
-use crate::splitmix::{mix64, seed_mix, splitmix64, GOLDEN_GAMMA};
 
 /// Most scenarios one covariance may span.
 pub const MAX_SCENARIOS: usize = 64;
@@ -250,11 +250,7 @@ impl ScenarioCovariance {
     #[must_use]
     pub fn entry(&self, i: usize, j: usize) -> f64 {
         let k = self.dimension();
-        if i < k && j < k {
-            self.covariance[i * k + j]
-        } else {
-            f64::NAN
-        }
+        if i < k && j < k { self.covariance[i * k + j] } else { f64::NAN }
     }
 
     /// Position of a scenario id in the matrix order.
@@ -384,7 +380,11 @@ fn validate_family(scenarios: &[ScenarioRowEstimator]) -> Result<FamilyIdentity,
             &format!("{n} rows; at least {MIN_ROWS} are needed to resample"),
         ));
     }
-    Ok(FamilyIdentity { n, row_digest: hex_digest(&row_digest), snapshot: first.snapshot_digest.clone() })
+    Ok(FamilyIdentity {
+        n,
+        row_digest: hex_digest(&row_digest),
+        snapshot: first.snapshot_digest.clone(),
+    })
 }
 
 /// Deterministic replicate id of replicate `r` under `seed`.

@@ -21,8 +21,8 @@ use antecedent_data::{
     TimeSeriesData, ValidityBitmap,
 };
 use antecedent_discovery::{DiscoveryConstraints, DiscoveryWorkspace, Pcmci, TemporalConstraints};
-use serde_json::Value as JsonValue;
 use antecedent_test_support::{conformance_dir, load_expected_json};
+use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
     conformance_dir("discovery/pcmci_lag1")

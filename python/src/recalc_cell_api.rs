@@ -26,8 +26,8 @@ use antecedent::analysis::recalc_receipt::{
     UtilitySpec, execute_with_receipt,
 };
 use antecedent_core::recalc::{
-    Boundary, RecalcCapabilities, RecalcPlan, RequestSupport,
-    ResumeContext, RetargetSupport, Stage, StageIdentities, StageIdentity,
+    Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
+    Stage, StageIdentities, StageIdentity,
 };
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_estimate::{AipwAte, CellSaturatedAipw, ScoreTable};

@@ -12,7 +12,7 @@
 pub(super) use std::sync::Arc;
 pub(super) use std::time::Instant;
 
-pub(super) use super::latency::{LatencyMode, INTERACTIVE_MAX_ENVELOPE_GRAPHS};
+pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
 pub(super) use antecedent_core::{
     AverageEffectQuery, CausalQuery, CausalResponse, DataClassification, Diagnostic,
     DiagnosticKind, DiagnosticSeverity, ExecutionContext, Intervention, ObservationSpec,
@@ -25,14 +25,14 @@ pub(super) use antecedent_data::{
 };
 pub(super) use antecedent_discovery::GraphPosterior;
 pub(super) use antecedent_estimate::{
-    aggregate_effect_envelope, functional_cell_unevaluable, nonidentified_with_prior,
-    support_from_functional_eval, AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte,
-    BayesianTemporalGcomp, CausalPosterior, ConditionalLinearAdjustment,
-    ContinuousResponseEstimator, EffectEstimate, EnvelopeOptions, EstimationWorkspace,
-    FunctionalDistribution, FunctionalDistributionWorkspace, FunctionalEffect, GraphEffectDraws,
-    LinearAdjustmentAte, ObservationMechanismEstimator, OverlapPolicy, PreparedBayesianProblem,
-    RdWorkspace, SharpRegressionDiscontinuity, TemporalLinearAdjustment, TemporalMediationEstimate,
-    TemporalMediationEstimator, TemporalResponseEstimator,
+    AnalyticSeKind, BayesianGCompWorkspace, BayesianGComputationAte, BayesianTemporalGcomp,
+    CausalPosterior, ConditionalLinearAdjustment, ContinuousResponseEstimator, EffectEstimate,
+    EnvelopeOptions, EstimationWorkspace, FunctionalDistribution, FunctionalDistributionWorkspace,
+    FunctionalEffect, GraphEffectDraws, LinearAdjustmentAte, ObservationMechanismEstimator,
+    OverlapPolicy, PreparedBayesianProblem, RdWorkspace, SharpRegressionDiscontinuity,
+    TemporalLinearAdjustment, TemporalMediationEstimate, TemporalMediationEstimator,
+    TemporalResponseEstimator, aggregate_effect_envelope, functional_cell_unevaluable,
+    nonidentified_with_prior, support_from_functional_eval,
 };
 pub(super) use antecedent_expr::{
     CausalExprArena, DerivationMeta, DomainRef, EstimandMethod, EvalError, ExprNode,
@@ -48,9 +48,9 @@ pub(super) use antecedent_prob::{
     GraphIdentFlag, InferenceDiagnostics, PriorSet, WeightedGraphSamples,
 };
 pub(super) use antecedent_validate::{
-    stack_panel_tabular, with_conflict_summary, with_prior_sensitivity, BayesianSuiteContext,
-    PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck, QueryRefutationPlan,
-    TemporalRefitContext, ValidationSuite, ValidatorId,
+    BayesianSuiteContext, PosteriorPredictiveCheck, PredictiveCheckReport, PriorPredictiveCheck,
+    QueryRefutationPlan, TemporalRefitContext, ValidationSuite, ValidatorId, stack_panel_tabular,
+    with_conflict_summary, with_prior_sensitivity,
 };
 
 pub(super) use crate::accepted::{AcceptedGraph, GraphClass};
@@ -61,27 +61,23 @@ pub(super) use crate::gcm::{
     counterfactual_ite, fit_gcm, map_mechanism_fit, mechanism_change_detection,
 };
 pub(super) use crate::inference::{
-    resolve_bayesian_prior_with_conflict, BayesianConfig, InferenceMode,
+    BayesianConfig, InferenceMode, resolve_bayesian_prior_with_conflict,
 };
 pub(super) use crate::planner::{
+    LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
+    StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
+    StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
     compile_logical_codetermined_joint, compile_logical_distribution,
     compile_logical_path_specific, compile_logical_static_ate, compile_logical_static_cpdag_ate,
     compile_logical_static_cpdag_response, compile_logical_static_pag_ate,
     compile_logical_static_pag_response, compile_logical_static_response,
     compile_logical_temporal_class_effect, compile_logical_temporal_effect,
     compile_logical_temporal_effect_classified, compile_logical_temporal_response,
-    reject_dag_only_on_pag, LogicalAnalysisPlan, PhysicalExecutionPlan, StaticAteCompileInput,
-    StaticCpdagResponseCompileInput, StaticDistributionCompileInput, StaticPagAteCompileInput,
-    StaticPagResponseCompileInput, StaticPathSpecificCompileInput, StaticResponseCompileInput,
+    reject_dag_only_on_pag,
 };
 pub(super) use crate::result::StructuralAggregationPolicy;
 pub(super) use crate::result::StudyResult;
 pub(super) use crate::strategy_table::{
-    estimate_provenance_step, estimate_static_effect, identify_admg, identify_admg_query,
-    identify_cpdag, identify_pag, identify_provenance_step, identify_static, identify_static_query,
-    identify_static_query_with_rd, identify_temporal_cpdag_configured,
-    identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
-    validate_static_pair, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
     DEFAULT_ADMG_ESTIMATOR_ID, DEFAULT_ADMG_IDENTIFIER_ID, DEFAULT_CONDITIONAL_ESTIMATOR_ID,
     DEFAULT_CONDITIONAL_IDENTIFIER_ID, DEFAULT_DISTRIBUTION_ESTIMATOR,
     DEFAULT_DISTRIBUTION_ESTIMATOR_ID, DEFAULT_DISTRIBUTION_IDENTIFIER,
@@ -89,16 +85,21 @@ pub(super) use crate::strategy_table::{
     DEFAULT_IDENTIFIER, DEFAULT_IDENTIFIER_ID, DEFAULT_PAG_ESTIMATOR_ID, DEFAULT_PAG_IDENTIFIER_ID,
     DEFAULT_PATH_ESTIMATOR, DEFAULT_PATH_ESTIMATOR_ID, DEFAULT_PATH_IDENTIFIER,
     DEFAULT_PATH_IDENTIFIER_ID, DEFAULT_RESPONSE_ESTIMATOR, DEFAULT_RESPONSE_IDENTIFIER,
-    DEFAULT_RESPONSE_IDENTIFIER_ID,
+    DEFAULT_RESPONSE_IDENTIFIER_ID, EstimatorId, IdentifierId, StaticEstimateWorkspaces,
+    estimate_provenance_step, estimate_static_effect, identify_admg, identify_admg_query,
+    identify_cpdag, identify_pag, identify_provenance_step, identify_static, identify_static_query,
+    identify_static_query_with_rd, identify_temporal_cpdag_configured,
+    identify_temporal_pag_configured, require_identified, select_claim, select_estimand,
+    validate_static_pair,
 };
 
 pub(super) use super::builder::{DataInput, RdConfig, RefuteSuite};
 pub(super) use super::helpers::{
-    assemble_result, credible_scalar_uncertainty, effect_from_posterior,
+    AssembleArgs, assemble_result, credible_scalar_uncertainty, effect_from_posterior,
     evaluate_bayesian_prior_sensitivity, overlap_diagnostic, project_for_ate_estimate,
     projection_diagnostic, provenance_pair, push_conflict_diagnostics, refute_outcomes,
     run_plugin_level_refuters, run_refuters, validator_not_applicable_diagnostic,
-    validator_not_applicable_diagnostics, AssembleArgs,
+    validator_not_applicable_diagnostics,
 };
 
 /// Prepared analysis (static or temporal).
@@ -316,19 +317,19 @@ pub use checked_cell_aipw_response::DagResponseOrigin;
 pub(crate) use checked_continuous_dose::CheckedContinuousDoseOperation;
 pub(crate) use checked_interference::CheckedInterferenceOperation;
 pub(crate) use checked_local_polynomial_ratio::{
-    local_polynomial_ratio_identification, CheckedLocalPolynomialRatioOperation,
+    CheckedLocalPolynomialRatioOperation, local_polynomial_ratio_identification,
 };
 pub(crate) use checked_longitudinal_regime::CheckedLongitudinalRegimeOperation;
+pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_panel_did::panel_did_graphless_key;
 pub(crate) use checked_panel_did::panel_did_identification;
-pub(crate) use checked_panel_did::CheckedPanelDidOperation;
 pub(crate) use checked_randomized::{
-    randomized_identification, CheckedPolicyValueOperation, CheckedRandomizedOperation,
+    CheckedPolicyValueOperation, CheckedRandomizedOperation, randomized_identification,
 };
 pub(crate) use checked_static_mediation::CheckedStaticMediationOperation;
-pub(crate) use checked_survival::{survival_identification, CheckedSurvivalOperation};
+pub(crate) use checked_survival::{CheckedSurvivalOperation, survival_identification};
 pub(crate) use checked_synthetic_control::{
-    synthetic_control_identification, CheckedSyntheticControlOperation,
+    CheckedSyntheticControlOperation, synthetic_control_identification,
 };
 pub(crate) use checked_temporal_mediation::CheckedTemporalMediationOperation;
 mod atom_mix;
@@ -377,20 +378,20 @@ pub(crate) use checked_static_class_response::CheckedStaticClassResponse;
 pub(crate) use checked_temporal_class_mediation::CheckedTemporalClassMediationOperation;
 include!("execute_helpers.rs");
 
+pub(super) use class_envelope_se::{
+    TemporalAtomDesign, envelope_shared_block_diagnostics, shared_block_mixture_message,
+    shared_circular_block_mixture_se,
+};
 #[cfg(test)]
 pub(super) use class_envelope_se::{
     circular_block_length, mixture_block_length, shared_circular_block_mixture_se_with_length,
 };
-pub(super) use class_envelope_se::{
-    envelope_shared_block_diagnostics, shared_block_mixture_message,
-    shared_circular_block_mixture_se, TemporalAtomDesign,
-};
 pub(super) use identified_set_diagnostics::{
-    completion_fit_seed, identified_set_interval_diagnostics, posterior_identified_set_interval,
-    same_fitted_mechanisms, same_fitted_problem, IDENTIFIED_SET_INTERVAL_LEVEL,
+    IDENTIFIED_SET_INTERVAL_LEVEL, completion_fit_seed, identified_set_interval_diagnostics,
+    posterior_identified_set_interval, same_fitted_mechanisms, same_fitted_problem,
 };
 pub(super) use tuple_bootstrap::{
-    tuple_block_observation_replicates, TupleObservationTarget, TupleReplicates, TupleSurface,
+    TupleObservationTarget, TupleReplicates, TupleSurface, tuple_block_observation_replicates,
 };
 
 pub(crate) use dispatch::push_gaussian_likelihood_disclosure;

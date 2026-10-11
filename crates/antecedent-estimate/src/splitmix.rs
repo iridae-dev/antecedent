@@ -5,7 +5,7 @@
 
 // The mixer, its increment and the stepper are owned by `antecedent_core`; this module
 // re-exports them under the crate-local path and keeps the seed scrambler and fixtures.
-pub(crate) use antecedent_core::{mix64, splitmix64, GOLDEN_GAMMA};
+pub(crate) use antecedent_core::{GOLDEN_GAMMA, mix64, splitmix64};
 
 /// Scramble a caller seed so nearby seeds start unrelated streams: the first
 /// `SplitMix64` output of a generator whose state is `seed`.

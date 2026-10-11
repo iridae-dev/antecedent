@@ -61,7 +61,7 @@ use crate::dml::DmlAte;
 use crate::dr::DrLearner;
 use crate::frontdoor::{FrontDoorTwoStage, FrontDoorWorkspace};
 use crate::frontdoor_functional::{
-    FrontDoorFunctional, ARM_LINEAR_ASSUMPTION_ID, SATURATED_ASSUMPTION_ID,
+    ARM_LINEAR_ASSUMPTION_ID, FrontDoorFunctional, SATURATED_ASSUMPTION_ID,
 };
 use crate::iv::{TwoStageLeastSquares, TwoStageLeastSquaresWorkspace, WaldIv};
 use crate::propensity::{
@@ -79,10 +79,10 @@ mod estimator_level;
 mod static_dgp;
 
 use calibration::{
-    coverage_band, coverage_mcse, grid_n, grid_point, grid_seed, map_replicates, n_sim,
-    needs_recheck, passes_precision, precision_ceiling, precision_floor, Construction,
-    CoverageTally, RecordKey, ScopeFacts, BASE_GRID_POINT, RECHECK_N_SIM, REPORTED_LEVEL,
-    SKIP_CAP_DEN, SKIP_CAP_NUM, Z95,
+    BASE_GRID_POINT, Construction, CoverageTally, RECHECK_N_SIM, REPORTED_LEVEL, RecordKey,
+    SKIP_CAP_DEN, SKIP_CAP_NUM, ScopeFacts, Z95, coverage_band, coverage_mcse, grid_n, grid_point,
+    grid_seed, map_replicates, n_sim, needs_recheck, passes_precision, precision_ceiling,
+    precision_floor,
 };
 
 const TRUE_ATE: f64 = 2.0;

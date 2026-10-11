@@ -16,13 +16,13 @@
 use std::sync::Arc;
 
 use antecedent_core::ExecutionContext;
-use antecedent_estimate::posterior_mean::{covariance_entry_posterior, PosteriorRequest};
-use antecedent_estimate::scenario_covariance::{
-    covariance_estimator_moments, exact_enumeration_covariance, shared_row_bootstrap_covariance,
-    CovarianceMethod, ExactEnumerationOptions, RowDependence, ScenarioCovariance,
-    ScenarioRowEstimator, SharedRowBootstrapOptions, MAX_REPLICATES, MAX_SCENARIOS,
-};
 use antecedent_estimate::EstimationError;
+use antecedent_estimate::posterior_mean::{PosteriorRequest, covariance_entry_posterior};
+use antecedent_estimate::scenario_covariance::{
+    CovarianceMethod, ExactEnumerationOptions, MAX_REPLICATES, MAX_SCENARIOS, RowDependence,
+    ScenarioCovariance, ScenarioRowEstimator, SharedRowBootstrapOptions,
+    covariance_estimator_moments, exact_enumeration_covariance, shared_row_bootstrap_covariance,
+};
 
 type Row = (u8, u8, u8);
 
@@ -57,11 +57,7 @@ fn score_b(r: Row) -> f64 {
 }
 
 fn score_c(r: Row) -> f64 {
-    if (r.0, r.2) == (1, 1) {
-        1.0
-    } else {
-        0.0
-    }
+    if (r.0, r.2) == (1, 1) { 1.0 } else { 0.0 }
 }
 
 fn plug_in(counts: &[u32], score: fn(Row) -> f64) -> f64 {
@@ -604,10 +600,9 @@ fn scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix() {
     let family = vec![linear_by_name("a"), linear_by_name("b")];
     let out = exact_enumeration_covariance(&family, &exact_options(), &ctx()).unwrap();
     assert_eq!(out.entry_sampling_variance.len(), out.covariance.len());
-    assert!(out
-        .entry_sampling_variance
-        .iter()
-        .all(|variance| variance.is_finite() && *variance > 0.0));
+    assert!(
+        out.entry_sampling_variance.iter().all(|variance| variance.is_finite() && *variance > 0.0)
+    );
     let mean = covariance_entry_posterior(
         &out.covariance,
         &out.entry_sampling_variance,

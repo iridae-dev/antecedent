@@ -14,12 +14,12 @@ use antecedent_identify::IdentificationEnvelope;
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
+use crate::AcceptedGraph;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::support::StructureSource;
-use crate::AcceptedGraph;
 
 impl Study {
     /// Structure was supplied explicitly or accepted from review, not

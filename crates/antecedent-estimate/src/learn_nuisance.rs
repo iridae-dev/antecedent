@@ -18,12 +18,12 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_learn::{
-    cross_fit_with_folds, diagnose, resolve_for, CrossFittedPrediction, DesignView, LearnerFactory,
-    LearnerSpec, NuisanceDiagnostics, PredictionTask, RowSelection, TargetView,
+    CrossFittedPrediction, DesignView, LearnerFactory, LearnerSpec, NuisanceDiagnostics,
+    PredictionTask, RowSelection, TargetView, cross_fit_with_folds, diagnose, resolve_for,
 };
 
 use crate::crossfit_plan::{
-    derive_fold_ids, CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS,
+    CrossfitPlan, FoldIdErrors, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, derive_fold_ids,
 };
 use crate::error::EstimationError;
 
@@ -150,8 +150,7 @@ pub(crate) fn cross_fit_aipw_nuisances(
     )?;
     let x_outcome = design_for_spec(outcome, design, nrows, ncols)?;
     let x_treat = design_for_spec(treatment, design, nrows, ncols)?;
-    let plan =
-        CrossfitPlan::from_fold_ids(folds, fold_ids.iter().map(|&f| u32::from(f)).collect());
+    let plan = CrossfitPlan::from_fold_ids(folds, fold_ids.iter().map(|&f| u32::from(f)).collect());
     let fold_parts = plan
         .map_folds(ctx, |rows, inner| {
             fit_aipw_fold(
@@ -166,11 +165,7 @@ pub(crate) fn cross_fit_aipw_nuisances(
             )
         })
         .map_err(|error| {
-            if ctx.cancellation.is_cancelled() {
-                nuisance_cancelled()
-            } else {
-                learn_err(error)
-            }
+            if ctx.cancellation.is_cancelled() { nuisance_cancelled() } else { learn_err(error) }
         })?;
 
     let mut mu0 = vec![0.0; nrows];
@@ -392,11 +387,7 @@ pub(crate) fn cached_aipw_nuisances(
 ) -> Result<std::sync::Arc<AipwPredictions>, EstimationError> {
     use std::sync::Arc;
     let check_cancel = || {
-        if ctx.cancellation.is_cancelled() {
-            Err(nuisance_cancelled())
-        } else {
-            Ok(())
-        }
+        if ctx.cancellation.is_cancelled() { Err(nuisance_cancelled()) } else { Ok(()) }
     };
     check_cancel()?;
     require_populated_arms(&problem.treatment)?;

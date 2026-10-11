@@ -1100,11 +1100,9 @@ fn learned_continuous_posterior_refuses_a_mapped_prior() {
     use antecedent_estimate::posterior_mean::{
         PosteriorRequest, learned_continuous_score_posterior,
     };
-    let err = learned_continuous_score_posterior(
-        &[0.0, 1.0, 2.0],
-        PosteriorRequest::MappedCoefficient,
-    )
-    .unwrap_err();
+    let err =
+        learned_continuous_score_posterior(&[0.0, 1.0, 2.0], PosteriorRequest::MappedCoefficient)
+            .unwrap_err();
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };

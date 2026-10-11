@@ -4,13 +4,13 @@
 //! power) is deliberately NOT measured here.
 
 use antecedent_estimate::EstimationError;
-use antecedent_estimate::posterior_mean::{
-    PosteriorRequest, ScalarNamespace, known_variance_posterior,
-};
 use antecedent_estimate::effect_constancy::{
     CalibrationStatus, ConstancyConclusion, ContrastFamily, EFFECT_CONSTANCY_NULL,
     EffectEstimandIdentity, HeterogeneityStatistic, PartitionDependence, PartitionEstimate,
     PartitionSupport, holm_adjust, test_effect_constancy,
+};
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScalarNamespace, known_variance_posterior,
 };
 
 fn estimand() -> EffectEstimandIdentity {

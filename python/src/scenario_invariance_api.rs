@@ -6,13 +6,13 @@
 //! invariance and obstruction is Rust's; this module only names the variables and
 //! hands the structure to Python as JSON.
 
+use crate::bridge::RefusalJson;
 use antecedent_core::{VariableId, reason_code};
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::scenario_invariance_report::{EnvelopeSide, ScenarioSetInvarianceReport};
 use antecedent_identify::sid::scenario_invariance::{
     InvarianceBody, InvarianceReport, ObstructionWitness,
 };
-use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use serde_json::{Value, json};
 

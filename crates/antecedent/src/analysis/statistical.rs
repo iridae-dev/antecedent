@@ -11,8 +11,9 @@ use antecedent_core::{
     UncertaintyComponent, UncertaintySlot, UncertaintySource, VariableId,
 };
 use antecedent_estimate::{
-    assemble_point_laws, EmpiricalTableOptions, ReplicatePolicy, StatisticalTransportEstimate,
-    StatisticalTransportInput, TransportUncertaintyRow, INTERVAL_NUMERICAL_FAILURE,
+    EmpiricalTableOptions, INTERVAL_NUMERICAL_FAILURE, ReplicatePolicy,
+    StatisticalTransportEstimate, StatisticalTransportInput, TransportUncertaintyRow,
+    assemble_point_laws,
 };
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
@@ -21,8 +22,8 @@ use antecedent_io::transport_grid_wire::{
     BayesianTransportPosteriorWire, SampleSummary, StatisticalOptionsWire,
 };
 use antecedent_io::{
-    exact_law_wire::ExactLawWire, query_wire::ValueWire,
-    transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire, IoError,
+    IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
+    transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -30,7 +31,7 @@ use std::sync::Arc;
 use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
 use super::transport_common::{
-    digest, err, estimate_err, rebind_snapshots, rebuild_checked_proof, GraphFields,
+    GraphFields, digest, err, estimate_err, rebind_snapshots, rebuild_checked_proof,
 };
 
 /// The facade's licensing floor for a nominal-0.95 pointwise percentile edge.
@@ -2316,12 +2317,14 @@ mod tests {
         wire.options.posterior_draws += 1;
         variants.push(wire);
         for wire in variants {
-            assert!(PreparedStudy::<StatisticalPreparedState>::consume(
-                &antecedent_io::to_cbor(&wire).unwrap(),
-                ExactEvaluationLimits::default(),
-                &ctx
-            )
-            .is_err());
+            assert!(
+                PreparedStudy::<StatisticalPreparedState>::consume(
+                    &antecedent_io::to_cbor(&wire).unwrap(),
+                    ExactEvaluationLimits::default(),
+                    &ctx
+                )
+                .is_err()
+            );
         }
         let (loaded, result) = PreparedStudy::<StatisticalPreparedState>::consume(
             &bytes,

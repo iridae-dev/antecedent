@@ -20,8 +20,8 @@ use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
 use antecedent_graph::{Dag, DenseNodeId};
-use serde_json::Value as JsonValue;
 use antecedent_test_support::{conformance_dir, load_expected_json};
+use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
     conformance_dir("estimate/linear_gaussian_ate")

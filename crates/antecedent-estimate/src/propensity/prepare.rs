@@ -10,8 +10,8 @@ use antecedent_core::{AverageEffectQuery, PopulationRegistry, TargetPopulation, 
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
-    fit_propensity, FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit,
-    PropensityWorkspace,
+    FaerBackend, GlmOptions, MatchingDistance, MatchingIndex, PropensityFit, PropensityWorkspace,
+    fit_propensity,
 };
 
 use crate::adjustment::intervention_f64;
@@ -217,8 +217,12 @@ impl PropensityEstimationWorkspace {
         distance: MatchingDistance,
     ) -> Result<(), EstimationError> {
         let n_donors = donor_features.len() / dim.max(1);
-        let key =
-            MatchingIndexKey { dim, n_donors, distance, features_hash: feature_key(donor_features) };
+        let key = MatchingIndexKey {
+            dim,
+            n_donors,
+            distance,
+            features_hash: feature_key(donor_features),
+        };
         let needs_rebuild = self.matching_index.is_none() || self.matching_index_key != key;
         if needs_rebuild {
             let donor_ids: Vec<usize> = (0..n_donors).collect();

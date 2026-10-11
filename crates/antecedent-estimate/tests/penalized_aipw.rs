@@ -23,14 +23,14 @@ use antecedent_core::{
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScoreNamespace, score_contrast_posterior,
+};
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, AnalyticSeKind, EffectEstimate, EstimationError, NuisanceFallback,
     OverlapPolicy, PROPENSITY_FIT_STAGE, PenalizedVarianceReport, PropensityNuisance,
     REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePolicy, RidgeTuning, ScoreTable,
     crossfit_influence_se, provenance_marks_penalized, provenance_withholds_interval, retarget,
-};
-use antecedent_estimate::posterior_mean::{
-    PosteriorRequest, ScoreNamespace, score_contrast_posterior,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;

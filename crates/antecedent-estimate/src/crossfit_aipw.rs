@@ -23,18 +23,18 @@ use std::sync::Arc;
 
 use antecedent_core::{AverageEffectQuery, ExecutionContext, OutcomeFunctional, VariableId};
 use antecedent_stats::{
-    fit_propensity, predict_propensity, FaerBackend, GlmOptions, PropensityWorkspace,
+    FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity, predict_propensity,
 };
 
-use crate::aipw::{fit_outcome_models, predict_colmajor, AipwWorkspace};
+use crate::aipw::{AipwWorkspace, fit_outcome_models, predict_colmajor};
 use crate::crossfit_plan::{
-    rows_colmajor, CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS,
+    CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
 };
 use crate::error::EstimationError;
 use crate::propensity::{
+    FailedFit, FallbackRecord, PreparedPropensityProblem, RidgeFoldInput, RidgeFoldSelection,
     clamp_scores, clip_of, fallback_provenance, fit_penalized_fold, gather,
-    require_interior_propensities, split_by_treatment, FailedFit, FallbackRecord,
-    PreparedPropensityProblem, RidgeFoldInput, RidgeFoldSelection,
+    require_interior_propensities, split_by_treatment,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::util::stats_err;

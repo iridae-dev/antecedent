@@ -626,7 +626,9 @@ fn binary_posterior_mean_stays_at_the_enumerated_recovery() {
     .unwrap();
     let recovered = evaluate_exact_recovery(&derivation, &updated, &ctx()).unwrap();
     let frequentist = evaluate_exact_recovery(&derivation, &observed, &ctx()).unwrap();
-    for (got, expected) in recovered.law().probabilities().iter().zip(frequentist.law().probabilities()) {
+    for (got, expected) in
+        recovered.law().probabilities().iter().zip(frequentist.law().probabilities())
+    {
         assert!((got - expected).abs() < 1e-5, "{got} vs {expected}");
     }
 }
@@ -655,7 +657,8 @@ fn binary_posterior_consumer_replays_the_pattern_mean() {
         DirichletNamespace::BinaryRecovery,
     )
     .unwrap();
-    let positive: Vec<f64> = observed.probabilities().iter().copied().filter(|p| *p > 0.0).collect();
+    let positive: Vec<f64> =
+        observed.probabilities().iter().copied().filter(|p| *p > 0.0).collect();
     let total = positive.iter().sum::<f64>() + positive.len() as f64 * 0.01;
     let mut cursor = 0;
     for (got, weight) in produced.iter().zip(observed.probabilities()) {

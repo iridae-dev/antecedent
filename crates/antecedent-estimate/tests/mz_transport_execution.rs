@@ -17,12 +17,12 @@ use std::sync::Arc;
 use antecedent_core::{
     DependenceGroup, EvidenceCatalog, ExecutionContext, InterventionAssignment, RegimeKind, Value,
 };
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
+};
 use antecedent_estimate::{
     Z_TRANSPORT_INTERVAL_NOT_MEASURED, evaluate_exact_mz_transport, mz_interval_withheld_reason,
     mz_sampling_dependence, mz_transport_bootstrap_interval, mz_transport_bootstrap_law_draws,
-};
-use antecedent_estimate::posterior_mean::{
-    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
 };
 use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{

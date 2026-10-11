@@ -17,8 +17,8 @@ mod internal {
 
     use crate::error::EstimationError;
     use crate::nested_markov_binary::{
-        binary_cells, cell_index, evaluate_nested_markov_pilot, BinaryCells, FitOptions,
-        NestedMarkovInput, NestedParameters, PilotReport,
+        BinaryCells, FitOptions, NestedMarkovInput, NestedParameters, PilotReport, binary_cells,
+        cell_index, evaluate_nested_markov_pilot,
     };
 
     /// Number of free parameters, ordered `a,c0,c1,q20,q21,q40,q41,g00,g01,g10,g11`.
@@ -268,5 +268,5 @@ mod internal {
 }
 
 pub use internal::{
-    nested_markov_fisher_internal, NestedFisherFunctional, NestedMarkovUncertainty, PARAMETER_COUNT,
+    NestedFisherFunctional, NestedMarkovUncertainty, PARAMETER_COUNT, nested_markov_fisher_internal,
 };

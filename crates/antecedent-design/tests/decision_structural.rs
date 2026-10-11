@@ -6,8 +6,8 @@ use antecedent_design::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_structural::{
-    evaluate_structural, AtomEvidence, AtomStatus, StructuralAtom, StructuralError,
-    StructuralVerdict,
+    AtomEvidence, AtomStatus, StructuralAtom, StructuralError, StructuralVerdict,
+    evaluate_structural,
 };
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,

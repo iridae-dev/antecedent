@@ -39,9 +39,9 @@ use std::collections::BTreeSet;
 use antecedent_core::reason_code;
 use antecedent_stats::chi_square_sf;
 
-use crate::effect_constancy::{holm_adjust, CalibrationStatus};
-use crate::util::dot;
+use crate::effect_constancy::{CalibrationStatus, holm_adjust};
 use crate::error::EstimationError;
+use crate::util::dot;
 use crate::util::{count, refuse};
 
 /// The frozen null of the joint Wald test.
@@ -229,11 +229,7 @@ impl VectorTreatmentFit {
     #[must_use]
     pub fn covariance_entry(&self, i: usize, j: usize) -> Option<f64> {
         let k = self.dimension();
-        if i < k && j < k {
-            self.covariance.get(i * k + j).copied()
-        } else {
-            None
-        }
+        if i < k && j < k { self.covariance.get(i * k + j).copied() } else { None }
     }
 
     /// Wald test that every declared contrast is zero, using the full covariance.
@@ -542,11 +538,7 @@ fn full_covariance(
                         "an observation has leverage one, so HC2/HC3 are undefined",
                     ));
                 }
-                if kind == VectorCovariance::Hc2 {
-                    1.0 / slack
-                } else {
-                    1.0 / (slack * slack)
-                }
+                if kind == VectorCovariance::Hc2 { 1.0 / slack } else { 1.0 / (slack * slack) }
             }
         };
         let scale = weight * e * e;

@@ -48,8 +48,8 @@ use antecedent_identify::{
 
 mod common;
 
-use common::fixtures::confounded_scm;
 use antecedent_test_support::near_lt_1e9 as near;
+use common::fixtures::confounded_scm;
 
 const Z: u32 = 0;
 const X: u32 = 1;

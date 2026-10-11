@@ -1234,7 +1234,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::{ContractReason, ALL_CONTRACT_REASONS, ALL_CONTRACT_REASON_SPELLINGS};
+    use super::{ALL_CONTRACT_REASON_SPELLINGS, ALL_CONTRACT_REASONS, ContractReason};
 
     #[test]
     fn reason_spellings_stay_unique_and_historical() {

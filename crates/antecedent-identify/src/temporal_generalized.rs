@@ -446,10 +446,11 @@ mod tests {
             .envelope;
         assert_eq!(env.cases.len(), 2);
         assert_eq!(env.status, IdentificationStatus::NotIdentified);
-        assert!(env
-            .critical_graph_features
-            .iter()
-            .any(|f| f.kind.as_ref() == "temporal_pag_mixed_completion_audit"));
+        assert!(
+            env.critical_graph_features
+                .iter()
+                .any(|f| f.kind.as_ref() == "temporal_pag_mixed_completion_audit")
+        );
     }
 
     #[test]

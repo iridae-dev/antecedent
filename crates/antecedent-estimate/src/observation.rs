@@ -22,9 +22,9 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData, TimeSeriesData};
 use antecedent_stats::{
+    FaerBackend, GaussianObservation, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
     fit_glm, fit_observation_logistic, gaussian_observation_log_likelihood, kaplan_meier_ipcw,
-    selected_outcome_pseudo_values, FaerBackend, GaussianObservation, GlmDesignRef, GlmFamily,
-    GlmOptions, LeastSquaresWorkspace,
+    selected_outcome_pseudo_values,
 };
 
 use crate::{ContinuousResponseEstimator, EstimationError};
@@ -1705,11 +1705,9 @@ mod tests {
         );
         let adjusted =
             ObservationMechanismEstimator::default().adjusted_outcome(&data, &query, None).unwrap();
-        assert!(adjusted
-            .values
-            .iter()
-            .zip(&x)
-            .all(|(&got, &x)| (got - (2.0 + 3.0 * x)).abs() < 1e-8));
+        assert!(
+            adjusted.values.iter().zip(&x).all(|(&got, &x)| (got - (2.0 + 3.0 * x)).abs() < 1e-8)
+        );
     }
 
     #[test]
@@ -1754,12 +1752,10 @@ mod tests {
             .unwrap();
         assert_eq!(response.uncertainty, ResponseUncertainty::None);
         assert_eq!(response.provenance_id.as_ref(), "estimate.response.observation_adjusted");
-        assert!(response
-            .support
-            .warnings
-            .iter()
-            .any(|warning| warning.code.as_ref()
-                == "response.observation_joint_uncertainty_unavailable"));
+        assert!(
+            response.support.warnings.iter().any(|warning| warning.code.as_ref()
+                == "response.observation_joint_uncertainty_unavailable")
+        );
     }
 
     #[test]
@@ -1915,17 +1911,21 @@ mod tests {
             upper: VariableId::from_raw(2),
         };
         let without = base.clone().with_observation(spec.clone(), Arc::from([]));
-        assert!(ObservationMechanismEstimator::default()
-            .gaussian_log_likelihood(&data, &without, &[0.0, 0.0], 1.0)
-            .is_err());
+        assert!(
+            ObservationMechanismEstimator::default()
+                .gaussian_log_likelihood(&data, &without, &[0.0, 0.0], 1.0)
+                .is_err()
+        );
         let with = base.with_observation(
             spec,
             [ObservationAssumption::Structural(Arc::from("gaussian_observation_likelihood"))],
         );
-        assert!(ObservationMechanismEstimator::default()
-            .gaussian_log_likelihood(&data, &with, &[0.0, 0.0], 1.0)
-            .unwrap()
-            .is_finite());
+        assert!(
+            ObservationMechanismEstimator::default()
+                .gaussian_log_likelihood(&data, &with, &[0.0, 0.0], 1.0)
+                .unwrap()
+                .is_finite()
+        );
     }
 
     #[test]
@@ -2102,9 +2102,11 @@ mod tests {
         assert_eq!(estimator.observation_row_lag(&query, &[key(-1), key(-2)]).unwrap(), 2);
         assert_eq!(estimator.observation_row_lag(&query, &[key(-1)]).unwrap(), 1);
         let anchors: Vec<usize> = (1..t.len()).collect();
-        assert!(estimator
-            .adjust_temporal_anchors(&data, &query, &[], &[key(-1), key(-2)], &anchors)
-            .is_err());
+        assert!(
+            estimator
+                .adjust_temporal_anchors(&data, &query, &[], &[key(-1), key(-2)], &anchors)
+                .is_err()
+        );
         let anchors: Vec<usize> = (2..t.len()).collect();
         let replicate = estimator
             .adjust_temporal_anchors(&data, &query, &[], &[key(-1), key(-2)], &anchors)
@@ -2123,11 +2125,7 @@ mod tests {
         let y: Vec<f64> = (0..n)
             .map(|s| {
                 let noise = ((s * 53 + 7) % 97) as f64 / 48.0 - 1.0;
-                if r[s] == 1.0 {
-                    1.0 + 2.0 * lag(s) + noise
-                } else {
-                    0.0
-                }
+                if r[s] == 1.0 { 1.0 + 2.0 * lag(s) + noise } else { 0.0 }
             })
             .collect();
         TimeSeriesData::from_f64_columns(

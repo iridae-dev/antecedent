@@ -74,11 +74,10 @@ fn vector_posterior_mean_stays_near_the_hand_solved_coefficients() {
 
 #[test]
 fn vector_posterior_refuses_a_mapped_prior() {
-    let message = refusal(vector_treatment_posterior(
-        &vector_input(),
-        PosteriorRequest::MappedCoefficient,
-    )
-    .unwrap_err());
+    let message = refusal(
+        vector_treatment_posterior(&vector_input(), PosteriorRequest::MappedCoefficient)
+            .unwrap_err(),
+    );
     assert!(message.contains("route_not_supported"), "{message}");
     assert!(message.contains("vector_posterior.mapped_prior"), "{message}");
 }
@@ -151,7 +150,8 @@ fn categorical_posterior_refuses_an_external_power_prior() {
 #[test]
 fn categorical_posterior_consumer_replays_the_dummy_summary() {
     let produced =
-        categorical_treatment_posterior(&categorical_input(), &categorical_spec(), prior()).unwrap();
+        categorical_treatment_posterior(&categorical_input(), &categorical_spec(), prior())
+            .unwrap();
     let summary = antecedent_estimate::categorical_treatment::summarize_categorical_design(
         &categorical_input(),
         &categorical_spec(),

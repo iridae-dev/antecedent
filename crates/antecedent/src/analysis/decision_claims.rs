@@ -1040,17 +1040,11 @@ mod digest_tests {
 
     #[test]
     fn source_and_not_enumerated_digests_are_pinned_and_domain_separated() {
-        let scenarios = [ScenarioDigest {
-            id: "s0".into(),
-            status: "identified".into(),
-            digest: "d0".into(),
-        }];
+        let scenarios =
+            [ScenarioDigest { id: "s0".into(), status: "identified".into(), digest: "d0".into() }];
         let source = source_identity("scenario_set", Some("cpdag"), "premises", "data", &scenarios);
         assert_eq!(source, "ff20502b94d199a74e8a473aecee3adc8de05d81f42d97d9d1fcd744783e5c57");
-        assert_ne!(
-            source,
-            source_identity("scenario_set", None, "premises", "data", &scenarios)
-        );
+        assert_ne!(source, source_identity("scenario_set", None, "premises", "data", &scenarios));
         assert_eq!(
             not_enumerated_digest(3),
             "762397853b4cdf4b1cff8ad840ecbdfeb94a650e258e4292c7ca4bfb0a6d8f71"

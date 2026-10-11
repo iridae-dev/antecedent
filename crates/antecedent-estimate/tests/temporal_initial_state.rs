@@ -136,8 +136,10 @@ fn initial_state_posterior_mean_stays_at_the_hand_sum() {
         vec![(0, mean[0]), (1, mean[1])],
     )
     .unwrap();
-    let result =
-        MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated)).unwrap().effect(&p).unwrap();
+    let result = MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated))
+        .unwrap()
+        .effect(&p)
+        .unwrap();
     assert!((result.value - 0.421).abs() < 1e-5, "{}", result.value);
 }
 
@@ -168,8 +170,10 @@ fn initial_state_posterior_consumer_replays_the_weighted_responses() {
         vec![(0, mean[0]), (1, mean[1])],
     )
     .unwrap();
-    let result =
-        MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated)).unwrap().effect(&p).unwrap();
+    let result = MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated))
+        .unwrap()
+        .effect(&p)
+        .unwrap();
     let hand = mean[0] * 0.33 + mean[1] * 0.46;
     assert!((result.value - hand).abs() < 1e-12, "{} vs {hand}", result.value);
 }

@@ -7,23 +7,23 @@ use std::sync::Arc;
 use antecedent_core::ExecutionContext;
 use antecedent_estimate::BayesianBackendKind;
 use antecedent_estimate::{
-    coefficient_covariance_from_draws, hydrate_prior_with_coefficient_covariance,
-    is_temporal_coefficient_name, HydrateMapping, PreparedBayesianProblem,
+    HydrateMapping, PreparedBayesianProblem, coefficient_covariance_from_draws,
+    hydrate_prior_with_coefficient_covariance, is_temporal_coefficient_name,
 };
+use antecedent_io::PosteriorQuantityWire;
+use antecedent_io::PriorMapping;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, DrawAlignment,
 };
 use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
-use antecedent_io::PosteriorQuantityWire;
-use antecedent_io::PriorMapping;
 use antecedent_io::{
-    decode_posterior_artifact, extract_prior_source_meta, read_and_migrate, CausalPosteriorWire,
+    CausalPosteriorWire, decode_posterior_artifact, extract_prior_source_meta, read_and_migrate,
 };
 use antecedent_prob::{
     BayesLikelihood, ComposedPrior, ConflictSummary, ExternalPriorSource, PosteriorQuantityKind,
     PriorSet,
 };
-use antecedent_validate::{compose_with_conflict_policy, ConflictPolicy, PriorPredictiveCheck};
+use antecedent_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
 use crate::error::CausalError;
 use crate::io::decode_causal_posterior_bytes;

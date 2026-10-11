@@ -25,7 +25,7 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::adjustment::{intervention_f64, EffectEstimate};
+use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::util::require_explicit_override;

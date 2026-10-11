@@ -20,8 +20,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_identify::IdentifiedEstimand;
 
 use crate::common::{
-    check_cancelled, complete_case_rows, full_sample_refit_ate, linear_estimator_no_bootstrap,
-    masked_sample_sd, refit_effect, validity_from_flags, RefutationProblem, RefutationReport,
+    RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, masked_sample_sd, refit_effect,
+    validity_from_flags,
 };
 use crate::error::ValidationError;
 

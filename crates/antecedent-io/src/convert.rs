@@ -13,8 +13,9 @@ use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, Midd
 
 use crate::error::IoError;
 use crate::wire::{
-    AdmgWire, CpdagWire, GraphCpdagWire, DagWire, EndpointWire, MarkedEdgeWire, MeasurementSpecWire, PagWire,
-    ScalarTypeWire, SchemaWire, SchemaWireV01, ValueTypeWire, VariableSchemaWire,
+    AdmgWire, CpdagWire, DagWire, EndpointWire, GraphCpdagWire, MarkedEdgeWire,
+    MeasurementSpecWire, PagWire, ScalarTypeWire, SchemaWire, SchemaWireV01, ValueTypeWire,
+    VariableSchemaWire,
 };
 
 /// Largest `node_count` accepted from an untrusted graph document.

@@ -13,8 +13,7 @@ use serde::{Deserialize, Serialize};
 
 const MAX_SOURCE_BYTES: usize = crate::bridge::MAX_DECLARED_ARTIFACT_BYTES;
 /// A candidate artifact carries its source and a spec-sized envelope around it.
-const MAX_ARTIFACT_BYTES: usize =
-    MAX_SOURCE_BYTES + crate::bridge::MAX_SPEC_DECLARATION_BYTES;
+const MAX_ARTIFACT_BYTES: usize = MAX_SOURCE_BYTES + crate::bridge::MAX_SPEC_DECLARATION_BYTES;
 const MAX_HISTORY_REFITS: usize = 50_000_000;
 const FEATURE: &str = "checked_temporal_interval_candidate_v1";
 type Outcome = PyResult<(Option<NativeCheckedTemporalIntervalCandidate>, Option<String>)>;

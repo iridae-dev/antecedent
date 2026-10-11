@@ -280,13 +280,17 @@ mod tests {
 
     #[test]
     fn posterior_over_effect_is_not_an_outcome_law() {
-        assert!(!DistributionMeaning::CausalFunctionalPosterior
-            .answers_interventional_outcome_threshold());
+        assert!(
+            !DistributionMeaning::CausalFunctionalPosterior
+                .answers_interventional_outcome_threshold()
+        );
         assert!(
             !DistributionMeaning::PosteriorPredictive.answers_interventional_outcome_threshold()
         );
-        assert!(DistributionMeaning::InterventionalPredictive
-            .answers_interventional_outcome_threshold());
+        assert!(
+            DistributionMeaning::InterventionalPredictive
+                .answers_interventional_outcome_threshold()
+        );
     }
 
     fn digest_of(quantity: &ScientificQuantity) -> String {

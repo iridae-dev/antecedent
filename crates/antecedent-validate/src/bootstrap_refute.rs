@@ -52,9 +52,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    check_cancelled, complete_case_rows, forced_refit_estimator, full_sample_refit_ate,
-    linear_estimator_no_bootstrap, refit_effect, with_resampled_rows, RefutationProblem,
-    RefutationReport,
+    RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
+    forced_refit_estimator, full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect,
+    with_resampled_rows,
 };
 use crate::error::ValidationError;
 

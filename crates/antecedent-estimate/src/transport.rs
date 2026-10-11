@@ -644,21 +644,13 @@ fn diagnostic(probabilities: &[f64], weights: &[f64]) -> TransportOverlapDiagnos
 fn kish_effective_sample_size(weights: &[f64]) -> f64 {
     let sum: f64 = weights.iter().sum();
     let sum_sq: f64 = weights.iter().map(|weight| weight * weight).sum();
-    if sum_sq > 0.0 {
-        sum * sum / sum_sq
-    } else {
-        0.0
-    }
+    if sum_sq > 0.0 { sum * sum / sum_sq } else { 0.0 }
 }
 
 fn signed_weight_effective_sample_size(weights: &[f64]) -> f64 {
     let absolute_sum: f64 = weights.iter().map(|weight| weight.abs()).sum();
     let sum_sq: f64 = weights.iter().map(|weight| weight * weight).sum();
-    if sum_sq > 0.0 {
-        absolute_sum * absolute_sum / sum_sq
-    } else {
-        0.0
-    }
+    if sum_sq > 0.0 { absolute_sum * absolute_sum / sum_sq } else { 0.0 }
 }
 
 /// Evaluate a checked, catalog-bound transport functional against supplied exact laws.
@@ -1082,8 +1074,9 @@ mod tests {
     };
     use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
     use antecedent_identify::{
-        bind_z_transport_catalog, identify_z_transport, NotCertifiedCertificate, PopulationFactor,
-        SidLimits, TransportCertificate, TransportFormula, ZTransportQuery, ZTransportResult,
+        NotCertifiedCertificate, PopulationFactor, SidLimits, TransportCertificate,
+        TransportFormula, ZTransportQuery, ZTransportResult, bind_z_transport_catalog,
+        identify_z_transport,
     };
 
     use super::*;
@@ -1337,10 +1330,10 @@ mod tests {
         let se = trial_to_target_ipw_se(&outcome, &treatment, &trial, &[0.5; 4], &[0.5; 4], 2.0)
             .unwrap();
         assert!((se - 48.0_f64.sqrt() / 2.0).abs() < 1e-12, "se={se}");
-        assert!(trial_to_target_ipw_se(
-            &outcome, &treatment, &[true; 4], &[0.5; 4], &[0.5; 4], 2.0
-        )
-        .is_err());
+        assert!(
+            trial_to_target_ipw_se(&outcome, &treatment, &[true; 4], &[0.5; 4], &[0.5; 4], 2.0)
+                .is_err()
+        );
     }
 
     #[test]
@@ -1372,17 +1365,19 @@ mod tests {
         assert!((mean - 2.0).abs() < 0.08, "mean={mean}");
         assert!((variance - 4.0 / 3.0).abs() < 0.08, "variance={variance}");
         assert!(draws.iter().all(|&x| (0.0..=4.0).contains(&x)));
-        assert!(trial_to_target_bayesian_bootstrap(
-            &certified_identification(),
-            &outcome,
-            &[true; 4],
-            &source,
-            &[0.5; 4],
-            &[0.5; 4],
-            100,
-            41,
-        )
-        .is_err());
+        assert!(
+            trial_to_target_bayesian_bootstrap(
+                &certified_identification(),
+                &outcome,
+                &[true; 4],
+                &source,
+                &[0.5; 4],
+                &[0.5; 4],
+                100,
+                41,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1486,9 +1481,9 @@ mod tests {
             None,
         )
         .unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("test-fixture refusal explaining why identification failed"));
+        assert!(
+            err.to_string().contains("test-fixture refusal explaining why identification failed")
+        );
     }
 
     fn recursive_factorization_identification() -> TransportIdentification {
@@ -1591,9 +1586,9 @@ mod tests {
             &[1.0; 8],
         )
         .unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("test-fixture refusal explaining why identification failed"));
+        assert!(
+            err.to_string().contains("test-fixture refusal explaining why identification failed")
+        );
     }
 
     #[test]

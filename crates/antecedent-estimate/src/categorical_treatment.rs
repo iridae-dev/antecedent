@@ -50,13 +50,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::reason_code;
 
-use crate::effect_constancy::{holm_adjust, CalibrationStatus};
+use crate::effect_constancy::{CalibrationStatus, holm_adjust};
 use crate::error::EstimationError;
 use crate::util::{count, refuse};
 use crate::vector_treatment::{
-    fit_joint, fit_joint_from_summary, summarize_joint, CoefficientEstimate,
-    Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn, TreatmentColumn,
-    VectorCovariance, VectorTreatmentFit, VectorTreatmentInput, VectorTreatmentOptions,
+    CoefficientEstimate, Contrast, ContrastEstimate, DesignSummary, JointWald, NamedColumn,
+    TreatmentColumn, VectorCovariance, VectorTreatmentFit, VectorTreatmentInput,
+    VectorTreatmentOptions, fit_joint, fit_joint_from_summary, summarize_joint,
 };
 
 /// Null of the non-decreasing monotonicity test.

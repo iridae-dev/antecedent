@@ -22,8 +22,8 @@ use antecedent_data::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
-use serde_json::Value as JsonValue;
 use antecedent_test_support::{conformance_dir, load_expected_json};
+use serde_json::Value as JsonValue;
 
 fn fixture_dir(name: &str) -> PathBuf {
     conformance_dir("estimate").join(name)

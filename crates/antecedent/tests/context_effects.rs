@@ -28,7 +28,7 @@ use antecedent_discovery::{
     TemporalConstraints,
 };
 use antecedent_expr::{CausalExprArena, IdentifiedEstimand};
-use antecedent_test_support::{load_expected_json};
+use antecedent_test_support::load_expected_json;
 
 fn fixture_dir(name: &str) -> PathBuf {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance");

@@ -1,3 +1,5 @@
+# Edition lives here. Format with `cargo fmt` from the repo root.
+# `rustfmt --edition 2021` overrides this file and rewrites imports.
 max_width = 100
 edition = "2024"
 use_small_heuristics = "Max"

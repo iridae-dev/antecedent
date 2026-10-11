@@ -409,11 +409,9 @@ fn mediation_posterior_refuses_a_mapped_prior() {
 
 #[test]
 fn mediation_posterior_consumer_replays_the_design_summary() {
-    use antecedent_estimate::posterior_mean::{
-        PosteriorRequest, mediation_coefficient_posterior,
-    };
-    use antecedent_estimate::vector_treatment::full_coefficient_posterior_mean;
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, mediation_coefficient_posterior};
     use antecedent_estimate::vector_treatment::DesignSummary;
+    use antecedent_estimate::vector_treatment::full_coefficient_posterior_mean;
     let design = DesignSummary {
         n_rows: 4,
         first_treatment: 1,

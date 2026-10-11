@@ -23,7 +23,7 @@ use antecedent_identify::sid::cpdag_completion::{CompletionRecord, CpdagCompleti
 
 use crate::error::EstimationError;
 use crate::transport_scenarios::{
-    prepare_transport_scenarios, PreparedScenarioSet, ScenarioSetReport, StatusMass,
+    PreparedScenarioSet, ScenarioSetReport, StatusMass, prepare_transport_scenarios,
 };
 
 /// One completion in the receipt.

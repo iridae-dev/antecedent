@@ -35,7 +35,7 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
-use antecedent_core::{CanonicalWriter};
+use antecedent_core::CanonicalWriter;
 use antecedent_counterfactual::transported_gate::{PopulationRole, RegimeFactorKey};
 use antecedent_counterfactual::transported_path_specific::{
     AdditiveLinearScm, Affine, CovariateLaw, DeclaredAssumptions, EdgeAssignment, LinearMechanism,
@@ -117,7 +117,6 @@ pub struct TransportedCounterfactualRefusalWire {
 ///
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type RefusalWire = TransportedCounterfactualRefusalWire;
-
 
 /// Why a transported counterfactual artifact was refused or could not be produced.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
@@ -228,7 +227,6 @@ pub struct TransportedCounterfactualMechanismWire {
 ///
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type MechanismWire = TransportedCounterfactualMechanismWire;
-
 
 /// The additive-noise structural model on the wire.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -926,7 +924,8 @@ pub fn encode_parts(
     if artifact_id.trim().is_empty() {
         return Err(TransportedCounterfactualArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(|error| TransportedCounterfactualArtifactError::Encode(error.to_string()))?;
+    let meta_bytes = to_cbor(meta)
+        .map_err(|error| TransportedCounterfactualArtifactError::Encode(error.to_string()))?;
     crate::encode_container(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
@@ -935,9 +934,11 @@ pub fn encode_parts(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[
-            crate::OutSection { id: META_SECTION, content_type: crate::CONTENT_CBOR, bytes: &meta_bytes },
-        ],
+        &[crate::OutSection {
+            id: META_SECTION,
+            content_type: crate::CONTENT_CBOR,
+            bytes: &meta_bytes,
+        }],
     )
     .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))
 }
@@ -953,10 +954,17 @@ pub fn encode_parts(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
-    let parts = crate::decode_container(ARTIFACT_KIND, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES, &[META_SECTION], bytes)
-        .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))?;
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
+        &[META_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))?;
     let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
-        return Err(TransportedCounterfactualArtifactError::Malformed("unsupported container layout".into()));
+        return Err(TransportedCounterfactualArtifactError::Malformed(
+            "unsupported container layout".into(),
+        ));
     };
     crate::decode_with_version(&meta_bytes, |version| {
         if version == TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION {

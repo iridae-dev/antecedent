@@ -35,8 +35,8 @@ use antecedent_identify::{
     MissingEvidenceCertificate, NotCertifiedCertificate, PopulationFactor, TransportCertificate,
     TransportFormula, TransportIdentification,
 };
-use std::sync::Arc;
 use antecedent_test_support::dot;
+use std::sync::Arc;
 
 const DRAWS: usize = 40_000;
 const FEATURE: u32 = 7;

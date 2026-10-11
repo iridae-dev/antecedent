@@ -34,6 +34,7 @@ use antecedent_core::{
 };
 use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
+use antecedent_test_support::sigmoid;
 use common::calibration::{
     CoverageTally, GRID_POINTS, RecordKey, gaussian, grid_n, map_replicates, n_sim, stream_seed,
     unit_uniform,
@@ -42,7 +43,6 @@ use common::calibration_bind::bind_all;
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, record_pair, scalar_normal_pair, skip_pair,
 };
-use antecedent_test_support::sigmoid;
 
 // ---------------------------------------------------------------- emission
 

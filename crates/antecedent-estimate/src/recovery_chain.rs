@@ -98,20 +98,12 @@ impl ChainPatternLaw {
 
     /// `P(R1=1, R2=1, X*_h = vh, X*_t = vt)` with axes in head/tail order.
     fn both_ht(&self, head: usize, vh: usize, vt: usize) -> f64 {
-        if head == 0 {
-            self.both[vh][vt]
-        } else {
-            self.both[vt][vh]
-        }
+        if head == 0 { self.both[vh][vt] } else { self.both[vt][vh] }
     }
 
     /// `P(R_h=1, R_t=0, X*_h = vh)`.
     fn head_only(&self, head: usize, vh: usize) -> f64 {
-        if head == 0 {
-            self.only_first[vh]
-        } else {
-            self.only_second[vh]
-        }
+        if head == 0 { self.only_first[vh] } else { self.only_second[vh] }
     }
 }
 

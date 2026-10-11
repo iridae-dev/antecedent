@@ -23,9 +23,9 @@ use antecedent_data::TabularData;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions};
 
 use crate::aipw::predict_colmajor;
-use crate::crossfit_aipw::{thresholds_of, DEFAULT_AIPW_FOLDS};
+use crate::crossfit_aipw::{DEFAULT_AIPW_FOLDS, thresholds_of};
 use crate::crossfit_plan::{
-    rows_colmajor, CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS,
+    CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor,
 };
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;

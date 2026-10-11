@@ -7,12 +7,12 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_stats::{fit_propensity, FaerBackend, GlmOptions};
+use antecedent_stats::{FaerBackend, GlmOptions, fit_propensity};
 
 use super::prepare::{
-    clamp_scores, clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry,
-    restrict_to_rows, trim_of, trim_retained_rows, PreparedPropensityProblem,
-    PropensityEstimationWorkspace, PropensityModel,
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry,
+    restrict_to_rows, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;

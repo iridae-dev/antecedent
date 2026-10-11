@@ -359,23 +359,25 @@ impl super::Study {
             OverlapPolicy::ExplicitOverride,
         );
 
-        let mut diagnostics = vec![Diagnostic::new(
-            "estimate.response.dbn_posterior",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "frozen posterior_probability weights; identified_mass={}, \
+        let mut diagnostics = vec![
+            Diagnostic::new(
+                "estimate.response.dbn_posterior",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "frozen posterior_probability weights; identified_mass={}, \
                      unidentified_mass={}; unevaluable_mass={}; TemporalDag atoms, not \
                      completion enumeration",
-                identified_mass / total_mass,
+                    identified_mass / total_mass,
+                    unidentified_mass / total_mass,
+                    failed_mass / total_mass
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(identified_mass / total_mass),
                 unidentified_mass / total_mass,
-                failed_mass / total_mass
-            ),
-        )
-        .with_fields(super::mass_fields(
-            Some(identified_mass / total_mass),
-            unidentified_mass / total_mass,
-        ))];
+            )),
+        ];
         let aligned_all = identified
             .atoms
             .iter()

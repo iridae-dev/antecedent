@@ -55,18 +55,18 @@ use std::sync::Arc;
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_learn::{
-    resolve_for, ForestSpec, GbtSpec, LearnerFactory, LearnerProvenance, LearnerSpec,
-    PredictionTask, RowSelection, TargetView,
+    ForestSpec, GbtSpec, LearnerFactory, LearnerProvenance, LearnerSpec, PredictionTask,
+    RowSelection, TargetView, resolve_for,
 };
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::aipw::predict_colmajor;
 use crate::cell_aipw::{cell_minus_control_coefficients, interaction_coefficients};
+use crate::crossfit_plan::{CrossfitPlan, FoldSource, SHARED_FOLD_ID_ERRORS, rows_colmajor};
 use crate::error::EstimationError;
-use crate::crossfit_plan::{rows_colmajor, CrossfitPlan, FoldSource, SHARED_FOLD_ID_ERRORS};
 use crate::learn_nuisance::design_for_spec;
 use crate::propensity::{
-    fit_ridge_fold, PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning,
+    PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning, fit_ridge_fold,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::util::refuse;
@@ -1325,7 +1325,7 @@ mod tests {
 
     #[test]
     fn attempt_observer_records_actual_cached_conditional_failure_without_refitting() {
-        use antecedent_core::execution_attempt::{observe_execution, Operation};
+        use antecedent_core::execution_attempt::{Operation, observe_execution};
         use antecedent_stats::fit_counts::count_least_squares_solves;
         let input = fixture(80, 17);
         let problem =

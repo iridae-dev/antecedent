@@ -62,9 +62,11 @@ fn read_fixture(name: &str) -> Vec<u8> {
     read_fixture_bytes(
         &fixture_dir(),
         name,
-        &format!("run `{PY_COMMAND}` from the repo root \
+        &format!(
+            "run `{PY_COMMAND}` from the repo root \
             (Rust-built fixtures: ANTECEDENT_WRITE_FIXTURES=1 cargo test -p antecedent-design \
-            --test cross_surface_bundle -- --ignored regenerate_rust_fixtures)"),
+            --test cross_surface_bundle -- --ignored regenerate_rust_fixtures)"
+        ),
     )
 }
 

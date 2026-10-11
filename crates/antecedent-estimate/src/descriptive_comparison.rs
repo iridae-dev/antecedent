@@ -40,8 +40,8 @@
 use antecedent_core::ExecutionContext;
 
 use crate::error::EstimationError;
-use crate::util::refuse;
 use crate::joint_if::JointCovariance;
+use crate::util::refuse;
 
 /// Tolerance for treatment codes and covariance symmetry, matching the propensity
 /// preparer's exact-binary check.

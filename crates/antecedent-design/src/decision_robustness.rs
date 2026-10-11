@@ -26,11 +26,11 @@ use crate::decision_contract::{
     AdmissibilityError, AdmissibleDecisionContract, UncertaintyKind, UncertaintyRequirement,
 };
 use crate::decision_structural::{
-    evaluate_structural, AtomStatus, StructuralAtom, StructuralDecisionResult, StructuralError,
+    AtomStatus, StructuralAtom, StructuralDecisionResult, StructuralError, evaluate_structural,
 };
 use crate::structure_aggregator::{
-    AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
-    NO_STRUCTURE_EVALUATED,
+    AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, NO_STRUCTURE_EVALUATED,
+    StructureAggregator,
 };
 
 /// Support status of one input of one action under one structure.

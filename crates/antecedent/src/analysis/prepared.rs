@@ -16,8 +16,8 @@ use antecedent_core::{
 };
 use antecedent_data::{PanelData, TableView, TabularData, TemporalIndexer, TimeSeriesData};
 use antecedent_estimate::{
-    crossfit_binary_scores, exceedance_cdf_values, AipwAte, CellSaturatedAipw, EffectEstimate,
-    EstimationWorkspace, OverlapPolicy, RetargetResult, ScoreTable,
+    AipwAte, CellSaturatedAipw, EffectEstimate, EstimationWorkspace, OverlapPolicy, RetargetResult,
+    ScoreTable, crossfit_binary_scores, exceedance_cdf_values,
 };
 
 use crate::accepted::GraphClass;
@@ -25,7 +25,7 @@ use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::result::StudyResult;
-use crate::strategy_table::{EstimatorId, IdentifierId, DEFAULT_ESTIMATOR};
+use crate::strategy_table::{DEFAULT_ESTIMATOR, EstimatorId, IdentifierId};
 
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_graph::{Pag, TemporalDag};
@@ -41,14 +41,14 @@ use super::checked_propensity::{
 };
 use super::execute::{CheckedStaticCommon, Study};
 use super::helpers::{
-    assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
-    run_plugin_level_refuters, run_refuters, AssembleArgs,
+    AssembleArgs, assemble_result, overlap_diagnostic, project_for_ate_estimate, provenance_pair,
+    run_plugin_level_refuters, run_refuters,
 };
 use super::route_guards::{
-    complete_mean_response, inference_label, mean_all_observed, plan_record_is, series_input,
-    PlanRecordMode,
+    PlanRecordMode, complete_mean_response, inference_label, mean_all_observed, plan_record_is,
+    series_input,
 };
-use super::stage::{StageClock, STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE};
+use super::stage::{STAGE_ESTIMATE_POINT, STAGE_IDENTIFY, STAGE_VALIDATE, StageClock};
 use super::{
     CheckedAdmgGraphPosteriorResponse, CheckedBayesianGraphPosteriorAte,
     CheckedClassGraphPosteriorEffect, CheckedGraphPosteriorEffect, CheckedStaticClassEffect,
@@ -2376,17 +2376,17 @@ pub(crate) struct CachedTemporalClassIdentification {
 }
 
 pub(crate) use crate::analysis::identification_cache::{
+    CachedClassPosteriorAtomIdentification, CachedDbnPosteriorAtomIdentification,
+    CachedDbnPosteriorIdentification, CachedGraphPosteriorIdentification,
+    CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
     build_admg_graph_posterior_response_identification_cache,
     build_dbn_posterior_identification_cache, build_dbn_posterior_mediation_identification_cache,
     build_dbn_posterior_response_identification_cache, build_graph_posterior_identification_cache,
     build_temporal_class_posterior_identification_cache, temporal_dag_from_dbn_atom,
-    CachedClassPosteriorAtomIdentification, CachedDbnPosteriorAtomIdentification,
-    CachedDbnPosteriorIdentification, CachedGraphPosteriorIdentification,
-    CachedTemporalClassPosteriorAtomIdentification, CachedTemporalClassPosteriorIdentification,
 };
 #[cfg(test)]
 pub(crate) use crate::analysis::identification_cache::{
-    build_dbn_mediation_cache_with_identifier, CachedClassPosteriorCase,
+    CachedClassPosteriorCase, build_dbn_mediation_cache_with_identifier,
 };
 
 /// Prepare-time identification products for one temporal horizon.
@@ -2729,299 +2729,155 @@ impl PreparedExecution {
         self.linear_operation().map(|operation| &operation.preparation)
     }
     pub(crate) fn linear_operation(&self) -> Option<&CheckedLinearOperation> {
-        if let Self::CheckedLinear(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedLinear(value) = self { Some(value) } else { None }
     }
     pub(crate) fn checked_aipw(&self) -> Option<&antecedent_estimate::CheckedAipwPreparation> {
         self.aipw_operation().map(|operation| &operation.preparation)
     }
     pub(crate) fn aipw_operation(&self) -> Option<&CheckedAipwOperation> {
-        if let Self::CheckedAipw(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedAipw(value) = self { Some(value) } else { None }
     }
     pub(crate) fn nested_counterfactual(
         &self,
     ) -> Option<&crate::gcm::NestedCounterfactualOperation> {
-        if let Self::NestedCounterfactual(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::NestedCounterfactual(value) = self { Some(value) } else { None }
     }
     pub(crate) fn distribution(&self) -> Option<&CheckedDistributionOperation> {
-        if let Self::Distribution(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Distribution(value) = self { Some(value) } else { None }
     }
     pub(crate) fn functional_effect_operation(&self) -> Option<&CheckedFunctionalEffectOperation> {
-        if let Self::FunctionalEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::FunctionalEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn path_specific_effect_operation(
         &self,
     ) -> Option<&CheckedPathSpecificEffectOperation> {
-        if let Self::PathSpecificEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::PathSpecificEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn admg_response_curve(&self) -> Option<&CheckedAdmgResponseCurveOperation> {
-        if let Self::AdmgResponseCurve(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::AdmgResponseCurve(value) = self { Some(value) } else { None }
     }
     pub(crate) fn admg_graph_posterior_response(
         &self,
     ) -> Option<&CheckedAdmgGraphPosteriorResponse> {
-        if let Self::AdmgGraphPosteriorResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::AdmgGraphPosteriorResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn static_class_response(
         &self,
     ) -> Option<&super::execute::CheckedStaticClassResponse> {
-        if let Self::StaticClassResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticClassResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn graph_posterior_response(
         &self,
     ) -> Option<&super::execute::CheckedGraphPosteriorResponse> {
-        if let Self::GraphPosteriorResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::GraphPosteriorResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_gcomp(&self) -> Option<&CheckedBayesianGcompOperation> {
-        if let Self::BayesianGcomp(value) = self {
-            Some(value.operation())
-        } else {
-            None
-        }
+        if let Self::BayesianGcomp(value) = self { Some(value.operation()) } else { None }
     }
     pub(crate) fn bayesian_conditional(
         &self,
     ) -> Option<&super::execute::CheckedBayesianConditionalOperation> {
-        if let Self::BayesianConditional(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianConditional(value) = self { Some(value) } else { None }
     }
     pub(crate) fn response_curve(&self) -> Option<&CheckedStaticResponseCurve> {
-        if let Self::StaticResponseCurve(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticResponseCurve(value) = self { Some(value) } else { None }
     }
     pub(crate) fn static_dag_response(
         &self,
     ) -> Option<&super::execute::CheckedStaticDagResponseOperation> {
-        if let Self::StaticDagResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticDagResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn static_mediation(
         &self,
     ) -> Option<&super::execute::CheckedStaticMediationOperation> {
-        if let Self::StaticMediation(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_static_mediation(
         &self,
     ) -> Option<&super::execute::CheckedBayesianStaticMediationOperation> {
-        if let Self::BayesianStaticMediation(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianStaticMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn attribution(&self) -> Option<&super::execute::CheckedAttributionOperation> {
-        if let Self::Attribution(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Attribution(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_dag_response(
         &self,
     ) -> Option<&super::execute::CheckedTemporalResponseExecution> {
-        if let Self::TemporalDagResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalDagResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_class_response(
         &self,
     ) -> Option<&super::CheckedTemporalClassResponseOperation> {
-        if let Self::TemporalClassResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalClassResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_graph_posterior_response(
         &self,
     ) -> Option<&super::CheckedTemporalGraphPosteriorResponse> {
-        if let Self::TemporalGraphPosteriorResponse(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalGraphPosteriorResponse(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_dag_effect(
         &self,
     ) -> Option<&super::execute::CheckedTemporalEffectExecution> {
-        if let Self::TemporalDagEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalDagEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_temporal_dag_effect(
         &self,
     ) -> Option<&super::CheckedBayesianTemporalEffectOperation> {
-        if let Self::BayesianTemporalDagEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianTemporalDagEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_mediation(
         &self,
     ) -> Option<&super::execute::CheckedTemporalMediationOperation> {
-        if let Self::TemporalMediation(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_class_mediation(
         &self,
     ) -> Option<&super::execute::CheckedTemporalClassMediationOperation> {
-        if let Self::TemporalClassMediation(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalClassMediation(value) = self { Some(value) } else { None }
     }
     pub(crate) fn interference(&self) -> Option<&super::execute::CheckedInterferenceOperation> {
-        if let Self::Interference(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Interference(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_class_effect(
         &self,
     ) -> Option<&super::execute::CheckedTemporalClassEffectExecution> {
-        if let Self::TemporalClassEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalClassEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn propensity(&self) -> Option<&CheckedPropensityOperation> {
-        if let Self::CheckedPropensity(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedPropensity(value) = self { Some(value) } else { None }
     }
     pub(crate) fn conditional(&self) -> Option<&CheckedConditionalOperation> {
-        if let Self::CheckedConditional(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::CheckedConditional(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_class_conditional(
         &self,
     ) -> Option<&super::CheckedBayesianClassConditional> {
-        if let Self::BayesianClassConditional(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianClassConditional(value) = self { Some(value) } else { None }
     }
     pub(crate) fn static_class_effect(&self) -> Option<&CheckedStaticClassEffect> {
-        if let Self::StaticClassEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::StaticClassEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn graph_posterior_effect(&self) -> Option<&CheckedGraphPosteriorEffect> {
-        if let Self::GraphPosteriorEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::GraphPosteriorEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn class_graph_posterior_effect(&self) -> Option<&CheckedClassGraphPosteriorEffect> {
-        if let Self::ClassGraphPosteriorEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::ClassGraphPosteriorEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn frontdoor_linear(&self) -> Option<&CheckedFrontDoorOperation> {
-        if let Self::FrontDoorLinear(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::FrontDoorLinear(value) = self { Some(value) } else { None }
     }
     pub(crate) fn iv(&self) -> Option<&CheckedIvOperation> {
-        if let Self::Iv(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::Iv(value) = self { Some(value) } else { None }
     }
     pub(crate) fn bayesian_temporal_class_effect(
         &self,
     ) -> Option<&super::CheckedBayesianTemporalClassEffectOperation> {
-        if let Self::BayesianTemporalClassEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::BayesianTemporalClassEffect(value) = self { Some(value) } else { None }
     }
     pub(crate) fn temporal_graph_posterior_effect(
         &self,
     ) -> Option<&super::CheckedTemporalGraphPosteriorEffect> {
-        if let Self::TemporalGraphPosteriorEffect(value) = self {
-            Some(value)
-        } else {
-            None
-        }
+        if let Self::TemporalGraphPosteriorEffect(value) = self { Some(value) } else { None }
     }
 }
 
@@ -3088,8 +2944,7 @@ impl PreparedStudy {
             ),
             _ => {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "retained Bayesian inference rebind requires its checked Gaussian operation",
+                    message: "retained Bayesian inference rebind requires its checked Gaussian operation",
                 });
             }
         };
@@ -9817,8 +9672,8 @@ impl Study {
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedStaticIdentification>, CausalError> {
         use crate::strategy_table::{
-            identify_static, identify_static_query, identify_static_query_with_rd, select_claim,
-            select_estimand, EstimatorId, IdentifierId, DEFAULT_IDENTIFIER,
+            DEFAULT_IDENTIFIER, EstimatorId, IdentifierId, identify_static, identify_static_query,
+            identify_static_query_with_rd, select_claim, select_estimand,
         };
         if let CausalQuery::RandomizedEffect(query) = &self.query {
             let (identification, estimand) = super::execute::randomized_identification(query);
@@ -10141,7 +9996,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedPagIdentification>, CausalError> {
-        use crate::strategy_table::{identify_pag, IdentifierId, DEFAULT_PAG_IDENTIFIER};
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_pag};
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -10170,7 +10025,7 @@ impl Study {
         &self,
         plan: &PhysicalExecutionPlan,
     ) -> Result<Option<CachedCpdagIdentification>, CausalError> {
-        use crate::strategy_table::{identify_cpdag, IdentifierId, DEFAULT_PAG_IDENTIFIER};
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId, identify_cpdag};
 
         let Some(query) = self.envelope_witness_ate()? else {
             return Ok(None);
@@ -10211,7 +10066,7 @@ impl Study {
     fn prepare_temporal_identification(
         &self,
     ) -> Result<Option<CachedTemporalIdentification>, CausalError> {
-        use crate::strategy_table::{select_estimand, EstimatorId};
+        use crate::strategy_table::{EstimatorId, select_estimand};
         if self.graph.class() != GraphClass::TemporalDag {
             return Ok(None);
         }
@@ -10264,7 +10119,7 @@ impl Study {
     fn prepare_temporal_class_identification(
         &self,
     ) -> Result<Option<CachedTemporalClassIdentification>, CausalError> {
-        use crate::strategy_table::{IdentifierId, DEFAULT_PAG_IDENTIFIER};
+        use crate::strategy_table::{DEFAULT_PAG_IDENTIFIER, IdentifierId};
 
         if !matches!(self.graph.class(), GraphClass::TemporalCpdag | GraphClass::TemporalPag) {
             return Ok(None);
@@ -11007,8 +10862,7 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 || analysis.structure_source != crate::support::StructureSource::RandomizedTrial
             {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "continuous-dose response requires a graphless fixed baseline-group design",
+                    message: "continuous-dose response requires a graphless fixed baseline-group design",
                 });
             }
         }
@@ -11068,8 +10922,7 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 GraphClass::Dag | GraphClass::Cpdag | GraphClass::Pag
             ) {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
+                    message: "PreparedStudy supports ConditionalEffect on a supplied Dag, Cpdag, or Pag",
                 });
             }
         }
@@ -11228,10 +11081,10 @@ mod checked_static_operation_tests {
     use antecedent_stats::GlmFamily;
 
     use super::PreparedExecution;
+    use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::EstimatorId;
-    use crate::Study;
 
     fn data() -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -11628,7 +11481,7 @@ mod checked_iv_prepared_tests {
     use antecedent_graph::Dag;
 
     use crate::estimator_spec::EstimatorSpec;
-    use crate::{analysis::builder::RefuteSuite, strategy_table::IdentifierId, Study};
+    use crate::{Study, analysis::builder::RefuteSuite, strategy_table::IdentifierId};
 
     use super::{CheckedIvOperation, PreparedExecution};
 
@@ -11959,7 +11812,7 @@ mod refresh_tests {
         Float64Column, OwnedColumn, OwnedColumnarStorage, SamplingRegularity, TableView, TimeIndex,
         TimeSeriesData, ValidityBitmap,
     };
-    use antecedent_graph::{ensure_lagged, TemporalDag};
+    use antecedent_graph::{TemporalDag, ensure_lagged};
 
     use super::super::builder::{DataInput, RefuteSuite};
     use crate::analysis::execute::Study;
@@ -12079,11 +11932,11 @@ mod prepared_frontdoor_tests {
     use antecedent_estimate::{AnalyticSeKind, FrontDoorTwoStage};
     use antecedent_graph::Dag;
 
+    use crate::Study;
     use crate::analysis::builder::RefuteSuite;
     use crate::analysis::prepared::PreparedExecution;
     use crate::estimator_spec::EstimatorSpec;
     use crate::strategy_table::{EstimatorId, IdentifierId};
-    use crate::Study;
 
     fn data(outcome_shift: f64) -> TabularData {
         let mut builder = CausalSchemaBuilder::new();
@@ -12231,9 +12084,11 @@ mod prepared_frontdoor_tests {
         let result = prepared.estimate(&data, &context).unwrap();
         let bytes =
             prepared.encode_contracted_result(&result, "default-frontdoor", &context).unwrap();
-        assert!(antecedent_io::consume_analysis_result(&bytes)
-            .unwrap()
-            .acceptance
-            .accepts_as_verified_program());
+        assert!(
+            antecedent_io::consume_analysis_result(&bytes)
+                .unwrap()
+                .acceptance
+                .accepts_as_verified_program()
+        );
     }
 }

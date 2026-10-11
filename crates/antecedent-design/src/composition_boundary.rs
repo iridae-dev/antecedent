@@ -30,18 +30,18 @@ use antecedent_core::{
     CanonicalWriter, ExternalCapability, ExternalRefusal, ExternalTrustState, ProviderTrust,
     ScientificQuantity, SupportStatus,
 };
+use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
 };
-use antecedent_io::IoError;
 
 use crate::decision_contract::{
     DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,
     SourceRepresentation,
 };
 use crate::decision_eval::{
-    evaluate_contract, evaluate_contract_on_means, evaluate_functional, ActionOutcome,
-    DecisionEvalError, DecisionResult, FunctionalValue, MeanSource, Verdict,
+    ActionOutcome, DecisionEvalError, DecisionResult, FunctionalValue, MeanSource, Verdict,
+    evaluate_contract, evaluate_contract_on_means, evaluate_functional,
 };
 use crate::decision_structural::StructuralAtom;
 
@@ -1451,11 +1451,7 @@ fn validate_route(
         }
         RouteKind::JointLaw => input.provenance.capabilities.contains(&ExternalCapability::Sample),
     };
-    if aligned && capable && !route.id.trim().is_empty() {
-        Ok(())
-    } else {
-        Err(unlicensed())
-    }
+    if aligned && capable && !route.id.trim().is_empty() { Ok(()) } else { Err(unlicensed()) }
 }
 
 fn find_relation<'a>(

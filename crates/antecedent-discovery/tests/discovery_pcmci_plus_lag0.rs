@@ -23,8 +23,8 @@ use antecedent_data::{
 use antecedent_discovery::{
     DiscoveryConstraints, DiscoveryWorkspace, PcmciPlus, TemporalConstraints,
 };
-use serde_json::Value as JsonValue;
 use antecedent_test_support::{conformance_dir, load_expected_json};
+use serde_json::Value as JsonValue;
 
 fn fixture_dir() -> PathBuf {
     conformance_dir("discovery/pcmci_plus_lag0")

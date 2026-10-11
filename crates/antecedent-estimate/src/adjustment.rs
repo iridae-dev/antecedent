@@ -23,9 +23,9 @@ use antecedent_expr::{
 };
 use antecedent_identify::{IdentificationResult, IdentificationStatus};
 use antecedent_stats::{
-    fit_huber_m, fit_lasso_with_ones_column, fit_ridge, predict_lasso, ridge_gram_inverse,
     CompiledDesign, DenseLinearAlgebra, FaerBackend, FirstStageDiagnostics, LassoOptions,
-    LeastSquaresWorkspace, MEstimateOptions,
+    LeastSquaresWorkspace, MEstimateOptions, fit_huber_m, fit_lasso_with_ones_column, fit_ridge,
+    predict_lasso, ridge_gram_inverse,
 };
 
 use crate::error::EstimationError;
@@ -33,7 +33,7 @@ use crate::overlap::{OverlapPolicy, OverlapReport};
 use crate::prepare::{
     require_adjustment_shaped, treatment_contrast, validate_ate_query_with_targets,
 };
-use crate::se::{residual_sandwich_coef_se, score_sandwich_coef_se, AnalyticSeKind};
+use crate::se::{AnalyticSeKind, residual_sandwich_coef_se, score_sandwich_coef_se};
 
 /// Prepared estimation problem (compiled design retained).
 #[derive(Clone, Debug)]
@@ -1529,11 +1529,7 @@ enum FitVariance {
 
 /// Refuse an iterative fit that stopped at its iteration cap.
 fn require_converged(converged: bool, refusal: &'static str) -> Result<(), EstimationError> {
-    if converged {
-        Ok(())
-    } else {
-        Err(EstimationError::unsupported(refusal))
-    }
+    if converged { Ok(()) } else { Err(EstimationError::unsupported(refusal)) }
 }
 
 const LASSO_UNCONVERGED: &str =

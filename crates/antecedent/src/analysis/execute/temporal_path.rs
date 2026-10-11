@@ -728,11 +728,17 @@ impl super::Study {
             };
             let mut assumptions = identification.required_assumptions.clone();
             assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"), description: Arc::from(SUSTAINED_LINEAR_SEM),
-                }),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault { algorithm: Arc::from("temporal.sequential.gcomp") },
-                scope: antecedent_core::AssumptionScope::Estimation, status: antecedent_core::AssumptionStatus::Declared,
+                assumption: antecedent_core::Assumption::ParametricRestriction(
+                    antecedent_core::ParametricAssumption {
+                        id: Arc::from("temporal.sequential.linear_sem"),
+                        description: Arc::from(SUSTAINED_LINEAR_SEM),
+                    },
+                ),
+                source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("temporal.sequential.gcomp"),
+                },
+                scope: antecedent_core::AssumptionScope::Estimation,
+                status: antecedent_core::AssumptionStatus::Declared,
             });
             let mut mechanisms = Vec::new();
             let (estimate, mut posterior) =
@@ -6337,12 +6343,13 @@ fn held_mediator_mean(
             treatment,
             antecedent_core::Value::f64(level),
         )]);
-    let distribution =
-        arena.intern_distribution(variables, conditioned_on, intervention, DomainRef::Interventional);
-    arena.intern(ExprNode::Expectation {
-        function: OutcomeExprId::identity(outcome),
-        distribution,
-    })
+    let distribution = arena.intern_distribution(
+        variables,
+        conditioned_on,
+        intervention,
+        DomainRef::Interventional,
+    );
+    arena.intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution })
 }
 
 /// Product of the treatment-to-mediator edge over the level gap and the
@@ -6403,12 +6410,13 @@ fn held_treatment_mean(
             antecedent_core::Value::f64(mediator_level),
         ),
     ]);
-    let distribution =
-        arena.intern_distribution(variables, conditioned_on, intervention, DomainRef::Interventional);
-    arena.intern(ExprNode::Expectation {
-        function: OutcomeExprId::identity(outcome),
-        distribution,
-    })
+    let distribution = arena.intern_distribution(
+        variables,
+        conditioned_on,
+        intervention,
+        DomainRef::Interventional,
+    );
+    arena.intern(ExprNode::Expectation { function: OutcomeExprId::identity(outcome), distribution })
 }
 
 fn hard_level(intervention: &Intervention) -> Result<f64, CausalError> {
@@ -6567,12 +6575,8 @@ pub(super) fn temporal_linear_derivative_response(
             });
         }
     };
-    let support = derivative_support_report(
-        data,
-        &support_treatments,
-        &support_at,
-        average_over_observed,
-    );
+    let support =
+        derivative_support_report(data, &support_treatments, &support_at, average_over_observed);
     Ok(CausalResponse {
         estimand: query.functional.clone(),
         identification_status: identification.status,
@@ -6633,7 +6637,8 @@ fn derivative_support_report(
         };
     }
     let inside = treatments.iter().zip(requested).all(|(variable, point)| {
-        range(*variable).is_some_and(|(min, max)| point.is_finite() && *point >= min && *point <= max)
+        range(*variable)
+            .is_some_and(|(min, max)| point.is_finite() && *point >= min && *point <= max)
     });
     let status = if inside && treatments.len() == requested.len() && !requested.is_empty() {
         SupportStatus::Supported

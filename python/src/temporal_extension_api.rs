@@ -5,6 +5,7 @@
 //! Python builds the declarations; every identity, check and refusal rule is Rust's.
 //! A refusal comes back as structured JSON for the Python layer to raise as its own
 //! exception type.
+use crate::bridge::RefusalJson;
 use antecedent::{IntervalEstimand, TemporalInitialState, TemporalWindow};
 use antecedent_core::reason_code;
 use antecedent_estimate::temporal_dependent_interval::{
@@ -19,7 +20,6 @@ use antecedent_io::temporal_initial_state_artifact::{
     TemporalInitialStateConsumeLimits, TemporalPremisesWire,
 };
 use antecedent_io::temporal_refresh_artifact::{ReceiptWire, WindowIdentityWire};
-use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::BTreeSet;

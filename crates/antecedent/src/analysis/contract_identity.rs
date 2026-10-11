@@ -6,7 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-
 use antecedent_core::{
     CanonicalWriter, CausalQuery, ObservationAssumption, ObservationSpec, VariableId, to_hex,
 };
@@ -533,10 +532,8 @@ mod tests {
     fn the_population_registry_digest_is_a_pinned_golden_vector() {
         let mut registry = antecedent_core::PopulationRegistry::new();
         registry.insert_predicate("treated_rows", vec![0_usize, 2, 3]);
-        registry.insert_distribution(
-            antecedent_core::DistributionRef::from_raw(7),
-            vec![0.25, 0.75],
-        );
+        registry
+            .insert_distribution(antecedent_core::DistributionRef::from_raw(7), vec![0.25, 0.75]);
         let wire = population_registry(&registry);
         assert_eq!(wire.len, 2);
         assert_eq!(

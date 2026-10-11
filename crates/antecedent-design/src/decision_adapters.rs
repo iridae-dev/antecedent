@@ -25,7 +25,7 @@ use crate::decision_contract::{
     DecisionCriterion, StructuralPolicy, UncertaintyKind, UtilityExpr,
 };
 use crate::decision_robustness::{
-    evaluate_robust, AtomSupport, ClaimProfile, RobustDecisionResult, RobustnessError,
+    AtomSupport, ClaimProfile, RobustDecisionResult, RobustnessError, evaluate_robust,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom, StructuralDecisionResult};
 use crate::structure_aggregator::{AggregateKind, StructureAggregator};

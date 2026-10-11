@@ -183,7 +183,6 @@ pub struct CompletionCpdagWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type CpdagWire = CompletionCpdagWire;
 
-
 impl CompletionCpdagWire {
     /// Encode a static CPDAG over variable ids, independent of node and edge
     /// insertion order.
@@ -553,7 +552,6 @@ pub struct CpdagCompletionArtifactWire {
     /// Separate from the premises so refreshed data replaces only it.
     pub data_digest: String,
 }
-
 
 fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
     let mut laws = data

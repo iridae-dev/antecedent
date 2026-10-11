@@ -377,9 +377,7 @@ mod policy_tests {
         let mut covered = [0_usize; 3];
         for replicate in 0..REPLICATES {
             let dose = (0..N)
-                .map(|i| {
-                    crate::splitmix::keyed_unit(replicate as u64, i as u64)
-                })
+                .map(|i| crate::splitmix::keyed_unit(replicate as u64, i as u64))
                 .collect::<Vec<_>>();
             let outcome = (0..N)
                 .map(|i| {
@@ -451,9 +449,7 @@ mod policy_tests {
         let mut covered = [0_usize; 3];
         for rep in 0..REPLICATES {
             let dose = (0..N)
-                .map(|i| {
-                    crate::splitmix::keyed_unit(rep as u64, i as u64)
-                })
+                .map(|i| crate::splitmix::keyed_unit(rep as u64, i as u64))
                 .collect::<Vec<_>>();
             let outcome = (0..N)
                 .map(|i| {
@@ -490,22 +486,26 @@ mod policy_tests {
         let density = vec![1.0; 40];
         let policy = [("a".to_string(), 0.7)];
         let reference = [("a".to_string(), 0.3)];
-        assert!(fixed_dose_policy_value(
-            &outcome,
-            &dose,
-            &groups,
-            &density,
-            &[],
-            &reference,
-            0.2,
-            2,
-            true
-        )
-        .is_err());
-        assert!(fixed_dose_policy_value(
-            &outcome, &dose, &groups, &density, &policy, &reference, 0.05, 10, true
-        )
-        .is_err());
+        assert!(
+            fixed_dose_policy_value(
+                &outcome,
+                &dose,
+                &groups,
+                &density,
+                &[],
+                &reference,
+                0.2,
+                2,
+                true
+            )
+            .is_err()
+        );
+        assert!(
+            fixed_dose_policy_value(
+                &outcome, &dose, &groups, &density, &policy, &reference, 0.05, 10, true
+            )
+            .is_err()
+        );
         let fit = fixed_dose_policy_value(
             &outcome, &dose, &groups, &density, &policy, &reference, 0.2, 2, true,
         )

@@ -46,7 +46,9 @@ use crate::convert::{
     admg_to_wire, cpdag_to_wire, dag_to_wire, endpoint_to_wire, pag_to_wire, schema_to_wire,
     vars_to_raw,
 };
-use crate::discovery_wire::{DiscoveryTemporalGraphWire, TemporalGraphWire, TemporalNodeKeyWire, temporal_dag_to_wire};
+use crate::discovery_wire::{
+    DiscoveryTemporalGraphWire, TemporalGraphWire, TemporalNodeKeyWire, temporal_dag_to_wire,
+};
 use crate::error::IoError;
 use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
 use crate::query_wire::{

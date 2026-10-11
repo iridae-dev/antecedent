@@ -106,13 +106,13 @@ pub use analysis_wire::{
     refutation_from_wire, refutation_to_wire,
 };
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
-pub use causal_artifact::{
-    CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, StaticResultWire,
-    decode_causal_payload_artifact, encode_causal_payload_artifact,
-};
 pub use artifact_codec::{
     ArtifactCheckError, ArtifactContainer, CONTENT_BYTES, CONTENT_CBOR, CodecError, OutSection,
     decode_container, decode_with_version, encode_container, peek_version,
+};
+pub use causal_artifact::{
+    CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, StaticResultWire,
+    decode_causal_payload_artifact, encode_causal_payload_artifact,
 };
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
@@ -124,12 +124,11 @@ pub use contract_section::{
     AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire,
     AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
     CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire, ClaimDomainsWire,
-    ContractReason,
-    ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire,
-    ObligationSectionWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
-    UncertaintyComponentWire, UncertaintySlotWire, accept_claim, checked_aipw_rows_digest,
-    claim_domains, claim_kind_name, consume_analysis_result, contract_seal,
-    decode_analysis_result_contract, project_claim_host, project_lossy_scalar,
+    ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire, ContractReason,
+    IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire, SlotSectionWire,
+    SupportSlotWire, UncertaintyComponentWire, UncertaintySlotWire, accept_claim,
+    checked_aipw_rows_digest, claim_domains, claim_kind_name, consume_analysis_result,
+    contract_seal, decode_analysis_result_contract, project_claim_host, project_lossy_scalar,
     result_digest, support_empirical, validate_contract_section, validate_mixture_masses,
     verify_contract_against_body, weight_basis_name,
 };
@@ -472,25 +471,28 @@ mod closed_wire_fields {
             "arm": 1,
             "threshold": null,
         }));
-        accept_then_reject_unknown::<crate::plan_wire::LogicalAnalysisPlanWire>(&serde_json::json!({
-            "plan_id": "p",
-            "data_classification": "public",
-            "discovery_algorithm": null,
-            "graph_review_required": false,
-            "identifier": null,
-            "estimator": null,
-            "validation_suite": null,
-            "query_variables": [],
-        }));
+        accept_then_reject_unknown::<crate::plan_wire::LogicalAnalysisPlanWire>(
+            &serde_json::json!({
+                "plan_id": "p",
+                "data_classification": "public",
+                "discovery_algorithm": null,
+                "graph_review_required": false,
+                "identifier": null,
+                "estimator": null,
+                "validation_suite": null,
+                "query_variables": [],
+            }),
+        );
         accept_then_reject_unknown::<crate::trace::DerivationStepWire>(&serde_json::json!({
             "rule": "backdoor",
             "detail": "adjust",
         }));
-        let temporal: crate::prior_bank::TemporalCoordinates = serde_json::from_value(serde_json::json!({
-            "treatment_lags": [1],
-            "horizon": 1,
-        }))
-        .expect("omitted coefficient_names");
+        let temporal: crate::prior_bank::TemporalCoordinates =
+            serde_json::from_value(serde_json::json!({
+                "treatment_lags": [1],
+                "horizon": 1,
+            }))
+            .expect("omitted coefficient_names");
         assert!(temporal.coefficient_names.is_empty());
         accept_then_reject_unknown::<crate::prior_bank::TemporalCoordinates>(&serde_json::json!({
             "treatment_lags": [1],
@@ -515,11 +517,13 @@ mod closed_wire_fields {
             }))
             .expect("omitted scope");
         assert!(diagnostic.scope.is_none());
-        accept_then_reject_unknown::<crate::response_wire::SupportDiagnosticWire>(&serde_json::json!({
-            "id": "overlap",
-            "values": [1.0],
-            "detail": "ok",
-        }));
+        accept_then_reject_unknown::<crate::response_wire::SupportDiagnosticWire>(
+            &serde_json::json!({
+                "id": "overlap",
+                "values": [1.0],
+                "detail": "ok",
+            }),
+        );
     }
 
     #[test]

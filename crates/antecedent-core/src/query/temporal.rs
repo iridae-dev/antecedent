@@ -123,9 +123,11 @@ impl TemporalEffectQuery {
         if self.treatment == self.outcome {
             return Err(QueryError::TreatmentEqualsOutcome { id: self.treatment });
         }
-        if self.effect_modifiers.iter().any(|modifier| {
-            *modifier == self.treatment || *modifier == self.outcome
-        }) {
+        if self
+            .effect_modifiers
+            .iter()
+            .any(|modifier| *modifier == self.treatment || *modifier == self.outcome)
+        {
             return Err(QueryError::InvalidIntervention(
                 "a temporal conditional modifier cannot be the treatment or the outcome".into(),
             ));

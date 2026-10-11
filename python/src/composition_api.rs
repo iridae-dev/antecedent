@@ -22,11 +22,11 @@ use antecedent::analysis::decision_claims::{
     ClaimError, OutcomeBinding, ScenarioClaimBinding, atom_leaders, cpdag_claims, scenario_claims,
 };
 use antecedent_core::{
-    capability_from_name, probe_from_name, verify_external_object, DistributionAvailability,
-    DistributionMeaning, EvidenceKind, EvidenceRegime, ExternalCapability, ExternalRefusal,
-    ExternalScientificObject, ExternalTrustState, LawProviderContract, ProviderObjectIdentity,
-    ProviderTrust, RegimeId, RegimeKind, ScientificQuantity, SupportStatus, VariableId,
-    VerificationProbe,
+    DistributionAvailability, DistributionMeaning, EvidenceKind, EvidenceRegime,
+    ExternalCapability, ExternalRefusal, ExternalScientificObject, ExternalTrustState,
+    LawProviderContract, ProviderObjectIdentity, ProviderTrust, RegimeId, RegimeKind,
+    ScientificQuantity, SupportStatus, VariableId, VerificationProbe, capability_from_name,
+    probe_from_name, verify_external_object,
 };
 use antecedent_design::composition_boundary::{
     ActionDisposition, ActionStatus, AtomCombination, AtomPlan, BoundaryError, CalibrationStatus,
@@ -484,9 +484,11 @@ fn evidence_from_external_claim(
 ) -> Result<DesignTrust, String> {
     let identity = &claim.artifact.metadata().identity;
     match identity.trust {
-        ExternalClaimTrust::ExternallyAttested => Ok(DesignTrust::External(
-            ExternalTrustState::ExternallyAttested { attestor: identity.provider_id.clone() },
-        )),
+        ExternalClaimTrust::ExternallyAttested => {
+            Ok(DesignTrust::External(ExternalTrustState::ExternallyAttested {
+                attestor: identity.provider_id.clone(),
+            }))
+        }
         ExternalClaimTrust::ExactRequestVerified => {
             let probes = identity.verification.as_ref().ok_or_else(|| {
                 invalid_json(
@@ -539,10 +541,7 @@ fn evidence_from_external_claim(
             )
             .map(DistributionMeaning::from)
             .map_err(|error| {
-                invalid_json(
-                    "external_response_binding.malformed_meaning",
-                    Some(error.to_string()),
-                )
+                invalid_json("external_response_binding.malformed_meaning", Some(error.to_string()))
             })?;
             let object = ExternalScientificObject::Law(LawProviderContract {
                 identity: ProviderObjectIdentity {
@@ -558,8 +557,10 @@ fn evidence_from_external_claim(
             });
             let receipt = verify_external_object(&object, &probes)
                 .map_err(|error| external_refusal_json(&error.to_refusal()))?;
-            Ok(PyTrustEvidence::verified(ExternalTrustState::ExactRequestVerified(Box::new(receipt)))
-                .inner)
+            Ok(PyTrustEvidence::verified(ExternalTrustState::ExactRequestVerified(Box::new(
+                receipt,
+            )))
+            .inner)
         }
     }
 }

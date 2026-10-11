@@ -13,15 +13,15 @@
 
 use antecedent_core::{ExecutionContext, KernelPolicy, StreamDomain};
 use antecedent_kernels::{
-    partial_correlation_batch, select_impl, KernelImpl, ParCorrMode, ParCorrQuery,
+    KernelImpl, ParCorrMode, ParCorrQuery, partial_correlation_batch, select_impl,
 };
 
 use super::analytic::{analytic_parcorr_ci, analytic_parcorr_pvalue};
 use super::block_shuffle::{query_stream_salt, residual_null_pvalue};
 use super::residualize::ZDesign;
 use super::types::{
-    permutation_min_p, CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace,
-    ConditionalIndependenceTest, ConfidenceMethod, PreparedCiTest, SignificanceMethod,
+    CiBatchRequest, CiBatchResult, CiQuery, CiResult, CiWorkspace, ConditionalIndependenceTest,
+    ConfidenceMethod, PreparedCiTest, SignificanceMethod, permutation_min_p,
 };
 use crate::error::StatsError;
 

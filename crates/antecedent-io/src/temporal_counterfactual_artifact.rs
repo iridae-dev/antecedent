@@ -74,7 +74,6 @@ pub struct TemporalCounterfactualRefusalWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type RefusalWire = TemporalCounterfactualRefusalWire;
 
-
 /// What a refusal retains about the offending unit or history.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -181,14 +180,16 @@ fn from_core(error: TemporalCounterfactualError) -> TemporalCounterfactualArtifa
     match error {
         TemporalCounterfactualError::Cancelled => TemporalCounterfactualArtifactError::Cancelled,
         TemporalCounterfactualError::Refused(refused) => {
-            TemporalCounterfactualArtifactError::Refused(Box::new(TemporalCounterfactualRefusalWire {
-                code: refused.refusal.code.to_owned(),
-                stage: refused.refusal.stage.to_owned(),
-                detail: refused.refusal.detail.clone(),
-                offending: refused.refusal.offending.clone(),
-                remedy: refused.refusal.remedy.map(str::to_owned),
-                witness: refused.witness.as_ref().map(WitnessWire::from_witness),
-            }))
+            TemporalCounterfactualArtifactError::Refused(Box::new(
+                TemporalCounterfactualRefusalWire {
+                    code: refused.refusal.code.to_owned(),
+                    stage: refused.refusal.stage.to_owned(),
+                    detail: refused.refusal.detail.clone(),
+                    offending: refused.refusal.offending.clone(),
+                    remedy: refused.refusal.remedy.map(str::to_owned),
+                    witness: refused.witness.as_ref().map(WitnessWire::from_witness),
+                },
+            ))
         }
         other => TemporalCounterfactualArtifactError::Malformed(other.to_string()),
     }
@@ -223,7 +224,6 @@ pub struct CounterfactualTemporalGraphWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type TemporalGraphWire = CounterfactualTemporalGraphWire;
 
-
 /// One node's linear additive-noise mechanism on the wire.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -242,7 +242,6 @@ pub struct TemporalCounterfactualMechanismWire {
 ///
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type MechanismWire = TemporalCounterfactualMechanismWire;
-
 
 /// The mechanism fit on the wire.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -703,7 +702,8 @@ pub fn encode_parts(
     if artifact_id.trim().is_empty() {
         return Err(TemporalCounterfactualArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(|error| TemporalCounterfactualArtifactError::Encode(error.to_string()))?;
+    let meta_bytes = to_cbor(meta)
+        .map_err(|error| TemporalCounterfactualArtifactError::Encode(error.to_string()))?;
     crate::encode_container(
         &crate::ArtifactContainer {
             kind: ARTIFACT_KIND,
@@ -713,8 +713,16 @@ pub fn encode_parts(
             library_version: env!("CARGO_PKG_VERSION"),
         },
         &[
-            crate::OutSection { id: META_SECTION, content_type: crate::CONTENT_CBOR, bytes: &meta_bytes },
-            crate::OutSection { id: VALUES_SECTION, content_type: crate::CONTENT_BYTES, bytes: values },
+            crate::OutSection {
+                id: META_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &meta_bytes,
+            },
+            crate::OutSection {
+                id: VALUES_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: values,
+            },
         ],
     )
     .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))
@@ -731,10 +739,17 @@ pub fn encode_parts(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
-    let parts = crate::decode_container(ARTIFACT_KIND, MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES, &[META_SECTION, VALUES_SECTION], bytes)
-        .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))?;
+    let parts = crate::decode_container(
+        ARTIFACT_KIND,
+        MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
+        &[META_SECTION, VALUES_SECTION],
+        bytes,
+    )
+    .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))?;
     let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
-        return Err(TemporalCounterfactualArtifactError::Malformed("unsupported container layout".into()));
+        return Err(TemporalCounterfactualArtifactError::Malformed(
+            "unsupported container layout".into(),
+        ));
     };
     let meta = crate::decode_with_version(&meta_bytes, |version| {
         if version == TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION {

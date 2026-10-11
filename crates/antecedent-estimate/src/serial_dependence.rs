@@ -108,7 +108,7 @@ use std::sync::Arc;
 
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::ar_kernel::{bic_autoregression, dot, kendall_rho, MAX_AR_ORDER, MAX_AR_RHO};
+use crate::ar_kernel::{MAX_AR_ORDER, MAX_AR_RHO, bic_autoregression, dot, kendall_rho};
 use crate::error::EstimationError;
 use crate::util::gram;
 
@@ -458,11 +458,7 @@ pub fn long_run_tempering_factor(
                     .collect();
                 let u = cholesky_solve(l, &g, q);
                 let var: f64 = g.iter().zip(&u).map(|(a, b)| a * b).sum();
-                if var.is_finite() && var > 0.0 {
-                    var.sqrt().min(MAX_KAPPA_LOG_SD)
-                } else {
-                    0.0
-                }
+                if var.is_finite() && var > 0.0 { var.sqrt().min(MAX_KAPPA_LOG_SD) } else { 0.0 }
             }
             _ => 0.0,
         };

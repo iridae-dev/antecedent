@@ -282,9 +282,9 @@ fn identify_with_source(
             let temporal = structure
                 .as_temporal_admg()
                 .expect("class() == TemporalAdmg implies as_temporal_admg() is Some");
-            let admg = temporal.project_preserving_functional().map_err(|error| {
-                CausalError::Compile { message: error.to_string() }
-            })?;
+            let admg = temporal
+                .project_preserving_functional()
+                .map_err(|error| CausalError::Compile { message: error.to_string() })?;
             let CausalQuery::AverageEffect(average_effect) = query else {
                 return Err(CausalError::Unsupported {
                     message: "TemporalAdmg identification supports only CausalQuery::AverageEffect \

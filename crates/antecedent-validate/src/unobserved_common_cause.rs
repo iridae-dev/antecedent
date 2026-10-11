@@ -17,9 +17,9 @@ use antecedent_data::TableView;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    check_cancelled, check_replicate_count, complete_case_rows, fill_gaussian, float64_full,
-    full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect, with_replaced_float,
-    RefutationProblem, RefutationReport,
+    RefutationProblem, RefutationReport, check_cancelled, check_replicate_count,
+    complete_case_rows, fill_gaussian, float64_full, full_sample_refit_ate,
+    linear_estimator_no_bootstrap, refit_effect, with_replaced_float,
 };
 use crate::error::ValidationError;
 use crate::sensitivity::{residual_sd_pair_on_adjustment, temporal_residual_sd_pair};

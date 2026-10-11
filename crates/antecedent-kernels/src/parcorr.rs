@@ -544,11 +544,7 @@ impl ParCorrMode {
 
 impl From<bool> for ParCorrMode {
     fn from(portable: bool) -> Self {
-        if portable {
-            Self::Portable
-        } else {
-            Self::Native
-        }
+        if portable { Self::Portable } else { Self::Native }
     }
 }
 
@@ -588,7 +584,7 @@ mod tests {
     use antecedent_core::{KernelPolicy, ToleranceClass};
 
     use super::*;
-    use crate::dispatch::{partial_correlation, select_impl, KernelImpl};
+    use crate::dispatch::{KernelImpl, partial_correlation, select_impl};
 
     #[test]
     fn pearson_perfect() {

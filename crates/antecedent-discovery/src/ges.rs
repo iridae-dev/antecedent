@@ -28,13 +28,13 @@ use crate::constraints::DiscoveryConstraints;
 use crate::engine::DiscoveryWorkspace;
 use crate::error::DiscoveryError;
 use crate::orientation::{
-    run_static_orientation_to_fixed_point, MeekR1, MeekR2, MeekR3, MeekR4, OrientationRule,
-    OrientationState,
+    MeekR1, MeekR2, MeekR3, MeekR4, OrientationRule, OrientationState,
+    run_static_orientation_to_fixed_point,
 };
-use crate::pc::{collect_float_columns, Pc, StaticCpdagDiscoveryResult};
+use crate::pc::{Pc, StaticCpdagDiscoveryResult, collect_float_columns};
 use crate::result::{
-    discovery_assumptions, DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord,
-    DiscoveryResult, EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink,
+    DiscoveryDiagnostic, DiscoveryIteration, DiscoveryPerformanceRecord, DiscoveryResult,
+    EdgeEvidence, EvidenceSource, GraphEvidence, LaggedLink, ScoredLink, discovery_assumptions,
 };
 
 /// Chickering GES over tabular data → CPDAG.

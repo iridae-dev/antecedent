@@ -55,7 +55,7 @@ use antecedent_core::{
     SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_stats::{
-    gaussian_local_quadratic_influence_with, LocalPolynomialInfluence, LocalQuadraticWorkspace,
+    LocalPolynomialInfluence, LocalQuadraticWorkspace, gaussian_local_quadratic_influence_with,
 };
 
 use crate::error::{EstimationError, RefusalFields};

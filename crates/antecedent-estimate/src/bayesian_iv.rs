@@ -374,8 +374,7 @@ fn first_stage_posterior(
     sd: f64,
     known_variance: Option<f64>,
 ) -> Result<([f64; 2], [[f64; 2]; 2]), EstimationError> {
-    let singular =
-        || EstimationError::stats_msg("Bayesian IV first-stage posterior is singular");
+    let singular = || EstimationError::stats_msg("Bayesian IV first-stage posterior is singular");
     let n = z.len() as f64;
     let sum_z = z.iter().sum::<f64>();
     let mut a = [[n, sum_z], [sum_z, z.iter().map(|v| v * v).sum::<f64>()]];
@@ -428,8 +427,9 @@ mod tests {
     use super::*;
     #[test]
     fn consecutive_seeds_start_independent_standard_normal_streams() {
-        let first: Vec<f64> =
-            (0..4000_u64).map(|seed| crate::util::normal_draws(0.0, 1.0, 1, 42 + seed).unwrap()[0]).collect();
+        let first: Vec<f64> = (0..4000_u64)
+            .map(|seed| crate::util::normal_draws(0.0, 1.0, 1, 42 + seed).unwrap()[0])
+            .collect();
         let mean = first.iter().sum::<f64>() / first.len() as f64;
         let var = first.iter().map(|z| (z - mean).powi(2)).sum::<f64>() / first.len() as f64;
         let lag1 = first.windows(2).map(|w| (w[0] - mean) * (w[1] - mean)).sum::<f64>()

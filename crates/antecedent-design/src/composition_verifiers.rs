@@ -43,7 +43,7 @@
 use std::collections::BTreeMap;
 use std::io::Cursor;
 
-use antecedent_core::{blake3_hex, CanonicalWriter, ExecutionContext, ScientificQuantity};
+use antecedent_core::{CanonicalWriter, ExecutionContext, ScientificQuantity, blake3_hex};
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionMetadata, DistributionTrust, DrawAlignment,
@@ -56,35 +56,35 @@ use antecedent_io::external_claim_artifact::{
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::reader::ArtifactReader;
-use antecedent_io::sensitivity_artifact::{SensitivityArtifact, MAX_SENSITIVITY_ARTIFACT_BYTES};
+use antecedent_io::sensitivity_artifact::{MAX_SENSITIVITY_ARTIFACT_BYTES, SensitivityArtifact};
 use antecedent_io::wire::ArtifactKind;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::composition_bundle::{
-    BundleConsumer, BundleStage, EvidenceRelationship, NodeFailure, NodeKind, NodeVerifier,
-    UpstreamNode, VerifiedNode, FACT_EVIDENCE_DIGEST, FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST,
-    FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY,
+    BundleConsumer, BundleStage, EvidenceRelationship, FACT_EVIDENCE_DIGEST, FACT_LAW,
+    FACT_QUANTITY_DIGEST, FACT_REQUEST, FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT,
+    LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeVerifier, UpstreamNode, VerifiedNode,
 };
 use crate::decision_artifact::{
-    mean_result_to_bytes, mean_source_digest, source_digest, DecisionContractArtifact,
-    DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
+    DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
+    mean_result_to_bytes, mean_source_digest, source_digest,
 };
 use crate::decision_contract::{DecisionContract, SourceRepresentation};
-use crate::decision_eval::{evaluate_contract_on_means, DecisionEvalError, MeanSource};
+use crate::decision_eval::{DecisionEvalError, MeanSource, evaluate_contract_on_means};
 use crate::decision_robust_artifact::{
     AdmissibleContractArtifact, ExternalTrustLimit, RobustResultArtifact,
 };
 use crate::decision_structural_artifact::StructuralResultArtifact;
 use crate::design_ranking_artifact::{
-    consume as consume_ranking, ConsumeExpectation, DesignRankingArtifactError,
-    DESIGN_RANKING_ARTIFACT_KIND, MAX_DESIGN_RANKING_ARTIFACT_BYTES,
+    ConsumeExpectation, DESIGN_RANKING_ARTIFACT_KIND, DesignRankingArtifactError,
+    MAX_DESIGN_RANKING_ARTIFACT_BYTES, consume as consume_ranking,
 };
 use crate::inverse_query_artifact::{
-    InverseQueryArtifact, INVERSE_QUERY_ARTIFACT_FEATURE, MAX_INVERSE_QUERY_ARTIFACT_BYTES,
+    INVERSE_QUERY_ARTIFACT_FEATURE, InverseQueryArtifact, MAX_INVERSE_QUERY_ARTIFACT_BYTES,
 };
 use crate::repair_artifact::{
-    RepairArtifactError, RepairConsumeLimits, RepairReportArtifact, REPAIR_ARTIFACT_KIND,
+    REPAIR_ARTIFACT_KIND, RepairArtifactError, RepairConsumeLimits, RepairReportArtifact,
 };
 use crate::signal::SignalTrustLabel;
 use crate::source_projection_artifact::SourceProjectionArtifact;

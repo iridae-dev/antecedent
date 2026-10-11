@@ -42,27 +42,27 @@ pub(crate) mod weighting;
 
 pub use distance::DistanceMatching;
 pub use matching::{CaliperScale, PropensityMatching};
-pub(crate) use penalized::{
-    fallback_provenance, fit_penalized_fold, fit_ridge_fold, fold_supports, RidgeFoldInput,
-    RidgeFoldSelection,
-};
 pub use penalized::{
-    provenance_marks_penalized, provenance_withholds_interval, NuisanceFallback,
-    PropensityNuisance, PropensityPenalty, RidgeTuning, DEFAULT_LASSO_GRID, DEFAULT_RIDGE_GRID,
-    DEFAULT_RIDGE_INNER_FOLDS,
+    DEFAULT_LASSO_GRID, DEFAULT_RIDGE_GRID, DEFAULT_RIDGE_INNER_FOLDS, NuisanceFallback,
+    PropensityNuisance, PropensityPenalty, RidgeTuning, provenance_marks_penalized,
+    provenance_withholds_interval,
+};
+pub(crate) use penalized::{
+    RidgeFoldInput, RidgeFoldSelection, fallback_provenance, fit_penalized_fold, fit_ridge_fold,
+    fold_supports,
 };
 pub use penalized_report::{
-    crossfit_influence_se, FailedFit, FallbackRecord, FoldSupport, PenalizedReport,
-    PenalizedVarianceReport, ReplicatePenalties, PROPENSITY_FIT_STAGE,
-    REFIT_BOOTSTRAP_UNCERTAINTY_KIND,
+    FailedFit, FallbackRecord, FoldSupport, PROPENSITY_FIT_STAGE, PenalizedReport,
+    PenalizedVarianceReport, REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePenalties,
+    crossfit_influence_se,
+};
+pub use prepare::{
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
+    default_propensity_overlap,
 };
 pub(crate) use prepare::{
     clamp_scores, clip_of, gather, gather_into, prepare_propensity_problem_with_registry,
     require_interior_propensities, split_by_treatment, trim_of, trim_retained_rows,
-};
-pub use prepare::{
-    default_propensity_overlap, PreparedPropensityProblem, PropensityEstimationWorkspace,
-    PropensityModel,
 };
 pub use stratification::PropensityStratification;
 pub use weighting::PropensityWeighting;

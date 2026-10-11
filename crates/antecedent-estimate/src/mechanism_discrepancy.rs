@@ -44,9 +44,9 @@ use antecedent_core::reason_code;
 use antecedent_kernels::erfc;
 use antecedent_stats::chi_square_sf;
 
-use crate::effect_constancy::{holm_adjust, CalibrationStatus};
-use crate::util::dot;
+use crate::effect_constancy::{CalibrationStatus, holm_adjust};
 use crate::error::EstimationError;
+use crate::util::dot;
 use crate::util::{count, refuse};
 use crate::vector_treatment::DesignSummary;
 

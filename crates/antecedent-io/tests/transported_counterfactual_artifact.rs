@@ -14,9 +14,10 @@
 #![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::transported_counterfactual_artifact::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, TransportedCounterfactualMechanismWire, ModelWire,
-    PremisesWire, TransportedCounterfactualRefusalWire, SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
-    TransportedCounterfactualArtifactError, TransportedCounterfactualMeta,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, ModelWire, PremisesWire,
+    SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
+    TransportedCounterfactualArtifactError, TransportedCounterfactualMechanismWire,
+    TransportedCounterfactualMeta, TransportedCounterfactualRefusalWire,
     TransportedCounterfactualRequestWire, decode_parts, encode_parts,
 };
 

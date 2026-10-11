@@ -292,15 +292,17 @@ impl ExternalCallbackRequest {
     /// Full input digest. Validate bounded request before using this method on untrusted inputs.
     #[must_use]
     pub fn digest(&self) -> StageIdentity {
-        let mut parts = vec![format!(
-            "{:?}:{:?}:{:?}:{:?}:{:?}",
-            self.program,
-            self.claim,
-            self.contract,
-            self.descriptor,
-            (self.seed, &self.idempotency_key)
-        )
-        .into_bytes()];
+        let mut parts = vec![
+            format!(
+                "{:?}:{:?}:{:?}:{:?}:{:?}",
+                self.program,
+                self.claim,
+                self.contract,
+                self.descriptor,
+                (self.seed, &self.idempotency_key)
+            )
+            .into_bytes(),
+        ];
         for (name, values) in &self.columns {
             parts.push(name.as_bytes().to_vec());
             let mut hash = antecedent_core::CanonicalWriter::new("antecedent.callback.column.v1");

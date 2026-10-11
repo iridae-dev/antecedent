@@ -252,8 +252,7 @@ mod tests {
         for i in [2, 62, 65, 101] {
             b.insert(id(i));
         }
-        let scanned: Vec<_> =
-            (0..130).map(id).filter(|&node| a.contains(node)).collect();
+        let scanned: Vec<_> = (0..130).map(id).filter(|&node| a.contains(node)).collect();
         assert_eq!(a.iter().collect::<Vec<_>>(), scanned);
         assert_eq!(a.to_dense_ids(), scanned);
         assert!(!a.intersects(&b));

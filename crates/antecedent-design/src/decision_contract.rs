@@ -1054,7 +1054,9 @@ impl AdmissibleDecisionContract {
 
 fn encode_support_rule(rule: &SupportRule) -> [u8; 32] {
     let mut out = CanonicalWriter::new("antecedent.decision_contract.admissibility.support.v1");
-    out.text(&rule.action_id).word(rule.input as u64).word(u64::from(rule.weakest_allowed.severity()));
+    out.text(&rule.action_id)
+        .word(rule.input as u64)
+        .word(u64::from(rule.weakest_allowed.severity()));
     out.finish()
 }
 
@@ -1232,9 +1234,11 @@ mod tests {
         let mut units = contract();
         units.utility_units = " ".into();
         assert!(matches!(units.validate(), Err(E::InvalidDeclaration(_))));
-        assert!(UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1))
-            .evaluate(&[2.0])
-            .is_err());
+        assert!(
+            UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1))
+                .evaluate(&[2.0])
+                .is_err()
+        );
     }
 
     #[test]

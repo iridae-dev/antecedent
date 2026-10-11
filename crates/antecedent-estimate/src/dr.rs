@@ -8,7 +8,7 @@ use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, Targe
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_learn::{LearnerSpec, LinearSpec, LogisticSpec, PredictionTask, RidgeSpec};
-use antecedent_stats::{coefficient_covariance, SandwichKind};
+use antecedent_stats::{SandwichKind, coefficient_covariance};
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -19,8 +19,8 @@ use crate::learn_nuisance::{
 use crate::overlap::OverlapPolicy;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
-    trim_retained_rows, PreparedPropensityProblem,
+    PreparedPropensityProblem, clip_of, default_propensity_overlap,
+    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
 };
 
 /// Cross-fitted DR-Learner: CATE from a final-stage regression on the DR score.

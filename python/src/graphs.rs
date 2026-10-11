@@ -1161,21 +1161,19 @@ impl TemporalAdmg {
                 .ok_or_else(|| unknown_node(nm))
         };
         let mut graph = RustTemporalAdmg::empty();
-        let ensure = |graph: &mut RustTemporalAdmg,
-                      name: &str,
-                      lag: u32|
-         -> PyResult<DenseNodeId> {
-            let variable = var_of(name)?;
-            let lag = Lag::from_raw(lag);
-            for (i, node) in graph.nodes().iter().enumerate() {
-                if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
-                    if *existing == variable && *existing_lag == lag {
-                        return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+        let ensure =
+            |graph: &mut RustTemporalAdmg, name: &str, lag: u32| -> PyResult<DenseNodeId> {
+                let variable = var_of(name)?;
+                let lag = Lag::from_raw(lag);
+                for (i, node) in graph.nodes().iter().enumerate() {
+                    if let NodeRef::Lagged { variable: existing, lag: existing_lag } = node {
+                        if *existing == variable && *existing_lag == lag {
+                            return Ok(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+                        }
                     }
                 }
-            }
-            graph.add_lagged(variable, lag).map_err(py_err)
-        };
+                graph.add_lagged(variable, lag).map_err(py_err)
+            };
         for (src, src_lag, tgt, tgt_lag) in &directed {
             let from = ensure(&mut graph, src, *src_lag)?;
             let to = ensure(&mut graph, tgt, *tgt_lag)?;

@@ -417,7 +417,9 @@ mod tests {
         assert_eq!(norm_inv(0.5), 0.0);
         // Symmetry holds to rounding.
         for p in [1e-10, 1e-4, 0.2, 0.4] {
-            assert!((norm_inv(p) + norm_inv(1.0 - p)).abs() < 1e-8 * norm_inv(1.0 - p).abs().max(1.0));
+            assert!(
+                (norm_inv(p) + norm_inv(1.0 - p)).abs() < 1e-8 * norm_inv(1.0 - p).abs().max(1.0)
+            );
         }
     }
 

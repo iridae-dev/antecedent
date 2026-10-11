@@ -15,7 +15,7 @@ use crate::error::IoError;
 use crate::graph_dot::{self, Lexer};
 use crate::graph_gml;
 use crate::graph_networkx::{NetworkXNode, NodeIdKinds};
-use crate::wire::{AdmgWire, GraphCpdagWire, EndpointWire, MarkedEdgeWire, PagWire};
+use crate::wire::{AdmgWire, EndpointWire, GraphCpdagWire, MarkedEdgeWire, PagWire};
 
 // ── JSON ────────────────────────────────────────────────────────────────────
 
@@ -259,7 +259,8 @@ pub fn cpdag_with_names_from_dot(dot: &str) -> Result<(Cpdag, Vec<String>), IoEr
             }
         }
     }
-    let g = cpdag_from_wire(&GraphCpdagWire { node_count: parsed.node_count, directed, undirected })?;
+    let g =
+        cpdag_from_wire(&GraphCpdagWire { node_count: parsed.node_count, directed, undirected })?;
     Ok((g, parsed.names))
 }
 
@@ -1177,11 +1178,7 @@ fn node_id(i: u32, names: Option<&[String]>) -> JsonValue {
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 fn canon(a: u32, b: u32) -> (u32, u32) {
-    if a <= b {
-        (a, b)
-    } else {
-        (b, a)
-    }
+    if a <= b { (a, b) } else { (b, a) }
 }
 
 fn parse_endpoint(s: &str) -> Result<EndpointWire, IoError> {
@@ -1428,8 +1425,10 @@ mod tests {
         let marks = pag_marks("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=odot]; }");
         assert_eq!(marks, vec![(0, 1, EndpointWire::Circle, EndpointWire::Circle)]);
         // An o-> edge must not load into an ADMG as <->.
-        assert!(admg_from_dot("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=normal]; }")
-            .is_err());
+        assert!(
+            admg_from_dot("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=normal]; }")
+                .is_err()
+        );
     }
 
     #[test]

@@ -70,9 +70,8 @@ impl LagAlignedScm {
                 message: "temporal attribution needs at least one row after the longest lag".into(),
             });
         }
-        let indexer = TemporalIndexer::new(variable_count, history, 1).map_err(|error| {
-            CausalError::Compile { message: error.to_string() }
-        })?;
+        let indexer = TemporalIndexer::new(variable_count, history, 1)
+            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
         let unfolded = graph.unfold(indexer.clone())?;
         let mut contemporaneous = Vec::new();
         let mut lagged = Vec::new();
@@ -102,8 +101,8 @@ impl LagAlignedScm {
             let static_id = u32::try_from(static_index).map_err(|_| CausalError::Compile {
                 message: "lag-aligned SCM exceeds u32 nodes".into(),
             })?;
-            let unfolded_index = usize::try_from(unfolded_id).map_err(|_| CausalError::Compile {
-                message: "unfolded window exceeds usize".into(),
+            let unfolded_index = usize::try_from(unfolded_id).map_err(|_| {
+                CausalError::Compile { message: "unfolded window exceeds usize".into() }
             })?;
             to_static[unfolded_index] = static_id;
             let key = indexer
@@ -112,9 +111,8 @@ impl LagAlignedScm {
             let lag = u32::try_from(-i64::from(key.offset)).map_err(|_| CausalError::Compile {
                 message: "lag-aligned attribution found a forward offset".into(),
             })?;
-            let id = dag.add_node(antecedent_graph::NodeRef::Static(VariableId::from_raw(
-                static_id,
-            )))?;
+            let id =
+                dag.add_node(antecedent_graph::NodeRef::Static(VariableId::from_raw(static_id)))?;
             if id.raw() != static_id {
                 return Err(CausalError::Compile {
                     message: "lag-aligned node id drifted from schema order".into(),
@@ -182,27 +180,21 @@ mod tests {
     #[test]
     fn lag_one_chain_keeps_contemporaneous_schema_ids() {
         let mut graph = TemporalDag::empty();
-        let parent = graph
-            .add_lagged(VariableId::from_raw(0), Lag::from_raw(1))
-            .expect("lagged parent");
+        let parent =
+            graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).expect("lagged parent");
         let child = graph
             .add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS)
             .expect("contemporaneous child");
         graph.insert_directed(parent, child).expect("template edge");
         let x = vec![0.0, 1.0, 2.0, 3.0];
         let y = vec![1.0, 1.0, 1.0, 9.0];
-        let series = TimeSeriesData::from_f64_columns(
-            [("x", x.as_slice()), ("y", y.as_slice())],
-            1,
-        )
-        .expect("series");
+        let series =
+            TimeSeriesData::from_f64_columns([("x", x.as_slice()), ("y", y.as_slice())], 1)
+                .expect("series");
         let aligned = LagAlignedScm::unfold(&graph, &series).expect("unfold");
         assert_eq!(aligned.dag.directed_edge_pairs_sorted(), vec![(2, 1)]);
         let table = aligned.table(&series).expect("table");
         assert_eq!(table.float64_slice(VariableId::from_raw(1)).unwrap(), y.as_slice());
-        assert_eq!(
-            table.float64_slice(VariableId::from_raw(2)).unwrap(),
-            &[0.0, 0.0, 1.0, 2.0]
-        );
+        assert_eq!(table.float64_slice(VariableId::from_raw(2)).unwrap(), &[0.0, 0.0, 1.0, 2.0]);
     }
 }

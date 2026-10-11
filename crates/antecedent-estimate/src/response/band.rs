@@ -6,8 +6,8 @@ use std::sync::Arc;
 use antecedent_core::{CausalRng, IntervalInterpretation, ResponseUncertainty};
 use antecedent_stats::normal_ppf;
 
-use crate::util::monte_carlo_critical;
 use crate::EstimationError;
+use crate::util::monte_carlo_critical;
 
 pub(super) fn simultaneous_multiplier_band(
     mean: &[f64],

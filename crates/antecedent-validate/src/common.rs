@@ -22,7 +22,7 @@ use antecedent_estimate::{
 use antecedent_identify::IdentifiedEstimand;
 use antecedent_kernels::erfc;
 use antecedent_stats::{
-    fit_propensity_diagnostic, FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace,
+    FaerBackend, GlmOptions, PropensityFit, PropensityWorkspace, fit_propensity_diagnostic,
 };
 
 use crate::error::ValidationError;
@@ -682,11 +682,7 @@ pub(crate) fn diagnostic_overlap_report_with(
         .zip(cols.scores.iter())
         .map(|(&t, &p)| {
             let p = p.clamp(1e-9, 1.0 - 1e-9);
-            if t > 0.5 {
-                1.0 / p
-            } else {
-                1.0 / (1.0 - p)
-            }
+            if t > 0.5 { 1.0 / p } else { 1.0 / (1.0 - p) }
         })
         .collect();
     Ok(DiagnosticOverlap {
@@ -848,11 +844,7 @@ pub(crate) fn check_replicate_count(replicates: u32) -> Result<(), ValidationErr
 
 /// Cooperative cancellation poll for replicate loops.
 pub(crate) fn check_cancelled(ctx: &ExecutionContext) -> Result<(), ValidationError> {
-    if ctx.cancellation.is_cancelled() {
-        Err(ValidationError::Cancelled)
-    } else {
-        Ok(())
-    }
+    if ctx.cancellation.is_cancelled() { Err(ValidationError::Cancelled) } else { Ok(()) }
 }
 
 /// Mean of the replicate estimates.

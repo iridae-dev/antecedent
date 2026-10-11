@@ -482,9 +482,7 @@ fn mechanism_posterior_refuses_an_unmeasured_band() {
 
 #[test]
 fn mechanism_posterior_consumer_replays_the_normal_equations() {
-    use antecedent_estimate::posterior_mean::{
-        PosteriorRequest, mechanism_coefficient_posterior,
-    };
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, mechanism_coefficient_posterior};
     let summary = MechanismSummary {
         label: "source".into(),
         measurement: measurement("protocol-1", "mg", &[("x", "cm")]),

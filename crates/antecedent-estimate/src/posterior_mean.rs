@@ -9,13 +9,13 @@
 use antecedent_core::reason_code;
 
 use crate::categorical_treatment::{
-    summarize_categorical_design, CategoricalTreatmentInput, CategoricalTreatmentSpec,
+    CategoricalTreatmentInput, CategoricalTreatmentSpec, summarize_categorical_design,
 };
 use crate::error::EstimationError;
-use crate::mechanism_discrepancy::{mechanism_design_summary, MechanismSummary};
+use crate::mechanism_discrepancy::{MechanismSummary, mechanism_design_summary};
 use crate::vector_treatment::{
-    coefficient_posterior_mean, full_coefficient_posterior_mean, summarize_vector_design,
-    DesignSummary, VectorTreatmentInput,
+    DesignSummary, VectorTreatmentInput, coefficient_posterior_mean,
+    full_coefficient_posterior_mean, summarize_vector_design,
 };
 
 /// What a caller may ask a posterior-mean route to condition on.
@@ -623,11 +623,7 @@ pub fn covariance_entry_posterior(
         .zip(sampling_variances)
         .map(
             |(&entry, &variance)| {
-                if variance == 0.0 {
-                    entry
-                } else {
-                    shrink(entry, 1.0 / variance, scale)
-                }
+                if variance == 0.0 { entry } else { shrink(entry, 1.0 / variance, scale) }
             },
         )
         .collect())

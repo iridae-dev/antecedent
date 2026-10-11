@@ -3,8 +3,8 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::atom_mix::{
-    drive_posterior_refuters, mix_atom_evals, AtomBoundRule, AtomEvalView, AtomMixInput,
-    AtomRefuterBatch, ScalarRefuterMix,
+    AtomBoundRule, AtomEvalView, AtomMixInput, AtomRefuterBatch, ScalarRefuterMix,
+    drive_posterior_refuters, mix_atom_evals,
 };
 use super::*;
 use crate::analysis::prepared::{

@@ -23,9 +23,7 @@ use antecedent_estimate::posterior_mean::{
     DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
 };
 use antecedent_estimate::{EstimationError, prepare_exact_admg_conditional_transport};
-use antecedent_expr::{
-    Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
-};
+use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, BoundConditionalTransportFunctional,
     ConditionalTransportDecision, ConditionalTransportQuery, WitnessSearch,

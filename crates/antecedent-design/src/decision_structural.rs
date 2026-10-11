@@ -21,7 +21,7 @@ use antecedent_io::distribution_artifact::DistributionArtifact;
 use crate::decision_contract::{
     DecisionContract, DecisionContractError, DecisionCriterion, StructuralPolicy,
 };
-use crate::decision_eval::{evaluate_contract, DecisionEvalError, DecisionResult, Verdict};
+use crate::decision_eval::{DecisionEvalError, DecisionResult, Verdict, evaluate_contract};
 use crate::structure_aggregator::{
     AggregateChoice, AggregateDecision, AggregateFacts, AggregateKind, StructureAggregator,
 };

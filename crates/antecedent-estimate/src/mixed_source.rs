@@ -8,7 +8,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::transport::{compile_exact_z_transport, validate_exact_laws, BoundZFormula};
+use crate::transport::{BoundZFormula, compile_exact_z_transport, validate_exact_laws};
 
 impl BoundZFormula for antecedent_identify::BoundMixedSourceFunctional {
     fn arena(&self) -> &antecedent_expr::CausalExprArena {

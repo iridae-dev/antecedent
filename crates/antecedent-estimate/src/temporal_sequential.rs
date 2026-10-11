@@ -1611,8 +1611,10 @@ mod tests {
         };
         assert!(has(crate::serial_dependence::DEPENDENCE_ASSUMPTION_ID), "tempering recorded");
         assert!(has("temporal.sequential.level_posterior"), "root-mean shift recorded");
-        assert!(crate::serial_dependence::tempering_kappa_from_notes(&posterior.diagnostics.notes)
-            .is_some_and(|kappa| kappa >= 1.0));
+        assert!(
+            crate::serial_dependence::tempering_kappa_from_notes(&posterior.diagnostics.notes)
+                .is_some_and(|kappa| kappa >= 1.0)
+        );
     }
 
     /// A level reads the sample mean of its exogenous root `Z_{s-1}` through the outcome

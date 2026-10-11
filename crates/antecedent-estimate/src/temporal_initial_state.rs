@@ -13,7 +13,7 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{reason_code, CanonicalWriter};
+use antecedent_core::{CanonicalWriter, reason_code};
 
 use crate::error::EstimationError;
 use crate::temporal_dependent_interval::{

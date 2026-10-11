@@ -7,9 +7,10 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_io::temporal_counterfactual_artifact::{
-    ActionHistoryWire, FactualUnitWire, FitWire, TemporalCounterfactualMechanismWire, TemporalCounterfactualArtifact,
-    TemporalCounterfactualArtifactError, TemporalCounterfactualRequestWire, CounterfactualTemporalGraphWire,
-    decode_parts, encode_parts,
+    ActionHistoryWire, CounterfactualTemporalGraphWire, FactualUnitWire, FitWire,
+    TemporalCounterfactualArtifact, TemporalCounterfactualArtifactError,
+    TemporalCounterfactualMechanismWire, TemporalCounterfactualRequestWire, decode_parts,
+    encode_parts,
 };
 
 // Known closed-form two-slice SCM:
@@ -43,7 +44,11 @@ fn edges() -> Vec<(String, String)> {
     .collect()
 }
 
-fn mechanism(node: &str, intercept: f64, parents: &[(&str, f64)]) -> TemporalCounterfactualMechanismWire {
+fn mechanism(
+    node: &str,
+    intercept: f64,
+    parents: &[(&str, f64)],
+) -> TemporalCounterfactualMechanismWire {
     TemporalCounterfactualMechanismWire {
         node: node.into(),
         intercept,
@@ -70,7 +75,11 @@ fn fit() -> FitWire {
 fn request() -> TemporalCounterfactualRequestWire {
     let units: Vec<String> = (0..4).map(|i| format!("unit-{i}")).collect();
     TemporalCounterfactualRequestWire {
-        graph: CounterfactualTemporalGraphWire { horizon: 2, edges: edges(), latent_confounding: false },
+        graph: CounterfactualTemporalGraphWire {
+            horizon: 2,
+            edges: edges(),
+            latent_confounding: false,
+        },
         fit: fit(),
         snapshot: "snapshot-1".into(),
         factual: (0..4)

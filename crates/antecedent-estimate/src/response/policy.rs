@@ -9,7 +9,7 @@
 use antecedent_core::{Intervention, StochasticPolicy, VariableId};
 use antecedent_stats::gauss_hermite_standard_normal;
 
-use super::{predict_one, CompleteSample, MAX_EXACT_MIXTURE_COMBINATIONS};
+use super::{CompleteSample, MAX_EXACT_MIXTURE_COMBINATIONS, predict_one};
 use crate::EstimationError;
 
 /// Nodes of the Gauss–Hermite rule applied to a Gaussian intervention policy. The

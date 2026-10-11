@@ -20,7 +20,8 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use antecedent_core::{
     DistributionAvailability, EvidenceKind, EvidenceOffer, EvidenceRegime, InterventionAssignment,
-    MAX_OBLIGATION_COORDINATES, RegimeId, RegimeKind, VariableId, blake3_hex, is_blank, reason_code,
+    MAX_OBLIGATION_COORDINATES, RegimeId, RegimeKind, VariableId, blake3_hex, is_blank,
+    reason_code,
 };
 
 use crate::{CandidateDesign, DesignCost, ExperimentPlan, MeasurementPlan, SamplingPlan};

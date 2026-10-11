@@ -20,9 +20,9 @@ use std::sync::Arc;
 use antecedent_core::{Diagnostic, DiagnosticKind, DiagnosticSeverity, VariableId};
 use antecedent_graph::{Admg, BitSet, Dag, DenseNodeId, GraphWorkspace, NodeRef};
 
-use crate::crossfit_aipw::{weighted_support, WeightedSupport};
+use crate::crossfit_aipw::{WeightedSupport, weighted_support};
 use crate::error::{EstimationError, ExactF64, RefusalFields};
-use crate::joint_if::{monotone_decreasing, JointCovariance};
+use crate::joint_if::{JointCovariance, monotone_decreasing};
 use crate::scores::{LinearContrast, ScoreSummary, ScoreTable};
 
 /// Minimum Kish `n_eff` per arm under target weights.
@@ -541,11 +541,7 @@ pub fn exceedance_cdf_values(summary: &ScoreSummary, table: &ScoreTable) -> Opti
         .filter(|(_, col)| col.threshold.is_some())
         .map(|(j, _)| 1.0 - summary.means[j])
         .collect();
-    if values.is_empty() {
-        None
-    } else {
-        Some(values.into())
-    }
+    if values.is_empty() { None } else { Some(values.into()) }
 }
 
 fn rearrange_exceedance(
@@ -617,7 +613,7 @@ mod tests {
 
     #[test]
     fn attempt_observer_records_actual_score_summary_and_invalid_mass() {
-        use antecedent_core::execution_attempt::{observe_execution, Operation};
+        use antecedent_core::execution_attempt::{Operation, observe_execution};
         let table = table();
         let source_scores = table.scores.as_ptr();
         let summarized = observe_execution(|| summarize_functional(&table, None));

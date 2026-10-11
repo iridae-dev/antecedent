@@ -373,8 +373,9 @@ fn stub_accepted_graph_for(
                         admg.insert_bidirected(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1))
                             .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                     }
-                    let temporal = antecedent_graph::TemporalAdmg::from_static_contemporaneous(&admg)
-                        .map_err(|error| CausalError::Compile { message: error.to_string() })?;
+                    let temporal =
+                        antecedent_graph::TemporalAdmg::from_static_contemporaneous(&admg)
+                            .map_err(|error| CausalError::Compile { message: error.to_string() })?;
                     Ok(AcceptedGraph::temporal_admg(temporal))
                 }
                 _ => Err(CausalError::Unsupported {
@@ -2142,9 +2143,10 @@ impl StudyBuilder {
                 }
                 let admg = match graph.class() {
                     GraphClass::Admg => graph.as_admg().cloned(),
-                    GraphClass::TemporalAdmg => graph.as_temporal_admg().map(|temporal| {
-                        super::execute::temporal_admg_projection(temporal)
-                    }).transpose()?,
+                    GraphClass::TemporalAdmg => graph
+                        .as_temporal_admg()
+                        .map(|temporal| super::execute::temporal_admg_projection(temporal))
+                        .transpose()?,
                     _ => None,
                 }
                 .ok_or(CausalError::Unsupported {

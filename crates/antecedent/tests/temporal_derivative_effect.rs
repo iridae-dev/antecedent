@@ -178,18 +178,10 @@ fn derivative_support_reports_a_point_outside_the_observed_series() {
     let n = 40;
     let x: Vec<f64> = (0..n).map(|t| 2.0 + [0.0, 1.0, 2.0][t % 3]).collect();
     let b: Vec<f64> = (0..n).map(|t| if t % 2 == 0 { 0.0 } else { 1.0 }).collect();
-    let y: Vec<f64> = (0..n)
-        .map(|t| {
-            if t == 0 {
-                0.0
-            } else {
-                3.0 + 2.0 * x[t - 1] + 0.5 * b[t - 1]
-            }
-        })
-        .collect();
-    let v: Vec<f64> = (0..n)
-        .map(|t| if t == 0 { 0.0 } else { 1.0 + x[t - 1] - b[t - 1] })
-        .collect();
+    let y: Vec<f64> =
+        (0..n).map(|t| if t == 0 { 0.0 } else { 3.0 + 2.0 * x[t - 1] + 0.5 * b[t - 1] }).collect();
+    let v: Vec<f64> =
+        (0..n).map(|t| if t == 0 { 0.0 } else { 1.0 + x[t - 1] - b[t - 1] }).collect();
     let data = TimeSeriesData::from_f64_columns(
         [("x", x.as_slice()), ("b", b.as_slice()), ("y", y.as_slice()), ("v", v.as_slice())],
         1,

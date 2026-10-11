@@ -745,8 +745,13 @@ pub fn temporal_conditional_marginal_effect(
     ];
     let mut adjustment = Vec::new();
     for &dense_var in estimand.adjustment_set.iter() {
-        let key = indexer.key_of(dense_var.raw()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
-        if key.variable == modifier || key.variable == query.treatment || key.variable == query.outcome {
+        let key = indexer
+            .key_of(dense_var.raw())
+            .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+        if key.variable == modifier
+            || key.variable == query.treatment
+            || key.variable == query.outcome
+        {
             continue;
         }
         let lag = offset_to_lag(key.offset - sample_anchor).map_err(|_| {
@@ -758,12 +763,16 @@ pub fn temporal_conditional_marginal_effect(
         adjustment.push(key.variable);
     }
     let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-    let plan = data.plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols)).map_err(EstimationError::from)?;
+    let plan = data
+        .plan_lagged_sample(max_lag, Arc::<[LaggedColumn]>::from(cols))
+        .map_err(EstimationError::from)?;
     let mut sample_ws = LaggedSampleWorkspace::default();
     let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
     let n = prep.n;
     if n < 8 {
-        return Err(EstimationError::data_msg("too few aligned rows for a temporal conditional effect"));
+        return Err(EstimationError::data_msg(
+            "too few aligned rows for a temporal conditional effect",
+        ));
     }
     let t = prep.column(0);
     let y = prep.column(1);
@@ -881,9 +890,7 @@ pub fn temporal_linear_slopes(
     let prep = plan.prepare(data, &mut sample_ws, policy).map_err(EstimationError::from)?;
     let n = prep.n;
     if n < 8 {
-        return Err(EstimationError::data_msg(
-            "too few aligned rows for a temporal linear slope",
-        ));
+        return Err(EstimationError::data_msg("too few aligned rows for a temporal linear slope"));
     }
     let y = prep.column(treatment_count);
     let n_z = adjustment.len();
@@ -1032,7 +1039,6 @@ pub fn nested_direct_fit_moments(
     };
     Ok(NestedDirectFitMoments { complete_case_rows, gram, outcome_cross })
 }
-
 
 #[cfg(test)]
 #[allow(clippy::many_single_char_names)]

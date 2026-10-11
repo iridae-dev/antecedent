@@ -17,8 +17,7 @@ use antecedent_estimate::{ChainPatternLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail,
-    ChainRecoveryQuery, decide_chain_recovery,
-    verify_chain_witness,
+    ChainRecoveryQuery, decide_chain_recovery, verify_chain_witness,
 };
 use antecedent_io::IoError;
 use antecedent_io::recovery_chain_artifact::{

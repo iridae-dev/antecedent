@@ -425,7 +425,7 @@ mod tests {
     use super::*;
     use crate::analysis::builder::RefuteSuite;
     use crate::analysis::execute::Study;
-    use crate::strategy_table::{identify_static_query, EstimatorId, IdentifierId};
+    use crate::strategy_table::{EstimatorId, IdentifierId, identify_static_query};
 
     fn inputs(
         estimator: EstimatorId,

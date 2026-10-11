@@ -120,10 +120,10 @@ use std::f64::consts::TAU as TWO_PI;
 use antecedent_core::reason_code;
 
 use crate::effect_constancy::CalibrationStatus;
-use crate::util::dot;
 use crate::error::EstimationError;
-use crate::util::{count, refuse};
 use crate::splitmix::{mix64, splitmix64};
+use crate::util::dot;
+use crate::util::{count, refuse};
 use crate::vector_treatment::DesignSummary;
 
 /// Most latent classes accepted.
@@ -142,8 +142,7 @@ pub const LATENT_CLASS_MAX_BOOTSTRAP: usize = 5000;
 pub const LATENT_CLASS_INFERENCE_CLAIM: &str = "point_with_bootstrap_se";
 
 /// Statement attached to every result.
-pub const LATENT_CLASS_CAVEAT: &str =
-    "bootstrap standard errors are unmeasured for coverage; class \
+pub const LATENT_CLASS_CAVEAT: &str = "bootstrap standard errors are unmeasured for coverage; class \
                                        labels are an effect ordering, not a discovered meaning; \
                                        identification rests on the declared within-class \
                                        randomization and Gaussian-linear class models";
@@ -886,10 +885,12 @@ fn bootstrap_se(
             "fewer than two bootstrap replicates converged to a non-degenerate fit",
         ));
     }
-    let effects =
-        (0..k).map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.0[c]).collect::<Vec<_>>())).collect();
-    let weights =
-        (0..k).map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.1[c]).collect::<Vec<_>>())).collect();
+    let effects = (0..k)
+        .map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.0[c]).collect::<Vec<_>>()))
+        .collect();
+    let weights = (0..k)
+        .map(|c| crate::util::sample_std(&replicates.iter().map(|r| r.1[c]).collect::<Vec<_>>()))
+        .collect();
     let average = crate::util::sample_std(&replicates.iter().map(|r| r.2).collect::<Vec<_>>());
     let summary = LatentClassBootstrap { requested, succeeded, failed: requested - succeeded };
     Ok(Some(BootstrapSe { effects, weights, average, summary }))

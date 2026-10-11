@@ -83,7 +83,14 @@ impl CheckedTemporalClassEffectExecution {
         let (identifier_id, estimator_id, bootstrap_replicates, split, refute, custom_validators) =
             operation.procedure();
         if !query.effect_modifiers.is_empty() {
-            return self.execute_conditional(started, data, ctx, identifier_id, estimator_id, refute);
+            return self.execute_conditional(
+                started,
+                data,
+                ctx,
+                identifier_id,
+                estimator_id,
+                refute,
+            );
         }
         if query.is_multi_step_sustained() {
             self.execute_sequential(

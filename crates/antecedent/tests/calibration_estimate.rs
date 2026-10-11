@@ -39,6 +39,7 @@ use antecedent::{EstimatorId, RefuteSuite, Study, StudyBuilder, StudyResult};
 use antecedent_core::{AverageEffectQuery, ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
+use antecedent_test_support::sigmoid;
 use common::calibration::{
     CoverageTally, RecordKey, gaussian, grid_n, map_replicates, n_sim, stream_seed, unit_uniform,
 };
@@ -48,7 +49,6 @@ use common::reported::{
     skip_pair,
 };
 use common::static_dgp::linear_ate_data;
-use antecedent_test_support::sigmoid;
 
 const N: usize = 800;
 

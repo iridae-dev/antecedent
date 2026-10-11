@@ -7,25 +7,25 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::{
-    AverageEffectQuery, CanonicalWriter, CausalQuery, CausalSchemaBuilder, IdentityDomain,
-    MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId, IDENTITY_FORMAT,
+    AverageEffectQuery, CanonicalWriter, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT,
+    IdentityDomain, MeasurementSpec, RoleHint, SmallRoleSet, ValueType, VariableId,
 };
 
-use crate::analysis_result_artifact::{encode_analysis_result_artifact, AnalysisResultWire};
+use crate::analysis_result_artifact::{AnalysisResultWire, encode_analysis_result_artifact};
 use crate::analysis_wire::{DiagnosticWire, IdentificationResultWire};
-use crate::container::{pack_section_shared, CompressPolicy};
+use crate::container::{CompressPolicy, pack_section_shared};
 use crate::contract_section::{
-    claim_domains, contract_seal, result_digest, AnalysisResultContractWire,
-    AttestedEvidenceWire, CalibrationSlotWire, ClaimSectionWire, ContractIdentitiesWire,
-    IdentificationSlotWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
-    CONTRACT_SECTION, CONTRACT_SECTION_FORMAT,
+    AnalysisResultContractWire, AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT,
+    CalibrationSlotWire, ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire,
+    ReasoningSectionWire, SlotSectionWire, SupportSlotWire, claim_domains, contract_seal,
+    result_digest,
 };
 use crate::convert::schema_to_wire;
 use crate::error::IoError;
 use crate::expr_wire::ExprArenaWire;
 use crate::identity::{
-    claim_digest, ClaimIdentityWire, IdentificationProductWire, ObservationIdentityWire,
-    TargetIdentityWire,
+    ClaimIdentityWire, IdentificationProductWire, ObservationIdentityWire, TargetIdentityWire,
+    claim_digest,
 };
 use crate::query_wire::causal_query_to_wire;
 use crate::to_cbor;
@@ -714,12 +714,14 @@ mod tests {
         use crate::wire::ValueTypeWire;
         let bytes = encode_external_estimate_claim(&attach_with_payload(&[0])).unwrap();
         let (_, contract, _) = decode_external_estimate_claim(&bytes).unwrap();
-        assert!(contract
-            .target
-            .schema
-            .variables
-            .iter()
-            .all(|v| v.value_type == ValueTypeWire::Unspecified));
+        assert!(
+            contract
+                .target
+                .schema
+                .variables
+                .iter()
+                .all(|v| v.value_type == ValueTypeWire::Unspecified)
+        );
     }
 
     #[test]

@@ -332,9 +332,6 @@ mod tests {
         let mut graph = TemporalAdmg::empty();
         let past = graph.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
         let now = graph.add_lagged(VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
-        assert!(matches!(
-            graph.insert_directed(now, past),
-            Err(GraphError::FutureToPast { .. })
-        ));
+        assert!(matches!(graph.insert_directed(now, past), Err(GraphError::FutureToPast { .. })));
     }
 }

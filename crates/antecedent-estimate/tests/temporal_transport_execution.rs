@@ -13,15 +13,13 @@ mod common;
 
 use antecedent_core::{ExecutionContext, SearchLimits, SearchStop, Value};
 use antecedent_estimate::EstimationError;
-use antecedent_estimate::temporal_transport::{
-    PreparedTemporalSequence, TEMPORAL_INFERENCE_CLAIM, history_support, prepare_temporal_sequence,
-};
 use antecedent_estimate::posterior_mean::{
     DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
 };
-use antecedent_expr::{
-    Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData,
+use antecedent_estimate::temporal_transport::{
+    PreparedTemporalSequence, TEMPORAL_INFERENCE_CLAIM, history_support, prepare_temporal_sequence,
 };
+use antecedent_expr::{Assignment, ExactDiscreteLaw, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::sid::temporal_sequence::{
     MechanismAssumption, TEMPORAL_HORIZON_DETAIL, TEMPORAL_INVALID_SEQUENCE, TemporalOutcome,
     TemporalSequenceDecision, TemporalSequenceError, decide_temporal_transport_sequence,

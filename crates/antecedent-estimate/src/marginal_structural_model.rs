@@ -234,12 +234,16 @@ mod tests {
         assert_eq!(result.observed_subjects, 8);
         assert!(result.standard_errors.iter().all(|v| v.is_finite()));
         assert!(pointwise_intervals_95(&result, 8).is_none());
-        assert!(fit_binary_msm(&y, &a, &[0.0; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01)
-            .unwrap_err()
-            .contains("positivity"));
-        assert!(fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[0.0; 16], 2, 0.01)
-            .unwrap_err()
-            .contains("censoring"));
+        assert!(
+            fit_binary_msm(&y, &a, &[0.0; 16], &[0.5; 2], &[true; 8], &[1.0; 16], 2, 0.01)
+                .unwrap_err()
+                .contains("positivity")
+        );
+        assert!(
+            fit_binary_msm(&y, &a, &[0.5; 16], &[0.5; 2], &[true; 8], &[0.0; 16], 2, 0.01)
+                .unwrap_err()
+                .contains("censoring")
+        );
     }
 
     #[test]

@@ -534,11 +534,7 @@ fn reassign_by_lagged_residual(
                 .map(|v| (v - mean) * (v - mean))
                 .sum::<f64>()
                 / n_finite as f64;
-            if var.is_finite() {
-                var
-            } else {
-                0.0
-            }
+            if var.is_finite() { var } else { 0.0 }
         })
         .collect();
 

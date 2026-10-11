@@ -157,7 +157,6 @@ pub struct ExternalBindingRefusalWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type RefusalWire = ExternalBindingRefusalWire;
 
-
 impl From<antecedent_core::ExternalRefusal> for ExternalBindingRefusalWire {
     fn from(value: antecedent_core::ExternalRefusal) -> Self {
         Self {

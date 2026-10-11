@@ -27,7 +27,7 @@ use antecedent_expr::{
 };
 use antecedent_identify::recovery::MISSING_LEVEL;
 use antecedent_identify::{
-    RecoveryDerivation, RecoveryDetail, RecoveryError, RECOVERY_MAX_OBSERVED_CELLS,
+    RECOVERY_MAX_OBSERVED_CELLS, RecoveryDerivation, RecoveryDetail, RecoveryError,
 };
 
 /// A recovered full law `P(X(1), O)`: a derived law with provenance.

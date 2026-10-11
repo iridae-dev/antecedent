@@ -21,8 +21,8 @@ use antecedent_io::{
     section_descriptor, to_cbor,
 };
 use antecedent_model::{CompiledMechanismStore, MechanismSlot};
+use antecedent_test_support::conformance_dir;
 use serde_json::Value;
-use antecedent_test_support::{conformance_dir};
 
 fn fixture_dir() -> PathBuf {
     conformance_dir("interchange/artifact_migrate")

@@ -8,10 +8,10 @@
 use std::sync::Arc;
 
 use antecedent_core::{KernelPolicy, VariableId};
-use antecedent_data::{compile_contrast_matrix, CategoryDomain, Contrast, ContrastMatrix};
+use antecedent_data::{CategoryDomain, Contrast, ContrastMatrix, compile_contrast_matrix};
 use antecedent_stats::{
-    standardize_columns, CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap,
-    DesignColumnRole, RecordedContrast, StandardizationRecord, StatsError,
+    CompiledDesign, ContrastCodingKind, DesignColumn, DesignColumnMap, DesignColumnRole,
+    RecordedContrast, StandardizationRecord, StatsError, standardize_columns,
 };
 
 use crate::error::EstimationError;
@@ -212,7 +212,7 @@ mod tests {
     use std::sync::Arc;
 
     use antecedent_core::{CategoryDomainId, VariableId};
-    use antecedent_data::{compile_contrast_matrix, CategoryDomain, CategoryLevel, Contrast};
+    use antecedent_data::{CategoryDomain, CategoryLevel, Contrast, compile_contrast_matrix};
     use antecedent_stats::StandardizedColumn;
 
     use super::*;

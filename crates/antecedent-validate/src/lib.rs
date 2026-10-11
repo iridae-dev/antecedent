@@ -53,10 +53,10 @@ pub use evalue::{DEFAULT_EVALUE_THRESHOLD, EValue};
 pub use graph_refute::GraphRefuter;
 pub use joint_mechanism_sensitivity::{
     AxisTipping, FrontierPoint, JointDeviationSpec, JointFactor, JointFactorBound,
-    JointMechanismSensitivityResult, JointSensitivityError, JointSensitivityLimits,
-    JointSensitivityRange, JointSensitivityReceipt, JointSensitivityUncertainty, TippingBracket,
-    JointSensitivityInterval, TippingStatus, joint_sensitivity_bootstrap_interval_internal,
-    z_transport_joint_mechanism_sensitivity,
+    JointMechanismSensitivityResult, JointSensitivityError, JointSensitivityInterval,
+    JointSensitivityLimits, JointSensitivityRange, JointSensitivityReceipt,
+    JointSensitivityUncertainty, TippingBracket, TippingStatus,
+    joint_sensitivity_bootstrap_interval_internal, z_transport_joint_mechanism_sensitivity,
 };
 pub use mechanism_sensitivity::{
     DiscreteKernelOptimizationReceipt, DiscreteKernelSensitivity, DiscreteKernelSensitivityError,

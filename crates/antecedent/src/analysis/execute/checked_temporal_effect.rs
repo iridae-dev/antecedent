@@ -82,18 +82,18 @@ impl CheckedTemporalEffectExecution {
         {
             let mut assumptions = identification.required_assumptions.clone();
             assumptions.push(antecedent_core::AssumptionRecord {
-                    assumption: antecedent_core::Assumption::ParametricRestriction(
-                        antecedent_core::ParametricAssumption {
-                            id: Arc::from("temporal.sequential.linear_sem"),
-                            description: Arc::from(SUSTAINED_LINEAR_SEM),
-                        },
-                    ),
-                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                        algorithm: Arc::from("temporal.sequential.gcomp"),
+                assumption: antecedent_core::Assumption::ParametricRestriction(
+                    antecedent_core::ParametricAssumption {
+                        id: Arc::from("temporal.sequential.linear_sem"),
+                        description: Arc::from(SUSTAINED_LINEAR_SEM),
                     },
-                    scope: antecedent_core::AssumptionScope::Estimation,
-                    status: antecedent_core::AssumptionStatus::Declared,
-                });
+                ),
+                source: antecedent_core::AssumptionSource::AlgorithmDefault {
+                    algorithm: Arc::from("temporal.sequential.gcomp"),
+                },
+                scope: antecedent_core::AssumptionScope::Estimation,
+                status: antecedent_core::AssumptionStatus::Declared,
+            });
             let mut mechanisms = Vec::new();
             let (estimate, posterior) =
                     antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(

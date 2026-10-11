@@ -61,14 +61,14 @@ use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_identify::IdentificationResult;
 use antecedent_stats::{
-    form_xtx, invert_square, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
+    DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, form_xtx, invert_square,
 };
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
-use crate::frontdoor::{prepare_frontdoor_problem, PreparedFrontDoorProblem};
+use crate::frontdoor::{PreparedFrontDoorProblem, prepare_frontdoor_problem};
 use crate::overlap::OverlapPolicy;
-use crate::util::{stats_err, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, stats_err};
 
 /// Largest number of distinct treatment values treated as arms.
 pub const MAX_TREATMENT_LEVELS: usize = 32;
@@ -179,8 +179,7 @@ impl FrontDoorFunctional {
     ) -> Result<crate::frontdoor::CheckedFrontDoorPreparation, EstimationError> {
         if checked.lowering().procedure != crate::frontdoor::CheckedFrontDoorProcedure::Functional {
             return Err(EstimationError::IncompatibleEstimand {
-                message:
-                    "checked front-door receipt was prepared for the linear path-product estimator",
+                message: "checked front-door receipt was prepared for the linear path-product estimator",
             });
         }
         checked.rebind(data)
@@ -234,8 +233,7 @@ impl FrontDoorFunctional {
     ) -> Result<EffectEstimate, EstimationError> {
         if checked.lowering().procedure != crate::frontdoor::CheckedFrontDoorProcedure::Functional {
             return Err(EstimationError::IncompatibleEstimand {
-                message:
-                    "checked front-door receipt was prepared for the linear path-product estimator",
+                message: "checked front-door receipt was prepared for the linear path-product estimator",
             });
         }
         self.fit(checked.problem(), ctx, checked.required_assumptions().clone())
@@ -326,11 +324,7 @@ fn resolve_model(requested: FrontDoorOutcomeModel, mediators: &[Arc<[f64]>]) -> 
                 level_codes(m)
                     .is_some_and(|(_, levels)| levels.len() <= MAX_SATURATED_MEDIATOR_LEVELS)
             });
-            if discrete {
-                ResolvedModel::Saturated
-            } else {
-                ResolvedModel::ArmLinear
-            }
+            if discrete { ResolvedModel::Saturated } else { ResolvedModel::ArmLinear }
         }
     }
 }

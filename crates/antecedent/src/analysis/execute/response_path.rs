@@ -47,8 +47,7 @@ impl CheckedDerivativeResponseOperation {
             | ResponseFunctional::Jacobian { .. } => EstimatorId::ResponseGamDerivative,
             _ => {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "checked derivative operation requires a derivative response functional",
+                    message: "checked derivative operation requires a derivative response functional",
                 });
             }
         };
@@ -64,8 +63,7 @@ impl CheckedDerivativeResponseOperation {
         // existing response-grid materialization ceiling.
         if max_derivative_cells == 0 || max_derivative_cells > MAX_DERIVATIVE_CELLS {
             return Err(CausalError::Unsupported {
-                message:
-                    "checked derivative response exceeds the 1000000-cell materialization limit",
+                message: "checked derivative response exceeds the 1000000-cell materialization limit",
             });
         }
         if query.temporal.is_some()
@@ -764,29 +762,33 @@ mod checked_derivative_operation_tests {
             order: 1,
             scale: DerivativeScale::Identity,
         });
-        assert!(CheckedDerivativeResponseOperation::checked(
-            &graph,
-            &changed,
-            &identification,
-            &estimand,
-            identifier,
-            estimator,
-            InferenceMode::Frequentist,
-            options.clone(),
-        )
-        .is_err());
+        assert!(
+            CheckedDerivativeResponseOperation::checked(
+                &graph,
+                &changed,
+                &identification,
+                &estimand,
+                identifier,
+                estimator,
+                InferenceMode::Frequentist,
+                options.clone(),
+            )
+            .is_err()
+        );
 
-        assert!(CheckedDerivativeResponseOperation::checked(
-            &graph,
-            &query,
-            &identification,
-            &estimand,
-            identifier,
-            EstimatorId::ResponseRieszAde,
-            InferenceMode::Frequentist,
-            options.clone(),
-        )
-        .is_err());
+        assert!(
+            CheckedDerivativeResponseOperation::checked(
+                &graph,
+                &query,
+                &identification,
+                &estimand,
+                identifier,
+                EstimatorId::ResponseRieszAde,
+                InferenceMode::Frequentist,
+                options.clone(),
+            )
+            .is_err()
+        );
 
         let altered_target = IdentifiedEstimand::new(
             estimand.method.clone(),
@@ -796,17 +798,19 @@ mod checked_derivative_operation_tests {
             antecedent_expr::ExprId::from_raw(u32::MAX),
             estimand.rd_design,
         );
-        assert!(CheckedDerivativeResponseOperation::checked(
-            &graph,
-            &query,
-            &identification,
-            &altered_target,
-            identifier,
-            estimator,
-            InferenceMode::Frequentist,
-            options,
-        )
-        .is_err());
+        assert!(
+            CheckedDerivativeResponseOperation::checked(
+                &graph,
+                &query,
+                &identification,
+                &altered_target,
+                identifier,
+                estimator,
+                InferenceMode::Frequentist,
+                options,
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1078,25 +1082,27 @@ impl super::Study {
         } else {
             EstimatorId::default_for_response(&query.functional)
         };
-        let mut diagnostics = vec![Diagnostic::new(
-            "estimate.response.graph_posterior",
-            DiagnosticKind::Scientific,
-            DiagnosticSeverity::Info,
-            format!(
-                "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
+        let mut diagnostics = vec![
+            Diagnostic::new(
+                "estimate.response.graph_posterior",
+                DiagnosticKind::Scientific,
+                DiagnosticSeverity::Info,
+                format!(
+                    "posterior_probability weights; identified_mass={}, unidentified_mass={}; \
                  unevaluable_mass={}; subsampled_out_mass={}; failed estimation and \
                  atoms the Interactive tier did not evaluate are not mixed into \
                  unidentified mass",
-                identified_mass / total_mass,
+                    identified_mass / total_mass,
+                    unidentified_mass / total_mass,
+                    failed_mass / total_mass,
+                    subsampled_out_mass / total_mass
+                ),
+            )
+            .with_fields(super::mass_fields(
+                Some(identified_mass / total_mass),
                 unidentified_mass / total_mass,
-                failed_mass / total_mass,
-                subsampled_out_mass / total_mass
-            ),
-        )
-        .with_fields(super::mass_fields(
-            Some(identified_mass / total_mass),
-            unidentified_mass / total_mass,
-        ))];
+            )),
+        ];
         if weighted.len() > 1 && mixed_if_se.is_none() {
             diagnostics.push(Diagnostic::new(
                 "estimate.response.graph_posterior.uncertainty_withheld",

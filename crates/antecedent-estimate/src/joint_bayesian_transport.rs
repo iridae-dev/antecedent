@@ -642,11 +642,7 @@ impl Layout {
 
     /// Global parameter index of local row feature `k` (`0..q+r`) in `block`.
     const fn index(&self, k: usize, block: usize) -> usize {
-        if k < self.q {
-            k
-        } else {
-            self.q + block * self.r + (k - self.q)
-        }
+        if k < self.q { k } else { self.q + block * self.r + (k - self.q) }
     }
 
     /// Row features `[w, v]` of one unit.
@@ -705,7 +701,7 @@ fn parameter_names(layout: &Layout, model: &JointTransportModel, ids: &[&str]) -
 /// Lower Cholesky factor with its smallest relative pivot, or the failing index and its
 /// relative pivot, under the one kernel acceptance rule.
 fn cholesky(a: &[f64], n: usize) -> Result<(Vec<f64>, f64), (usize, f64)> {
-    use antecedent_kernels::cholesky::{cholesky_spd_pivots_into, CholeskyError};
+    use antecedent_kernels::cholesky::{CholeskyError, cholesky_spd_pivots_into};
     let mut l = vec![0.0; n * n];
     match cholesky_spd_pivots_into(a, n, &mut l) {
         Ok(smallest) => Ok((l, smallest)),

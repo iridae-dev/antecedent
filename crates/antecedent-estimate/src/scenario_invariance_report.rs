@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 use antecedent_identify::sid::scenario_invariance::{
-    invariance_report, InvarianceReport, InvarianceReportError,
+    InvarianceReport, InvarianceReportError, invariance_report,
 };
 use antecedent_identify::sid::scenarios::ScenarioSetDecision;
 

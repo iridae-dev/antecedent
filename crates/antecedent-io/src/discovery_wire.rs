@@ -40,7 +40,6 @@ pub struct DiscoveryTemporalGraphWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type TemporalGraphWire = DiscoveryTemporalGraphWire;
 
-
 /// Discovery header.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct DiscoveryHeaderWire {

@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::atom_mix::{append_unidentified_atoms, finish_atom_refutations, ScalarRefuterMix};
+use super::atom_mix::{ScalarRefuterMix, append_unidentified_atoms, finish_atom_refutations};
 use super::response_path::{
     graph_posterior_response_supported, mix_response_values, mix_support_reports,
     response_envelope_from_weighted, response_identified_value, response_primary_pair,

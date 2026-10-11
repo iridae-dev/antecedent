@@ -17,8 +17,8 @@ use std::sync::Arc;
 
 use antecedent_core::{CausalSchema, NodeRef, TemporalNodeKey, VariableId};
 use antecedent_graph::{
-    Admg, Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, Pag, PagReview, TemporalCpdag,
-    TemporalAdmg, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
+    Admg, Cpdag, CpdagReview, Dag, DagReview, DenseNodeId, Endpoint, Pag, PagReview, TemporalAdmg,
+    TemporalCpdag, TemporalCpdagReview, TemporalDag, TemporalGraphReview, TemporalPag,
     TemporalPagReview,
 };
 

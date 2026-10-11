@@ -331,7 +331,7 @@ pub use statistical_transport::{
     mz_transport_bootstrap_law_draws,
 };
 pub use temporal_adjustment::{
-    TEMPORAL_COEF_LAG_MARKER, NestedDirectFitMoments, TemporalDependenceSe,
+    NestedDirectFitMoments, TEMPORAL_COEF_LAG_MARKER, TemporalDependenceSe,
     TemporalLinearAdjustment, is_temporal_coefficient_name, nested_direct_fit_moments,
     temporal_coefficient_names, temporal_conditional_marginal_effect, temporal_linear_slopes,
 };
@@ -375,9 +375,8 @@ pub use transport::{
     TransportResponseGridEstimate, evaluate_exact_mz_transport, evaluate_exact_transport,
     evaluate_exact_z_transport, is_support_failure, prepare_exact_mz_transport,
     prepare_exact_transport, prepare_exact_z_transport, refuse_budget, refuse_cancelled,
-    refuse_eval, transport_augmented_response_grid, transport_outcome_kind,
-    trial_aipw_row_scores, trial_to_target_bayesian_bootstrap, trial_to_target_effect,
-    trial_to_target_ipw_se,
+    refuse_eval, transport_augmented_response_grid, transport_outcome_kind, trial_aipw_row_scores,
+    trial_to_target_bayesian_bootstrap, trial_to_target_effect, trial_to_target_ipw_se,
 };
 pub use util::{BOOTSTRAP_MAX_FAILURE_FRAC, BootstrapSeResult, ReplicatePolicy};
 

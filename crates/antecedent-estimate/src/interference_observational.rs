@@ -283,7 +283,7 @@ mod tests {
     };
     use antecedent_data::{NetworkData, NetworkEdge, TabularData};
 
-    use super::{estimate_observational_exposure, ObservationalExposureSpec};
+    use super::{ObservationalExposureSpec, estimate_observational_exposure};
 
     #[test]
     fn observational_known_exposure_interval_covers_known_truth() {

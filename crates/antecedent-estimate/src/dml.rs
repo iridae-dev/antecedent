@@ -9,19 +9,19 @@ use std::sync::Arc;
 use antecedent_core::{AssumptionSet, AverageEffectQuery, ExecutionContext, TargetPopulation};
 use antecedent_data::TabularData;
 use antecedent_expr::IdentifiedEstimand;
-use antecedent_learn::{diagnose, LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec};
+use antecedent_learn::{LearnerSpec, LogisticSpec, PredictionTask, RidgeSpec, diagnose};
 
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
 use crate::learn_nuisance::{
-    aipw_scores, cached_aipw_nuisances, cross_fit_nuisance, guarded_propensity, iid_se,
-    AipwPredictions,
+    AipwPredictions, aipw_scores, cached_aipw_nuisances, cross_fit_nuisance, guarded_propensity,
+    iid_se,
 };
 use crate::overlap::{IpwTarget, OverlapPolicy, OverlapReport};
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
-    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
-    trim_retained_rows, PreparedPropensityProblem,
+    PreparedPropensityProblem, clip_of, default_propensity_overlap,
+    prepare_propensity_problem_with_registry, trim_of, trim_retained_rows,
 };
 use crate::scores::{ScoreColumn, ScoreTable};
 use crate::se::AnalyticSeKind;
@@ -737,18 +737,18 @@ mod tests {
         );
         let cancelled = ExecutionContext::for_tests(44);
         cancelled.cancellation.cancel();
-        assert!(cached_aipw_nuisances(
-            &problem,
-            estimator.outcome,
-            estimator.treatment,
-            5,
-            &cancelled
-        )
-        .is_err());
-        assert!(cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 121, &ctx)
-            .is_err());
-        assert!(cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 5, &ctx)
-            .is_ok());
+        assert!(
+            cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 5, &cancelled)
+                .is_err()
+        );
+        assert!(
+            cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 121, &ctx)
+                .is_err()
+        );
+        assert!(
+            cached_aipw_nuisances(&problem, estimator.outcome, estimator.treatment, 5, &ctx)
+                .is_ok()
+        );
         let mut outcomes = problem.outcome.to_vec();
         for (y, t) in outcomes.iter_mut().zip(problem.treatment.iter()) {
             *y += t * 2.0;
@@ -982,7 +982,8 @@ mod tests {
                 assert!(influence.iter().sum::<f64>().abs() < 1e-7);
                 assert!((iid_se(influence) - effect.se_analytic).abs() < 1e-10);
                 covered += usize::from(
-                    (effect.ate - truth).abs() <= antecedent_stats::NORMAL_Q975 * effect.se_analytic,
+                    (effect.ate - truth).abs()
+                        <= antecedent_stats::NORMAL_Q975 * effect.se_analytic,
                 );
                 bias += effect.ate - truth;
             }

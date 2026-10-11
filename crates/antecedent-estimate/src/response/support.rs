@@ -13,8 +13,8 @@ use antecedent_core::{
     SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_stats::{
-    gaussian_local_quadratic_influence_prechecked, mad_sigma, median_sorted, quantile_sorted,
-    LocalQuadraticWorkspace, QuantileRule,
+    LocalQuadraticWorkspace, QuantileRule, gaussian_local_quadratic_influence_prechecked,
+    mad_sigma, median_sorted, quantile_sorted,
 };
 
 use super::{
@@ -42,11 +42,7 @@ pub(super) fn outcome_tail_ratio(values: &[f64]) -> f64 {
     let max_dev = values.iter().map(|v| (v - center).abs()).fold(0.0, f64::max);
     let scale = mad_scale(values);
     if scale <= 0.0 {
-        if max_dev <= 0.0 {
-            0.0
-        } else {
-            OUTCOME_TAIL_RATIO_UNSCALED
-        }
+        if max_dev <= 0.0 { 0.0 } else { OUTCOME_TAIL_RATIO_UNSCALED }
     } else {
         max_dev / scale
     }

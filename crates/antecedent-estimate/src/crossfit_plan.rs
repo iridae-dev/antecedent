@@ -345,9 +345,13 @@ mod tests {
 
     #[test]
     fn plan_lists_partition_the_rows_per_fold() {
-        let plan =
-            CrossfitPlan::derive(5, 2, FoldSource::Shared(&[0, 1, 1, 0, 1]), &SHARED_FOLD_ID_ERRORS)
-                .unwrap();
+        let plan = CrossfitPlan::derive(
+            5,
+            2,
+            FoldSource::Shared(&[0, 1, 1, 0, 1]),
+            &SHARED_FOLD_ID_ERRORS,
+        )
+        .unwrap();
         assert_eq!(plan.folds(), 2);
         assert_eq!(plan.valid(0), &[0, 3]);
         assert_eq!(plan.train(0), &[1, 2, 4]);

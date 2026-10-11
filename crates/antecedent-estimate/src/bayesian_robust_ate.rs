@@ -4,9 +4,9 @@
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 
+use crate::EstimationError;
 use crate::crossfit_plan::{CrossfitPlan, FoldIdErrors, FoldSource};
 use crate::util::dot;
-use crate::EstimationError;
 
 /// Key of the seeded fold shuffle. The route carries no seed of its own and the fold
 /// identity is retained and re-verified on refresh, so the plan is a function of the stable
@@ -210,8 +210,9 @@ fn fold_plan(
     order.sort_by_key(|&i| input.row_ids[i]);
     let mut units = vec![0u32; n];
     for (rank, &i) in order.iter().enumerate() {
-        units[i] = u32::try_from(rank)
-            .map_err(|_| EstimationError::data_msg("invalid Bayesian robust ATE input or options"))?;
+        units[i] = u32::try_from(rank).map_err(|_| {
+            EstimationError::data_msg("invalid Bayesian robust ATE input or options")
+        })?;
     }
     let strata: Vec<u32> = input.treatment.iter().map(|&t| u32::from(t)).collect();
     CrossfitPlan::derive(

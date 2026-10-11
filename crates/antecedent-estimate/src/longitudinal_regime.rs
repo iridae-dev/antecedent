@@ -651,9 +651,8 @@ mod tests {
             assert!(se.is_finite() && se > 0.0);
             covered_90 +=
                 usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
-            covered_95 += usize::from(
-                (summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se,
-            );
+            covered_95 +=
+                usize::from((summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se);
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
             let coverage = hits as f64 / f64::from(simulations);
@@ -736,9 +735,8 @@ mod tests {
             assert!(se.is_finite() && se > 0.0);
             covered_90 +=
                 usize::from((summary.value - 4.0).abs() <= antecedent_stats::normal_ppf(0.95) * se);
-            covered_95 += usize::from(
-                (summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se,
-            );
+            covered_95 +=
+                usize::from((summary.value - 4.0).abs() <= antecedent_stats::NORMAL_Q975 * se);
         }
         for (nominal, hits) in [(0.90_f64, covered_90), (0.95, covered_95)] {
             let coverage = hits as f64 / f64::from(simulations);
@@ -879,30 +877,34 @@ mod tests {
     #[test]
     fn refuses_missing_support_and_positivity() {
         let mut p = [0.5; 4];
-        assert!(evaluate_regime_value(
-            &[1.0, 2.0],
-            &[false; 4],
-            &[true; 4],
-            &p,
-            &[true; 2],
-            &[1.0; 4],
-            2,
-            0.01
-        )
-        .unwrap_err()
-        .contains("no observed"));
+        assert!(
+            evaluate_regime_value(
+                &[1.0, 2.0],
+                &[false; 4],
+                &[true; 4],
+                &p,
+                &[true; 2],
+                &[1.0; 4],
+                2,
+                0.01
+            )
+            .unwrap_err()
+            .contains("no observed")
+        );
         p[0] = 0.0;
-        assert!(evaluate_regime_value(
-            &[1.0, 2.0],
-            &[false; 4],
-            &[true; 4],
-            &p,
-            &[true; 2],
-            &[1.0; 4],
-            2,
-            0.01
-        )
-        .unwrap_err()
-        .contains("positivity"));
+        assert!(
+            evaluate_regime_value(
+                &[1.0, 2.0],
+                &[false; 4],
+                &[true; 4],
+                &p,
+                &[true; 2],
+                &[1.0; 4],
+                2,
+                0.01
+            )
+            .unwrap_err()
+            .contains("positivity")
+        );
     }
 }

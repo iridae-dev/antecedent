@@ -10,9 +10,9 @@ use antecedent_core::{ExecutionContext, Intervention, StreamDomain, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
-    evaluate_column, infer_noise_column_rng, refuse_cross_family_soft, sample_noise_column,
-    sample_stochastic, soft_to_slot, CompiledCausalModel, InterventionOverlay, MechanismSlot,
-    MechanismWorkspace, NoiseInferenceMode, ParentBatch, ValueBatchMut,
+    CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace,
+    NoiseInferenceMode, ParentBatch, ValueBatchMut, evaluate_column, infer_noise_column_rng,
+    refuse_cross_family_soft, sample_noise_column, sample_stochastic, soft_to_slot,
 };
 
 use crate::error::CounterfactualError;
@@ -52,11 +52,7 @@ impl AbductionMissingPolicy {
 
 impl From<bool> for AbductionMissingPolicy {
     fn from(allow_missing: bool) -> Self {
-        if allow_missing {
-            Self::ZeroFill
-        } else {
-            Self::Error
-        }
+        if allow_missing { Self::ZeroFill } else { Self::Error }
     }
 }
 
@@ -577,11 +573,7 @@ impl CounterfactualResult {
                 n += 1;
             }
         }
-        if n == 0 {
-            f64::NAN
-        } else {
-            sum / n as f64
-        }
+        if n == 0 { f64::NAN } else { sum / n as f64 }
     }
 
     /// Borrowed outcome column for one world (`length = n_units`).
@@ -1027,7 +1019,7 @@ pub fn nested_hard_counterfactual(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{evaluate_trajectories, CounterfactualTrajectoryRequest, TrajectoryArm};
+    use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
     use antecedent_core::{
         CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec,
         MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, TemporalPolicy,
@@ -2135,14 +2127,18 @@ mod tests {
             unit_rows: Some(Arc::from([exo.n_units])),
             interventions: Arc::from([]),
         };
-        assert!(engine
-            .predict(&exo, &[invalid_world], &outcomes, false, &mut workspace, &context)
-            .is_err());
+        assert!(
+            engine
+                .predict(&exo, &[invalid_world], &outcomes, false, &mut workspace, &context)
+                .is_err()
+        );
         let mut malformed = exo.clone();
         malformed.noise = Arc::from(&exo.noise[..exo.noise.len() - 1]);
         let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([]) };
-        assert!(engine
-            .predict(&malformed, &[world], &outcomes, false, &mut workspace, &context)
-            .is_err());
+        assert!(
+            engine
+                .predict(&malformed, &[world], &outcomes, false, &mut workspace, &context)
+                .is_err()
+        );
     }
 }

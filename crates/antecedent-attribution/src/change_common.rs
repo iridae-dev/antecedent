@@ -62,9 +62,7 @@ pub(crate) const UNIT_STREAM: u64 = 0x0117;
 /// domain the map is a bijection of the seed, so distinct seeds keep distinct streams.
 #[must_use]
 pub(crate) fn stream_tag(domain: u64, seed: u64) -> u64 {
-    antecedent_core::mix64(
-        seed.wrapping_add(domain.wrapping_mul(antecedent_core::GOLDEN_GAMMA)),
-    )
+    antecedent_core::mix64(seed.wrapping_add(domain.wrapping_mul(antecedent_core::GOLDEN_GAMMA)))
 }
 
 /// Mean and (floored) variance of the outcome under `model`, from `n_samples` ancestral

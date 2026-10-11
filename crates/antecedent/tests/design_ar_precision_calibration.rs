@@ -18,8 +18,8 @@ use antecedent_stats::{
     FaerBackend, FirstStageDiagnostics, LeastSquaresWorkspace, anderson_rubin_confidence_set,
     anderson_rubin_kf_critical,
 };
-use calibration::{grid_n, grid_seed, map_replicates, n_sim};
 use antecedent_test_support::dot;
+use calibration::{grid_n, grid_seed, map_replicates, n_sim};
 
 fn request(n: usize, seed: u64, strength: f64) -> DesignRequest {
     let mut generator = candidate::Generator::new(seed);

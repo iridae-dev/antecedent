@@ -30,7 +30,7 @@ use crate::dml::DmlAte;
 use crate::error::EstimationError;
 use crate::prepare::{require_adjustment_shaped, validate_ate_query_with_targets};
 use crate::propensity::{
-    default_propensity_overlap, prepare_propensity_problem_with_registry, PreparedPropensityProblem,
+    PreparedPropensityProblem, default_propensity_overlap, prepare_propensity_problem_with_registry,
 };
 
 const SUBSAMPLE_FRACTION: f64 = 0.5;
@@ -556,11 +556,7 @@ fn arm_sums(y: &[f64], t: &[f64], rows: &[u32]) -> [f64; 4] {
 }
 
 fn tau_from_sums([s1, n1, s0, n0]: [f64; 4]) -> Option<f64> {
-    if n1 < 1.0 || n0 < 1.0 {
-        None
-    } else {
-        Some(s1 / n1 - s0 / n0)
-    }
+    if n1 < 1.0 || n0 < 1.0 { None } else { Some(s1 / n1 - s0 / n0) }
 }
 
 fn leaf_tau(y: &[f64], t: &[f64], rows: &[u32]) -> Option<f64> {

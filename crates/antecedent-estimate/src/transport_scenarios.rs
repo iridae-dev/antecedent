@@ -23,7 +23,7 @@ use std::sync::Arc;
 use antecedent_core::VariableId;
 use antecedent_expr::ExactDistribution;
 use antecedent_identify::sid::scenarios::{
-    mass_sum, unaccounted_after, ScenarioOutcome, ScenarioSetDecision, SCENARIO_WEIGHT_TOLERANCE,
+    SCENARIO_WEIGHT_TOLERANCE, ScenarioOutcome, ScenarioSetDecision, mass_sum, unaccounted_after,
 };
 
 use crate::error::EstimationError;

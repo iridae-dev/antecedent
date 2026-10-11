@@ -821,12 +821,14 @@ mod tests {
             IdentificationStatus::NonparametricallyIdentified
         );
         assert!(temporal_result.result.estimands[0].adjustment_set.is_empty());
-        assert!(temporal_result
-            .result
-            .required_assumptions
-            .entries
-            .iter()
-            .any(|a| a.assumption == Assumption::Stationarity));
+        assert!(
+            temporal_result
+                .result
+                .required_assumptions
+                .entries
+                .iter()
+                .any(|a| a.assumption == Assumption::Stationarity)
+        );
     }
 
     #[test]
@@ -918,11 +920,13 @@ mod tests {
         let step =
             result.derivation.steps.iter().find(|s| s.rule.as_ref() == PARENT_ADJUSTMENT_RULE);
         assert!(step.unwrap().detail.contains("lagged cycle"));
-        assert!(result
-            .required_assumptions
-            .entries
-            .iter()
-            .any(|record| matches!(record.assumption, Assumption::CausalSufficiency)));
+        assert!(
+            result
+                .required_assumptions
+                .entries
+                .iter()
+                .any(|record| matches!(record.assumption, Assumption::CausalSufficiency))
+        );
         assert!(result.required_assumptions.entries.iter().any(|record| matches!(
             &record.assumption,
             Assumption::Custom { id, .. }
@@ -1143,12 +1147,9 @@ mod tests {
             IdentificationStatus::NonparametricallyIdentified
         );
         // The window must have grown to history 2 to expose B_{-2}.
-        assert!(temporal_result
-            .result
-            .derivation
-            .steps
-            .iter()
-            .any(|s| s.detail.contains("history=2")));
+        assert!(
+            temporal_result.result.derivation.steps.iter().any(|s| s.detail.contains("history=2"))
+        );
         // The confounding must not vanish: no empty adjustment set, and the
         // minimal blockers are exactly A_{-1}, B_{-2}, and C_{-1}.
         assert!(!temporal_result.result.estimands.is_empty());

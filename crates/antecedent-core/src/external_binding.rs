@@ -6,13 +6,13 @@
 
 use std::collections::HashSet;
 
+use crate::text::is_blank;
 use crate::{
     CompositionLink, CompositionStage, DistributionMeaning, ExternalCapability,
     ExternalContractError, ExternalPosteriorKind, ExternalScientificObject, ExternalTrustState,
     IdentificationStatus, ProvenanceChain, ProvenanceChainError, ProviderObjectIdentity,
     QuantityMismatch, ScientificQuantity, SupportStatus, VerificationProbe,
 };
-use crate::text::is_blank;
 
 /// Regime identity of an unintervened conditional law.
 pub const OBSERVATIONAL_REGIME: &str = "observational";

@@ -1,5 +1,6 @@
 //! Bounded Python bridge for the aligned distribution artifact.
 
+use crate::bridge::{check_declared_len, check_declared_size};
 use antecedent_core::ProviderTrust;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, DistributionMetadata,
@@ -7,7 +8,6 @@ use antecedent_io::distribution_artifact::{
 };
 use numpy::ndarray::Array2;
 use numpy::{PyArray2, PyReadonlyArray2, PyUntypedArrayMethods};
-use crate::bridge::{check_declared_len, check_declared_size};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -66,7 +66,11 @@ impl PyJointDistributionArtifact {
 impl PyJointDistributionArtifact {
     #[new]
     fn new(metadata_json: &str, draws: PyReadonlyArray2<'_, f64>) -> PyResult<Self> {
-        check_declared_size(metadata_json, MAX_DISTRIBUTION_ARTIFACT_BYTES, "distribution metadata")?;
+        check_declared_size(
+            metadata_json,
+            MAX_DISTRIBUTION_ARTIFACT_BYTES,
+            "distribution metadata",
+        )?;
         let metadata_json = normalize_distribution_metadata(metadata_json)?;
         let metadata: DistributionMetadata =
             serde_json::from_str(&metadata_json).map_err(artifact_error)?;

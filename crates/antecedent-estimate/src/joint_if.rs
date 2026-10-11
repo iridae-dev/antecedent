@@ -44,11 +44,7 @@ impl JointCovariance {
     #[must_use]
     pub fn se(&self, i: usize) -> f64 {
         let variance = self.get(i, i);
-        if variance.is_finite() && variance >= 0.0 {
-            variance.sqrt()
-        } else {
-            f64::NAN
-        }
+        if variance.is_finite() && variance >= 0.0 { variance.sqrt() } else { f64::NAN }
     }
 }
 
@@ -469,8 +465,13 @@ fn pava_increasing(y: &mut [f64]) {
 /// the kernel's PSD-tolerant Cholesky.
 fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
     let mut l = vec![0.0; k * k];
-    antecedent_kernels::cholesky::cholesky_psd_into(corr, k, crate::util::CORRELATION_PSD_TOLERANCE, &mut l)
-        .map_err(|_| EstimationError::data_msg("covariance must be positive semidefinite"))?;
+    antecedent_kernels::cholesky::cholesky_psd_into(
+        corr,
+        k,
+        crate::util::CORRELATION_PSD_TOLERANCE,
+        &mut l,
+    )
+    .map_err(|_| EstimationError::data_msg("covariance must be positive semidefinite"))?;
     Ok(l)
 }
 

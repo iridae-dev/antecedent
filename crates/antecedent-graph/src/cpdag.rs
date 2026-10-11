@@ -309,8 +309,7 @@ impl CpdagReview {
     pub fn try_into_dag(self) -> Result<Dag, GraphError> {
         if !self.is_complete() {
             return Err(GraphError::InvalidEndpoints {
-                message:
-                    "CpdagReview is incomplete; accept directed and orient undirected edges first",
+                message: "CpdagReview is incomplete; accept directed and orient undirected edges first",
             });
         }
         self.graph.try_into_dag()
@@ -520,14 +519,12 @@ impl TemporalCpdag {
         for e in self.edges() {
             if e.is_undirected() {
                 return Err(GraphError::InvalidEndpoints {
-                    message:
-                        "cannot complete TemporalCpdag to TemporalDag while undirected edges remain",
+                    message: "cannot complete TemporalCpdag to TemporalDag while undirected edges remain",
                 });
             }
             if e.is_conflict() {
                 return Err(GraphError::InvalidEndpoints {
-                    message:
-                        "cannot complete TemporalCpdag to TemporalDag while conflict edges remain",
+                    message: "cannot complete TemporalCpdag to TemporalDag while conflict edges remain",
                 });
             }
         }
@@ -586,12 +583,13 @@ mod tests {
     #[test]
     fn static_rejects_non_static_nodes() {
         let mut g = Cpdag::empty();
-        assert!(g
-            .add_node(NodeRef::Lagged {
+        assert!(
+            g.add_node(NodeRef::Lagged {
                 variable: VariableId::from_raw(0),
                 lag: Lag::CONTEMPORANEOUS,
             })
-            .is_err());
+            .is_err()
+        );
     }
 
     #[test]

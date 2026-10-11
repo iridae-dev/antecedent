@@ -4,10 +4,10 @@
 
 use antecedent_core::{ExposureLevel, InterferenceFunctional, InterferenceQuery};
 use antecedent_data::{NetworkData, TableView};
-use antecedent_prob::{sample_gaussian_mvn, LaplaceWorkspace};
+use antecedent_prob::{LaplaceWorkspace, sample_gaussian_mvn};
 use antecedent_stats::{
-    exposure_probabilities, exposures, randomization_contrast, randomization_mean,
-    ExposureProbabilityMethod, RandomizationContrast,
+    ExposureProbabilityMethod, RandomizationContrast, exposure_probabilities, exposures,
+    randomization_contrast, randomization_mean,
 };
 use std::collections::BTreeMap;
 

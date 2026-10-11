@@ -231,7 +231,8 @@ fn main() {
     let columns: Vec<Vec<f64>> = (0..cols)
         .map(|_| (0..rows).map(|_| f64::from(u8::from(rng.next_f64() < density))).collect())
         .collect();
-    let treatment: Vec<f64> = (0..rows).map(|_| f64::from(u8::from(rng.next_f64() < 0.5))).collect();
+    let treatment: Vec<f64> =
+        (0..rows).map(|_| f64::from(u8::from(rng.next_f64() < 0.5))).collect();
     let outcome: Vec<f64> =
         (0..rows).map(|i| treatment[i] + columns[0][i] + rng.next_f64()).collect();
     let mut named: Vec<(String, &[f64])> =

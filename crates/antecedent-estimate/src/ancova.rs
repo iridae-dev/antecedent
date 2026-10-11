@@ -148,9 +148,7 @@ mod tests {
             let mut covered = 0;
             for rep in 0..REPLICATES {
                 let assignment = (0..N)
-                    .map(|i| {
-                        crate::splitmix::keyed_unit(rep as u64, i as u64) < probability
-                    })
+                    .map(|i| crate::splitmix::keyed_unit(rep as u64, i as u64) < probability)
                     .collect::<Vec<_>>();
                 let outcome = (0..N)
                     .map(|i| {

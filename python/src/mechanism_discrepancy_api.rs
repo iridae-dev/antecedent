@@ -6,13 +6,13 @@
 //! refusal comes back as structured JSON (`code`, `detail`, `message`) for the Python layer to
 //! raise as its own typed exception. Non-rejection never certifies invariance and the test's
 //! Type I error and power are unmeasured.
+use crate::bridge::RefusalJson;
 use antecedent::analysis::mechanism_discrepancy::{
     MechanismDiscrepancyIdentity, MechanismDiscrepancyRefusal, MechanismDiscrepancyRequestWire,
     MechanismMeasurement, ParentSpec, PopulationSample, consume_mechanism_discrepancy,
     run_mechanism_discrepancy, summarize_sample,
 };
 use antecedent_core::reason_code;
-use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;

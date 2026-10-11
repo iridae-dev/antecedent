@@ -4,6 +4,7 @@
 //! Rust's. A refusal comes back as structured JSON for the Python layer to
 //! raise as its own exception type.
 
+use crate::bridge::{check_declared_len, check_declared_size};
 use antecedent_io::external_binding_wire::{
     ContractWire, MAX_BINDING_WIRE_BYTES, RefusalWire, ResponseWire, bind_response,
 };
@@ -12,7 +13,6 @@ use antecedent_io::external_claim_artifact::{
 };
 use numpy::PyArray1;
 use numpy::ndarray::Array1;
-use crate::bridge::{check_declared_len, check_declared_size};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -36,8 +36,16 @@ impl PyExternalClaimArtifact {
     }
     #[staticmethod]
     fn load(data: &[u8], expected_identity_json: &str) -> PyResult<Self> {
-        check_declared_len(data.len(), MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES, "external claim artifact")?;
-        check_declared_size(expected_identity_json, MAX_BINDING_WIRE_BYTES, "external claim identity")?;
+        check_declared_len(
+            data.len(),
+            MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
+            "external claim artifact",
+        )?;
+        check_declared_size(
+            expected_identity_json,
+            MAX_BINDING_WIRE_BYTES,
+            "external claim identity",
+        )?;
         let expected: ExternalClaimIdentity =
             serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
         let artifact =

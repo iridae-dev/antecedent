@@ -9,8 +9,8 @@
 
 use std::io::Cursor;
 
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::error::IoError;
@@ -255,8 +255,8 @@ where
 
 fn cbor_value(bytes: &[u8]) -> Result<ciborium::Value, IoError> {
     let mut reader = bytes;
-    let value = ciborium::from_reader(&mut reader)
-        .map_err(|error| IoError::Cbor(error.to_string()))?;
+    let value =
+        ciborium::from_reader(&mut reader).map_err(|error| IoError::Cbor(error.to_string()))?;
     if reader.is_empty() {
         Ok(value)
     } else {

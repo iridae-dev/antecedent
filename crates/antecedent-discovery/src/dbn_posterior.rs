@@ -39,9 +39,10 @@ use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, Loc
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_posterior::{
-    accumulate_marginals, analytic_graph_diagnostics, edge_required, has_edge,
-    lagged_edge_forbidden, lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges,
-    normalize_log_weights, parents_of, set_edge, GraphPosterior, GraphPrior, EXACT_ENUM_MAX_NODES,
+    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
+    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_forbidden,
+    lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights,
+    parents_of, set_edge,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
@@ -266,7 +267,7 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        use crate::graph_mcmc::{diagnostics_from_traces, GraphMcmcSchedule};
+        use crate::graph_mcmc::{GraphMcmcSchedule, diagnostics_from_traces};
         use std::collections::HashMap;
 
         let schedule = GraphMcmcSchedule {
@@ -528,8 +529,8 @@ pub fn temporal_dag_from_dbn_masks(
     variables: &[VariableId],
 ) -> Result<antecedent_graph::TemporalDag, DiscoveryError> {
     use antecedent_core::Lag;
-    use antecedent_graph::unfold::ensure_lagged;
     use antecedent_graph::TemporalDag;
+    use antecedent_graph::unfold::ensure_lagged;
 
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(

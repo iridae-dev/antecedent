@@ -310,12 +310,9 @@ fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
     let (bytes, _) = exported(&model());
     let sealed = RecoveryArtifactWire::decode(&bytes).unwrap();
     assert_eq!(sealed.derivation.rule_version, RECOVERY_RULE_VERSION);
-    let consumed = RecoveryArtifactWire::consume_with_limits(
-        &bytes,
-        RecoveryConsumeLimits::default(),
-        &ctx(),
-    )
-    .expect("the sealed artifact is consumed");
+    let consumed =
+        RecoveryArtifactWire::consume_with_limits(&bytes, RecoveryConsumeLimits::default(), &ctx())
+            .expect("the sealed artifact is consumed");
     // The derivation and recovered-law identity are the ones the artifact was sealed with.
     assert!(consumed.derivation.identity().starts_with(RECOVERY_RULE_VERSION));
     assert!(sealed.recovered_identity.contains(RECOVERY_RULE_VERSION));

@@ -1987,17 +1987,11 @@ fn smoothed_dose_posterior_mean_stays_at_the_known_truth() {
     let grids: Vec<Vec<f64>> = estimate.grid.iter().map(|point| point.row_scores.clone()).collect();
     for point in &estimate.grid {
         let score_mean = point.row_scores.iter().sum::<f64>() / point.row_scores.len() as f64;
-        assert!(
-            (score_mean - point.estimate).abs() < 1e-8,
-            "{score_mean} vs {}",
-            point.estimate
-        );
+        assert!((score_mean - point.estimate).abs() < 1e-8, "{score_mean} vs {}", point.estimate);
     }
-    let means = smoothed_dose_score_posterior(
-        &grids,
-        PosteriorRequest::IndependentNormal { scale: 1.0e6 },
-    )
-    .unwrap();
+    let means =
+        smoothed_dose_score_posterior(&grids, PosteriorRequest::IndependentNormal { scale: 1.0e6 })
+            .unwrap();
     for (point, mean) in estimate.grid.iter().zip(&means) {
         assert!((mean - point.estimate).abs() < 1e-6, "{mean} vs {}", point.estimate);
         let truth = Scenario::Good.truth(point.dose, H);
@@ -2008,11 +2002,9 @@ fn smoothed_dose_posterior_mean_stays_at_the_known_truth() {
 #[test]
 fn smoothed_dose_posterior_refuses_an_external_power_prior() {
     use antecedent_estimate::posterior_mean::{PosteriorRequest, smoothed_dose_score_posterior};
-    let err = smoothed_dose_score_posterior(
-        &[vec![0.0, 1.0, 2.0]],
-        PosteriorRequest::ExternalPower,
-    )
-    .unwrap_err();
+    let err =
+        smoothed_dose_score_posterior(&[vec![0.0, 1.0, 2.0]], PosteriorRequest::ExternalPower)
+            .unwrap_err();
     let EstimationError::Refused { message, .. } = err else {
         panic!("expected a refusal");
     };

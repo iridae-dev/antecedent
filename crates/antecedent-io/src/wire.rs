@@ -275,7 +275,6 @@ pub struct GraphCpdagWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type CpdagWire = GraphCpdagWire;
 
-
 /// Wire ADMG: directed + bidirected edges.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

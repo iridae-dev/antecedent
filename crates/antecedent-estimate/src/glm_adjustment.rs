@@ -30,16 +30,16 @@ use antecedent_core::{
 use antecedent_data::{TableView, TabularData};
 use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{
-    fit_glm, score_coefficient_covariance, CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily,
-    GlmOptions, LeastSquaresWorkspace,
+    CompiledDesign, FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace,
+    fit_glm, score_coefficient_covariance,
 };
 
-use crate::adjustment::{intervention_f64, EffectEstimate};
+use crate::adjustment::{EffectEstimate, intervention_f64};
 use crate::error::EstimationError;
 use crate::gcomp::gcomp_diffs;
 use crate::overlap::OverlapPolicy;
 use crate::se::AnalyticSeKind;
-use crate::util::{stats_err, BootstrapSeResult};
+use crate::util::{BootstrapSeResult, stats_err};
 
 /// Prepared GLM adjustment problem (compiled design retained).
 #[derive(Clone, Debug)]

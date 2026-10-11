@@ -26,8 +26,7 @@ use antecedent_estimate::{
 };
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryDerivation,
-    RecoveryLimits,
+    RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryDerivation, RecoveryLimits,
 };
 use antecedent_io::IoError;
 use antecedent_io::sampled_recovery_artifact::{

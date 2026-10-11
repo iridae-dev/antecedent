@@ -5,14 +5,15 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    mediation_design_max_lag, ols_three_col, ols_two_col, ContrastFit, EstimationError,
-    ExecutionContext, IdentifiedEstimand, LaggedColumn, MediationContrast, MediationDesign,
-    MediationQuery, TemporalMediationBlockSe, TemporalMediationEstimate,
-    TemporalMediationEstimator, TimeSeriesData,
+    ContrastFit, EstimationError, ExecutionContext, IdentifiedEstimand, LaggedColumn,
+    MediationContrast, MediationDesign, MediationQuery, TemporalMediationBlockSe,
+    TemporalMediationEstimate, TemporalMediationEstimator, TimeSeriesData,
+    mediation_design_max_lag, ols_three_col, ols_two_col,
 };
 use crate::temporal_block::{
-    aligned_block_bootstrap, common_time_window, dependence_block_length, kernel_bias_scale,
-    normal_equation_scores_of_residuals, score_effective_rows, AlignedRows, CircularBlockFamily,
+    AlignedRows, CircularBlockFamily, aligned_block_bootstrap, common_time_window,
+    dependence_block_length, kernel_bias_scale, normal_equation_scores_of_residuals,
+    score_effective_rows,
 };
 
 /// One temporal mediation atom prepared once on the original series, so a

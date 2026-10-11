@@ -3,11 +3,11 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(clippy::cast_precision_loss)]
 
-use crate::categorical_treatment::{
-    count_levels, dummy_columns, validate_spec, CategoricalTreatmentInput, CategoricalTreatmentSpec,
-};
-use crate::vector_treatment::{fit_joint_retained, VectorTreatmentInput, VectorTreatmentOptions};
 use crate::EstimationError;
+use crate::categorical_treatment::{
+    CategoricalTreatmentInput, CategoricalTreatmentSpec, count_levels, dummy_columns, validate_spec,
+};
+use crate::vector_treatment::{VectorTreatmentInput, VectorTreatmentOptions, fit_joint_retained};
 use antecedent_stats::{FaerBackend, GlmDesignRef, GlmFamily, GlmOptions, LeastSquaresWorkspace};
 use std::cell::Cell;
 

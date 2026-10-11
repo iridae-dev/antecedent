@@ -35,11 +35,10 @@ use antecedent_core::{
     VariableId, reason_code,
 };
 use antecedent_identify::{
-    MIXED_SOURCE_RULE_SET,
-    MixedSourceDerivationRecord, MixedSourceQuery, MzTransportDerivationRecord, MzTransportQuery,
-    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyPlan,
-    StudyPlanLimits, StudyPlanRoute, StudyPlanStop, StudyProposalDerivation, StudySubsetOutcome,
-    ZTransportSourceSpec,
+    MIXED_SOURCE_RULE_SET, MixedSourceDerivationRecord, MixedSourceQuery,
+    MzTransportDerivationRecord, MzTransportQuery, STUDY_PLAN_DEFAULT_LIMITS,
+    STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyPlan, StudyPlanLimits, StudyPlanRoute,
+    StudyPlanStop, StudyProposalDerivation, StudySubsetOutcome, ZTransportSourceSpec,
 };
 use antecedent_io::mixed_source_artifact::MixedSourceQueryWire;
 use antecedent_io::mz_transport_artifact::MzSourceWire;

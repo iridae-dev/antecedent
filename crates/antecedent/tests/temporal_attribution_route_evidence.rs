@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use antecedent::{
-    AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode, RefuteSuite,
-    Study, SupportCell, classify, refused_message,
+    AcceptedGraph, BayesianConfig, CellStatus, EstimatorId, IdentifierId, InferenceMode,
+    RefuteSuite, Study, SupportCell, classify, refused_message,
 };
 use antecedent_core::{
     AnomalyAttributionQuery, CausalQuery, ChangeAttributionQuery, ExecutionContext, IntervalMethod,
@@ -19,8 +19,7 @@ use antecedent_identify::IdentificationStatus;
 fn temporal_chain() -> TemporalDag {
     let mut graph = TemporalDag::empty();
     let parent = ensure_lagged(&mut graph, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
-    let child =
-        ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let child = ensure_lagged(&mut graph, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
     graph.insert_directed(parent, child).unwrap();
     graph
 }
@@ -55,11 +54,7 @@ fn staged_attribution() -> serde_json::Value {
 
 fn refuse(cell: SupportCell, reason: &str) {
     assert!(matches!(classify(cell), CellStatus::Refused));
-    assert!(
-        refused_message(cell).contains(reason),
-        "refusal was {}",
-        refused_message(cell)
-    );
+    assert!(refused_message(cell).contains(reason), "refusal was {}", refused_message(cell));
 }
 
 #[test]
@@ -96,11 +91,16 @@ fn frequentist_body() {
     assert_eq!(plan.identifier, IdentifierId::GcmParametric);
     assert_eq!(plan.estimator, EstimatorId::GcmFit);
     assert_eq!(plan.graph_edges.as_ref(), &[(2, 1)]);
-    assert_eq!(plan.identification_status, IdentificationStatus::IdentifiedUnderParametricRestrictions);
+    assert_eq!(
+        plan.identification_status,
+        IdentificationStatus::IdentifiedUnderParametricRestrictions
+    );
     drop(anomaly_builder);
     let anomaly_result = anomaly_prepared.estimate_series(&anomaly, &ctx).unwrap();
     assert!(anomaly_result.diagnostics.iter().any(|d| d.code.as_ref() == "exec.identify.cached"));
-    assert!(anomaly_result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.lag_aligned"));
+    assert!(
+        anomaly_result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.lag_aligned")
+    );
     assert!(anomaly_result.posterior.is_none());
     assert_eq!(
         anomaly_result.interval.as_ref().map(|binding| binding.method),
@@ -118,9 +118,13 @@ fn frequentist_body() {
         .encode_contracted_result(&refreshed, "checked-temporal-anomaly-attribution", &ctx)
         .unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-    assert!(consumed.acceptance.unresolved.iter().any(|reason| {
-        reason.as_ref() == "dependencies.checked_attribution_operation"
-    }));
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
+    );
     assert!(!consumed.acceptance.accepts_as_verified_program());
 
     let change = change_series(0.0);
@@ -148,19 +152,29 @@ fn frequentist_body() {
     let expected = truth["change"]["total_change"].as_f64().unwrap();
     let tolerance = truth["change"]["tolerance"].as_f64().unwrap();
     let initial_change = initial.change_attribution.as_ref().unwrap().total_change;
-    assert!((initial_change - expected).abs() < tolerance, "known population mean shift: {initial_change}");
+    assert!(
+        (initial_change - expected).abs() < tolerance,
+        "known population mean shift: {initial_change}"
+    );
     assert!(initial.posterior.is_none());
     assert_eq!(initial.interval.as_ref().map(|binding| binding.method), Some(IntervalMethod::None));
     let refreshed = change_prepared.refresh_series(change_series(0.5), &ctx).unwrap();
     let refreshed_change = refreshed.change_attribution.as_ref().unwrap().total_change;
-    assert!((refreshed_change - 5.5).abs() < tolerance, "refreshed known population shift: {refreshed_change}");
+    assert!(
+        (refreshed_change - 5.5).abs() < tolerance,
+        "refreshed known population shift: {refreshed_change}"
+    );
     let artifact = change_prepared
         .encode_contracted_result(&refreshed, "checked-temporal-change-attribution", &ctx)
         .unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-    assert!(consumed.acceptance.unresolved.iter().any(|reason| {
-        reason.as_ref() == "dependencies.checked_attribution_operation"
-    }));
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
+    );
     assert!(!consumed.acceptance.accepts_as_verified_program());
 
     let cheap = Study::series(anomaly.clone())
@@ -246,21 +260,27 @@ fn bayesian_body() {
         anomaly_result.interval.as_ref().map(|binding| binding.method),
         Some(IntervalMethod::None)
     );
-    assert!(anomaly_result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.posterior_mean_only"));
+    assert!(
+        anomaly_result
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_ref() == "gcm.attribution.posterior_mean_only")
+    );
     let scores = anomaly_result.anomaly.as_ref().unwrap();
     let score = scores.iter().find(|score| score.target == VariableId::from_raw(1)).unwrap();
     let top = score.scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)).unwrap();
-    assert_eq!(
-        score.rows[top.0],
-        truth["anomaly"]["top_row"].as_u64().unwrap() as usize
-    );
+    assert_eq!(score.rows[top.0], truth["anomaly"]["top_row"].as_u64().unwrap() as usize);
     let artifact = anomaly_prepared
         .encode_contracted_result(&anomaly_result, "checked-temporal-bayesian-anomaly", &ctx)
         .unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-    assert!(consumed.acceptance.unresolved.iter().any(|reason| {
-        reason.as_ref() == "dependencies.checked_attribution_operation"
-    }));
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
+    );
     assert!(!consumed.acceptance.accepts_as_verified_program());
 
     let change = change_series(0.0);
@@ -289,14 +309,20 @@ fn bayesian_body() {
     assert!(result.effect().is_finite());
     assert!((result.effect() - expected).abs() < 2.0, "posterior mean stays near the shift");
     assert_eq!(result.interval.as_ref().map(|binding| binding.method), Some(IntervalMethod::None));
-    assert!(result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.posterior_mean_only"));
+    assert!(
+        result.diagnostics.iter().any(|d| d.code.as_ref() == "gcm.attribution.posterior_mean_only")
+    );
     let artifact = change_prepared
         .encode_contracted_result(&result, "checked-temporal-bayesian-change", &ctx)
         .unwrap();
     let consumed = antecedent_io::consume_analysis_result(&artifact).unwrap();
-    assert!(consumed.acceptance.unresolved.iter().any(|reason| {
-        reason.as_ref() == "dependencies.checked_attribution_operation"
-    }));
+    assert!(
+        consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.checked_attribution_operation" })
+    );
     assert!(!consumed.acceptance.accepts_as_verified_program());
 
     let mut prior = BayesianConfig::conjugate().n_draws(4);

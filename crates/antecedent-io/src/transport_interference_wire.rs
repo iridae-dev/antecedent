@@ -73,7 +73,6 @@ pub struct InterferenceTransportCertificateWire {
 /// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
 pub type TransportCertificateWire = InterferenceTransportCertificateWire;
 
-
 /// Inconclusive transport certificate wire form; never an impossibility proof.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NotCertifiedCertificateWire {

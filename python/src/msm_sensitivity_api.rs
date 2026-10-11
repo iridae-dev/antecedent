@@ -6,6 +6,7 @@
 //! every refusal are Rust's. A refusal comes back as structured JSON (`code`, `detail`,
 //! `message`) for the Python layer to raise as its own typed exception. Every number is an
 //! assumption range or an identified value; the sampling interval is withheld.
+use crate::bridge::RefusalJson;
 use antecedent::analysis::msm_sensitivity::{
     ActionUtility, MsmOutcomeLaw, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmStratum, msm_sensitivity, msm_sensitivity_artifact_bytes,
@@ -13,7 +14,6 @@ use antecedent::analysis::msm_sensitivity::{
 use antecedent_core::{ScientificQuantity, reason_code};
 use antecedent_io::IoError;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
-use crate::bridge::RefusalJson;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::Deserialize;

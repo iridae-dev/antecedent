@@ -165,11 +165,7 @@ pub const fn cell_index(x1: usize, x2: usize, x3: usize, x4: usize) -> usize {
 }
 
 fn bern(p0: f64, level: usize) -> f64 {
-    if level == 0 {
-        p0
-    } else {
-        1.0 - p0
-    }
+    if level == 0 { p0 } else { 1.0 - p0 }
 }
 
 /// Variables, sorted directed edges and sorted unordered bidirected edges.

@@ -25,25 +25,24 @@ use std::collections::HashSet;
 
 use antecedent_core::{
     CanonicalWriter, CompositionLink, CompositionStage, ExternalRefusal, ProvenanceChain,
-    ProvenanceChainError,
-    SupportStatus,
+    ProvenanceChainError, SupportStatus,
 };
 use antecedent_io::convert::to_cbor;
 use antecedent_io::error::IoError;
-use antecedent_io::external_claim_artifact::{wire_from_chain, LineageLinkWire};
+use antecedent_io::external_claim_artifact::{LineageLinkWire, wire_from_chain};
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::{
-    body_from_contract, contract_from_body, decode, encode, refused, source_digest, ContractBody,
-    MAX_DECISION_ARTIFACT_BYTES,
+    ContractBody, MAX_DECISION_ARTIFACT_BYTES, body_from_contract, contract_from_body, decode,
+    encode, refused, source_digest,
 };
 use crate::decision_contract::{
     AdmissibilityRules, AdmissibleDecisionContract, DeclaredExclusion, SupportRule,
     UncertaintyKind, UncertaintyRequirement,
 };
 use crate::decision_robustness::{
-    evaluate_robust, ActionRobustness, AtomSupport, ClaimProfile, InputSupport,
-    RobustDecisionResult, RobustVerdict, SupportShortfall,
+    ActionRobustness, AtomSupport, ClaimProfile, InputSupport, RobustDecisionResult, RobustVerdict,
+    SupportShortfall, evaluate_robust,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
 

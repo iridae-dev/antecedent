@@ -1340,7 +1340,8 @@ impl super::Study {
         if q.is_multi_step_sustained() {
             logical.record.estimator =
                 Some(Arc::from(EstimatorId::TemporalSequentialGcomp.as_str()));
-        } else if matches!(self.inference, InferenceMode::Bayesian(_)) && q.effect_modifiers.is_empty()
+        } else if matches!(self.inference, InferenceMode::Bayesian(_))
+            && q.effect_modifiers.is_empty()
         {
             logical.record.estimator = Some(Arc::from(EstimatorId::BayesianTemporalGcomp.as_str()));
         }

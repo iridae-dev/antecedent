@@ -15,8 +15,8 @@ use antecedent_core::{
 use antecedent_expr::ExprNode;
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
-    RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits,
+    MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS, RECOVERY_RULE_VERSION,
+    RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits,
     decide_observation_recovery, validate_mixed_source_query, verify_observation_recovery,
     verify_recovery_witness,
 };

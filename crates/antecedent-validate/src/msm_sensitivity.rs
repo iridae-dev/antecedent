@@ -671,7 +671,7 @@ pub fn msm_dirichlet_posterior(
         tolerance: 1e-10,
         sampling_composition: None,
     };
-    msm_ate_sensitivity(&updated, &spec)
-        .map(|result| result.identified)
-        .map_err(|error| antecedent_estimate::EstimationError::refused(error.code, error.to_string()))
+    msm_ate_sensitivity(&updated, &spec).map(|result| result.identified).map_err(|error| {
+        antecedent_estimate::EstimationError::refused(error.code, error.to_string())
+    })
 }

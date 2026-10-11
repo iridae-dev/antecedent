@@ -30,11 +30,11 @@
     clippy::needless_range_loop,
     reason = "dense numeric kernels index several parallel columns by row"
 )]
+use crate::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
 use crate::util::mean;
-use crate::vector_treatment::DesignSummary;
-use crate::EstimationError;
 use crate::util::{count, refuse};
+use crate::vector_treatment::DesignSummary;
 use std::f64::consts::{PI, SQRT_2};
 
 /// Calibration status of the estimator's inference. Coverage is unmeasured.
@@ -230,7 +230,6 @@ pub struct NonlinearMediationEstimate {
     /// Sufficient statistics of the outcome polynomial regression.
     pub outcome_design: DesignSummary,
 }
-
 
 fn sample_sd(v: &[f64]) -> Option<f64> {
     (v.len() >= 2).then(|| antecedent_stats::sample_std(v))

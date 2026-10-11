@@ -140,10 +140,7 @@ impl std::error::Error for LogWeightError {}
 /// # Errors
 ///
 /// See [`LogWeightError`].
-pub fn normalize_log_weights_into(
-    log_w: &[f64],
-    out: &mut Vec<f64>,
-) -> Result<(), LogWeightError> {
+pub fn normalize_log_weights_into(log_w: &[f64], out: &mut Vec<f64>) -> Result<(), LogWeightError> {
     out.clear();
     if log_w.is_empty() {
         return Err(LogWeightError::Empty);
@@ -301,10 +298,7 @@ mod tests {
         assert_eq!(normalize_log_weights(&[]), Err(LogWeightError::Empty));
         assert_eq!(normalize_log_weights(&[0.0, f64::NAN]), Err(LogWeightError::Invalid));
         assert_eq!(normalize_log_weights(&[f64::INFINITY, 0.0]), Err(LogWeightError::Invalid));
-        assert_eq!(
-            normalize_log_weights(&[f64::NEG_INFINITY; 3]),
-            Err(LogWeightError::NoMass)
-        );
+        assert_eq!(normalize_log_weights(&[f64::NEG_INFINITY; 3]), Err(LogWeightError::NoMass));
         let mut out = vec![9.0];
         assert!(normalize_log_weights_into(&[f64::NAN], &mut out).is_err());
         assert!(out.is_empty());

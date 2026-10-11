@@ -22,10 +22,10 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance};
 
 use super::prepare::{
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap, gather, gather_optional_multiway, gather_optional_row_labels,
     gather_rowmajor, prepare_propensity_problem_with_registry, restrict_to_rows,
-    split_by_treatment, trim_of, trim_retained_rows, PreparedPropensityProblem,
-    PropensityEstimationWorkspace, PropensityModel,
+    split_by_treatment, trim_of, trim_retained_rows,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;

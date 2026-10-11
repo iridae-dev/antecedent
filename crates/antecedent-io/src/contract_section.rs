@@ -15,25 +15,25 @@ use antecedent_core::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::contract_reason::publish_reasons;
 pub use crate::contract_reason::ContractReason;
+use crate::contract_reason::publish_reasons;
 
 use crate::identity::{
-    claim_digest, data_snapshot_digest, digest_wire, execution_digest, identification_digest,
-    identification_product_digest_wire, inference_binding_digest, payload_digest, program_digest,
     ClaimIdentityWire, DataSnapshotIdentityWire, IdentificationIdentityWire,
     IdentificationProductWire, InferenceBindingWire, ObservationIdentityWire, ProgramIdentityWire,
-    TargetIdentityWire,
+    TargetIdentityWire, claim_digest, data_snapshot_digest, digest_wire, execution_digest,
+    identification_digest, identification_product_digest_wire, inference_binding_digest,
+    payload_digest, program_digest,
 };
 use crate::identity::{
-    score_reuse_digest, target_weights_digest, PayloadDigestWire, ScoreReuseIdentityWire,
-    TargetWeightsIdentityWire,
+    PayloadDigestWire, ScoreReuseIdentityWire, TargetWeightsIdentityWire, score_reuse_digest,
+    target_weights_digest,
 };
 use crate::query_wire::TargetPopulationWire;
 use crate::{
-    from_cbor, query_wire::causal_query_from_wire, to_cbor, AnalysisResultHeader,
-    AnalysisResultWire, CausalQueryWire, EncodedArtifact, ExecutionIdentityWire, IoError,
-    RefutationReportWire, StructuralWeightBasisWire,
+    AnalysisResultHeader, AnalysisResultWire, CausalQueryWire, EncodedArtifact,
+    ExecutionIdentityWire, IoError, RefutationReportWire, StructuralWeightBasisWire, from_cbor,
+    query_wire::causal_query_from_wire, to_cbor,
 };
 
 /// Section id on the composite `analysis_result` artifact.
@@ -3704,16 +3704,16 @@ pub fn project_lossy_scalar(
 mod tests {
     use super::ContractReason;
     use antecedent_core::{
-        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint,
-        SmallRoleSet, ValueType, VariableId, IDENTITY_FORMAT,
+        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT, MeasurementSpec,
+        RoleHint, SmallRoleSet, ValueType, VariableId,
     };
 
     use super::*;
     use crate::expr_wire::ExprArenaWire;
     use crate::query_wire::causal_query_to_wire;
     use crate::{
-        encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
-        schema_to_wire, to_cbor, CausalQueryWire, IdentificationResultWire,
+        CausalQueryWire, IdentificationResultWire, encode_analysis_result_artifact,
+        encode_analysis_result_artifact_with_contract, schema_to_wire, to_cbor,
     };
 
     #[test]
@@ -3906,9 +3906,11 @@ mod tests {
             &body,
             &contract,
         );
-        assert!(unresolved
-            .iter()
-            .any(|reason| { reason.as_ref() == "dependencies.distribution_factor_laws" }));
+        assert!(
+            unresolved
+                .iter()
+                .any(|reason| { reason.as_ref() == "dependencies.distribution_factor_laws" })
+        );
     }
 
     #[allow(clippy::too_many_lines)]
@@ -3919,9 +3921,9 @@ mod tests {
         use antecedent_graph::{Dag, DenseNodeId};
 
         use crate::identity::{
+            InferentialCommitmentsWire, ObservationIdentityWire, ObservationOptionsWire,
             dag_identity, data_snapshot_digest, execution_digest, identification_digest,
             identification_product_digest_wire, inference_binding_digest, program_digest,
-            InferentialCommitmentsWire, ObservationIdentityWire, ObservationOptionsWire,
         };
 
         let target_digest = digest_wire(IdentityDomain::Target, &target).unwrap();
@@ -4303,11 +4305,13 @@ mod tests {
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(!consumed.acceptance.accepts_as_verified_program());
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|item| &**item == "identities.identification_product"));
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|item| &**item == "identities.identification_product")
+        );
     }
 
     #[test]
@@ -4375,11 +4379,9 @@ mod tests {
         let consumed = consume_analysis_result(&bytes).unwrap();
         assert!(consumed.acceptance.accepts_as_verified_program());
         assert!(!consumed.acceptance.accepts_as_claim());
-        assert!(!consumed
-            .acceptance
-            .supported_operations
-            .iter()
-            .any(|op| &**op == "inspect_claim"));
+        assert!(
+            !consumed.acceptance.supported_operations.iter().any(|op| &**op == "inspect_claim")
+        );
         let (accepted, receipt) =
             accept_claim(&bytes, &antecedent_core::ConsumerProfile::full()).unwrap();
         assert!(!accepted.acceptance.accepts_as_claim());
@@ -4485,11 +4487,13 @@ mod tests {
 
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|reason| reason.as_ref() == "program.checked_payload_conflict"));
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|reason| reason.as_ref() == "program.checked_payload_conflict")
+        );
     }
 
     #[test]
@@ -4513,11 +4517,13 @@ mod tests {
 
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|reason| reason.as_ref() == "program.checked_nested_counterfactual.target"));
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|reason| reason.as_ref() == "program.checked_nested_counterfactual.target")
+        );
     }
 
     #[test]
@@ -4538,16 +4544,20 @@ mod tests {
         let bytes = to_bytes(&body, names, Some(&contract));
         let consumed = consume_analysis_result(&bytes).unwrap();
         assert_eq!(consumed.body, body);
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|key| { key.as_ref() == "program.checked_aipw_lowering" }));
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|key| { key.as_ref() == "checked_aipw.row_binding" }));
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "program.checked_aipw_lowering" })
+        );
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
+        );
     }
 
     #[test]
@@ -4593,11 +4603,13 @@ mod tests {
         seal_claim(&mut contract, &body);
 
         let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|key| { key.as_ref() == "program.checked_iv_lowering" }));
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "program.checked_iv_lowering" })
+        );
         assert!(!consumed.acceptance.accepts_as_verified_program());
     }
 
@@ -4627,20 +4639,24 @@ mod tests {
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
         seal_claim(&mut contract, &body);
 
-        assert!(encode_analysis_result_artifact_with_contract(
-            &body,
-            names.clone(),
-            "tampered-aipw-lowering",
-            Some(&contract),
-        )
-        .is_err());
+        assert!(
+            encode_analysis_result_artifact_with_contract(
+                &body,
+                names.clone(),
+                "tampered-aipw-lowering",
+                Some(&contract),
+            )
+            .is_err()
+        );
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|key| { key.as_ref() == "program.checked_aipw_lowering" }));
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "program.checked_aipw_lowering" })
+        );
     }
 
     /// The trim rule selects the procedure: a trimmed lowering must run no
@@ -4729,20 +4745,24 @@ mod tests {
         contract.identities.checked_aipw_rows = Some([0; 32]);
         seal_claim(&mut contract, &body);
 
-        assert!(encode_analysis_result_artifact_with_contract(
-            &body,
-            names.clone(),
-            "tampered-aipw-rows",
-            Some(&contract),
-        )
-        .is_err());
+        assert!(
+            encode_analysis_result_artifact_with_contract(
+                &body,
+                names.clone(),
+                "tampered-aipw-rows",
+                Some(&contract),
+            )
+            .is_err()
+        );
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(consumed
-            .acceptance
-            .unresolved
-            .iter()
-            .any(|key| { key.as_ref() == "checked_aipw.row_binding" }));
+        assert!(
+            consumed
+                .acceptance
+                .unresolved
+                .iter()
+                .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
+        );
     }
 
     #[test]

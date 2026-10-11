@@ -558,9 +558,7 @@ macro_rules! explicit_graph_input {
     };
 }
 
-explicit_graph_input!(
-    Dag, Admg, Pag, Cpdag, TemporalDag, TemporalCpdag, TemporalPag, TemporalAdmg
-);
+explicit_graph_input!(Dag, Admg, Pag, Cpdag, TemporalDag, TemporalCpdag, TemporalPag, TemporalAdmg);
 
 impl StructureSource {
     /// Matrix axis value.
@@ -1757,8 +1755,9 @@ mod tests {
         ))
         .unwrap_err();
         assert!(
-            err.to_string()
-                .starts_with("refused: ConditionalEffect on Admg or TemporalAdmg has no compile arm"),
+            err.to_string().starts_with(
+                "refused: ConditionalEffect on Admg or TemporalAdmg has no compile arm"
+            ),
             "Admg: {err}"
         );
         for graph in ["Cpdag", "Pag"] {

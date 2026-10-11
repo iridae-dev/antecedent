@@ -8,8 +8,8 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions};
 
 use super::prepare::{
-    clamp_scores, clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry,
-    trim_of, PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
+    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel, clamp_scores,
+    clip_of, default_propensity_overlap, prepare_propensity_problem_with_registry, trim_of,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -297,11 +297,7 @@ pub(crate) fn compute_ipw_weights_into(
         out.iter_mut().zip(treatment.iter().zip(scores_for_weight).zip(scores_for_trim))
     {
         *slot = if let Some(tr) = trim {
-            if raw < tr || raw > 1.0 - tr {
-                0.0
-            } else {
-                target.weight(t, e)
-            }
+            if raw < tr || raw > 1.0 - tr { 0.0 } else { target.weight(t, e) }
         } else {
             target.weight(t, e)
         };
@@ -344,11 +340,7 @@ pub(crate) fn hajek_weighted_mean(
             den += weights[i];
         }
     }
-    if den > 0.0 {
-        num / den
-    } else {
-        f64::NAN
-    }
+    if den > 0.0 { num / den } else { f64::NAN }
 }
 
 /// Logistic nuisance fit and the weighting rule differentiated by the sandwich.
@@ -484,7 +476,8 @@ mod tests {
                 break;
             }
         }
-        let e: Vec<f64> = x.iter().map(|x| antecedent_kernels::sigmoid(beta[0] + beta[1] * x)).collect();
+        let e: Vec<f64> =
+            x.iter().map(|x| antecedent_kernels::sigmoid(beta[0] + beta[1] * x)).collect();
         let mut numerator = [0.0; 2];
         let mut denominator = [0.0; 2];
         for i in 0..t.len() {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::sequential_validation::{validate_sequential, SequentialValidationAtom};
+use super::sequential_validation::{SequentialValidationAtom, validate_sequential};
 use super::*;
 
 impl super::Study {
@@ -862,8 +862,7 @@ impl super::Study {
             InferenceMode::Bayesian(c) => c.clone(),
             InferenceMode::Frequentist => {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "graph-posterior discovery requires inference=Bayesian for effect mixture",
+                    message: "graph-posterior discovery requires inference=Bayesian for effect mixture",
                 });
             }
         };
@@ -1863,8 +1862,7 @@ impl super::Study {
             if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
             {
                 return Err(CausalError::Unsupported {
-                    message:
-                        "multi-step sustained inference requires isotropic per-mechanism priors",
+                    message: "multi-step sustained inference requires isotropic per-mechanism priors",
                 });
             }
         }

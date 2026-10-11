@@ -72,8 +72,8 @@ pub use candidate::{
     CandidateDesign, DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
 };
 pub use decision::{
-    evaluate_decision, AffineUtility, DecisionConstraint, DecisionEvaluation, DecisionProblem,
-    DecisionProblemId, Utility,
+    AffineUtility, DecisionConstraint, DecisionEvaluation, DecisionProblem, DecisionProblemId,
+    Utility, evaluate_decision,
 };
 pub use decision_contract::{
     ActionKind, DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion,
@@ -92,13 +92,13 @@ pub use ranker::{
     ModelLoglikDraws,
 };
 pub use repair::{
-    repair, BackdoorRepairFamily, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
+    BackdoorRepairFamily, FamilyVerdict, RepairClassification, RepairError, RepairFamily,
     RepairLimits, RepairObjective, RepairOutcome, RepairReceipt, RepairReport,
-    TransportRepairFamily,
+    TransportRepairFamily, repair,
 };
 pub use repair_artifact::{
-    RepairArtifactError, RepairConsumeLimits, RepairFamilyRef, RepairReportArtifact,
-    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION,
+    REPAIR_ARTIFACT_KIND, REPAIR_ARTIFACT_VERSION, RepairArtifactError, RepairConsumeLimits,
+    RepairFamilyRef, RepairReportArtifact,
 };
 pub use result::{ConstraintViolation, DesignRanking, RankedCandidate, ScoreEvaluation};
 pub use study_candidate::{
@@ -106,26 +106,26 @@ pub use study_candidate::{
     UnitRules,
 };
 pub use study_plan_artifact::{
-    StudyBaseFailureWire, StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire,
-    StudyPlanConsumeLimits, StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire,
-    StudyPlanPremisesWire, StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
-    STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION,
+    STUDY_PLAN_ARTIFACT_KIND, STUDY_PLAN_ARTIFACT_VERSION, StudyBaseFailureWire,
+    StudyCandidateWire, StudyDerivationWire, StudyPlanArtifactWire, StudyPlanConsumeLimits,
+    StudyPlanDataWire, StudyPlanLimitsWire, StudyPlanOutcomeWire, StudyPlanPremisesWire,
+    StudyPlanStopWire, StudyProposalWire, StudyRepairWire, StudySubsetWire,
 };
 pub use study_planner::{
-    plan_studies, StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanError,
-    StudyPlanProposal, StudyPlanResult,
+    StudyArrival, StudyArrivalDecision, StudyCandidate, StudyCost, StudyPlanError,
+    StudyPlanProposal, StudyPlanResult, plan_studies,
 };
 pub use transport_planner::{
-    plan_transport_evidence, TransportCandidateAssessment, TransportCandidateOutcome,
-    TransportEvidenceCandidate, TransportPlanResult, TransportPlanSpec, TransportPlanningError,
-    TransportProposal,
+    TransportCandidateAssessment, TransportCandidateOutcome, TransportEvidenceCandidate,
+    TransportPlanResult, TransportPlanSpec, TransportPlanningError, TransportProposal,
+    plan_transport_evidence,
 };
 pub use z_transport_planner::{
-    plan_z_transport_evidence, propose_z_transport_evidence, snapshot_z_transport_failure,
-    validate_z_transport_candidate, ZTransportArrival, ZTransportCandidateAssessment,
-    ZTransportCandidateOutcome, ZTransportFailureSnapshot, ZTransportFailureSnapshotWire,
-    ZTransportFailureStatus, ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError,
-    ZTransportProposal, ZTransportProposalWire, ZTransportQueryWire,
+    ZTransportArrival, ZTransportCandidateAssessment, ZTransportCandidateOutcome,
+    ZTransportFailureSnapshot, ZTransportFailureSnapshotWire, ZTransportFailureStatus,
+    ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError, ZTransportProposal,
+    ZTransportProposalWire, ZTransportQueryWire, plan_z_transport_evidence,
+    propose_z_transport_evidence, snapshot_z_transport_failure, validate_z_transport_candidate,
 };
 
 /// Independently consumed original source diagnostics and semantic mappings.

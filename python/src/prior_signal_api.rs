@@ -1,4 +1,8 @@
 //! Original posterior artifacts through the checked prior/future-signal adapter.
+use crate::bridge::{
+    MAX_DECLARED_ARTIFACT_BYTES, RefusalJson, check_declared_len, check_declared_size,
+    external_refusal_json,
+};
 use crate::value_err;
 use antecedent::analysis::design_ranking::{
     DesignRankingRequestWire, PriorDeclWire, ProviderDeclWire,
@@ -11,10 +15,6 @@ use antecedent_design::prior_signal::{
 use antecedent_io::{
     EncodedArtifact, EstimandFingerprint, PosteriorQuantityWire, PriorCatalog, PriorSourceRef,
     TargetDesign, decode_posterior_artifact,
-};
-use crate::bridge::{
-    MAX_DECLARED_ARTIFACT_BYTES, RefusalJson, check_declared_len, check_declared_size,
-    external_refusal_json,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList};

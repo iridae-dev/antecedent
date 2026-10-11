@@ -428,16 +428,18 @@ mod tests {
         assert_eq!((fit.n_left, fit.n_right), (316, 316));
         assert!(fit.standard_error > 0.0);
         let sparse_running = [-0.2, -0.1, 0.1, 0.2];
-        assert!(fit_local_polynomial_ratio(
-            &sparse_running,
-            &[0.0, 0.0, 1.0, 1.0],
-            &[0.0, 0.0, 1.0, 1.0],
-            0.0,
-            1.0,
-            false
-        )
-        .unwrap_err()
-        .contains("full-rank support"));
+        assert!(
+            fit_local_polynomial_ratio(
+                &sparse_running,
+                &[0.0, 0.0, 1.0, 1.0],
+                &[0.0, 0.0, 1.0, 1.0],
+                0.0,
+                1.0,
+                false
+            )
+            .unwrap_err()
+            .contains("full-rank support")
+        );
     }
 
     #[test]

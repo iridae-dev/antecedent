@@ -34,9 +34,9 @@ use crate::error::{EstimationError, RefusalFields};
 use crate::joint_if::JointCovariance;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::trim_of;
-use crate::util::refuse;
 use crate::scores::ScoreTable;
 use crate::se::AnalyticSeKind;
+use crate::util::refuse;
 
 /// Smallest cluster count a declaration may require. Below it the sandwich over cluster sums
 /// has too few terms to mean anything, and a fold's training set would hold under eight

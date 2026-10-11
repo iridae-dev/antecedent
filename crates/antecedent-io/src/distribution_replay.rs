@@ -10,10 +10,10 @@ use antecedent_expr::{
 
 use crate::contract_reason::ContractReason;
 use crate::{
-    functional_program_from_wire, CausalQueryWire, DistributionFactorDomainWire,
-    DistributionFactorKeyWire, DistributionFactorLawsWire, DistributionFactorRowWire,
-    DistributionFactorTableWire, FunctionalProgramWire, InterventionWire,
-    InterventionalDistributionWire, IoError, ValueWire,
+    CausalQueryWire, DistributionFactorDomainWire, DistributionFactorKeyWire,
+    DistributionFactorLawsWire, DistributionFactorRowWire, DistributionFactorTableWire,
+    FunctionalProgramWire, InterventionWire, InterventionalDistributionWire, IoError, ValueWire,
+    functional_program_from_wire,
 };
 
 const FACTOR_LAWS_FORMAT: u16 = 1;

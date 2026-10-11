@@ -31,12 +31,12 @@
 
 use std::collections::BTreeSet;
 
-use antecedent_core::{reason_code, CanonicalWriter, ExecutionContext};
+use antecedent_core::{CanonicalWriter, ExecutionContext, reason_code};
 use antecedent_expr::ExactTransportData;
 
 use crate::error::EstimationError;
-use crate::util::refuse;
 use crate::temporal_transport::PreparedTemporalSequence;
+use crate::util::refuse;
 
 /// Inference claim of the route.
 pub const TEMPORAL_REFRESH_INFERENCE_CLAIM: &str = "point_only";

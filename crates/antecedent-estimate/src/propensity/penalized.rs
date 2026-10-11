@@ -25,16 +25,16 @@ use std::hash::{Hash, Hasher};
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, VariableId};
 use antecedent_learn::{
-    cross_fit_with_folds, DesignView, FittedPredictor, LassoLogisticLearner, LearnError,
-    LearnerFactory, LearnerProvenance, PredictionMap, RidgeLogisticLearner, TargetView,
+    DesignView, FittedPredictor, LassoLogisticLearner, LearnError, LearnerFactory,
+    LearnerProvenance, PredictionMap, RidgeLogisticLearner, TargetView, cross_fit_with_folds,
 };
 
 use super::penalized_report::{FailedFit, FoldSupport};
+use crate::crossfit_plan::{FoldSource, SHARED_FOLD_ID_ERRORS, derive_fold_ids};
 use crate::error::EstimationError;
-use crate::util::refuse;
-use crate::crossfit_plan::{derive_fold_ids, FoldSource, SHARED_FOLD_ID_ERRORS};
 use crate::learn_nuisance::{intercept_is_constant, learn_err};
 use crate::splitmix::mix64;
+use crate::util::refuse;
 
 /// Inner cross-validation folds used to choose the penalty when none is declared.
 pub const DEFAULT_RIDGE_INNER_FOLDS: usize = 5;
@@ -797,7 +797,7 @@ pub(crate) fn fit_penalized_fold(
 mod tests {
     use std::collections::hash_map::DefaultHasher;
 
-    use antecedent_stats::{fit_propensity, FaerBackend, GlmOptions, PropensityWorkspace};
+    use antecedent_stats::{FaerBackend, GlmOptions, PropensityWorkspace, fit_propensity};
 
     use super::*;
     use crate::splitmix::splitmix64_unit;
@@ -873,9 +873,11 @@ mod tests {
     fn lasso_is_licensed_inside_the_cross_fit_and_refused_outside_it() {
         assert!(PropensityNuisance::lasso().validate_for_execution().is_ok());
         assert!(PropensityNuisance::default().validate_for_execution().is_ok());
-        assert!(PropensityNuisance::ridge_logistic(RidgeTuning::default())
-            .validate_for_execution()
-            .is_ok());
+        assert!(
+            PropensityNuisance::ridge_logistic(RidgeTuning::default())
+                .validate_for_execution()
+                .is_ok()
+        );
         let error = PropensityNuisance::lasso_not_cross_fitted();
         assert!(error.to_string().contains("selection_inference_not_licensed"), "{error}");
         assert!(
@@ -889,10 +891,12 @@ mod tests {
             let error = penalized.with_fallback(NuisanceFallback::Ml).validate_for_execution();
             assert!(error.unwrap_err().to_string().contains("invalid_argument"));
         }
-        assert!(PropensityNuisance::default()
-            .with_fallback(NuisanceFallback::RidgeLogistic(RidgeTuning::default()))
-            .validate_for_execution()
-            .is_ok());
+        assert!(
+            PropensityNuisance::default()
+                .with_fallback(NuisanceFallback::RidgeLogistic(RidgeTuning::default()))
+                .validate_for_execution()
+                .is_ok()
+        );
     }
 
     #[test]

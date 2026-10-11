@@ -65,7 +65,7 @@ use antecedent_io::error::IoError;
 use antecedent_io::external_claim_artifact::lineage_wire;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::sensitivity_artifact::SENSITIVITY_CLAIM_LINK_ID;
-use antecedent_test_support::{conformance_dir};
+use antecedent_test_support::conformance_dir;
 
 fn fixture_dir() -> std::path::PathBuf {
     conformance_dir("cross_surface")

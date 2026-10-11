@@ -6,6 +6,7 @@
 //! (`{"code", "detail", "message"}`) for the Python layer to raise as its own
 //! typed exception; failures that are not refusals (cancellation, resource
 //! budgets, serialization) raise the ordinary transport exceptions.
+use crate::bridge::{RefusalJson, check_declared_size};
 use crate::graphs::{Admg, Cpdag};
 use crate::transport_common::{
     RegimeCheck, assignment_from_pairs, error, execution_context, frame_named_artifact, parse_laws,
@@ -26,7 +27,6 @@ use antecedent_io::cpdag_completion_artifact::{CpdagCompletionArtifactWire, Cpda
 use antecedent_io::scenario_covariance_artifact::{
     CovarianceSpec, ScenarioCovarianceArtifactWire, ScenarioCovarianceConsumeLimits,
 };
-use crate::bridge::{RefusalJson, check_declared_size};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::sync::Arc;
