@@ -122,6 +122,7 @@ use antecedent_core::reason_code;
 use crate::effect_constancy::CalibrationStatus;
 use crate::error::EstimationError;
 use crate::splitmix::{mix64, splitmix64};
+use crate::vector_treatment::DesignSummary;
 
 /// Most latent classes accepted.
 pub const LATENT_CLASS_MAX_CLASSES: usize = 4;
@@ -256,6 +257,8 @@ pub struct LatentClassEffect {
     pub residual_variance: f64,
     /// Effective class size: the sum of the class's responsibilities.
     pub effective_n: f64,
+    /// Weighted normal equations of this class. The treatment is the first slope column.
+    pub design: DesignSummary,
 }
 
 /// Bootstrap bookkeeping.
@@ -584,6 +587,38 @@ fn wls(problem: &Problem, weights: &[f64]) -> Option<Vec<f64>> {
         }
     }
     solve_spd(&gram, &rhs, dim)
+}
+
+/// Weighted normal equations of one class: `X'WX`, `X'Wy` and the weighted residual sum of squares.
+fn class_design(problem: &Problem, weights: &[f64]) -> DesignSummary {
+    let dim = problem.d;
+    let mut gram = vec![0.0; dim * dim];
+    let mut xty = vec![0.0; dim];
+    let mut n_rows = 0usize;
+    for (idx, &weight) in weights.iter().enumerate() {
+        if weight <= 0.0 {
+            continue;
+        }
+        n_rows += 1;
+        let zi = problem.row(idx);
+        for row in 0..dim {
+            xty[row] += weight * zi[row] * problem.y[idx];
+            for col in 0..dim {
+                gram[row * dim + col] += weight * zi[row] * zi[col];
+            }
+        }
+    }
+    let beta = wls(problem, weights).unwrap_or_else(|| vec![0.0; dim]);
+    let mut rss = 0.0;
+    for (idx, &weight) in weights.iter().enumerate() {
+        if weight <= 0.0 {
+            continue;
+        }
+        let fitted = dot(problem.row(idx), &beta);
+        let resid = problem.y[idx] - fitted;
+        rss += weight * resid * resid;
+    }
+    DesignSummary { n_rows, first_treatment: 1, gram, xty, rss }
 }
 
 fn e_step(problem: &Problem, params: &Params, resp: &mut [Vec<f64>]) -> f64 {
@@ -978,6 +1013,7 @@ pub fn fit_latent_class_effects(
             covariate_coefficients: params.beta[c][2..].to_vec(),
             residual_variance: params.sigma2[c],
             effective_n: resp[c].iter().sum(),
+            design: class_design(&problem, &resp[c]),
         })
         .collect();
     let min_effect_gap =

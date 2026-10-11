@@ -318,6 +318,8 @@ pub struct MsmSensitivityResult {
     pub inference_claim: &'static str,
     /// Sampling status (withheld).
     pub uncertainty: MsmSensitivityUncertainty,
+    /// The finite stratum laws the bounds were computed from.
+    pub laws: Vec<MsmStratum>,
 }
 
 /// One arm of one stratum, prepared: atoms ascending by value.
@@ -625,5 +627,51 @@ pub fn msm_ate_sensitivity(
         interpretation: MSM_INTERPRETATION,
         inference_claim: MSM_ASSUMPTION_RANGE_CLAIM,
         uncertainty: MsmSensitivityUncertainty::withheld(),
+        laws: strata.to_vec(),
     })
+}
+
+/// Dirichlet posterior mean of the stratum masses and outcome laws, pushed through
+/// [`msm_ate_sensitivity`] at `Lambda = 1`.
+///
+/// A structural zero in an outcome law stays zero. A tiny concentration stays at the
+/// identified stratified average treatment effect. The returned number is that posterior
+/// mean. No interval is returned.
+///
+/// # Errors
+///
+/// `msm_posterior.non_positive_scale`, `msm_posterior.mapped_prior`,
+/// `msm_posterior.external_power_prior`, `msm_posterior.unmeasured_band`,
+/// `msm_posterior.empty_law`, or a refusal of the sensitivity engine.
+pub fn msm_dirichlet_posterior(
+    strata: &[MsmStratum],
+    request: antecedent_estimate::posterior_mean::PosteriorRequest,
+) -> Result<f64, antecedent_estimate::EstimationError> {
+    use antecedent_estimate::posterior_mean::{DirichletNamespace, dirichlet_supported_mean};
+    let masses: Vec<f64> = strata.iter().map(|stratum| stratum.mass).collect();
+    let masses = dirichlet_supported_mean(&masses, request, DirichletNamespace::Msm)?;
+    let mut updated = strata.to_vec();
+    for (stratum, mass) in updated.iter_mut().zip(masses) {
+        stratum.mass = mass;
+        stratum.treated.probabilities = dirichlet_supported_mean(
+            &stratum.treated.probabilities,
+            request,
+            DirichletNamespace::Msm,
+        )?;
+        stratum.control.probabilities = dirichlet_supported_mean(
+            &stratum.control.probabilities,
+            request,
+            DirichletNamespace::Msm,
+        )?;
+    }
+    let spec = MsmSensitivitySpec {
+        lambda_max: 1.0 + 1e-8,
+        grid_points: 2,
+        decision_threshold: None,
+        tolerance: 1e-10,
+        sampling_composition: None,
+    };
+    msm_ate_sensitivity(&updated, &spec)
+        .map(|result| result.identified)
+        .map_err(|error| antecedent_estimate::EstimationError::refused(error.code, error.to_string()))
 }

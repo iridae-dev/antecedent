@@ -229,6 +229,9 @@ pub struct LearnedContinuousEstimate {
     pub diagnostics: TrialNuisanceDiagnostics,
     /// Source-membership (`selection`) and treatment overlap, kept distinct.
     pub overlap: TransportOverlapReport,
+    /// Per-row AIPW scores whose sample mean is [`Self::estimate`].
+    #[serde(default)]
+    pub scores: Vec<f64>,
 }
 
 fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
@@ -392,6 +395,7 @@ pub fn estimate_learned_continuous(
         },
         diagnostics: point.diagnostics,
         overlap: point.overlap,
+        scores: point.scores,
     })
 }
 

@@ -995,6 +995,22 @@ pub fn coefficient_posterior_mean(
     summary: &DesignSummary,
     prior_scale: f64,
 ) -> Result<Vec<f64>, EstimationError> {
+    let beta = full_coefficient_posterior_mean(summary, prior_scale)?;
+    Ok(beta[summary.first_treatment..].to_vec())
+}
+
+/// Posterior mean of every coefficient, intercept included.
+///
+/// The intercept is unpenalized. Every other column has an independent normal prior of
+/// scale `prior_scale` and the OLS residual variance plugged in. No interval is returned.
+///
+/// # Errors
+///
+/// The same refusals as [`coefficient_posterior_mean`].
+pub fn full_coefficient_posterior_mean(
+    summary: &DesignSummary,
+    prior_scale: f64,
+) -> Result<Vec<f64>, EstimationError> {
     let p = summary.xty.len();
     let n = summary.n_rows;
     let consistent = p > 0
@@ -1035,7 +1051,7 @@ pub fn coefficient_posterior_mean(
             "the posterior mean overflowed finite precision",
         ));
     }
-    Ok(beta[summary.first_treatment..].to_vec())
+    Ok(beta)
 }
 
 /// Joint fit from sufficient statistics, bit-identical to the model-based fit of the rows the

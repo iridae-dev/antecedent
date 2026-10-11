@@ -1,0 +1,19 @@
+feature_id = "transport.learned_continuous_trial.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "The published number is the posterior mean of the per-row AIPW score table the learned-continuous fit already computed. No interval is produced.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent/tests/learned_continuous_lifecycle.rs",
+]

@@ -707,6 +707,7 @@ impl SmoothedDoseArtifactWire {
                 || stored.estimate.to_bits() != replayed.estimate.to_bits()
                 || stored.plug_in.to_bits() != replayed.plug_in.to_bits()
                 || stored.augmentation.to_bits() != replayed.augmentation.to_bits()
+                || stored.row_scores != replayed.row_scores
                 || !stored.estimate.is_finite()
             {
                 return Err(Refusal::PointMismatch.into());

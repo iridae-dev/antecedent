@@ -48,9 +48,12 @@
 
 #![allow(clippy::float_cmp, reason = "exact grid endpoints and identical computations")]
 
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
+};
 use antecedent_validate::msm_sensitivity::{
     MSM_SAMPLING_STATEMENT, MsmOutcomeLaw, MsmStratum, MsmTippingDirection, msm_ate_bounds_at,
-    msm_ate_sensitivity,
+    msm_ate_sensitivity, msm_dirichlet_posterior,
 };
 use antecedent_validate::{MsmSensitivityError, MsmSensitivitySpec, TippingStatus};
 
@@ -268,4 +271,61 @@ fn msm_keeps_the_assumption_range_distinct_from_sampling() {
     assert_eq!(result.uncertainty.reason_code, "cell_not_licensed");
     assert_eq!(result.uncertainty.detail, "msm_sensitivity.interval_withheld");
     assert!(result.normalization.contains("not Hajek"));
+}
+
+#[test]
+fn msm_posterior_mean_stays_at_the_identified_ate() {
+    let strata = two_strata();
+    let echoed = msm_ate_sensitivity(&strata, &MsmSensitivitySpec::new(2.0)).unwrap();
+    assert_eq!(echoed.laws, strata);
+    let mean = msm_dirichlet_posterior(
+        &strata,
+        PosteriorRequest::IndependentNormal { scale: 1.0e-8 },
+    )
+    .unwrap();
+    close(mean, 0.3, 1e-5);
+    let degenerate = vec![MsmStratum {
+        mass: 1.0,
+        propensity: 0.5,
+        treated: MsmOutcomeLaw { values: vec![0.0, 1.0], probabilities: vec![0.0, 1.0] },
+        control: MsmOutcomeLaw { values: vec![0.0, 1.0], probabilities: vec![1.0, 0.0] },
+    }];
+    let pinned = msm_dirichlet_posterior(
+        &degenerate,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+    )
+    .unwrap();
+    close(pinned, 1.0, 1e-12);
+}
+
+#[test]
+fn msm_posterior_refuses_a_mapped_prior() {
+    let err = msm_dirichlet_posterior(&two_strata(), PosteriorRequest::MappedCoefficient)
+        .unwrap_err();
+    let antecedent_estimate::EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("msm_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn msm_posterior_consumer_replays_the_dirichlet_laws() {
+    let request = PosteriorRequest::IndependentNormal { scale: 1.0 };
+    let produced = msm_dirichlet_posterior(&two_strata(), request).unwrap();
+    let masses = dirichlet_supported_mean(&[0.5, 0.5], request, DirichletNamespace::Msm).unwrap();
+    let mut updated = two_strata();
+    for (stratum, mass) in updated.iter_mut().zip(masses) {
+        stratum.mass = mass;
+        stratum.treated.probabilities =
+            dirichlet_supported_mean(&stratum.treated.probabilities, request, DirichletNamespace::Msm)
+                .unwrap();
+        stratum.control.probabilities =
+            dirichlet_supported_mean(&stratum.control.probabilities, request, DirichletNamespace::Msm)
+                .unwrap();
+    }
+    let point = msm_ate_bounds_at(&updated, 1.0).unwrap();
+    close(produced, point.lower, 1e-12);
+    close(point.lower, point.upper, 1e-12);
+    let kept = dirichlet_supported_mean(&[0.0, 1.0], request, DirichletNamespace::Msm).unwrap();
+    assert_eq!(kept, vec![0.0, 1.0]);
 }

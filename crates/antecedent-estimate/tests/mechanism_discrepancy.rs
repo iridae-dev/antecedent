@@ -445,3 +445,60 @@ fn discrepancy_summaries_replay_the_raw_data_result() {
     assert_eq!(code, reason_code!("invalid_argument"));
     assert!(message.starts_with("mechanism_discrepancy.inconsistent_summary:"), "{message}");
 }
+
+#[test]
+fn mechanism_posterior_mean_stays_at_the_hand_coefficients() {
+    let result = test_mechanism_discrepancy(
+        &one_parent("source", &YS),
+        &one_parent("target", &YT_BOTH),
+        &opts(true),
+    )
+    .unwrap();
+    let posterior = antecedent_estimate::posterior_mean::mechanism_coefficient_posterior(
+        &result.source_summary,
+        antecedent_estimate::posterior_mean::PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .unwrap();
+    close(posterior[0], 1.3, "source intercept posterior");
+    close(posterior[1], 0.8, "source slope posterior");
+}
+
+#[test]
+fn mechanism_posterior_refuses_an_unmeasured_band() {
+    let result = test_mechanism_discrepancy(
+        &one_parent("source", &YS),
+        &one_parent("target", &YT_BOTH),
+        &opts(true),
+    )
+    .unwrap();
+    let err = antecedent_estimate::posterior_mean::mechanism_coefficient_posterior(
+        &result.source_summary,
+        antecedent_estimate::posterior_mean::PosteriorRequest::UnmeasuredBand,
+    )
+    .unwrap_err();
+    let (_, message) = refusal(err);
+    assert!(message.contains("mechanism_posterior.unmeasured_band"), "{message}");
+}
+
+#[test]
+fn mechanism_posterior_consumer_replays_the_normal_equations() {
+    use antecedent_estimate::posterior_mean::{
+        PosteriorRequest, mechanism_coefficient_posterior,
+    };
+    let summary = MechanismSummary {
+        label: "source".into(),
+        measurement: measurement("protocol-1", "mg", &[("x", "cm")]),
+        n: 4,
+        xtx: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![10.0, 19.0],
+        yty: 30.0,
+    };
+    let request = PosteriorRequest::IndependentNormal { scale: 1.0 };
+    let produced = mechanism_coefficient_posterior(&summary, request).unwrap();
+    let penalty = 0.9;
+    let det = 4.0 * (14.0 + penalty) - 36.0;
+    let beta0 = ((14.0 + penalty) * 10.0 - 6.0 * 19.0) / det;
+    let beta1 = (-6.0 * 10.0 + 4.0 * 19.0) / det;
+    close(produced[0], beta0, "hand intercept");
+    close(produced[1], beta1, "hand slope");
+}

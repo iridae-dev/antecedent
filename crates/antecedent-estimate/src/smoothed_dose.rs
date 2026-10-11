@@ -407,6 +407,9 @@ pub struct SmoothedDoseGridPoint {
     pub support: LocalDoseSupport,
     /// Analytic influence-function standard error: a diagnostic, not a licensed claim.
     pub influence_se_diagnostic: f64,
+    /// Per-row score contributions whose sample mean is [`Self::estimate`].
+    #[serde(default)]
+    pub row_scores: Vec<f64>,
 }
 
 /// Held-out nuisance losses.
@@ -1103,6 +1106,26 @@ fn mean_in_order(values: &[f64]) -> f64 {
     values.iter().sum::<f64>() / values.len() as f64
 }
 
+/// Per-row contributions scaled so their mean is `mean(nu) + sum(residual) / n0`.
+fn dose_row_scores(
+    n: usize,
+    n0: f64,
+    target_rows: &[usize],
+    nu_fine: &[f64],
+    source_rows: &[usize],
+    residual_terms: &[f64],
+) -> Vec<f64> {
+    let scale = n as f64 / n0;
+    let mut row_scores = vec![0.0; n];
+    for (local, &row) in target_rows.iter().enumerate() {
+        row_scores[row] = nu_fine[local] * scale;
+    }
+    for (local, &row) in source_rows.iter().enumerate() {
+        row_scores[row] = residual_terms[local] * scale;
+    }
+    row_scores
+}
+
 /// Evaluate the point from stored fold models, rows and premises: out-of-fold
 /// membership and outcome predictions, the quadratures, the score, the diagnostics and
 /// every post-fit refusal (membership overlap on every row, source and target; quadrature
@@ -1272,6 +1295,14 @@ pub fn evaluate_smoothed_dose_models(
             },
             support: local_support(query, input, a),
             influence_se_diagnostic: squares.sqrt() / n0,
+            row_scores: dose_row_scores(
+                n,
+                n0,
+                &target_rows,
+                &nu_fine,
+                &source_rows,
+                &residual_terms,
+            ),
         })
     })?;
     let max_odds_weight = odds.iter().copied().fold(0.0, f64::max);

@@ -1,0 +1,19 @@
+feature_id = "sensitivity.mechanism_discrepancy.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "The published numbers are the posterior means of the mechanism coefficients, intercept included, under independent normal priors on the parent slopes. This is not a posterior of the Wald statistic. No interval is produced.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/mechanism_discrepancy.rs",
+]

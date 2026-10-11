@@ -590,6 +590,19 @@ impl LearnedContinuousArtifactWire {
         if replay.aipw != Some(r.estimate) || !r.estimate.is_finite() {
             return Err(Refusal::PointMismatch.into());
         }
+        let scores = antecedent_estimate::trial_aipw_row_scores(
+            &id,
+            &self.input.outcome,
+            &self.input.treatment,
+            &self.input.source,
+            &r.membership,
+            &self.input.randomization,
+            Some((&r.mu0, &r.mu1)),
+        )
+        .map_err(|e| Refusal::InvalidRequest(e.to_string()))?;
+        if scores != r.scores {
+            return Err(Refusal::PointMismatch.into());
+        }
         if replay.overlap != r.overlap {
             return Err(Refusal::OverlapMismatch.into());
         }

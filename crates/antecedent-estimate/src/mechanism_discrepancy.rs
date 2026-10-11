@@ -46,6 +46,7 @@ use antecedent_stats::gamma_q;
 
 use crate::effect_constancy::{CalibrationStatus, holm_adjust};
 use crate::error::EstimationError;
+use crate::vector_treatment::DesignSummary;
 
 /// The frozen null of the diagnostic.
 pub const MECHANISM_DISCREPANCY_NULL: &str = "the conditional mechanism of the node given its \
@@ -288,6 +289,10 @@ pub struct MechanismDiscrepancyResult {
     pub calibration: CalibrationStatus,
     /// [`MECHANISM_DISCREPANCY_INFERENCE_CLAIM`].
     pub inference_claim: &'static str,
+    /// Canonical sufficient statistics of the source fit (`X'X`, `X'y`, `y'y`).
+    pub source_summary: MechanismSummary,
+    /// Canonical sufficient statistics of the target fit (`X'X`, `X'y`, `y'y`).
+    pub target_summary: MechanismSummary,
 }
 
 fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
@@ -670,6 +675,37 @@ fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
     Ok(Ols { beta, covariance, residual_df, sigma2 })
 }
 
+fn stored_summary(label: &str, canonical: &Canonical) -> MechanismSummary {
+    MechanismSummary {
+        label: label.to_owned(),
+        measurement: canonical.measurement.clone(),
+        n: canonical.n,
+        xtx: canonical.xtx.clone(),
+        xty: canonical.xty.clone(),
+        yty: canonical.yty,
+    }
+}
+
+/// Design summary of one population's linear mechanism, enough for a coefficient posterior mean.
+///
+/// # Errors
+///
+/// The summary-shape and ordinary-least-squares refusals of the discrepancy diagnostic.
+pub(crate) fn mechanism_design_summary(
+    summary: &MechanismSummary,
+) -> Result<DesignSummary, EstimationError> {
+    let canonical = canonicalize(summary)?;
+    let fit = ols(&canonical)?;
+    let rss = (canonical.yty - dot(&fit.beta, &canonical.xty)).max(0.0);
+    Ok(DesignSummary {
+        n_rows: canonical.n,
+        first_treatment: 1,
+        gram: canonical.xtx,
+        xty: canonical.xty,
+        rss,
+    })
+}
+
 /// Wald statistic of `d` against `V_s + V_t` restricted to the compared coefficients.
 fn joint_wald(compared: &[usize], p: usize, s: &Ols, t: &Ols) -> Result<f64, EstimationError> {
     let m = compared.len();
@@ -853,6 +889,8 @@ pub fn test_mechanism_discrepancy_from_summaries(
         calibration: CalibrationStatus::Unmeasured,
         inference_claim: MECHANISM_DISCREPANCY_INFERENCE_CLAIM,
         coefficients: rows,
-        measurement: s.measurement,
+        measurement: s.measurement.clone(),
+        source_summary: stored_summary(&source.label, &s),
+        target_summary: stored_summary(&target.label, &t),
     })
 }

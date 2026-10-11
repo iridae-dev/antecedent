@@ -6,7 +6,7 @@
         reason = "test fixtures compare exact constants and index with small literals"
     )
 )]
-use crate::{EstimationError, trial_to_target_effect};
+use crate::EstimationError;
 use antecedent_core::{ExecutionContext, StreamDomain, VariableId};
 use antecedent_data::{ResamplingPlan, fill_resample_indexes};
 use antecedent_identify::{TransportFormula, TransportIdentification};
@@ -141,6 +141,9 @@ pub struct TrialAipwEstimate {
     pub diagnostics: TrialNuisanceDiagnostics,
     /// Separate source-selection and randomization overlap diagnostics.
     pub overlap: crate::TransportOverlapReport,
+    /// Per-row AIPW scores whose sample mean is [`Self::estimate`].
+    #[serde(default)]
+    pub scores: Vec<f64>,
 }
 
 /// Validate certificate/provider compatibility before fitting any nuisance.
@@ -433,7 +436,7 @@ fn fit_point(
             .map_err(crate::learn_nuisance::learn_err)?,
         );
     }
-    let effect = trial_to_target_effect(
+    let (effect, scores) = crate::transport::trial_to_target_parts(
         id,
         &input.outcome,
         &input.treatment,
@@ -470,6 +473,7 @@ fn fit_point(
         mu0,
         mu1,
         provenance,
+        scores,
     })
 }
 

@@ -1976,3 +1976,59 @@ fn the_free_dose_menu_follows_its_options_without_the_builder() {
         Some("dose_response.estimated_dose_density")
     );
 }
+
+#[test]
+fn smoothed_dose_posterior_mean_stays_at_the_known_truth() {
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, smoothed_dose_score_posterior};
+    let estimate =
+        estimate(Design::NestedCohort, Scenario::Good, &GRID, H, (4000, 3000), &options(), 11)
+            .unwrap();
+    let grids: Vec<Vec<f64>> = estimate.grid.iter().map(|point| point.row_scores.clone()).collect();
+    for point in &estimate.grid {
+        let score_mean = point.row_scores.iter().sum::<f64>() / point.row_scores.len() as f64;
+        assert!(
+            (score_mean - point.estimate).abs() < 1e-8,
+            "{score_mean} vs {}",
+            point.estimate
+        );
+    }
+    let means = smoothed_dose_score_posterior(
+        &grids,
+        PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .unwrap();
+    for (point, mean) in estimate.grid.iter().zip(&means) {
+        assert!((mean - point.estimate).abs() < 1e-6, "{mean} vs {}", point.estimate);
+        let truth = Scenario::Good.truth(point.dose, H);
+        assert!((mean - truth).abs() < 0.2, "{mean} vs {truth}");
+    }
+}
+
+#[test]
+fn smoothed_dose_posterior_refuses_an_external_power_prior() {
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, smoothed_dose_score_posterior};
+    let err = smoothed_dose_score_posterior(
+        &[vec![0.0, 1.0, 2.0]],
+        PosteriorRequest::ExternalPower,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("smoothed_dose_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+fn smoothed_dose_posterior_consumer_replays_the_score_mean() {
+    use antecedent_estimate::posterior_mean::{PosteriorRequest, smoothed_dose_score_posterior};
+    let means = smoothed_dose_score_posterior(
+        &[vec![1.0, 3.0]],
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+    )
+    .unwrap();
+    let n = 2.0;
+    let sample_mean = 2.0;
+    let variance = 2.0;
+    let weight = (n / variance) / (n / variance + 1.0);
+    assert!((means[0] - weight * sample_mean).abs() < 1e-12, "{}", means[0]);
+}

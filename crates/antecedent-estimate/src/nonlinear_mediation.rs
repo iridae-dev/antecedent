@@ -32,6 +32,7 @@
 )]
 use crate::EstimationError;
 use crate::splitmix::{mix64, seed_mix, splitmix64};
+use crate::vector_treatment::DesignSummary;
 use std::f64::consts::{PI, SQRT_2};
 
 /// Calibration status of the estimator's inference. Coverage is unmeasured.
@@ -219,6 +220,13 @@ pub struct NonlinearMediationEstimate {
     pub interval_status: &'static str,
     /// Assumption identifiers the estimate relies on.
     pub assumptions: Vec<&'static str>,
+    /// Ordinary-least-squares coefficients of the outcome polynomial, same column order as
+    /// [`Self::outcome_design`].
+    pub outcome_coefficients: Vec<f64>,
+    /// Sufficient statistics of the mediator regression (intercept, treatment, covariates).
+    pub mediator_design: DesignSummary,
+    /// Sufficient statistics of the outcome polynomial regression.
+    pub outcome_design: DesignSummary,
 }
 
 fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
@@ -509,6 +517,28 @@ struct Fit {
     degree: usize,
     n_x: usize,
     residuals: Vec<f64>,
+    mediator_design: DesignSummary,
+    outcome_design: DesignSummary,
+}
+
+fn design_summary(cols: &[Vec<f64>], y: &[f64], rss: f64) -> DesignSummary {
+    let n = y.len();
+    let p = cols.len();
+    let mut gram = vec![0.0; p * p];
+    for i in 0..p {
+        for j in 0..=i {
+            let value = cols[i].iter().zip(&cols[j]).map(|(left, right)| left * right).sum();
+            gram[i * p + j] = value;
+            gram[j * p + i] = value;
+        }
+    }
+    DesignSummary {
+        n_rows: n,
+        first_treatment: 1,
+        gram,
+        xty: cols.iter().map(|col| col.iter().zip(y).map(|(left, right)| left * right).sum()).collect(),
+        rss,
+    }
 }
 
 fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
@@ -550,6 +580,8 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
     out_design.extend(z_cols);
     out_design.extend(interactions);
     let out = ols(&out_design, &cols.y)?;
+    let mediator_design = design_summary(&med_design, &cols.m, med.rss);
+    let outcome_design = design_summary(&out_design, &cols.y, out.rss);
     Ok(Fit {
         med: med.beta,
         sigma: sigma2.sqrt(),
@@ -559,6 +591,8 @@ fn fit_model(cols: &Columns, degree: usize) -> Result<Fit, EstimationError> {
         degree,
         n_x: cols.x.len(),
         residuals: med.residuals,
+        mediator_design,
+        outcome_design,
     })
 }
 
@@ -910,5 +944,8 @@ pub fn estimate_nonlinear_mediation(
             "assumption:linear_gaussian_mediator",
             "assumption:polynomial_outcome_in_mediator",
         ],
+        outcome_coefficients: fit.out,
+        mediator_design: fit.mediator_design,
+        outcome_design: fit.outcome_design,
     })
 }

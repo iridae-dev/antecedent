@@ -2624,6 +2624,108 @@ provider_trust = "native_computation_only"
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "estimate.nonlinear_mediation.bayesian"
+route = "antecedent.mediation.nonlinear.posterior_mean"
+algorithm_provenance = ["provenance/estimate.nonlinear_mediation.bayesian.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "estimate.nonlinear_mediation.bayesian.exact_scm.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Exact SCM mediator coefficients 0, 0.5, 0.5 and the outcome design the fit already computed."
+expected_values = "A wide prior stays at those coefficients."
+tolerance = "absolute 1e-4 on the mediator coefficients; the consumer replays the ridge mean"
+calibration = "point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "estimate.nonlinear_mediation.bayesian.design_summary.artifact"
+provider_trust = "native_computation_only"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "estimate.latent_class_effects.bayesian"
+route = "antecedent.mixture.latent_class.posterior_mean"
+algorithm_provenance = ["provenance/estimate.latent_class_effects.bayesian.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "estimate.latent_class_effects.bayesian.class_effects.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Two-class fixed point with effects -2 and 1."
+expected_values = "A wide prior stays at the class effects."
+tolerance = "absolute 1e-4 against the class effects; the consumer replays the first slope"
+calibration = "point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "estimate.latent_class_effects.bayesian.class_design.artifact"
+provider_trust = "native_computation_only"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sensitivity.mechanism_discrepancy.bayesian"
+route = "antecedent.mechanism_discrepancy.coefficient_posterior_mean"
+algorithm_provenance = ["provenance/sensitivity.mechanism_discrepancy.bayesian.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "sensitivity.mechanism_discrepancy.bayesian.hand_coefficients.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "x = [0, 1, 2, 3], y = [1, 3, 2, 4], coefficients 1.3 and 0.8."
+expected_values = "A wide prior stays at those coefficients."
+tolerance = "absolute 1e-4 against the hand coefficients; the consumer replays the normal equations"
+calibration = "point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "sensitivity.mechanism_discrepancy.bayesian.normal_equations.artifact"
+provider_trust = "native_computation_only"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sensitivity.marginal_structural_model.bayesian"
+route = "antecedent.sensitivity.msm.posterior_mean"
+algorithm_provenance = ["provenance/sensitivity.marginal_structural_model.bayesian.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "sensitivity.marginal_structural_model.bayesian.identified_ate.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Two strata with identified average treatment effect 0.3."
+expected_values = "A tiny concentration stays at 0.3. A structural zero stays zero."
+tolerance = "absolute 1e-5 against 0.3; the consumer replays the Dirichlet laws"
+calibration = "point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "sensitivity.marginal_structural_model.bayesian.dirichlet_laws.artifact"
+provider_trust = "native_computation_only"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.learned_continuous_trial.bayesian"
+route = "antecedent_estimate.learned_continuous_posterior_mean"
+algorithm_provenance = ["provenance/transport.learned_continuous_trial.bayesian.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "transport.learned_continuous_trial.bayesian.known_truth.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Scenario Good nested cohort, truth 2.5."
+expected_values = "A wide prior stays at the augmented estimate and within 0.3 of 2.5."
+tolerance = "absolute 1e-6 against the estimate; absolute 0.3 against 2.5"
+calibration = "point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "transport.learned_continuous_trial.bayesian.score_mean.artifact"
+provider_trust = "native_computation_only"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.smoothed_dose_response.bayesian"
+route = "antecedent_estimate.smoothed_dose_posterior_mean"
+algorithm_provenance = ["provenance/transport.smoothed_dose_response.bayesian.toml"]
+parity_registry = "parity/promotion.toml"
+support_registry = "parity/transport_stages.toml"
+positive_fixture = "transport.smoothed_dose_response.bayesian.known_truth.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Scenario Good, grid 1, 2, 3, bandwidth 0.5."
+expected_values = "A wide prior stays at each grid estimate and within 0.2 of the smoothed truth."
+tolerance = "absolute 1e-6 against the estimate; absolute 0.2 against the curve"
+calibration = "point_only_no_interval"
+executing_gate = "scripts/gate_promotion.sh"
+artifact_consumer_fixture = "transport.smoothed_dose_response.bayesian.score_mean.artifact"
+provider_trust = "native_computation_only"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "sensitivity.joint_uncertainty"
 route = "antecedent.PreparedZTransport.joint_mechanism_sensitivity_interval"
 algorithm_provenance = ["provenance/sensitivity.joint_uncertainty.toml"]

@@ -348,3 +348,59 @@ fn latent_premise_and_configuration_refusals() {
     assert_eq!(code, "mechanism_fit_not_converged");
     assert!(message.contains("latent_class.not_converged"), "{message}");
 }
+
+#[test]
+fn latent_class_posterior_mean_stays_at_the_class_effects() {
+    let result = fit(&build(), &config(7)).expect("fit");
+    let designs: Vec<_> = result.classes.iter().map(|class| class.design.clone()).collect();
+    let effects = antecedent_estimate::posterior_mean::latent_class_effect_posterior(
+        &designs,
+        antecedent_estimate::posterior_mean::PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .expect("posterior");
+    close(effects[0], -2.0, 1e-4);
+    close(effects[1], 1.0, 1e-4);
+    close(effects[0], result.classes[0].effect, 1e-4);
+    close(effects[1], result.classes[1].effect, 1e-4);
+}
+
+#[test]
+fn latent_class_posterior_refuses_an_external_power_prior() {
+    let result = fit(&build(), &config(7)).expect("fit");
+    let designs: Vec<_> = result.classes.iter().map(|class| class.design.clone()).collect();
+    let err = antecedent_estimate::posterior_mean::latent_class_effect_posterior(
+        &designs,
+        antecedent_estimate::posterior_mean::PosteriorRequest::ExternalPower,
+    )
+    .expect_err("power prior");
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("latent_class_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+fn latent_class_posterior_consumer_replays_the_class_design() {
+    use antecedent_estimate::posterior_mean::{
+        PosteriorRequest, latent_class_effect_posterior,
+    };
+    use antecedent_estimate::vector_treatment::DesignSummary;
+    let design = DesignSummary {
+        n_rows: 4,
+        first_treatment: 1,
+        gram: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![10.0, 19.0],
+        rss: 1.8,
+    };
+    let request = PosteriorRequest::IndependentNormal { scale: 1.0 };
+    let effects = latent_class_effect_posterior(&[design], request).expect("effect");
+    let penalty = 0.9;
+    let det = 4.0 * (14.0 + penalty) - 36.0;
+    let slope = (-6.0 * 10.0 + 4.0 * 19.0) / det;
+    close(effects[0], slope, 1e-9);
+    let empty = latent_class_effect_posterior(&[], request).expect_err("empty");
+    let EstimationError::Refused { message, .. } = empty else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("latent_class_posterior.empty_design"), "{message}");
+}

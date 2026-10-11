@@ -9,11 +9,13 @@
 use antecedent_core::reason_code;
 
 use crate::categorical_treatment::{
-    CategoricalTreatmentInput, CategoricalTreatmentSpec, summarize_categorical_design,
+    summarize_categorical_design, CategoricalTreatmentInput, CategoricalTreatmentSpec,
 };
 use crate::error::EstimationError;
+use crate::mechanism_discrepancy::{mechanism_design_summary, MechanismSummary};
 use crate::vector_treatment::{
-    DesignSummary, VectorTreatmentInput, coefficient_posterior_mean, summarize_vector_design,
+    coefficient_posterior_mean, full_coefficient_posterior_mean, summarize_vector_design,
+    DesignSummary, VectorTreatmentInput,
 };
 
 /// What a caller may ask a posterior-mean route to condition on.
@@ -283,6 +285,10 @@ pub enum ScoreNamespace {
     Clustered,
     /// Batch retarget of a cross-fitted score.
     BatchRetarget,
+    /// Learned continuous trial transport.
+    LearnedContinuous,
+    /// Smoothed dose-response transport.
+    SmoothedDose,
 }
 
 impl ScoreNamespace {
@@ -308,6 +314,20 @@ impl ScoreNamespace {
                 "batch_retarget_posterior.external_power_prior",
                 "batch_retarget_posterior.unmeasured_band",
                 "batch_retarget_posterior.empty_scores",
+            ),
+            Self::LearnedContinuous => (
+                "learned_continuous_posterior.non_positive_scale",
+                "learned_continuous_posterior.mapped_prior",
+                "learned_continuous_posterior.external_power_prior",
+                "learned_continuous_posterior.unmeasured_band",
+                "learned_continuous_posterior.empty_scores",
+            ),
+            Self::SmoothedDose => (
+                "smoothed_dose_posterior.non_positive_scale",
+                "smoothed_dose_posterior.mapped_prior",
+                "smoothed_dose_posterior.external_power_prior",
+                "smoothed_dose_posterior.unmeasured_band",
+                "smoothed_dose_posterior.empty_scores",
             ),
         }
     }
@@ -391,6 +411,8 @@ pub enum DirichletNamespace {
     AdmgConditional,
     /// Uncertain initial-state law.
     InitialState,
+    /// Marginal structural model strata.
+    Msm,
 }
 
 impl DirichletNamespace {
@@ -458,6 +480,13 @@ impl DirichletNamespace {
                 "initial_state_posterior.external_power_prior",
                 "initial_state_posterior.unmeasured_band",
                 "initial_state_posterior.empty_law",
+            ),
+            Self::Msm => (
+                "msm_posterior.non_positive_scale",
+                "msm_posterior.mapped_prior",
+                "msm_posterior.external_power_prior",
+                "msm_posterior.unmeasured_band",
+                "msm_posterior.empty_law",
             ),
         }
     }
@@ -631,3 +660,147 @@ pub fn covariance_entry_posterior(
         .collect())
 }
 
+/// Posterior mean of the mediator and outcome coefficient vectors.
+///
+/// Independent normal priors on every non-intercept column, intercept unpenalized,
+/// plug-in residual variance. A wide scale stays at the ordinary-least-squares
+/// coefficients. No interval is returned.
+///
+/// # Errors
+///
+/// `mediation_posterior.non_positive_scale`, `mediation_posterior.mapped_prior`,
+/// `mediation_posterior.external_power_prior`, `mediation_posterior.unmeasured_band`,
+/// or `mediation_posterior.empty_design`.
+pub fn mediation_coefficient_posterior(
+    mediator: &DesignSummary,
+    outcome: &DesignSummary,
+    request: PosteriorRequest,
+) -> Result<(Vec<f64>, Vec<f64>), EstimationError> {
+    let scale = scale_of(
+        request,
+        "mediation_posterior.non_positive_scale",
+        "mediation_posterior.mapped_prior",
+        "mediation_posterior.external_power_prior",
+        "mediation_posterior.unmeasured_band",
+    )?;
+    if mediator.xty.is_empty() || outcome.xty.is_empty() {
+        return Err(refuse(reason_code!("invalid_argument"), "mediation_posterior.empty_design"));
+    }
+    Ok((
+        full_coefficient_posterior_mean(mediator, scale)?,
+        full_coefficient_posterior_mean(outcome, scale)?,
+    ))
+}
+
+/// Posterior mean of each class's treatment coefficient.
+///
+/// Each design is the class's weighted normal equations, with the treatment in the
+/// first slope column. A wide scale stays at that column's ordinary-least-squares
+/// value. No interval is returned.
+///
+/// # Errors
+///
+/// `latent_class_posterior.non_positive_scale`, `latent_class_posterior.mapped_prior`,
+/// `latent_class_posterior.external_power_prior`, `latent_class_posterior.unmeasured_band`,
+/// or `latent_class_posterior.empty_design`.
+pub fn latent_class_effect_posterior(
+    designs: &[DesignSummary],
+    request: PosteriorRequest,
+) -> Result<Vec<f64>, EstimationError> {
+    let scale = scale_of(
+        request,
+        "latent_class_posterior.non_positive_scale",
+        "latent_class_posterior.mapped_prior",
+        "latent_class_posterior.external_power_prior",
+        "latent_class_posterior.unmeasured_band",
+    )?;
+    if designs.is_empty() {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "latent_class_posterior.empty_design",
+        ));
+    }
+    designs
+        .iter()
+        .map(|design| {
+            let slopes = coefficient_posterior_mean(design, scale)?;
+            slopes.first().copied().filter(|value| value.is_finite()).ok_or_else(|| {
+                refuse(reason_code!("invalid_argument"), "latent_class_posterior.empty_design")
+            })
+        })
+        .collect()
+}
+
+/// Posterior mean of one population's mechanism coefficients, intercept included.
+///
+/// Independent normal priors on the parent slopes, intercept unpenalized, plug-in
+/// residual variance from `X'X`, `X'y` and `y'y`. This is not a posterior of the
+/// Wald statistic. No interval is returned.
+///
+/// # Errors
+///
+/// `mechanism_posterior.non_positive_scale`, `mechanism_posterior.mapped_prior`,
+/// `mechanism_posterior.external_power_prior`, `mechanism_posterior.unmeasured_band`,
+/// or `mechanism_posterior.empty_summary`.
+pub fn mechanism_coefficient_posterior(
+    summary: &MechanismSummary,
+    request: PosteriorRequest,
+) -> Result<Vec<f64>, EstimationError> {
+    let scale = scale_of(
+        request,
+        "mechanism_posterior.non_positive_scale",
+        "mechanism_posterior.mapped_prior",
+        "mechanism_posterior.external_power_prior",
+        "mechanism_posterior.unmeasured_band",
+    )?;
+    if summary.xty.len() < 2 || summary.xtx.len() != summary.xty.len() * summary.xty.len() {
+        return Err(refuse(reason_code!("invalid_argument"), "mechanism_posterior.empty_summary"));
+    }
+    let design = mechanism_design_summary(summary)?;
+    full_coefficient_posterior_mean(&design, scale)
+}
+
+/// Posterior mean of a learned-continuous AIPW score table.
+///
+/// The table is scaled so its sample mean is the augmented estimate. A wide scale
+/// stays at that mean. No interval is returned.
+///
+/// # Errors
+///
+/// The learned-continuous score namespace's non-positive scale, mapped prior,
+/// external power prior, unmeasured band, or empty score table.
+pub fn learned_continuous_score_posterior(
+    scores: &[f64],
+    request: PosteriorRequest,
+) -> Result<f64, EstimationError> {
+    let zeros = vec![0.0; scores.len()];
+    score_contrast_posterior(&zeros, scores, request, ScoreNamespace::LearnedContinuous)
+}
+
+/// Posterior mean of each smoothed-dose grid point's per-row scores.
+///
+/// Each table is scaled so its sample mean is that dose's estimate. A wide scale
+/// stays at those means. No interval is returned.
+///
+/// # Errors
+///
+/// The smoothed-dose score namespace's non-positive scale, mapped prior, external
+/// power prior, unmeasured band, or empty score table.
+pub fn smoothed_dose_score_posterior(
+    grids: &[Vec<f64>],
+    request: PosteriorRequest,
+) -> Result<Vec<f64>, EstimationError> {
+    if grids.is_empty() {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "smoothed_dose_posterior.empty_scores",
+        ));
+    }
+    grids
+        .iter()
+        .map(|scores| {
+            let zeros = vec![0.0; scores.len()];
+            score_contrast_posterior(&zeros, scores, request, ScoreNamespace::SmoothedDose)
+        })
+        .collect()
+}

@@ -73,7 +73,7 @@ pub use mediation::QueryRefutationPlan;
 pub use msm_sensitivity::{
     MsmOutcomeLaw, MsmPoint, MsmSensitivityError, MsmSensitivityResult, MsmSensitivitySpec,
     MsmSensitivityUncertainty, MsmStratum, MsmTipping, MsmTippingDirection, msm_ate_bounds_at,
-    msm_ate_sensitivity,
+    msm_ate_sensitivity, msm_dirichlet_posterior,
 };
 pub use overlap::OverlapRefuter;
 pub use overlap_rule::OverlapRuleRefuter;

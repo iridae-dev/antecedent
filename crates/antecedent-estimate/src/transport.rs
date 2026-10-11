@@ -247,6 +247,56 @@ pub fn trial_to_target_effect(
     treatment_probability: &[f64],
     outcome_regressions: Option<(&[f64], &[f64])>,
 ) -> Result<TransportEffectEstimate, EstimationError> {
+    Ok(trial_to_target_parts(
+        identification,
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+        outcome_regressions,
+    )?
+    .0)
+}
+
+/// Per-row AIPW contributions from the same execution as [`trial_to_target_effect`].
+///
+/// Each entry is that row's contribution to the augmented sum, scaled by `n / n_target`,
+/// so the sample mean of the table is the augmented estimate.
+///
+/// # Errors
+///
+/// The same input and certificate refusals as [`trial_to_target_effect`].
+pub fn trial_aipw_row_scores(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    outcome_regressions: Option<(&[f64], &[f64])>,
+) -> Result<Vec<f64>, EstimationError> {
+    Ok(trial_to_target_parts(
+        identification,
+        outcome,
+        treatment,
+        trial,
+        selection_probability,
+        treatment_probability,
+        outcome_regressions,
+    )?
+    .1)
+}
+
+pub(crate) fn trial_to_target_parts(
+    identification: &TransportIdentification,
+    outcome: &[f64],
+    treatment: &[bool],
+    trial: &[bool],
+    selection_probability: &[f64],
+    treatment_probability: &[f64],
+    outcome_regressions: Option<(&[f64], &[f64])>,
+) -> Result<(TransportEffectEstimate, Vec<f64>), EstimationError> {
     require_dahabreh_compatible_formula(identification, "trial-to-target effect")?;
     let n = outcome.len();
     if let Some((mu0, mu1)) = outcome_regressions {
@@ -263,6 +313,7 @@ pub fn trial_to_target_effect(
     )?;
     let mut ipw_sum = 0.0;
     let mut augmentation_sum = 0.0;
+    let mut terms = vec![0.0; n];
     let mut selection_weights = Vec::new();
     let mut treatment_weights = Vec::new();
     let mut trial_selection_probabilities = Vec::new();
@@ -287,24 +338,37 @@ pub fn trial_to_target_effect(
                 if !mu.is_finite() {
                     return Err(EstimationError::data_msg("outcome regressions must be finite"));
                 }
-                augmentation_sum += sign * weight * (outcome[i] - mu);
+                let term = sign * weight * (outcome[i] - mu);
+                augmentation_sum += term;
+                terms[i] = term;
             }
         } else if let Some((mu0, mu1)) = outcome_regressions {
             if !mu0[i].is_finite() || !mu1[i].is_finite() {
                 return Err(EstimationError::data_msg("outcome regressions must be finite"));
             }
-            augmentation_sum += mu1[i] - mu0[i];
+            let term = mu1[i] - mu0[i];
+            augmentation_sum += term;
+            terms[i] = term;
         }
     }
     let target_n = target_n as f64;
-    Ok(TransportEffectEstimate {
-        ipw: ipw_sum / target_n,
-        aipw: outcome_regressions.map(|_| augmentation_sum / target_n),
-        overlap: TransportOverlapReport {
-            selection: diagnostic(&trial_selection_probabilities, &selection_weights),
-            treatment: diagnostic(&trial_treatment_probabilities, &treatment_weights),
+    let row_scores = if outcome_regressions.is_some() {
+        let scale = n as f64 / target_n;
+        terms.iter().map(|term| term * scale).collect()
+    } else {
+        Vec::new()
+    };
+    Ok((
+        TransportEffectEstimate {
+            ipw: ipw_sum / target_n,
+            aipw: outcome_regressions.map(|_| augmentation_sum / target_n),
+            overlap: TransportOverlapReport {
+                selection: diagnostic(&trial_selection_probabilities, &selection_weights),
+                treatment: diagnostic(&trial_treatment_probabilities, &treatment_weights),
+            },
         },
-    })
+        row_scores,
+    ))
 }
 
 /// Bayesian-bootstrap draws for the identified trial-to-target IPW contrast.

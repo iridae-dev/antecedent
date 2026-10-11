@@ -369,3 +369,78 @@ fn mediation_bootstrap_is_deterministic_and_closed_for_intervals() {
     assert_eq!(a.calibration, "unmeasured");
     assert_eq!(a.interval_status, "closed_calibration_unmeasured");
 }
+
+#[test]
+fn mediation_posterior_mean_stays_at_the_exact_scm_coefficients() {
+    let s = base_scm();
+    let est = run(&grid(&s), &NonlinearMediationPremises::sequentially_ignorable(), &config(8))
+        .expect("estimate");
+    let (mediator, outcome) = antecedent_estimate::posterior_mean::mediation_coefficient_posterior(
+        &est.mediator_design,
+        &est.outcome_design,
+        antecedent_estimate::posterior_mean::PosteriorRequest::IndependentNormal { scale: 1.0e6 },
+    )
+    .expect("posterior");
+    for (got, expected) in mediator.iter().zip([0.0, s.alpha, s.gamma]) {
+        assert!((got - expected).abs() < 1e-4, "mediator {got} vs {expected}");
+    }
+    assert_eq!(outcome.len(), est.outcome_coefficients.len());
+    for (got, expected) in outcome.iter().zip(&est.outcome_coefficients) {
+        assert!((got - expected).abs() < 1e-5, "outcome {got} vs {expected}");
+    }
+}
+
+#[test]
+fn mediation_posterior_refuses_a_mapped_prior() {
+    let s = base_scm();
+    let est = run(&grid(&s), &NonlinearMediationPremises::sequentially_ignorable(), &config(8))
+        .expect("estimate");
+    let err = antecedent_estimate::posterior_mean::mediation_coefficient_posterior(
+        &est.mediator_design,
+        &est.outcome_design,
+        antecedent_estimate::posterior_mean::PosteriorRequest::MappedCoefficient,
+    )
+    .expect_err("mapped prior");
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("mediation_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn mediation_posterior_consumer_replays_the_design_summary() {
+    use antecedent_estimate::posterior_mean::{
+        PosteriorRequest, mediation_coefficient_posterior,
+    };
+    use antecedent_estimate::vector_treatment::full_coefficient_posterior_mean;
+    use antecedent_estimate::vector_treatment::DesignSummary;
+    let design = DesignSummary {
+        n_rows: 4,
+        first_treatment: 1,
+        gram: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![10.0, 19.0],
+        rss: 1.8,
+    };
+    let empty = DesignSummary {
+        n_rows: 4,
+        first_treatment: 1,
+        gram: vec![4.0, 6.0, 6.0, 14.0],
+        xty: vec![],
+        rss: 1.8,
+    };
+    let request = PosteriorRequest::IndependentNormal { scale: 1.0 };
+    let produced = full_coefficient_posterior_mean(&design, 1.0).expect("ridge");
+    let replayed = mediation_coefficient_posterior(&design, &design, request).expect("pair");
+    let penalty = 0.9;
+    let det = 4.0 * (14.0 + penalty) - 36.0;
+    let beta0 = ((14.0 + penalty) * 10.0 - 6.0 * 19.0) / det;
+    let beta1 = (-6.0 * 10.0 + 4.0 * 19.0) / det;
+    assert!((produced[0] - beta0).abs() < 1e-9, "{}", produced[0]);
+    assert!((produced[1] - beta1).abs() < 1e-9, "{}", produced[1]);
+    assert!((replayed.0[0] - beta0).abs() < 1e-9 && (replayed.1[1] - beta1).abs() < 1e-9);
+    let err = mediation_coefficient_posterior(&empty, &design, request).expect_err("empty");
+    let EstimationError::Refused { message, .. } = err else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("mediation_posterior.empty_design"), "{message}");
+}

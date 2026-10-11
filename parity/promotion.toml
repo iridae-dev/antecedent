@@ -6529,7 +6529,7 @@ surface_rust = ["crates/antecedent-validate/src/msm_sensitivity.rs", "crates/ant
 surface_pyo3 = ["python/src/msm_sensitivity_api.rs"]
 surface_values = ["MsmOutcomeLaw", "MsmStratum", "MsmSensitivitySpec", "MsmSensitivityError", "MsmPoint", "MsmTippingDirection", "MsmTipping", "MsmSensitivityUncertainty", "MsmSensitivityResult", "ActionUtility", "SensitivityArtifact", "OutcomeLaw", "MsmResult", "MsmSensitivityRefusal", "MsmUncertainty"]
 refusals = [{ code = "cell_not_licensed", detail = "msm_sensitivity.composition_not_licensed", when = "A sampling interval is requested to be composed with the assumption range; no composition is licensed." }, { code = "cell_not_licensed", detail = "msm_sensitivity.interval_withheld", when = "The sampling descriptor every result and artifact carries (sampling interval: not reported); no interval value is ever produced." }, { code = "invalid_argument", detail = "msm_sensitivity.lambda_below_one", when = "Lambda is below one or not finite." }, { code = "invalid_argument", detail = "msm_sensitivity.lambda_range_empty", when = "lambda_max does not exceed one, so the grid spans no assumption range." }, { code = "invalid_argument", detail = "msm_sensitivity.outcome_law", when = "An outcome law is empty, too large, has mismatched value and probability counts, non-finite or negative entries, or probabilities that do not sum to one." }, { code = "invalid_argument", detail = "msm_sensitivity.stratum_mass", when = "A stratum mass is not positive and finite or the masses do not sum to one." }, { code = "invalid_argument", detail = "msm_sensitivity.invalid_threshold", when = "The decision threshold is not finite." }, { code = "invalid_argument", detail = "msm_sensitivity.invalid_tolerance", when = "The bisection tolerance is outside [1e-12, 1e-3]." }, { code = "route_not_supported", detail = "msm_sensitivity.positivity", when = "A propensity is not strictly inside (0, 1), so the weights are undefined." }, { code = "route_not_supported", detail = "msm_sensitivity.bounds_exceeded", when = "The number of strata, grid points or Lambda exceeds the declared bound." }]
-routes = [{ name = "antecedent.sensitivity.msm_sensitivity", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["msm_ate_bounds_at", "msm_ate_sensitivity", "msm_sensitivity_run"] }, { name = "antecedent.sensitivity.msm_sensitivity_artifact", stage = "representation", status = "licensed", claim = "point_only", covers = ["msm_sensitivity_artifact_bytes", "msm_sensitivity_artifact_run"] }, { name = "antecedent.msm_sensitivity.from_analysis", stage = "evaluate", status = "licensed", claim = "point_only" }, { name = "antecedent.results.ResultAPI.msm_sensitivity", stage = "evaluate", status = "licensed", claim = "point_only" }]
+routes = [{ name = "antecedent.sensitivity.msm_sensitivity", stage = "evaluate", status = "licensed", claim = "point_only", covers = ["msm_ate_bounds_at", "msm_ate_sensitivity", "msm_sensitivity_run", "msm_dirichlet_posterior"] }, { name = "antecedent.sensitivity.msm_sensitivity_artifact", stage = "representation", status = "licensed", claim = "point_only", covers = ["msm_sensitivity_artifact_bytes", "msm_sensitivity_artifact_run"] }, { name = "antecedent.msm_sensitivity.from_analysis", stage = "evaluate", status = "licensed", claim = "point_only" }, { name = "antecedent.results.ResultAPI.msm_sensitivity", stage = "evaluate", status = "licensed", claim = "point_only" }]
 fixtures = [{ id = "sensitivity.marginal_structural_model.msm_lambda_one.positive", role = "positive", intent = "Lambda = 1 is the stratified identified value 0.3 with equal lower and upper bounds and a 17-point grid ending at lambda_max.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_lambda_one_is_the_stratified_identified_value" }, { id = "sensitivity.marginal_structural_model.msm_sharp_bounds.positive", role = "positive", intent = "The sharp ATE bounds at Lambda 2 are [0.04375, 0.4875] by the hand derivation.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_sharp_bounds_at_lambda_two_match_the_hand_derivation" }, { id = "sensitivity.marginal_structural_model.msm_three_atom.positive", role = "positive", intent = "A three-atom law needs a fractional split: bounds [-0.375, 0.375] at Lambda 2 and [-2/3, 2/3] at Lambda 3.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_three_atom_fractional_split_matches_the_hand_derivation" }, { id = "sensitivity.marginal_structural_model.msm_tipping_closed_form.positive", role = "positive", intent = "The lower-bound tipping Lambda for threshold 0 brackets (2 + sqrt(193))/7 with a certified bracket.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form" }, { id = "sensitivity.marginal_structural_model.msm_tipping_statuses.positive", role = "positive", intent = "The upper-bound tipping, the reached-at-origin status, the not-reached status and the absent tipping without a threshold.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_upper_tipping_origin_and_unreached_statuses" }, { id = "sensitivity.marginal_structural_model.msm_widens.positive", role = "positive", intent = "Bounds widen monotonically with Lambda and always contain the identified value.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_bounds_widen_with_lambda" }, { id = "sensitivity.marginal_structural_model.msm_stratum_order.positive", role = "positive", intent = "The result is invariant to the order of the strata.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_is_invariant_to_stratum_order" }, { id = "sensitivity.marginal_structural_model.msm_adapter_surface.positive", role = "positive", intent = "The adapter builds the Lambda surface with the assumption range, no identified bound and the withheld sampling descriptor kept distinct.", evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs", evidence_assertion = "msm_adapter_builds_the_lambda_surface_with_distinct_uncertainty_kinds" }, { id = "sensitivity.marginal_structural_model.msm_artifact_invariant.positive", role = "positive", intent = "The artifact reaches an invariant action treat over Lambda in {1, 1.5, 2}.", evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs", evidence_assertion = "msm_artifact_reaches_an_invariant_action" }, { id = "sensitivity.marginal_structural_model.msm_artifact_switch.positive", role = "positive", intent = "The artifact reaches an assumption-dependent switch in [2, 3] when a cost applies at Lambda 3.", evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs", evidence_assertion = "msm_artifact_reaches_an_assumption_dependent_switch" }, { id = "sensitivity.marginal_structural_model.msm_decision_invariant.positive", role = "positive", intent = "The sensitivity decision composition returns the invariant action with vertex-certified coverage.", evidence_test = "crates/antecedent-design/tests/msm_sensitivity_decision.rs", evidence_assertion = "msm_decision_invariant_action" }, { id = "sensitivity.marginal_structural_model.msm_decision_switch.positive", role = "positive", intent = "The sensitivity decision composition returns the assumption-dependent switch from treat to skip in [2, 3].", evidence_test = "crates/antecedent-design/tests/msm_sensitivity_decision.rs", evidence_assertion = "msm_decision_assumption_dependent_switch" }, { id = "sensitivity.marginal_structural_model.msm_decision_no_robust.positive", role = "positive", intent = "The sensitivity decision composition returns no robust action when the range straddles the alternative on {2, 3}.", evidence_test = "crates/antecedent-design/tests/msm_sensitivity_decision.rs", evidence_assertion = "msm_decision_no_robust_action" }, { id = "sensitivity.marginal_structural_model.msm_python_lambda_one.positive", role = "positive", intent = "Through Python Lambda = 1 is the stratified identified value.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_lambda_one_is_the_stratified_identified_value" }, { id = "sensitivity.marginal_structural_model.msm_python_sharp_bounds.positive", role = "positive", intent = "Through Python the sharp bounds at Lambda 2 match the hand derivation.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_sharp_bounds_at_lambda_two_match_the_hand_derivation" }, { id = "sensitivity.marginal_structural_model.msm_python_tipping.positive", role = "positive", intent = "Through Python the tipping Lambda matches the closed form.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_tipping_lambda_for_a_zero_threshold_matches_the_closed_form" }, { id = "sensitivity.marginal_structural_model.msm_python_decision_invariant.positive", role = "positive", intent = "Through Python the artifact decision is the invariant action.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_decision_invariant_action" }, { id = "sensitivity.marginal_structural_model.msm_lambda_below_one.negative", role = "negative", intent = "Lambda below one, not finite, or lambda_max of one refuse with the exact code and detail.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_refuses_lambda_below_one" }, { id = "sensitivity.marginal_structural_model.msm_positivity.negative", role = "negative", intent = "Propensities on or outside the boundary or not finite refuse with msm_sensitivity.positivity.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_refuses_propensities_on_the_boundary" }, { id = "sensitivity.marginal_structural_model.msm_malformed_and_composition.negative", role = "negative", intent = "Malformed masses, laws, thresholds and tolerances and a requested sampling composition refuse with their exact details.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_refuses_malformed_inputs_and_sampling_composition" }, { id = "sensitivity.marginal_structural_model.msm_range_not_sampling.negative", role = "negative", intent = "The assumption range stays distinct from the identified value and the withheld sampling interval.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_keeps_the_assumption_range_distinct_from_sampling" }, { id = "sensitivity.marginal_structural_model.msm_artifact_composition.negative", role = "negative", intent = "The artifact refuses a composed sampling interval with cell_not_licensed.", evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs", evidence_assertion = "msm_artifact_refuses_a_sampling_composition" }, { id = "sensitivity.marginal_structural_model.msm_adapter_malformed.negative", role = "negative", intent = "The adapter refuses malformed surfaces and a non-range result with the exact details.", evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs", evidence_assertion = "msm_adapter_refuses_malformed_surfaces" }, { id = "sensitivity.marginal_structural_model.msm_decision_sampling_withheld.negative", role = "negative", intent = "The decision keeps the sampling interval withheld and refuses a requested composition.", evidence_test = "crates/antecedent-design/tests/msm_sensitivity_decision.rs", evidence_assertion = "msm_decision_keeps_sampling_withheld_and_refuses_composition" }, { id = "sensitivity.marginal_structural_model.msm_python_composition.negative", role = "negative", intent = "Through Python a sampling composition request refuses with the exact code and detail.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_sampling_composition_request_refuses" }, { id = "sensitivity.marginal_structural_model.msm_python_lambda_below_one.negative", role = "negative", intent = "Through Python Lambda below one and an empty range refuse.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_refuses_lambda_below_one_and_an_empty_range" }, { id = "sensitivity.marginal_structural_model.msm_python_positivity.negative", role = "negative", intent = "Through Python boundary propensities refuse.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_refuses_propensities_on_the_boundary" }, { id = "sensitivity.marginal_structural_model.msm_adapter_round_trip.artifact", role = "artifact", intent = "The artifact round-trips through the container and replays its decision.", evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs", evidence_assertion = "msm_artifact_round_trips_and_replays_its_decision" }, { id = "sensitivity.marginal_structural_model.msm_artifact_no_robust.artifact", role = "artifact", intent = "The artifact reaches no robust action when the range straddles the alternative and the stored outcome replays.", evidence_test = "crates/antecedent-io/tests/msm_sensitivity_adapter.rs", evidence_assertion = "msm_artifact_reaches_no_robust_action_when_the_range_straddles" }, { id = "sensitivity.marginal_structural_model.msm_python_surface.artifact", role = "artifact", intent = "Through Python the artifact is a Lambda surface with the sampling interval withheld.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_artifact_is_a_lambda_surface_with_withheld_sampling" }, { id = "sensitivity.marginal_structural_model.msm_python_round_trip.artifact", role = "artifact", intent = "Through Python the artifact round-trips and refuses a foreign identity.", evidence_test = "python/tests/test_msm_sensitivity.py", evidence_assertion = "test_msm_artifact_round_trips_and_refuses_a_foreign_identity" }, { id = "sensitivity.marginal_structural_model.api.empirical.positive", role = "positive", intent = "Explicit supplemental binary sample gives empirical ATE.5, separately labeled plug-in bounds and sample digest; original query is checked but cannot certify sample equality.", evidence_test = "python/tests/test_decision_flow_bridge.py", evidence_assertion = "test_empirical_msm_result_handoff_keeps_sample_bounds_distinct" }, { id = "sensitivity.marginal_structural_model.api.empirical_refusal.negative", role = "negative", intent = "Missing treatment arm and changed checked adjustment declarations refuse before population assumptions are claimed.", evidence_test = "python/tests/test_decision_flow_bridge.py", evidence_assertion = "test_empirical_msm_refuses_missing_arm_and_changed_adjustment" }, { id = "sensitivity.marginal_structural_model.api.empirical_adjustment.negative", role = "negative", intent = "Malformed adjustment declarations raise domain type errors rather than raw Python iteration/hash exceptions.", evidence_test = "python/tests/test_decision_flow_bridge.py", evidence_assertion = "test_empirical_msm_adjustment_errors_are_domain_errors" }, { id = "sensitivity.marginal_structural_model.api.empirical_support.negative", role = "negative", intent = "Empirical arm/stratum supports over 256 distinct outcomes refuse rather than overflowing finite-law bounds.", evidence_test = "python/tests/test_decision_flow_bridge.py", evidence_assertion = "test_empirical_msm_support_limit_rejects_new_distinct_outcome" }]
 noninferential_interval_fields = [{ name = "sampling_interval", why = "String withholding status only; the original sensitivity result reports an assumption range and explicitly refuses sampling composition. Original positive and artifact fixtures assert its withholding reason." }]
 
@@ -8551,4 +8551,220 @@ fixtures = [
   { id = "temporal.effect_constancy.bayesian.contrast.positive", role = "positive", intent = "A wide prior stays at the partition contrast.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_mean_stays_at_the_partition_contrast" },
   { id = "temporal.effect_constancy.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_refuses_a_mapped_prior" },
   { id = "temporal.effect_constancy.bayesian.shrunk_contrast.artifact", role = "artifact", intent = "The consumer replays the shrunk contrast.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_consumer_replays_the_shrunk_contrast" },
+]
+
+[[record]]
+id = "estimate.nonlinear_mediation.bayesian"
+capability = "estimate.nonlinear_mediation.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of the mediator and outcome coefficients be consumed as a point?"
+theorem = "Independent normal priors on the non-intercept columns of the mediator and outcome designs the nonlinear-mediation fit already computed, intercept unpenalized, plug-in residual variance. The published numbers are those posterior means. Draws are not an interval. A wide prior stays at the exact SCM coefficients. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+reference = "provenance/estimate.nonlinear_mediation.bayesian.toml"
+guarantee = "nonlinear_mediation_coefficient_posterior_mean_point_only"
+graph_class = "The same declared mediation premises as the frequentist record. No new graph."
+population_semantics = "The same one-population row snapshot the frequentist fit uses."
+evidence_family = "The exact SCM grid whose mediator coefficients are 0, 0.5, 0.5."
+provider = "antecedent_estimate::posterior_mean::mediation_coefficient_posterior"
+estimand = "posterior mean of the mediator and outcome coefficient vectors"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "mediation_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "mediation_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "mediation_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "mediation_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "mediation_posterior.empty_design", when = "A design summary has no coefficients." },
+]
+routes = [
+  { name = "antecedent.mediation.nonlinear.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.nonlinear_mediation.bayesian.exact_scm.positive", role = "positive", intent = "A wide prior stays at the exact SCM coefficients.", evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation.rs", evidence_assertion = "mediation_posterior_mean_stays_at_the_exact_scm_coefficients" },
+  { id = "estimate.nonlinear_mediation.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation.rs", evidence_assertion = "mediation_posterior_refuses_a_mapped_prior" },
+  { id = "estimate.nonlinear_mediation.bayesian.design_summary.artifact", role = "artifact", intent = "The consumer replays the ridge mean from the design summary.", evidence_test = "crates/antecedent-estimate/tests/nonlinear_mediation.rs", evidence_assertion = "mediation_posterior_consumer_replays_the_design_summary" },
+]
+
+[[record]]
+id = "estimate.latent_class_effects.bayesian"
+capability = "estimate.latent_class_effects.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of each latent class's treatment effect be consumed as a point?"
+theorem = "A normal posterior mean of each class effect from the weighted design the EM fit already computed. The treatment coefficient is the first slope. The published numbers are those posterior means. Draws are not an interval. A wide prior stays at the class effects -2 and 1. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+reference = "provenance/estimate.latent_class_effects.bayesian.toml"
+guarantee = "latent_class_effect_posterior_mean_point_only"
+graph_class = "The same two-class mixture as the frequentist record. No new graph."
+population_semantics = "One row snapshot. Responsibilities are the weights of the class design."
+evidence_family = "The hand-derived two-class fixed point with effects -2 and 1."
+provider = "antecedent_estimate::posterior_mean::latent_class_effect_posterior"
+estimand = "posterior mean of each class treatment coefficient"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "latent_class_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "latent_class_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "latent_class_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "latent_class_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "latent_class_posterior.empty_design", when = "No class design can support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.mixture.latent_class.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.latent_class_effects.bayesian.class_effects.positive", role = "positive", intent = "A wide prior stays at the class effects.", evidence_test = "crates/antecedent-estimate/tests/latent_class_effects.rs", evidence_assertion = "latent_class_posterior_mean_stays_at_the_class_effects" },
+  { id = "estimate.latent_class_effects.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/latent_class_effects.rs", evidence_assertion = "latent_class_posterior_refuses_an_external_power_prior" },
+  { id = "estimate.latent_class_effects.bayesian.class_design.artifact", role = "artifact", intent = "The consumer replays the class-effect posterior from the design.", evidence_test = "crates/antecedent-estimate/tests/latent_class_effects.rs", evidence_assertion = "latent_class_posterior_consumer_replays_the_class_design" },
+]
+
+[[record]]
+id = "sensitivity.mechanism_discrepancy.bayesian"
+capability = "sensitivity.mechanism_discrepancy.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of a population's mechanism coefficients be consumed as a point?"
+theorem = "A normal posterior mean of the coefficients from the mechanism summary the discrepancy fit already stored. The published vector includes the intercept. It is not a posterior of the Wald statistic. Draws are not an interval. A wide prior stays at the hand coefficients 1.3 and 0.8. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+reference = "provenance/sensitivity.mechanism_discrepancy.bayesian.toml"
+guarantee = "mechanism_coefficient_posterior_mean_point_only"
+graph_class = "The same comparable linear mechanism as the frequentist record. No new graph."
+population_semantics = "One source population's normal equations."
+evidence_family = "Dataset A: x = [0, 1, 2, 3], y = [1, 3, 2, 4], coefficients 1.3 and 0.8."
+provider = "antecedent_estimate::posterior_mean::mechanism_coefficient_posterior"
+estimand = "posterior mean of the mechanism coefficients"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "mechanism_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "mechanism_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "mechanism_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "mechanism_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "mechanism_posterior.empty_summary", when = "The mechanism summary cannot support a coefficient posterior." },
+]
+routes = [
+  { name = "antecedent.mechanism_discrepancy.coefficient_posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "sensitivity.mechanism_discrepancy.bayesian.hand_coefficients.positive", role = "positive", intent = "A wide prior stays at the hand coefficients.", evidence_test = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", evidence_assertion = "mechanism_posterior_mean_stays_at_the_hand_coefficients" },
+  { id = "sensitivity.mechanism_discrepancy.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", evidence_assertion = "mechanism_posterior_refuses_an_unmeasured_band" },
+  { id = "sensitivity.mechanism_discrepancy.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the ridge mean from the normal equations.", evidence_test = "crates/antecedent-estimate/tests/mechanism_discrepancy.rs", evidence_assertion = "mechanism_posterior_consumer_replays_the_normal_equations" },
+]
+
+[[record]]
+id = "sensitivity.marginal_structural_model.bayesian"
+capability = "sensitivity.marginal_structural_model.bayesian"
+status = "promoted"
+consumer_question = "Can a Dirichlet posterior mean of the finite stratum laws, pushed through the marginal structural model at Lambda 1, be consumed as a point?"
+theorem = "A Dirichlet posterior mean of the stratum masses and of each arm's finite outcome law, pushed through the existing marginal-structural-model engine at Lambda 1. The published number is that identified posterior mean. Draws are not an interval. A tiny concentration stays at the identified average treatment effect 0.3. Structural zeros stay zero. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+reference = "provenance/sensitivity.marginal_structural_model.bayesian.toml"
+guarantee = "msm_dirichlet_identified_ate_point_only"
+graph_class = "No graph is identified. The caller supplies the same finite strata as the frequentist record."
+population_semantics = "Exact finite stratum laws of one target population."
+evidence_family = "Two strata with identified average treatment effect 0.3, and a law with a structural zero."
+provider = "antecedent_validate::msm_sensitivity::msm_dirichlet_posterior"
+estimand = "identified average treatment effect of the Dirichlet posterior mean at Lambda 1"
+inference_claim = "point_only"
+owners = ["antecedent-validate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "msm_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "msm_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "msm_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "msm_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "msm_posterior.empty_law", when = "A stratum mass or outcome law cannot support a Dirichlet mean." },
+]
+routes = [
+  { name = "antecedent.sensitivity.msm.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "sensitivity.marginal_structural_model.bayesian.identified_ate.positive", role = "positive", intent = "A tiny concentration stays at the identified average treatment effect.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_posterior_mean_stays_at_the_identified_ate" },
+  { id = "sensitivity.marginal_structural_model.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_posterior_refuses_a_mapped_prior" },
+  { id = "sensitivity.marginal_structural_model.bayesian.dirichlet_laws.artifact", role = "artifact", intent = "The consumer replays the Dirichlet laws through the same engine.", evidence_test = "crates/antecedent-validate/tests/msm_sensitivity.rs", evidence_assertion = "msm_posterior_consumer_replays_the_dirichlet_laws" },
+]
+
+[[record]]
+id = "transport.learned_continuous_trial.bayesian"
+capability = "transport.learned_continuous_trial.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of the learned continuous trial's score table be consumed as a point?"
+theorem = "A normal posterior mean of the per-row AIPW scores the learned-continuous fit already computed. The scores are scaled so their sample mean is the augmented estimate. The published number is that posterior mean. Draws are not an interval. A wide prior stays at the estimate, which the known-truth fixture places at 2.5. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+reference = "provenance/transport.learned_continuous_trial.bayesian.toml"
+guarantee = "learned_continuous_score_posterior_mean_point_only"
+graph_class = "The same trial-to-target certificate as the frequentist record. No new graph."
+population_semantics = "Nested cohort of the known-truth scenario."
+evidence_family = "Scenario Good, nested cohort, truth 2.5."
+provider = "antecedent_estimate::posterior_mean::learned_continuous_score_posterior"
+estimand = "posterior mean of the learned-continuous AIPW score table"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "learned_continuous_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "learned_continuous_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "learned_continuous_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "learned_continuous_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "learned_continuous_posterior.empty_scores", when = "The score table cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent_estimate.learned_continuous_posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "transport.learned_continuous_trial.bayesian.known_truth.positive", role = "positive", intent = "A wide prior stays at the known-truth estimate.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "learned_continuous_posterior_mean_stays_at_the_known_truth" },
+  { id = "transport.learned_continuous_trial.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "learned_continuous_posterior_refuses_a_mapped_prior" },
+  { id = "transport.learned_continuous_trial.bayesian.score_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent/tests/learned_continuous_lifecycle.rs", evidence_assertion = "learned_continuous_posterior_consumer_replays_the_score_mean" },
+]
+
+[[record]]
+id = "transport.smoothed_dose_response.bayesian"
+capability = "transport.smoothed_dose_response.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of each smoothed-dose score table be consumed as a point?"
+theorem = "A normal posterior mean of the per-row score contributions the smoothed-dose fit already computed, one table per grid dose. The scores are scaled so their sample mean is the grid estimate. The published numbers are those posterior means. Draws are not an interval. A wide prior stays at each grid estimate, which the known-truth fixture places on the smoothed curve. A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. Not calibrated. Not TemporalAdmg."
+reference = "provenance/transport.smoothed_dose_response.bayesian.toml"
+guarantee = "smoothed_dose_score_posterior_mean_point_only"
+graph_class = "The same dose-response certificate as the frequentist record. No new graph."
+population_semantics = "Nested cohort of the known-truth scenario."
+evidence_family = "Scenario Good, grid doses 1, 2 and 3, bandwidth 0.5."
+provider = "antecedent_estimate::posterior_mean::smoothed_dose_score_posterior"
+estimand = "posterior mean of each grid dose's score table"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "smoothed_dose_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "smoothed_dose_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "smoothed_dose_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "smoothed_dose_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "smoothed_dose_posterior.empty_scores", when = "A grid score table cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent_estimate.smoothed_dose_posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "transport.smoothed_dose_response.bayesian.known_truth.positive", role = "positive", intent = "A wide prior stays at the known-truth curve.", evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs", evidence_assertion = "smoothed_dose_posterior_mean_stays_at_the_known_truth" },
+  { id = "transport.smoothed_dose_response.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs", evidence_assertion = "smoothed_dose_posterior_refuses_an_external_power_prior" },
+  { id = "transport.smoothed_dose_response.bayesian.score_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent/tests/smoothed_dose_lifecycle.rs", evidence_assertion = "smoothed_dose_posterior_consumer_replays_the_score_mean" },
 ]
