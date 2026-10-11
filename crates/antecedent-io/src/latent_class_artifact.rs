@@ -29,6 +29,7 @@
 
 use std::io::Cursor;
 
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::latent_class_effects::{
     LATENT_CLASS_CAVEAT, LATENT_CLASS_INFERENCE_CLAIM, LatentClassConfig, LatentClassData,
@@ -497,34 +498,32 @@ fn responsibilities_summary(result: &LatentClassResult) -> ResponsibilitiesSumma
     let k = result.classes.len();
     let rows = result.responsibilities.len();
     let rows_f = f64::from(count_u32(rows).max(1));
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"latent_class_effects_v1.responsibilities");
+    let mut hasher = CanonicalWriter::new("latent_class_effects_v1.responsibilities");
     let mut sums = vec![0.0_f64; k];
     for row in &result.responsibilities {
         for (c, value) in row.iter().enumerate() {
             sums[c] += value;
-            hasher.update(&value.to_bits().to_le_bytes());
+            hasher.real(*value);
         }
     }
     let mut counts = vec![0_u64; k];
     for &assigned in &result.hard_assignment {
         counts[assigned] += 1;
-        hasher.update(&count_u64(assigned).to_le_bytes());
+        hasher.word(count_u64(assigned));
     }
     ResponsibilitiesSummaryWire {
         rows: count_u64(rows),
         class_means: sums.iter().map(|s| s / rows_f).collect(),
         hard_counts: counts,
         separation: result.separation,
-        digest: hasher.finalize().to_hex().to_string(),
+        digest: antecedent_core::to_hex(&hasher.finish()),
     }
 }
 
 fn likelihood_record(result: &LatentClassResult) -> LatentClassLikelihoodWire {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"latent_class_effects_v1.trace");
+    let mut hasher = CanonicalWriter::new("latent_class_effects_v1.trace");
     for value in &result.log_likelihood_trace {
-        hasher.update(&value.to_bits().to_le_bytes());
+        hasher.real(*value);
     }
     LatentClassLikelihoodWire {
         log_likelihood: result.log_likelihood,
@@ -536,7 +535,7 @@ fn likelihood_record(result: &LatentClassResult) -> LatentClassLikelihoodWire {
             .copied()
             .collect(),
         trace_len: count_u64(result.log_likelihood_trace.len()),
-        trace_digest: hasher.finalize().to_hex().to_string(),
+        trace_digest: antecedent_core::to_hex(&hasher.finish()),
         bic: result.bic,
         restarts_attempted: count_u32(result.restarts_attempted),
         restarts_converged: count_u32(result.restarts_converged),
@@ -560,22 +559,17 @@ fn premise_records(result: &LatentClassResult) -> Vec<LatentClassPremiseRecord> 
 
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, LatentClassArtifactError> {
     let bytes = to_cbor(value)?;
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&count_u64(bytes.len()).to_le_bytes());
-    hasher.update(&bytes);
-    Ok(hasher.finalize().to_hex().to_string())
+    Ok(antecedent_core::to_hex(&CanonicalWriter::new(tag).bytes(&bytes).finish()))
 }
 
 fn data_digest(data: &LatentClassDataWire) -> Result<String, LatentClassArtifactError> {
     let names = to_cbor(&data.covariate_names)?;
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"latent_class_effects_v1.data");
-    hasher.update(&count_u64(names.len()).to_le_bytes());
-    hasher.update(&names);
-    hasher.update(&count_u64(data.outcome.len()).to_le_bytes());
-    hasher.update(&data_bytes(data));
-    Ok(hasher.finalize().to_hex().to_string())
+    let hasher = CanonicalWriter::new("latent_class_effects_v1.data")
+        .bytes(&names)
+        .word(count_u64(data.outcome.len()))
+        .bytes(&data_bytes(data))
+        .finish();
+    Ok(antecedent_core::to_hex(&hasher))
 }
 
 /// Everything in the record that the fit determines, in one comparable value.

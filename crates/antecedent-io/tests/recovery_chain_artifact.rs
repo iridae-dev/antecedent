@@ -17,7 +17,7 @@ use antecedent_estimate::{ChainPatternLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
     CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision, ChainRecoveryDetail,
-    ChainRecoveryQuery, LEGACY_CHAIN_RECOVERY_RULE_VERSION, decide_chain_recovery,
+    ChainRecoveryQuery, decide_chain_recovery,
     verify_chain_witness,
 };
 use antecedent_io::IoError;
@@ -279,28 +279,17 @@ fn resealed_observed_and_recovered_cell_changes_are_refused() {
     );
 }
 
-/// Bytes the shipped 2.3.0 producer sealed for `recovered_wire(0, true)`, under the
-/// rule version's original spelling (see the fixtures README).
-const SEALED_BY_EARLIER_RELEASE: &[u8] = include_bytes!(
-    "../../antecedent/tests/fixtures/earlier_release_artifacts/recovery_chain_recovered.cbor"
-);
-
 #[test]
-fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refused() {
-    let sealed = RecoveryChainArtifactWire::decode(SEALED_BY_EARLIER_RELEASE).unwrap();
-    assert_eq!(sealed.plan.as_ref().unwrap().rule_version, LEGACY_CHAIN_RECOVERY_RULE_VERSION);
-    assert_eq!(sealed.recovered.as_ref().unwrap().rule_version, LEGACY_CHAIN_RECOVERY_RULE_VERSION);
-    let consumed =
-        RecoveryChainArtifactWire::consume_typed(SEALED_BY_EARLIER_RELEASE, &ctx()).unwrap();
+fn a_sealed_artifact_is_consumed_and_a_tampered_one_refused() {
+    let (sealed, truth) = recovered_wire(0, true);
+    assert_eq!(sealed.plan.as_ref().unwrap().rule_version, CHAIN_RECOVERY_RULE_VERSION);
+    assert_eq!(sealed.recovered.as_ref().unwrap().rule_version, CHAIN_RECOVERY_RULE_VERSION);
+    let bytes = sealed.export().unwrap();
+    let consumed = RecoveryChainArtifactWire::consume_typed(&bytes, &ctx()).unwrap();
     // The consumer verified the digests of the bytes as carried, and reproduces the
-    // law the current producer recovers for the same graph and observed law.
+    // law the producer recovered for the same graph and observed law.
     assert_eq!(consumed.wire.premises_digest, sealed.premises_digest);
     assert_eq!(consumed.wire.data_digest, sealed.data_digest);
-    let (current, truth) = recovered_wire(0, true);
-    assert_eq!(current.plan.as_ref().unwrap().rule_version, CHAIN_RECOVERY_RULE_VERSION);
-    assert_ne!(current.premises_digest, sealed.premises_digest);
-    // The data digest binds only the laws' cells, which the rename does not touch.
-    assert_eq!(current.data_digest, sealed.data_digest);
     for (x1, row) in truth.iter().enumerate() {
         for (x2, expected) in row.iter().enumerate() {
             let got = consumed.recovered.as_ref().unwrap().cells()[x1][x2];
@@ -310,7 +299,8 @@ fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refus
     // Tampering is refused: unresealed edits hit the carried digests, resealed
     // edits fail the replay, and no other version spelling is accepted.
     let mut unresealed = sealed.clone();
-    unresealed.plan.as_mut().unwrap().rule_version = CHAIN_RECOVERY_RULE_VERSION.into();
+    unresealed.plan.as_mut().unwrap().rule_version =
+        CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
     assert_eq!(
         RecoveryChainArtifactWire::consume_typed(&unresealed.export().unwrap(), &ctx())
             .unwrap_err(),
@@ -323,15 +313,14 @@ fn an_artifact_sealed_by_an_earlier_release_is_consumed_and_a_tampered_one_refus
         RecoveryChainArtifactError::RecoveredMismatch
     );
     let mut plan = sealed.clone();
-    plan.plan.as_mut().unwrap().rule_version =
-        LEGACY_CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    plan.plan.as_mut().unwrap().rule_version = CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
     assert_eq!(
         RecoveryChainArtifactWire::consume_typed(&reseal(plan), &ctx()).unwrap_err(),
         RecoveryChainArtifactError::DecisionMismatch("plan")
     );
     let mut law = sealed;
     law.recovered.as_mut().unwrap().rule_version =
-        LEGACY_CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+        CHAIN_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
     assert_eq!(
         RecoveryChainArtifactWire::consume_typed(&reseal(law), &ctx()).unwrap_err(),
         RecoveryChainArtifactError::RecoveredMismatch

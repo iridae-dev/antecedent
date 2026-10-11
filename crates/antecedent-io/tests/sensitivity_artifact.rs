@@ -512,9 +512,9 @@ fn a_joint_result_that_cannot_be_filled_exactly_or_is_not_a_range_is_refused() {
 }
 
 #[test]
-fn artifacts_sealed_with_earlier_producer_kind_spellings_still_verify() {
-    // The producer kind is recorded text, not a dispatch key: an artifact sealed under the
-    // spelling a shipped release used keeps its own identity and verifies unchanged.
+fn the_producer_kind_is_recorded_text_and_keeps_its_own_identity() {
+    // The producer kind is recorded text, not a dispatch key: an artifact sealed under any
+    // spelling keeps its own identity and verifies unchanged.
     for legacy in ["joint_mechanism_sensitivity_2_2", "msm_sensitivity_2_3"] {
         let mut parts = frozen_parts();
         parts.provenance.source_kind = legacy.into();

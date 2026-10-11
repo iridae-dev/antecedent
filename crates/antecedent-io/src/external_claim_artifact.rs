@@ -309,10 +309,10 @@ impl ExternalClaimIdentity {
     /// A consumer builds its expected identity from constants and sets this itself.
     #[must_use]
     pub fn compute_fingerprint(&self) -> String {
-        let mut hasher = blake3::Hasher::new();
+        let mut hasher =
+            antecedent_core::CanonicalWriter::new("antecedent.external_claim.provider_fingerprint");
         let mut put = |value: &str| {
-            hasher.update(&(value.len() as u64).to_le_bytes());
-            hasher.update(value.as_bytes());
+            hasher.text(value);
         };
         for field in [
             &self.provider_id,
@@ -332,7 +332,7 @@ impl ExternalClaimIdentity {
         for quantity in &self.quantities {
             put(&format!("{quantity:?}"));
         }
-        hasher.finalize().to_hex().to_string()
+        antecedent_core::to_hex(&hasher.finish())
     }
 
     fn validate(&self) -> Result<(), IoError> {
@@ -445,12 +445,17 @@ fn validate(meta: &ExternalClaimMetadata, values: &[f64]) -> Result<(), IoError>
     Ok(())
 }
 
-fn values_digest(values: &[f64]) -> String {
-    let mut hasher = blake3::Hasher::new();
+/// The digest of a claim's response values, as carried in
+/// [`ExternalClaimIdentity::values_blake3`]: the length and every value's bit pattern
+/// under the shared canonical writer, so a changed value is a changed identity.
+#[must_use]
+pub fn values_digest(values: &[f64]) -> String {
+    let mut hasher = antecedent_core::CanonicalWriter::new("antecedent.external_claim.values");
+    hasher.word(values.len() as u64);
     for value in values {
-        hasher.update(&value.to_le_bytes());
+        hasher.real(*value);
     }
-    hasher.finalize().to_hex().to_string()
+    antecedent_core::to_hex(&hasher.finish())
 }
 
 impl ExternalClaimArtifact {

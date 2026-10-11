@@ -17,7 +17,7 @@ use antecedent_core::{
     ProviderObjectIdentity, QuantityRole, ScientificQuantity, SupportStatus, bind_external_result,
 };
 use antecedent_io::external_claim_artifact::{
-    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire,
+    ExternalClaimArtifact, ExternalClaimIdentity, ExternalClaimTrust, lineage_wire, values_digest,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_test_support::{conformance_dir, read_fixture_bytes};
@@ -65,13 +65,7 @@ fn expected_identity() -> ExternalClaimIdentity {
         version_id: "v3".into(),
         snapshot_id: "snap-9".into(),
         request_id: "req-1".into(),
-        values_blake3: {
-            let mut hasher = blake3::Hasher::new();
-            for value in [1.0_f64, 3.0, 5.0] {
-                hasher.update(&value.to_le_bytes());
-            }
-            hasher.finalize().to_hex().to_string()
-        },
+        values_blake3: values_digest(&[1.0, 3.0, 5.0]),
         trust: ExternalClaimTrust::ExternallyAttested,
         point_status: vec![
             "supported".into(),

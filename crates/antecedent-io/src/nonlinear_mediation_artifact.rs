@@ -29,6 +29,7 @@
 
 use std::io::Cursor;
 
+use antecedent_core::CanonicalWriter;
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::nonlinear_mediation::{
     NONLINEAR_MEDIATION_CALIBRATION, NONLINEAR_MEDIATION_INTERVAL_STATUS, NonlinearMediationConfig,
@@ -653,23 +654,18 @@ fn result_wire(estimate: &NonlinearMediationEstimate) -> MediationResultWire {
 
 fn digest<T: Serialize>(tag: &str, value: &T) -> Result<String, NonlinearMediationArtifactError> {
     let bytes = to_cbor(value)?;
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&count_u64(bytes.len()).to_le_bytes());
-    hasher.update(&bytes);
-    Ok(hasher.finalize().to_hex().to_string())
+    Ok(antecedent_core::to_hex(&CanonicalWriter::new(tag).bytes(&bytes).finish()))
 }
 
 fn data_digest(data: &MediationDataWire) -> Result<String, NonlinearMediationArtifactError> {
     let names = to_cbor(&data.covariate_names)?;
     let numbers = data_bytes(data);
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(b"nonlinear_mediation_v1.data");
-    hasher.update(&count_u64(names.len()).to_le_bytes());
-    hasher.update(&names);
-    hasher.update(&count_u64(data.treatment.len()).to_le_bytes());
-    hasher.update(&numbers);
-    Ok(hasher.finalize().to_hex().to_string())
+    let hasher = CanonicalWriter::new("nonlinear_mediation_v1.data")
+        .bytes(&names)
+        .word(count_u64(data.treatment.len()))
+        .bytes(&numbers)
+        .finish();
+    Ok(antecedent_core::to_hex(&hasher))
 }
 
 fn build_meta(

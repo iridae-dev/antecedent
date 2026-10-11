@@ -1061,11 +1061,7 @@ struct Premises<'a> {
 }
 
 fn tagged_digest(tag: &str, bytes: &[u8]) -> String {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(tag.as_bytes());
-    hasher.update(&(bytes.len() as u64).to_le_bytes());
-    hasher.update(bytes);
-    hasher.finalize().to_hex().to_string()
+    antecedent_core::to_hex(&antecedent_core::CanonicalWriter::new(tag).bytes(bytes).finish())
 }
 
 fn identity_of(parts: &SensitivityParts) -> Result<SensitivityIdentity, IoError> {
@@ -1082,14 +1078,14 @@ fn identity_of(parts: &SensitivityParts) -> Result<SensitivityIdentity, IoError>
     })?;
     let premises_digest = tagged_digest("antecedent.sensitivity_decision.premises.v1", &premises);
     let data_digest = tagged_digest("antecedent.sensitivity_decision.data.v1", &numbers_of(parts));
-    let mut whole = blake3::Hasher::new();
-    whole.update(b"antecedent.sensitivity_decision.identity.v1");
-    whole.update(premises_digest.as_bytes());
-    whole.update(data_digest.as_bytes());
+    let whole = antecedent_core::CanonicalWriter::new("antecedent.sensitivity_decision.identity.v1")
+        .text(&premises_digest)
+        .text(&data_digest)
+        .finish();
     Ok(SensitivityIdentity {
         premises_digest,
         data_digest,
-        digest: whole.finalize().to_hex().to_string(),
+        digest: antecedent_core::to_hex(&whole),
     })
 }
 
