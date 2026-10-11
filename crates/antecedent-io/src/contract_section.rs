@@ -2008,48 +2008,14 @@ fn natural_direct_from_fit(
     {
         return Err("dependencies.nested_counterfactual_fit_moments");
     }
-    let beta = solve_nested_outcome_moments(fit.gram, fit.outcome_cross)
+    let beta = invert_linear_moments(&fit.gram, 3)
+        .and_then(|inverse| apply_moment_inverse(&inverse, &fit.outcome_cross, 3))
         .ok_or("dependencies.nested_counterfactual_fit_rank")?;
     let expected = beta[1] * (f64::from_bits(active_bits) - f64::from_bits(control_bits));
     if !expected.is_finite() {
         return Err("body.nested_counterfactual_estimate");
     }
     Ok(expected)
-}
-
-fn solve_nested_outcome_moments(gram: [f64; 9], cross: [f64; 3]) -> Option<[f64; 3]> {
-    let mut augmented = [[0.0_f64; 4]; 3];
-    let scale = gram.iter().map(|value| value.abs()).fold(0.0_f64, f64::max);
-    if !scale.is_finite() || scale == 0.0 {
-        return None;
-    }
-    for row in 0..3 {
-        augmented[row][..3].copy_from_slice(&gram[row * 3..row * 3 + 3]);
-        augmented[row][3] = cross[row];
-    }
-    for pivot in 0..3 {
-        let best = (pivot..3).max_by(|left, right| {
-            augmented[*left][pivot].abs().total_cmp(&augmented[*right][pivot].abs())
-        })?;
-        if augmented[best][pivot].abs() <= 1e-12 * scale {
-            return None;
-        }
-        augmented.swap(pivot, best);
-        let divisor = augmented[pivot][pivot];
-        for column in pivot..4 {
-            augmented[pivot][column] /= divisor;
-        }
-        for row in 0..3 {
-            if row == pivot {
-                continue;
-            }
-            let factor = augmented[row][pivot];
-            for column in pivot..4 {
-                augmented[row][column] -= factor * augmented[pivot][column];
-            }
-        }
-    }
-    Some([augmented[0][3], augmented[1][3], augmented[2][3]])
 }
 
 fn is_scalar_functional_effect_contract(contract: &AnalysisResultContractWire) -> bool {
@@ -2403,10 +2369,10 @@ fn verify_linear_fit_moments(
     {
         return Err("data_snapshot.linear_fit_moments");
     }
-    let beta = solve_linear_moments(&moments.gram, &moments.outcome_cross, p)
-        .ok_or("data_snapshot.linear_fit_moments_rank")?;
     let inverse =
         invert_linear_moments(&moments.gram, p).ok_or("data_snapshot.linear_fit_moments_rank")?;
+    let beta = apply_moment_inverse(&inverse, &moments.outcome_cross, p)
+        .ok_or("data_snapshot.linear_fit_moments_rank")?;
     let residual_square = moments.outcome_square
         - beta.iter().zip(&moments.outcome_cross).map(|(b, xy)| b * xy).sum::<f64>();
     let tolerance = 1e-9 * moments.outcome_square.abs().max(1.0);
@@ -2443,82 +2409,21 @@ fn verify_linear_fit_moments(
     Ok(())
 }
 
-fn solve_linear_moments(gram: &[f64], cross: &[f64], p: usize) -> Option<Vec<f64>> {
-    let mut augmented = vec![0.0; p * (p + 1)];
-    let width = p + 1;
-    for row in 0..p {
-        augmented[row * width..row * width + p].copy_from_slice(&gram[row * p..row * p + p]);
-        augmented[row * width + p] = cross[row];
-    }
-    let scale = gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
-    for pivot in 0..p {
-        let best = (pivot..p).max_by(|left, right| {
-            augmented[*left * width + pivot]
-                .abs()
-                .total_cmp(&augmented[*right * width + pivot].abs())
-        })?;
-        if augmented[best * width + pivot].abs() <= 1e-12 * scale {
-            return None;
-        }
-        for column in 0..width {
-            augmented.swap(pivot * width + column, best * width + column);
-        }
-        let divisor = augmented[pivot * width + pivot];
-        for column in pivot..width {
-            augmented[pivot * width + column] /= divisor;
-        }
-        for row in 0..p {
-            if row == pivot {
-                continue;
-            }
-            let factor = augmented[row * width + pivot];
-            for column in pivot..width {
-                augmented[row * width + column] -= factor * augmented[pivot * width + column];
-            }
-        }
-    }
-    let result = (0..p).map(|row| augmented[row * width + p]).collect::<Vec<_>>();
-    result.iter().all(|v| v.is_finite()).then_some(result)
+/// Inverse of a row-major `p x p` moment matrix, or `None` when it is singular, non-finite or
+/// overflows. The replay deliberately stays off the estimator's fit path and shares only the
+/// scale-free equilibrated Gauss-Jordan inverse of `antecedent-stats`, so a unit change in a
+/// design column moves neither the refusal nor the verdict.
+fn invert_linear_moments(gram: &[f64], p: usize) -> Option<Vec<f64>> {
+    let inverse = antecedent_stats::invert_square(gram, p)?;
+    inverse.iter().all(|v| v.is_finite()).then_some(inverse)
 }
 
-fn invert_linear_moments(gram: &[f64], p: usize) -> Option<Vec<f64>> {
-    let width = 2 * p;
-    let mut augmented = vec![0.0; p * width];
-    for row in 0..p {
-        augmented[row * width..row * width + p].copy_from_slice(&gram[row * p..row * p + p]);
-        augmented[row * width + p + row] = 1.0;
-    }
-    let scale = gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
-    for pivot in 0..p {
-        let best = (pivot..p).max_by(|left, right| {
-            augmented[*left * width + pivot]
-                .abs()
-                .total_cmp(&augmented[*right * width + pivot].abs())
-        })?;
-        if augmented[best * width + pivot].abs() <= 1e-12 * scale {
-            return None;
-        }
-        for column in 0..width {
-            augmented.swap(pivot * width + column, best * width + column);
-        }
-        let divisor = augmented[pivot * width + pivot];
-        for column in 0..width {
-            augmented[pivot * width + column] /= divisor;
-        }
-        for row in 0..p {
-            if row == pivot {
-                continue;
-            }
-            let factor = augmented[row * width + pivot];
-            for column in 0..width {
-                augmented[row * width + column] -= factor * augmented[pivot * width + column];
-            }
-        }
-    }
-    let inverse = (0..p)
-        .flat_map(|row| augmented[row * width + p..row * width + width].iter().copied())
-        .collect::<Vec<_>>();
-    inverse.iter().all(|v| v.is_finite()).then_some(inverse)
+/// `inverse * cross` for a row-major `p x p` inverse; `None` when the product is not finite.
+fn apply_moment_inverse(inverse: &[f64], cross: &[f64], p: usize) -> Option<Vec<f64>> {
+    let beta: Vec<f64> = (0..p)
+        .map(|row| (0..p).map(|column| inverse[row * p + column] * cross[column]).sum())
+        .collect();
+    beta.iter().all(|v| v.is_finite()).then_some(beta)
 }
 
 fn close_replay_value(actual: f64, expected: f64) -> bool {
@@ -5156,5 +5061,24 @@ mod tests {
         assert!(validate_mixture_masses(0.5, 0.3, 0.1, 0.0).is_err());
         assert!(validate_mixture_masses(1.2, 0.0, 0.0, 0.0).is_err());
         assert!(validate_mixture_masses(f64::NAN, 0.0, 0.0, 0.0).is_err());
+    }
+
+    #[test]
+    fn moment_replay_inverse_is_scale_free_and_refuses_collinear_moments() {
+        // The former `pivot <= 1e-12 * max|entry|` rule called a design with one column in
+        // units of 1e6 singular (the small pivot is 1e-12 of the largest entry); the
+        // equilibrated inverse recovers it, and a genuinely collinear Gram is still refused.
+        let gram = [4.0, 0.0, 0.0, 0.0, 1e-12, 0.0, 0.0, 0.0, 9.0e12];
+        let inverse = invert_linear_moments(&gram, 3).expect("a scaled diagonal is invertible");
+        let beta = apply_moment_inverse(&inverse, &[4.0, 2e-12, 9.0e12], 3).unwrap();
+        for (got, want) in beta.iter().zip([1.0, 2.0, 1.0]) {
+            assert!((got - want).abs() < 1e-9, "{beta:?}");
+        }
+        let collinear = [1.0, 2.0, 0.0, 2.0, 4.0, 0.0, 0.0, 0.0, 1.0];
+        assert!(invert_linear_moments(&collinear, 3).is_none());
+        assert!(invert_linear_moments(&[0.0; 9], 3).is_none());
+        let mut non_finite = gram;
+        non_finite[0] = f64::NAN;
+        assert!(invert_linear_moments(&non_finite, 3).is_none());
     }
 }
