@@ -3705,16 +3705,6 @@ class Admg:
     def to_networkx_node_link(self) -> str: ...
     def m_separated(self, x: str, y: str, z: list[str] | None = None) -> bool: ...
 
-class TemporalAdmg:
-    @classmethod
-    def from_lagged_edges(
-        cls,
-        names: list[str],
-        directed: list[tuple[str, int, str, int]],
-        bidirected: list[tuple[str, int, str, int]] | None = None,
-    ) -> TemporalAdmg: ...
-    def node_count(self) -> int: ...
-
 class TemporalDag:
     @classmethod
     def from_lagged_edges(
