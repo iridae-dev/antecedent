@@ -670,6 +670,9 @@ fn validate_config(config: &DependentIntervalConfig) -> Result<(), EstimationErr
     reason = "indices of a bounded replicate vector"
 )]
 fn quantile(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return f64::NAN;
+    }
     let h = p.clamp(0.0, 1.0) * (sorted.len() - 1) as f64;
     let lo = h.floor() as usize;
     let hi = (lo + 1).min(sorted.len() - 1);
@@ -711,14 +714,9 @@ fn run_replicates<E: TemporalEstimator + ?Sized>(
 }
 
 fn mean_se(values: &[f64]) -> Option<(f64, f64)> {
-    let n = values.len() as f64;
-    if values.len() < 2 || values.iter().any(|v| !v.is_finite()) {
-        return None;
-    }
-    let mean = values.iter().sum::<f64>() / n;
-    let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0);
-    let se = (variance / n).sqrt();
-    (se.is_finite() && se > 0.0).then_some((mean, se))
+    // A studentization needs a strictly positive standard error: the owner
+    // returns a zero SE as `Some`, so the refusal is this call site's policy.
+    antecedent_stats::mean_and_se(values).filter(|&(_, se)| se > 0.0)
 }
 
 fn prepare_studentization<E: TemporalEstimator + ?Sized>(

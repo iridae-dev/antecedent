@@ -37,8 +37,7 @@
 use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
-use antecedent_kernels::erfc;
-use antecedent_stats::gamma_q;
+use antecedent_stats::chi_square_sf;
 
 use crate::effect_constancy::{holm_adjust, CalibrationStatus};
 use crate::error::EstimationError;
@@ -265,19 +264,12 @@ pub(crate) fn refuse(code: &'static str, detail: &str, message: &str) -> Estimat
 }
 
 pub(crate) fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
+    n as f64
 }
 
 /// Two-sided normal p-value.
 pub(crate) fn normal_two_sided(z: f64) -> f64 {
-    erfc(z.abs() / std::f64::consts::SQRT_2)
-}
-
-fn chi_square_sf(statistic: f64, df: usize) -> f64 {
-    if statistic <= 0.0 {
-        return 1.0;
-    }
-    gamma_q(count(df) * 0.5, statistic * 0.5)
+    2.0 * antecedent_kernels::norm_sf(z.abs())
 }
 
 /// The design: intercept, shared adjustment columns, then the treatments (column-major).

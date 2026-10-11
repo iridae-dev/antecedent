@@ -36,7 +36,7 @@ use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
 use antecedent_kernels::erfc;
-use antecedent_stats::gamma_q;
+use antecedent_stats::chi_square_sf;
 
 use crate::error::EstimationError;
 
@@ -230,15 +230,7 @@ fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
 }
 
 fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
-}
-
-/// Chi-square survival function through the regularized upper incomplete gamma.
-fn chi_square_sf(statistic: f64, df: usize) -> f64 {
-    if statistic <= 0.0 {
-        return 1.0;
-    }
-    gamma_q(count(df) * 0.5, statistic * 0.5)
+    n as f64
 }
 
 /// Holm step-down adjustment of raw p-values; the result is in the input order.

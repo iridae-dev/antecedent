@@ -431,8 +431,8 @@ pub fn trial_to_target_bayesian_bootstrap(
     let mut rng = CausalRng::from_seed(seed);
     let mut draws = Vec::with_capacity(n_draws);
     for _ in 0..n_draws {
-        let weights: Vec<f64> =
-            source_rows.iter().map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let weights =
+            antecedent_kernels::bayesian_bootstrap_weights(&mut rng, source_rows.len(), false);
         let normalizer: f64 = weights.iter().sum();
         if !normalizer.is_finite() || normalizer <= 0.0 {
             return Err(EstimationError::stats_msg(

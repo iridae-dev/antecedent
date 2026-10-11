@@ -127,12 +127,10 @@ impl LaggedLinearPair {
 
 fn det_noise(seed: u64, t: u64, stream: u64) -> f64 {
     // SplitMix-style deterministic noise in (-1, 1).
-    let mut z = seed
-        .wrapping_add(t.wrapping_mul(0x9E37_79B9_7F4A_7C15))
-        .wrapping_add(stream.wrapping_mul(0xD6E8_FEB8_6659_FD93));
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^= z >> 31;
+    let z = antecedent_core::mix64(
+        seed.wrapping_add(t.wrapping_mul(antecedent_core::GOLDEN_GAMMA))
+            .wrapping_add(stream.wrapping_mul(0xD6E8_FEB8_6659_FD93)),
+    );
     let u = (z >> 11) as f64 / ((1u64 << 53) as f64);
     u * 2.0 - 1.0
 }

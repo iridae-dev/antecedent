@@ -104,14 +104,13 @@ pub fn estimate_bayesian_robust_ate(
             return Err(EstimationError::unsupported("Bayesian robust ATE cancelled"));
         }
         let mut rng = ctx.rng.stream_for(StreamDomain::Bayesian, 0xB007_0000 | draw as u64);
-        let mut weights: Vec<f64> =
-            (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        // Rescaled to mean one by the owner; the total check below sees the
+        // rescaled sum (about `n`), which is non-finite or non-positive exactly
+        // when the raw total was.
+        let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, n, true);
         let total = weights.iter().sum::<f64>();
         if !total.is_finite() || total <= 0.0 {
             return Err(EstimationError::stats_msg("invalid Bayesian-bootstrap row weights"));
-        }
-        for weight in &mut weights {
-            *weight *= n as f64 / total;
         }
         let fingerprint = fingerprint(&weights);
         let (estimate, audit) = fit_draw(input, &x, &fold_ids, &weights, options, fingerprint)?;

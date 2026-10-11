@@ -11,6 +11,7 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::error::EstimationError;
+use crate::util::mean;
 
 /// Scoped Bayesian IV output. Intervals are equal-tailed posterior intervals conditional on
 /// the selected model, prior scale, and plug-in Gaussian residual variance.
@@ -301,9 +302,6 @@ fn fit_bayesian_iv_inner(
     })
 }
 
-fn mean(x: &[f64]) -> f64 {
-    x.iter().sum::<f64>() / x.len() as f64
-}
 /// Exchangeable-rank (type-6) quantile of sorted posterior draws, the rule every
 /// posterior-draw interval in the crate uses; `NaN` for an empty sample.
 fn quantile(sorted: &[f64], p: f64) -> f64 {

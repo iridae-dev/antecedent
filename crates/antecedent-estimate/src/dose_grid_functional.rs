@@ -61,7 +61,7 @@ use antecedent_stats::{
 use crate::error::{EstimationError, RefusalFields};
 
 /// Normal 97.5% quantile for the nominal 95% pointwise interval.
-const Z_95: f64 = 1.959_963_984_540_054;
+const Z_95: f64 = antecedent_stats::NORMAL_Q975;
 /// Fewest effective rows a local quadratic can be asked to stand on.
 const MINIMUM_ESS_FLOOR: f64 = 3.0;
 

@@ -2198,22 +2198,10 @@ fn bootstrap_surface(
     Some(SurfaceBootstrap { draws: boot.draws, ncols, cancelled: boot.cancelled })
 }
 
-/// Unbiased sample SD of column `cell` across `draws`, without a temporary Vec.
+/// Unbiased sample SD of column `cell` across `draws`.
 fn sample_std_cell(draws: &[Vec<f64>], cell: usize) -> f64 {
-    let n = draws.len() as f64;
-    if n < 2.0 {
-        return f64::NAN;
-    }
-    let mean = draws.iter().map(|draw| draw[cell]).sum::<f64>() / n;
-    let var = draws
-        .iter()
-        .map(|draw| {
-            let e = draw[cell] - mean;
-            e * e
-        })
-        .sum::<f64>()
-        / (n - 1.0);
-    var.sqrt()
+    let column: Vec<f64> = draws.iter().map(|draw| draw[cell]).collect();
+    antecedent_stats::sample_std(&column)
 }
 
 fn design_column_means(design: &CompiledDesign) -> Vec<f64> {

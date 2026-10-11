@@ -1127,6 +1127,9 @@ impl Run<'_> {
     reason = "the position is in [0, len - 1]"
 )]
 fn percentile(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return f64::NAN;
+    }
     let position = p * (sorted.len() - 1) as f64;
     let lower = position.floor() as usize;
     let upper = (lower + 1).min(sorted.len() - 1);

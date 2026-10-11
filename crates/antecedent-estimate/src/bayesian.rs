@@ -1947,8 +1947,7 @@ fn add_modifier_mean_uncertainty(
         .collect();
     let mut rng = antecedent_core::CausalRng::from_seed(seed ^ 0x4D4F_4449_4649_4552);
     for d in 0..n_draws {
-        let weights: Vec<f64> =
-            (0..nrows).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, nrows, false);
         let total = weights.iter().sum::<f64>();
         let beta: Vec<f64> =
             coefficient_columns.iter().map(|&column| values[column * n_draws + d]).collect();
@@ -2627,8 +2626,7 @@ mod tests {
             17,
         );
         let mut rng = antecedent_core::CausalRng::from_seed(17 ^ 0x4D4F_4449_4649_4552);
-        let weights: Vec<f64> =
-            (0..4).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, 4, false);
         let expected = weights
             .iter()
             .zip(modifier)

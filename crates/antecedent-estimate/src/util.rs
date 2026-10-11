@@ -63,6 +63,11 @@ pub(crate) fn refuse_explicit_override(
     Ok(())
 }
 
+/// Arithmetic mean; `NaN` for an empty slice.
+pub(crate) fn mean(values: &[f64]) -> f64 {
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
 /// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
 pub(crate) fn sample_std(values: &[f64]) -> f64 {
     antecedent_stats::sample_std(values)

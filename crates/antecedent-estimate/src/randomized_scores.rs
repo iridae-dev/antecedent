@@ -79,7 +79,7 @@ pub fn independent_action_contrast(
     }
     let effect = scores.iter().sum::<f64>() / n as f64;
     let variance_upper_bound =
-        scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>() / ((n - 1) * n) as f64;
+        scores.iter().map(|score| (score - effect).powi(2)).sum::<f64>() / ((n - 1) as f64 * n as f64);
     if !effect.is_finite() || !variance_upper_bound.is_finite() || variance_upper_bound < 0.0 {
         return None;
     }
@@ -177,7 +177,7 @@ pub fn complier_wald_effect(
     }
     let first_stage_variance =
         receipt_scores.iter().map(|score| (score - first_stage).powi(2)).sum::<f64>()
-            / ((n - 1) * n) as f64;
+            / ((n - 1) as f64 * n as f64);
     let effect = intention_to_treat_effect / first_stage;
     let influence = outcome_scores
         .iter()
@@ -186,7 +186,7 @@ pub fn complier_wald_effect(
         .collect::<Vec<_>>();
     let mean = influence.iter().sum::<f64>() / n as f64;
     let variance =
-        influence.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / ((n - 1) * n) as f64;
+        influence.iter().map(|value| (value - mean).powi(2)).sum::<f64>() / ((n - 1) as f64 * n as f64);
     if !effect.is_finite() || !variance.is_finite() || variance < 0.0 {
         return None;
     }
@@ -241,7 +241,7 @@ mod tests {
                 vec![1.0 / arms as f64; arms]
             };
             let draw = uniform(
-                (replicate as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                (replicate as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
                     ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
             );
             let mut cumulative = 0.0;
@@ -341,7 +341,7 @@ mod tests {
                         _ => 0.2 + 0.6 * (i % 7) as f64 / 6.0,
                     };
                     let treated = uniform(
-                        (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                        (rep as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
                             ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
                     ) < p;
                     let outcome = 2.0
@@ -387,7 +387,7 @@ mod tests {
     ) -> (Vec<f64>, Vec<bool>, Vec<bool>, Vec<f64>) {
         let draw = |i: usize, salt: u64| {
             uniform(
-                (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                (rep as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
                     ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03)
                     ^ salt.wrapping_mul(0xA076_1D64_78BD_642F),
             )

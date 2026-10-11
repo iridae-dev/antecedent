@@ -321,7 +321,7 @@ fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
 }
 
 fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
+    n as f64
 }
 
 fn as_u64(n: usize) -> u64 {
@@ -818,9 +818,7 @@ fn permutations(k: usize) -> Vec<Vec<usize>> {
 }
 
 fn sample_sd(values: &[f64]) -> f64 {
-    let m = count(values.len());
-    let mean = values.iter().sum::<f64>() / m;
-    (values.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / (m - 1.0)).sqrt()
+    antecedent_stats::sample_std(values)
 }
 
 fn mixture_average(params: &Params) -> f64 {

@@ -154,7 +154,7 @@ mod tests {
                 let assignment = (0..N)
                     .map(|i| {
                         uniform(
-                            (rep as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                            (rep as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
                                 ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
                         ) < probability
                     })

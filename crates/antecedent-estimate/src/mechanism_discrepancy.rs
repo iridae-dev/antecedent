@@ -24,7 +24,7 @@
 //! * **Power limit:** for every compared coefficient the result carries the minimal detectable
 //!   difference `(z_{1-alpha/2} + z_{power}) * se_j` of a two-sided single-coefficient z test at the
 //!   declared `alpha` and `power` (no multiplicity adjustment). The normal quantiles come from
-//!   bisection on `erfc`. A non-rejection therefore reads "coefficient differences smaller than
+//!   the shared refined normal quantile. A non-rejection therefore reads "coefficient differences smaller than
 //!   these were not detectable" (the `power_statement` field of [`MechanismDiscrepancyResult`]).
 //!
 //! # What a result does not say
@@ -42,7 +42,7 @@ use std::collections::BTreeSet;
 
 use antecedent_core::reason_code;
 use antecedent_kernels::erfc;
-use antecedent_stats::gamma_q;
+use antecedent_stats::chi_square_sf;
 
 use crate::effect_constancy::{holm_adjust, CalibrationStatus};
 use crate::error::EstimationError;
@@ -85,10 +85,10 @@ pub const MECHANISM_DISCREPANCY_MAX_PARENTS: usize = 64;
 /// Smallest residual degrees of freedom `n - p` of either population.
 pub const MECHANISM_DISCREPANCY_MIN_RESIDUAL_DF: usize = 2;
 
-/// Normal quantile `z_{0.975}` to six decimals (reference constant; the code uses bisection).
-pub const Z_ALPHA_TWO_SIDED_05: f64 = 1.959_964;
+/// Normal quantile `z_{0.975}` (the shared 95% critical value).
+pub const Z_ALPHA_TWO_SIDED_05: f64 = antecedent_stats::NORMAL_Q975;
 
-/// Normal quantile `z_{0.80}` to six decimals (reference constant; the code uses bisection).
+/// Normal quantile `z_{0.80}` to six decimals (reference constant; the code uses the shared normal quantile).
 pub const Z_POWER_80: f64 = 0.841_621;
 
 /// Smallest accepted `alpha`, and `1 - ` the largest accepted `power`.
@@ -297,39 +297,21 @@ fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
 }
 
 fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
+    n as f64
 }
 
 fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
-fn chi_square_sf(statistic: f64, df: usize) -> f64 {
-    if statistic <= 0.0 {
-        return 1.0;
-    }
-    gamma_q(count(df) * 0.5, statistic * 0.5)
-}
-
-/// Upper-tail probability of the standard normal at `z >= 0`.
-fn normal_upper_tail(z: f64) -> f64 {
-    0.5 * erfc(z / std::f64::consts::SQRT_2)
-}
-
-/// `z` with `P(Z > z) = tail`, for `tail` in `(0, 0.5]`, by bisection on `erfc` over `[0, 40]`
-/// (200 halvings, far below the `f64` resolution).
+/// `z` with `P(Z > z) = tail`, for `tail` in `(0, 0.5]`, from the shared refined normal
+/// quantile `-Φ⁻¹(tail)`, clamped to the `[0, 40]` range the former bisection searched.
 #[must_use]
 pub fn normal_upper_quantile(tail: f64) -> f64 {
-    let (mut lo, mut hi) = (0.0_f64, 40.0_f64);
-    for _ in 0..200 {
-        let mid = 0.5 * (lo + hi);
-        if normal_upper_tail(mid) > tail {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
+    if tail.is_nan() {
+        return 0.0;
     }
-    0.5 * (lo + hi)
+    (-antecedent_stats::normal_ppf(tail)).clamp(0.0, 40.0)
 }
 
 fn validate_options(options: &DiscrepancyOptions) -> Result<(), EstimationError> {

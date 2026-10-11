@@ -31,6 +31,7 @@
     reason = "dense numeric kernels index several parallel columns by row"
 )]
 use crate::splitmix::{mix64, seed_mix, splitmix64};
+use crate::util::mean;
 use crate::vector_treatment::DesignSummary;
 use crate::EstimationError;
 use std::f64::consts::{PI, SQRT_2};
@@ -234,20 +235,12 @@ fn refuse(code: &'static str, detail: &str, message: &str) -> EstimationError {
 }
 
 fn count(n: usize) -> f64 {
-    f64::from(u32::try_from(n).unwrap_or(u32::MAX))
+    n as f64
 }
 
-fn mean(v: &[f64]) -> f64 {
-    v.iter().sum::<f64>() / count(v.len())
-}
 
 fn sample_sd(v: &[f64]) -> Option<f64> {
-    if v.len() < 2 {
-        return None;
-    }
-    let mu = mean(v);
-    let ss: f64 = v.iter().map(|x| (x - mu) * (x - mu)).sum();
-    Some((ss / (count(v.len()) - 1.0)).sqrt())
+    (v.len() >= 2).then(|| antecedent_stats::sample_std(v))
 }
 
 /// Owned analysis columns.

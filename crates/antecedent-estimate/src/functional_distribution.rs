@@ -1807,7 +1807,7 @@ fn provider_from_bayesian_bootstrap(
     )],
     rng: &mut CausalRng,
 ) -> Result<EmpiricalTableProvider, EstimationError> {
-    let weights: Vec<f64> = (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+    let weights = antecedent_kernels::bayesian_bootstrap_weights(rng, n, false);
     provider_from_columns(columns, n, factors, signatures, Some(&weights))
 }
 

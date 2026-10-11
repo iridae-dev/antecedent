@@ -575,9 +575,5 @@ impl SourceEvidence {
     }
 }
 fn hex(bytes: &[u8]) -> String {
-    use std::fmt::Write;
-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut result, byte| {
-        let _ = write!(result, "{byte:02x}");
-        result
-    })
+    antecedent_core::to_hex(bytes)
 }

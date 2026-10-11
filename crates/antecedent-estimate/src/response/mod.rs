@@ -2418,13 +2418,7 @@ fn with_estimation_assumptions(
 }
 
 fn bootstrap_weights(n: usize, rng: &mut CausalRng) -> Vec<f64> {
-    let mut weights: Vec<f64> =
-        (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
-    let total: f64 = weights.iter().sum();
-    for w in &mut weights {
-        *w *= n as f64 / total;
-    }
-    weights
+    antecedent_kernels::bayesian_bootstrap_weights(rng, n, true)
 }
 
 /// Posterior mean, equal-tailed credible interval, and SD of a scalar's draws.
@@ -2454,8 +2448,7 @@ fn summarize_scalar_draws(
         ));
     }
     let mean = values.iter().sum::<f64>() / values.len() as f64;
-    let sd =
-        (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (values.len() - 1) as f64).sqrt();
+    let sd = antecedent_stats::sample_std(values);
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
     let (lower, upper) = equal_tail_interval_sorted(&sorted, level, QuantileRule::ExchangeableRank);

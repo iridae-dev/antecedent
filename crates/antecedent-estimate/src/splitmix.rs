@@ -3,28 +3,15 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-/// The `SplitMix64` increment (the golden-ratio gamma).
-pub(crate) const GOLDEN_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
-
-/// The `SplitMix64` output finalizer: a bijective avalanche mix of one word.
-#[must_use]
-pub(crate) const fn mix64(mut z: u64) -> u64 {
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
-}
+// The mixer, its increment and the stepper are owned by `antecedent_core`; this module
+// re-exports them under the crate-local path and keeps the seed scrambler and fixtures.
+pub(crate) use antecedent_core::{mix64, splitmix64, GOLDEN_GAMMA};
 
 /// Scramble a caller seed so nearby seeds start unrelated streams: the first
 /// `SplitMix64` output of a generator whose state is `seed`.
 #[must_use]
 pub(crate) const fn seed_mix(seed: u64) -> u64 {
     mix64(seed.wrapping_add(GOLDEN_GAMMA))
-}
-
-/// Advance a `SplitMix64` state and return its next output.
-pub(crate) fn splitmix64(state: &mut u64) -> u64 {
-    *state = state.wrapping_add(GOLDEN_GAMMA);
-    mix64(*state)
 }
 
 /// The top 53 bits of `bits` as a uniform draw in `[0, 1)` (test fixtures).

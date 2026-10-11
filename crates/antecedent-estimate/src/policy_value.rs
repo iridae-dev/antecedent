@@ -461,7 +461,7 @@ pub fn evaluate_multi_action_policy_value_scores(
     }
     let mean = |scores: &[f64]| scores.iter().sum::<f64>() / n as f64;
     let se = |scores: &[f64], average: f64| {
-        (scores.iter().map(|x| (x - average).powi(2)).sum::<f64>() / (n * (n - 1)) as f64).sqrt()
+        (scores.iter().map(|x| (x - average).powi(2)).sum::<f64>() / (n as f64 * (n - 1) as f64)).sqrt()
     };
     let pv = mean(&ps);
     let rv = mean(&rs);

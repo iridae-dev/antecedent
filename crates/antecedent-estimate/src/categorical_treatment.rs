@@ -49,7 +49,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::reason_code;
-use antecedent_kernels::erfc;
 
 use crate::effect_constancy::{holm_adjust, CalibrationStatus};
 use crate::error::EstimationError;
@@ -411,7 +410,7 @@ fn declared_contrasts(
 }
 
 fn normal_cdf(t: f64) -> f64 {
-    0.5 * erfc(-t / std::f64::consts::SQRT_2)
+    antecedent_kernels::norm_cdf(t)
 }
 
 fn monotonicity_result(
