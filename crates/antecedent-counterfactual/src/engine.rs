@@ -10,9 +10,9 @@ use antecedent_core::{ExecutionContext, Intervention, StreamDomain, VariableId};
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::DenseNodeId;
 use antecedent_model::{
-    CompiledCausalModel, InterventionOverlay, MechanismSlot, MechanismWorkspace,
-    NoiseInferenceMode, ParentBatch, ValueBatchMut, evaluate_column, infer_noise_column_rng,
-    refuse_cross_family_soft, sample_noise_column, sample_stochastic, soft_to_slot,
+    evaluate_column, infer_noise_column_rng, refuse_cross_family_soft, sample_noise_column,
+    sample_stochastic, soft_to_slot, CompiledCausalModel, InterventionOverlay, MechanismSlot,
+    MechanismWorkspace, NoiseInferenceMode, ParentBatch, ValueBatchMut,
 };
 
 use crate::error::CounterfactualError;
@@ -52,7 +52,11 @@ impl AbductionMissingPolicy {
 
 impl From<bool> for AbductionMissingPolicy {
     fn from(allow_missing: bool) -> Self {
-        if allow_missing { Self::ZeroFill } else { Self::Error }
+        if allow_missing {
+            Self::ZeroFill
+        } else {
+            Self::Error
+        }
     }
 }
 
@@ -182,13 +186,24 @@ impl CounterfactualEngine {
         let mut values = vec![0.0; n * n_nodes];
         for (i, &var) in self.model.output_layout.variables.iter().enumerate() {
             match data.float64_cow(var) {
-                Ok(col) => values[i * n..(i + 1) * n].copy_from_slice(&col[..n]),
+                Ok(col) => {
+                    if col.iter().take(n).any(|v| !v.is_finite()) {
+                        return Err(CounterfactualError::MissingFactual {
+                            message: format!(
+                                "variable {var}: non-finite factual value is not a missing column"
+                            ),
+                        });
+                    }
+                    values[i * n..(i + 1) * n].copy_from_slice(&col[..n]);
+                }
                 Err(e) => {
-                    if missing.allows_missing() {
+                    // Only a column that is not in the table is "missing". A type
+                    // mismatch is a caller error; imputing prior noise would hide it.
+                    let absent = matches!(e, antecedent_data::DataError::UnknownVariable { .. });
+                    if missing.allows_missing() && absent {
                         kind = NoiseInferenceKind::AssumedNoise;
                         assumed_columns[i] = true;
                         values[i * n..(i + 1) * n].fill(0.0);
-                        let _ = e;
                     } else {
                         return Err(CounterfactualError::MissingFactual {
                             message: format!("variable {var}: {e}"),
@@ -562,7 +577,11 @@ impl CounterfactualResult {
                 n += 1;
             }
         }
-        if n == 0 { f64::NAN } else { sum / n as f64 }
+        if n == 0 {
+            f64::NAN
+        } else {
+            sum / n as f64
+        }
     }
 
     /// Borrowed outcome column for one world (`length = n_units`).
@@ -1008,7 +1027,7 @@ pub fn nested_hard_counterfactual(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CounterfactualTrajectoryRequest, TrajectoryArm, evaluate_trajectories};
+    use crate::{evaluate_trajectories, CounterfactualTrajectoryRequest, TrajectoryArm};
     use antecedent_core::{
         CausalSchemaBuilder, Intervention, InterventionSequence, MeasurementSpec,
         MechanismOverride, RoleHint, SequencedIntervention, SmallRoleSet, TemporalPolicy,
@@ -2046,6 +2065,48 @@ mod tests {
     }
 
     #[test]
+    fn zero_fill_does_not_impute_a_non_finite_factual_column() {
+        use antecedent_core::NodeRef;
+        let y = VariableId::from_raw(0);
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "y",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::OutcomeCandidate),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let storage = OwnedColumnarStorage::try_new(
+            schema,
+            vec![OwnedColumn::Float64(
+                Float64Column::new(y, Arc::from([1.0, f64::NAN]), ValidityBitmap::all_valid(2))
+                    .unwrap(),
+            )],
+            None,
+            None,
+        )
+        .unwrap();
+        let data = TabularData::new(storage);
+        let mut graph = Dag::empty();
+        graph.add_node(NodeRef::Static(y)).unwrap();
+        let model =
+            CompiledCausalModel::compile(graph).unwrap().with_mechanisms(CompiledMechanismStore {
+                slots: Arc::from([MechanismSlot::LinearGaussian {
+                    intercept: 0.0,
+                    coeffs: Arc::from([]),
+                    sigma: 1.0,
+                }]),
+            });
+        let err = CounterfactualEngine::new(model)
+            .abduct(&data, AbductionMissingPolicy::ZeroFill, &ExecutionContext::for_tests(1))
+            .unwrap_err();
+        assert!(matches!(err, CounterfactualError::MissingFactual { .. }), "{err:?}");
+    }
+
+    #[test]
     fn result_access_does_not_alias_adjacent_units_or_invent_empty_mean() {
         let result = CounterfactualResult {
             values: Arc::from([1.0, 2.0, 3.0, 4.0]),
@@ -2074,18 +2135,14 @@ mod tests {
             unit_rows: Some(Arc::from([exo.n_units])),
             interventions: Arc::from([]),
         };
-        assert!(
-            engine
-                .predict(&exo, &[invalid_world], &outcomes, false, &mut workspace, &context)
-                .is_err()
-        );
+        assert!(engine
+            .predict(&exo, &[invalid_world], &outcomes, false, &mut workspace, &context)
+            .is_err());
         let mut malformed = exo.clone();
         malformed.noise = Arc::from(&exo.noise[..exo.noise.len() - 1]);
         let world = CounterfactualWorld { unit_rows: None, interventions: Arc::from([]) };
-        assert!(
-            engine
-                .predict(&malformed, &[world], &outcomes, false, &mut workspace, &context)
-                .is_err()
-        );
+        assert!(engine
+            .predict(&malformed, &[world], &outcomes, false, &mut workspace, &context)
+            .is_err());
     }
 }
