@@ -978,6 +978,66 @@ pub fn summarize_vector_design(
     summarize_joint(input, 2)
 }
 
+/// Posterior mean of the treatment coefficients under independent normal priors
+/// on every non-intercept column, with the OLS residual variance plugged in.
+///
+/// The mean is the ridge solution `(X'X + λ D)^-1 X'y` where `λ = σ² / scale²`
+/// and `D` is zero on the intercept and one on every other column. No standard
+/// error or interval is returned: draws are not a band.
+///
+/// # Errors
+///
+/// `invalid_argument` with `vector_treatment.summary_inconsistent` or
+/// `vector_treatment.non_finite_value` for a malformed summary, and
+/// `design_rank_deficient` with `vector_treatment.rank_deficient_adjustment`
+/// when the penalized normal equations are singular.
+pub fn coefficient_posterior_mean(
+    summary: &DesignSummary,
+    prior_scale: f64,
+) -> Result<Vec<f64>, EstimationError> {
+    let p = summary.xty.len();
+    let n = summary.n_rows;
+    let consistent = p > 0
+        && summary.first_treatment > 0
+        && summary.first_treatment < p
+        && summary.gram.len() == p * p
+        && n > p
+        && prior_scale.is_finite()
+        && prior_scale > 0.0
+        && summary.xty.iter().chain(&summary.gram).all(|v| v.is_finite())
+        && summary.rss.is_finite()
+        && summary.rss >= 0.0;
+    if !consistent {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "vector_treatment.summary_inconsistent",
+            "a posterior mean needs a finite full-rank design summary and a positive prior scale",
+        ));
+    }
+    let sigma2 = summary.rss / count(n - p);
+    let penalty = sigma2 / (prior_scale * prior_scale);
+    let mut gram = summary.gram.clone();
+    for column in 1..p {
+        gram[column * p + column] += penalty;
+    }
+    let Some(ginv) = invert(&gram, p) else {
+        return Err(refuse(
+            reason_code!("design_rank_deficient"),
+            "vector_treatment.rank_deficient_adjustment",
+            "the penalized normal equations are singular",
+        ));
+    };
+    let beta: Vec<f64> = (0..p).map(|i| dot(&ginv[i * p..(i + 1) * p], &summary.xty)).collect();
+    if beta.iter().any(|v| !v.is_finite()) {
+        return Err(refuse(
+            reason_code!("invalid_argument"),
+            "vector_treatment.non_finite_value",
+            "the posterior mean overflowed finite precision",
+        ));
+    }
+    Ok(beta[summary.first_treatment..].to_vec())
+}
+
 /// Joint fit from sufficient statistics, bit-identical to the model-based fit of the rows the
 /// summary came from.
 ///

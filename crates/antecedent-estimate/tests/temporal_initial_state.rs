@@ -20,6 +20,9 @@
 )]
 
 use antecedent_estimate::EstimationError;
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_supported_mean,
+};
 use antecedent_estimate::temporal_dependent_interval::{
     ObservedStateSequence, SequenceHistory, TemporalEstimator, TemporalUnitPanel, UnitHistories,
 };
@@ -115,6 +118,60 @@ fn initial_state_sum_equals_the_hand_enumerated_target_sum() {
     assert_eq!(result.panel_snapshot_id, "initial-state-panel");
     assert_eq!(result.inference_claim, "point_only");
     assert_eq!(result.sequence, SEQUENCE);
+}
+
+#[test]
+fn initial_state_posterior_mean_stays_at_the_hand_sum() {
+    let p = panel();
+    let weights = [0.3, 0.7];
+    let mean = dirichlet_supported_mean(
+        &weights,
+        PosteriorRequest::IndependentNormal { scale: 1e-8 },
+        DirichletNamespace::InitialState,
+    )
+    .unwrap();
+    let updated = InitialStateLaw::new(
+        InitialStatePopulation::Target,
+        "target-state",
+        vec![(0, mean[0]), (1, mean[1])],
+    )
+    .unwrap();
+    let result =
+        MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated)).unwrap().effect(&p).unwrap();
+    assert!((result.value - 0.421).abs() < 1e-5, "{}", result.value);
+}
+
+#[test]
+fn initial_state_posterior_refuses_a_mapped_prior() {
+    let error = dirichlet_supported_mean(
+        &[0.3, 0.7],
+        PosteriorRequest::MappedCoefficient,
+        DirichletNamespace::InitialState,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("initial_state_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn initial_state_posterior_consumer_replays_the_weighted_responses() {
+    let p = panel();
+    let mean = dirichlet_supported_mean(
+        &[0.3, 0.7],
+        PosteriorRequest::IndependentNormal { scale: 0.1 },
+        DirichletNamespace::InitialState,
+    )
+    .unwrap();
+    let updated = InitialStateLaw::new(
+        InitialStatePopulation::Target,
+        "target-state",
+        vec![(0, mean[0]), (1, mean[1])],
+    )
+    .unwrap();
+    let result =
+        MarginalizedQuery::new(SEQUENCE, InitialStateSpec::Law(updated)).unwrap().effect(&p).unwrap();
+    let hand = mean[0] * 0.33 + mean[1] * 0.46;
+    assert!((result.value - hand).abs() < 1e-12, "{} vs {hand}", result.value);
 }
 
 #[test]

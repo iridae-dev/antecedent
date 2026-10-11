@@ -4,6 +4,9 @@
 //! power) is deliberately NOT measured here.
 
 use antecedent_estimate::EstimationError;
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScalarNamespace, known_variance_posterior,
+};
 use antecedent_estimate::effect_constancy::{
     CalibrationStatus, ConstancyConclusion, ContrastFamily, EFFECT_CONSTANCY_NULL,
     EffectEstimandIdentity, HeterogeneityStatistic, PartitionDependence, PartitionEstimate,
@@ -345,4 +348,44 @@ fn overflow_underflow_and_blank_identities_refuse() {
         p.estimand.population.clear();
     }
     assert!(run_independent(&parts).is_err());
+}
+
+#[test]
+fn constancy_posterior_mean_stays_at_the_partition_contrast() {
+    let result = run_independent(&[part("p1", 1.0, 0.5), part("p2", 2.0, 0.5)]).unwrap();
+    let mean = known_variance_posterior(
+        result.contrasts[0].difference,
+        0.5,
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScalarNamespace::Constancy,
+    )
+    .unwrap();
+    assert!((mean - result.contrasts[0].difference).abs() < 1e-6);
+    assert!((result.contrasts[0].difference + 1.0).abs() < 1e-12);
+}
+
+#[test]
+fn constancy_posterior_refuses_a_mapped_prior() {
+    let error = known_variance_posterior(
+        -1.0,
+        0.5,
+        PosteriorRequest::MappedCoefficient,
+        ScalarNamespace::Constancy,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("constancy_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn constancy_posterior_consumer_replays_the_shrunk_contrast() {
+    let produced = known_variance_posterior(
+        -1.0,
+        0.5,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        ScalarNamespace::Constancy,
+    )
+    .unwrap();
+    let weight = (1.0 / 0.5) / (1.0 / 0.5 + 1.0);
+    assert!((produced - weight * -1.0).abs() < 1e-12);
 }

@@ -1,0 +1,19 @@
+feature_id = "transport.admg_conditional.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not a TemporalAdmg license. No interval.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs",
+]

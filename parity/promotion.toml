@@ -7870,3 +7870,684 @@ inference_notes = "Original whole-method measurement5c76724f and immutable main 
 input_exceptions = [{ detail = "measured_inference.consumer_bounds_exceeded", exception_class = "CausalResourceError", source = "python/src/measured_inference_api.rs", helper = "crate::CausalResourceError::new_err", reason_code_absent = true, evidence_test = "python/tests/test_measured_inference.py", evidence_assertion = "test_native_input_exceptions_preserve_class_without_scientific_reason" }, { detail = "measured_inference.invalid_expectation", exception_class = "CausalValueError", source = "python/src/measured_inference_api.rs", helper = "crate::value_err", reason_code_absent = true, evidence_test = "python/tests/test_measured_inference.py", evidence_assertion = "test_native_input_exceptions_preserve_class_without_scientific_reason" }, { detail = "measured_inference.memory_budget_exceeded", exception_class = "CausalResourceError", source = "python/src/measured_inference_api.rs", helper = "crate::CausalResourceError::new_err", reason_code_absent = true, evidence_test = "python/tests/test_measured_inference.py", evidence_assertion = "test_native_input_exceptions_preserve_class_without_scientific_reason" }, { detail = "measured_inference.source_report_not_supported", defensive_source_only = true, exception_class = "CausalValueError", source = "python/src/measured_inference_api.rs", helper = "crate::value_err", reason_code_absent = true, evidence_test = "python/tests/test_measured_inference.py", evidence_assertion = "test_source_report_unreachable_route_guard_is_class_only" }]
 shared_refusal_namespaces = [{ namespace = "measured_transport", owner_record = "inference.measured_scalar", sources = ["crates/antecedent-io/src/measured_inference/transport.rs", "crates/antecedent-io/src/joint_bayesian_transport_artifact.rs", "crates/antecedent-io/src/learned_joint_transport_artifact.rs"] }, { namespace = "measured_interval", owner_record = "inference.measured_scalar", sources = ["crates/antecedent-io/src/measured_inference/recovery_temporal.rs"] }]
 untrusted_interval_inputs = [{ name = "interval", source = "crates/antecedent-io/src/measured_inference.rs", class = "ScalarExecution", builder = "build_report", report_type = "MeasuredInferenceReport", authority_type = "MeasuredInference", authority_fixture = "inference.measured_scalar.measured_serialized_forgery.negative", why = "Caller-declared endpoints used only for readable report construction; cannot construct opaque measured authority." }]
+[[record]]
+id = "estimate.vector_treatment.bayesian"
+capability = "estimate.vector_treatment.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of the joint treatment coefficients be consumed without treating draws as an interval?"
+theorem = "Independent normal priors on every non-intercept column of the joint treatment regression, with the ordinary-least-squares residual variance plugged in. The published coefficients are the ridge posterior mean. A wide prior stays at the hand-solved pin (2.75, 0.75). A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse. No interval is produced."
+reference = "provenance/estimate.vector_treatment.bayesian.toml"
+guarantee = "joint_coefficient_posterior_mean_point_only"
+graph_class = "No graph is identified. The caller owns the shared adjustment set."
+population_semantics = "One row snapshot and one shared adjustment set, as the frequentist joint fit."
+evidence_family = "The six-row hand-solved joint regression, replayed from its normal equations."
+provider = "antecedent_estimate::posterior_mean::vector_treatment_posterior"
+estimand = "posterior mean of the joint treatment coefficients"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["treatment columns", "shared adjustment", "row snapshot", "prior scale"]
+wire_changes = ["None: the posterior mean is a coefficient vector with no interval section."]
+compatibility = "Additive sibling of estimate.vector_treatment. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "vector_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "vector_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "vector_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "vector_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+]
+routes = [
+  { name = "antecedent.treatment.joint_effects.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.vector_treatment.bayesian.near_pin.positive", role = "positive", intent = "A wide prior keeps the posterior mean at the hand-solved coefficients (2.75, 0.75), and a tight prior shrinks them.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "vector_posterior_mean_stays_near_the_hand_solved_coefficients" },
+  { id = "estimate.vector_treatment.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "vector_posterior_refuses_a_mapped_prior" },
+  { id = "estimate.vector_treatment.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the posterior mean from the hand normal equations.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "vector_posterior_consumer_replays_the_hand_normal_equations" },
+]
+
+[[record]]
+id = "estimate.categorical_treatment.bayesian"
+capability = "estimate.categorical_treatment.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of the dummy-coded categorical coefficients be consumed without an interval?"
+theorem = "Independent normal priors on the dummy-coded level coefficients, plug-in residual variance. The wide-prior mean stays at the group-mean differences (3, 7). A mapped prior, an external power prior, and an unmeasured band refuse."
+reference = "provenance/estimate.categorical_treatment.bayesian.toml"
+guarantee = "categorical_coefficient_posterior_mean_point_only"
+graph_class = "No graph is identified."
+population_semantics = "One declared categorical treatment and one shared adjustment block."
+evidence_family = "The three-group hand anchor a, b, c."
+provider = "antecedent_estimate::posterior_mean::categorical_treatment_posterior"
+estimand = "posterior mean of the non-reference level coefficients"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["levels", "reference", "rows", "prior scale"]
+wire_changes = ["None."]
+compatibility = "Additive sibling of estimate.categorical_treatment."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "categorical_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "categorical_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "categorical_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "categorical_posterior.unmeasured_band", when = "An unmeasured interval is requested." },
+]
+routes = [
+  { name = "antecedent.treatment.categorical_effects.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.categorical_treatment.bayesian.group_means.positive", role = "positive", intent = "The wide-prior mean stays at the group-mean differences 3 and 7.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "categorical_posterior_mean_stays_near_the_group_mean_differences" },
+  { id = "estimate.categorical_treatment.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "categorical_posterior_refuses_an_external_power_prior" },
+  { id = "estimate.categorical_treatment.bayesian.dummy_summary.artifact", role = "artifact", intent = "The consumer replays the mean from the dummy-coded design summary.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "categorical_posterior_consumer_replays_the_dummy_summary" },
+]
+
+[[record]]
+id = "estimate.quadratic_dose.bayesian"
+capability = "estimate.quadratic_dose.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of a local quadratic dose response be consumed as a point?"
+theorem = "Independent normal priors on the local linear and quadratic coefficients, intercept unpenalized, plug-in weighted residual variance. On a line the wide-prior level and derivative stay at the line. A mapped prior, an external power prior, and an unmeasured band refuse."
+reference = "provenance/estimate.quadratic_dose.bayesian.toml"
+guarantee = "local_quadratic_posterior_mean_point_only"
+graph_class = "No graph is identified."
+population_semantics = "The observed dose sample at one evaluation point."
+evidence_family = "An exact line y = 1 + 2d evaluated at dose 10."
+provider = "antecedent_estimate::posterior_mean::local_quadratic_posterior"
+estimand = "posterior mean of the local quadratic level and derivative"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["doses", "outcomes", "evaluation point", "bandwidth", "prior scale"]
+wire_changes = ["None."]
+compatibility = "Additive sibling of estimate.quadratic_dose. Candidate coverage records stay unmeasured."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "quadratic_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "quadratic_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "quadratic_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "quadratic_posterior.unmeasured_band", when = "An unmeasured interval is requested." },
+  { code = "cell_not_licensed", detail = "quadratic_posterior.insufficient_weight", when = "The local window cannot support a quadratic posterior mean." },
+]
+routes = [
+  { name = "antecedent.dose.quadratic.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.quadratic_dose.bayesian.line.positive", role = "positive", intent = "On an exact line the posterior level and derivative stay at the line.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "quadratic_posterior_mean_stays_near_the_linear_dose_response" },
+  { id = "estimate.quadratic_dose.bayesian.unmeasured_band.negative", role = "negative", intent = "A request for an unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "quadratic_posterior_refuses_an_unmeasured_band" },
+  { id = "estimate.quadratic_dose.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the mean from the local normal equations.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "quadratic_posterior_consumer_replays_the_local_normal_equations" },
+]
+
+[[record]]
+id = "estimate.dose_grid_functional.bayesian"
+capability = "estimate.dose_grid_functional.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of a dose-grid local quadratic be consumed as a point?"
+theorem = "The same local-quadratic posterior mean as the quadratic-dose sibling, evaluated on the dose grid's point. No interval. A mapped prior, an external power prior, and an unmeasured band refuse."
+reference = "provenance/estimate.dose_grid_functional.bayesian.toml"
+guarantee = "dose_grid_posterior_mean_point_only"
+graph_class = "No graph is identified."
+population_semantics = "The observed dose sample at the requested grid point."
+evidence_family = "An exact line y = 1 + 2d evaluated at dose 8."
+provider = "antecedent_estimate::posterior_mean::local_quadratic_posterior"
+estimand = "posterior mean of the dose-grid level and derivative"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["doses", "outcomes", "grid point", "bandwidth", "prior scale"]
+wire_changes = ["None."]
+compatibility = "Additive sibling of estimate.dose_grid_functional."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "dose_grid_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "dose_grid_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "dose_grid_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "dose_grid_posterior.unmeasured_band", when = "An unmeasured interval is requested." },
+  { code = "cell_not_licensed", detail = "dose_grid_posterior.insufficient_weight", when = "The local window cannot support a quadratic posterior mean." },
+]
+routes = [
+  { name = "antecedent.dose.grid.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.dose_grid_functional.bayesian.line.positive", role = "positive", intent = "On an exact line the grid posterior stays at the line.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "dose_grid_posterior_mean_stays_near_the_linear_dose_response" },
+  { id = "estimate.dose_grid_functional.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped coefficient prior refuses.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "dose_grid_posterior_refuses_a_mapped_prior" },
+  { id = "estimate.dose_grid_functional.bayesian.normal_equations.artifact", role = "artifact", intent = "The consumer replays the grid mean from the local normal equations.", evidence_test = "crates/antecedent-estimate/tests/posterior_mean_linear.rs", evidence_assertion = "dose_grid_posterior_consumer_replays_the_local_normal_equations" },
+]
+
+[[record]]
+id = "decision.functionals.bayesian"
+capability = "decision.functionals.bayesian"
+status = "promoted"
+consumer_question = "Can the functional of a Dirichlet posterior mean of the finite law be consumed as a point?"
+theorem = "A Dirichlet posterior on the finite law the decision functional already reads. The published number is the functional of the posterior mean. A wide concentration stays at the finite-law expectation 1.5. No interval."
+reference = "provenance/decision.functionals.bayesian.toml"
+guarantee = "decision_functional_of_dirichlet_mean_point_only"
+graph_class = "No graph is identified. The caller owns the decision contract."
+population_semantics = "One finite law over the actions the functional already compares."
+evidence_family = "Weights [1, 3] on atoms 0 and 2."
+provider = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+estimand = "functional of the Dirichlet posterior mean of the finite law"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "decision_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "decision_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "decision_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "decision_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "decision_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.decision.functionals.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "decision.functionals.bayesian.expectation.positive", role = "positive", intent = "A tiny concentration keeps the expectation at 1.5.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "decision_posterior_mean_keeps_the_finite_law_expectation" },
+  { id = "decision.functionals.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "decision_posterior_refuses_a_mapped_prior" },
+  { id = "decision.functionals.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "decision_posterior_consumer_replays_the_dirichlet_weights" },
+]
+
+[[record]]
+id = "decision.functional_inverse.bayesian"
+capability = "decision.functional_inverse.bayesian"
+status = "promoted"
+consumer_question = "Can an inverse of the functional of a Dirichlet posterior mean be consumed as a point?"
+theorem = "The inverse reads the Dirichlet posterior mean of the finite law the functional already evaluates. No new functional. No interval."
+reference = "provenance/decision.functional_inverse.bayesian.toml"
+guarantee = "functional_inverse_of_dirichlet_mean_point_only"
+graph_class = "No graph is identified."
+population_semantics = "The same finite law the frequentist inverse reads."
+evidence_family = "Weights [1, 3] on the two-action contract."
+provider = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+estimand = "inverse of the functional of the Dirichlet posterior mean"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "functional_inverse_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "functional_inverse_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "functional_inverse_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "functional_inverse_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "functional_inverse_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.decision.functional_inverse.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "decision.functional_inverse.bayesian.mean_law.positive", role = "positive", intent = "A tiny concentration selects the same action as the raw weights.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "functional_inverse_posterior_uses_the_dirichlet_mean" },
+  { id = "decision.functional_inverse.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "functional_inverse_posterior_refuses_an_external_power_prior" },
+  { id = "decision.functional_inverse.bayesian.replay.artifact", role = "artifact", intent = "The consumer replays the inverse of the mean law.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "functional_inverse_posterior_consumer_replays_the_mean_law" },
+]
+
+[[record]]
+id = "decision.finite_action_inverse.bayesian"
+capability = "decision.finite_action_inverse.bayesian"
+status = "promoted"
+consumer_question = "Can a finite-action inverse of a Dirichlet posterior mean be consumed as a point?"
+theorem = "The finite-action inverse uses the Dirichlet posterior mean of the law it already reads. No new action. No interval."
+reference = "provenance/decision.finite_action_inverse.bayesian.toml"
+guarantee = "finite_action_inverse_of_dirichlet_mean_point_only"
+graph_class = "No graph is identified."
+population_semantics = "The same finite action set the frequentist inverse reads."
+evidence_family = "Weights [1, 3] on the two-action contract."
+provider = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+estimand = "finite-action inverse of the Dirichlet posterior mean"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "finite_action_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "finite_action_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "finite_action_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "finite_action_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "finite_action_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.decision.finite_action_inverse.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "decision.finite_action_inverse.bayesian.selected_action.positive", role = "positive", intent = "A tiny concentration selects the same action as the raw weights.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "finite_action_inverse_posterior_uses_the_dirichlet_mean" },
+  { id = "decision.finite_action_inverse.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "finite_action_inverse_posterior_refuses_an_unmeasured_band" },
+  { id = "decision.finite_action_inverse.bayesian.replay.artifact", role = "artifact", intent = "The consumer replays the selected action.", evidence_test = "crates/antecedent/tests/posterior_mean_decision.rs", evidence_assertion = "finite_action_inverse_posterior_consumer_replays_the_selected_action" },
+]
+
+[[record]]
+id = "recovery.binary_observation.bayesian"
+capability = "recovery.binary_observation.bayesian"
+status = "promoted"
+consumer_question = "Can binary observation recovery of a Dirichlet posterior mean be consumed as a point?"
+theorem = "The exact recovery formula applied to the Dirichlet posterior mean of the observed pattern table, with structural zeros held at zero. A tiny concentration stays at the frequentist recovery. A sampled provider that is not this update still refuses. No interval."
+reference = "provenance/recovery.binary_observation.bayesian.toml"
+guarantee = "binary_recovery_of_dirichlet_mean_point_only"
+graph_class = "The observation graph the frequentist recovery already uses."
+population_semantics = "One observed pattern table."
+evidence_family = "The enumerated binary observation model."
+provider = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+estimand = "exact binary recovery of the Dirichlet posterior mean"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "binary_recovery_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "binary_recovery_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "binary_recovery_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "binary_recovery_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "binary_recovery_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.recovery.binary_observation.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "recovery.binary_observation.bayesian.enumerated.positive", role = "positive", intent = "A tiny concentration stays at the frequentist recovery.", evidence_test = "crates/antecedent-estimate/tests/observation_recovery_execution.rs", evidence_assertion = "binary_posterior_mean_stays_at_the_enumerated_recovery" },
+  { id = "recovery.binary_observation.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/observation_recovery_execution.rs", evidence_assertion = "binary_posterior_refuses_an_external_power_prior" },
+  { id = "recovery.binary_observation.bayesian.pattern_mean.artifact", role = "artifact", intent = "The consumer replays the Dirichlet pattern mean.", evidence_test = "crates/antecedent-estimate/tests/observation_recovery_execution.rs", evidence_assertion = "binary_posterior_consumer_replays_the_pattern_mean" },
+]
+
+[[record]]
+id = "recovery.chain_observation.bayesian"
+capability = "recovery.chain_observation.bayesian"
+status = "promoted"
+consumer_question = "Can chain observation recovery of a Dirichlet posterior mean be consumed as a point?"
+theorem = "The chain recovery formula applied to the Dirichlet posterior mean of the observed pattern table. A tiny concentration stays at the frequentist recovery. No interval."
+reference = "provenance/recovery.chain_observation.bayesian.toml"
+guarantee = "chain_recovery_of_dirichlet_mean_point_only"
+graph_class = "The observation graph the frequentist chain recovery already uses."
+population_semantics = "One observed chain pattern table."
+evidence_family = "The enumerated chain observation model."
+provider = "antecedent_estimate::posterior_mean::dirichlet_posterior_mean"
+estimand = "exact chain recovery of the Dirichlet posterior mean"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "chain_recovery_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "chain_recovery_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "chain_recovery_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "chain_recovery_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "chain_recovery_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.recovery.chain_observation.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "recovery.chain_observation.bayesian.enumerated.positive", role = "positive", intent = "A tiny concentration stays at the frequentist recovery.", evidence_test = "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs", evidence_assertion = "chain_posterior_mean_stays_at_the_enumerated_recovery" },
+  { id = "recovery.chain_observation.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs", evidence_assertion = "chain_posterior_refuses_a_mapped_prior" },
+  { id = "recovery.chain_observation.bayesian.pattern_mean.artifact", role = "artifact", intent = "The consumer replays the Dirichlet pattern mean.", evidence_test = "crates/antecedent-estimate/tests/ordered_response_recovery_chain_truth.rs", evidence_assertion = "chain_posterior_consumer_replays_the_pattern_mean" },
+]
+
+[[record]]
+id = "estimate.penalized_propensity_aipw.bayesian"
+capability = "estimate.penalized_propensity_aipw.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of a penalized AIPW score contrast be consumed as a point?"
+theorem = "Independent normal prior on the mean of the cross-fitted score contrast, with the plug-in score variance. A wide scale stays at the score mean, which is the AIPW point. The frequentist interval is not reused. No coverage is claimed."
+reference = "provenance/estimate.penalized_propensity_aipw.bayesian.toml"
+guarantee = "penalized_score_mean_posterior_point_only"
+graph_class = "The back-door adjustment DAG of the frequentist penalized AIPW route."
+population_semantics = "The observed complete-case rows of that route."
+evidence_family = "The cross-fitted score table retained by the penalized fit."
+provider = "antecedent_estimate::posterior_mean::score_contrast_posterior"
+estimand = "posterior mean of the cross-fitted AIPW score contrast"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "penalized_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "penalized_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "penalized_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "penalized_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "penalized_posterior.empty_scores", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.estimate.penalized_aipw.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.penalized_propensity_aipw.bayesian.score_mean.positive", role = "positive", intent = "A wide prior stays at the cross-fitted score mean.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "penalized_posterior_mean_stays_near_the_cross_fitted_score" },
+  { id = "estimate.penalized_propensity_aipw.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "penalized_posterior_refuses_a_mapped_prior" },
+  { id = "estimate.penalized_propensity_aipw.bayesian.shrunk_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "penalized_posterior_consumer_replays_the_shrunk_score_mean" },
+]
+
+[[record]]
+id = "estimate.clustered_dml_aipw.bayesian"
+capability = "estimate.clustered_dml_aipw.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of a clustered DML score contrast be consumed as a point?"
+theorem = "Independent normal prior on the mean of the cross-fitted score contrast from the cluster-DML table, with the plug-in score variance. A wide scale stays at the score mean. The frequentist interval is not reused. No coverage is claimed."
+reference = "provenance/estimate.clustered_dml_aipw.bayesian.toml"
+guarantee = "clustered_score_mean_posterior_point_only"
+graph_class = "The back-door adjustment DAG of the frequentist clustered DML route."
+population_semantics = "The observed complete-case rows under whole-cluster folds."
+evidence_family = "The cross-fitted score table retained by the cluster-DML fit."
+provider = "antecedent_estimate::posterior_mean::score_contrast_posterior"
+estimand = "posterior mean of the clustered cross-fitted score contrast"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "clustered_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "clustered_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "clustered_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "clustered_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "clustered_posterior.empty_scores", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.estimate.clustered_dml.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.clustered_dml_aipw.bayesian.score_mean.positive", role = "positive", intent = "A wide prior stays at the cross-fitted score mean.", evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs", evidence_assertion = "clustered_posterior_mean_stays_near_the_cross_fitted_score" },
+  { id = "estimate.clustered_dml_aipw.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs", evidence_assertion = "clustered_posterior_refuses_an_external_power_prior" },
+  { id = "estimate.clustered_dml_aipw.bayesian.shrunk_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent-estimate/tests/cluster_dml_aipw.rs", evidence_assertion = "clustered_posterior_consumer_replays_the_shrunk_score_mean" },
+]
+
+[[record]]
+id = "estimate.batch_retarget_covariance.bayesian"
+capability = "estimate.batch_retarget_covariance.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of the cross-fitted score a batch retarget reads be consumed as a point?"
+theorem = "Independent normal prior on the mean of the cross-fitted score contrast the retarget reads, with the plug-in score variance. A wide scale stays at that score mean. The frequentist covariance interval is not reused. No coverage is claimed."
+reference = "provenance/estimate.batch_retarget_covariance.bayesian.toml"
+guarantee = "batch_score_mean_posterior_point_only"
+graph_class = "The back-door adjustment DAG of the score table the batch reads."
+population_semantics = "One common complete-case row snapshot."
+evidence_family = "The cross-fitted score table a retarget reweights."
+provider = "antecedent_estimate::posterior_mean::score_contrast_posterior"
+estimand = "posterior mean of the cross-fitted score contrast the batch reads"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "batch_retarget_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "batch_retarget_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "batch_retarget_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "batch_retarget_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "batch_retarget_posterior.empty_scores", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.estimate.batch_retarget.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "estimate.batch_retarget_covariance.bayesian.score_mean.positive", role = "positive", intent = "A wide prior stays at the retargeted score mean.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "batch_retarget_posterior_mean_stays_near_the_cross_fitted_score" },
+  { id = "estimate.batch_retarget_covariance.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "batch_retarget_posterior_refuses_an_unmeasured_band" },
+  { id = "estimate.batch_retarget_covariance.bayesian.shrunk_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk score mean.", evidence_test = "crates/antecedent-estimate/tests/penalized_aipw.rs", evidence_assertion = "batch_retarget_posterior_consumer_replays_the_shrunk_score_mean" },
+]
+
+[[record]]
+id = "transport.multi_source_limited_experiment.bayesian"
+capability = "transport.multi_source_limited_experiment.bayesian"
+status = "promoted"
+consumer_question = "Can a Dirichlet posterior mean of the supplied finite laws be pushed through the multi-source identifier?"
+theorem = "Dirichlet posterior means of the supplied finite laws, structural zeros held at zero, pushed through the multi-source identifier the frequentist record already runs. A tiny concentration stays at the target interventional truth. No TemporalAdmg. No interval."
+reference = "provenance/transport.multi_source_limited_experiment.bayesian.toml"
+guarantee = "multi_source_dirichlet_mean_point_only"
+graph_class = "The selection diagram of transport.multi_source_limited_experiment."
+population_semantics = "The source and target finite laws that record already binds."
+evidence_family = "The complementary multi-source catalog."
+provider = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+estimand = "multi-source transport of the Dirichlet posterior means of the supplied laws"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "multi_source_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "multi_source_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "multi_source_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "multi_source_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "multi_source_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.transport.multi_source.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "transport.multi_source_limited_experiment.bayesian.target_truth.positive", role = "positive", intent = "A tiny concentration stays at the target interventional truth.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "multi_source_posterior_mean_stays_at_the_target_truth" },
+  { id = "transport.multi_source_limited_experiment.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "multi_source_posterior_refuses_a_mapped_prior" },
+  { id = "transport.multi_source_limited_experiment.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent-estimate/tests/mz_transport_execution.rs", evidence_assertion = "multi_source_posterior_consumer_replays_the_dirichlet_weights" },
+]
+
+[[record]]
+id = "transport.two_step_temporal.bayesian"
+capability = "transport.two_step_temporal.bayesian"
+status = "promoted"
+consumer_question = "Can a Dirichlet posterior mean of the supplied finite laws be pushed through the two-step temporal identifier?"
+theorem = "Dirichlet posterior means of the supplied finite laws on the existing two-slice selection diagram, pushed through the temporal sequence identifier. A tiny concentration stays at the target truth. This is not a TemporalAdmg license. No interval."
+reference = "provenance/transport.two_step_temporal.bayesian.toml"
+guarantee = "two_step_dirichlet_mean_point_only"
+graph_class = "The existing fixed two-slice selection diagram. No TemporalAdmg."
+population_semantics = "The source and target finite laws of the two-step sequence."
+evidence_family = "The enumerated two-step temporal SCM."
+provider = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+estimand = "two-step temporal transport of the Dirichlet posterior means"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "two_step_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "two_step_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "two_step_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "two_step_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "two_step_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.transport.two_step_temporal.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "transport.two_step_temporal.bayesian.target_truth.positive", role = "positive", intent = "A tiny concentration stays at the target sequence truth.", evidence_test = "crates/antecedent-estimate/tests/temporal_transport_execution.rs", evidence_assertion = "two_step_posterior_mean_stays_at_the_target_truth" },
+  { id = "transport.two_step_temporal.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/temporal_transport_execution.rs", evidence_assertion = "two_step_posterior_refuses_an_external_power_prior" },
+  { id = "transport.two_step_temporal.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent-estimate/tests/temporal_transport_execution.rs", evidence_assertion = "two_step_posterior_consumer_replays_the_dirichlet_weights" },
+]
+
+[[record]]
+id = "transport.admg_conditional.bayesian"
+capability = "transport.admg_conditional.bayesian"
+status = "promoted"
+consumer_question = "Can a Dirichlet posterior mean of the supplied finite laws be pushed through the conditional ADMG identifier?"
+theorem = "Dirichlet posterior means of the supplied finite laws on the existing selection diagram, pushed through the conditional transport identifier. A tiny concentration stays at the enumerated conditional truth. This is not a TemporalAdmg license. No interval."
+reference = "provenance/transport.admg_conditional.bayesian.toml"
+guarantee = "admg_conditional_dirichlet_mean_point_only"
+graph_class = "The selection diagram of transport.admg_conditional. No TemporalAdmg."
+population_semantics = "The source experiments and target observational joint that record already binds."
+evidence_family = "One identified three-node conditional query."
+provider = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+estimand = "conditional transport of the Dirichlet posterior means"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "admg_conditional_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "admg_conditional_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "admg_conditional_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "admg_conditional_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "admg_conditional_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.transport.admg_conditional.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "transport.admg_conditional.bayesian.enumerated.positive", role = "positive", intent = "A tiny concentration stays at the enumerated conditional truth.", evidence_test = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs", evidence_assertion = "admg_conditional_posterior_mean_stays_at_the_enumerated_truth" },
+  { id = "transport.admg_conditional.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs", evidence_assertion = "admg_conditional_posterior_refuses_an_unmeasured_band" },
+  { id = "transport.admg_conditional.bayesian.dirichlet_weights.artifact", role = "artifact", intent = "The consumer replays the Dirichlet weights.", evidence_test = "crates/antecedent-estimate/tests/admg_conditional_transport_scm.rs", evidence_assertion = "admg_conditional_posterior_consumer_replays_the_dirichlet_weights" },
+]
+
+[[record]]
+id = "transport.shared_scenario_covariance.bayesian"
+capability = "transport.shared_scenario_covariance.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of the shared scenario covariance be consumed as a point?"
+theorem = "Independent normal priors on the covariance entries, plug-in variance of those entries. A wide scale stays at the enumerated covariance. The scenario envelope stays a structural envelope. No interval."
+reference = "provenance/transport.shared_scenario_covariance.bayesian.toml"
+guarantee = "scenario_covariance_posterior_mean_point_only"
+graph_class = "The scenario set the frequentist covariance already reads. The envelope stays structural."
+population_semantics = "One shared row snapshot."
+evidence_family = "The exact enumeration of the two linear scenario estimators."
+provider = "antecedent_estimate::posterior_mean::covariance_entry_posterior"
+estimand = "posterior mean of the shared scenario covariance"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "scenario_covariance_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "scenario_covariance_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "scenario_covariance_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "scenario_covariance_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "scenario_covariance_posterior.empty_matrix", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.transport.shared_scenario_covariance.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "transport.shared_scenario_covariance.bayesian.enumerated.positive", role = "positive", intent = "A wide prior stays at the enumerated covariance.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_mean_stays_at_the_enumerated_matrix" },
+  { id = "transport.shared_scenario_covariance.bayesian.power_prior.negative", role = "negative", intent = "An external power prior refuses.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_refuses_an_external_power_prior" },
+  { id = "transport.shared_scenario_covariance.bayesian.shrunk_entries.artifact", role = "artifact", intent = "The consumer replays the shrunk entries.", evidence_test = "crates/antecedent-estimate/tests/scenario_covariance.rs", evidence_assertion = "scenario_covariance_posterior_consumer_replays_the_shrunk_entries" },
+]
+
+[[record]]
+id = "temporal.uncertain_initial_state.bayesian"
+capability = "temporal.uncertain_initial_state.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of the uncertain initial-state mixture be consumed as a point?"
+theorem = "Dirichlet posterior mean of the supplied target initial-state law, then the same finite sum the frequentist record evaluates. A tiny concentration stays at 0.421. This is not a reuse of recalculation.bayesian. No interval."
+reference = "provenance/temporal.uncertain_initial_state.bayesian.toml"
+guarantee = "initial_state_mixture_posterior_mean_point_only"
+graph_class = "The existing fixed two-slice selection diagram."
+population_semantics = "A finite target initial-state law."
+evidence_family = "The enumerated two-step panel and the target law P(s0=1)=0.7."
+provider = "antecedent_estimate::posterior_mean::dirichlet_supported_mean"
+estimand = "posterior mean of the initial-state mixture"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "initial_state_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "initial_state_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "initial_state_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "initial_state_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "initial_state_posterior.empty_law", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.temporal.uncertain_initial_state.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "temporal.uncertain_initial_state.bayesian.hand_sum.positive", role = "positive", intent = "A tiny concentration stays at the hand sum 0.421.", evidence_test = "crates/antecedent-estimate/tests/temporal_initial_state.rs", evidence_assertion = "initial_state_posterior_mean_stays_at_the_hand_sum" },
+  { id = "temporal.uncertain_initial_state.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/temporal_initial_state.rs", evidence_assertion = "initial_state_posterior_refuses_a_mapped_prior" },
+  { id = "temporal.uncertain_initial_state.bayesian.weighted_responses.artifact", role = "artifact", intent = "The consumer replays the weighted responses.", evidence_test = "crates/antecedent-estimate/tests/temporal_initial_state.rs", evidence_assertion = "initial_state_posterior_consumer_replays_the_weighted_responses" },
+]
+
+[[record]]
+id = "temporal.new_period_refresh.bayesian"
+capability = "temporal.new_period_refresh.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of a refreshed period response be consumed as a point?"
+theorem = "Normal posterior mean of the refreshed period's outcomes, plug-in variance. A wide scale stays at the refreshed response 6. This is not a reuse of recalculation.bayesian. No interval."
+reference = "provenance/temporal.new_period_refresh.bayesian.toml"
+guarantee = "refreshed_period_posterior_mean_point_only"
+graph_class = "The existing fixed two-slice graph when the window advances."
+population_semantics = "The replacement period's unit outcomes."
+evidence_family = "The new-period outcomes [3, 5, 10]."
+provider = "antecedent_estimate::posterior_mean::normal_mean_posterior"
+estimand = "posterior mean of the refreshed period response"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "refresh_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "refresh_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "refresh_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "refresh_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "refresh_posterior.empty_values", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.temporal.new_period_refresh.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "temporal.new_period_refresh.bayesian.new_period.positive", role = "positive", intent = "A wide prior stays at the refreshed response.", evidence_test = "crates/antecedent-estimate/tests/temporal_refresh.rs", evidence_assertion = "refresh_posterior_mean_stays_at_the_new_period_response" },
+  { id = "temporal.new_period_refresh.bayesian.unmeasured_band.negative", role = "negative", intent = "An unmeasured band refuses.", evidence_test = "crates/antecedent-estimate/tests/temporal_refresh.rs", evidence_assertion = "refresh_posterior_refuses_an_unmeasured_band" },
+  { id = "temporal.new_period_refresh.bayesian.sample_mean.artifact", role = "artifact", intent = "The consumer replays the shrunk sample mean.", evidence_test = "crates/antecedent-estimate/tests/temporal_refresh.rs", evidence_assertion = "refresh_posterior_consumer_replays_the_sample_mean" },
+]
+
+[[record]]
+id = "temporal.effect_constancy.bayesian"
+capability = "temporal.effect_constancy.bayesian"
+status = "promoted"
+consumer_question = "Can the posterior mean of an effect-constancy contrast be consumed as a point?"
+theorem = "Normal posterior mean of the constancy contrast, using the contrast variance the frequentist test already forms. A wide scale stays at the contrast. This is not a reuse of recalculation.bayesian. No interval."
+reference = "provenance/temporal.effect_constancy.bayesian.toml"
+guarantee = "constancy_contrast_posterior_mean_point_only"
+graph_class = "The declared partition. This cell identifies no graph."
+population_semantics = "Two periods estimating the same defined effect."
+evidence_family = "Effects 1 and 2, each with variance 1/4."
+provider = "antecedent_estimate::posterior_mean::known_variance_posterior"
+estimand = "posterior mean of the constancy contrast"
+inference_claim = "point_only"
+owners = ["antecedent-estimate"]
+identity_inputs = ["the frequentist record's inputs", "prior scale"]
+wire_changes = ["None: the posterior mean is a point with no interval section."]
+compatibility = "Additive sibling. The frequentist record is unchanged."
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { code = "invalid_argument", detail = "constancy_posterior.non_positive_scale", when = "The prior scale is not finite and positive." },
+  { code = "route_not_supported", detail = "constancy_posterior.mapped_prior", when = "A mapped coefficient prior is requested." },
+  { code = "route_not_supported", detail = "constancy_posterior.external_power_prior", when = "An external power prior is requested." },
+  { code = "cell_not_licensed", detail = "constancy_posterior.unmeasured_band", when = "An unmeasured interval around the posterior mean is requested." },
+  { code = "invalid_argument", detail = "constancy_posterior.empty_contrast", when = "The law, score table, or contrast cannot support a posterior mean." },
+]
+routes = [
+  { name = "antecedent.temporal.effect_constancy.posterior_mean", stage = "evaluate", status = "licensed", claim = "point_only" },
+]
+fixtures = [
+  { id = "temporal.effect_constancy.bayesian.contrast.positive", role = "positive", intent = "A wide prior stays at the partition contrast.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_mean_stays_at_the_partition_contrast" },
+  { id = "temporal.effect_constancy.bayesian.mapped_prior.negative", role = "negative", intent = "A mapped prior refuses.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_refuses_a_mapped_prior" },
+  { id = "temporal.effect_constancy.bayesian.shrunk_contrast.artifact", role = "artifact", intent = "The consumer replays the shrunk contrast.", evidence_test = "crates/antecedent-estimate/tests/effect_constancy.rs", evidence_assertion = "constancy_posterior_consumer_replays_the_shrunk_contrast" },
+]

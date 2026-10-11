@@ -11,6 +11,9 @@
 use std::collections::BTreeMap;
 
 use antecedent_core::{ExecutionContext, VariableId};
+use antecedent_estimate::posterior_mean::{
+    DirichletNamespace, PosteriorRequest, dirichlet_posterior_mean,
+};
 use antecedent_estimate::{ChainPatternLaw, ChainRecoveredLaw, evaluate_chain_recovery};
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
@@ -232,4 +235,86 @@ fn chain_malformed_plan_is_refused() {
         let error = evaluate_chain_recovery(&bad, &observed).unwrap_err();
         assert_eq!(error.detail, ChainRecoveryDetail::InvalidDerivation);
     }
+}
+
+fn pattern_cells(law: &ChainPatternLaw) -> Vec<f64> {
+    law.both()
+        .iter()
+        .flatten()
+        .copied()
+        .chain(law.only_first().iter().copied())
+        .chain(law.only_second().iter().copied())
+        .chain(std::iter::once(law.neither()))
+        .collect()
+}
+
+fn pattern_from(cells: &[f64]) -> ChainPatternLaw {
+    ChainPatternLaw::new(
+        [[cells[0], cells[1]], [cells[2], cells[3]]],
+        [cells[4], cells[5]],
+        [cells[6], cells[7]],
+        cells[8],
+    )
+    .unwrap()
+}
+
+#[test]
+fn chain_posterior_mean_stays_at_the_enumerated_recovery() {
+    let (observed, truth) = scm(0, true);
+    let plan = plan(IDS, &IDS, 0, true);
+    let mean = dirichlet_posterior_mean(
+        &pattern_cells(&observed),
+        PosteriorRequest::IndependentNormal { scale: 1e-8 },
+        DirichletNamespace::ChainRecovery,
+    )
+    .unwrap();
+    let recovered = evaluate_chain_recovery(&plan, &pattern_from(&mean)).unwrap();
+    let frequentist = evaluate_chain_recovery(&plan, &observed).unwrap();
+    for (got, expected) in recovered.cells().iter().flatten().zip(frequentist.cells().iter().flatten()) {
+        assert!((got - expected).abs() < 1e-5, "{got} vs {expected}");
+    }
+    let _ = truth;
+}
+
+#[test]
+fn chain_posterior_refuses_a_mapped_prior() {
+    let error = dirichlet_posterior_mean(
+        &[0.1; 9],
+        PosteriorRequest::MappedCoefficient,
+        DirichletNamespace::ChainRecovery,
+    )
+    .unwrap_err();
+    let antecedent_estimate::EstimationError::Refused { message, .. } = error else {
+        panic!("expected a refusal");
+    };
+    assert!(message.contains("chain_recovery_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn chain_posterior_consumer_replays_the_pattern_mean() {
+    let (observed, _) = scm(0, true);
+    let produced = dirichlet_posterior_mean(
+        &pattern_cells(&observed),
+        PosteriorRequest::IndependentNormal { scale: 0.01 },
+        DirichletNamespace::ChainRecovery,
+    )
+    .unwrap();
+    let concentration = 0.01;
+    let total = pattern_cells(&observed).iter().sum::<f64>() + 9.0 * concentration;
+    for (cell, weight) in produced.iter().zip(pattern_cells(&observed)) {
+        assert!((cell - (weight + concentration) / total).abs() < 1e-12);
+    }
+    let plan = plan(IDS, &IDS, 0, true);
+    let from_producer = evaluate_chain_recovery(&plan, &pattern_from(&produced)).unwrap();
+    let from_hand = evaluate_chain_recovery(
+        &plan,
+        &pattern_from(
+            &pattern_cells(&observed)
+                .iter()
+                .map(|weight| (weight + concentration) / total)
+                .collect::<Vec<_>>(),
+        ),
+    )
+    .unwrap();
+    assert_close(&from_producer, from_hand.cells());
 }

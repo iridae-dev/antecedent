@@ -25,6 +25,9 @@ use antecedent_core::{
 use antecedent_data::{
     Float64Column, OwnedColumn, OwnedColumnarStorage, TabularData, ValidityBitmap,
 };
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScoreNamespace, score_contrast_posterior,
+};
 use antecedent_estimate::{
     AipwAte, AipwWorkspace, ClusterDml, EffectEstimate, EstimationError, IndependenceUnit,
     OverlapPolicy, PropensityNuisance, RidgeTuning, ScoreColumn, ScoreTable, cluster_fold_plan,
@@ -991,4 +994,47 @@ fn the_cluster_covariance_diagonal_is_the_receipt_variance() {
         &spec.influence_covariance(&[&psi], &raw.cluster, Some(&shared)).unwrap_err(),
         "dyadic_dependence_not_licensed",
     );
+}
+
+#[test]
+fn clustered_posterior_mean_stays_near_the_cross_fitted_score() {
+    let raw = draw(24, 8, 5);
+    let fit = run(&declared(&raw, 10), &raw, 5).unwrap();
+    let t = table(&fit);
+    let mean = score_contrast_posterior(
+        t.column(0).unwrap(),
+        t.column(1).unwrap(),
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScoreNamespace::Clustered,
+    )
+    .unwrap();
+    assert!((mean - fit.ate).abs() < 1e-6, "{mean} vs {}", fit.ate);
+}
+
+#[test]
+fn clustered_posterior_refuses_an_external_power_prior() {
+    let error = score_contrast_posterior(
+        &[0.0, 1.0],
+        &[1.0, 2.0],
+        PosteriorRequest::ExternalPower,
+        ScoreNamespace::Clustered,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("clustered_posterior.external_power_prior"), "{message}");
+}
+
+#[test]
+fn clustered_posterior_consumer_replays_the_shrunk_score_mean() {
+    let produced = score_contrast_posterior(
+        &[0.0, 1.0, 0.5],
+        &[1.0, 2.0, 2.5],
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        ScoreNamespace::Clustered,
+    )
+    .unwrap();
+    let mean = 4.0 / 3.0;
+    let variance = [1.0, 1.0, 2.0].iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 2.0;
+    let weight = (3.0 / variance) / (3.0 / variance + 1.0);
+    assert!((produced - weight * mean).abs() < 1e-12);
 }

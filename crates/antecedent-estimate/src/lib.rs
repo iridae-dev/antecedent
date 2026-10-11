@@ -65,6 +65,7 @@ pub mod nonlinear_mediation;
 pub mod observation;
 pub mod overlap;
 pub mod policy_value;
+pub mod posterior_mean;
 pub mod prediction;
 pub mod prepare;
 pub mod propensity;

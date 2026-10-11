@@ -29,6 +29,9 @@ use antecedent_estimate::{
     REFIT_BOOTSTRAP_UNCERTAINTY_KIND, ReplicatePolicy, RidgeTuning, ScoreTable,
     crossfit_influence_se, provenance_marks_penalized, provenance_withholds_interval, retarget,
 };
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScoreNamespace, score_contrast_posterior,
+};
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
 use antecedent_stats::StatsError;
@@ -1009,4 +1012,95 @@ fn the_influence_interval_covers_the_known_effect_in_repeated_sampling() {
         let coverage = f64::from(covered) / f64::from(reps);
         assert!((0.87..=0.995).contains(&coverage), "{name}: coverage {coverage}");
     }
+}
+
+#[test]
+fn penalized_posterior_mean_stays_near_the_cross_fitted_score() {
+    let raw = draw(80, 2, 7, Regime::Moderate);
+    let estimate = run(&plain(), &raw, 7).unwrap();
+    let t = table(&estimate);
+    let mean = score_contrast_posterior(
+        t.column(0).unwrap(),
+        t.column(1).unwrap(),
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScoreNamespace::Penalized,
+    )
+    .unwrap();
+    assert!((mean - estimate.ate).abs() < 1e-6, "{mean} vs {}", estimate.ate);
+}
+
+#[test]
+fn penalized_posterior_refuses_a_mapped_prior() {
+    let error = score_contrast_posterior(
+        &[0.0, 1.0],
+        &[1.0, 2.0],
+        PosteriorRequest::MappedCoefficient,
+        ScoreNamespace::Penalized,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("penalized_posterior.mapped_prior"), "{message}");
+}
+
+#[test]
+fn penalized_posterior_consumer_replays_the_shrunk_score_mean() {
+    let control = [0.0, 1.0, 0.5];
+    let treated = [1.0, 2.0, 2.5];
+    let produced = score_contrast_posterior(
+        &control,
+        &treated,
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        ScoreNamespace::Penalized,
+    )
+    .unwrap();
+    let contrast = [1.0, 1.0, 2.0];
+    let mean = 4.0 / 3.0;
+    let variance = contrast.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 2.0;
+    let weight = (3.0 / variance) / (3.0 / variance + 1.0);
+    assert!((produced - weight * mean).abs() < 1e-12);
+}
+
+#[test]
+fn batch_retarget_posterior_mean_stays_near_the_cross_fitted_score() {
+    let raw = draw(80, 2, 11, Regime::Moderate);
+    let estimate = run(&plain(), &raw, 11).unwrap();
+    let t = table(&estimate);
+    let ones = vec![1.0; t.n_rows];
+    let (retargeted, _) = retarget(t, &ones, &[], None, None, None).unwrap();
+    let mean = score_contrast_posterior(
+        t.column(0).unwrap(),
+        t.column(1).unwrap(),
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScoreNamespace::BatchRetarget,
+    )
+    .unwrap();
+    assert!((mean - retargeted.contrast.as_ref().unwrap().value).abs() < 1e-6);
+}
+
+#[test]
+fn batch_retarget_posterior_refuses_an_unmeasured_band() {
+    let error = score_contrast_posterior(
+        &[0.0, 1.0],
+        &[1.0, 3.0],
+        PosteriorRequest::UnmeasuredBand,
+        ScoreNamespace::BatchRetarget,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("batch_retarget_posterior.unmeasured_band"), "{message}");
+}
+
+#[test]
+fn batch_retarget_posterior_consumer_replays_the_shrunk_score_mean() {
+    let produced = score_contrast_posterior(
+        &[0.0, 1.0, 0.5],
+        &[1.0, 2.0, 2.5],
+        PosteriorRequest::IndependentNormal { scale: 1.0 },
+        ScoreNamespace::BatchRetarget,
+    )
+    .unwrap();
+    let mean = 4.0 / 3.0;
+    let variance = [1.0, 1.0, 2.0].iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / 2.0;
+    let weight = (3.0 / variance) / (3.0 / variance + 1.0);
+    assert!((produced - weight * mean).abs() < 1e-12);
 }

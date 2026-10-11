@@ -1,0 +1,19 @@
+feature_id = "estimate.batch_retarget_covariance.bayesian"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = []
+
+implementation_deviations = [
+  "Independent normal prior on the mean of the cross-fitted score contrast the retarget reads, with the plug-in score variance. A wide scale stays at that score mean. The frequentist covariance interval is not reused. No coverage is claimed.",
+  "A mapped coefficient prior, an external power prior, and a request for an unmeasured band refuse.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/tests/penalized_aipw.rs",
+]

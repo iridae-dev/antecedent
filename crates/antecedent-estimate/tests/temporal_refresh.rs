@@ -6,6 +6,9 @@
 use std::collections::BTreeSet;
 
 use antecedent_estimate::EstimationError;
+use antecedent_estimate::posterior_mean::{
+    PosteriorRequest, ScalarNamespace, normal_mean_posterior,
+};
 use antecedent_estimate::temporal_refresh::{
     HeldTemporalResult, ObservationPeriod, RefreshDecision, RefreshInvalidation, RefreshReceipt,
     TemporalWindowIdentity, accept_refresh, decide_refresh, refresh_held,
@@ -86,6 +89,46 @@ fn period_replace_matches_clean_preparation_bit_for_bit() {
     // A held interval did not survive.
     assert!(receipt.interval_invalidated);
     assert!(!refreshed.interval_present);
+}
+
+#[test]
+fn refresh_posterior_mean_stays_at_the_new_period_response() {
+    let outcomes = [3.0, 5.0, 10.0];
+    let mean = normal_mean_posterior(
+        &outcomes,
+        PosteriorRequest::IndependentNormal { scale: 1e6 },
+        ScalarNamespace::Refresh,
+    )
+    .unwrap();
+    let refreshed = refresh_held(&held(false), replacement(), evaluate).unwrap().0.value;
+    assert!((mean - refreshed).abs() < 1e-6, "{mean} vs {refreshed}");
+}
+
+#[test]
+fn refresh_posterior_refuses_an_unmeasured_band() {
+    let error = normal_mean_posterior(
+        &[3.0, 5.0, 10.0],
+        PosteriorRequest::UnmeasuredBand,
+        ScalarNamespace::Refresh,
+    )
+    .unwrap_err();
+    let EstimationError::Refused { message, .. } = error else { panic!("expected a refusal") };
+    assert!(message.contains("refresh_posterior.unmeasured_band"), "{message}");
+}
+
+#[test]
+fn refresh_posterior_consumer_replays_the_sample_mean() {
+    let outcomes = [3.0, 5.0, 10.0];
+    let produced = normal_mean_posterior(
+        &outcomes,
+        PosteriorRequest::IndependentNormal { scale: 10.0 },
+        ScalarNamespace::Refresh,
+    )
+    .unwrap();
+    let mean = 6.0;
+    let variance = (9.0 + 1.0 + 16.0) / 2.0;
+    let weight = (3.0 / variance) / (3.0 / variance + 1.0 / 100.0);
+    assert!((produced - weight * mean).abs() < 1e-12);
 }
 
 #[test]
