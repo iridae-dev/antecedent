@@ -291,13 +291,22 @@ fn temporal_world_replay_digests_recompute_bit_identically() {
     let a = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap();
     let b = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap();
     assert_eq!(a.receipt, b.receipt);
-    assert_eq!(a.receipt.digest.len(), 32);
+    assert_eq!(a.receipt.digest.len(), 64);
     assert!(a.receipt.is_self_consistent());
     assert_eq!(a.receipt.digest, a.receipt.recompute_digest());
     assert_eq!(a.receipt.unit_draws.len(), 4);
     let mut tampered = a.receipt.clone();
-    tampered.unit_draws[0].digest = "0".repeat(32);
+    tampered.unit_draws[0].digest = "0".repeat(64);
     assert!(!tampered.is_self_consistent());
+}
+
+#[test]
+fn temporal_world_replay_digest_golden_vector() {
+    let r = evaluate_temporal_counterfactual(&spec(), &ctx()).unwrap().receipt;
+    // Pinned: a change to any component's tag, framing or field order changes these.
+    assert_eq!(r.graph_digest, "c23c126c16c88afb9624e7c738011577c6f291368fd6b932a5436109902c3d25");
+    assert_eq!(r.fit_digest, "cc323915fc507a89ab5d7d78c28972123223f5a97b8027d72c455ccfcedf198e");
+    assert_eq!(r.digest, "0820ea467948aabed7d17f3f34556219caa6c0a54682dd969f164cdf69a35362");
 }
 
 #[test]
