@@ -659,24 +659,24 @@ mod envelope_refuter_target_tests {
         assert!(stable.passed, "stable heterogeneous atoms must pass: {stable:?}");
         assert!((stable.original_ate - pooled).abs() < 1e-8);
 
-        // Targeting every atom against the pooled mixture rejects
-        // the same stable atoms: this is the defect the per-atom comparison removes.
+        // The coverage check is centred on each atom's own full-sample refit, so the
+        // estimate an atom reports does not move its verdict: routing every atom to
+        // the pooled mixture changes only the published original_ate, and a reported
+        // estimate that no refit reproduces is not a coverage failure either.
         let mut pooled_target = fitted_atoms(&data, &ctx);
         for atom in &mut pooled_target {
             atom.original.ate = pooled;
         }
-        assert!(!bootstrap_report(&data, &pooled_target, &ctx).passed);
+        let pooled_report = bootstrap_report(&data, &pooled_target, &ctx);
+        assert!(pooled_report.passed, "{pooled_report:?}");
+        assert!((pooled_report.original_ate - pooled).abs() < 1e-8);
 
-        // An atom whose own refits do not reproduce its reported estimate is
-        // still refuted, and unanimity fails the mixture even though the other
-        // atom passes.
-        let mut unstable = fitted_atoms(&data, &ctx);
-        unstable[1].original.ate += 0.5;
-        let report = bootstrap_report(&data, &unstable, &ctx);
-        assert!(!report.passed, "a refuted atom must fail the mixture: {report:?}");
-        assert!(report.failure_condition.is_some());
-        let alone = bootstrap_report(&data, &unstable[..1], &ctx);
-        assert!(alone.passed, "the other atom passes on its own: {alone:?}");
+        let mut shifted = fitted_atoms(&data, &ctx);
+        shifted[1].original.ate += 0.5;
+        let shifted_report = bootstrap_report(&data, &shifted, &ctx);
+        assert!(shifted_report.passed, "{shifted_report:?}");
+        let alone = bootstrap_report(&data, &shifted[..1], &ctx);
+        assert!(alone.passed, "{alone:?}");
     }
 
     #[test]

@@ -1757,7 +1757,8 @@ mod tests {
         ))
         .unwrap_err();
         assert!(
-            err.to_string().starts_with("refused: ConditionalEffect on Admg has no compile arm"),
+            err.to_string()
+                .starts_with("refused: ConditionalEffect on Admg or TemporalAdmg has no compile arm"),
             "Admg: {err}"
         );
         for graph in ["Cpdag", "Pag"] {
