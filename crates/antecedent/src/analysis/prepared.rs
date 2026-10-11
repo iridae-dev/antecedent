@@ -3347,12 +3347,7 @@ impl PreparedStudy {
     pub fn checked_static_mediation_info(&self) -> Option<CheckedStaticMediationInfo> {
         let (query, estimand, program, bootstrap_replicates, validation, graph) =
             self.execution.static_mediation()?.inspect();
-        let mut edges: Vec<_> = graph
-            .edges()
-            .filter_map(antecedent_graph::MarkedEdge::parent_child)
-            .map(|(a, b)| (a.raw(), b.raw()))
-            .collect();
-        edges.sort_unstable();
+        let edges = graph.directed_edge_pairs_sorted();
         Some(CheckedStaticMediationInfo {
             query: query.clone(),
             identifier: crate::strategy_table::IdentifierId::PathSpecificNatural,
@@ -3370,13 +3365,7 @@ impl PreparedStudy {
     pub fn checked_bayesian_static_mediation_info(&self) -> Option<CheckedStaticMediationInfo> {
         let operation = self.execution.bayesian_static_mediation()?;
         let (query, estimand, program, validation) = operation.inspect();
-        let mut edges: Vec<_> = operation
-            .graph()
-            .edges()
-            .filter_map(antecedent_graph::MarkedEdge::parent_child)
-            .map(|(a, b)| (a.raw(), b.raw()))
-            .collect();
-        edges.sort_unstable();
+        let edges = operation.graph().directed_edge_pairs_sorted();
         Some(CheckedStaticMediationInfo {
             query: query.clone(),
             identifier: crate::strategy_table::IdentifierId::PathSpecificNatural,
@@ -3393,13 +3382,7 @@ impl PreparedStudy {
     #[must_use]
     pub fn checked_attribution_info(&self) -> Option<CheckedAttributionInfo> {
         let operation = self.execution.attribution()?;
-        let mut edges: Vec<_> = operation
-            .graph()
-            .edges()
-            .filter_map(antecedent_graph::MarkedEdge::parent_child)
-            .map(|(a, b)| (a.raw(), b.raw()))
-            .collect();
-        edges.sort_unstable();
+        let edges = operation.graph().directed_edge_pairs_sorted();
         let (identifier, estimator) = operation.procedure();
         Some(CheckedAttributionInfo {
             query: operation.query(),

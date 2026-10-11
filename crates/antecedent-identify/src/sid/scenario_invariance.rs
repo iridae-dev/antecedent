@@ -45,7 +45,7 @@ use std::sync::Arc;
 
 use antecedent_core::{NodeRef, VariableId, reason_code};
 use antecedent_expr::LeafSignature;
-use antecedent_graph::{DenseNodeId, SelectionDiagram};
+use antecedent_graph::{BitSet, DenseNodeId, SelectionDiagram};
 
 use super::scenarios::{ScenarioOutcome, TransportScenario};
 use super::{BoundTransportFunctional, ClassicalTransportDerivation, Rule, SHedgeRecord};
@@ -396,7 +396,7 @@ impl SelectionDifferences {
         for index in 0..graph.node_count() {
             let from = variable_at(graph, index)?;
             variables.push(from);
-            let dense = DenseNodeId::from_raw(u32::try_from(index).expect("graph capacity"));
+            let dense = DenseNodeId::from_index(index);
             for child in graph.children(dense) {
                 directed.push((from, variable_at(graph, child.as_usize())?));
             }
@@ -430,8 +430,8 @@ fn district_selection_targets(
     excluded: &BTreeSet<VariableId>,
 ) -> Result<Vec<VariableId>, InvarianceReportError> {
     let graph = diagram.causal_graph();
-    let mut seen = BTreeSet::new();
-    let mut pending = Vec::new();
+    let n = graph.node_count();
+    let mut seeds = BitSet::with_len(n);
     for variable in variables {
         let index =
             graph.nodes().iter().position(|node| *node == NodeRef::Static(*variable)).ok_or_else(
@@ -442,22 +442,24 @@ fn district_selection_targets(
                     ))
                 },
             )?;
-        if !excluded.contains(variable) && seen.insert(index) {
-            pending.push(index);
-        }
+        seeds.insert(DenseNodeId::from_index(index));
     }
-    while let Some(index) = pending.pop() {
-        let dense = DenseNodeId::from_raw(u32::try_from(index).expect("graph capacity"));
-        for neighbor in graph.bidirected_neighbors(dense) {
-            let next = neighbor.as_usize();
-            if !excluded.contains(&variable_at(graph, next)?) && seen.insert(next) {
-                pending.push(next);
-            }
+    // Excluded nodes are neither members nor crossed; a non-static node stays active and is
+    // reported below when the district reaches it.
+    let mut active = BitSet::full(n);
+    for id in graph.node_ids() {
+        if graph.static_variable(id).is_some_and(|variable| excluded.contains(&variable)) {
+            active.remove(id);
         }
+    let district = graph.district_closure_within(
+        &seeds,
+        &active,
+        &mut antecedent_graph::GraphWorkspace::default(),
+    );
     }
     let mut found = Vec::new();
-    for index in seen {
-        let variable = variable_at(graph, index)?;
+    for id in district.iter() {
+        let variable = variable_at(graph, id.as_usize())?;
         if diagram.mechanism_may_differ(variable) {
             found.push(variable);
         }

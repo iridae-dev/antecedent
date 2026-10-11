@@ -254,8 +254,7 @@ impl NestedCounterfactualOperation {
         query: NestedCounterfactualQuery,
     ) -> Result<Self, CausalError> {
         query.validate().map_err(|error| CausalError::Compile { message: error.to_string() })?;
-        let mut observed: Vec<_> = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
-        observed.sort_unstable();
+        let observed = graph.directed_edge_pairs_sorted();
         let mut expected = vec![
             (query.treatment.raw(), query.mediator.raw()),
             (query.treatment.raw(), query.outcome.raw()),
@@ -311,15 +310,7 @@ impl NestedCounterfactualOperation {
         self.query == *query
             && graph.node_count() == self.graph.node_count()
             && graph.nodes() == self.graph.nodes()
-            && {
-                let mut left: Vec<_> =
-                    graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
-                let mut right: Vec<_> =
-                    self.graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
-                left.sort_unstable();
-                right.sort_unstable();
-                left == right
-            }
+            && graph.directed_edge_pairs_sorted() == self.graph.directed_edge_pairs_sorted()
     }
 
     pub(crate) fn mediation_query(&self) -> &antecedent_core::MediationQuery {

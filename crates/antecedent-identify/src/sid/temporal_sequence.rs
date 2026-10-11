@@ -750,12 +750,7 @@ pub struct TemporalSequenceDecision {
 }
 
 fn dense(diagram: &SelectionDiagram, variable: VariableId) -> Option<DenseNodeId> {
-    diagram
-        .causal_graph()
-        .nodes()
-        .iter()
-        .position(|n| *n == NodeRef::Static(variable))
-        .and_then(|i| DenseNodeId::try_from_usize(i).ok())
+    diagram.causal_graph().dense_of_static(variable)
 }
 
 /// Whether a directed path from `from` reaches `to` without passing through

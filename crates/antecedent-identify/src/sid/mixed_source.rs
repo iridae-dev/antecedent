@@ -941,6 +941,8 @@ struct Engine<'g> {
     graph: &'g Admg,
     n: usize,
     universe: Mask,
+    /// Parent mask per node, for the ancestor closures.
+    parent_masks: Vec<Mask>,
     variables: Vec<VariableId>,
     inputs: Vec<MixedInput>,
     target: Key,
@@ -1003,6 +1005,10 @@ impl<'g> Engine<'g> {
             graph,
             n,
             universe: (1 << n) - 1,
+            parent_masks: graph
+                .node_ids()
+                .map(|v| graph.parents(v).iter().fold(0, |acc, p| acc | bit(p.as_usize())))
+                .collect(),
             variables,
             inputs: Vec::new(),
             target,
@@ -1101,22 +1107,7 @@ impl<'g> Engine<'g> {
 
     /// Ancestors of `seeds` (inclusive) within `G` without the edges into `over`.
     fn ancestors_without_into(&self, seeds: Mask, over: Mask) -> Mask {
-        let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
-        let mut ancestors = seeds;
-        loop {
-            let mut next = ancestors;
-            for node in members(ancestors) {
-                if over & bit(node) == 0 {
-                    for parent in self.graph.parents(dense(node)) {
-                        next |= bit(parent.as_usize());
-                    }
-                }
-            }
-            if next == ancestors {
-                return ancestors;
-            }
-            ancestors = next;
-        }
+        antecedent_graph::algo::mask_closure(seeds, &self.parent_masks, over)
     }
 
     /// `a` is m-separated from `b` given `cond` in `G` without the edges into
@@ -1133,7 +1124,7 @@ impl<'g> Engine<'g> {
                 slot.insert(graph)
             }
         };
-        let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
+        let dense = DenseNodeId::from_index;
         let conditions = members(cond).map(dense).collect::<Vec<_>>();
         let decided = members(a).all(|x| {
             members(b).all(|y| {
@@ -1378,6 +1369,12 @@ impl<'g> Engine<'g> {
 ///
 /// The conditional transport checker (`sid::conditional`) reuses its separation
 /// test for rule-2 premises, so it is visible to the parent module.
+///
+/// Its ancestor closure and m-separation search are an independent implementation by
+/// design (with `selection_separation::independently_separated` and the cfg(test)
+/// `mag_id_bruteforce` bitmask oracle): they must not be rewritten through the graph
+/// crate's closure owners or the search engine's `Admg::is_m_separated`, or the three
+/// encodings stop being able to check one another.
 pub(super) struct Checker {
     variables: Vec<VariableId>,
     parents: Vec<Vec<usize>>,
@@ -1390,7 +1387,7 @@ impl Checker {
     pub(super) fn new(graph: &Admg) -> Result<Self, IdentificationError> {
         let variables = dense_variables(graph)?;
         let n = variables.len();
-        let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
+        let dense = DenseNodeId::from_index;
         let mut parents = vec![Vec::new(); n];
         let mut siblings = vec![Vec::new(); n];
         for (from, from_siblings) in siblings.iter_mut().enumerate() {

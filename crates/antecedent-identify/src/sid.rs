@@ -13,6 +13,7 @@ use antecedent_core::{
     ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
 };
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
+use antecedent_graph::algo::components_by;
 use antecedent_graph::{
     Admg, BitSet, DSeparationWorkspace, DenseNodeId, GraphWorkspace, SelectionDiagram,
 };
@@ -710,7 +711,7 @@ impl<'a> Engine<'a> {
         Ok(set)
     }
     fn vars(&self, set: &BitSet) -> Result<Vec<VariableId>, IdentificationError> {
-        set.to_dense_ids().into_iter().map(|v| self.prepared.dense_to_var(v)).collect()
+        set.iter().map(|v| self.prepared.dense_to_var(v)).collect()
     }
     fn initial(&mut self) -> Result<State, IdentificationError> {
         let mut v = BitSet::with_len(self.diagram.causal_graph().node_count());
@@ -854,7 +855,7 @@ impl<'a> Engine<'a> {
         // original complement cannot affect it after those parents are fixed;
         // retaining them would demand irrelevant experimental coordinates.
         let mut interventions = state.x.clone();
-        for node in state.v.to_dense_ids() {
+        for node in state.v.iter() {
             for parent in self.diagram.causal_graph().parents(node) {
                 if !state.v.contains(*parent) {
                     interventions.insert(*parent);
@@ -1520,24 +1521,11 @@ pub(crate) fn graph_signature(diagram: &SelectionDiagram) -> String {
             other => format!("{other:?}"),
         })
         .collect::<Vec<_>>();
-    let mut directed = Vec::new();
-    let mut bidirected = Vec::new();
-    for i in 0..graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).expect("graph capacity"));
-        directed.extend(graph.children(from).iter().map(|to| (i, to.as_usize())));
-        bidirected.extend(
-            graph
-                .bidirected_neighbors(from)
-                .iter()
-                .filter(|to| to.as_usize() > i)
-                .map(|to| (i, to.as_usize())),
-        );
-    }
-    directed.sort_unstable();
-    bidirected.sort_unstable();
+    let directed = graph.directed_edge_pairs_sorted();
+    let bidirected = graph.bidirected_edge_pairs_sorted();
     let mut selections = diagram.selection_targets().iter().map(|v| v.raw()).collect::<Vec<_>>();
     selections.sort_unstable();
-    let edges = |list: &[(usize, usize)]| {
+    let edges = |list: &[(u32, u32)]| {
         list.iter().map(|(a, b)| format!("{a}-{b}")).collect::<Vec<_>>().join(",")
     };
     format!(
@@ -1890,10 +1878,13 @@ impl Engine<'_> {
     ) -> Result<Option<SHedgeCertificate>, IdentificationError> {
         let graph = self.diagram.causal_graph();
         let small = difference(&state.v, &state.x);
+        // Shortest directed distance to `Y` through parents inside `within`: a layered BFS
+        // that needs the hop count of every node, so it is not a closure (which keeps
+        // only membership) and stays here.
         let distances = |within: &BitSet| {
             let mut distances = vec![usize::MAX; graph.node_count()];
             let mut queue = std::collections::VecDeque::new();
-            for root in state.y.to_dense_ids() {
+            for root in state.y.iter() {
                 distances[root.as_usize()] = 0;
                 queue.push_back(root);
             }
@@ -1911,7 +1902,7 @@ impl Engine<'_> {
         let large_distance = distances(&state.v);
         let mut directed = Vec::new();
         let mut bidirected = Vec::new();
-        for node in state.v.to_dense_ids() {
+        for node in state.v.iter() {
             if self.ctx.cancellation.is_cancelled() {
                 return Err(IdentificationError::Cancelled);
             }
@@ -2078,23 +2069,10 @@ pub fn verify_s_hedge(
             adjacency[j].push(i);
         }
         // One bidirected component must span every node.
-        let mut reached = vec![false; nodes.len()];
-        reached[0] = true;
-        let mut pending = vec![0usize];
-        let mut count = 1usize;
-        while let Some(node) = pending.pop() {
-            if ctx.cancellation.is_cancelled() {
-                return Err(IdentificationError::Cancelled);
-            }
-            for &next in &adjacency[node] {
-                if !reached[next] {
-                    reached[next] = true;
-                    count += 1;
-                    pending.push(next);
-                }
-            }
+        if ctx.cancellation.is_cancelled() {
+            return Err(IdentificationError::Cancelled);
         }
-        if count != nodes.len() {
+        if components_by(nodes.len(), |i| adjacency[i].iter().copied()).len() != 1 {
             return Err(bad());
         }
         let mut roots = nodes
@@ -2193,8 +2171,7 @@ fn pretreatment_candidates(
     let mut downstream = BitSet::with_len(diagram.causal_graph().node_count());
     diagram.causal_graph().descendants_of(x_nodes, &mut downstream, &mut GraphWorkspace::default());
     difference(&difference(&state.v, &state.x), &state.y)
-        .to_dense_ids()
-        .into_iter()
+        .iter()
         .filter(|z| !downstream.contains(*z))
         .collect()
 }

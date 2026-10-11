@@ -93,6 +93,7 @@ use antecedent_expr::{
     Assignment, CausalExprArena, DomainRef, EmpiricalTableProvider, EvalContext, ExactDiscreteLaw,
     ExprId, ExprNode, FactorSpec,
 };
+use antecedent_graph::algo::{components_by, implicit_closure};
 use antecedent_graph::{Admg, BitSet, DenseNodeId, GraphWorkspace};
 use serde::{Deserialize, Serialize};
 
@@ -350,7 +351,7 @@ impl CounterfactualIdProblem {
         let mut directed = Vec::new();
         let mut bidirected = Vec::new();
         for i in 0..n {
-            let id = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
+            let id = DenseNodeId::from_index(i);
             directed.extend(admg.children(id).iter().map(|c| (id.raw(), c.raw())));
             bidirected.extend(admg.bidirected_neighbors(id).iter().map(|b| (id.raw(), b.raw())));
         }
@@ -1104,40 +1105,16 @@ struct Cg {
 }
 
 impl Cg {
+    /// Bidirected-connected components, each ascending, ordered by smallest member.
     fn districts(&self) -> Vec<Vec<usize>> {
-        let mut seen = vec![false; self.nodes.len()];
-        let mut out = Vec::new();
-        for start in 0..self.nodes.len() {
-            if seen[start] {
-                continue;
-            }
-            let mut district = Vec::new();
-            let mut stack = vec![start];
-            seen[start] = true;
-            while let Some(i) = stack.pop() {
-                district.push(i);
-                for &j in &self.bidirected[i] {
-                    if !seen[j] {
-                        seen[j] = true;
-                        stack.push(j);
-                    }
-                }
-            }
-            district.sort_unstable();
-            out.push(district);
-        }
-        out
+        components_by(self.nodes.len(), |i| self.bidirected[i].iter().copied())
     }
 
+    /// Strict ancestors of `node` (the graph is acyclic).
     fn ancestors(&self, node: usize) -> BTreeSet<usize> {
-        let mut out = BTreeSet::new();
-        let mut stack = self.nodes[node].parents.clone();
-        while let Some(p) = stack.pop() {
-            if out.insert(p) {
-                stack.extend(self.nodes[p].parents.iter().copied());
-            }
-        }
-        out
+        implicit_closure(self.nodes[node].parents.iter().copied(), |&p| {
+            self.nodes[p].parents.iter().copied()
+        })
     }
 
     fn record(&self) -> CounterfactualGraphRecord {
@@ -1595,13 +1572,7 @@ impl Engine<'_, '_> {
             out.dedup();
             out
         };
-        let mut keep = BTreeSet::new();
-        let mut stack: Vec<usize> = event_classes.iter().copied().collect();
-        while let Some(c) = stack.pop() {
-            if keep.insert(c) {
-                stack.extend(class_parents(c));
-            }
-        }
+        let keep = implicit_closure(event_classes.iter().copied(), |&c| class_parents(c));
         // Canonical order: by variable, then representative world.
         let mut kept: Vec<usize> = keep.into_iter().collect();
         kept.sort_by_key(|&c| (pw[c].1, pw[c].0));
@@ -1665,28 +1636,16 @@ impl Engine<'_, '_> {
 
 fn record_is_connected(graph: &CounterfactualGraphRecord) -> bool {
     let n = graph.nodes.len();
-    if n == 0 {
-        return false;
-    }
-    let mut seen = vec![false; n];
-    let mut stack = vec![0usize];
-    seen[0] = true;
-    while let Some(i) = stack.pop() {
-        for &(a, b) in &graph.bidirected {
-            let next = if a == i {
-                b
-            } else if b == i {
-                a
-            } else {
-                continue;
-            };
-            if next < n && !seen[next] {
-                seen[next] = true;
-                stack.push(next);
-            }
-        }
-    }
-    seen.into_iter().all(|s| s)
+    n != 0
+        && components_by(n, |i| {
+            graph.bidirected.iter().filter_map(move |&(a, b)| match (a == i, b == i) {
+                (true, _) => Some(b),
+                (_, true) => Some(a),
+                _ => None,
+            })
+        })
+        .len()
+            == 1
 }
 
 /// Union-find root with path halving.

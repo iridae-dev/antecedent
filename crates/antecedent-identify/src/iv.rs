@@ -117,7 +117,7 @@ impl InstrumentalVariableIdentifier {
             dag.parents(t).iter().copied().filter(|&p| p != y).collect();
         let mut candidates: Vec<DenseNodeId> = parents_of_t.clone();
         for i in 0..dag.node_count() {
-            let v = DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32"));
+            let v = DenseNodeId::from_index(i);
             if v == t || v == y || candidates.contains(&v) {
                 continue;
             }

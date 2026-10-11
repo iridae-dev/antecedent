@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use antecedent_core::{AssumptionSet, AverageEffectQuery, CausalQuery, VariableId};
 use antecedent_expr::CausalExprArena;
-use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId};
+use antecedent_graph::{BitSet, DSeparationWorkspace, Dag, DenseNodeId, GraphWorkspace};
 
 use crate::error::IdentificationError;
 use crate::identifier::IdentificationWorkspace;
@@ -267,7 +267,7 @@ impl BackdoorIdentifier {
         let mut desc = BitSet::with_len(dag.node_count());
         dag.descendants_of(&[t], &mut desc, &mut workspace.graph);
         for i in 0..dag.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = DenseNodeId::from_index(i);
             if desc.contains(id) {
                 forbidden.insert(id);
             }
@@ -277,7 +277,7 @@ impl BackdoorIdentifier {
         let mutilated = remove_outgoing(dag, t)?;
 
         let mut candidates: Vec<DenseNodeId> = (0..dag.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+            .map(DenseNodeId::from_index)
             .filter(|id| !forbidden.contains(*id))
             .filter(|id| {
                 dense_to_var(*id, dag).map(|v| !self.config.exceeds_history_lag(v)).unwrap_or(true)
@@ -524,7 +524,7 @@ pub(crate) fn screen_ancestor_candidates(
     let mut an = BitSet::with_len(dag.node_count());
     dag.ancestors_of(&[t, y], &mut an, gws);
     (0..dag.node_count())
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+        .map(DenseNodeId::from_index)
         .filter(|id| an.contains(*id) && !forbidden.contains(*id))
         .filter(|id| dense_to_var(*id, dag).map(|v| !config.exceeds_history_lag(v)).unwrap_or(true))
         .collect()
@@ -1137,21 +1137,15 @@ pub fn check_joint_adjustment(
                     message: "invalid joint adjustment roles".into(),
                 });
             }
-            let mut downstream = std::collections::BTreeSet::new();
-            let mut stack: Vec<_> =
-                treatments.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
-            while let Some(node) = stack.pop() {
-                for child in graph.children(node) {
-                    if downstream.insert(*child) {
-                        stack.push(*child);
-                    }
-                }
-            }
-            if adjustment.iter().any(|id| downstream.contains(&DenseNodeId::from_raw(id.raw()))) {
-                return Ok(None);
-            }
             let nodes: Vec<_> =
                 treatments.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
+            let mut downstream = BitSet::with_len(graph.node_count());
+            graph.descendants_of(&nodes, &mut downstream, &mut GraphWorkspace::default());
+            // Adjustment roles never include a treatment (checked above), so the
+            // reflexive descendant set decides exactly the strict-descendant test.
+            if adjustment.iter().any(|id| downstream.contains(DenseNodeId::from_raw(id.raw()))) {
+                return Ok(None);
+            }
             let mutilated = remove_outgoing_set(graph, &nodes)?;
             let z: Vec<_> = adjustment.iter().map(|id| DenseNodeId::from_raw(id.raw())).collect();
             let mut ws = DSeparationWorkspace::default();

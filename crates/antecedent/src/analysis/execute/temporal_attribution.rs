@@ -197,14 +197,7 @@ mod tests {
         )
         .expect("series");
         let aligned = LagAlignedScm::unfold(&graph, &series).expect("unfold");
-        let mut edges: Vec<_> = aligned
-            .dag
-            .edges()
-            .filter_map(antecedent_graph::MarkedEdge::parent_child)
-            .map(|(from, to)| (from.raw(), to.raw()))
-            .collect();
-        edges.sort_unstable();
-        assert_eq!(edges, vec![(2, 1)]);
+        assert_eq!(aligned.dag.directed_edge_pairs_sorted(), vec![(2, 1)]);
         let table = aligned.table(&series).expect("table");
         assert_eq!(table.float64_slice(VariableId::from_raw(1)).unwrap(), y.as_slice());
         assert_eq!(

@@ -312,10 +312,7 @@ impl CheckedCellAipwResponseOperation {
 fn structure_signature(structure: &CellAipwStructure) -> StructureSignature {
     match structure {
         CellAipwStructure::Dag(graph) => {
-            let mut edges =
-                graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-            edges.sort_unstable();
-            (graph.node_count(), edges.into(), Arc::from([]))
+            (graph.node_count(), graph.directed_edge_pairs_sorted().into(), Arc::from([]))
         }
         CellAipwStructure::TierClosure { admg, .. } => {
             let count = admg.node_count();

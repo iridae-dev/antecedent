@@ -8,6 +8,18 @@
 //! the current vertex set. A set `Z` is S-admissible for `Y` when `Y` is
 //! m-separated from every selection node given `X ∪ Z` in that graph.
 //!
+//! # Independent separation oracle
+//!
+//! [`independently_separated`] is one of three m-separation implementations in this
+//! crate that are independent **by design**, so each can check the others: this one
+//! (a dense-matrix reachability over the mutilated selection graph), the mixed-source
+//! `Checker` in `sid::mixed_source` (a set-based replay that shares no code with the
+//! search), and the cfg(test) bitmask oracle in `mag_id_bruteforce`. All three also
+//! stay apart from the graph crate's moral-graph `Admg::is_m_separated`, which the
+//! search paths use. Do not route any of them through that owner or through each other:
+//! agreement of independent encodings is the evidence. Everything else in this crate
+//! (closures, edge lists, node iteration) goes through the graph crate's owners.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_graph::{Admg, BitSet, DSeparationWorkspace, DenseNodeId};
@@ -44,7 +56,7 @@ impl MutilatedSelection {
             if !v.contains(target) || x.contains(target) {
                 continue;
             }
-            let selection = DenseNodeId::from_raw(u32::try_from(n + i).map_err(|_| capacity())?);
+            let selection = DenseNodeId::try_from_usize(n + i).map_err(|_| capacity())?;
             graph.insert_directed(selection, target)?;
             selection_nodes.push(selection);
         }
@@ -161,20 +173,20 @@ pub(crate) fn independently_separated(
     let total = n + 1; // one selection node, re-aimed at each target in turn
     let selection = n;
     let mut conditioned = vec![false; total];
-    for node in x.to_dense_ids() {
+    for node in x.iter() {
         conditioned[node.as_usize()] = true;
     }
     for node in given {
         conditioned[node.as_usize()] = true;
     }
-    let live = |i: usize| v.contains(DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+    let live = |i: usize| v.contains(DenseNodeId::from_index(i));
     let mut parents = vec![Vec::new(); total];
     let mut siblings = vec![Vec::new(); total];
     for (from, from_siblings) in siblings.iter_mut().enumerate().take(n) {
         if !live(from) {
             continue;
         }
-        let id = DenseNodeId::from_raw(u32::try_from(from).expect("fit"));
+        let id = DenseNodeId::from_index(from);
         for child in original.children(id) {
             let to = child.as_usize();
             if live(to) && !x.contains(*child) {

@@ -54,7 +54,7 @@ impl PreparedAdmg {
             if let Some(v) = node_variable_id(admg.nodes(), i) {
                 var_index
                     .entry(v)
-                    .or_insert_with(|| DenseNodeId::from_raw(u32::try_from(i).expect("fit")));
+                    .or_insert_with(|| DenseNodeId::from_index(i));
             }
         }
         Ok(Self {
@@ -207,7 +207,7 @@ pub(crate) fn dense_of_static(
 ) -> Result<DenseNodeId, IdentificationError> {
     (0..nodes.len())
         .find(|&i| node_variable_id(nodes, i) == Some(id))
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node index fits")))
+        .map(DenseNodeId::from_index)
         .ok_or(IdentificationError::UnknownVariable { id })
 }
 
@@ -217,15 +217,7 @@ pub(crate) fn dense_of_static(
 ///
 /// Graph construction failures.
 pub fn dag_to_admg(dag: &Dag) -> Result<Admg, IdentificationError> {
-    let mut admg = Admg::empty();
-    for node in dag.nodes() {
-        admg.add_node(*node).map_err(IdentificationError::from)?;
-    }
-    for e in dag.edges() {
-        let (from, to) = e.parent_child().expect("dag edge");
-        admg.insert_directed(from, to).map_err(IdentificationError::from)?;
-    }
-    Ok(admg)
+    Admg::from_dag(dag).map_err(IdentificationError::from)
 }
 
 #[cfg(test)]

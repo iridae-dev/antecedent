@@ -219,7 +219,7 @@ fn idc_recurse(
     perf.candidates_examined = perf.candidates_examined.saturating_add(1);
 
     // Line 1: move Z∈Z into intervention when Y ⊥ Z | X, Z\{Z} in G_{\bar X \underline Z}
-    for z_node in z.to_dense_ids() {
+    for z_node in z.iter() {
         let mut z_rest = z.clone();
         z_rest.remove(z_node);
         let mut cond = x.clone();
@@ -270,10 +270,9 @@ fn distribution_query_from_sets(
     known_values: &std::collections::BTreeMap<VariableId, Value>,
 ) -> Result<CausalQuery, IdentificationError> {
     let outcomes: Result<Vec<_>, _> =
-        y.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+        y.iter().map(|d| prepared.dense_to_var(d)).collect();
     let interventions: Result<Vec<_>, _> = x
-        .to_dense_ids()
-        .into_iter()
+        .iter()
         .map(|d| {
             prepared.dense_to_var(d).map(|variable| {
                 // Prefer caller Set values; for IDC-moved conditioning vars use a finite
@@ -297,7 +296,7 @@ fn intern_bitset_vars(
     arena: &mut CausalExprArena,
 ) -> Result<antecedent_expr::VarSetId, IdentificationError> {
     let vars: Result<Vec<_>, _> =
-        nodes.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+        nodes.iter().map(|d| prepared.dense_to_var(d)).collect();
     Ok(arena.intern_var_set(vars?))
 }
 
@@ -315,7 +314,7 @@ fn independent_in_mutilated(
     let mutilated = mutilate_bar_x_underline_z(admg, x_nodes, &z_nodes)?;
     let cond_ids = cond.to_dense_ids();
     // Y may be a set — require every y ∈ Y independent of z_node.
-    for y_node in y.to_dense_ids() {
+    for y_node in y.iter() {
         if !mutilated
             .is_m_separated(y_node, z_node, &cond_ids, dsep)
             .map_err(IdentificationError::from)?

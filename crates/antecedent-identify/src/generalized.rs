@@ -377,12 +377,7 @@ pub(crate) fn validate_dag_conditional_adjustment(
     if query.effect_modifiers.is_empty() {
         return Ok(());
     }
-    let mut admg = Admg::with_variables(dense_u32(dag.node_count()));
-    for edge in dag.edges() {
-        if let Some((from, to)) = edge.parent_child() {
-            admg.insert_directed(from, to)?;
-        }
-    }
+    let admg = crate::prepared::dag_to_admg(dag)?;
     let t = dag
         .nodes()
         .iter()

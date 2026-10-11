@@ -147,7 +147,7 @@ impl FrontDoorIdentifier {
 
         // Singletons excluding T,Y.
         for i in 0..dag.node_count() {
-            let v = DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32"));
+            let v = DenseNodeId::from_index(i);
             if v == t || v == y {
                 continue;
             }
@@ -171,7 +171,7 @@ impl FrontDoorIdentifier {
 
         // Non-empty subsets of all intermediates V\{T,Y} (non-child + mixed sets).
         let intermediates: Vec<DenseNodeId> = (0..dag.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("node id fits u32")))
+            .map(DenseNodeId::from_index)
             .filter(|&v| v != t && v != y)
             .collect();
         // Cap pool to avoid combinatorial blow-ups (same spirit as backdoor's >20 guard).

@@ -186,13 +186,7 @@ impl CheckedDerivativeResponseOperation {
 }
 
 fn dag_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
-    let mut edges = graph
-        .edges()
-        .filter_map(antecedent_graph::MarkedEdge::parent_child)
-        .map(|(parent, child)| (parent.raw(), child.raw()))
-        .collect::<Vec<_>>();
-    edges.sort_unstable();
-    (graph.node_count(), edges.into())
+    (graph.node_count(), graph.directed_edge_pairs_sorted().into())
 }
 
 /// Checked execution for static DAG response curves and scalar intervention

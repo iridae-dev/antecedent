@@ -913,7 +913,7 @@ mod tests {
         }
         for i in 0..ordered.node_count() {
             let from = node_of(&reordered, variable_at(i)).unwrap();
-            for &child in ordered.children(DenseNodeId::from_raw(u32::try_from(i).unwrap())) {
+            for &child in ordered.children(DenseNodeId::from_index(i)) {
                 let to = node_of(&reordered, variable_at(child.as_usize())).unwrap();
                 reordered.insert_directed(from, to).unwrap();
             }

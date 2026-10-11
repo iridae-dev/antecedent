@@ -15,6 +15,14 @@
 //! The same sweep shows the check can fail: ID on the MAG read as an
 //! unconfounded ADMG returns functionals that miss the truth.
 //!
+//! # Independent oracle
+//!
+//! The bitmask ancestry and d-separation here are deliberately separate from the graph
+//! crate's closure and separation owners, and from the other two independent
+//! m-separation implementations (`selection_separation::independently_separated` and
+//! the mixed-source `Checker`): three encodings that can check one another. Do not
+//! replace them with the shared owners.
+//!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::precedence)]

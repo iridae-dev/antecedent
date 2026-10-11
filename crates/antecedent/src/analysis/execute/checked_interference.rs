@@ -846,9 +846,7 @@ fn interference_graphless_license(
 }
 
 fn graph_signature(graph: &Dag) -> (usize, Arc<[(u32, u32)]>) {
-    let mut edges = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-    edges.sort_unstable();
-    (graph.node_count(), edges.into())
+    (graph.node_count(), graph.directed_edge_pairs_sorted().into())
 }
 
 fn interference_bayesian_assumptions(prior_sd: f64) -> antecedent_core::AssumptionSet {

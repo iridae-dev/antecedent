@@ -132,7 +132,7 @@ impl EfficientBackdoorIdentifier {
         let mut desc = BitSet::with_len(dag.node_count());
         dag.descendants_of(&[t], &mut desc, &mut workspace.graph);
         for i in 0..dag.node_count() {
-            let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+            let id = DenseNodeId::from_index(i);
             if desc.contains(id) {
                 forbidden.insert(id);
             }
@@ -140,7 +140,7 @@ impl EfficientBackdoorIdentifier {
 
         let mutilated = remove_outgoing(dag, t)?;
         let candidates: Vec<DenseNodeId> = (0..dag.node_count())
-            .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+            .map(DenseNodeId::from_index)
             .filter(|id| !forbidden.contains(*id))
             .collect();
 
@@ -179,7 +179,7 @@ impl EfficientBackdoorIdentifier {
             let mut an = BitSet::with_len(dag.node_count());
             dag.ancestors_of(&[t, y], &mut an, &mut workspace.graph);
             (0..dag.node_count())
-                .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+                .map(DenseNodeId::from_index)
                 .filter(|id| an.contains(*id) && !forbidden.contains(*id))
                 .collect()
         };
@@ -384,7 +384,7 @@ fn optimal_adjustment_set(
     dag.ancestors_of(&[y], &mut an_y, gws);
 
     let cn: Vec<DenseNodeId> = (0..n)
-        .map(|i| DenseNodeId::from_raw(u32::try_from(i).expect("fit")))
+        .map(DenseNodeId::from_index)
         .filter(|&v| v != t && de_t.contains(v) && an_y.contains(v))
         .collect();
 

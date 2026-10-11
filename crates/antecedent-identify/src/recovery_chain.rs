@@ -74,7 +74,7 @@ use std::fmt;
 use antecedent_core::{
     ExecutionContext, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
 };
-use antecedent_graph::{Admg, DenseNodeId, NodeRef};
+use antecedent_graph::Admg;
 
 /// Version of the ordered-response rule, bound into every plan.
 pub const CHAIN_RECOVERY_RULE_VERSION: &str = "ordered_response_recovery_chain.v1";
@@ -300,25 +300,10 @@ pub enum ChainRecoveryDecision {
     NonRecoverable(Box<ChainRecoveryWitness>),
 }
 
-fn node_variable(graph: &Admg, id: DenseNodeId) -> Option<VariableId> {
-    match graph.nodes().get(id.as_usize()) {
-        Some(NodeRef::Static(v)) => Some(*v),
-        _ => None,
-    }
-}
-
 /// Every directed edge as a `(from, to)` variable pair, or `None` for a
 /// non-static node.
 fn directed_edges(graph: &Admg) -> Option<BTreeSet<(VariableId, VariableId)>> {
-    let mut edges = BTreeSet::new();
-    for i in 0..graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).ok()?);
-        let from_var = node_variable(graph, from)?;
-        for child in graph.children(from) {
-            edges.insert((from_var, node_variable(graph, *child)?));
-        }
-    }
-    Some(edges)
+    Some(graph.static_directed_edges_sorted()?.into_iter().collect())
 }
 
 struct Meter<'a> {
@@ -359,18 +344,14 @@ fn check_roles(graph: &Admg, query: &ChainRecoveryQuery) -> Result<(), ChainReco
             "the m-graph must have static nodes only",
         ));
     };
-    let mut nodes = BTreeSet::new();
-    for i in 0..graph.node_count() {
-        let Some(v) =
-            u32::try_from(i).ok().and_then(|raw| node_variable(graph, DenseNodeId::from_raw(raw)))
-        else {
-            return Err(refuse(
-                ChainRecoveryDetail::InvalidQuery,
-                "the m-graph must have static nodes only",
-            ));
-        };
-        nodes.insert(v);
-    }
+    let Some(nodes) =
+        graph.node_ids().map(|id| graph.static_variable(id)).collect::<Option<BTreeSet<_>>>()
+    else {
+        return Err(refuse(
+            ChainRecoveryDetail::InvalidQuery,
+            "the m-graph must have static nodes only",
+        ));
+    };
     if nodes != distinct || graph.node_count() != roles.len() {
         return Err(refuse(
             ChainRecoveryDetail::InvalidQuery,
@@ -534,18 +515,18 @@ pub fn decide_chain_recovery(
 }
 
 fn sorted_parents(graph: &Admg, v: VariableId) -> Option<Vec<u32>> {
-    for i in 0..graph.node_count() {
-        let id = DenseNodeId::from_raw(u32::try_from(i).ok()?);
-        if node_variable(graph, id)? == v {
-            let mut out = Vec::new();
-            for p in graph.parents(id) {
-                out.push(node_variable(graph, *p)?.raw());
-            }
-            out.sort_unstable();
-            return Some(out);
-        }
+    // Every node must be static: a non-static node anywhere refuses the whole graph.
+    if graph.node_ids().any(|id| graph.static_variable(id).is_none()) {
+        return None;
     }
-    None
+    let id = graph.dense_of_static(v)?;
+    let mut out: Vec<u32> = graph
+        .parents(id)
+        .iter()
+        .map(|p| graph.static_variable(*p).map(VariableId::raw))
+        .collect::<Option<_>>()?;
+    out.sort_unstable();
+    Some(out)
 }
 
 /// Whether bit `position` (of `n`, first most significant) of `config` is set.

@@ -187,9 +187,7 @@ pub fn check_cross_world(
     graph: &Dag,
     query: &CrossWorldQuery,
 ) -> Result<CrossWorldWitness, CrossWorldRefusal> {
-    let mut edges: Vec<(u32, u32)> = graph.edges().map(|e| (e.a.raw(), e.b.raw())).collect();
-    edges.sort_unstable();
-    check_cross_world_edges(graph.node_count(), &edges, query)
+    check_cross_world_edges(graph.node_count(), &graph.directed_edge_pairs_sorted(), query)
 }
 
 /// [`check_cross_world`] on an explicit node count and sorted edge list.
@@ -290,14 +288,7 @@ pub fn check_cross_world_edges(
         parents(variable).into_iter().map(|p| (p, read_world(world, p, variable))).collect()
     };
     let closure = |world: u8| -> BTreeSet<(u32, u8)> {
-        let mut seen = BTreeSet::new();
-        let mut stack = vec![(outcome.raw(), world)];
-        while let Some((v, w)) = stack.pop() {
-            if seen.insert((v, w)) {
-                stack.extend(reads_of(v, w));
-            }
-        }
-        seen
+        antecedent_graph::algo::implicit_closure([(outcome.raw(), world)], |&(v, w)| reads_of(v, w))
     };
     // A variable takes a different value in world 1 than in world 0 only through
     // an edge reading world 1 from a variable that does.

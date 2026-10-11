@@ -236,7 +236,7 @@ impl Shape {
         let mut parents = Vec::with_capacity(n);
         let mut edges = Vec::new();
         for i in 0..n {
-            let node = DenseNodeId::from_raw(u32::try_from(i).map_err(|_| invalid_derivation())?);
+            let node = DenseNodeId::try_from_usize(i).map_err(|_| invalid_derivation())?;
             let mut ps: Vec<usize> = graph.parents(node).iter().copied().map(dense).collect();
             ps.sort_unstable();
             parents.push(ps);

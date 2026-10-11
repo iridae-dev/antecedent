@@ -836,7 +836,7 @@ fn rule_two_search(
     let n = graph.node_count();
     let mut mutilated = Admg::with_variables(u32::try_from(n).map_err(|_| bounds_exceeded())?);
     for from in 0..n {
-        let from = DenseNodeId::from_raw(u32::try_from(from).map_err(|_| bounds_exceeded())?);
+        let from = DenseNodeId::try_from_usize(from).map_err(|_| bounds_exceeded())?;
         if from != w {
             for &to in graph.children(from) {
                 if !x.contains(&to) {
@@ -1194,7 +1194,7 @@ fn reduce(
             .iter()
             .position(|w| w == v)
             .ok_or_else(|| invalid_query("unknown coordinate"))?;
-        Ok(DenseNodeId::from_raw(u32::try_from(i).map_err(|_| bounds_exceeded())?))
+        DenseNodeId::try_from_usize(i).map_err(|_| bounds_exceeded())
     };
     let y = query.base.outcomes.iter().map(dense).collect::<Result<Vec<_>, _>>()?;
     let mut x = query.base.treatments.iter().map(dense).collect::<Result<Vec<_>, _>>()?;

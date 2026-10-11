@@ -790,7 +790,7 @@ fn ancestry_touches_boundary(
     dag.ancestors_of(&dense, &mut ancestors, &mut gws);
     let boundary = -i64::from(history);
     for i in 0..dag.node_count() {
-        let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
+        let id = DenseNodeId::from_index(i);
         if !ancestors.contains(id) {
             continue;
         }

@@ -1150,35 +1150,16 @@ fn two_disconnected_query_components(
     if graph.nodes().iter().any(|node| !matches!(node, NodeRef::Static(_))) {
         return None;
     }
-    let mut labels = vec![usize::MAX; graph.node_count()];
-    let mut components = Vec::<Vec<VariableId>>::new();
-    for root in 0..graph.node_count() {
-        if labels[root] != usize::MAX {
-            continue;
-        }
-        let label = components.len();
-        let mut stack = vec![DenseNodeId::from_raw(u32::try_from(root).ok()?)];
-        labels[root] = label;
-        let mut variables = Vec::new();
-        while let Some(node) = stack.pop() {
-            let NodeRef::Static(variable) = graph.nodes()[node.as_usize()] else {
-                return None;
-            };
-            variables.push(variable);
-            for neighbor in graph
-                .children(node)
-                .iter()
-                .chain(graph.parents(node))
-                .chain(graph.bidirected_neighbors(node))
-            {
-                if labels[neighbor.as_usize()] == usize::MAX {
-                    labels[neighbor.as_usize()] = label;
-                    stack.push(*neighbor);
-                }
-            }
-        }
-        components.push(variables);
-    }
+    let components = graph
+        .weak_components()
+        .into_iter()
+        .map(|component| {
+            component
+                .into_iter()
+                .map(|node| graph.static_variable(node))
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()?;
     if components.len() != 2
         || query.outcomes.iter().any(|v| !components.iter().any(|component| component.contains(v)))
         || query
@@ -1196,15 +1177,6 @@ fn two_disconnected_query_components(
     Some([first, second])
 }
 
-/// Dense id of `variable` in `graph`'s node order, or `None` if absent.
-fn dense_of(graph: &antecedent_graph::Admg, variable: VariableId) -> Option<DenseNodeId> {
-    graph
-        .nodes()
-        .iter()
-        .position(|node| matches!(node, NodeRef::Static(candidate) if *candidate == variable))
-        .map(|index| DenseNodeId::from_raw(index_u32(index)))
-}
-
 /// Whether the shared static graph is one connected component under directed,
 /// bidirected, and parent adjacency. The disconnected case is decided
 /// separately, so the connected route only fires on a single component.
@@ -1214,25 +1186,7 @@ fn graph_is_connected(graph: &antecedent_graph::Admg) -> bool {
     {
         return false;
     }
-    let mut seen = vec![false; graph.node_count()];
-    let mut stack = vec![DenseNodeId::from_raw(0)];
-    seen[0] = true;
-    let mut count = 1usize;
-    while let Some(node) = stack.pop() {
-        for neighbor in graph
-            .children(node)
-            .iter()
-            .chain(graph.parents(node))
-            .chain(graph.bidirected_neighbors(node))
-        {
-            if !seen[neighbor.as_usize()] {
-                seen[neighbor.as_usize()] = true;
-                count += 1;
-                stack.push(*neighbor);
-            }
-        }
-    }
-    count == graph.node_count()
+    graph.weak_components().len() == 1
 }
 
 /// The `do(treatments)`-mutilated ADMG on the same dense node layout: every
@@ -1266,7 +1220,7 @@ pub fn intervention_mutilated_admg(
 ) -> Result<antecedent_graph::Admg, IdentificationError> {
     let mut set = BitSet::with_len(graph.node_count());
     for treatment in treatments {
-        set.insert(dense_of(graph, *treatment).ok_or_else(build_unknown)?);
+        set.insert(graph.dense_of_static(*treatment).ok_or_else(build_unknown)?);
     }
     mutilated_admg(graph, &set)
 }
@@ -1285,7 +1239,7 @@ pub fn intervention_ancestral_treatments(
 ) -> Result<Vec<VariableId>, IdentificationError> {
     let seeds = outcomes
         .iter()
-        .map(|variable| dense_of(graph, *variable).ok_or_else(build_unknown))
+        .map(|variable| graph.dense_of_static(*variable).ok_or_else(build_unknown))
         .collect::<Result<Vec<_>, _>>()?;
     let mut ancestors = BitSet::with_len(mutilated.node_count());
     mutilated.ancestors_of(
@@ -1297,7 +1251,7 @@ pub fn intervention_ancestral_treatments(
         .iter()
         .copied()
         .filter(|treatment| {
-            dense_of(graph, *treatment).is_some_and(|dense| ancestors.contains(dense))
+            graph.dense_of_static(*treatment).is_some_and(|dense| ancestors.contains(dense))
         })
         .collect::<Vec<_>>();
     retained.sort_unstable_by_key(|variable| variable.raw());
@@ -1319,7 +1273,7 @@ fn intervention_separated_outcome_groups(
     }
     let mut treatments = BitSet::with_len(graph.node_count());
     for treatment in query.treatments.iter().copied() {
-        let Some(dense) = dense_of(graph, treatment) else { return Ok(None) };
+        let Some(dense) = graph.dense_of_static(treatment) else { return Ok(None) };
         treatments.insert(dense);
     }
     let mutilated = mutilated_admg(graph, &treatments)?;
@@ -1327,7 +1281,7 @@ fn intervention_separated_outcome_groups(
     let outcomes = query.outcomes.to_vec();
     let outcome_dense = outcomes
         .iter()
-        .map(|variable| dense_of(graph, *variable).ok_or_else(build_unknown))
+        .map(|variable| graph.dense_of_static(*variable).ok_or_else(build_unknown))
         .collect::<Result<Vec<_>, _>>()?;
     // Connect two outcomes that are m-connected given the treatments; the groups
     // are the connected components of that relation. Cross-group pairs are all
@@ -1413,7 +1367,7 @@ fn connected_complementary_decision(
     };
     let mut treatments = BitSet::with_len(graph.node_count());
     for treatment in query.treatments.iter().copied() {
-        let Some(dense) = dense_of(graph, treatment) else { return Ok(None) };
+        let Some(dense) = graph.dense_of_static(treatment) else { return Ok(None) };
         treatments.insert(dense);
     }
     let mutilated = mutilated_admg(graph, &treatments)?;
@@ -1667,8 +1621,8 @@ fn verify_trz_line11_terminal(
     let v = set(&terminal.vertices)?;
     if !y.any()
         || !x.any()
-        || y.to_dense_ids().iter().any(|node| !v.contains(*node))
-        || x.to_dense_ids().iter().any(|node| !v.contains(*node))
+        || y.iter().any(|node| !v.contains(node))
+        || x.iter().any(|node| !v.contains(node))
     {
         return Err(bad());
     }
@@ -3377,20 +3331,22 @@ fn source_c_factor(
     // when intervened on nor needs to be measured: the source law over the
     // ancestral closure is the marginal the theorem reads. Only the ancestral
     // outside coordinates are intervened on and identified away.
-    let mut closure = BitSet::with_len(graph.node_count());
-    let mut pending = remaining.to_dense_ids();
-    while let Some(node) = pending.pop() {
-        if closure.contains(node) {
-            continue;
-        }
-        closure.insert(node);
-        for parent in graph.parents(node) {
-            let parent_var = engine.prepared.dense_to_var(*parent)?;
-            if !exchanged.contains(&parent_var) {
-                pending.push(*parent);
-            }
+    let mut exchanged_nodes = BitSet::with_len(graph.node_count());
+    for variable in &exchanged {
+        // A variable outside the graph cannot be anyone's parent.
+        if let Ok(dense) = engine.prepared.var_to_dense(*variable) {
+            exchanged_nodes.insert(dense);
         }
     }
+    let mut closure = BitSet::default();
+    antecedent_graph::algo::closure_into(
+        graph.node_count(),
+        |u| graph.parents(u),
+        remaining.iter(),
+        &mut closure,
+        &mut antecedent_graph::GraphWorkspace::default(),
+        |_, parent| !exchanged_nodes.contains(parent),
+    );
     let kept = engine.vars(&closure)?;
     let outside = kept.iter().copied().filter(|v| !remaining_vars.contains(v)).collect::<Vec<_>>();
     let population = engine.arena.intern_population(Arc::clone(source));

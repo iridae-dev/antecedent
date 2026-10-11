@@ -65,9 +65,7 @@ impl super::Study {
                     (q.treatment.raw(), q.outcome.raw()),
                     (q.mediator.raw(), q.outcome.raw()),
                 ];
-                let mut observed: Vec<_> =
-                    graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect();
-                observed.sort_unstable();
+                let observed = graph.directed_edge_pairs_sorted();
                 let mut expected = expected.to_vec();
                 expected.sort_unstable();
                 if graph.node_count() != 3 || observed != expected {

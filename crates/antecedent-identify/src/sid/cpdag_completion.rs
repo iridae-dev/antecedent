@@ -374,15 +374,7 @@ impl<'a> Orienter<'a> {
 
     /// Whether `to` is reachable from `from` along directed edges.
     fn reaches(&self, from: usize, to: usize) -> bool {
-        let (mut seen, mut frontier) = (1_u8 << from, 1_u8 << from);
-        while frontier != 0 {
-            let node = frontier.trailing_zeros() as usize;
-            frontier &= frontier - 1;
-            let next = self.children[node] & !seen;
-            seen |= next;
-            frontier |= next;
-        }
-        seen & (1 << to) != 0
+        antecedent_graph::algo::mask_closure(1_u8 << from, &self.children, 0) & (1 << to) != 0
     }
 
     /// Whether `from -> to` keeps the graph acyclic and creates no unshielded

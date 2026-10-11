@@ -677,11 +677,8 @@ impl MGraph<'_> {
 }
 
 fn var(graph: &Admg, node: DenseNodeId) -> VariableId {
-    match graph.nodes()[node.as_usize()] {
-        NodeRef::Static(v) => v,
-        // Non-static nodes are refused before any lookup.
-        _ => VariableId::from_raw(u32::MAX),
-    }
+    // Non-static nodes are refused before any lookup.
+    graph.static_variable(node).unwrap_or(VariableId::from_raw(u32::MAX))
 }
 
 fn ids(raw: &[VariableId]) -> Vec<u32> {
@@ -1111,17 +1108,15 @@ fn graph_bytes(graph: &Admg) -> u64 {
 #[must_use]
 #[doc(hidden)]
 pub fn m_graph_signature(graph: &Admg) -> String {
-    let mut nodes = Vec::new();
-    let mut edges = Vec::new();
-    for i in 0..graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-        nodes.push(var(graph, from).raw());
-        for child in graph.children(from) {
-            edges.push((var(graph, from).raw(), var(graph, *child).raw()));
-        }
-    }
+    let mut nodes: Vec<u32> = graph.node_ids().map(|id| var(graph, id).raw()).collect();
     nodes.sort_unstable();
-    edges.sort_unstable();
+    // Non-static graphs are refused before a derivation records its signature.
+    let edges: Vec<(u32, u32)> = graph
+        .static_directed_edges_sorted()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(from, to)| (from.raw(), to.raw()))
+        .collect();
     format!("mgraph.v1;nodes={nodes:?};directed={edges:?}")
 }
 
@@ -1295,12 +1290,8 @@ fn check_formula(
     if root.raw() as usize >= arena.len() {
         return Err(bad("root outside the arena"));
     }
-    let node_of: BTreeMap<VariableId, DenseNodeId> = (0..graph.node_count())
-        .map(|i| {
-            let d = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-            (var(graph, d), d)
-        })
-        .collect();
+    let node_of: BTreeMap<VariableId, DenseNodeId> =
+        graph.node_ids().map(|d| (var(graph, d), d)).collect();
     let responses: BTreeMap<VariableId, usize> =
         query.partially_observed.iter().enumerate().map(|(i, p)| (p.response, i)).collect();
     let variables: BTreeMap<VariableId, usize> =
@@ -1631,14 +1622,11 @@ fn identify_effect(
             "the recovered law factorizes by a DAG; a bidirected edge changes the factorization",
         ));
     }
-    let mut edges = Vec::new();
-    for i in 0..effect.graph.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).unwrap_or(u32::MAX));
-        for child in effect.graph.children(from) {
-            edges.push((var(&effect.graph, from).raw(), var(&effect.graph, *child).raw()));
-        }
-    }
-    edges.sort_unstable();
+    let Some(edges) = effect.graph.static_directed_edges_sorted() else {
+        return Err(refuse(HandoffMismatch, "the effect graph must have static nodes only"));
+    };
+    let edges: Vec<(u32, u32)> =
+        edges.into_iter().map(|(from, to)| (from.raw(), to.raw())).collect();
     let mut restriction = Vec::new();
     for v in &substantive {
         for child in m.children(*v) {
@@ -1796,7 +1784,7 @@ pub fn verify_observation_recovery(
     // its record then carries the spelling the artifact was sealed with, so every
     // identity derived from it matches what the artifact bound.
     if record.rule_version == LEGACY_RECOVERY_RULE_VERSION {
-        fresh.record.rule_version = LEGACY_RECOVERY_RULE_VERSION.to_owned();
+        LEGACY_RECOVERY_RULE_VERSION.clone_into(&mut fresh.record.rule_version);
         fresh.scientific_identity = Arc::from(scientific_identity(&fresh.record, &fresh.observed));
     }
     if fresh.record != *record {

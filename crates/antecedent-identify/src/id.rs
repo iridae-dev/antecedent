@@ -766,7 +766,7 @@ fn require_disjoint(y: &BitSet, x: &BitSet) -> Result<(), IdentificationError> {
     if !y.any() {
         return Err(IdentificationError::unsupported("general ID requires at least one outcome"));
     }
-    if y.to_dense_ids().iter().any(|node| x.contains(*node)) {
+    if y.iter().any(|node| x.contains(node)) {
         return Err(IdentificationError::unsupported(
             "general ID requires outcomes disjoint from the intervened variables",
         ));
@@ -1004,7 +1004,7 @@ fn id_body(
         derivation.push("general.id.line5", "hedge: G is a single C-component");
         // A certificate names real variables or is not issued: a node without
         // a variable identity fails the call rather than being given a made-up id.
-        for node in v.to_dense_ids() {
+        for node in v.iter() {
             prepared.dense_to_var(node)?;
         }
         let hedge = HedgeCertificate::from_sets(v, s, |d| {
@@ -1128,7 +1128,7 @@ impl Law {
         if !self.sumset.any() {
             let kept: Vec<Factor> =
                 self.factors.iter().filter(|f| s.contains(f.var())).cloned().collect();
-            if kept.len() != s.to_dense_ids().len() {
+            if kept.len() != s.count_ones() {
                 return Err(IdentificationError::InvariantViolated {
                     message: "general ID: current law does not cover the requested C-component",
                 });
@@ -1201,7 +1201,7 @@ impl Factor {
                 let var_i = prepared.dense_to_var(*var)?;
                 let vars = arena.intern_var_set([var_i]);
                 let cond_vars: Result<Vec<_>, _> =
-                    cond.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+                    cond.iter().map(|d| prepared.dense_to_var(d)).collect();
                 let cond_vars = cond_vars?;
                 let conditioned_on = arena.intern_var_set(cond_vars.clone());
                 let (intervention, domain) =
@@ -1260,7 +1260,7 @@ fn intern_nodes(
     arena: &mut CausalExprArena,
 ) -> Result<antecedent_expr::VarSetId, IdentificationError> {
     let vars: Result<Vec<_>, _> =
-        nodes.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+        nodes.iter().map(|d| prepared.dense_to_var(d)).collect();
     Ok(arena.intern_var_set(vars?))
 }
 
@@ -1340,7 +1340,7 @@ fn q_component_product(
             let var_i = prepared.dense_to_var(vi)?;
             let vars = arena.intern_var_set([var_i]);
             let cond_vars: Result<Vec<_>, _> =
-                preceding.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect();
+                preceding.iter().map(|d| prepared.dense_to_var(d)).collect();
             let cond_vars = cond_vars?;
             let conditioned_on = arena.intern_var_set(cond_vars.clone());
             let (intervention, domain) =

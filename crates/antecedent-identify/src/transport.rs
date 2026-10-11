@@ -234,9 +234,6 @@ impl TransportIdentifier {
             prepared.var_to_dense(*variable)?;
         }
 
-        // One reachability workspace for every ancestry probe in this identify
-        // call; `reaches()` would otherwise allocate a fresh workspace per pair.
-        let mut reach_ws = antecedent_graph::GraphWorkspace::default();
         let outcome_ancestors = outcome_ancestors(diagram, &prepared, &outcomes, &treatments)?;
         let relevant_selection = diagram
             .selection_targets()
@@ -292,12 +289,20 @@ impl TransportIdentifier {
         // quantity the query asks for. Such a diagram falls through to the S-admissible
         // search and then to `NotCertified`.
         let mut safe_standardizers = !relevant_selection.iter().any(|z| outcomes.contains(z));
+        // Reflexive descendants of the treatments, computed once.
+        let treatment_nodes = treatments
+            .iter()
+            .map(|x| prepared.var_to_dense(*x))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut treated_downstream = BitSet::with_len(graph.node_count());
+        graph.descendants_of(
+            &treatment_nodes,
+            &mut treated_downstream,
+            &mut antecedent_graph::GraphWorkspace::default(),
+        );
         for z in &relevant_selection {
             let dz = prepared.var_to_dense(*z)?;
-            let mut downstream = false;
-            for x in treatments.iter() {
-                downstream |= graph.reaches_with(prepared.var_to_dense(*x)?, dz, &mut reach_ws);
-            }
+            let downstream = treated_downstream.contains(dz);
             safe_standardizers &= !downstream
                 && graph.parents(dz).is_empty()
                 && graph.bidirected_neighbors(dz).is_empty();
@@ -450,7 +455,7 @@ fn outcome_ancestors(
         None,
         &mut antecedent_graph::GraphWorkspace::default(),
     );
-    closure.to_dense_ids().into_iter().map(|dense| prepared.dense_to_var(dense)).collect()
+    closure.iter().map(|dense| prepared.dense_to_var(dense)).collect()
 }
 
 /// The target observational truncated factorization of a causally sufficient
@@ -574,22 +579,19 @@ fn s_admissible_standardizers(
 ) -> Result<StandardizerSearch, IdentificationError> {
     let graph = diagram.causal_graph();
     let n = graph.node_count();
-    let mut reach_ws = antecedent_graph::GraphWorkspace::default();
     let outcome_nodes = dense_all(prepared, outcomes)?;
     let treatment_nodes = dense_all(prepared, treatments)?;
-    let mut candidates = Vec::new();
-    for i in 0..n {
-        let node = DenseNodeId::from_raw(u32::try_from(i).map_err(|_| {
-            IdentificationError::UnsupportedInput { code: "transport.graph_exceeds_u32_nodes" }
-        })?);
-        if outcome_nodes.contains(&node)
-            || treatment_nodes.contains(&node)
-            || treatment_nodes.iter().any(|t| graph.reaches_with(*t, node, &mut reach_ws))
-        {
-            continue;
-        }
-        candidates.push(node);
-    }
+    // Pretreatment candidates: neither an outcome nor a (descendant of a) treatment.
+    let mut downstream = BitSet::with_len(n);
+    graph.descendants_of(
+        &treatment_nodes,
+        &mut downstream,
+        &mut antecedent_graph::GraphWorkspace::default(),
+    );
+    let candidates: Vec<DenseNodeId> = graph
+        .node_ids()
+        .filter(|node| !outcome_nodes.contains(node) && !downstream.contains(*node))
+        .collect();
     let mut all = BitSet::with_len(n);
     for node in prepared.topo() {
         all.insert(*node);

@@ -152,7 +152,7 @@ impl PathSpecificIdentifier {
 
         let admg = prepared.admg();
         // Enumerate on the directed skeleton (DAG view of directed edges).
-        let dag = admg_to_dag(admg)?;
+        let dag = admg.directed_part().map_err(IdentificationError::from)?;
         let (raw_paths, paths_truncated) = dag
             .directed_paths_with_budget(t, y, q.max_paths, q.max_len)
             .map_err(IdentificationError::from)?;
@@ -391,7 +391,7 @@ fn edge_g_formula(
     );
     // `P(v | pa(v))` is the district factor only when `v` is a singleton
     // district; latent confounding would need Shpitser's district formula.
-    if v_star.to_dense_ids().into_iter().any(|v| !admg.bidirected_neighbors(v).is_empty()) {
+    if v_star.iter().any(|v| !admg.bidirected_neighbors(v).is_empty()) {
         return Err(IdentificationError::unsupported(
             "path-specific edge g-formula requires no bidirected edge on an ancestor of the \
              outcome other than the treatment (the district-level formula for latent confounding \
@@ -484,18 +484,6 @@ fn surgical_admg(
         |_a, _b| true,
     )
     .map_err(IdentificationError::from)
-}
-
-fn admg_to_dag(admg: &Admg) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(admg.node_count()).expect("fit");
-    let mut dag = Dag::with_variables(n);
-    for i in 0..admg.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &to in admg.children(from) {
-            dag.insert_directed(from, to).map_err(IdentificationError::from)?;
-        }
-    }
-    Ok(dag)
 }
 
 #[cfg(test)]
