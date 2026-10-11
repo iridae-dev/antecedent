@@ -21,7 +21,7 @@ use antecedent_core::{
 };
 use antecedent_kernels::sample_categorical;
 use antecedent_prob::{GraphIdentFlag, WeightedGraphSamples};
-use antecedent_stats::{Welford, invert_square, normal_ppf};
+use antecedent_stats::{invert_square, normal_ppf, Welford};
 
 use crate::candidate::{CandidateDesign, DesignCost};
 use crate::decision::DecisionProblem;
@@ -426,9 +426,7 @@ impl DesignRanker {
             })
             .collect();
 
-        scored.sort_by(|a, b| {
-            b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0))
-        });
+        scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
 
         let mut ranked = Vec::with_capacity(scored.len());
         for (rank, (cand_i, score, mc, evaluation, slot)) in scored.iter().enumerate() {
@@ -519,7 +517,7 @@ fn rank_uncertainty_ok(draws: &[Vec<f64>], z: f64, threshold: f64) -> bool {
         })
         .collect();
     let mut order: Vec<usize> = (0..means.len()).collect();
-    order.sort_by(|a, b| means[*b].partial_cmp(&means[*a]).unwrap_or(std::cmp::Ordering::Equal));
+    order.sort_by(|a, b| means[*b].total_cmp(&means[*a]).then(a.cmp(b)));
     // Check top adjacent pairs.
     let top = order.len().min(3);
     for i in 0..top.saturating_sub(1) {
@@ -756,7 +754,11 @@ impl EntropyChannel {
     /// expected information gain is non-decreasing in reliability.
     fn likelihood(&self, reliability: f64, y: usize, cat: usize) -> f64 {
         let uniform = (1.0 - reliability) / self.k as f64;
-        if cat == y { reliability + uniform } else { uniform }
+        if cat == y {
+            reliability + uniform
+        } else {
+            uniform
+        }
     }
 
     /// Entropy of the graph posterior after observing category `y`.
@@ -936,7 +938,11 @@ fn gram_side_len(xtx: &[f64]) -> usize {
     while k * k < n2 {
         k += 1;
     }
-    if k * k == n2 { k } else { 0 }
+    if k * k == n2 {
+        k
+    } else {
+        0
+    }
 }
 
 /// Baseline `(p, se₀)` of the treatment coefficient.
@@ -1112,7 +1118,11 @@ fn model_distinguish_score(
         let b = ll.loglik[rj * ll.n_draws + draw];
         gap += (a - b).abs();
     }
-    if pairs.is_empty() { 0.0 } else { strength * gap / pairs.len() as f64 }
+    if pairs.is_empty() {
+        0.0
+    } else {
+        strength * gap / pairs.len() as f64
+    }
 }
 
 /// How non-decision objectives are evaluated: deterministic functionals are exact;

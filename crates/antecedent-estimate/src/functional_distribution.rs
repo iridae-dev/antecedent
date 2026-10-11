@@ -1847,8 +1847,10 @@ fn ordered_domains(cols: &[&EncodedColumn]) -> Result<Vec<Vec<u32>>, EstimationE
             }
             domain.sort_by(|&a, &b| {
                 match (c.levels[a as usize].as_f64(), c.levels[b as usize].as_f64()) {
-                    (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
-                    _ => std::cmp::Ordering::Equal,
+                    (Some(x), Some(y)) => x.total_cmp(&y),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => a.cmp(&b),
                 }
             });
             Ok(domain)
@@ -2704,11 +2706,9 @@ mod tests {
             .probability(&spec, &Assignment::from_pairs([(x, f(1.0))]), &EvalContext::default())
             .unwrap();
         assert!((p1 - 2.0 / 3.0).abs() < 1e-15);
-        assert!(
-            provider
-                .probability(&spec, &Assignment::from_pairs([(x, f(2.0))]), &EvalContext::default())
-                .is_err()
-        );
+        assert!(provider
+            .probability(&spec, &Assignment::from_pairs([(x, f(2.0))]), &EvalContext::default())
+            .is_err());
     }
 
     /// Frozen two-path table (`t, m, y, c`) from

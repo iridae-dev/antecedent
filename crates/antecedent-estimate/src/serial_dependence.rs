@@ -108,7 +108,7 @@ use std::sync::Arc;
 
 use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::ar_kernel::{MAX_AR_ORDER, MAX_AR_RHO, bic_autoregression, dot, kendall_rho};
+use crate::ar_kernel::{bic_autoregression, dot, kendall_rho, MAX_AR_ORDER, MAX_AR_RHO};
 use crate::error::EstimationError;
 use crate::util::gram;
 
@@ -458,7 +458,11 @@ pub fn long_run_tempering_factor(
                     .collect();
                 let u = cholesky_solve(l, &g, q);
                 let var: f64 = g.iter().zip(&u).map(|(a, b)| a * b).sum();
-                if var.is_finite() && var > 0.0 { var.sqrt().min(MAX_KAPPA_LOG_SD) } else { 0.0 }
+                if var.is_finite() && var > 0.0 {
+                    var.sqrt().min(MAX_KAPPA_LOG_SD)
+                } else {
+                    0.0
+                }
             }
             _ => 0.0,
         };
@@ -1008,12 +1012,9 @@ fn cholesky_solve_into(l: &[f64], b: &[f64], x: &mut [f64], m: usize) {
 /// or non-finite).
 fn solve_dense_in_place(a: &mut [f64], b: &mut [f64], m: usize) -> bool {
     for col in 0..m {
-        let Some(pivot) = (col..m).max_by(|&i, &j| {
-            a[i * m + col]
-                .abs()
-                .partial_cmp(&a[j * m + col].abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }) else {
+        let Some(pivot) =
+            (col..m).max_by(|&i, &j| a[i * m + col].abs().total_cmp(&a[j * m + col].abs()))
+        else {
             return false;
         };
         if a[pivot * m + col].abs() < 1e-300 {
@@ -1230,7 +1231,7 @@ fn nelder_mead(f: impl Fn(&[f64]) -> f64, x0: &[f64]) -> (Vec<f64>, f64) {
         simplex.push((v, fv));
     }
     let order = |s: &mut Vec<Vertex>| {
-        s.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        s.sort_by(|a, b| a.1.total_cmp(&b.1));
     };
     order(&mut simplex);
     for _ in 0..SIMPLEX_ITERATIONS_PER_DIM * dim {

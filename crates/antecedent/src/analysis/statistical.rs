@@ -11,9 +11,8 @@ use antecedent_core::{
     UncertaintyComponent, UncertaintySlot, UncertaintySource, VariableId,
 };
 use antecedent_estimate::{
-    EmpiricalTableOptions, INTERVAL_NUMERICAL_FAILURE, ReplicatePolicy,
-    StatisticalTransportEstimate, StatisticalTransportInput, TransportUncertaintyRow,
-    assemble_point_laws,
+    assemble_point_laws, EmpiricalTableOptions, ReplicatePolicy, StatisticalTransportEstimate,
+    StatisticalTransportInput, TransportUncertaintyRow, INTERVAL_NUMERICAL_FAILURE,
 };
 use antecedent_expr::{Assignment, ExactEvaluationLimits, ExactTransportData};
 use antecedent_graph::SelectionDiagram;
@@ -22,8 +21,8 @@ use antecedent_io::transport_grid_wire::{
     BayesianTransportPosteriorWire, SampleSummary, StatisticalOptionsWire,
 };
 use antecedent_io::{
-    IoError, exact_law_wire::ExactLawWire, query_wire::ValueWire,
-    transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire,
+    exact_law_wire::ExactLawWire, query_wire::ValueWire,
+    transport_catalog_wire::EvidenceCatalogWire, transport_proof::TransportProofWire, IoError,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -31,7 +30,7 @@ use std::sync::Arc;
 use crate::result::PERCENTILE_95_MIN_REPLICATES;
 
 use super::transport_common::{
-    GraphFields, digest, err, estimate_err, rebind_snapshots, rebuild_checked_proof,
+    digest, err, estimate_err, rebind_snapshots, rebuild_checked_proof, GraphFields,
 };
 
 /// The facade's licensing floor for a nominal-0.95 pointwise percentile edge.
@@ -1406,11 +1405,11 @@ fn statistical_shape_wires(mut laws: Vec<ExactLawWire>) -> Result<String, IoErro
         law.snapshot.clear();
         law.axes.sort_by_key(|axis| axis.0);
         for (_, values) in &mut law.axes {
-            values.sort_by(|a, b| {
-                a.to_value()
-                    .as_f64()
-                    .partial_cmp(&b.to_value().as_f64())
-                    .unwrap_or(std::cmp::Ordering::Equal)
+            values.sort_by(|a, b| match (a.to_value().as_f64(), b.to_value().as_f64()) {
+                (Some(x), Some(y)) => x.total_cmp(&y),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
             });
         }
         law.interventions.sort_by_key(|a| a.0);
@@ -2317,14 +2316,12 @@ mod tests {
         wire.options.posterior_draws += 1;
         variants.push(wire);
         for wire in variants {
-            assert!(
-                PreparedStudy::<StatisticalPreparedState>::consume(
-                    &antecedent_io::to_cbor(&wire).unwrap(),
-                    ExactEvaluationLimits::default(),
-                    &ctx
-                )
-                .is_err()
-            );
+            assert!(PreparedStudy::<StatisticalPreparedState>::consume(
+                &antecedent_io::to_cbor(&wire).unwrap(),
+                ExactEvaluationLimits::default(),
+                &ctx
+            )
+            .is_err());
         }
         let (loaded, result) = PreparedStudy::<StatisticalPreparedState>::consume(
             &bytes,

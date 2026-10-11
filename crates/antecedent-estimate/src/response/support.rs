@@ -13,8 +13,8 @@ use antecedent_core::{
     SupportRegion, SupportReport, SupportStatus,
 };
 use antecedent_stats::{
-    LocalQuadraticWorkspace, QuantileRule, gaussian_local_quadratic_influence_prechecked,
-    mad_sigma, median_sorted, quantile_sorted,
+    gaussian_local_quadratic_influence_prechecked, mad_sigma, median_sorted, quantile_sorted,
+    LocalQuadraticWorkspace, QuantileRule,
 };
 
 use super::{
@@ -25,7 +25,7 @@ use crate::util::range;
 
 fn sort_finite(values: &[f64]) -> Vec<f64> {
     let mut sorted = values.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(|a, b| a.total_cmp(b));
     sorted
 }
 
@@ -42,7 +42,11 @@ pub(super) fn outcome_tail_ratio(values: &[f64]) -> f64 {
     let max_dev = values.iter().map(|v| (v - center).abs()).fold(0.0, f64::max);
     let scale = mad_scale(values);
     if scale <= 0.0 {
-        if max_dev <= 0.0 { 0.0 } else { OUTCOME_TAIL_RATIO_UNSCALED }
+        if max_dev <= 0.0 {
+            0.0
+        } else {
+            OUTCOME_TAIL_RATIO_UNSCALED
+        }
     } else {
         max_dev / scale
     }
