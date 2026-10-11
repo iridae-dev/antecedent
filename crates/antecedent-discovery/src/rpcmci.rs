@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, RegimeId, VariableId};
-use antecedent_data::{ColumnView, LaggedFrame, TableView, TimeSeriesData};
+use antecedent_data::{LaggedFrame, TableView, TimeSeriesData};
 use antecedent_graph::TemporalCpdag;
 use antecedent_stats::{
     ConditionalIndependence, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace,
@@ -457,14 +457,13 @@ fn reassign_by_lagged_residual(
     }
     let mut cols: Vec<Vec<f64>> = Vec::with_capacity(variables.len());
     for &v in variables {
-        let ColumnView::Float64(c) =
-            data.column(v).map_err(|e| DiscoveryError::data_msg(format!("reassign col: {e}")))?
-        else {
-            return Err(DiscoveryError::Unsupported {
-                message: "RPCMCI reassignment currently supports float64 columns only",
-            });
-        };
-        cols.push(c.values.to_vec());
+        // `float64_values` writes NaN on invalid rows. Reading `ColumnView::Float64`
+        // values directly would score a stored placeholder (or a NaN that makes every
+        // Viterbi comparison fail) as if it were observed.
+        let col = data
+            .float64_values(v)
+            .map_err(|e| DiscoveryError::data_msg(format!("reassign col: {e}")))?;
+        cols.push(col);
     }
 
     // Retained lagged parents per regime and target variable.
@@ -517,9 +516,29 @@ fn reassign_by_lagged_residual(
     let scale: Vec<f64> = cols
         .iter()
         .map(|c| {
-            let rows = &c[first_row..];
-            let mean = rows.iter().sum::<f64>() / rows.len() as f64;
-            rows.iter().map(|v| (v - mean) * (v - mean)).sum::<f64>() / rows.len() as f64
+            let rows = c[first_row..].iter().copied().filter(|v| v.is_finite());
+            let mut n_finite = 0usize;
+            let mut sum = 0.0;
+            for v in rows {
+                n_finite += 1;
+                sum += v;
+            }
+            if n_finite < 2 {
+                return 0.0;
+            }
+            let mean = sum / n_finite as f64;
+            let var = c[first_row..]
+                .iter()
+                .copied()
+                .filter(|v| v.is_finite())
+                .map(|v| (v - mean) * (v - mean))
+                .sum::<f64>()
+                / n_finite as f64;
+            if var.is_finite() {
+                var
+            } else {
+                0.0
+            }
         })
         .collect();
 
@@ -527,9 +546,19 @@ fn reassign_by_lagged_residual(
     let backend = FaerBackend;
     let mut models: Vec<RegimeModel> = Vec::with_capacity(regime_parents.len());
     'regimes: for (regime, by_target) in &regime_parents {
-        let rows: Vec<usize> = (first_row..n).filter(|&t| current.regimes[t] == *regime).collect();
+        let regime_rows: Vec<usize> =
+            (first_row..n).filter(|&t| current.regimes[t] == *regime).collect();
         let mut equations = Vec::with_capacity(variables.len());
         for (ti, parents) in by_target.iter().enumerate() {
+            // A missing cell is not a residual. Fit only on a full finite window.
+            let rows: Vec<usize> = regime_rows
+                .iter()
+                .copied()
+                .filter(|&t| {
+                    cols[ti][t].is_finite()
+                        && parents.iter().all(|&(si, lag)| cols[si][t - lag].is_finite())
+                })
+                .collect();
             let ncols = parents.len() + 1;
             // Identification: more rows than free parameters.
             if rows.len() <= ncols {
@@ -572,9 +601,16 @@ fn reassign_by_lagged_residual(
             if scale[ti] <= f64::MIN_POSITIVE {
                 continue; // constant column: nothing to explain
             }
+            if !cols[ti][t].is_finite() {
+                return f64::INFINITY;
+            }
             let mut pred = eq.coefficients[0];
             for (j, &(si, lag)) in eq.parents.iter().enumerate() {
-                pred += eq.coefficients[j + 1] * cols[si][t - lag];
+                let parent = cols[si][t - lag];
+                if !parent.is_finite() {
+                    return f64::INFINITY;
+                }
+                pred += eq.coefficients[j + 1] * parent;
             }
             let resid = cols[ti][t] - pred;
             err += resid * resid / scale[ti];
@@ -585,7 +621,10 @@ fn reassign_by_lagged_residual(
     let mut cost = vec![0.0f64; steps * k];
     let mut back = vec![0usize; steps * k];
     for (ri, m) in models.iter().enumerate() {
-        cost[ri] = step_cost(first_row, m);
+        let step = step_cost(first_row, m);
+        // A non-finite window is not a residual. Leaving it out of the path cost
+        // keeps later finite rows comparable; adding infinity would freeze the path.
+        cost[ri] = if step.is_finite() { step } else { 0.0 };
     }
     for s in 1..steps {
         let t = first_row + s;
@@ -597,7 +636,8 @@ fn reassign_by_lagged_residual(
             let stay = cost[(s - 1) * k + ri];
             let switch = best_prev_cost + penalty;
             let (prev, base) = if stay <= switch { (ri, stay) } else { (best_prev, switch) };
-            cost[s * k + ri] = base + step_cost(t, m);
+            let step = step_cost(t, m);
+            cost[s * k + ri] = base + if step.is_finite() { step } else { 0.0 };
             back[s * k + ri] = prev;
         }
     }
@@ -951,6 +991,55 @@ mod tests {
         );
         let switches = refined.regimes.windows(2).filter(|w| w[0] != w[1]).count();
         assert!(switches <= 6, "switch penalty must keep labels contiguous, got {switches}");
+    }
+
+    #[test]
+    fn reassignment_does_not_score_invalid_rows() {
+        let n = 240usize;
+        let mut state = 12345u64;
+        let mut unif = move || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((state >> 11) as f64 / (1u64 << 53) as f64) - 0.5
+        };
+        let unit = 12.0f64.sqrt();
+        let mut x = vec![0.0; n];
+        let mut y = vec![0.0; n];
+        for t in 1..n {
+            let (ex, ey) = (unif() * unit, unif() * unit);
+            if t < n / 2 {
+                x[t] = 0.9 * x[t - 1] + 4.4 * ex;
+                y[t] = ey;
+            } else {
+                x[t] = 10.0 * ex;
+                y[t] = 0.9 * y[t - 1] + 0.44 * ey;
+            }
+        }
+        // A missing observation used to enter the Gram as a stored number, or as NaN
+        // that made every Viterbi comparison fail and dropped the regime.
+        x[40] = f64::NAN;
+        let data = series_from(x, y);
+        let vars = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let lagged_self_parent = |v: u32| {
+            let mut g = TemporalCpdag::empty();
+            let past = g.add_lagged(VariableId::from_raw(v), Lag::from_raw(1)).unwrap();
+            let now = g.add_lagged(VariableId::from_raw(v), Lag::CONTEMPORANEOUS).unwrap();
+            g.insert_directed(past, now).unwrap();
+            g
+        };
+        let graphs = RegimeGraphCollection {
+            graphs: Arc::from(vec![
+                (RegimeId::from_raw(0), lagged_self_parent(0)),
+                (RegimeId::from_raw(1), lagged_self_parent(1)),
+            ]),
+        };
+        let current = two_regime_half_split(n);
+        let refined = reassign_by_lagged_residual(&data, &vars, &graphs, &current, 2.0)
+            .unwrap()
+            .expect("one missing row must not drop both regimes");
+        let agree = (1..n).filter(|&t| t != 40 && refined.regimes[t] == current.regimes[t]).count();
+        assert!(agree * 100 >= (n - 2) * 85, "only {agree} finite rows kept their regime");
     }
 
     /// Without a switch penalty labels chatter; with one they stay contiguous.
