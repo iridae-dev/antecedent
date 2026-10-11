@@ -53,7 +53,7 @@ pub use meta::{
     identify_meta_transport, verify_meta_s_hedge, verify_meta_transport,
 };
 pub use mixed_source::{
-    BoundMixedSourceFunctional, LEGACY_MIXED_SOURCE_RULE_SET, MIXED_SOURCE_DEFAULT_LIMITS,
+    BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS,
     MIXED_SOURCE_MAX_DISTRIBUTIONS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE,
     MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET, MixedExclusion, MixedInput,
     MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule, MixedSearchInspection,
@@ -73,7 +73,7 @@ pub use mz_transport::{
     validate_mz_transport_query, verify_mz_transport_obstruction,
 };
 pub use study_planning::{
-    LEGACY_STUDY_PLAN_RANKING, STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES,
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES,
     STUDY_PLAN_MAX_COST_UNITS, STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE,
     STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure,
     StudyFactor, StudyPlan, StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute,

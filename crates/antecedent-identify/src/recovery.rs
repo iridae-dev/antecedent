@@ -110,9 +110,6 @@ pub const RECOVERY_DEFAULT_LIMITS: RecoveryLimits = RecoveryLimits {
 };
 /// Version of the recovery rule, bound into every derivation.
 pub const RECOVERY_RULE_VERSION: &str = "binary_observation_recovery.v1";
-/// The spelling of [`RECOVERY_RULE_VERSION`] carried by derivations that earlier
-/// releases sealed. A consumer accepts it and re-derives under the same rule.
-pub const LEGACY_RECOVERY_RULE_VERSION: &str = "x10.recovery.v1";
 /// Every witness mechanism probability is `k / WITNESS_SCALE`.
 pub const WITNESS_SCALE: u32 = 60;
 
@@ -395,8 +392,7 @@ pub struct RecoveryReceiptRecord {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RecoveryDerivationRecord {
-    /// [`RECOVERY_RULE_VERSION`], or its legacy spelling on an artifact an
-    /// earlier release sealed.
+    /// [`RECOVERY_RULE_VERSION`].
     pub rule_version: String,
     /// m-graph identity.
     pub graph_signature: String,
@@ -1776,17 +1772,9 @@ pub fn verify_observation_recovery(
     // tampered formula is refused for what it is, not only for differing.
     check_formula(graph, &canonical, &observed, record, arena, &mut |_| Ok(()))?;
     let decision = decide_observation_recovery(graph, query, catalog, effect, stored, ctx)?;
-    let RecoveryDecision::Recovered(mut fresh) = decision else {
+    let RecoveryDecision::Recovered(fresh) = decision else {
         return Err(invalid("the stored inputs are nonrecoverable"));
     };
-    // An artifact sealed by an earlier release carries the legacy spelling of
-    // the same rule. The derivation is re-decided under the current rule, and
-    // its record then carries the spelling the artifact was sealed with, so every
-    // identity derived from it matches what the artifact bound.
-    if record.rule_version == LEGACY_RECOVERY_RULE_VERSION {
-        LEGACY_RECOVERY_RULE_VERSION.clone_into(&mut fresh.record.rule_version);
-        fresh.scientific_identity = Arc::from(scientific_identity(&fresh.record, &fresh.observed));
-    }
     if fresh.record != *record {
         return Err(invalid("the stored derivation record is not reproduced"));
     }

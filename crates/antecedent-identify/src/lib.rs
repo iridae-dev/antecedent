@@ -53,7 +53,7 @@ pub mod temporal_mediation;
 pub mod tiered;
 pub mod transport;
 pub use recovery::{
-    LEGACY_RECOVERY_RULE_VERSION, ObservationRecoveryQuery, PartiallyObserved,
+    ObservationRecoveryQuery, PartiallyObserved,
     RECOVERY_DEFAULT_LIMITS, RECOVERY_MAX_FULLY_OBSERVED, RECOVERY_MAX_OBSERVED_CELLS,
     RECOVERY_MAX_PARTIALLY_OBSERVED, RECOVERY_RULE_VERSION, RecoveredEffect, RecoveredEffectQuery,
     RecoveredEffectRecord, RecoveryDecision, RecoveryDerivation, RecoveryDerivationRecord,
@@ -65,7 +65,7 @@ pub use recovery_chain::{
     CHAIN_RECOVERY_LIMITS, CHAIN_RECOVERY_RULE_VERSION, ChainPartial, ChainRecoveryDecision,
     ChainRecoveryDetail, ChainRecoveryError, ChainRecoveryPlan, ChainRecoveryQuery,
     ChainRecoveryWitness, ChainWitnessCheck, ChainWitnessMechanism,
-    LEGACY_CHAIN_RECOVERY_RULE_VERSION, decide_chain_recovery, verify_chain_witness,
+    decide_chain_recovery, verify_chain_witness,
 };
 pub use sid::{
     ADMG_CONDITIONAL_DEFAULT_LIMITS, ADMG_CONDITIONAL_MAX_CONDITIONED,
@@ -76,7 +76,7 @@ pub use sid::{
     ConditionalTransportRecord, admg_conditional_refusal, decide_admg_conditional_transport,
 };
 pub use sid::{
-    BoundMixedSourceFunctional, LEGACY_MIXED_SOURCE_RULE_SET, MIXED_SOURCE_DEFAULT_LIMITS,
+    BoundMixedSourceFunctional, MIXED_SOURCE_DEFAULT_LIMITS,
     MIXED_SOURCE_MAX_DISTRIBUTIONS, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE,
     MIXED_SOURCE_MAX_OBSERVED, MIXED_SOURCE_RULE_SET, MixedExclusion, MixedInput,
     MixedMissingEvidence, MixedMissingLeaf, MixedQuantity, MixedRule, MixedSearchInspection,
@@ -119,7 +119,7 @@ pub use sid::{
     WitnessModelRecord, WitnessSearch, search_conditional_witness, verify_conditional_witness,
 };
 pub use sid::{
-    LEGACY_STUDY_PLAN_RANKING, STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES,
+    STUDY_PLAN_DEFAULT_LIMITS, STUDY_PLAN_MAX_CANDIDATES,
     STUDY_PLAN_MAX_COST_UNITS, STUDY_PLAN_MAX_PROPOSALS, STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE,
     STUDY_PLAN_MAX_SUBSET, STUDY_PLAN_MEMORY_BYTES, STUDY_PLAN_RANKING, StudyBaseFailure,
     StudyFactor, StudyPlan, StudyPlanCandidate, StudyPlanLimits, StudyPlanRefusal, StudyPlanRoute,

@@ -717,14 +717,11 @@ fn a_tampered_record_or_expression_fails_the_replay() {
     );
 }
 
-/// Proofs that releases before the rule set was renamed sealed carry the legacy
-/// spelling of the same frozen rules. They replay under the same re-decision and
-/// keep the spelling they were sealed with; any other version still refuses.
+/// A sealed proof replays under the same re-decision; any other rule-set
+/// version or edit refuses.
 #[test]
-fn a_proof_sealed_under_the_legacy_rule_set_spelling_replays_and_keeps_it() {
-    use antecedent_identify::{
-        LEGACY_MIXED_SOURCE_RULE_SET, MIXED_SOURCE_RULE_SET, MixedSourceDerivation,
-    };
+fn a_sealed_proof_replays_and_any_other_version_or_edit_refuses() {
+    use antecedent_identify::{MIXED_SOURCE_RULE_SET, MixedSourceDerivation};
     let g = chain();
     let ctx = ExecutionContext::for_tests(1);
     let MixedSourceDecision::Identified { derivation, .. } = decide(&g, &query(), &complementary())
@@ -743,21 +740,20 @@ fn a_proof_sealed_under_the_legacy_rule_set_spelling_replays_and_keeps_it() {
         )
     };
     assert_eq!(derivation.rule_set(), MIXED_SOURCE_RULE_SET);
-    let mut legacy = derivation.to_record();
-    legacy.rule_set = LEGACY_MIXED_SOURCE_RULE_SET.into();
-    let replayed = replay(&legacy).expect("a legacy-spelled proof replays");
-    assert_eq!(replayed.rule_set(), LEGACY_MIXED_SOURCE_RULE_SET);
-    assert_eq!(replayed.to_record(), legacy);
+    let sealed = derivation.to_record();
+    let replayed = replay(&sealed).expect("a sealed proof replays");
+    assert_eq!(replayed.rule_set(), MIXED_SOURCE_RULE_SET);
+    assert_eq!(replayed.to_record(), sealed);
     assert_eq!(replayed.root(), derivation.root());
-    // Tampering is refused under either spelling; no other version is accepted.
+    // Tampering is refused; no other version is accepted.
     let bad = IdentificationError::InvalidDerivation { code: "mixed_search.invalid_derivation" };
-    let mut other_version = legacy.clone();
-    other_version.rule_set = LEGACY_MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
+    let mut other_version = sealed.clone();
+    other_version.rule_set = MIXED_SOURCE_RULE_SET.replace(".v1", ".v0");
     assert_eq!(replay(&other_version).unwrap_err(), bad);
-    let mut edited = legacy.clone();
+    let mut edited = sealed.clone();
     edited.operations_to_proof += 1;
     assert_eq!(replay(&edited).unwrap_err(), bad);
-    let mut edited = legacy;
+    let mut edited = sealed;
     edited.steps.last_mut().unwrap().params.push(7);
     assert_eq!(replay(&edited).unwrap_err(), bad);
 }

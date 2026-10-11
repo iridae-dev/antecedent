@@ -80,8 +80,9 @@ def validated_aliases(root: Path) -> list[dict[str, str]]:
 # Reviewed label renames of identity text that the measured record carries under
 # its original spelling. Each pair changes only the leading rule-version token of
 # the scientific derivation identity: the recovery rule was renamed from its
-# release-stream tag to a behavioral name, and the rule itself is unchanged
-# (identify's `rule_rename_changes_only_the_identity_label` test pins that).
+# release-stream tag to a behavioral name, and the rule itself is unchanged.
+# Producers and consumers only know the current name; the measured record keeps
+# the original token as immutable evidence.
 IDENTITY_RENAMES = (
     ("recovery_scientific.v1:x10.recovery.v1|",
      "recovery_scientific.v1:binary_observation_recovery.v1|"),

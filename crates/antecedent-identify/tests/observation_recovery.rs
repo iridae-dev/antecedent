@@ -15,7 +15,7 @@ use antecedent_core::{
 use antecedent_expr::ExprNode;
 use antecedent_graph::{Admg, DenseNodeId, NodeRef};
 use antecedent_identify::{
-    LEGACY_RECOVERY_RULE_VERSION, MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
+    MixedSourceQuery, PartiallyObserved, RECOVERY_DEFAULT_LIMITS,
     RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryDecision, RecoveryDetail, RecoveryLimits,
     decide_observation_recovery, validate_mixed_source_query, verify_observation_recovery,
     verify_recovery_witness,
@@ -668,11 +668,10 @@ fn a_tampered_record_or_arena_fails_verification() {
     assert_eq!(error.detail, RecoveryDetail::InvalidDerivation);
 }
 
-/// Derivations that releases before the rule was renamed sealed carry the
-/// legacy spelling of the same rule. They verify under the same re-decision and
-/// keep the identity they were sealed with; any other version or edit refuses.
+/// A sealed derivation verifies under the same re-decision and keeps its bound
+/// identity; any other rule version or edit refuses.
 #[test]
-fn a_derivation_sealed_under_the_legacy_rule_spelling_verifies_and_keeps_its_identity() {
+fn a_sealed_derivation_verifies_and_any_other_version_or_edit_refuses() {
     let model = two_partial();
     let effect = RecoveredEffectQuery {
         graph: effect_graph(&model, &[(2, 0), (0, 1)]),
@@ -706,29 +705,21 @@ fn a_derivation_sealed_under_the_legacy_rule_spelling_verifies_and_keeps_its_ide
             &ctx(),
         )
     };
-    let mut legacy = current.record().clone();
-    assert_eq!(legacy.rule_version, RECOVERY_RULE_VERSION);
-    legacy.rule_version = LEGACY_RECOVERY_RULE_VERSION.to_owned();
-    let verified = verify(&legacy).expect("a legacy-spelled derivation verifies");
-    assert_eq!(verified.record(), &legacy);
-    // The identity it binds is the one it was sealed with, and differs from the
-    // current spelling only in the leading rule-version token.
-    let rename = |text: &str| text.replacen(RECOVERY_RULE_VERSION, LEGACY_RECOVERY_RULE_VERSION, 1);
+    let sealed = current.record().clone();
+    assert_eq!(sealed.rule_version, RECOVERY_RULE_VERSION);
+    let verified = verify(&sealed).expect("a sealed derivation verifies");
+    assert_eq!(verified.record(), &sealed);
+    assert_eq!(verified.identity(), current.identity());
+    assert_eq!(verified.scientific_identity(), current.scientific_identity());
     assert!(current.identity().starts_with(RECOVERY_RULE_VERSION));
-    assert_eq!(verified.identity(), rename(&current.identity()));
-    assert_eq!(
-        verified.scientific_identity().as_ref(),
-        rename(current.scientific_identity().as_ref())
-    );
-    assert_ne!(verified.identity(), current.identity());
-    // Tampering is refused whichever spelling it carries.
-    let mut other_version = legacy.clone();
-    other_version.rule_version = LEGACY_RECOVERY_RULE_VERSION.replace(".v1", ".v0");
+    // Another rule version is refused.
+    let mut other_version = sealed.clone();
+    other_version.rule_version = RECOVERY_RULE_VERSION.replace(".v1", ".v0");
     assert_eq!(verify(&other_version).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
-    let mut edited = legacy.clone();
+    let mut edited = sealed.clone();
     edited.premises.push("mar".to_owned());
     assert_eq!(verify(&edited).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
-    let mut edited = legacy;
+    let mut edited = sealed;
     edited.margins[0].identity.push('x');
     assert_eq!(verify(&edited).unwrap_err().detail, RecoveryDetail::InvalidDerivation);
 }

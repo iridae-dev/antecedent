@@ -130,9 +130,6 @@ pub const MIXED_SOURCE_DEFAULT_LIMITS: SearchLimits =
     SearchLimits { operations: 20_000, depth: 16 };
 /// Version of the frozen rule set. It is bound into every proof record.
 pub const MIXED_SOURCE_RULE_SET: &str = "mixed_source_proof_rules.v1";
-/// The spelling of [`MIXED_SOURCE_RULE_SET`] carried by proofs that earlier
-/// releases sealed. A consumer accepts it and re-decides under the same rules.
-pub const LEGACY_MIXED_SOURCE_RULE_SET: &str = "x9.rules.v1";
 /// Most variables one rule application moves (marginalize, condition, insert,
 /// delete or exchange). A larger move is reached by repeated applications.
 pub const MIXED_SOURCE_MAX_MOVE: usize = 2;
@@ -757,17 +754,11 @@ impl MixedSourceDerivation {
         limits: SearchLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IdentificationError> {
-        let MixedSourceDecision::Identified { mut derivation, .. } =
+        let MixedSourceDecision::Identified { derivation, .. } =
             decide_mixed_source(graph, query, catalog, limits, ctx)?
         else {
             return Err(invalid_derivation());
         };
-        // A proof sealed by an earlier release carries the legacy spelling of the
-        // same frozen rules. It is re-decided under the current rules and keeps
-        // the spelling it was sealed with; any other version never matches.
-        if record.rule_set == LEGACY_MIXED_SOURCE_RULE_SET {
-            derivation.rule_set = LEGACY_MIXED_SOURCE_RULE_SET;
-        }
         if derivation.to_record() != *record || derivation.arena != *arena {
             return Err(invalid_derivation());
         }

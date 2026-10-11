@@ -16,12 +16,14 @@ use antecedent_estimate::{
     derive_sampled_recovery, estimate_sampled_recovery,
 };
 use antecedent_graph::{Admg, DenseNodeId};
-use antecedent_identify::{
-    LEGACY_RECOVERY_RULE_VERSION, RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryLimits,
-};
+use antecedent_identify::{RECOVERY_RULE_VERSION, RecoveredEffectQuery, RecoveryLimits};
 use calibration::{CoverageTally, RecordKey, grid_n, grid_seed, map_replicates, n_sim};
 use std::sync::Arc;
 use support::recovery_scm::{MModel, SNAPSHOT, v};
+/// The rule-version token the original BCa measurement was recorded under. The
+/// registry row is immutable measurement evidence, so the token is a literal of
+/// that record, not a spelling any current producer or consumer accepts.
+const ORIGINAL_MEASUREMENT_RULE_TOKEN: &str = "x10.recovery.v1";
 const EDGES: [(u32, u32); 3] = [(0, 1), (2, 0), (2, 1)];
 fn model() -> MModel {
     let mut m = MModel::new(2, 1, &EDGES, &[vec![2], vec![0]], 5).unwrap();
@@ -83,12 +85,12 @@ fn recovery_bca_original_measurement_identity_receipt() {
     assert!(result.receipt.verify_digest());
     assert_eq!(result.receipt.config, config);
     assert_eq!(result.failed_replicates, 0);
-    // The measurement was taken when the rule carried its original spelling; the
+    // The measurement was taken under the rule's original spelling; the
     // identity text differs from today's only in that leading rule-version token.
     assert!(result.receipt.derivation_identity.starts_with(RECOVERY_RULE_VERSION));
     let original_identity = result.receipt.derivation_identity.replacen(
         RECOVERY_RULE_VERSION,
-        LEGACY_RECOVERY_RULE_VERSION,
+        ORIGINAL_MEASUREMENT_RULE_TOKEN,
         1,
     );
     let original_functional = format!(
