@@ -20,7 +20,10 @@ pub mod scalar;
 pub mod special;
 pub mod view;
 
-pub use cholesky::{CholeskyError, cholesky_condition_lower_bound, cholesky_spd_into};
+pub use cholesky::{
+    CholeskyError, back_solve_into, chol_inverse, chol_solve_into, cholesky_condition_lower_bound,
+    cholesky_spd_into, forward_solve_into,
+};
 pub use dispatch::{
     KernelImpl, accumulate_contingency, accumulate_contingency_rows, arch_simd_available, copy_vec,
     gather, masked_covariance, masked_mean, masked_sum, masked_variance, pairwise_l1_fill,
@@ -32,11 +35,11 @@ pub use parcorr::{
 };
 pub use posterior_reduce::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
 pub use rng::{
-    box_muller, categorical_from_u, fill_standard_normal, sample_categorical, sample_gamma,
-    sample_inv_gamma, shuffle, shuffled_fold_assignment, standard_normal, standard_normal_pair,
-    unbiased_index,
+    bayesian_bootstrap_weights, box_muller, categorical_from_u, exp1, fill_standard_normal,
+    sample_categorical, sample_gamma, sample_inv_gamma, shuffle, shuffled_fold_assignment,
+    standard_normal, standard_normal_pair, unbiased_index,
 };
-pub use scalar::sanitize_weight;
+pub use scalar::{kish_ess, sanitize_weight};
 pub use special::{erf, erfc, norm_cdf, norm_inv, norm_pdf, norm_sf};
 pub use view::{BitMaskView, F64MatrixView, F64VectorView, ViewError};
 

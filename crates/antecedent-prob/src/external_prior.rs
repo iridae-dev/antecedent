@@ -38,9 +38,7 @@ const COMPOSE_VAR_FLOOR: f64 = 1e-12;
 /// otherwise (e.g. all-zero weights).
 #[must_use]
 pub fn kish_ess(weights: &[f64]) -> f64 {
-    let sum: f64 = weights.iter().sum();
-    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+    antecedent_kernels::kish_ess(weights)
 }
 
 /// Per-source trust knobs for external prior composition.

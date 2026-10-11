@@ -83,6 +83,64 @@ pub fn cholesky_condition_lower_bound(chol: &[f64], n: usize) -> f64 {
     ratio * ratio
 }
 
+/// Forward substitution `L y = b` for a lower-triangular row-major `L` (`n×n`).
+///
+/// Divides by the diagonal as stored; callers that need a positive-diagonal
+/// guard check it first. `b` and `y` must hold at least `n` entries.
+pub fn forward_solve_into(chol: &[f64], n: usize, b: &[f64], y: &mut [f64]) {
+    for i in 0..n {
+        let mut acc = b[i];
+        for j in 0..i {
+            acc -= chol[i * n + j] * y[j];
+        }
+        y[i] = acc / chol[i * n + i];
+    }
+}
+
+/// Back substitution `Lᵀ x = y` for a lower-triangular row-major `L` (`n×n`).
+///
+/// `y` and `x` must hold at least `n` entries; `x` is fully overwritten.
+pub fn back_solve_into(chol: &[f64], n: usize, y: &[f64], x: &mut [f64]) {
+    for i in (0..n).rev() {
+        let mut acc = y[i];
+        for j in (i + 1)..n {
+            acc -= chol[j * n + i] * x[j];
+        }
+        x[i] = acc / chol[i * n + i];
+    }
+}
+
+/// Solve `L Lᵀ x = b` from a lower-triangular Cholesky factor, writing into `x`.
+///
+/// `y` is forward-substitution scratch of length `n`. No buffer or pivot
+/// validation: the factor is assumed to come from [`cholesky_spd_into`].
+pub fn chol_solve_into(chol: &[f64], n: usize, b: &[f64], y: &mut [f64], x: &mut [f64]) {
+    forward_solve_into(chol, n, b, y);
+    back_solve_into(chol, n, y, x);
+}
+
+/// Inverse `A⁻¹` (row-major `n×n`) from the Cholesky factor of SPD `A`, one
+/// identity column at a time, so no refactorization is needed.
+#[must_use]
+pub fn chol_inverse(chol: &[f64], n: usize) -> Vec<f64> {
+    let mut inv = vec![0.0; n * n];
+    let mut eye_col = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    for col in 0..n {
+        eye_col.fill(0.0);
+        eye_col[col] = 1.0;
+        forward_solve_into(chol, n, &eye_col, &mut y);
+        for i in (0..n).rev() {
+            let mut acc = y[i];
+            for j in (i + 1)..n {
+                acc -= chol[j * n + i] * inv[j * n + col];
+            }
+            inv[i * n + col] = acc / chol[i * n + i];
+        }
+    }
+    inv
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,5 +205,21 @@ mod tests {
         assert_eq!(cholesky_condition_lower_bound(&[4.0, 0.0, 3.0, 1.0], 2), 16.0);
         assert!(cholesky_condition_lower_bound(&[f64::NAN, 0.0, 0.0, 1.0], 2).is_infinite());
         assert!(cholesky_condition_lower_bound(&[1.0, 0.0, 0.0, 0.0], 2).is_infinite());
+    }
+
+    #[test]
+    fn solve_and_inverse_match_hand_values() {
+        // A = [[4, 2], [2, 5]]; A⁻¹ = [[5, -2], [-2, 4]] / 16; b = [1, 2] → x = [1/16, 6/16].
+        let a = [4.0, 2.0, 2.0, 5.0];
+        let mut l = [0.0; 4];
+        cholesky_spd_into(&a, 2, &mut l).unwrap();
+        let (mut y, mut x) = ([0.0; 2], [0.0; 2]);
+        chol_solve_into(&l, 2, &[1.0, 2.0], &mut y, &mut x);
+        assert!((x[0] - 1.0 / 16.0).abs() < 1e-15 && (x[1] - 6.0 / 16.0).abs() < 1e-15);
+        let inv = chol_inverse(&l, 2);
+        let expected = [5.0 / 16.0, -2.0 / 16.0, -2.0 / 16.0, 4.0 / 16.0];
+        for (g, e) in inv.iter().zip(expected) {
+            assert!((g - e).abs() < 1e-15);
+        }
     }
 }

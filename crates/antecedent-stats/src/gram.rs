@@ -107,31 +107,24 @@ pub fn chol_log_det(chol: &[f64], n: usize) -> f64 {
 }
 
 /// Solve `A x = b` given Cholesky factor `L` of SPD `A = L L'`.
+///
+/// `None` unless every diagonal entry of `L` is strictly positive. The
+/// substitutions are [`antecedent_kernels::chol_solve_into`].
 #[must_use]
 pub fn chol_solve(chol: &[f64], n: usize, b: &[f64]) -> Option<Vec<f64>> {
     if chol.len() < n * n || b.len() < n {
         return None;
     }
-    let mut y = vec![0.0; n];
+    // The positive-diagonal guard is hoisted ahead of the solve; it has no
+    // side effects, so the verdict matches the interleaved check it replaces.
     for i in 0..n {
-        let mut acc = b[i];
-        for j in 0..i {
-            acc -= chol[i * n + j] * y[j];
-        }
-        let diag = chol[i * n + i];
-        if diag.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+        if chol[i * n + i].partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return None;
         }
-        y[i] = acc / diag;
     }
+    let mut y = vec![0.0; n];
     let mut x = vec![0.0; n];
-    for i in (0..n).rev() {
-        let mut acc = y[i];
-        for j in (i + 1)..n {
-            acc -= chol[j * n + i] * x[j];
-        }
-        x[i] = acc / chol[i * n + i];
-    }
+    antecedent_kernels::chol_solve_into(chol, n, b, &mut y, &mut x);
     Some(x)
 }
 

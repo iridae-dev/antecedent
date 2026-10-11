@@ -244,6 +244,18 @@ pub fn sanitize_weight(w: f64) -> f64 {
     if w.is_finite() { w.max(0.0) } else { 0.0 }
 }
 
+/// Kish effective sample size `(Σw)² / Σw²` of a weight vector.
+///
+/// Returns `0.0` when `Σw² ≤ 0` (all-zero weights, or an empty slice) so the
+/// ratio is never `0/0`. Scale-free in the weights. Unlike the `weighted_*`
+/// reductions this does not sanitize: weights are taken as given.
+#[must_use]
+pub fn kish_ess(weights: &[f64]) -> f64 {
+    let sum: f64 = weights.iter().sum();
+    let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
+    if sum_sq > 0.0 { (sum * sum) / sum_sq } else { 0.0 }
+}
+
 /// Weighted sum `Σ w_i x_i` (non-finite / negative weights treated as 0).
 ///
 /// Deterministic left-to-right reduction. Tolerance class: `StableFloat`.
@@ -298,6 +310,14 @@ pub fn weighted_dot(x: &[f64], y: &[f64], weights: &[f64]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kish_ess_hand_values_and_zero_guard() {
+        assert!((kish_ess(&[0.5, 0.25, 0.25]) - 8.0 / 3.0).abs() < 1e-12);
+        assert!((kish_ess(&[3.0, 3.0, 3.0, 3.0]) - 4.0).abs() < 1e-12);
+        assert!(kish_ess(&[0.0, 0.0]).abs() < f64::MIN_POSITIVE);
+        assert!(kish_ess(&[]).abs() < f64::MIN_POSITIVE);
+    }
 
     #[test]
     #[should_panic(expected = "mask length must equal vector length")]

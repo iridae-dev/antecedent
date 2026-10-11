@@ -39,6 +39,31 @@ pub fn box_muller(u1: f64, u2: f64) -> (f64, f64) {
     (r * theta.cos(), r * theta.sin())
 }
 
+/// One standard exponential draw `-ln U`, with `U` floored at `f64::MIN_POSITIVE`
+/// so an exact-zero uniform yields a large finite value instead of `+∞`.
+#[must_use]
+pub fn exp1(rng: &mut CausalRng) -> f64 {
+    -rng.next_f64().max(f64::MIN_POSITIVE).ln()
+}
+
+/// `n` Bayesian-bootstrap (Dirichlet(1,…,1) up to scale) weights from [`exp1`] draws.
+///
+/// With `normalize == false` the raw exponentials are returned. With
+/// `normalize == true` they are rescaled to mean one, `wᵢ *= n / Σw` (the
+/// unguarded `n as f64 / total` of the call sites this replaces: a zero or
+/// non-finite total is left to the caller to check on the raw variant).
+#[must_use]
+pub fn bayesian_bootstrap_weights(rng: &mut CausalRng, n: usize, normalize: bool) -> Vec<f64> {
+    let mut weights: Vec<f64> = (0..n).map(|_| exp1(rng)).collect();
+    if normalize {
+        let total: f64 = weights.iter().sum();
+        for w in &mut weights {
+            *w *= n as f64 / total;
+        }
+    }
+    weights
+}
+
 /// Fill `out` with i.i.d. standard normals, emitting both Box–Muller components.
 pub fn fill_standard_normal(rng: &mut CausalRng, out: &mut [f64]) {
     let mut i = 0;
@@ -345,5 +370,25 @@ mod fold_tests {
             assert!(size == 20 || size == 21, "fold {f} has {size} rows");
         }
         assert!((0..n).any(|i| fold[i] != i % 5));
+    }
+
+    /// The helper reproduces the inline `-ln(max(u, MIN_POSITIVE))` loop and the
+    /// mean-one rescale bit for bit.
+    #[test]
+    fn bootstrap_weights_match_inline_loop() {
+        let n = 17;
+        let mut a = CausalRng::from_seed(11);
+        let mut b = CausalRng::from_seed(11);
+        let raw: Vec<f64> = (0..n).map(|_| -a.next_f64().max(f64::MIN_POSITIVE).ln()).collect();
+        let got_raw = bayesian_bootstrap_weights(&mut b, n, false);
+        assert!(raw.iter().zip(&got_raw).all(|(x, y)| x.to_bits() == y.to_bits()));
+        let mut norm = raw.clone();
+        let total: f64 = norm.iter().sum();
+        for w in &mut norm {
+            *w *= n as f64 / total;
+        }
+        let mut c = CausalRng::from_seed(11);
+        let got = bayesian_bootstrap_weights(&mut c, n, true);
+        assert!(norm.iter().zip(&got).all(|(x, y)| x.to_bits() == y.to_bits()));
     }
 }
