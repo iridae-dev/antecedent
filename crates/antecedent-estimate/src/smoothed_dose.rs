@@ -112,7 +112,7 @@ pub const SMOOTHED_DOSE_MAX_BASIS_DEGREE: u8 = 3;
 /// Most hinge knots of the dose basis.
 pub const SMOOTHED_DOSE_MAX_KNOTS: usize = 8;
 /// The fold scheme recorded on every estimate.
-pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_round_robin_source_and_target";
+pub const SMOOTHED_DOSE_FOLD_SCHEME: &str = "stratified_seeded_source_and_target";
 /// The one supported target of a request.
 pub const SMOOTHED_DOSE_TARGET: &str = "smoothed_dose_response";
 /// Most design rows per quadrature chunk; cancellation is polled once per chunk.
@@ -693,23 +693,19 @@ fn strata(input: &SmoothedDoseInput) -> [Vec<usize>; 2] {
     rows
 }
 
-/// Stratified round-robin fold of every row: the source rows and the target rows are
-/// each dealt across the folds in row order, so every fold holds both roles. The
-/// assignment is deterministic in the source flags alone; no seed enters it.
+/// Key of the seeded dose-transport fold shuffle.
+const FOLD_PLAN_SEED: u64 = 0x5344_F01D_5EED_0001;
+
+/// Stratified fold of every row: the source rows and the target rows are each shuffled with
+/// a fixed key and dealt round-robin across the folds by the shared cross-fit plan, so every
+/// fold holds both roles. The assignment is deterministic in the source flags alone; no
+/// caller seed enters it. Empty when `folds` or the sample size is outside what the option
+/// validation accepts.
 #[must_use]
 #[doc(hidden)]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "i % folds is below the fold count, which validation bounds by 20"
-)]
 pub fn smoothed_dose_fold_assignment(input: &SmoothedDoseInput, folds: usize) -> Vec<u16> {
-    let mut assignment = vec![0u16; input.source.len()];
-    for rows in strata(input) {
-        for (i, row) in rows.into_iter().enumerate() {
-            assignment[row] = (i % folds.max(1)) as u16;
-        }
-    }
-    assignment
+    let stratum: Vec<u32> = input.source.iter().map(|&source| u32::from(!source)).collect();
+    crate::crossfit_plan::row_fold_ids_u16(&stratum, folds, FOLD_PLAN_SEED)
 }
 
 fn kernel_weight(
@@ -2154,7 +2150,7 @@ mod tests {
     }
 
     #[test]
-    fn the_fold_assignment_deals_each_role_round_robin_and_ignores_values() {
+    fn the_fold_assignment_deals_each_role_by_a_seeded_shuffle_and_ignores_values() {
         let data = input(30);
         let folds = smoothed_dose_fold_assignment(&data, 3);
         for fold in 0..3u16 {

@@ -4,7 +4,19 @@
 
 use antecedent_core::{ExecutionContext, StreamDomain};
 
+use crate::crossfit_plan::{CrossfitPlan, FoldIdErrors, FoldSource};
 use crate::EstimationError;
+
+/// Key of the seeded fold shuffle. The route carries no seed of its own and the fold
+/// identity is retained and re-verified on refresh, so the plan is a function of the stable
+/// row ids and the treatment arm alone; this constant only names the shuffle stream.
+const FOLD_PLAN_SEED: u64 = 0xB007_F01D_0000_0001;
+
+const FOLD_ERRORS: FoldIdErrors = FoldIdErrors {
+    length: "invalid Bayesian robust ATE input or options",
+    units: "invalid Bayesian robust ATE input or options",
+    range: "invalid Bayesian robust ATE input or options",
+};
 
 /// Complete row-aligned input for the robust Bayesian ATE route.
 #[derive(Clone, Debug, PartialEq)]
@@ -95,7 +107,7 @@ pub fn estimate_bayesian_robust_ate(
 ) -> Result<BayesianRobustAteResult, EstimationError> {
     validate(input, options)?;
     let n = input.row_ids.len();
-    let fold_ids = plan_bayesian_robust_ate_folds(input, options.folds)?;
+    let plan = fold_plan(input, options.folds)?;
     let x = make_design(input);
     let mut effects = Vec::with_capacity(options.draws);
     let mut refits = Vec::with_capacity(options.draws);
@@ -113,7 +125,7 @@ pub fn estimate_bayesian_robust_ate(
             return Err(EstimationError::stats_msg("invalid Bayesian-bootstrap row weights"));
         }
         let fingerprint = fingerprint(&weights);
-        let (estimate, audit) = fit_draw(input, &x, &fold_ids, &weights, options, fingerprint)?;
+        let (estimate, audit) = fit_draw(input, &x, &plan, &weights, options, fingerprint)?;
         effects.push(estimate);
         refits.push(audit);
     }
@@ -128,7 +140,7 @@ pub fn estimate_bayesian_robust_ate(
         standard_deviation,
         draws: effects,
         row_ids: input.row_ids.clone(),
-        fold_ids,
+        fold_ids: plan.fold_ids().iter().map(|&f| fold_u16(f)).collect(),
         model_identity: format!(
             "linear.weighted_ridge(lambda={}); logistic.weighted_ridge(lambda={})",
             options.ridge_penalty, options.ridge_penalty
@@ -141,6 +153,10 @@ pub fn estimate_bayesian_robust_ate(
 /// Bind the deterministic treatment-stratified cross-fit assignment for an
 /// input. Checked preparation can retain this vector and verify it on refresh.
 ///
+/// The ids come from the shared cross-fit plan: rows are keyed by the rank of their stable
+/// row id, each treatment arm is shuffled with a fixed key and dealt round-robin, so every
+/// fold holds both arms and the plan does not depend on the file order of the rows.
+///
 /// # Errors
 /// Returns the same input and fold-count refusals as the estimator.
 pub fn plan_bayesian_robust_ate_folds(
@@ -149,7 +165,7 @@ pub fn plan_bayesian_robust_ate_folds(
 ) -> Result<Vec<u16>, EstimationError> {
     let options = BayesianRobustAteOptions { folds, ..BayesianRobustAteOptions::default() };
     validate(input, options)?;
-    Ok(fixed_folds(input, folds))
+    Ok(fold_plan(input, folds)?.fold_ids().iter().map(|&f| fold_u16(f)).collect())
 }
 
 fn validate(
@@ -185,18 +201,31 @@ fn validate(
     Ok(())
 }
 
-fn fixed_folds(input: &BayesianRobustAteInput, folds: usize) -> Vec<u16> {
-    let mut order: Vec<usize> = (0..input.row_ids.len()).collect();
+/// The shared cross-fit plan of a validated input.
+fn fold_plan(
+    input: &BayesianRobustAteInput,
+    folds: usize,
+) -> Result<CrossfitPlan, EstimationError> {
+    let n = input.row_ids.len();
+    let mut order: Vec<usize> = (0..n).collect();
     order.sort_by_key(|&i| input.row_ids[i]);
-    let mut counts = [0usize; 2];
-    let mut result = vec![0u16; order.len()];
-    for i in order {
-        let arm = usize::from(input.treatment[i]);
-        result[i] = u16::try_from(counts[arm] % folds)
-            .expect("validated fold count fits the stored fold identity");
-        counts[arm] += 1;
+    let mut units = vec![0u32; n];
+    for (rank, &i) in order.iter().enumerate() {
+        units[i] = u32::try_from(rank)
+            .map_err(|_| EstimationError::data_msg("invalid Bayesian robust ATE input or options"))?;
     }
-    result
+    let strata: Vec<u32> = input.treatment.iter().map(|&t| u32::from(t)).collect();
+    CrossfitPlan::derive(
+        n,
+        folds,
+        FoldSource::Stratified { strata: &strata, units: &units, seed: FOLD_PLAN_SEED },
+        &FOLD_ERRORS,
+    )
+}
+
+/// A fold id as stored in the result; validation bounds the fold count by `u16::MAX`.
+fn fold_u16(fold: u32) -> u16 {
+    u16::try_from(fold).expect("validated fold count fits the stored fold identity")
 }
 
 fn make_design(input: &BayesianRobustAteInput) -> Vec<Vec<f64>> {
@@ -208,7 +237,7 @@ fn make_design(input: &BayesianRobustAteInput) -> Vec<Vec<f64>> {
 fn fit_draw(
     input: &BayesianRobustAteInput,
     x: &[Vec<f64>],
-    fold_ids: &[u16],
+    plan: &CrossfitPlan,
     weights: &[f64],
     opt: BayesianRobustAteOptions,
     weight_fingerprint: u64,
@@ -218,12 +247,13 @@ fn fit_draw(
     let mut mu0 = vec![0.0; n];
     let mut mu1 = vec![0.0; n];
     let mut audit = Vec::with_capacity(opt.folds * 3);
-    for fold in 0..opt.folds {
-        let train: Vec<usize> = (0..n).filter(|&i| usize::from(fold_ids[i]) != fold).collect();
-        let valid: Vec<usize> = (0..n).filter(|&i| usize::from(fold_ids[i]) == fold).collect();
-        let p = fit_logistic(x, &input.treatment, weights, &train, opt.ridge_penalty)?;
-        for &i in &valid {
-            e[i] = logistic(dot(&p, &x[i])).clamp(opt.propensity_clip, 1.0 - opt.propensity_clip);
+    for fold in 0..plan.folds() {
+        let (train, valid) = (plan.train(fold), plan.valid(fold));
+        let p = fit_logistic(x, &input.treatment, weights, train, opt.ridge_penalty)?;
+        let raw: Vec<f64> = valid.iter().map(|&i| logistic(dot(&p, &x[i]))).collect();
+        let guarded = crate::learn_nuisance::guarded_propensity(&raw, Some(opt.propensity_clip))?;
+        for (&i, &ehat) in valid.iter().zip(&guarded) {
+            e[i] = ehat;
         }
         audit.push(BayesianRobustRefit { role: "propensity", fold, weight_fingerprint });
         for arm in [false, true] {
@@ -231,7 +261,7 @@ fn fit_draw(
                 train.iter().copied().filter(|&i| input.treatment[i] == arm).collect();
             let beta = fit_ridge(x, &input.outcome, weights, &arm_rows, opt.ridge_penalty)?;
             let predictions = if arm { &mut mu1 } else { &mut mu0 };
-            for &i in &valid {
+            for &i in valid {
                 predictions[i] = dot(&beta, &x[i]);
             }
             audit.push(BayesianRobustRefit {
@@ -458,7 +488,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result.row_ids, input.row_ids);
-        assert_eq!(result.fold_ids, fixed_folds(&input, 4));
+        assert_eq!(result.fold_ids, plan_bayesian_robust_ate_folds(&input, 4).unwrap());
         for draw in &result.refits {
             assert_eq!(draw.len(), 12);
             assert!(draw.iter().all(|fit| fit.weight_fingerprint == draw[0].weight_fingerprint));

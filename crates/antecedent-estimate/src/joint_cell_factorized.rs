@@ -504,9 +504,10 @@ struct Problem {
     adjustment_set: Arc<[VariableId]>,
 }
 
-struct FoldSplit {
-    train: Vec<usize>,
-    valid: Vec<usize>,
+/// One fold's row lists, borrowed from the shared cross-fit plan, with the validation design.
+struct FoldSplit<'a> {
+    train: &'a [usize],
+    valid: &'a [usize],
     design_valid: Vec<f64>,
 }
 
@@ -672,7 +673,7 @@ struct ConditionalFits<'a> {
     ctx: &'a ExecutionContext,
     config: &'a FactorizedJointConfig,
     problem: &'a Problem,
-    folds: &'a [FoldSplit],
+    folds: &'a [FoldSplit<'a>],
     learned: Option<&'a LearnedNuisance>,
     cache: HashMap<ConditionalKey, Result<Vec<f64>, String>>,
     selections: Vec<RidgeFoldSelection>,
@@ -772,7 +773,7 @@ impl ConditionalFits<'_> {
     ) -> Result<Result<Vec<f64>, String>, EstimationError> {
         let problem = self.problem;
         let train = row_ids(rows)?;
-        let valid = row_ids(&self.folds[fold].valid)?;
+        let valid = row_ids(self.folds[fold].valid)?;
         let t_full: Vec<f64> =
             problem.cell.iter().map(|&code| f64::from((code >> target) & 1)).collect();
         match learner_fold_predict(
@@ -806,7 +807,7 @@ type LearnedOutcome = (Vec<f64>, Vec<LearnerProvenance>);
 fn learned_outcome_predictions(
     learned: &LearnedNuisance,
     problem: &Problem,
-    folds: &[FoldSplit],
+    folds: &[FoldSplit<'_>],
     cell: u32,
     ctx: &ExecutionContext,
 ) -> Result<Result<LearnedOutcome, String>, EstimationError> {
@@ -822,7 +823,7 @@ fn learned_outcome_predictions(
             return Ok(Err(format!("fold {fold}: no training row lies in the cell")));
         }
         let train = row_ids(&rows)?;
-        let valid = row_ids(&split.valid)?;
+        let valid = row_ids(split.valid)?;
         match learner_fold_predict(
             learned.outcome.as_ref(),
             learned.outcome_spec,
@@ -873,7 +874,7 @@ fn learned_suffix(
 /// Out-of-fold outcome-model predictions of one cell, or why the model is unsupported.
 fn outcome_predictions(
     problem: &Problem,
-    folds: &[FoldSplit],
+    folds: &[FoldSplit<'_>],
     cell: u32,
 ) -> Result<Vec<f64>, String> {
     let mut out = vec![0.0; problem.n];
@@ -988,6 +989,10 @@ fn evaluate_cell(
             format!("cell {cell} has a non-finite fitted propensity"),
         ));
     }
+    // A one-sided floor, not the two-sided `[clip, 1 - clip]` propensity clamp of the binary
+    // AIPW pipelines: a cell propensity is the product of conditional factors with no upper
+    // role in its inverse weight, and the floor is applied in the weight so the retained
+    // propensities and the clipped share stay the raw out-of-fold products.
     let weight = |p: f64| 1.0 / p.max(config.clip);
     let (mut sum_w, mut sum_w2) = (0.0, 0.0);
     for (i, &p) in e.iter().enumerate() {
@@ -1124,11 +1129,11 @@ fn fit_with_nuisance(
         },
         &SHARED_FOLD_ID_ERRORS,
     )?;
-    let folds: Vec<FoldSplit> = (0..config.folds)
+    let folds: Vec<FoldSplit<'_>> = (0..config.folds)
         .map(|fold| {
-            let valid = plan.valid(fold).to_vec();
-            let design_valid = rows_colmajor(&problem.design, n, problem.ncols, &valid);
-            FoldSplit { train: plan.train(fold).to_vec(), valid, design_valid }
+            let rows = plan.rows(fold);
+            let design_valid = rows_colmajor(&problem.design, n, problem.ncols, rows.valid);
+            FoldSplit { train: rows.train, valid: rows.valid, design_valid }
         })
         .collect();
     let rows_in_cell: Vec<usize> =
@@ -1329,7 +1334,7 @@ mod tests {
         let config = FactorizedJointConfig::new(RidgeTuning::default());
         // This actual fold has no training rows. The original fit retains its
         // unsupported conditional-prefix result rather than invoking a solver.
-        let folds = [FoldSplit { train: Vec::new(), valid: vec![0], design_valid: vec![1.0] }];
+        let folds = [FoldSplit { train: &[], valid: &[0], design_valid: vec![1.0] }];
         let mut fits = ConditionalFits {
             ctx: &ctx,
             config: &config,

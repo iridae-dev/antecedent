@@ -303,23 +303,25 @@ pub fn estimate_trial_aipw(
     Ok(result)
 }
 
-/// Stratified round-robin fold of every row: each source arm and the target sample
-/// is dealt across the `folds` folds in row order, so every fold holds every role.
+/// Key of the seeded trial fold shuffle.
+const FOLD_PLAN_SEED: u64 = 0x5452_1A1F_01D5_0001;
+
+/// Stratified fold of every row: each source arm and the target sample is shuffled with a
+/// fixed key and dealt round-robin across the `folds` folds by the shared cross-fit plan, so
+/// every fold holds every role and no periodic structure in the row order can align with
+/// the folds.
 ///
-/// The assignment is deterministic in the input alone; no seed enters it.
+/// The assignment is deterministic in the stratum of each row alone. Empty when `folds` or
+/// the sample size is outside what [`validate_trial_aipw`] accepts.
 #[must_use]
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "i % folds is below the fold count, which validation bounds by u16::MAX + 1"
-)]
 pub fn trial_fold_assignment(input: &TrialAipwInput, folds: usize) -> Vec<u16> {
-    let mut assignment = vec![0u16; input.source.len()];
-    for rows in strata(input) {
-        for (i, row) in rows.into_iter().enumerate() {
-            assignment[row] = (i % folds) as u16;
+    let mut stratum = vec![0u32; input.source.len()];
+    for (id, rows) in (0u32..).zip(strata(input)) {
+        for row in rows {
+            stratum[row] = id;
         }
     }
-    assignment
+    crate::crossfit_plan::row_fold_ids_u16(&stratum, folds, FOLD_PLAN_SEED)
 }
 
 /// The resampling units of the joint outer bootstrap: one cohort for a nested

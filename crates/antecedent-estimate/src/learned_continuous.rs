@@ -71,7 +71,7 @@ pub const LEARNED_CONTINUOUS_BOUNDS: (usize, u32, u32) = (
     LEARNED_CONTINUOUS_MAX_BOOTSTRAP,
 );
 /// The fold scheme recorded on every estimate.
-pub const LEARNED_CONTINUOUS_FOLD_SCHEME: &str = "stratified_round_robin_source_arm_and_target";
+pub const LEARNED_CONTINUOUS_FOLD_SCHEME: &str = "stratified_seeded_source_arm_and_target";
 /// The one supported target of a request.
 pub const LEARNED_CONTINUOUS_TARGET: &str = "target_mean_contrast";
 

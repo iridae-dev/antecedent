@@ -209,6 +209,22 @@ pub(crate) fn derive_fold_ids(
     Ok(ids)
 }
 
+/// The seeded stratified fold id of every row, each row its own unit, as the `u16` ids the
+/// retained fold assignments record.
+///
+/// Empty when the assignment is not defined: fewer than two folds, more folds than rows in
+/// the smallest stratum's union, or more than `u32::MAX` rows or `u16::MAX + 1` folds. Every
+/// caller validates its bounds first, so an empty plan never reaches a fit, and a retained
+/// assignment of the right length never equals it.
+pub(crate) fn row_fold_ids_u16(strata: &[u32], folds: usize, seed: u64) -> Vec<u16> {
+    let Ok(n) = u32::try_from(strata.len()) else { return Vec::new() };
+    let units: Vec<u32> = (0..n).collect();
+    match crossfit_fold_plan(strata, &units, folds, seed) {
+        Ok(ids) => ids.into_iter().filter_map(|id| u16::try_from(id).ok()).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
 /// Seeded, stratified, unit-level cross-fit fold plan (one fold id per row).
 ///
 /// `units[i]` names the physical unit behind row `i` (the original row index): every row of a
@@ -338,6 +354,24 @@ mod tests {
         assert_eq!(plan.valid(1), &[1, 2, 4]);
         assert_eq!(plan.train(1), &[0, 3]);
         assert_eq!(plan.fold_ids(), &[0, 1, 1, 0, 1]);
+    }
+
+    #[test]
+    fn row_fold_ids_deal_every_stratum_across_every_fold_and_refuse_by_emptiness() {
+        let strata: Vec<u32> = (0..60).map(|i| u32::from(i % 3 == 0)).collect();
+        let ids = row_fold_ids_u16(&strata, 4, 21);
+        assert_eq!(ids.len(), 60);
+        for stratum in 0..2u32 {
+            let rows = (0..60).filter(|&i| strata[i] == stratum).count();
+            for fold in 0..4u16 {
+                let held = (0..60).filter(|&i| strata[i] == stratum && ids[i] == fold).count();
+                assert!(held.abs_diff(rows / 4) <= 1, "stratum {stratum} fold {fold}: {held}");
+            }
+        }
+        assert_eq!(ids, row_fold_ids_u16(&strata, 4, 21));
+        assert_ne!(ids, row_fold_ids_u16(&strata, 4, 22));
+        assert!(row_fold_ids_u16(&strata, 1, 21).is_empty());
+        assert!(row_fold_ids_u16(&strata[..3], 4, 21).is_empty());
     }
 
     #[test]
