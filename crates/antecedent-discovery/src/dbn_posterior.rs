@@ -39,16 +39,18 @@ use antecedent_state::{GraphScoreCacheKey, GraphScoreData, GraphScoreFamily, Loc
 use crate::error::DiscoveryError;
 use crate::exact_enumeration::enumerate_unique_dags;
 use crate::graph_posterior::{
-    EXACT_ENUM_MAX_NODES, GraphPosterior, GraphPrior, accumulate_marginals,
-    analytic_graph_diagnostics, edge_required, has_edge, lagged_edge_forbidden,
-    lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges, normalize_log_weights,
-    parents_of, set_edge,
+    accumulate_marginals, analytic_graph_diagnostics, edge_required, has_edge,
+    lagged_edge_forbidden, lagged_edge_required, log_prior_mask, mask_is_dag, n_directed_edges,
+    normalize_log_weights, parents_of, set_edge, GraphPosterior, GraphPrior, EXACT_ENUM_MAX_NODES,
 };
 
 /// Max variables for exact DBN template enumeration (`p ≤ 4`).
 pub const DBN_EXACT_MAX_VARS: usize = 4;
 /// Max lag for exact DBN enumeration (`max_lag ≤ 2`).
 pub const DBN_EXACT_MAX_LAG: u32 = 2;
+/// Exact enumeration keeps every template. 2^10 masks stay under a few thousand
+/// contemporaneous DAGs times the lag masks; 2^16 (p=4, lag=1) is tens of millions.
+pub const DBN_EXACT_MAX_LAG_BITS: usize = 10;
 
 /// Bounded-lag DBN posterior over a stationary template.
 ///
@@ -177,10 +179,10 @@ impl DbnPosterior {
             && p <= DBN_EXACT_MAX_VARS
             && max_lag <= DBN_EXACT_MAX_LAG
             && p <= EXACT_ENUM_MAX_NODES
-            && n_lag_bits <= 16;
+            && n_lag_bits <= DBN_EXACT_MAX_LAG_BITS;
 
         if use_exact {
-            self.run_exact(p, max_lag, &score_data, prior, variables, score_family)
+            self.run_exact(p, max_lag, &score_data, prior, variables, score_family, ctx)
         } else {
             self.run_mcmc(p, max_lag, &score_data, prior, variables, score_family, ctx)
         }
@@ -194,10 +196,21 @@ impl DbnPosterior {
         prior: &GraphPrior,
         variables: &[VariableId],
         score_family: GraphScoreFamily,
+        ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
         let contemp = enumerate_unique_dags(p);
         let n_lag_bits = (max_lag as usize) * p * p;
         let lag_limit = 1u64 << n_lag_bits;
+        let n_templates = (contemp.len() as u64).saturating_mul(lag_limit);
+        // Three stored words per kept template, plus the score workspace.
+        let est_bytes = n_templates.saturating_mul(32);
+        if let Some(hard) = ctx.memory.hard_limit_bytes {
+            if est_bytes > hard {
+                return Err(DiscoveryError::Resource(format!(
+                    "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
+                )));
+            }
+        }
         let mut kept_masks = Vec::new();
         let mut kept_lag = Vec::new();
         let mut kept_log = Vec::new();
@@ -215,6 +228,9 @@ impl DbnPosterior {
                 continue;
             }
             for lmask in 0..lag_limit {
+                if lmask % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
                 match score_dbn_template(
                     cmask, lmask, p, max_lag, score_data, &mut cache, prior, variables,
                 ) {
@@ -250,7 +266,7 @@ impl DbnPosterior {
         score_family: GraphScoreFamily,
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
-        use crate::graph_mcmc::{GraphMcmcSchedule, diagnostics_from_traces};
+        use crate::graph_mcmc::{diagnostics_from_traces, GraphMcmcSchedule};
         use std::collections::HashMap;
 
         let schedule = GraphMcmcSchedule {
@@ -512,8 +528,8 @@ pub fn temporal_dag_from_dbn_masks(
     variables: &[VariableId],
 ) -> Result<antecedent_graph::TemporalDag, DiscoveryError> {
     use antecedent_core::Lag;
-    use antecedent_graph::TemporalDag;
     use antecedent_graph::unfold::ensure_lagged;
+    use antecedent_graph::TemporalDag;
 
     if variables.len() != n_vars {
         return Err(DiscoveryError::data_msg(
