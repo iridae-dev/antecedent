@@ -29,7 +29,6 @@ use super::types::{
     CiBatchRequest, CiBatchResult, CiResult, CiWorkspace, ConditionalIndependenceTest,
     PreparedCiTest, reject_unsupported_block_size, requested_block_size,
 };
-use crate::special::gamma_q;
 
 #[cfg(test)]
 use super::types::{CiQuery, ConfidenceMethod, SignificanceMethod};
@@ -386,16 +385,15 @@ fn g_squared_on_rows(
     Ok((g, df))
 }
 
-/// Exact chi-squared survival function via the regularized upper incomplete gamma
-/// `Q(df/2, x/2)`.
+/// Exact chi-squared survival function for the integer-valued contingency degrees of freedom
+/// (`df <= 0` is a degenerate table with no mass above any statistic: `0`). A thin adapter over
+/// the single owner [`crate::special::chi_square_sf`].
 fn chi2_sf(x: f64, df: f64) -> f64 {
-    if x <= 0.0 {
-        return 1.0;
-    }
     if df <= 0.0 {
-        return 0.0;
+        return if x <= 0.0 { 1.0 } else { 0.0 };
     }
-    gamma_q(df * 0.5, x * 0.5)
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    crate::special::chi_square_sf(x, df as usize)
 }
 
 /// Residualize-then-correlate CI — an explicit alias of [`PartialCorrelation`].

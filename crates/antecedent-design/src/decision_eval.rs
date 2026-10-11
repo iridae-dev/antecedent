@@ -263,8 +263,10 @@ fn build_table(
     Ok(Table { utilities, weights: raw.into_iter().map(|w| w / total).collect() })
 }
 
+/// Expectation `Σ wᵢ vᵢ` under already-normalised weights; zero-weight draws contribute
+/// nothing (the kernel reduction sanitises weights, utilities are validated finite).
 fn weighted_mean(values: &[f64], weights: &[f64]) -> f64 {
-    values.iter().zip(weights).filter(|(_, w)| **w > 0.0).map(|(v, w)| v * w).sum()
+    antecedent_kernels::scalar::weighted_sum(values, weights)
 }
 
 fn positive_mass_max(values: &[f64], weights: &[f64]) -> f64 {

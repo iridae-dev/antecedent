@@ -32,8 +32,8 @@ pub use dispatch::{
     weighted_sum,
 };
 pub use numeric::{
-    LogWeightError, median_sorted, midranks_into, normalize_log_weights,
-    normalize_log_weights_into, sigmoid, softmax_in_place, softplus,
+    LogWeightError, dot, mean, median_sorted, midranks_into, normalize_log_weights,
+    normalize_log_weights_into, sample_std, sigmoid, softmax_in_place, softplus,
 };
 pub use parcorr::{
     ParCorrMode, ParCorrQuery, ParCorrWorkspace, partial_correlation_batch, pearson,

@@ -128,7 +128,7 @@ impl ParticleFilterState {
     #[must_use]
     pub fn weighted_mean(&self) -> f64 {
         let weights = normalized_weights(&self.log_weights);
-        weights.iter().zip(self.particles.iter()).map(|(w, x)| w * x).sum()
+        antecedent_kernels::dot(&weights, &self.particles)
     }
 
     /// One bootstrap-filter step: predict → update with `y` → resample if ESS low.

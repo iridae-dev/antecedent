@@ -190,11 +190,8 @@ impl WeightingDoSampler {
         if result.weights.is_empty() {
             return result.values.iter().sum::<f64>() / result.values.len() as f64;
         }
-        let wsum: f64 = result.weights.iter().sum();
-        if wsum.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
-            return f64::NAN;
-        }
-        result.values.iter().zip(result.weights.iter()).map(|(v, w)| v * w).sum::<f64>() / wsum
+        antecedent_kernels::scalar::weighted_mean(&result.values, &result.weights)
+            .unwrap_or(f64::NAN)
     }
 }
 

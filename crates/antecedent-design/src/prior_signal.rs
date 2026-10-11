@@ -437,10 +437,6 @@ fn allocate(weights: &[f64], total: usize) -> Vec<usize> {
     counts
 }
 
-fn mean(values: &[f64]) -> f64 {
-    values.iter().sum::<f64>() / values.len() as f64
-}
-
 /// Adapt compatible prior sources and a future candidate signal into a prior and
 /// provider for preposterior analysis.
 ///
@@ -503,7 +499,7 @@ fn combine(
     let raw: Vec<f64> = sources.iter().map(|s| s.weight * s.prior_strength).collect();
     let total: f64 = raw.iter().sum();
     let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
-    let pooled: f64 = weights.iter().zip(&mapped).map(|(w, m)| w * mean(m)).sum();
+    let pooled: f64 = weights.iter().zip(&mapped).map(|(w, m)| w * antecedent_kernels::mean(m)).sum();
     let counts = allocate(&weights, request.resolution);
     let mut draws = Vec::with_capacity(request.resolution);
     for ((source, values), &count) in sources.iter().zip(&mapped).zip(&counts) {

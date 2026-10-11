@@ -100,23 +100,9 @@ pub fn mean_var(xs: &[f64]) -> (f64, f64) {
 }
 
 /// Unbiased sample standard deviation; `NaN` if fewer than 2 observations.
-#[must_use]
-pub fn sample_std(values: &[f64]) -> f64 {
-    let n = values.len() as f64;
-    if n < 2.0 {
-        return f64::NAN;
-    }
-    let mean = values.iter().sum::<f64>() / n;
-    let var = values
-        .iter()
-        .map(|v| {
-            let d = v - mean;
-            d * d
-        })
-        .sum::<f64>()
-        / (n - 1.0);
-    var.sqrt()
-}
+///
+/// Re-export of [`antecedent_kernels::sample_std`], the one owner.
+pub use antecedent_kernels::sample_std;
 
 /// Linear-interpolation empirical quantile (Hyndman–Fan type 7) of an ascending sample.
 ///

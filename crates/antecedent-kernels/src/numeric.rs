@@ -29,6 +29,50 @@ pub fn sigmoid(x: f64) -> f64 {
     }
 }
 
+/// Arithmetic mean `Σx / n`; `NaN` for an empty slice, and any `NaN` or infinite value
+/// propagates (no sanitising). The single plain-mean owner; the masked and weighted forms are
+/// in [`crate::scalar`].
+#[inline]
+#[must_use]
+pub fn mean(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return f64::NAN;
+    }
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
+/// Dot product `Σ aᵢ bᵢ`, summed left to right with no sanitising (a `NaN` propagates).
+///
+/// # Panics
+///
+/// Panics in debug builds if the lengths differ; in release the common prefix is used.
+#[inline]
+#[must_use]
+pub fn dot(a: &[f64], b: &[f64]) -> f64 {
+    debug_assert_eq!(a.len(), b.len(), "dot length mismatch");
+    a.iter().zip(b).map(|(x, y)| x * y).sum()
+}
+
+/// Unbiased sample standard deviation `sqrt(Σ(x − x̄)² / (n − 1))`; `NaN` for fewer than two
+/// values, and a `NaN` value gives `NaN`.
+#[must_use]
+pub fn sample_std(values: &[f64]) -> f64 {
+    let n = values.len();
+    if n < 2 {
+        return f64::NAN;
+    }
+    let nf = n as f64;
+    let mean = values.iter().sum::<f64>() / nf;
+    let ss: f64 = values
+        .iter()
+        .map(|v| {
+            let d = v - mean;
+            d * d
+        })
+        .sum();
+    (ss / (nf - 1.0)).sqrt()
+}
+
 /// `softplus(x) = ln(1 + e^x)` without overflow: `x + ln_1p(e^{-x})` for `x > 0`,
 /// `ln_1p(e^{x})` otherwise. It is the negative log of [`sigmoid`]`(-x)`, so
 /// `-ln σ(η)` is `softplus(-η)`.
@@ -193,6 +237,21 @@ mod tests {
         for x in [0.3, 1.0, 5.0, 30.0] {
             assert!((sigmoid(x) + sigmoid(-x) - 1.0).abs() < 4e-16, "x={x}");
         }
+    }
+
+    #[test]
+    fn mean_dot_and_sample_std_contracts() {
+        assert!(mean(&[]).is_nan());
+        assert_eq!(mean(&[1.0, 2.0, 6.0]), 3.0);
+        assert!(mean(&[1.0, f64::NAN]).is_nan());
+        assert_eq!(dot(&[1.0, 2.0, 3.0], &[4.0, 5.0, 6.0]), 32.0);
+        assert_eq!(dot(&[], &[]), 0.0);
+        assert!(dot(&[f64::NAN], &[0.0]).is_nan());
+        // 1, 2, 3, 4: s^2 = 5/3.
+        assert!((sample_std(&[1.0, 2.0, 3.0, 4.0]) - (5.0_f64 / 3.0).sqrt()).abs() < 1e-15);
+        assert!(sample_std(&[1.0]).is_nan());
+        assert!(sample_std(&[1.0, f64::NAN]).is_nan());
+        assert_eq!(sample_std(&[2.0, 2.0, 2.0]), 0.0);
     }
 
     #[test]

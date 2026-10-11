@@ -15,6 +15,8 @@
     )
 )]
 
+use antecedent_kernels::dot;
+
 use super::acyclicity::{AcyclicityWorkspace, grad_h, h_of_w};
 
 /// Grow-only scratch for the NOTEARS continuous solver.
@@ -448,10 +450,6 @@ fn lbfgs_minimize_al(
     }
     pack_free_into_w(ws);
     Ok(())
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
 }
 
 fn inf_norm(v: &[f64]) -> f64 {
