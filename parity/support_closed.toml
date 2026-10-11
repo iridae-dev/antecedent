@@ -276,9 +276,9 @@ reason = "A temporal contrast on TemporalAdmg is not identified. The licensed Te
 
 [[closed]]
 queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
-graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+graph_classes = ["TemporalDag"]
 structures = ["graph_posterior"]
-reason = "Graph-posterior temporal conditional effects are not licensed."
+reason = "Graph-posterior temporal conditional effects on a TemporalDag are not licensed."
 
 [[closed]]
 queries = ["TemporalConditionalPulse", "TemporalConditionalSustained"]
@@ -289,15 +289,15 @@ reason = "A temporal conditional effect has no scalar ATE refuter; cheap and ful
 
 [[closed]]
 queries = ["AverageDerivative", "PointDerivative", "Elasticity", "SemiElasticity", "DirectionalDerivative", "ResponseJacobian"]
-graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+graph_classes = ["TemporalDag"]
 structures = ["graph_posterior"]
-reason = "Graph-posterior temporal derivatives are not licensed."
+reason = "Graph-posterior temporal derivatives on a TemporalDag are not licensed."
 
 [[closed]]
 queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]
-graph_classes = ["TemporalDag", "TemporalCpdag", "TemporalPag"]
+graph_classes = ["TemporalDag"]
 structures = ["graph_posterior"]
-reason = "Graph-posterior temporal cross-world effects are not licensed."
+reason = "Graph-posterior temporal cross-world effects on a TemporalDag are not licensed."
 
 [[closed]]
 queries = ["Counterfactual", "InterventionalDistribution", "NestedCounterfactualEffect", "PathSpecificEffect"]

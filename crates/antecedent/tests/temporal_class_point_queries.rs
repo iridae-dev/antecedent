@@ -14,7 +14,9 @@ use antecedent_core::{
     ResponseValue, TemporalEffectQuery, TemporalPolicy, TemporalResponseSpec, Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
+use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
 use antecedent_graph::{TemporalCpdag, TemporalDag, TemporalPag, ensure_lagged};
+use antecedent_prob::InferenceDiagnostics;
 
 fn series_from(columns: Vec<(&'static str, Vec<f64>)>) -> TimeSeriesData {
     let refs: Vec<(&str, &[f64])> =
@@ -148,12 +150,7 @@ fn directed_pag(dag: &TemporalDag) -> TemporalPag {
     pag
 }
 
-fn bind(
-    builder: StudyBuilder,
-    dag: &TemporalDag,
-    pag: bool,
-    accepted: bool,
-) -> StudyBuilder {
+fn bind(builder: StudyBuilder, dag: &TemporalDag, pag: bool, accepted: bool) -> StudyBuilder {
     if pag {
         let graph = directed_pag(dag);
         if accepted { builder.graph(AcceptedGraph::from(graph)) } else { builder.graph(graph) }
@@ -161,6 +158,51 @@ fn bind(
         let graph = TemporalCpdag::from_temporal_dag(dag);
         if accepted { builder.graph(AcceptedGraph::from(graph)) } else { builder.graph(graph) }
     }
+}
+
+fn lag_bit(n: usize, from: usize, to: usize) -> u64 {
+    1u64 << (from * n + to)
+}
+
+fn posterior_masks(
+    base_n: usize,
+    lag_edges: &[(usize, usize)],
+    contemporaneous: &[(usize, usize)],
+    pag: bool,
+) -> (usize, u64, u64) {
+    let n = if pag { base_n + 1 } else { base_n };
+    let mut lag_mask = 0u64;
+    for &(from, to) in lag_edges {
+        lag_mask |= lag_bit(n, from, to);
+    }
+    let mut adjacency = 0u64;
+    for &(from, to) in contemporaneous {
+        adjacency = set_edge(adjacency, n, from, to, true);
+    }
+    if pag {
+        adjacency = set_edge(adjacency, n, base_n, 0, true);
+    }
+    (n, adjacency, lag_mask)
+}
+
+fn class_posterior(n: usize, adjacency: u64, lag_mask: u64, pag: bool) -> GraphPosterior {
+    let cell = n * n;
+    GraphPosterior::new(
+        n,
+        vec![1.0],
+        vec![adjacency],
+        vec![0.0; cell],
+        vec![0.0; cell],
+        1.0,
+        InferenceDiagnostics::analytic("temporal-class-point"),
+        0,
+    )
+    .unwrap()
+    .with_atom_kind(if pag { GraphPosteriorAtomKind::Pag } else { GraphPosteriorAtomKind::Cpdag })
+    .with_lagged_marginals(1, vec![0.0; cell])
+    .unwrap()
+    .with_lag_masks(vec![lag_mask])
+    .unwrap()
 }
 
 fn bayes(builder: StudyBuilder, bayesian: bool) -> StudyBuilder {
@@ -206,37 +248,65 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
     let dag = conditional_dag();
     for sustained in [false, true] {
         for pag in [false, true] {
-            for accepted in [false, true] {
-                for bayesian in [false, true] {
-                    let data = if pag { with_witness(columns.clone()) } else { series_from(columns.clone()) };
-                    let builder = bind(
-                        Study::series(data)
-                            .query(CausalQuery::TemporalEffect(conditional_query(sustained)))
-                            .refute(RefuteSuite::None),
-                        &dag,
-                        pag,
-                        accepted,
-                    );
-                    let result = run(bayes(builder, bayesian));
-                    assert!(
-                        (result.estimate.ate - truth).abs() < 0.05,
-                        "sustained={sustained} pag={pag} accepted={accepted} bayesian={bayesian} ate={}",
-                        result.estimate.ate
-                    );
-                    assert!(result.diagnostics.iter().any(|d| {
-                        d.code.as_ref() == "estimate.temporal.conditional_marginal"
-                    }));
-                    assert!(result.diagnostics.iter().any(|d| {
-                        d.code.as_ref().contains("envelope")
-                    }));
-                    assert!(result.posterior.is_none());
-                    if let Some(binding) = &result.interval {
-                        assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+            for posterior in [false, true] {
+                for accepted in [false, true] {
+                    if posterior && accepted {
+                        continue;
                     }
-                    assert_eq!(
-                        result.logical_plan.estimator.as_deref(),
-                        Some("temporal.linear.adjustment")
-                    );
+                    for bayesian in [false, true] {
+                        let data = if pag {
+                            with_witness(columns.clone())
+                        } else {
+                            series_from(columns.clone())
+                        };
+                        let (n, conditional_adj, conditional_lag) =
+                            posterior_masks(3, &[(0, 1)], &[(2, 1)], pag);
+                        let builder = if posterior {
+                            Study::series(data)
+                                .query(CausalQuery::TemporalEffect(conditional_query(sustained)))
+                                .refute(RefuteSuite::None)
+                                .graph_posterior(class_posterior(
+                                    n,
+                                    conditional_adj,
+                                    conditional_lag,
+                                    pag,
+                                ))
+                        } else {
+                            bind(
+                                Study::series(data)
+                                    .query(CausalQuery::TemporalEffect(conditional_query(
+                                        sustained,
+                                    )))
+                                    .refute(RefuteSuite::None),
+                                &dag,
+                                pag,
+                                accepted,
+                            )
+                        };
+                        let result = run(bayes(builder, bayesian));
+                        assert!(
+                            (result.estimate.ate - truth).abs() < 0.05,
+                            "sustained={sustained} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
+                            result.estimate.ate
+                        );
+                        assert!(result.diagnostics.iter().any(|d| {
+                            d.code.as_ref() == "estimate.temporal.conditional_marginal"
+                        }));
+                        assert!(
+                            result
+                                .diagnostics
+                                .iter()
+                                .any(|d| { d.code.as_ref().contains("envelope") })
+                        );
+                        assert!(result.posterior.is_none());
+                        if let Some(binding) = &result.interval {
+                            assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
+                        }
+                        assert_eq!(
+                            result.logical_plan.estimator.as_deref(),
+                            Some("temporal.linear.adjustment")
+                        );
+                    }
                 }
             }
         }
@@ -244,18 +314,17 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
     let data = series_from(columns);
     let refused = Study::series(data.clone())
         .query(CausalQuery::TemporalEffect(
-            conditional_query(false).with_effect_modifiers([
-                VariableId::from_raw(2),
-                VariableId::from_raw(9),
-            ]),
+            conditional_query(false)
+                .with_effect_modifiers([VariableId::from_raw(2), VariableId::from_raw(9)]),
         ))
         .graph(TemporalCpdag::from_temporal_dag(&dag))
         .refute(RefuteSuite::None)
         .build()
         .unwrap();
-    let err = refused.prepare(&ExecutionContext::for_tests(11)).unwrap().estimate_retained(
-        &ExecutionContext::for_tests(11),
-    );
+    let err = refused
+        .prepare(&ExecutionContext::for_tests(11))
+        .unwrap()
+        .estimate_retained(&ExecutionContext::for_tests(11));
     assert!(err.is_err(), "two modifiers are not a one-modifier conditional effect");
     let mapped = Study::series(data)
         .query(CausalQuery::TemporalEffect(conditional_query(false)))
@@ -272,9 +341,8 @@ fn temporal_class_conditional_pulse_and_sustained_publish_the_marginal_point() {
 }
 
 fn attach(functional: ResponseFunctional) -> ResponseQuery {
-    ResponseQuery::new(functional).with_temporal(
-        TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap(),
-    )
+    ResponseQuery::new(functional)
+        .with_temporal(TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap())
 }
 
 fn derivative_values(functional: ResponseFunctional) -> Vec<(&'static str, ResponseFunctional)> {
@@ -335,49 +403,80 @@ fn temporal_class_derivatives_publish_the_linear_slope() {
         weighting: DerivativeWeighting::Observed,
     }) {
         for pag in [false, true] {
-            for accepted in [false, true] {
-                for bayesian in [false, true] {
-                    let data = if pag { with_witness(columns.clone()) } else { series_from(columns.clone()) };
-                    let builder = bind(
-                        Study::series(data)
-                            .query(CausalQuery::Response(attach(functional.clone())))
-                            .refute(RefuteSuite::None),
-                        &dag,
-                        pag,
-                        accepted,
-                    );
-                    let result = run(bayes(builder, bayesian));
-                    let response = result.response.as_ref().unwrap();
-                    let ResponseIdentification::PointIdentified(value) = &response.estimate else {
-                        panic!("{key} unidentified");
-                    };
-                    let got = match value {
-                        ResponseValue::Scalar(x) => vec![*x],
-                        ResponseValue::Jacobian { values, .. } => values.to_vec(),
-                        ResponseValue::Vector(x) => x.to_vec(),
-                        other => panic!("{key} unexpected {other:?}"),
-                    };
-                    let expected = if let Some(x) = pin[key].as_f64() {
-                        vec![x]
-                    } else {
-                        pin[key].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
-                    };
-                    for (got, want) in got.iter().zip(&expected) {
-                        assert!(
-                            (got - want).abs() < tolerance,
-                            "{key} pag={pag} accepted={accepted} bayesian={bayesian}: {got} != {want}"
-                        );
+            for posterior in [false, true] {
+                for accepted in [false, true] {
+                    if posterior && accepted {
+                        continue;
                     }
-                    assert!(result.diagnostics.iter().any(|d| {
-                        d.code.as_ref() == "estimate.temporal.linear_derivative"
-                    }));
-                    assert!(result.posterior.is_none());
-                    let estimator = if bayesian {
-                        "response.temporal.bayesian"
-                    } else {
-                        "temporal.response.gcomp"
-                    };
-                    assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
+                    for bayesian in [false, true] {
+                        let data = if pag {
+                            with_witness(columns.clone())
+                        } else {
+                            series_from(columns.clone())
+                        };
+                        let (n, derivative_adj, derivative_lag) =
+                            posterior_masks(4, &[(0, 2), (1, 2), (0, 3), (1, 3)], &[], pag);
+                        let builder = if posterior {
+                            Study::series(data)
+                                .query(CausalQuery::Response(attach(functional.clone())))
+                                .refute(RefuteSuite::None)
+                                .graph_posterior(class_posterior(
+                                    n,
+                                    derivative_adj,
+                                    derivative_lag,
+                                    pag,
+                                ))
+                        } else {
+                            bind(
+                                Study::series(data)
+                                    .query(CausalQuery::Response(attach(functional.clone())))
+                                    .refute(RefuteSuite::None),
+                                &dag,
+                                pag,
+                                accepted,
+                            )
+                        };
+                        let result = run(bayes(builder, bayesian));
+                        let response = result.response.as_ref().unwrap();
+                        let ResponseIdentification::PointIdentified(value) = &response.estimate
+                        else {
+                            panic!("{key} unidentified");
+                        };
+                        let got = match value {
+                            ResponseValue::Scalar(x) => vec![*x],
+                            ResponseValue::Jacobian { values, .. } => values.to_vec(),
+                            ResponseValue::Vector(x) => x.to_vec(),
+                            other => panic!("{key} unexpected {other:?}"),
+                        };
+                        let expected = if let Some(x) = pin[key].as_f64() {
+                            vec![x]
+                        } else {
+                            pin[key]
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .map(|x| x.as_f64().unwrap())
+                                .collect()
+                        };
+                        for (got, want) in got.iter().zip(&expected) {
+                            assert!(
+                                (got - want).abs() < tolerance,
+                                "{key} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian}: {got} != {want}"
+                            );
+                        }
+                        assert!(
+                            result.diagnostics.iter().any(|d| {
+                                d.code.as_ref() == "estimate.temporal.linear_derivative"
+                            })
+                        );
+                        assert!(result.posterior.is_none());
+                        let estimator = if bayesian {
+                            "response.temporal.bayesian"
+                        } else {
+                            "temporal.response.gcomp"
+                        };
+                        assert_eq!(result.logical_plan.estimator.as_deref(), Some(estimator));
+                    }
                 }
             }
         }
@@ -445,29 +544,50 @@ fn temporal_class_cross_world_points_match_the_linear_mechanism() {
     for (key, query) in cross_queries() {
         let truth = pin[key].as_f64().unwrap();
         for pag in [false, true] {
-            for accepted in [false, true] {
-                for bayesian in [false, true] {
-                    let data = if pag { with_witness(columns.clone()) } else { series_from(columns.clone()) };
-                    let builder = bind(
-                        Study::series(data).query(query.clone()).refute(RefuteSuite::None),
-                        &dag,
-                        pag,
-                        accepted,
-                    );
-                    let result = run(bayes(builder, bayesian));
-                    assert!(
-                        (result.estimate.ate - truth).abs() < tolerance,
-                        "{key} pag={pag} accepted={accepted} bayesian={bayesian} ate={}",
-                        result.estimate.ate
-                    );
-                    assert!(result.diagnostics.iter().any(|d| {
-                        d.code.as_ref() == "estimate.temporal.cross_world"
-                    }));
-                    assert!(result.posterior.is_none());
-                    assert_eq!(
-                        result.logical_plan.estimator.as_deref(),
-                        Some("temporal.linear.adjustment")
-                    );
+            for posterior in [false, true] {
+                for accepted in [false, true] {
+                    if posterior && accepted {
+                        continue;
+                    }
+                    for bayesian in [false, true] {
+                        let data = if pag {
+                            with_witness(columns.clone())
+                        } else {
+                            series_from(columns.clone())
+                        };
+                        let (n, cross_adj, cross_lag) =
+                            posterior_masks(3, &[(0, 1), (0, 2)], &[(1, 2)], pag);
+                        let builder = if posterior {
+                            Study::series(data)
+                                .query(query.clone())
+                                .refute(RefuteSuite::None)
+                                .graph_posterior(class_posterior(n, cross_adj, cross_lag, pag))
+                        } else {
+                            bind(
+                                Study::series(data).query(query.clone()).refute(RefuteSuite::None),
+                                &dag,
+                                pag,
+                                accepted,
+                            )
+                        };
+                        let result = run(bayes(builder, bayesian));
+                        assert!(
+                            (result.estimate.ate - truth).abs() < tolerance,
+                            "{key} pag={pag} posterior={posterior} accepted={accepted} bayesian={bayesian} ate={}",
+                            result.estimate.ate
+                        );
+                        assert!(
+                            result
+                                .diagnostics
+                                .iter()
+                                .any(|d| { d.code.as_ref() == "estimate.temporal.cross_world" })
+                        );
+                        assert!(result.posterior.is_none());
+                        assert_eq!(
+                            result.logical_plan.estimator.as_deref(),
+                            Some("temporal.linear.adjustment")
+                        );
+                    }
                 }
             }
         }

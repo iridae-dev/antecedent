@@ -39,8 +39,8 @@ use antecedent_data::{
 use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, set_edge};
 use antecedent_estimate::ContinuousResponseOptions;
 use antecedent_graph::{
-    Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalCpdag,
-    TemporalAdmg, TemporalDag, TemporalPag, TieredBackground, WithinTier, ensure_lagged,
+    Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, MiddleMark, Pag, TemporalAdmg,
+    TemporalCpdag, TemporalDag, TemporalPag, TieredBackground, WithinTier, ensure_lagged,
 };
 use antecedent_io::consume_analysis_result;
 use antecedent_prob::InferenceDiagnostics;
@@ -494,6 +494,40 @@ fn temporal_gp(n_vars: usize) -> GraphPosterior {
 /// `TemporalPag` MAG adjustment needs a contemporaneous arrowhead into the
 /// treatment so the unfolded `t_{t-1} → y_t` edge is visible. `2→0` and `2→1`
 /// plus lag `0→1` is that backdoor template.
+/// Masks of [`temporal_dag`], plus a contemporaneous witness into treatment
+/// for a TemporalPag atom. That witness is what makes the lagged treatment
+/// edge visible without putting a confounder on the outcome.
+fn point_family_gp(n_vars: usize, pag: bool) -> GraphPosterior {
+    let cell = n_vars * n_vars;
+    let mut lag_mask = 0u64;
+    let mut adjacency = 0u64;
+    if n_vars >= 2 {
+        lag_mask |= 1u64 << 1;
+    }
+    if n_vars >= 3 {
+        lag_mask |= 1u64 << 2;
+        adjacency = set_edge(0, n_vars, 1, 2, true);
+    }
+    if pag && n_vars >= 4 {
+        adjacency = set_edge(adjacency, n_vars, 3, 0, true);
+    }
+    GraphPosterior::new(
+        n_vars,
+        vec![1.0],
+        vec![adjacency],
+        vec![0.0; cell],
+        vec![0.0; cell],
+        1.0,
+        InferenceDiagnostics::analytic("licensed-compiler-temporal-class-point"),
+        0,
+    )
+    .unwrap()
+    .with_lagged_marginals(1, vec![0.0; cell])
+    .unwrap()
+    .with_lag_masks(vec![lag_mask])
+    .unwrap()
+}
+
 fn temporal_class_gp(n_vars: usize) -> GraphPosterior {
     let cell = n_vars * n_vars;
     let mut lagged = vec![0.0; cell];
@@ -725,7 +759,33 @@ fn needs_series(cell: &antecedent::SupportCell) -> bool {
         || matches!(cell.graph_class, "TemporalDag" | "TemporalCpdag" | "TemporalPag")
 }
 
+fn point_family_query(cell: &antecedent::SupportCell) -> bool {
+    matches!(
+        cell.query,
+        "TemporalConditionalPulse"
+            | "TemporalConditionalSustained"
+            | "AverageDerivative"
+            | "PointDerivative"
+            | "Elasticity"
+            | "SemiElasticity"
+            | "DirectionalDerivative"
+            | "ResponseJacobian"
+            | "Counterfactual"
+            | "InterventionalDistribution"
+            | "NestedCounterfactualEffect"
+            | "PathSpecificEffect"
+    )
+}
+
 fn n_vars(cell: &antecedent::SupportCell) -> u32 {
+    if cell.graph_class == "TemporalPag"
+        && cell.structure == "graph_posterior"
+        && point_family_query(cell)
+    {
+        // A fourth variable is the visibility witness into treatment. The
+        // query still names the first three columns.
+        return 4;
+    }
     match cell.query {
         "PathSpecificEffect"
         | "MediationEffect"
@@ -883,7 +943,11 @@ fn cell_setup(cell: &antecedent::SupportCell) -> Result<CellSetup, String> {
                 {
                     temporal_gp(n as usize)
                 } else if matches!(cell.graph_class, "TemporalCpdag" | "TemporalPag") {
-                    temporal_class_gp(n as usize)
+                    if point_family_query(cell) {
+                        point_family_gp(n as usize, cell.graph_class == "TemporalPag")
+                    } else {
+                        temporal_class_gp(n as usize)
+                    }
                 } else {
                     temporal_gp(n as usize)
                 }
@@ -1349,7 +1413,7 @@ fn every_licensed_cell_inspects_as_a_first_class_contract() {
             failures.push(err);
         }
     }
-    assert_eq!(n, 669, "licensed inventory drifted");
+    assert_eq!(n, 717, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells are not first-class on inspect:\n{}",
@@ -1388,7 +1452,7 @@ fn every_licensed_cell_completes_the_compiler_path() {
             Err(err) => failures.push(err),
         }
     }
-    assert_eq!(n, 669, "licensed inventory drifted");
+    assert_eq!(n, 717, "licensed inventory drifted");
     assert!(
         failures.is_empty(),
         "{} licensed cells did not finish inspect→preview→execute→claim→consume:\n{}",
@@ -1522,7 +1586,7 @@ fn diagnostic_registry_closure_after_builder_and_study_drop() {
         not_inspectable.len(),
         not_inspectable.join("\n")
     );
-    assert_eq!(count, 669, "licensed support inventory drifted");
+    assert_eq!(count, 717, "licensed support inventory drifted");
 }
 
 /// Opt-in probe for the separately licensed alternate estimators. It keeps

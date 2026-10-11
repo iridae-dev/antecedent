@@ -3351,3 +3351,243 @@ estimator = "transport.trial_ipw"
 coordinate = "TransportQuery:TemporalAdmg:explicit:Bayesian:none"
 identifier = "transport.sid"
 estimator = "transport.trial_bayesian_bootstrap"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalPulse:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "TemporalConditionalSustained:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "AverageDerivative:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "PointDerivative:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "PointDerivative:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Elasticity:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "Elasticity:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "SemiElasticity:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "DirectionalDerivative:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.response.gcomp"
+
+[[route]]
+coordinate = "ResponseJacobian:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "response.temporal.bayesian"
+
+[[route]]
+coordinate = "Counterfactual:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "Counterfactual:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "InterventionalDistribution:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "NestedCounterfactualEffect:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalCpdag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalCpdag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalPag:graph_posterior:Frequentist:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"
+
+[[route]]
+coordinate = "PathSpecificEffect:TemporalPag:graph_posterior:Bayesian:none"
+identifier = "generalized.adjustment"
+estimator = "temporal.linear.adjustment"

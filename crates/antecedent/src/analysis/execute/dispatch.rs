@@ -152,13 +152,12 @@ impl super::Study {
                     (
                         DataInput::Tabular(_),
                         GraphClass::Dag | GraphClass::Admg | GraphClass::TemporalAdmg
+                    ) | (
+                        DataInput::Temporal(_) | DataInput::Event(_),
+                        GraphClass::TemporalDag
+                            | GraphClass::TemporalCpdag
+                            | GraphClass::TemporalPag
                     )
-                        | (
-                            DataInput::Temporal(_) | DataInput::Event(_),
-                            GraphClass::TemporalDag
-                                | GraphClass::TemporalCpdag
-                                | GraphClass::TemporalPag
-                        )
                 ) =>
             {
                 return Err(CausalError::Unsupported {
@@ -492,6 +491,17 @@ impl super::Study {
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
         if let Some(gp) = &self.graph_posterior {
+            if let (DataInput::Temporal(series) | DataInput::Event(series), true) = (
+                data,
+                matches!(
+                    gp.atom_kind,
+                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
+                ) && super::temporal_class_point::temporal_class_point_family(&self.query),
+            ) {
+                return self
+                    .execute_temporal_class_graph_posterior_family(series, gp, physical, ctx);
+            }
             return match (data, &self.query) {
                 (DataInput::Tabular(data), _) => {
                     self.execute_graph_posterior_tabular(data, gp, physical, ctx)
@@ -759,11 +769,10 @@ impl super::Study {
                         }
                     }
                     GraphClass::TemporalAdmg => {
-                        let admg = temporal_admg_projection(
-                            self.graph.as_temporal_admg().expect(
+                        let admg =
+                            temporal_admg_projection(self.graph.as_temporal_admg().expect(
                                 "class() == TemporalAdmg implies as_temporal_admg() is Some",
-                            ),
-                        )?;
+                            ))?;
                         if admg_has_bidirected(&admg) {
                             self.execute_admg_response(data, &admg, q, physical, ctx)
                         } else {
@@ -856,11 +865,10 @@ impl super::Study {
                         self.execute_pag(data, pag, q, physical, ctx)
                     }
                     GraphClass::TemporalAdmg => {
-                        let admg = temporal_admg_projection(
-                            self.graph.as_temporal_admg().expect(
+                        let admg =
+                            temporal_admg_projection(self.graph.as_temporal_admg().expect(
                                 "class() == TemporalAdmg implies as_temporal_admg() is Some",
-                            ),
-                        )?;
+                            ))?;
                         if admg_has_bidirected(&admg) {
                             self.execute_admg(data, &admg, q, physical, ctx)
                         } else {
@@ -923,11 +931,10 @@ impl super::Study {
                         )
                     }
                     GraphClass::TemporalAdmg => {
-                        let admg = temporal_admg_projection(
-                            self.graph.as_temporal_admg().expect(
+                        let admg =
+                            temporal_admg_projection(self.graph.as_temporal_admg().expect(
                                 "class() == TemporalAdmg implies as_temporal_admg() is Some",
-                            ),
-                        )?;
+                            ))?;
                         self.execute_distribution(
                             data,
                             super::static_path::DistributionGraph::Admg(&admg),

@@ -6988,8 +6988,7 @@ impl Study {
             posterior.atom_kind,
             antecedent_discovery::GraphPosteriorAtomKind::Admg
                 | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg
-        )
-            || !analysis.custom_validators.is_empty()
+        ) || !analysis.custom_validators.is_empty()
             || !matches!(
                 analysis.estimator_spec.as_ref().map(crate::EstimatorSpec::id),
                 None | Some(crate::strategy_table::EstimatorId::FunctionalEffect)
@@ -7708,6 +7707,17 @@ impl Study {
                     self.prepare_temporal_identification()?.map(Arc::new);
                 analysis.temporal_class_identification_cache =
                     self.prepare_temporal_class_identification()?.map(Arc::new);
+            }
+            (
+                DataInput::Temporal(_) | DataInput::Event(_),
+                CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_),
+                Some(_),
+            ) => {
+                // Identification runs at execute, on the cross-world probe, so the
+                // cache matches the producer rather than an average-effect witness.
             }
             (_, _, Some(_)) => {
                 // `ensure_prepared_supported` already refuses this coordinate; a
@@ -8659,44 +8669,43 @@ impl Study {
                 DataInput::Tabular(data),
                 CausalQuery::Response(query),
                 GraphClass::Admg | GraphClass::TemporalAdmg,
-            )
-                if analysis.graph_posterior.is_none()
-                    && analysis.tiered.is_none()
-                    && query.temporal.is_none()
-                    && query.observation == antecedent_core::ObservationSpec::Complete
-                    && query.target_population == TargetPopulation::AllObserved
-                    && query.outcome_functional == OutcomeFunctional::Mean
-                    && matches!(
-                        (&query.functional, analysis.refute),
-                        (_, RefuteSuite::None)
-                            | (
-                                antecedent_core::ResponseFunctional::InterventionResponse { .. },
-                                RefuteSuite::Cheap | RefuteSuite::Full,
-                            )
-                    )
-                    && plan
-                        .logical
-                        .record
-                        .identifier
-                        .as_deref()
-                        .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
-                        == crate::strategy_table::IdentifierId::GeneralId.as_str()
-                    && plan
-                        .logical
-                        .record
-                        .estimator
-                        .as_deref()
-                        .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
-                        == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
-                    && matches!(
-                        query.functional,
-                        antecedent_core::ResponseFunctional::MeanCurve { .. }
-                            | antecedent_core::ResponseFunctional::InterventionResponse { .. }
-                    )
-                    && matches!(
-                        analysis.inference,
-                        InferenceMode::Frequentist | InferenceMode::Bayesian(_)
-                    ) =>
+            ) if analysis.graph_posterior.is_none()
+                && analysis.tiered.is_none()
+                && query.temporal.is_none()
+                && query.observation == antecedent_core::ObservationSpec::Complete
+                && query.target_population == TargetPopulation::AllObserved
+                && query.outcome_functional == OutcomeFunctional::Mean
+                && matches!(
+                    (&query.functional, analysis.refute),
+                    (_, RefuteSuite::None)
+                        | (
+                            antecedent_core::ResponseFunctional::InterventionResponse { .. },
+                            RefuteSuite::Cheap | RefuteSuite::Full,
+                        )
+                )
+                && plan
+                    .logical
+                    .record
+                    .identifier
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_IDENTIFIER)
+                    == crate::strategy_table::IdentifierId::GeneralId.as_str()
+                && plan
+                    .logical
+                    .record
+                    .estimator
+                    .as_deref()
+                    .unwrap_or(crate::strategy_table::DEFAULT_ADMG_ESTIMATOR)
+                    == crate::strategy_table::EstimatorId::FunctionalEffect.as_str()
+                && matches!(
+                    query.functional,
+                    antecedent_core::ResponseFunctional::MeanCurve { .. }
+                        | antecedent_core::ResponseFunctional::InterventionResponse { .. }
+                )
+                && matches!(
+                    analysis.inference,
+                    InferenceMode::Frequentist | InferenceMode::Bayesian(_)
+                ) =>
             {
                 let (treatment, outcome, grid) = match &query.functional {
                     antecedent_core::ResponseFunctional::MeanCurve { outcome, treatment } => (
@@ -8742,9 +8751,11 @@ impl Study {
                 }
                 let admg = match analysis.graph.class() {
                     GraphClass::Admg => analysis.graph.as_admg().cloned(),
-                    GraphClass::TemporalAdmg => analysis.graph.as_temporal_admg().map(|graph| {
-                        super::execute::temporal_admg_projection(graph)
-                    }).transpose()?,
+                    GraphClass::TemporalAdmg => analysis
+                        .graph
+                        .as_temporal_admg()
+                        .map(|graph| super::execute::temporal_admg_projection(graph))
+                        .transpose()?,
                     _ => None,
                 }
                 .ok_or_else(|| CausalError::Compile {
@@ -10127,9 +10138,11 @@ impl Study {
 
                     let admg = match self.graph.class() {
                         GraphClass::Admg => self.graph.as_admg().cloned(),
-                        GraphClass::TemporalAdmg => self.graph.as_temporal_admg().map(|graph| {
-                            super::execute::temporal_admg_projection(graph)
-                        }).transpose()?,
+                        GraphClass::TemporalAdmg => self
+                            .graph
+                            .as_temporal_admg()
+                            .map(|graph| super::execute::temporal_admg_projection(graph))
+                            .transpose()?,
                         _ => None,
                     };
                     let Some(admg) = admg else {
@@ -10212,9 +10225,9 @@ impl Study {
                         .transpose()?,
                     _ => None,
                 };
-                if let Some(admg) = response_admg.as_ref().filter(|admg| {
-                    super::execute::admg_has_bidirected(admg)
-                }) {
+                if let Some(admg) =
+                    response_admg.as_ref().filter(|admg| super::execute::admg_has_bidirected(admg))
+                {
                     use crate::strategy_table::identify_admg_query;
                     // `execute_admg_response` reuses this cache verbatim as the *first grid
                     // level's* claim for a MeanCurve (it only re-identifies per level from the
@@ -11101,7 +11114,11 @@ fn ensure_prepared_supported(analysis: &Study) -> Result<(), CausalError> {
                 DataInput::Temporal(_) | DataInput::Event(_),
                 CausalQuery::TemporalEffect(_)
                 | CausalQuery::Mediation(_)
-                | CausalQuery::Response(_),
+                | CausalQuery::Response(_)
+                | CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_),
             ) => Ok(()),
             _ => Err(crate::support_reason!(
                 "data_modality_not_licensed",

@@ -603,10 +603,8 @@ impl super::Study {
                 let (identifier, estimator) = match atom_kind {
                     Some(
                         antecedent_discovery::GraphPosteriorAtomKind::Admg
-                            | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
-                    ) => {
-                        (Arc::from("general.id"), Arc::from("functional.effect"))
-                    }
+                        | antecedent_discovery::GraphPosteriorAtomKind::TemporalAdmg,
+                    ) => (Arc::from("general.id"), Arc::from("functional.effect")),
                     Some(
                         antecedent_discovery::GraphPosteriorAtomKind::Cpdag
                         | antecedent_discovery::GraphPosteriorAtomKind::Pag,
@@ -699,7 +697,21 @@ impl super::Study {
                     false,
                     class,
                 )?;
-                if is_multi_step_sustained(q) {
+                let class_atom = matches!(
+                    self.graph_posterior.as_ref().map(|gp| gp.atom_kind),
+                    Some(
+                        antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                            | antecedent_discovery::GraphPosteriorAtomKind::Pag
+                    )
+                );
+                if class_atom && !q.effect_modifiers.is_empty() {
+                    // The conditional point is the completion-weighted linear producer,
+                    // including under a Bayesian isotropic prior. It is not the ATE g-computation.
+                    logical.record.identifier =
+                        Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str()));
+                    logical.record.estimator =
+                        Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str()));
+                } else if is_multi_step_sustained(q) {
                     logical.record.estimator = Some(Arc::from("temporal.sequential.gcomp"));
                 } else if matches!(self.inference, InferenceMode::Bayesian(_)) {
                     logical.record.estimator =
@@ -772,6 +784,48 @@ impl super::Study {
                         .and_then(|gp| gp.algorithm.clone())
                         .unwrap_or_else(|| Arc::from("dbn_posterior")),
                 );
+                logical.compile_physical(ctx)
+            }
+            (
+                DataInput::Temporal(data) | DataInput::Event(data),
+                CausalQuery::NestedCounterfactual(_)
+                | CausalQuery::PathSpecific(_)
+                | CausalQuery::Counterfactual(_)
+                | CausalQuery::Distribution(_),
+            ) if matches!(
+                self.graph_posterior.as_ref().map(|posterior| posterior.atom_kind),
+                Some(
+                    antecedent_discovery::GraphPosteriorAtomKind::Cpdag
+                        | antecedent_discovery::GraphPosteriorAtomKind::Pag
+                )
+            ) =>
+            {
+                let (treatment, outcome) =
+                    super::temporal_class_point::cross_world_plan_variables(&self.query)?;
+                let plan_id = match self.graph.class() {
+                    GraphClass::TemporalPag => "temporal_pag_cross_world",
+                    _ => "temporal_cpdag_cross_world",
+                };
+                let logical = LogicalAnalysisPlan {
+                    record: antecedent_core::LogicalAnalysisPlanRecord {
+                        plan_id: Arc::from(plan_id),
+                        data_classification: antecedent_core::DataClassification::Temporal,
+                        discovery_algorithm: Some(
+                            self.graph_posterior
+                                .as_ref()
+                                .and_then(|gp| gp.algorithm.clone())
+                                .unwrap_or_else(|| Arc::from("graph_posterior")),
+                        ),
+                        graph_review_required: false,
+                        identifier: Some(Arc::from(IdentifierId::GeneralizedAdjustment.as_str())),
+                        estimator: Some(Arc::from(EstimatorId::TemporalLinearAdjustment.as_str())),
+                        validation_suite: self.validation_suite_id(),
+                        query_variables: Arc::from([treatment, outcome]),
+                    },
+                    query: self.query.clone(),
+                    split: None,
+                    row_count_hint: data.row_count() as u64,
+                };
                 logical.compile_physical(ctx)
             }
             _ => Err(CausalError::Unsupported {
