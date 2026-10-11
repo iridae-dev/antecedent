@@ -156,6 +156,41 @@ pub fn implicit_closure<N: Ord + Clone, I: IntoIterator<Item = N>>(
     seen
 }
 
+/// Connected components of the undirected relation `neighbors` over nodes `0..n`.
+///
+/// Each component lists its members ascending, and components are ordered by their smallest
+/// member. `neighbors(i)` may repeat nodes or name `i` itself. For graphs whose adjacency is
+/// held in caller-side index form (a union of several edge kinds, an edge list) rather than
+/// as dense adjacency slices.
+pub fn components_by<I: IntoIterator<Item = usize>>(
+    n: usize,
+    mut neighbors: impl FnMut(usize) -> I,
+) -> Vec<Vec<usize>> {
+    let mut seen = vec![false; n];
+    let mut components = Vec::new();
+    let mut stack = Vec::new();
+    for start in 0..n {
+        if seen[start] {
+            continue;
+        }
+        seen[start] = true;
+        stack.push(start);
+        let mut members = Vec::new();
+        while let Some(u) = stack.pop() {
+            members.push(u);
+            for v in neighbors(u) {
+                if v < n && !seen[v] {
+                    seen[v] = true;
+                    stack.push(v);
+                }
+            }
+        }
+        members.sort_unstable();
+        components.push(members);
+    }
+    components
+}
+
 /// Kahn topological order. Returns `None` if a directed cycle exists.
 #[must_use]
 pub fn kahn_order(
@@ -228,6 +263,15 @@ mod tests {
                 assert_eq!(mask_closure(seeds, &masks, frozen), expected, "{seeds:b}/{frozen:b}");
             }
         }
+    }
+
+    #[test]
+    fn components_by_orders_components_by_smallest_member() {
+        // 0-3, 1-4-2, 5 alone.
+        let adjacency = [vec![3], vec![4], vec![4], vec![0], vec![1, 2], vec![]];
+        let components = components_by(6, |i| adjacency[i].iter().copied());
+        assert_eq!(components, vec![vec![0, 3], vec![1, 2, 4], vec![5]]);
+        assert!(components_by(0, |_| Vec::new()).is_empty());
     }
 
     #[test]

@@ -4,7 +4,7 @@
 
 use antecedent_core::VariableId;
 
-use crate::algo::{bfs_reaches, closure_into, is_dag, kahn_order};
+use crate::algo::{bfs_reaches, closure_into, components_by, is_dag, kahn_order};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
@@ -130,6 +130,41 @@ impl Admg {
             g.insert_directed(from, to)?;
         }
         Ok(g)
+    }
+
+    /// The ADMG with `dag`'s nodes (labels preserved) and directed edges, no bidirected edges.
+    ///
+    /// # Errors
+    ///
+    /// Node capacity (a valid DAG cannot otherwise be refused).
+    pub fn from_dag(dag: &crate::dag::Dag) -> Result<Self, GraphError> {
+        let mut out = Self::empty();
+        for node in dag.nodes() {
+            out.add_node(*node)?;
+        }
+        for (from, to) in dag.edges().filter_map(MarkedEdge::parent_child) {
+            out.insert_directed(from, to)?;
+        }
+        Ok(out)
+    }
+
+    /// The DAG of this ADMG's directed edges over the same nodes (labels preserved);
+    /// bidirected edges are dropped.
+    ///
+    /// # Errors
+    ///
+    /// Node capacity (the directed part of an ADMG is acyclic by construction).
+    pub fn directed_part(&self) -> Result<crate::dag::Dag, GraphError> {
+        let mut out = crate::dag::Dag::empty();
+        for node in &self.nodes {
+            out.add_node(*node)?;
+        }
+        for (from, kids) in self.node_ids().zip(&self.children) {
+            for &to in kids {
+                out.insert_directed(from, to)?;
+            }
+        }
+        Ok(out)
     }
 
     /// Number of nodes.
@@ -460,6 +495,24 @@ impl Admg {
         out
     }
 
+    /// Weakly connected components: nodes joined by any chain of directed or bidirected
+    /// edges, ignoring direction. Each component ascends; components are ordered by their
+    /// smallest member.
+    #[must_use]
+    pub fn weak_components(&self) -> Vec<Vec<DenseNodeId>> {
+        components_by(self.node_count(), |i| {
+            let id = DenseNodeId::from_index(i);
+            self.children(id)
+                .iter()
+                .chain(self.parents(id))
+                .chain(self.bidirected_neighbors(id))
+                .map(|v| v.as_usize())
+        })
+        .into_iter()
+        .map(|c| c.into_iter().map(DenseNodeId::from_index).collect())
+        .collect()
+    }
+
     /// Connected components under bidirected edges (districts).
     ///
     /// Returns a district id per dense node (`0..n_districts-1`).
@@ -704,6 +757,80 @@ mod tests {
             !out.contains(DenseNodeId::from_raw(2)),
             "bidirected neighbor must not become a directed descendant"
         );
+    }
+
+    /// 0 -> 1 -> 3, 2 -> 3, 0 <-> 2, 4 isolated, 5 <-> 6.
+    fn mixed() -> Admg {
+        let id = DenseNodeId::from_raw;
+        let mut g = Admg::with_variables(7);
+        for (a, b) in [(0, 1), (1, 3), (2, 3)] {
+            g.insert_directed(id(a), id(b)).unwrap();
+        }
+        g.insert_bidirected(id(2), id(0)).unwrap();
+        g.insert_bidirected(id(5), id(6)).unwrap();
+        g
+    }
+
+    #[test]
+    fn strict_ancestor_sets_match_the_seeded_closure_minus_the_seed() {
+        let g = mixed();
+        let sets = g.strict_ancestor_sets();
+        let mut ws = GraphWorkspace::default();
+        for v in g.node_ids() {
+            let mut inclusive = BitSet::default();
+            g.ancestors_of(&[v], &mut inclusive, &mut ws);
+            inclusive.remove(v);
+            assert_eq!(sets[v.as_usize()], inclusive, "node {v:?}");
+        }
+    }
+
+    #[test]
+    fn weak_components_and_district_closure_follow_the_right_edge_kinds() {
+        let g = mixed();
+        let raw = |c: &Vec<DenseNodeId>| c.iter().map(|v| v.raw()).collect::<Vec<_>>();
+        let components = g.weak_components();
+        assert_eq!(
+            components.iter().map(raw).collect::<Vec<_>>(),
+            vec![vec![0, 1, 2, 3], vec![4], vec![5, 6]]
+        );
+        let mut ws = GraphWorkspace::default();
+        let active = BitSet::full(7);
+        assert_eq!(
+            g.district_closure_within(&set(7, &[0]), &active, &mut ws).to_dense_ids(),
+            vec![DenseNodeId::from_raw(0), DenseNodeId::from_raw(2)]
+        );
+        // A seed outside the active set is dropped; an inactive node is never crossed.
+        let mut without_two = BitSet::full(7);
+        without_two.remove(DenseNodeId::from_raw(2));
+        assert_eq!(
+            g.district_closure_within(&set(7, &[0, 2]), &without_two, &mut ws).to_dense_ids(),
+            vec![DenseNodeId::from_raw(0)]
+        );
+    }
+
+    #[test]
+    fn edge_lists_and_dag_round_trip() {
+        let g = mixed();
+        assert_eq!(g.directed_edge_pairs_sorted(), vec![(0, 1), (1, 3), (2, 3)]);
+        assert_eq!(g.bidirected_edge_pairs_sorted(), vec![(0, 2), (5, 6)]);
+        let variable = |raw| antecedent_core::VariableId::from_raw(raw);
+        assert_eq!(
+            g.static_directed_edges_sorted(),
+            Some(vec![
+                (variable(0), variable(1)),
+                (variable(1), variable(3)),
+                (variable(2), variable(3))
+            ])
+        );
+        assert_eq!(g.static_variable(DenseNodeId::from_raw(4)), Some(variable(4)));
+        assert_eq!(g.dense_of_static(variable(6)), Some(DenseNodeId::from_raw(6)));
+        assert_eq!(g.dense_of_static(variable(9)), None);
+        let dag = g.directed_part().unwrap();
+        assert_eq!(dag.directed_edge_pairs_sorted(), g.directed_edge_pairs_sorted());
+        let back = Admg::from_dag(&dag).unwrap();
+        assert_eq!(back.directed_edge_pairs_sorted(), g.directed_edge_pairs_sorted());
+        assert!(!back.has_bidirected());
+        assert_eq!(back.nodes(), g.nodes());
     }
 
     #[test]
