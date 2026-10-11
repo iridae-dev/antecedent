@@ -8,6 +8,12 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 
 - Workspace, Python package, and citation metadata carry version 2.4.0.
 - The 2.3.0 release notes keep a frozen support snapshot. Later matrix regeneration writes the 2.4.0 notes.
+- One owner for each shared numeric primitive. Dense solves and Cholesky factors use the kernels, stats and prob owners with a scale-free rank rule, so a design in small units is no longer refused where a design in large units was fitted. Effective sample size, the normal quantile (now accurate to a few ulps), the log normal tail, sigmoid, softmax, median, quantile and sample deviation each have one implementation. An effective sample size of impossible weights is NaN, not zero or uniform.
+- Persisted identities and receipts are hashed through one canonical writer. Every receipt, replicate, panel and selection digest from the sampled-recovery, scenario-covariance, temporal-refresh, dependent-interval, cluster-DML, temporal-completion and shared-abduction routes, and the design, decision and io artifact identities, change value. Artifacts and cross-surface fixtures were regenerated; 2.3.0 artifacts are not replayed.
+- Cross-fitted estimators run through one fold plan and engine. The Bayesian robust ATE, learned-continuous and smoothed-dose routes take seeded stratified folds, so their fold assignments, seeded results and fold scheme names change. DML and DR refuse an exact boundary propensity as an overlap violation, as the cross-fit AIPW route already did.
+- Result-artifact verification applies the full graphless license predicate, so a forged minimum action probability below the licensed floor is refused.
+- External-refusal JSON from the Python bindings carries the missing capability, and declared-size refusals use one message and reason code.
+- The cross-world closed form is fitted by pivoted QR, and Bayesian IV and RD draw from the shared Gaussian sampler, so their draws differ for a given seed.
 
 ## 2.3.0
 
