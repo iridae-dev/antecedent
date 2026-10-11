@@ -246,20 +246,20 @@ mod tests {
         let parents = parents();
         let n = parents.len();
         let masks: Vec<u16> =
-            parents.iter().map(|ps| ps.iter().fold(0u16, |m, p| m | 1 << p.as_usize())).collect();
+            parents.iter().map(|ps| ps.iter().fold(0u16, |m, p| m | (1 << p.as_usize()))).collect();
         let mut ws = GraphWorkspace::default();
         for seeds in 0u16..(1 << n) {
-            for frozen in [0u16, 0b000100, 0b001010, 0b111111] {
+            for frozen in [0u16, 0b00_0100, 0b00_1010, 0b11_1111] {
                 let mut dense = BitSet::with_len(n);
                 closure_into(
                     n,
                     |u| parents[u.as_usize()].as_slice(),
-                    (0..n).filter(|i| seeds >> i & 1 == 1).map(DenseNodeId::from_index),
+                    (0..n).filter(|i| (seeds >> i) & 1 == 1).map(DenseNodeId::from_index),
                     &mut dense,
                     &mut ws,
-                    |u, _| frozen >> u.as_usize() & 1 == 0,
+                    |u, _| (frozen >> u.as_usize()) & 1 == 0,
                 );
-                let expected = dense.iter().fold(0u16, |m, v| m | 1 << v.as_usize());
+                let expected = dense.iter().fold(0u16, |m, v| m | (1 << v.as_usize()));
                 assert_eq!(mask_closure(seeds, &masks, frozen), expected, "{seeds:b}/{frozen:b}");
             }
         }
