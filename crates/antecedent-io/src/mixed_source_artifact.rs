@@ -29,8 +29,8 @@ use antecedent_core::{
 };
 use antecedent_expr::{Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
-    BoundMixedSourceFunctional, IdentificationError, MixedSourceDerivation,
-    MixedSourceDerivationRecord, MixedSourceQuery, ZTransportSourceSpec, bind_mixed_source_catalog,
+    BoundMixedSourceFunctional, MixedSourceDerivation, MixedSourceDerivationRecord,
+    MixedSourceQuery, ZTransportSourceSpec, bind_mixed_source_catalog,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -42,42 +42,7 @@ pub const MIXED_SOURCE_ARTIFACT_FEATURE: &str = "checked_mixed_source_point_v1";
 /// The only uncertainty claim of this route: exact laws, a point, no interval.
 pub const MIXED_SOURCE_POINT_ONLY: &str = "point_only";
 
-/// Why a mixed-source artifact was refused. Callers match the kind.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum MixedSourceArtifactError {
-    /// The feature marker, claim or result shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A stored limit or collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The re-run decision did not reproduce the stored derivation.
-    #[error("proof does not verify: {0}")]
-    ProofMismatch(IdentificationError),
-    /// The verified derivation does not bind to the stored catalog.
-    #[error("catalog binding failed: {0}")]
-    CatalogBinding(IdentificationError),
-    /// The stored source-named bindings differ from the re-derived ones.
-    #[error("source bindings do not match the checked binding")]
-    BindingMismatch,
-    /// A stored law is not a valid law or law set.
-    #[error("invalid law: {0}")]
-    LawInvalid(String),
-    /// A recomputed point differs from the stored point.
-    #[error("point result does not replay")]
-    PointMismatch,
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The data-identity digest does not match the stored snapshot identities.
-    #[error("data identity digest mismatch")]
-    DataIdentityMismatch,
-    /// The caller's variable names are not the names the artifact was built under.
-    #[error("variable names do not match the verified name mapping")]
-    NamesMismatch,
-}
-
+pub use antecedent_io_core::transport_errors::MixedSourceArtifactError;
 /// Bounds a consumer imposes on a replay. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct MixedSourceConsumeLimits {

@@ -193,6 +193,7 @@ dependencies = [
  "antecedent-expr",
  "antecedent-graph",
  "antecedent-identify",
+ "antecedent-io-core",
  "antecedent-kernels",
  "antecedent-learn",
  "antecedent-prob",
@@ -240,13 +241,12 @@ name = "antecedent-io"
 version = "2.4.0"
 dependencies = [
  "antecedent-core",
- "antecedent-counterfactual",
- "antecedent-discovery",
  "antecedent-estimate",
  "antecedent-expr",
  "antecedent-graph",
  "antecedent-identify",
  "antecedent-io",
+ "antecedent-io-core",
  "antecedent-kernels",
  "antecedent-learn",
  "antecedent-model",
@@ -254,6 +254,28 @@ dependencies = [
  "antecedent-stats",
  "antecedent-test-support",
  "antecedent-validate",
+ "blake3",
+ "ciborium",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "antecedent-io-core"
+version = "2.4.0"
+dependencies = [
+ "antecedent-core",
+ "antecedent-counterfactual",
+ "antecedent-discovery",
+ "antecedent-expr",
+ "antecedent-graph",
+ "antecedent-identify",
+ "antecedent-kernels",
+ "antecedent-model",
+ "antecedent-prob",
+ "antecedent-stats",
+ "antecedent-test-support",
  "blake3",
  "ciborium",
  "memmap2",

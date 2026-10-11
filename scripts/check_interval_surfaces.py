@@ -90,7 +90,7 @@ INTERVAL_SURFACES = {
     ],
     "counterfactual.path_specific_edge": [
         "crates/antecedent/src/cross_world.rs",
-        "crates/antecedent-io/src/cross_world_artifact.rs",
+        "crates/antecedent-io-core/src/cross_world_artifact.rs",
         "python/antecedent/cross_world.py",
     ],
     "identify.mixed_source_proof_search": [

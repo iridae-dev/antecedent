@@ -2,7 +2,7 @@
 use crate::error::convert_err as err;
 use crate::{
     IoError,
-    contract_section::{
+    contract_wire::{
         AssumptionSlotWire, IdentificationSlotWire, ObligationSectionWire, ReasoningSectionWire,
         SlotSectionWire,
     },

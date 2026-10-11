@@ -68,35 +68,7 @@ pub const TRANSPORT_SCENARIO_CONDITIONAL_ARTIFACT_VERSION: u32 = 2;
 /// [`TRANSPORT_SCENARIO_ARTIFACT_FEATURE`].
 pub const TRANSPORT_SCENARIO_CONDITIONAL_FEATURE: &str = "transport_scenario_admg_conditional_v2";
 
-/// Why a scenario artifact was refused.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum TransportScenarioArtifactError {
-    /// The feature marker is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A recorded limit or stored collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The recomputed report differs from the stored report.
-    #[error("scenario report does not replay")]
-    ReportMismatch,
-    /// The stored laws disagree with the recorded provider or its samples.
-    #[error("scenario provider mismatch: {0}")]
-    ProviderMismatch(&'static str),
-    /// The stored catalog, laws, provider or sample summaries do not match the
-    /// data-identity digest.
-    #[error("scenario data identity mismatch")]
-    DataIdentityMismatch,
-    /// The report was truncated by cancellation, which no consumer can
-    /// reproduce: it is never exported.
-    #[error("a report truncated by cancellation cannot be independently verified")]
-    CancelledNotReplayable,
-}
-
+pub use antecedent_io_core::transport_errors::TransportScenarioArtifactError;
 /// A refused scenario set, schema or law as a reason-coded refusal.
 #[must_use]
 #[doc(hidden)]

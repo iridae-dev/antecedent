@@ -19,7 +19,7 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-identify/src/sid/meta.rs",
  "crates/antecedent-identify/tests/meta_transport_scm.rs",
- "crates/antecedent-io/src/transport_certificate.rs",
+ "crates/antecedent-io-core/src/transport_certificate.rs",
  "crates/antecedent/src/analysis/transport_grid.rs",
  "python/tests/test_transport_meta_grid.py",
 ]

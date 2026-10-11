@@ -60,62 +60,7 @@ pub const LEARNED_CONTINUOUS_ARTIFACT_FEATURE: &str = "checked_learned_continuou
 pub const LEARNED_CONTINUOUS_INTERVAL_ARTIFACT_FEATURE: &str =
     "checked_learned_continuous_analytic_interval_v2";
 
-/// Why a learned-continuous artifact was refused. Callers match the kind.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum LearnedContinuousArtifactError {
-    /// The feature marker or shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A stored size or bound exceeds the consumer's or the frozen cell's bound.
-    #[error("limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The request no longer validates against its stored graph, query and rows.
-    #[error("request does not validate: {0}")]
-    InvalidRequest(String),
-    /// The certificate re-derived from the stored graph and query is not the stored one.
-    #[error("certificate does not verify: {0}")]
-    ProofMismatch(String),
-    /// The stored fold assignment or scheme is not the recomputed one.
-    #[error("fold provenance does not match the stored rows")]
-    FoldMismatch,
-    /// The stored provider provenance does not cover every fitted nuisance, names a
-    /// learner other than the stored spec, or is inconsistent within a nuisance role.
-    #[error("provider provenance is incomplete or contradicts the learner specs")]
-    ProvenanceMismatch,
-    /// The recomputed point differs from the stored point.
-    #[error("point estimate does not replay")]
-    PointMismatch,
-    /// The analytic standard error or interval does not replay.
-    #[error("analytic interval does not replay")]
-    IntervalMismatch,
-    /// The recomputed held-out diagnostics differ from the stored ones.
-    #[error("nuisance diagnostics do not replay")]
-    DiagnosticsMismatch,
-    /// The recomputed membership or treatment overlap differs from the stored one.
-    #[error("overlap report does not replay")]
-    OverlapMismatch,
-    /// The stored membership predictions leave the declared overlap threshold.
-    #[error("membership overlap is below the declared threshold")]
-    OverlapRefused,
-    /// The stored interval status contradicts its format and request.
-    #[error("uncertainty bookkeeping does not check: {0}")]
-    UncertaintyMismatch(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The data digest does not match the stored rows.
-    #[error("data digest mismatch")]
-    DataIdentityMismatch,
-    /// The evidence digest does not match the stored result (point, nuisance predictions,
-    /// provenance, folds, diagnostics, overlap, interval status).
-    #[error("evidence digest mismatch")]
-    EvidenceMismatch,
-    /// The caller's variable names are not the names the artifact was built under.
-    #[error("variable names do not match the verified name mapping")]
-    NamesMismatch,
-}
-
+pub use antecedent_io_core::transport_errors::LearnedContinuousArtifactError;
 /// Bounds a consumer imposes on a replay. Nothing the artifact stores raises them.
 #[derive(Clone, Copy, Debug)]
 pub struct LearnedContinuousConsumeLimits {

@@ -1,0 +1,40 @@
+[package]
+name = "antecedent-io-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Estimator-free artifact container, wire types, digests and codecs for the Antecedent engine; start with the `antecedent` crate"
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
+antecedent-counterfactual = { version = "2.4.0", path = "../antecedent-counterfactual" }
+antecedent-discovery = { version = "2.4.0", path = "../antecedent-discovery" }
+antecedent-expr = { version = "2.4.0", path = "../antecedent-expr" }
+antecedent-graph = { version = "2.4.0", path = "../antecedent-graph" }
+antecedent-identify = { version = "2.4.0", path = "../antecedent-identify" }
+antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
+antecedent-model = { version = "2.4.0", path = "../antecedent-model" }
+antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }
+antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }
+blake3 = { workspace = true }
+ciborium = { workspace = true }
+memmap2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10.9"
+thiserror = { workspace = true }
+zstd = { workspace = true }
+
+[dev-dependencies]
+antecedent-test-support = { path = "../antecedent-test-support" }

@@ -360,6 +360,19 @@ pub const fn stored_law_bounds(
     }
 }
 
+/// Count words enter the canonical stream as `u64`, saturating at `u64::MAX`.
+#[doc(hidden)]
+pub trait CanonicalSize {
+    /// Write `value` as one canonical word.
+    fn size(&mut self, value: usize) -> &mut Self;
+}
+
+impl CanonicalSize for antecedent_core::CanonicalWriter {
+    fn size(&mut self, value: usize) -> &mut Self {
+        self.word(u64::try_from(value).unwrap_or(u64::MAX))
+    }
+}
+
 /// Hex digest of one canonical value.
 ///
 /// The domain and the value are the digest inputs. This only shares the
@@ -562,6 +575,9 @@ macro_rules! map_artifact_check {
             $crate::artifact_codec::ArtifactCheckError::UnsupportedSemantics(detail) => {
                 $ty::UnsupportedSemantics(detail)
             }
+            // `ArtifactCheckError` is non-exhaustive and this expands in other crates.
+            #[allow(unreachable_patterns)]
+            other => $ty::Malformed(other.to_string()),
         }
     }};
 }

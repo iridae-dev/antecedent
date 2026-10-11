@@ -17,7 +17,7 @@ EVIDENCE = {
     "context.mediation.nonparametric": "crates/antecedent-identify/src/path_specific.rs",
     "context.conditional": "crates/antecedent/tests/context_effects.rs",
     "context.prediction": "crates/antecedent/tests/context_effects.rs",
-    "context.query_model_planned_variants": "crates/antecedent-io/src/query_wire.rs",
+    "context.query_model_planned_variants": "crates/antecedent-io-core/src/query_wire.rs",
 }
 
 EXIT_ARTIFACTS = [

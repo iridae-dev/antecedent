@@ -27,7 +27,7 @@ notes = "DOT + JSON + GML + NetworkX DAG interchange in antecedent-io"
 [[capabilities]]
 id = "release.artifact_schema"
 status = "done"
-evidence_test = "crates/antecedent-io/src/migrate.rs"
+evidence_test = "crates/antecedent-io-core/src/migrate.rs"
 evidence_assertion = "migrate_0_2_to_0_5_preserves_sections"
 limitations = "Named test covers the 0.2 to 0.5 migration chain preserving section bytes; the 0.1, 0.3 and 0.4 paths, golden fixtures and validate_result_* bindings are covered by sibling tests."
 notes = "Format 0.5 stable (antecedent_io::STABLE_FORMAT); migrates from 0.1, 0.2, 0.3, and 0.4; migrate registry + golden fixtures. Composition: validate_result_* in crates/antecedent-io/src/analysis_result_artifact.rs binds enclosing query, horizon, and mass. Parent evidence stays artifact-schema, not estimator truth."
@@ -59,7 +59,7 @@ notes = "unsafe/license/dependency review + cargo-deny. Enforced by scripts/gate
 [[capabilities]]
 id = "release.artifact_mmap_stream_skip"
 status = "done"
-evidence_test = "crates/antecedent-io/src/reader.rs"
+evidence_test = "crates/antecedent-io-core/src/reader.rs"
 evidence_assertion = "mmap_uncompressed_section"
 limitations = "Named test covers the mmap view; section skip is covered by open_seek_loads_meta_only, and Arrow Never-compress and posterior meta-only are not exercised by it."
 notes = "ArtifactReader/MappedArtifactReader skip+mmap; SectionBytes Arc; Arrow Never-compress; posterior meta-only"

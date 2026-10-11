@@ -15,12 +15,12 @@ NAMED = [
     ("workspace", "antecedent-estimate", "lib", "bayesian"),
     ("workspace", "antecedent-estimate", "lib", "envelope"),
     ("workspace", "antecedent-validate", "lib", "bayesian_checks"),
-    ("workspace", "antecedent-io", "lib", "posterior"),
-    ("workspace", "antecedent-io", "lib", "prior_bank"),
+    ("workspace", "antecedent-io-core", "lib", "posterior"),
+    ("workspace", "antecedent-io-core", "lib", "prior_bank"),
     ("workspace", "antecedent-data", "lib", "resample"),
     ("workspace", "antecedent", "lib", "bayesian_transport_providers_match_independent_dirichlet_moments"),
     # gate_causal_artifacts.sh
-    ("workspace", "antecedent-io", "*", "causal_artifact"),
+    ("workspace", "antecedent-io-core", "*", "causal_artifact"),
     # gate_context.sh
     ("workspace", "antecedent-identify", "lib", "temporal_mediation::"),
     ("workspace", "antecedent-validate", "lib", "functional::"),

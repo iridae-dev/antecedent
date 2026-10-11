@@ -41,9 +41,10 @@ use antecedent_estimate::categorical_treatment::{
 use antecedent_estimate::vector_treatment::{DesignSummary, NamedColumn, VectorCovariance};
 use serde::{Deserialize, Serialize};
 
+use crate::artifact_codec::CanonicalSize;
 use crate::convert::to_cbor;
 use crate::vector_treatment_artifact::{
-    AdjustmentColumnRequest, CanonicalSize, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
+    AdjustmentColumnRequest, CoefficientWire, VECTOR_TREATMENT_ADJUSTMENT_CAVEAT,
     VECTOR_TREATMENT_MAX_ADJUSTMENT, WaldWire, bytes_to_reals, reals_to_bytes,
 };
 

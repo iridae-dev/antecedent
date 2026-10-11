@@ -14,6 +14,7 @@ The package version on this branch is 2.4.0. The last tagged release remains 2.3
 - Result-artifact verification applies the full graphless license predicate, so a forged minimum action probability below the licensed floor is refused.
 - External-refusal JSON from the Python bindings carries the missing capability, and declared-size refusals use one message and reason code.
 - The cross-world closed form is fitted by pivoted QR, and Bayesian IV and RD draw from the shared Gaussian sampler, so their draws differ for a given seed.
+- The artifact container, wire types, canonical digests and estimator-free artifacts move to the new `antecedent-io-core` crate, which sits below the estimators. `antecedent-io` keeps the estimator-bound artifacts and re-exports the core at its root, so every public path and artifact byte is unchanged.
 
 ## 2.3.0
 

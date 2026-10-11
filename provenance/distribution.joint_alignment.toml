@@ -16,7 +16,7 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-core/src/quantity.rs",
-  "crates/antecedent-io/src/quantity_wire.rs",
+  "crates/antecedent-io-core/src/quantity_wire.rs",
   "crates/antecedent-io/tests/distribution_artifact.rs",
   "python/tests/test_composition.py",
   "conformance/composition/metadata_only_native/legacy.art",

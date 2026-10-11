@@ -47,33 +47,7 @@ pub const TEMPORAL_TRANSPORT_ARTIFACT_VERSION: u32 = 1;
 /// The feature marker of the accepted format.
 pub const TEMPORAL_TRANSPORT_ARTIFACT_FEATURE: &str = "temporal_transport_sequence_v1";
 
-/// Why a temporal sequence artifact was refused.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum TemporalTransportArtifactError {
-    /// The feature marker is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A recorded limit or stored collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The recomputed report differs from the stored report.
-    #[error("temporal sequence report does not replay")]
-    ReportMismatch,
-    /// The stored catalog or laws disagree with the recorded data digest.
-    #[error("temporal sequence data identity mismatch")]
-    DataIdentityMismatch,
-    /// The report was not produced by the prepared sequence it is exported with.
-    #[error("the report was not produced by this prepared sequence")]
-    ForeignReport,
-    /// The stored laws disagree with the recorded provider.
-    #[error("temporal sequence provider mismatch: {0}")]
-    ProviderMismatch(&'static str),
-}
-
+pub use antecedent_io_core::transport_errors::TemporalTransportArtifactError;
 /// A refused sequence, window or bound as a reason-coded refusal.
 #[must_use]
 #[allow(clippy::needless_pass_by_value)] // A `map_err` adapter.

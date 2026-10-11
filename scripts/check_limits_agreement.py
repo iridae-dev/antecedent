@@ -150,7 +150,7 @@ TEMP = "crates/antecedent-identify/src/sid/temporal_sequence.rs"
 TEMP_PY = "python/antecedent/transport/_temporal.py"
 XW_ID = "crates/antecedent-identify/src/cross_world.rs"
 XW_CORE = "crates/antecedent-core/src/query/cross_world.rs"
-XW_IO = "crates/antecedent-io/src/cross_world_artifact.rs"
+XW_IO = "crates/antecedent-io-core/src/cross_world_artifact.rs"
 MIX = "crates/antecedent-identify/src/sid/mixed_source.rs"
 MIX_PY = "python/antecedent/transport/_mixed_source.py"
 

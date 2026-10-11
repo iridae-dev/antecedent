@@ -108,7 +108,7 @@ description = "TemporalPolicy::Dynamic + TargetPopulation::{Predicate, CustomDis
 status = "done"
 evidence_kind = "implementation_exists"
 owner = "context"
-evidence_test = "crates/antecedent-io/src/query_wire.rs"
+evidence_test = "crates/antecedent-io-core/src/query_wire.rs"
 evidence_assertion = "planned_variants_cbor_round_trip"
 notes = "Types + CBOR round-trip + PopulationRegistry::resolve; Dynamic ID usable; Named Predicate/CustomDistribution propensity claimed for Rust+Python IPW/matching via analyze(..., population_registry=, target_population=); stratification remains rejected for CustomDistribution"
 

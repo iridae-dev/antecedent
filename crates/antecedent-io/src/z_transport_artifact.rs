@@ -18,17 +18,15 @@ use crate::{
     transport_catalog_wire::EvidenceCatalogWire,
     wire::AdmgWire,
 };
-use antecedent_core::{
-    ExecutionContext, IdentityDomain, InterventionAssignment, TransportOutcomeKind, VariableId,
-};
+use antecedent_core::{ExecutionContext, IdentityDomain, InterventionAssignment, VariableId};
 use antecedent_expr::{
     Assignment, ExactDistribution, ExactEvaluationLimits, ExactTransportData, FunctionalProgram,
     ProgramLimits,
 };
 use antecedent_graph::SelectionDiagram;
 use antecedent_identify::{
-    BoundZTransportFunctional, IdentificationError, SidLimits, ZTransportDerivation,
-    ZTransportDerivationRecord, ZTransportQuery, bind_z_transport_catalog,
+    BoundZTransportFunctional, SidLimits, ZTransportDerivation, ZTransportDerivationRecord,
+    ZTransportQuery, bind_z_transport_catalog,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -40,56 +38,7 @@ pub const Z_TRANSPORT_ARTIFACT_FEATURE: &str = "checked_z_transport_point_v2";
 /// The one interval status this point format reports.
 pub const Z_TRANSPORT_NO_INTERVAL: &str = "no_interval_reported";
 
-/// Why a z-transport artifact was refused by a consumer check. Callers match the
-/// kind; they never parse the message.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum ZTransportArtifactError {
-    /// The feature marker, interval status or result shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A limit the artifact recorded exceeds the consumer's, or a stored
-    /// collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored derivation does not verify against the stored graph and query.
-    #[error("proof does not verify: {0}")]
-    ProofMismatch(IdentificationError),
-    /// The verified derivation does not bind to the stored catalog.
-    #[error("catalog binding failed: {0}")]
-    CatalogBinding(IdentificationError),
-    /// A stored law is not a valid exact law or law set.
-    #[error("invalid law: {0}")]
-    LawInvalid(String),
-    /// The stored program does not match the checked proof and binding.
-    #[error("program mismatch: {0}")]
-    ProgramMismatch(&'static str),
-    /// The recomputed point differs from the stored point.
-    #[error("point result does not replay")]
-    PointMismatch,
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-}
-
-impl ZTransportArtifactError {
-    /// The stable transport outcome kind this refusal maps to.
-    #[must_use]
-    pub const fn transport_outcome_kind(&self) -> TransportOutcomeKind {
-        match self {
-            Self::ProofMismatch(error) | Self::CatalogBinding(error) => {
-                error.transport_outcome_kind()
-            }
-            Self::LimitsExceeded(_) => TransportOutcomeKind::BudgetCancel,
-            Self::UnsupportedSemantics(_)
-            | Self::LawInvalid(_)
-            | Self::ProgramMismatch(_)
-            | Self::PointMismatch
-            | Self::PremisesMismatch => TransportOutcomeKind::InvalidInput,
-        }
-    }
-}
-
+pub use antecedent_io_core::transport_errors::ZTransportArtifactError;
 /// Bounds a consumer imposes on an artifact it replays. Nothing the artifact
 /// stores raises them.
 #[derive(Clone, Copy, Debug)]

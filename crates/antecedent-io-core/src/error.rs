@@ -83,30 +83,28 @@ pub enum IoError {
     },
     /// A z-transport artifact failed one of its typed consumer checks.
     #[error("z-transport artifact: {0}")]
-    ZTransport(#[from] crate::z_transport_artifact::ZTransportArtifactError),
+    ZTransport(#[from] crate::transport_errors::ZTransportArtifactError),
     /// A multi-source mz-transport artifact failed one of its typed consumer checks.
     #[error("mz-transport artifact: {0}")]
-    MzTransport(#[from] crate::mz_transport_artifact::MzTransportArtifactError),
+    MzTransport(#[from] crate::transport_errors::MzTransportArtifactError),
     /// A mixed-source proof-search artifact failed one of its typed consumer checks.
     #[error("mixed-source artifact: {0}")]
-    MixedSource(#[from] crate::mixed_source_artifact::MixedSourceArtifactError),
+    MixedSource(#[from] crate::transport_errors::MixedSourceArtifactError),
     /// An ADMG conditional transport artifact failed one of its typed consumer checks.
     #[error("admg conditional transport artifact: {0}")]
-    AdmgConditional(
-        #[from] crate::admg_conditional_transport_artifact::AdmgConditionalArtifactError,
-    ),
+    AdmgConditional(#[from] crate::transport_errors::AdmgConditionalArtifactError),
     /// A transport scenario artifact failed one of its typed consumer checks.
     #[error("transport scenario artifact: {0}")]
-    TransportScenario(#[from] crate::transport_scenario_artifact::TransportScenarioArtifactError),
+    TransportScenario(#[from] crate::transport_errors::TransportScenarioArtifactError),
     /// A temporal sequence artifact failed one of its typed consumer checks.
     #[error("temporal transport artifact: {0}")]
-    TemporalTransport(#[from] crate::temporal_transport_artifact::TemporalTransportArtifactError),
+    TemporalTransport(#[from] crate::transport_errors::TemporalTransportArtifactError),
     /// A learned continuous-outcome transport artifact failed one of its typed consumer checks.
     #[error("learned continuous transport artifact: {0}")]
-    LearnedContinuous(#[from] crate::learned_continuous_artifact::LearnedContinuousArtifactError),
+    LearnedContinuous(#[from] crate::transport_errors::LearnedContinuousArtifactError),
     /// A smoothed dose-response transport artifact failed one of its typed consumer checks.
     #[error("smoothed dose transport artifact: {0}")]
-    SmoothedDose(#[from] crate::smoothed_dose_artifact::SmoothedDoseArtifactError),
+    SmoothedDose(#[from] crate::transport_errors::SmoothedDoseArtifactError),
 }
 
 impl IoError {
@@ -137,19 +135,9 @@ impl From<antecedent_identify::IdentificationError> for IoError {
     }
 }
 
-impl From<antecedent_estimate::EstimationError> for IoError {
-    fn from(error: antecedent_estimate::EstimationError) -> Self {
-        match error {
-            antecedent_estimate::EstimationError::Refused { code, message } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Convert(other.to_string()),
-        }
-    }
-}
-
 /// Wrap any displayable failure as [`IoError::Convert`].
-pub(crate) fn convert_err(error: impl std::fmt::Display) -> IoError {
+#[doc(hidden)]
+pub fn convert_err(error: impl std::fmt::Display) -> IoError {
     IoError::Convert(error.to_string())
 }
 

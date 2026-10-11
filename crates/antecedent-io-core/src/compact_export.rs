@@ -21,6 +21,7 @@ use std::collections::BTreeMap;
 use antecedent_core::{CanonicalWriter, ScientificQuantity};
 use serde::{Deserialize, Serialize};
 
+use crate::artifact_codec::CanonicalSize;
 use crate::container::{
     ArtifactManifest, CompressPolicy, EncodedArtifact, SectionBytes, section_descriptor_with_policy,
 };
@@ -28,7 +29,6 @@ use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::quantity_wire::ScientificQuantityWire;
 use crate::reader::ArtifactReader;
-use crate::vector_treatment_artifact::CanonicalSize;
 use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
 
 /// Body format version this module reads and writes.

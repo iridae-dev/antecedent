@@ -35,6 +35,7 @@ antecedent-core = { version = "2.4.0", path = "../antecedent-core" }
 antecedent-data = { version = "2.4.0", path = "../antecedent-data" }
 antecedent-expr = { version = "2.4.0", path = "../antecedent-expr" }
 antecedent-identify = { version = "2.4.0", path = "../antecedent-identify" }
+antecedent-io-core = { version = "2.4.0", path = "../antecedent-io-core" }
 antecedent-kernels = { version = "2.4.0", path = "../antecedent-kernels" }
 antecedent-learn = { version = "2.4.0", path = "../antecedent-learn" }
 antecedent-prob = { version = "2.4.0", path = "../antecedent-prob" }

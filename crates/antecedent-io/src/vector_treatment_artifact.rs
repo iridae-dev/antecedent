@@ -42,6 +42,7 @@ use antecedent_estimate::vector_treatment::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::artifact_codec::CanonicalSize;
 use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
@@ -351,17 +352,6 @@ fn covariance_of(tag: &str) -> Result<VectorCovariance, VectorTreatmentArtifactE
 
 fn core_contrast(wire: &ContrastWire) -> Contrast {
     Contrast { name: wire.name.clone(), weights: wire.weights.clone() }
-}
-
-/// Count words enter the canonical stream as `u64`, saturating at `u64::MAX`.
-pub(crate) trait CanonicalSize {
-    fn size(&mut self, value: usize) -> &mut Self;
-}
-
-impl CanonicalSize for CanonicalWriter {
-    fn size(&mut self, value: usize) -> &mut Self {
-        self.word(u64::try_from(value).unwrap_or(u64::MAX))
-    }
 }
 
 /// The declaration shared by sealing and replay.

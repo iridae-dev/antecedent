@@ -115,7 +115,9 @@ fn seal(request: &TransportedCounterfactualRequestWire) -> TransportedCounterfac
     TransportedCounterfactualArtifact::seal(request).expect("seals")
 }
 
-fn refusal_of(request: &TransportedCounterfactualRequestWire) -> RefusalWire {
+fn refusal_of(
+    request: &TransportedCounterfactualRequestWire,
+) -> TransportedCounterfactualRefusalWire {
     TransportedCounterfactualArtifact::seal(request)
         .expect_err("must refuse")
         .refusal()

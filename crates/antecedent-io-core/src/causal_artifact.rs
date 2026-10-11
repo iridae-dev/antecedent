@@ -13,7 +13,7 @@ use crate::{
     ArtifactKind, ArtifactManifest, CausalQueryWire, CausalResponseWire, EncodedArtifact,
     InterferenceEstimateWire, IoError, ProvenanceWire, STABLE_FORMAT, SemanticVersion,
     TransportEffectEstimateWire, TransportIdentificationWire, causal_query_from_wire,
-    causal_response_from_wire, from_cbor, read_and_migrate, to_cbor, transport_effect_from_wire,
+    causal_response_from_wire, from_cbor, read_and_migrate, to_cbor,
 };
 
 const HEADER_SECTION: &str = "causal_payload.header";
@@ -222,7 +222,8 @@ fn validate_header(header: &CausalPayloadHeader) -> Result<(), IoError> {
     validate_variable_names(&header.variable_names)
 }
 
-pub(crate) fn validate_variable_names(variable_names: &[String]) -> Result<(), IoError> {
+#[doc(hidden)]
+pub fn validate_variable_names(variable_names: &[String]) -> Result<(), IoError> {
     let mut names = HashSet::with_capacity(variable_names.len());
     for name in variable_names {
         if name.trim().is_empty() {
@@ -312,16 +313,20 @@ fn validate_payload(payload: &CausalPayloadWire, variable_count: usize) -> Resul
         CausalPayloadWire::TransportIdentification(wire) => {
             validate_transport_identification_ids(wire, variable_count)?;
             // transport_identification_from_wire is infallible: it has no fallible decode
-            // step to check here, unlike transport_effect_from_wire below.
+            // step to check here, unlike the transport estimate below.
             validate_transport_identification(wire)?;
         }
         CausalPayloadWire::TransportEstimate(wire) => {
-            let _ = transport_effect_from_wire(wire)?;
+            // The decode into the estimator's report fails only when a weight count
+            // does not fit `usize`; that check is the whole fallible step.
+            for diagnostic in [wire.selection_overlap, wire.treatment_overlap] {
+                usize::try_from(diagnostic.extreme_weight_count).map_err(|_| IoError::TooLarge)?;
+            }
             validate_transport_estimate(wire)?;
         }
         CausalPayloadWire::InterferenceEstimate(wire) => {
             // interference_estimate_from_wire is infallible: it has no fallible decode
-            // step to check here, unlike transport_effect_from_wire above.
+            // step to check here, unlike the transport estimate above.
             validate_interference_estimate(wire)?;
         }
     }
@@ -427,10 +432,8 @@ fn validate_response_query_ids(
 
 // allow(too_many_lines): exhaustive per-variant id validation; one match arm per query kind
 #[allow(clippy::too_many_lines)]
-pub(crate) fn validate_query_ids(
-    query: &CausalQueryWire,
-    variable_count: usize,
-) -> Result<(), IoError> {
+#[doc(hidden)]
+pub fn validate_query_ids(query: &CausalQueryWire, variable_count: usize) -> Result<(), IoError> {
     use CausalQueryWire as Q;
     match query {
         Q::AverageEffect { treatment, outcome, effect_modifiers, control, active, .. } => {
@@ -1093,7 +1096,8 @@ fn validate_response_estimate(
     })
 }
 
-pub(crate) fn validate_response_result(
+#[doc(hidden)]
+pub fn validate_response_result(
     wire: &CausalResponseWire,
     variable_count: usize,
 ) -> Result<(), IoError> {

@@ -1,8 +1,9 @@
 //! Source-bound empirical two-step history recalculation artifact.
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::IoError;
 use crate::expr_wire::ExprArenaWire;
-use crate::{IoError, mz_transport_artifact::MzTransportPointWire};
+use crate::transport_point_wire::MzTransportPointWire;
 use antecedent_core::IdentityDomain;
 use serde::{Deserialize, Serialize};
 

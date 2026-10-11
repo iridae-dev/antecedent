@@ -95,14 +95,14 @@ for path in sorted(Path("docs/release-notes").glob("v*.md")):
         )
 
 # ------------------------------------------------------- 2. artifact format
-# Canonical: STABLE_FORMAT in crates/antecedent-io/src/migrate.rs.
-migrate = Path("crates/antecedent-io/src/migrate.rs").read_text()
+# Canonical: STABLE_FORMAT in crates/antecedent-io-core/src/migrate.rs.
+migrate = Path("crates/antecedent-io-core/src/migrate.rs").read_text()
 m = re.search(
     r"pub const STABLE_FORMAT: FormatVersion = FormatVersion \{ major: (\d+), minor: (\d+) \}",
     migrate,
 )
 if not m:
-    fail.append("could not parse STABLE_FORMAT from crates/antecedent-io/src/migrate.rs")
+    fail.append("could not parse STABLE_FORMAT from crates/antecedent-io-core/src/migrate.rs")
 else:
     fmt = f"{m.group(1)}.{m.group(2)}"
     # Any file asserting a *frozen/stable* artifact format must name the live one.

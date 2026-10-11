@@ -32,9 +32,9 @@ for manifest in [
 # Evidence is a TOML (or code) record. ADR and doc markdown are not evidence.
 EVIDENCE = {
     "release.parity_closure": "parity/release.toml",
-    "release.graph_dot_json": "crates/antecedent-io/src/graph_gml.rs",
-    "release.artifact_schema": "crates/antecedent-io/src/migrate.rs",
-    "release.artifact_mmap_stream_skip": "crates/antecedent-io/src/reader.rs",
+    "release.graph_dot_json": "crates/antecedent-io-core/src/graph_gml.rs",
+    "release.artifact_schema": "crates/antecedent-io-core/src/migrate.rs",
+    "release.artifact_mmap_stream_skip": "crates/antecedent-io-core/src/reader.rs",
     "release.wheel_matrix": ".github/workflows/ci.yml",
     "release.conformance_docs": "parity/oracle_closure.toml",
     "release.hot_path_baselines": "benches/baselines/baselines.toml",
@@ -56,11 +56,11 @@ for path in [
     "conformance/interchange/graph_dot_json/expected.json",
     "conformance/interchange/graph_gml_networkx/expected.json",
     "conformance/interchange/artifact_migrate/expected.json",
-    "crates/antecedent-io/src/graph_dot.rs",
-    "crates/antecedent-io/src/graph_gml.rs",
-    "crates/antecedent-io/src/graph_networkx.rs",
-    "crates/antecedent-io/src/graph_json.rs",
-    "crates/antecedent-io/src/migrate.rs",
+    "crates/antecedent-io-core/src/graph_dot.rs",
+    "crates/antecedent-io-core/src/graph_gml.rs",
+    "crates/antecedent-io-core/src/graph_networkx.rs",
+    "crates/antecedent-io-core/src/graph_json.rs",
+    "crates/antecedent-io-core/src/migrate.rs",
     "crates/antecedent-io/src/model_bundle.rs",
     "scripts/generate_conformance_docs.py",
 ]:
@@ -68,12 +68,14 @@ for path in [
         missing.append(f"required exit artifact missing: {path}")
 
 # Semantic crates: forbid unsafe by default. antecedent-data / antecedent-io keep
-# #![deny(unsafe_code)] with scoped allows (Arrow FFI / foreign buffers / mmap).
+# #![deny(unsafe_code)] with scoped allows (Arrow FFI / foreign buffers / mmap, which
+# lives in antecedent-io-core; antecedent-io itself forbids unsafe).
 forbid_crates = [
     "crates/antecedent-core",
     "crates/antecedent-graph",
     "crates/antecedent-expr",
     "crates/antecedent-identify",
+    "crates/antecedent-io",
     "crates/antecedent-stats",
     "crates/antecedent-prob",
     "crates/antecedent-estimate",
@@ -88,7 +90,7 @@ forbid_crates = [
 ]
 deny_escape_crates = {
     "crates/antecedent-data": ("buffer.rs", "arrow_ffi.rs"),
-    "crates/antecedent-io": ("mmap_file.rs",),
+    "crates/antecedent-io-core": ("mmap_file.rs",),
 }
 for crate in forbid_crates:
     lib = root / crate / "src" / "lib.rs"

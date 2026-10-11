@@ -65,65 +65,7 @@ pub const MZ_INTERVAL_NOT_LICENSED: &str = "cell_not_licensed";
 /// that carries an interval with `cell_not_licensed` and this detail.
 pub const MZ_INTERVAL_NOT_LICENSED_DETAIL: &str = "mz_transport.interval_withheld";
 
-/// Why an mz-transport artifact was refused. Callers match the kind.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum MzTransportArtifactError {
-    /// The feature marker or result shape is not this format's.
-    #[error("unsupported semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A stored limit or collection exceeds the consumer's bound.
-    #[error("consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The re-run decision did not reproduce the stored derivation.
-    #[error("proof does not verify: {0}")]
-    ProofMismatch(IdentificationError),
-    /// The verified derivation does not bind to the stored catalog.
-    #[error("catalog binding failed: {0}")]
-    CatalogBinding(IdentificationError),
-    /// The stored source-specific bindings differ from the re-derived ones.
-    #[error("source bindings do not match the checked binding")]
-    BindingMismatch,
-    /// A stored law is not a valid law or law set.
-    #[error("invalid law: {0}")]
-    LawInvalid(String),
-    /// A recomputed point differs from the stored point.
-    #[error("point result does not replay")]
-    PointMismatch,
-    /// A recomputed contrast differs from the stored contrast.
-    #[error("contrast does not replay")]
-    ContrastMismatch,
-    /// The stored interval bookkeeping contradicts the licensing decision or
-    /// does not recompute bit for bit from its seed and replicate spec.
-    #[error("uncertainty bookkeeping does not check: {0}")]
-    UncertaintyMismatch(&'static str),
-    /// The premises digest does not match the stored premises.
-    #[error("premises digest mismatch")]
-    PremisesMismatch,
-    /// The data-identity digest does not match the stored snapshot identities.
-    #[error("data identity digest mismatch")]
-    DataIdentityMismatch,
-    /// The caller's variable names are not the names the artifact was built under.
-    #[error("variable names do not match the verified name mapping")]
-    NamesMismatch,
-}
-
-impl MzTransportArtifactError {
-    /// The frozen `(reason code, mz_transport.* detail)` pair of this failure, when
-    /// the reason-code registry declares one: a proof or binding failure carries the
-    /// pair of the identification error it wraps. Other consumer checks are typed
-    /// kinds without a record row.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, &'static str)> {
-        match self {
-            Self::ProofMismatch(inner) | Self::CatalogBinding(inner) => {
-                antecedent_identify::mz_transport_refusal(inner)
-            }
-            _ => None,
-        }
-    }
-}
-
+pub use antecedent_io_core::transport_errors::MzTransportArtifactError;
 /// An mz-route identification error as the io error a caller sees: the record's
 /// `reason=<code>: <detail>: ...` refusal when the route owns it, else the
 /// generic conversion.
@@ -262,43 +204,7 @@ impl MzTransportQueryWire {
     }
 }
 
-/// Point distribution in canonical atom order.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct MzTransportPointWire {
-    /// Outcome coordinates.
-    pub outcomes: Vec<u32>,
-    /// Complete outcome assignments.
-    pub atoms: Vec<Vec<ValueWire>>,
-    /// Point probabilities.
-    pub probabilities: Vec<f64>,
-}
-
-impl MzTransportPointWire {
-    /// Encode a distribution.
-    #[must_use]
-    pub fn from_distribution(distribution: &ExactDistribution) -> Self {
-        Self {
-            outcomes: distribution.outcomes.iter().map(|v| v.raw()).collect(),
-            atoms: distribution
-                .atoms
-                .iter()
-                .map(|atom| atom.iter().map(ValueWire::from_value).collect())
-                .collect(),
-            probabilities: distribution.probabilities.to_vec(),
-        }
-    }
-
-    /// Bit-exact replay; non-finite probabilities fail closed.
-    fn replays(&self, recomputed: &Self) -> bool {
-        self.outcomes == recomputed.outcomes
-            && self.atoms == recomputed.atoms
-            && self.probabilities.len() == recomputed.probabilities.len()
-            && self.probabilities.iter().zip(&recomputed.probabilities).all(|(stored, fresh)| {
-                stored.is_finite() && fresh.is_finite() && stored.to_bits() == fresh.to_bits()
-            })
-    }
-}
+pub use antecedent_io_core::transport_point_wire::MzTransportPointWire;
 
 /// Point contrast of one outcome mean: request `request` minus request 0.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
