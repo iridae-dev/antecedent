@@ -145,12 +145,7 @@ mod tests {
             .unwrap();
         }
         let schema = b.build().unwrap();
-        let mut x = vec![0.0; n];
-        let mut y = vec![0.0; n];
-        for t in 1..n {
-            x[t] = ((t as f64) * 0.02).sin();
-            y[t] = 0.9 * x[t - 1];
-        }
+        let (x, y) = crate::test_support::driven_xy(n);
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(
@@ -191,7 +186,7 @@ mod tests {
         let mut ws = DiscoveryWorkspace::default();
         let ctx = ExecutionContext::for_tests(8);
         let before = pcmci.run(&data, &vars, &mut ws, &ctx).unwrap().evidence.links.len();
-        // The smooth series carry at least the two autocorrelation links (x→x, y→y at lag 1).
+        // The driven series carry at least the x→x autocorrelation and x→y links at lag 1.
         assert!(before >= 2, "structured series must keep links, got {before}");
         let check = FalsePositiveCheck::new(pcmci, NullTransform::ColumnPermute, 4);
         let report = check.run(&data, &vars, &mut ws, &ctx).unwrap();

@@ -345,12 +345,7 @@ mod tests {
         )
         .unwrap();
         let schema = b.build().unwrap();
-        let mut x = vec![0.0; n];
-        let mut y = vec![0.0; n];
-        for t in 1..n {
-            x[t] = ((t as f64) * 0.02).sin();
-            y[t] = 0.9 * x[t - 1];
-        }
+        let (x, y) = crate::test_support::driven_xy(n);
         let cols = vec![
             OwnedColumn::Float64(
                 Float64Column::new(
