@@ -48,7 +48,7 @@ from ._native import consume_dose_grid_artifact as _consume
 from ._native import dose_support_labels as _support_labels
 from ._native import evaluate_dose_grid_functional as _evaluate
 from ._refusal import raise_refusal
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
     "DoseClaims",
@@ -72,8 +72,8 @@ _FUNCTIONALS = ("level", "derivative", "contrast")
 _DESIGNS = ("randomized_dose", "observational")
 
 
-class DoseGridRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class DoseGridRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``reason_code`` is the inherited, registered code; ``detail`` is the namespaced
     ``dose_grid.*`` slot (for example ``dose_grid.unsupported_dose``,
@@ -83,14 +83,7 @@ class DoseGridRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         detail = str(refusal["detail"])
         message = refusal.get("message")
-        text = f"{detail}: {message}" if message else detail
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``dose_grid.*`` detail.
-        self.detail: str = detail
-        #: Offending field, when there is one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal, text=f"{detail}: {message}" if message else detail)
 
 
 def _raise_refusal(payload: str | None) -> None:

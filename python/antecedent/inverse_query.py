@@ -54,7 +54,7 @@ from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
 from ._native import inverse_query_baseline as _baseline
 from ._refusal import raise_refusal
 from .decision import Contract
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim
 from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
@@ -84,7 +84,7 @@ FEASIBILITY_STATUSES: tuple[str, ...] = (
 )
 
 
-class InverseQueryRefusal(CausalUnsupportedError):
+class InverseQueryRefusal(StructuredRefusal):
     """An inverse-query refusal carrying the structured Rust fields.
 
     ``reason_code`` is registered. ``detail`` is the namespaced ``family.slot``: the
@@ -101,10 +101,7 @@ class InverseQueryRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         offending = refusal.get("offending")
         text = str(refusal["detail"]) + (f": {offending}" if offending else "")
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = refusal.get("stage", "")
-        self.detail: str = refusal["detail"]
-        self.offending: str | None = offending
+        super().__init__(refusal, text=text)
         self.expected: str | None = refusal.get("expected")
         self.supplied: str | None = refusal.get("supplied")
 

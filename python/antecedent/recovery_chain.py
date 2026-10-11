@@ -45,7 +45,7 @@ from numpy.typing import NDArray
 from ._native import consume_recovery_chain_artifact as _consume
 from ._native import recover_recovery_chain as _recover
 from ._refusal import raise_refusal
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .graph import Admg
 
 __all__ = [
@@ -201,8 +201,8 @@ class ChainWitness:
     denominator: int
 
 
-class RecoveryChainRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class RecoveryChainRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``detail`` is the namespaced ``recovery_chain.*`` slot (``.nonrecoverable_witness``,
     ``.unsupported_mechanism``, ``.invalid_query``, ``.positivity``, ``.invalid_observed_law``,
@@ -219,14 +219,7 @@ class RecoveryChainRefusal(CausalUnsupportedError):
     ) -> None:
         detail = str(refusal["detail"])
         message = refusal.get("message")
-        text = f"{detail}: {message}" if message else detail
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``recovery_chain.*`` detail.
-        self.detail: str = detail
-        #: Offending field, when there is one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal, text=f"{detail}: {message}" if message else detail)
         #: The verified witness of a nonrecoverable decision.
         self.witness: ChainWitness | None = witness
         #: The exportable artifact of a nonrecoverable decision.
