@@ -45,6 +45,7 @@ use common::calibration_bind::{bind_all, constructions};
 use common::reported::{
     GATE_LEVEL, REPORTED_LEVEL, gate, gate_at, posterior_pair, record_pair, skip_pair,
 };
+use antecedent_test_support::sigmoid;
 
 // ---------------------------------------------------------------- emission
 
@@ -82,10 +83,6 @@ fn bind_pair(tallies: &mut [CoverageTally; 2], study: &Study, result: &StudyResu
 
 fn v(i: u32) -> VariableId {
     VariableId::from_raw(i)
-}
-
-fn sigmoid(x: f64) -> f64 {
-    1.0 / (1.0 + (-x).exp())
 }
 
 /// The interval the coverage test scores must be the posterior quantile the

@@ -49,6 +49,7 @@ use antecedent_identify::{
 mod common;
 
 use common::fixtures::confounded_scm;
+use antecedent_test_support::near_lt_1e9 as near;
 
 const Z: u32 = 0;
 const X: u32 = 1;
@@ -62,10 +63,6 @@ const BUDGET: SearchLimits = SearchLimits { operations: 100_000, depth: 256 };
 
 fn v(i: u32) -> VariableId {
     VariableId::from_raw(i)
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-9
 }
 
 fn scenario(name: &str, selections: &[u32], weight: Option<f64>) -> TransportScenario {

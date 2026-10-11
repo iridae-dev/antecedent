@@ -48,6 +48,7 @@ use common::reported::{
     skip_pair,
 };
 use common::static_dgp::linear_ate_data;
+use antecedent_test_support::sigmoid;
 
 const N: usize = 800;
 
@@ -62,10 +63,6 @@ fn keyed(
     level: f64,
 ) -> CoverageTally {
     CoverageTally::for_record(RecordKey { test, dgp, interval: interval_method }, level)
-}
-
-fn sigmoid(x: f64) -> f64 {
-    1.0 / (1.0 + (-x).exp())
 }
 
 fn glm_data(n: usize, seed: u64) -> TabularData {

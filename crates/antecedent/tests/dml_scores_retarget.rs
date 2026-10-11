@@ -20,6 +20,7 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{CausalForest, DmlAte, DmlScore, DrLearner, OverlapPolicy, ScoreTable};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
+use antecedent_test_support::dot;
 
 const T1: u32 = 0;
 const T2: u32 = 1;
@@ -89,10 +90,6 @@ fn oracle(table: &ScoreTable, weights: &[f64]) -> (f64, Vec<f64>) {
     let correction = (n as f64 / (n as f64 - 1.0)).sqrt();
     let xi = phi.iter().zip(weights).map(|(f, w)| correction * (w / total) * (f - theta)).collect();
     (theta, xi)
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 fn run(

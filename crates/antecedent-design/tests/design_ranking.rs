@@ -28,10 +28,7 @@ use antecedent_design::{
     AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
     SamplingPlan, StudyCost,
 };
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() <= 1e-12
-}
+use antecedent_test_support::near_le_1e12 as near;
 
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {

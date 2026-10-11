@@ -11,14 +11,14 @@ use antecedent::io::{
 };
 use antecedent_graph::DenseNodeId;
 use serde_json::Value;
+use antecedent_test_support::{conformance_dir};
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/interchange/graph_dot_json")
+    conformance_dir("interchange/graph_dot_json")
 }
 
 fn gml_fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../conformance/interchange/graph_gml_networkx")
+    conformance_dir("interchange/graph_gml_networkx")
 }
 
 #[test]

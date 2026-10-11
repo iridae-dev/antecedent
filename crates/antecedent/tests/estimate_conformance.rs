@@ -8,7 +8,6 @@
 
 #![allow(clippy::doc_markdown)]
 
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -24,14 +23,10 @@ use antecedent_data::{
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
 use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/estimate").join(name)
-}
-
-fn load_expected(name: &str) -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("estimate").join(name)
 }
 
 /// Build `TabularData` from `(name, role, column)` triples; variable ids follow slice order.
@@ -121,7 +116,7 @@ fn propensity_ipw_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQu
 
 #[test]
 fn estimate_propensity_ipw_recovers_ate() {
-    let expected = load_expected("propensity_ipw");
+    let expected = load_expected_json(&fixture_dir("propensity_ipw"));
     let (data, graph, query) = propensity_ipw_scm(1200, 3);
     let analysis = Study::tabular(data)
         .graph(graph)
@@ -172,7 +167,7 @@ fn iv_2sls_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery) {
 
 #[test]
 fn estimate_iv_2sls_recovers_structural_effect() {
-    let expected = load_expected("iv_2sls");
+    let expected = load_expected_json(&fixture_dir("iv_2sls"));
     let (data, graph, query) = iv_2sls_scm(4000, 5);
     let analysis = Study::tabular(data)
         .graph(graph)
@@ -236,7 +231,7 @@ fn records_assumption(result: &antecedent::StudyResult, id: &str) -> bool {
 
 #[test]
 fn estimate_frontdoor_two_stage_recovers_mediated_effect() {
-    let expected = load_expected("frontdoor");
+    let expected = load_expected_json(&fixture_dir("frontdoor"));
     let (data, graph, query) = frontdoor_scm(4000, 1);
     let analysis = Study::tabular(data)
         .graph(graph)
@@ -315,7 +310,7 @@ fn frontdoor_interaction_table() -> TabularData {
 
 #[test]
 fn estimate_frontdoor_functional_matches_enumerated_truth_where_path_product_does_not() {
-    let expected = load_expected("frontdoor_functional");
+    let expected = load_expected_json(&fixture_dir("frontdoor_functional"));
     let truth = expected["true_effect"].as_f64().unwrap();
     let run = |estimator: &str| {
         Study::tabular(frontdoor_interaction_table())
@@ -525,7 +520,7 @@ fn run_static(
     query: AverageEffectQuery,
     seed: u64,
 ) -> antecedent::StudyResult {
-    let expected = load_expected(name);
+    let expected = load_expected_json(&fixture_dir(name));
     let analysis = Study::tabular(data)
         .graph(graph)
         .query(query)
@@ -755,7 +750,7 @@ fn glm_binary_scm(n: usize, seed: u64) -> (TabularData, Dag, AverageEffectQuery,
 #[test]
 fn estimate_glm_adjustment_recovers_positive_ate() {
     // Monte Carlo: logistic g-comp ATE is positive and typically ~0.2–0.3 under this SCM.
-    let expected = load_expected("glm_adjustment");
+    let expected = load_expected_json(&fixture_dir("glm_adjustment"));
     let truth = expected["true_effect"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let (data, graph, query, unadjusted) = glm_binary_scm(2000, 23);
@@ -948,7 +943,7 @@ fn rd_scm(n: usize, seed: u64) -> (TabularData, AverageEffectQuery) {
 
 #[test]
 fn estimate_rd_sharp_recovers_jump() {
-    let expected = load_expected("rd_sharp");
+    let expected = load_expected_json(&fixture_dir("rd_sharp"));
     let (data, query) = rd_scm(3000, 25);
     let graph = rd_dag();
     let analysis = Study::tabular(data.clone())
@@ -1023,7 +1018,7 @@ fn estimate_rd_sharp_recovers_jump() {
 /// homoskedastic opt-in its classical value.
 #[test]
 fn estimate_rd_sharp_analytic_se_matches_reference() {
-    let block = load_expected("rd_sharp")["se_reference"].clone();
+    let block = load_expected_json(&fixture_dir("rd_sharp"))["se_reference"].clone();
     let floats = |key: &str| -> Vec<f64> {
         block[key].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
     };

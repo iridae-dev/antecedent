@@ -17,6 +17,7 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_graph::{Cpdag, Dag, DenseNodeId};
 use antecedent_prob::BayesLikelihood;
+use antecedent_test_support::sigmoid;
 
 const DISCLOSURE: &str = "estimate.bayesian.gaussian_likelihood_discrete_outcome";
 
@@ -36,10 +37,6 @@ fn uniforms(seed: u64) -> impl FnMut() -> f64 {
             state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
         ((state >> 11) as f64 + 0.5) / (1u64 << 53) as f64
     }
-}
-
-fn sigmoid(x: f64) -> f64 {
-    1.0 / (1.0 + (-x).exp())
 }
 
 /// Columns `t, y, z`: `z ~ U(-1.5, 1.5)`, `t ~ Bern(σ(z))`, and an outcome

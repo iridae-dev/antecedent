@@ -49,6 +49,7 @@ serde_json = { workspace = true }
 blake3 = { workspace = true }
 
 [dev-dependencies]
+antecedent-test-support = { path = "../antecedent-test-support" }
 antecedent = { version = "2.4.0", path = ".", features = ["calibration-internal"] }
 criterion.workspace = true
 ciborium = { workspace = true }

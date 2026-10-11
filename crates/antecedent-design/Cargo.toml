@@ -31,6 +31,7 @@ blake3 = { workspace = true }
 ciborium = { workspace = true }
 
 [dev-dependencies]
+antecedent-test-support = { path = "../antecedent-test-support" }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 

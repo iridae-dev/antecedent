@@ -22,14 +22,10 @@ use antecedent_data::{
 use antecedent_discovery::{DiscoveryWorkspace, Notears};
 use antecedent_graph::{DenseNodeId, MarkedEdge};
 use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/discovery/notears_chain")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("discovery/notears_chain")
 }
 
 fn load_tabular(expected: &JsonValue) -> (TabularData, Vec<VariableId>, Vec<String>) {
@@ -91,7 +87,7 @@ fn name_index(names: &[String], name: &str) -> usize {
 
 #[test]
 fn discovery_notears_chain_required_directed_edges() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "RequiredDirectedEdges");
     assert_eq!(expected["algorithm_id"].as_str().unwrap(), "notears");
 

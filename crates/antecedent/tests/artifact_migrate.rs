@@ -22,9 +22,10 @@ use antecedent_io::{
 };
 use antecedent_model::{CompiledMechanismStore, MechanismSlot};
 use serde_json::Value;
+use antecedent_test_support::{conformance_dir};
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/interchange/artifact_migrate")
+    conformance_dir("interchange/artifact_migrate")
 }
 
 #[test]

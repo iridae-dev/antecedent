@@ -38,12 +38,9 @@ use antecedent_design::{
     AffineUtility, CandidateDesign, DecisionPrior, DecisionProblem, DesignCost, DesignRankConfig,
     SamplingPlan,
 };
+use antecedent_test_support::within as near;
 
 const EVSI_GAUSSIAN: f64 = 0.041_657_735_293_843_15;
-
-fn near(a: f64, b: f64, tol: f64) -> bool {
-    (a - b).abs() <= tol
-}
 
 fn quantity(id: &str) -> ScientificQuantity {
     ScientificQuantity {

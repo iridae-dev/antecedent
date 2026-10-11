@@ -35,6 +35,7 @@ use antecedent_estimate::posterior_mean::{
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_kernels::standard_normal;
 use antecedent_stats::StatsError;
+use antecedent_test_support::dot;
 
 /// Raw columns of one synthetic data set.
 #[derive(Clone)]
@@ -286,10 +287,6 @@ fn ols(x: &[Vec<f64>], y: &[f64]) -> Vec<f64> {
         }
     }
     solve(xtx, xty)
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// Out-of-fold AIPW scores recomputed from the raw data, the table's fold ids and the

@@ -28,6 +28,7 @@ use antecedent_identify::{
     TransportFormula, TransportIdentification,
 };
 use std::sync::Arc;
+use antecedent_test_support::dot;
 
 const DRAWS: usize = 60_000;
 const FEATURE: u32 = 7;
@@ -284,10 +285,6 @@ fn quad(cov: &[Vec<f64>], a: &[f64], b: &[f64]) -> f64 {
         }
     }
     s
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 /// Effect vectors: each source then the target.

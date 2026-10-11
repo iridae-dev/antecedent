@@ -13,6 +13,7 @@ use antecedent_io::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
 
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -103,10 +104,6 @@ fn weighted_atoms() -> Vec<StructuralAtom> {
         evaluated("graph-2", Some(0.3), -1.0, 1.0),
         atom("graph-3", Some(0.2), AtomEvidence::Unidentified),
     ]
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
 }
 
 fn retained(atoms: &[StructuralAtom]) -> Vec<(String, Option<String>)> {

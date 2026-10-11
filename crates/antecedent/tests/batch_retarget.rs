@@ -23,6 +23,7 @@ use antecedent_data::TabularData;
 use antecedent_estimate::{AipwAte, OverlapPolicy, PropensityNuisance, RidgeTuning, ScoreTable};
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
+use antecedent_test_support::dot;
 
 const T1: u32 = 0;
 const T2: u32 = 1;
@@ -122,10 +123,6 @@ fn oracle(table: &ScoreTable, weights: &[f64]) -> (f64, Vec<f64>) {
     let correction = (n / (n - 1.0)).sqrt();
     let xi = phi.iter().zip(weights).map(|(f, w)| correction * (w / total) * (f - theta)).collect();
     (theta, xi)
-}
-
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
 fn solo(fx: &Fixture, query: &AverageEffectQuery, est: &AipwAte, seed: u64) -> StudyResult {

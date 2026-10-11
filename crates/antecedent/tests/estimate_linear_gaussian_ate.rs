@@ -21,14 +21,10 @@ use antecedent_data::{
 };
 use antecedent_graph::{Dag, DenseNodeId};
 use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/estimate/linear_gaussian_ate")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("estimate/linear_gaussian_ate")
 }
 
 fn load_csv(expected: &JsonValue) -> (TabularData, Dag, AverageEffectQuery) {
@@ -122,7 +118,7 @@ fn load_csv(expected: &JsonValue) -> (TabularData, Dag, AverageEffectQuery) {
 
 #[test]
 fn estimate_linear_gaussian_ate_stable_float() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "StableFloat");
     let true_ate = expected["true_ate"].as_f64().unwrap();
     let reference_ate = expected["reference_ate"].as_f64().unwrap();

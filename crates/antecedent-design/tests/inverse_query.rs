@@ -37,16 +37,13 @@ use antecedent_io::quantity_wire::DistributionMeaningWire;
 use FeasibilityStatus::{
     Feasible, Infeasible, StructurallyAmbiguous, Unevaluated, Unidentified, Unsupported,
 };
+use antecedent_test_support::near_lt_1e9 as near;
 
 const REGIMES: [&str; 3] = ["do(a=0)", "do(a=1)", "do(a=2)"];
 const IDS: [&str; 3] = ["a0", "a1", "a2"];
 const A0: [f64; 4] = [1.0, 0.0, 0.0, 0.0];
 const A1: [f64; 4] = [1.0, 1.0, 0.0, 0.0];
 const A2: [f64; 4] = [1.0, 1.0, 1.0, 0.0];
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-9
-}
 
 fn quantity(variable: &str, regime: &str, functional: &str) -> ScientificQuantity {
     ScientificQuantity {

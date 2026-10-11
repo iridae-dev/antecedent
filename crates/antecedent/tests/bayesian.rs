@@ -4,7 +4,6 @@
 
 #![allow(clippy::too_many_lines)]
 
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -35,15 +34,10 @@ use antecedent_prob::{
 use antecedent_validate::{
     PosteriorPredictiveCheck, PredictiveCheckKind, PriorPredictiveCheck, PriorSensitivity,
 };
-use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/bayesian").join(name)
-}
-
-fn load_expected(name: &str) -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir(name).join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("bayesian").join(name)
 }
 
 fn linear_scm_table(n: usize) -> (TabularData, VariableId, VariableId, VariableId) {
@@ -99,7 +93,7 @@ fn linear_scm_table(n: usize) -> (TabularData, VariableId, VariableId, VariableI
 
 #[test]
 fn shared_functional_ate() {
-    let expected = load_expected("shared_functional_ate");
+    let expected = load_expected_json(&fixture_dir("shared_functional_ate"));
     let true_ate = expected["true_ate"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     assert_eq!(expected["frequentist"].as_str().unwrap(), "linear_adjustment");
@@ -151,7 +145,7 @@ fn shared_functional_ate() {
 
 #[test]
 fn nonidentified_prior() {
-    let expected = load_expected("nonidentified_prior");
+    let expected = load_expected_json(&fixture_dir("nonidentified_prior"));
     let prior = PriorSet::weakly_informative(3);
     let post =
         nonidentified_with_prior(&prior, 0.0, 10.0, InferenceDiagnostics::analytic("none"), 64, 1)
@@ -165,7 +159,7 @@ fn nonidentified_prior() {
 
 #[test]
 fn conjugate_gaussian() {
-    let expected = load_expected("conjugate_gaussian");
+    let expected = load_expected_json(&fixture_dir("conjugate_gaussian"));
     let coefs = expected["true_coefficients"].as_array().unwrap();
     let true0 = coefs[0].as_f64().unwrap();
     let true1 = coefs[1].as_f64().unwrap();
@@ -211,7 +205,7 @@ fn conjugate_gaussian() {
 
 #[test]
 fn laplace_glm() {
-    let expected = load_expected("laplace_glm");
+    let expected = load_expected_json(&fixture_dir("laplace_glm"));
     let coefs = expected["true_coefficients"].as_array().unwrap();
     let true0 = coefs[0].as_f64().unwrap();
     let true1 = coefs[1].as_f64().unwrap();
@@ -250,7 +244,7 @@ fn laplace_glm() {
 
 #[test]
 fn graph_effect_envelope() {
-    let expected = load_expected("graph_effect_envelope");
+    let expected = load_expected_json(&fixture_dir("graph_effect_envelope"));
     let w_unid = expected["unidentified_mass"].as_f64().unwrap();
     let identified = expected["identified_weights"].as_array().unwrap();
     let effects = expected["effect_means"].as_array().unwrap();
@@ -281,7 +275,7 @@ fn graph_effect_envelope() {
 
 #[test]
 fn ppc() {
-    let expected = load_expected("ppc");
+    let expected = load_expected_json(&fixture_dir("ppc"));
     let checks = expected["checks"].as_array().unwrap();
     assert!(checks.iter().any(|c| c.as_str() == Some("prior_predictive")));
     assert!(checks.iter().any(|c| c.as_str() == Some("posterior_predictive")));
@@ -344,7 +338,7 @@ fn ppc() {
 
 #[test]
 fn prior_sensitivity() {
-    let expected = load_expected("prior_sensitivity");
+    let expected = load_expected_json(&fixture_dir("prior_sensitivity"));
     let scales: Vec<f64> =
         expected["scales"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
 
@@ -440,7 +434,7 @@ fn pulse_scm_series(n: usize, true_ate: f64) -> (TimeSeriesData, TemporalDag) {
 
 #[test]
 fn temporal_pulse() {
-    let expected = load_expected("temporal_pulse");
+    let expected = load_expected_json(&fixture_dir("temporal_pulse"));
     let true_ate = expected["expected_ate"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
@@ -484,7 +478,7 @@ fn temporal_pulse() {
 /// contiguous-window data subset among them) and prior sensitivity.
 #[test]
 fn temporal_pulse_staged_all_structures_and_suites() {
-    let expected = load_expected("temporal_pulse");
+    let expected = load_expected_json(&fixture_dir("temporal_pulse"));
     let true_ate = expected["expected_ate"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
@@ -717,7 +711,7 @@ fn run_staged_sustained(
     accepted: bool,
     suite: RefuteSuite,
 ) -> Result<antecedent::StudyResult, antecedent::CausalError> {
-    let expected = load_expected("temporal_sustained");
+    let expected = load_expected_json(&fixture_dir("temporal_sustained"));
     let true_ate = expected["expected_ate"].as_f64().unwrap();
     let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("fixture n");
     let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("fixture n_draws");
@@ -743,7 +737,7 @@ fn run_staged_sustained(
 }
 
 fn assert_sustained_mean(result: &antecedent::StudyResult) {
-    let expected = load_expected("temporal_sustained");
+    let expected = load_expected_json(&fixture_dir("temporal_sustained"));
     let true_ate = expected["expected_ate"].as_f64().unwrap();
     let tol = expected["tolerance"].as_f64().unwrap();
     let post = result.posterior.as_ref().expect("posterior");
@@ -993,7 +987,7 @@ fn prior_bank_catalog() {
         buf
     }
 
-    let expected = load_expected("prior_bank_catalog");
+    let expected = load_expected_json(&fixture_dir("prior_bank_catalog"));
     let ate = EstimandFingerprint::new("ate", "t", "y");
     let design = vec![
         DesignVariableSummary::new("t", DesignVariableRole::Treatment),
@@ -1099,7 +1093,7 @@ fn prior_bank_effect_map() {
     use antecedent_io::PriorMapping;
     use antecedent_prob::PriorSet;
 
-    let expected = load_expected("prior_bank_effect_map");
+    let expected = load_expected_json(&fixture_dir("prior_bank_effect_map"));
     let tol = expected["mapped_mean_tol"].as_f64().unwrap();
     let n = 80usize;
 
@@ -1287,7 +1281,7 @@ fn prior_bank_power_mixture() {
         compose_external_priors,
     };
 
-    let expected = load_expected("prior_bank_power_mixture");
+    let expected = load_expected_json(&fixture_dir("prior_bank_power_mixture"));
     let tol = expected["tol"].as_f64().unwrap();
     let baseline_mean = expected["baseline_mean"].as_f64().unwrap();
     let baseline_var = expected["baseline_variance"].as_f64().unwrap();
@@ -1364,7 +1358,7 @@ fn prior_bank_ess_accounting() {
         }
     }
 
-    let expected = load_expected("prior_bank_ess");
+    let expected = load_expected_json(&fixture_dir("prior_bank_ess"));
     let tol = expected["tol"].as_f64().unwrap();
 
     // -- power: single contributing source sums exactly. --
@@ -1459,7 +1453,7 @@ fn prior_bank_ess_accounting() {
 fn prior_conjugate_moment_match() {
     use antecedent_prob::{BetaHyperparameters, GammaHyperparameters};
 
-    let expected = load_expected("prior_conjugate_moment_match");
+    let expected = load_expected_json(&fixture_dir("prior_conjugate_moment_match"));
     let tol = expected["tol"].as_f64().unwrap();
 
     // -- beta_moment_match: from_moments matches (mean, variance) exactly;
@@ -1618,7 +1612,7 @@ fn prior_bank_conflict_shrink() {
     };
     use antecedent_validate::{ConflictPolicy, ConflictSignals, apply_conflict_and_compose};
 
-    let expected = load_expected("prior_bank_conflict_shrink");
+    let expected = load_expected_json(&fixture_dir("prior_bank_conflict_shrink"));
     let alpha = expected["alpha"].as_f64().unwrap();
     let policy = ConflictPolicy::try_new(
         expected["p_min"].as_f64().unwrap(),
@@ -1687,7 +1681,7 @@ fn prior_bank_transport() {
         TransportContext, TransportError, TransportPolicy, apply_transport, compose_with_transport,
     };
 
-    let expected = load_expected("prior_bank_transport");
+    let expected = load_expected_json(&fixture_dir("prior_bank_transport"));
     let tol = expected["tol"].as_f64().unwrap();
     let alpha = expected["alpha"].as_f64().unwrap();
     let source_pop = expected["source_population"].as_str().unwrap();
@@ -1788,7 +1782,7 @@ fn prior_bank_alpha_sensitivity() {
         compose_external_priors,
     };
 
-    let expected = load_expected("prior_bank_alpha_sensitivity");
+    let expected = load_expected_json(&fixture_dir("prior_bank_alpha_sensitivity"));
     let n = usize::try_from(expected["n"].as_u64().unwrap()).expect("n");
     let n_draws = usize::try_from(expected["n_draws"].as_u64().unwrap()).expect("n_draws");
     let source_mean = expected["source_treatment_mean"].as_f64().unwrap();

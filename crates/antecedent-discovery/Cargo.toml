@@ -26,6 +26,7 @@ antecedent-stats = { version = "2.4.0", path = "../antecedent-stats" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+antecedent-test-support = { path = "../antecedent-test-support" }
 criterion = { workspace = true }
 serde_json = { workspace = true }
 

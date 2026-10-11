@@ -17,20 +17,19 @@ use antecedent_io::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::{conformance_dir, read_fixture_bytes};
 
 fn fixture_dir() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cross_surface")
+    conformance_dir("cross_surface")
 }
 
 fn read_fixture(name: &str) -> Vec<u8> {
-    let path = fixture_dir().join(name);
-    std::fs::read(&path).unwrap_or_else(|error| {
-        panic!(
-            "missing cross-surface fixture {} ({error}); run \
-             `python python/tests/generate_cross_surface_fixtures.py` from the repo root",
-            path.display()
-        )
-    })
+    read_fixture_bytes(
+        &fixture_dir(),
+        name,
+        "run \
+            `python python/tests/generate_cross_surface_fixtures.py` from the repo root",
+    )
 }
 
 fn near(a: f64, b: f64) -> bool {

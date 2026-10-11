@@ -14,6 +14,7 @@ use antecedent_io::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
 
 fn quantity(variable: &str, regime: &str, units: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -90,10 +91,6 @@ fn contract(policy: StructuralPolicy) -> DecisionContract {
         horizon: 0,
         structural_policy: policy,
     }
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
 }
 
 #[test]

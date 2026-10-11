@@ -19,6 +19,7 @@ use antecedent_stats::{
     anderson_rubin_kf_critical,
 };
 use calibration::{grid_n, grid_seed, map_replicates, n_sim};
+use antecedent_test_support::dot;
 
 fn request(n: usize, seed: u64, strength: f64) -> DesignRequest {
     let mut generator = candidate::Generator::new(seed);
@@ -45,9 +46,6 @@ fn request(n: usize, seed: u64, strength: f64) -> DesignRequest {
 fn centered(value: &[f64]) -> Vec<f64> {
     let mean = value.iter().sum::<f64>() / value.len() as f64;
     value.iter().map(|a| a - mean).collect()
-}
-fn dot(a: &[f64], b: &[f64]) -> f64 {
-    a.iter().zip(b).map(|(a, b)| a * b).sum()
 }
 struct Oracle {
     quadratic: [f64; 3],

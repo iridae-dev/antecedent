@@ -23,14 +23,10 @@ use antecedent_data::{
 use antecedent_estimate::OverlapPolicy;
 use antecedent_graph::{Dag, DenseNodeId};
 use serde_json::Value as JsonValue;
+use antecedent_test_support::{conformance_dir, load_expected_json};
 
 fn fixture_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../conformance/estimate/noisy_estimators")
-}
-
-fn load_expected() -> JsonValue {
-    let raw = fs::read_to_string(fixture_dir().join("expected.json")).expect("expected.json");
-    serde_json::from_str(&raw).expect("parse expected.json")
+    conformance_dir("estimate/noisy_estimators")
 }
 
 fn close(a: f64, b: f64, atol: f64, rtol: f64) -> bool {
@@ -184,7 +180,7 @@ fn run_method(
 
 #[test]
 fn estimate_noisy_estimators_val_and_se() {
-    let expected = load_expected();
+    let expected = load_expected_json(&fixture_dir());
     assert_eq!(expected["tolerance_class"].as_str().unwrap(), "StableFloat");
     assert!(expected["reference"]["available"].as_bool().unwrap_or(false));
 

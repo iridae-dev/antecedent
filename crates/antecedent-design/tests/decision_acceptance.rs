@@ -27,6 +27,7 @@ use antecedent_io::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
 
 // ---------------------------------------------------------------------------
 // Shared builders
@@ -45,10 +46,6 @@ fn quantity(variable: &str, regime: &str, functional: &str) -> ScientificQuantit
         conditioning: vec![],
         transform_id: "identity".into(),
     }
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
 }
 
 fn identity(columns: &[ScientificQuantity], alignment: DrawAlignment) -> DistributionIdentity {

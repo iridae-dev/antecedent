@@ -19,6 +19,7 @@ use antecedent_io::distribution_artifact::{
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_test_support::near_lt_1e12 as near;
 
 fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
     ScientificQuantity {
@@ -128,10 +129,6 @@ fn run(
     claims: &ClaimProfile,
 ) -> RobustDecisionResult {
     evaluate_robust(c, atoms, claims).unwrap().1
-}
-
-fn near(a: f64, b: f64) -> bool {
-    (a - b).abs() < 1e-12
 }
 
 fn leaders(pairs: &[(&str, Vec<&str>)]) -> Vec<(String, Vec<String>)> {
