@@ -341,6 +341,12 @@ for rel, (extra_required, requires_evidence) in MANIFESTS.items():
                 problems.append(f"{rel}: duplicate id `{cid}`")
             seen_ids.add(cid)
 
+# Identity dictionary and producer/consumer tables are rendered from TOML.
+# The marker blocks are the pages; this does not scrape hand-written prose.
+import generate_dictionary_tables  # noqa: E402
+
+problems.extend(generate_dictionary_tables.staleness())
+
 if problems:
     print("parity manifest schema violations:")
     for p in problems:

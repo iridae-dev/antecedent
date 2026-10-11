@@ -8,11 +8,10 @@ from pathlib import Path
 import antecedent as ant
 import numpy as np
 
-from _repo_text import load_toml, read_text
+from _repo_text import load_toml
 
 ROOT = Path(__file__).resolve().parents[2]
 IDENTITY = load_toml(ROOT / "parity" / "identity.toml")
-NAMING = read_text(ROOT / "docs" / "api_naming.md")
 GRAPH = [("t", "y"), ("z", "y")]
 
 
@@ -41,10 +40,13 @@ def test_identity_domains_match_native_order():
     ]
 
 
-def test_naming_rows_exist():
+def test_naming_rows_are_complete():
+    seen = set()
     for row in IDENTITY["identity"]:
-        assert f"| {row['naming_row']} |" in NAMING
-        assert row["python"] in NAMING
+        assert row["naming_row"] not in seen
+        seen.add(row["naming_row"])
+        assert row["python"] in row["doc_python"]
+        assert row["doc_rust"] and row["doc_python"]
 
 
 HEX64 = re.compile(r"[0-9a-f]{64}")

@@ -1,0 +1,687 @@
+# Producer/consumer matrix. docs/producer-consumer-matrix.md renders these
+# tables between the producer-consumer markers
+# (scripts/generate_dictionary_tables.py). python/tests/test_producer_consumer_matrix.py
+# executes each cell; it reads this file and does not parse the markdown.
+
+[[producer]]
+key = "native_response"
+object = "a native response claim"
+built_from = "`program_claims.native_claim(view, program)` (`NativeClaim`)"
+
+[[producer]]
+key = "fitted_effect_model"
+object = "a fitted effect model"
+built_from = "`compact_export.CompactExport.build(...)` (coefficients, covariance, support, mask)"
+
+[[producer]]
+key = "retargeted_batch"
+object = "a retargeted batch result"
+built_from = "`PreparedBatch.retarget(...)` (`BatchRetarget`); `recalc.RecalcSession.execute(...)` with `TargetWeights`"
+
+[[producer]]
+key = "external_claim"
+object = "an external bound claim"
+built_from = "`external.response(...).bind(response)` (`BoundExternalClaim`)"
+
+[[producer]]
+key = "joint_draws"
+object = "aligned joint draws"
+built_from = "`joint_distribution.JointDistributionArtifact`"
+
+[[producer]]
+key = "bayesian_prior"
+object = "Bayesian prior inputs"
+built_from = "`inference.PosteriorArtifact` (learned posterior), `priors.PriorCatalog`, `priors.ComposedPrior`"
+
+[[producer]]
+key = "identified_scenarios"
+object = "identified sets and scenarios"
+built_from = "a prepared transport scenario stage, CPDAG completions, `inverse_query.IdentifiedSet`, `decision_robust.IdentifiedUtility`"
+
+[[producer]]
+key = "sensitivity_artifact"
+object = "a sensitivity artifact"
+built_from = "`sensitivity_decision.SensitivityArtifact`"
+
+[[producer]]
+key = "decision"
+object = "a decision result"
+built_from = "`decision.Decision` (`Contract.evaluate(...)`)"
+
+[[producer]]
+key = "study_ranking"
+object = "a study ranking"
+built_from = "`design.DesignRankingResult` (`design.rank_designs`, basis `net_value`)"
+
+[[producer]]
+key = "failed_contract"
+object = "a failed identification contract (added: the only producer `repair` takes)"
+built_from = "`repair.BackdoorContract` or `TransportContract`"
+
+[[consumer]]
+key = "decision"
+python = "`Contract.evaluate`, `composition.evaluate_with_support`, `decision_robust.finite_scenarios`, `decision_robust.identified_sets`"
+rust = "`decision_eval::evaluate_contract`, `evaluate_contract_on_means`, `composition_boundary`, `decision_robustness::evaluate_robust`, `decision_adapters::evaluate_identified_sets`"
+
+[[consumer]]
+key = "inverse_query"
+python = "`InverseQuery.evaluate(point=, interval_region=, identified_set=, scenarios=)`"
+rust = "`inverse_query::evaluate_inverse_query`"
+
+[[consumer]]
+key = "design_ranking"
+python = "`design.rank_designs`, `design.evsi`, `design.consume`"
+rust = "`evsi::evaluate_evsi`, `design_ranking_artifact`, `prior_signal::adapt_prior_to_signal`"
+
+[[consumer]]
+key = "sensitivity_decision"
+python = "`sensitivity_decision.decide`"
+rust = "`sensitivity_decision::evaluate_sensitivity_decision`"
+
+[[consumer]]
+key = "scenario_decision"
+python = "`decide_from_scenarios`, `decide_from_cpdag_completions`"
+rust = "`analysis/decision_claims.rs`, `decision_adapters`"
+
+[[consumer]]
+key = "repair"
+python = "`repair.obligations`, `repair.repair`"
+rust = "`repair::repair`, `obligation_adapters`"
+
+[[consumer]]
+key = "bundle_node"
+python = "`composition_bundle.Bundle.builder().add_artifact`"
+rust = "`composition_bundle::CompositionBundle`, `composition_verifiers::standard_consumer`"
+
+[[consumer]]
+key = "recalc_plan"
+python = "`recalc.plan_recalculation`, `RecalcSession.execute`"
+rust = "`analysis/recalc_cell.rs`, `analysis/recalc_receipt.rs`"
+
+[[cell]]
+producer = "native_response"
+consumer = "decision"
+status = "DIRECT"
+detail = "`NativeClaim.as_decision_source(contract).source` into `Contract.evaluate` (A 3, B 3.5); Rust `evaluate_contract_on_means`; a quantile or probability contract is REFUSED `native_claims.source_not_supplied` (`decision_contract_unsatisfied`)"
+
+[[cell]]
+producer = "native_response"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "`NativeDecisionSource.mean_claim()` into `InverseQuery.evaluate`; the claim itself is rejected (`CausalTypeError`); quantile or probability REFUSED `decision_evaluation.mean_source_insufficient`"
+
+[[cell]]
+producer = "native_response"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "no entry takes it; as a prior it raises `CausalTypeError`"
+
+[[cell]]
+producer = "native_response"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`, artifact must be a `SensitivityArtifact`"
+
+[[cell]]
+producer = "native_response"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; the CPDAG entry refuses `scenario_decision.no_native_run` (`not_executed`)"
+
+[[cell]]
+producer = "native_response"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError` from `obligations` and `repair`"
+
+[[cell]]
+producer = "native_response"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no export; `CausalTypeError` (an artifact is its container bytes)"
+
+[[cell]]
+producer = "native_response"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "the caller declares `stage_identity(Stage.QUERY, program_identity)`; the plan reads the digest only"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "decision"
+status = "REFUSED"
+detail = "`Contract.evaluate` raises `CausalTypeError`; `evaluate_with_support` raises `CausalTypeError`; a point prediction is not a decision source"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a forward claim)"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`)"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "its container is not a bundle kind; `CompositionBundleRefusal`"
+
+[[cell]]
+producer = "fitted_effect_model"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.SCORE_ARTIFACT, export.identity)` declared by the caller"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support`; no law or population is inferred from retargeted points"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`)"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no export; `CausalTypeError`"
+
+[[cell]]
+producer = "retargeted_batch"
+consumer = "recalc_plan"
+status = "DIRECT"
+detail = "`RecalcSession.execute` with `TargetWeights` is the retargeting route itself (scores reused, 0 fold fits, 1 reweight, 1 decision); a `BatchRetarget` object is not an input there"
+
+[[cell]]
+producer = "external_claim"
+consumer = "decision"
+status = "DIRECT"
+detail = "`Contract.evaluate(claim)` (wait 1, treat 9; no EVPI; `export` REFUSED `decision_evaluation.mean_source_not_replayable`), `DecisionInput.from_claim`; Rust `evaluate_contract_on_means`; probability or quantile REFUSED `composition_boundary.mean_is_not_a_distribution`"
+
+[[cell]]
+producer = "external_claim"
+consumer = "inverse_query"
+status = "DIRECT"
+detail = "`InverseQuery.evaluate(claim)` (target mean 5 keeps `treat`); quantile REFUSED `decision_evaluation.mean_source_insufficient`"
+
+[[cell]]
+producer = "external_claim"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`)"
+
+[[cell]]
+producer = "external_claim"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "external_claim"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "external_claim"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "external_claim"
+consumer = "bundle_node"
+status = "DIRECT"
+detail = "`add_artifact(\"external_claim\", claim)` with `composition_bundle.mean_decision`, labelled `point_only_attested`; a nonlinear utility REFUSED `composition_bundle.unsupported_law`"
+
+[[cell]]
+producer = "external_claim"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.external_study(0), provider_fingerprint)` declared by the caller"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "decision"
+status = "DIRECT"
+detail = "`Contract.evaluate(law)` (risky 2, safe 3, EVPI 1/2), `DecisionInput.from_distribution`; Rust `evaluate_contract`; the only producer that answers `P(utility >= t)` here (1/2)"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "inverse_query"
+status = "DIRECT"
+detail = "`InverseQuery.evaluate(law)` (means 2 and 3; target 2.5 keeps `safe`)"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`) (a joint law is not a scalar-state prior)"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "bundle_node"
+status = "DIRECT"
+detail = "`add_artifact(\"distribution\", law)` beneath a contract and result, labelled `joint_draw`; Rust `composition_verifiers`"
+
+[[cell]]
+producer = "joint_draws"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.LAW, source_digest)` declared by the caller"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `DecisionInput.from_distribution` and `evaluate_with_support`"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "design_ranking"
+status = "ADAPTER"
+detail = "`design.adapt_prior_to_signal` decodes original catalog state draws and invokes checked Rust `prior_signal::adapt_prior_to_signal`; its bound prior/provider feed canonical `design.rank_designs`, preserving source digests, transfer and overlap checks. Summary/coefficient-only inputs refuse; the raw artifact as a prior raises `CausalTypeError`"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "not a bundle kind; `CompositionBundleRefusal` (shared priors are declared with `relate(..., \"shared_prior\")`, not embedded)"
+
+[[cell]]
+producer = "bayesian_prior"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.prior(0), ...)` declared by the caller"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "decision"
+status = "ADAPTER"
+detail = "`decision_robust.finite_scenarios` over per-structure laws and `identified_sets` over intervals (invariant best A; `bayes_over_structures` over a set REFUSED `decision_adapters.bayes_over_identified_set`); the stage itself is not a source"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "inverse_query"
+status = "ADAPTER"
+detail = "`IdentifiedSet` and `Scenario.evaluated` built by the caller from each structure's law (exhaustive set: `safe` feasible; not exhaustive: unevaluated)"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`)"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "scenario_decision"
+status = "DIRECT"
+detail = "`decide_from_scenarios(contract, stage, policy, outcomes=...)` (direct leader `treat`, standardize leader `hold`); Bayes without declared weights REFUSED `decision_claims.probabilities_not_declared`"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "the stage export is not a bundle kind; `CompositionBundleRefusal`"
+
+[[cell]]
+producer = "identified_scenarios"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.GRAPH, digest of the stage export)` declared by the caller"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support`"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`)"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "sensitivity_decision"
+status = "DIRECT"
+detail = "`sensitivity_decision.decide(artifact.contract(), artifact)` (assumption-dependent switch, exact tie at 1); a composed sampling interval REFUSED `cell_not_licensed`"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "bundle_node"
+status = "DIRECT"
+detail = "`add_artifact(\"sensitivity\", artifact.export())`; node identity is the artifact digest"
+
+[[cell]]
+producer = "sensitivity_artifact"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.EVIDENCE, identity digest)` declared by the caller"
+
+[[cell]]
+producer = "decision"
+consumer = "decision"
+status = "REFUSED"
+detail = "a result is not a source; `CausalTypeError` from `Contract.evaluate`, `CausalTypeError` from `evaluate_with_support`"
+
+[[cell]]
+producer = "decision"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "decision"
+consumer = "design_ranking"
+status = "ADAPTER"
+detail = "the contract (a `Contract`, whose action set is checked, or its identity string, which binds only the identity) frames `design.DesignDecision`; EVSI 1/4, net 3/20"
+
+[[cell]]
+producer = "decision"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "decision"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "decision"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "decision"
+consumer = "bundle_node"
+status = "DIRECT"
+detail = "`result.export()` as a `decision_result` node beneath its law and contract (risky 2, safe 3); a mean-source result is exported only by `composition_bundle.mean_decision`"
+
+[[cell]]
+producer = "decision"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.DECISION, contract_identity + source_digest)` declared by the caller"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support`"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "design_ranking"
+status = "DIRECT"
+detail = "`design.consume(ranking.export(), expected_identity=ranking.expectation())` (EVSI 1/4 and 1/8, net 3/20 and 1/40; external signals never natively replayed); a changed cost map REFUSED `design_ranking.cost_units_mismatch` (`design_cost_units_mismatch`)"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "repair"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "bundle_node"
+status = "DIRECT"
+detail = "`add_artifact(\"study_ranking\", ranking.export())`; it cannot stand in for a `decision_result` (`CompositionBundleRefusal`)"
+
+[[cell]]
+producer = "study_ranking"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.UTILITY, ranking.identity)` declared by the caller; the stage model has no ranking stage"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "decision"
+status = "REFUSED"
+detail = "`CausalTypeError` from `Contract.evaluate`; `CausalTypeError` from `evaluate_with_support`"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "inverse_query"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "design_ranking"
+status = "REFUSED"
+detail = "`CausalTypeError` (not a `design.StatePrior`)"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "sensitivity_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "scenario_decision"
+status = "REFUSED"
+detail = "`CausalTypeError`; CPDAG `scenario_decision.no_native_run`"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "repair"
+status = "DIRECT"
+detail = "`repair.obligations(contract)` (one joint-law obligation over t, y, z1, z2) and `repair.repair(contract, candidates)` (only the cohort that observes all four repairs it); Rust `repair::repair`"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "bundle_node"
+status = "REFUSED"
+detail = "no export; `CausalTypeError`"
+
+[[cell]]
+producer = "failed_contract"
+consumer = "recalc_plan"
+status = "ADAPTER"
+detail = "`stage_identity(Stage.QUERY, contract_id)` declared by the caller"
+
+[[refusal]]
+code = "`decision_contract_unsatisfied`"
+detail = "`native_claims.source_not_supplied` (expected `joint_draws,marginal_draws`, supplied `mean`)"
+where = "`NativeClaim.as_decision_source` for a quantile, probability or nonlinear contract"
+
+[[refusal]]
+code = "`route_not_supported`"
+detail = "`native_claims.unsupported_estimand` (expected `mean_curve`)"
+where = "`native_claim` for an estimand that is not a static response curve"
+
+[[refusal]]
+code = "`decision_contract_unsatisfied`"
+detail = "`decision_evaluation.mean_source_insufficient`"
+where = "`InverseQuery.evaluate` and `Contract.evaluate` asking a mean for a quantile, probability, constraint or nonlinear utility"
+
+[[refusal]]
+code = "`route_not_supported`"
+detail = "`decision_evaluation.mean_source_not_replayable`"
+where = "`Decision.export` over a mean source"
+
+[[refusal]]
+code = "`decision_contract_unsatisfied`"
+detail = "`composition_boundary.mean_is_not_a_distribution`"
+where = "`evaluate_functional` over a mean or scalar input"
+
+[[refusal]]
+code = "`joint_law_required`"
+detail = "`composition_boundary.paired_draws_across_sources`"
+where = "draws paired across a mean source or two sources"
+
+[[refusal]]
+code = "`decision_contract_unsatisfied`"
+detail = "`decision_adapters.bayes_over_identified_set`"
+where = "`identified_sets` under `bayes_over_structures`"
+
+[[refusal]]
+code = "`decision_contract_unsatisfied`"
+detail = "`decision_claims.probabilities_not_declared`"
+where = "`decide_from_scenarios` under `bayes_over_structures` without declared weights"
+
+[[refusal]]
+code = "`not_executed`"
+detail = "`scenario_decision.no_native_run`"
+where = "`decide_from_cpdag_completions` over anything that is not a native CPDAG run"
+
+[[refusal]]
+code = "`cell_not_licensed`"
+detail = "`sensitivity_decision_composition.composition_not_licensed`"
+where = "a sampling interval composed with an assumption range"
+
+[[refusal]]
+code = "`joint_law_required`"
+detail = "`composition_bundle.unsupported_law`"
+where = "a mean decision whose functional needs a joint law, or a joint-law result over a mean-only claim"
+
+[[refusal]]
+code = "`design_cost_units_mismatch`"
+detail = "`design_ranking.cost_units_mismatch`"
+where = "`design.consume` under a different cost map"

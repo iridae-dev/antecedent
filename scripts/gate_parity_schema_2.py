@@ -662,11 +662,21 @@ for rel_path in ("parity/identity.toml", "parity/claims.toml"):
 identity_rows = tomllib.loads((root / "parity/identity.toml").read_text()).get("identity", [])
 adr = (root / "adr/0022-causal-compiler-contract.md").read_text()
 for row in identity_rows:
-    for field in ("domain", "rust", "contract_key", "python", "availability", "naming_row", "covers"):
+    for field in (
+        "domain",
+        "rust",
+        "contract_key",
+        "python",
+        "availability",
+        "naming_row",
+        "covers",
+        "doc_rust",
+        "doc_python",
+    ):
         if not row.get(field):
             problems.append(f"identity.toml {row.get('domain')}: missing {field}")
-    if f"| {row.get('naming_row')} |" not in (root / "docs/api_naming.md").read_text():
-        problems.append(f"identity.toml {row.get('domain')}: naming_row missing from api_naming.md")
+    if row.get("python") not in str(row.get("doc_python")):
+        problems.append(f"identity.toml {row.get('domain')}: doc_python must contain python")
 if "antecedent.identity.v2" not in adr:
     problems.append("adr/0022: identity format tag does not match antecedent-core")
 

@@ -241,6 +241,22 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | d-separation | `Dag::is_d_separated` | `Dag.d_separated(x, y, z=…)` |
 | Latent projection | `latent_project` | `Dag.latent_project(observed)` |
 | External prior bank | `antecedent-prob::conjugate_moment_match` / `compose_external_priors` | `antecedent.priors.beta_from_moments` / `compose_external_priors` / `PriorCatalog` (module renamed from `prior_bank` to `priors`) |
+| Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |
+| Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
+| Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); HTML also on `Identification`, graphs, `CausalResponseView`, `ReviewRequired`; `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_columns()`; `PosteriorView` supports `__array__` / `.interval()` |
+| Errors | `CausalError` | `CausalError` (+ typed subclasses); `ReviewRequired` carries structured `pending_edges` |
+| Latency tier | `LatencyMode::Interactive` | `Latency.INTERACTIVE` / `"interactive"` |
+| Plan inspection | `result.logical_plan()` / `PreparedAnalysis::plan()` | `result.plan` / `PreparedAnalysis.plan` |
+| Stage modules | `antecedent::discovery`, `antecedent::gcm`, `antecedent::io` | `antecedent.discovery`, `antecedent.gcm`, `antecedent.graph` |
+
+## Identity dictionary
+
+One row per identity domain, including `target_weights`. Rendered from
+`parity/identity.toml`.
+
+<!-- generated:identity-dictionary:begin -->
+| Capability | Rust | Python |
+| --- | --- | --- |
 | Target identity | target digest on the inspect/contract | `inspect().target_id` |
 | Identification premises identity | identification digest over the population-free question, accepted structure (posterior atoms and weights), class prior, transport selection and the full optional evidence catalog (`source_experiments` only for legacy queries), and observation contract | `inspect().identification_id` |
 | Identification product identity | identification-product digest | `inspect().identification_product_id` |
@@ -254,13 +270,7 @@ live on ``antecedent._native`` only, which is an advanced FFI surface.
 | Target-weight identity | target-weights digest | `inspect().target_weights_id` |
 | Learned-trial artifact identity | `manifest.artifact_id` on `LearnedTrialWire` | n/a (artifact_id in the learned-trial artifact manifest) |
 | Transport-certificate artifact identity | `manifest.artifact_id` on `TransportCertificateWire` | n/a (artifact_id in the transport-certificate artifact manifest) |
-| Safe consumption shape | withheld leftover / partial ID | `result.answer` (`point` / `bounds` / `partial` / `unavailable`); historical `.effect` / `.posterior` / `.response` remain accessible and are not misuse-proof |
-| Primary scalar effect | `result.effect()` | `result.effect` (`.ate` alias) |
-| Rich result display | `Debug` / `Display` impls | `AnalysisResult.__repr__` / `_repr_html_` (amber callout when `unidentified_mass > 0`); HTML also on `Identification`, graphs, `CausalResponseView`, `ReviewRequired`; `ValidationView` supports `len()` / iteration / indexing / `.failed` / `.to_columns()`; `PosteriorView` supports `__array__` / `.interval()` |
-| Errors | `CausalError` | `CausalError` (+ typed subclasses); `ReviewRequired` carries structured `pending_edges` |
-| Latency tier | `LatencyMode::Interactive` | `Latency.INTERACTIVE` / `"interactive"` |
-| Plan inspection | `result.logical_plan()` / `PreparedAnalysis::plan()` | `result.plan` / `PreparedAnalysis.plan` |
-| Stage modules | `antecedent::discovery`, `antecedent::gcm`, `antecedent::io` | `antecedent.discovery`, `antecedent.gcm`, `antecedent.graph` |
+<!-- generated:identity-dictionary:end -->
 
 Prefer package / module paths for stage depth; keep day-1 at the crate / package root.
 Rust stage APIs are **not** re-exported at the crate root — use `antecedent::io::…`, `antecedent::discovery::…`, `antecedent::gcm::…`, etc.

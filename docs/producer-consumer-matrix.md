@@ -7,10 +7,10 @@ estimate is not a response, a posterior summary is not a prior signal, and a dec
 not a source. Every route here is point-only; nothing on this page is an interval, a coverage
 statement or a probability license.
 
-The executable source of truth is `python/tests/test_producer_consumer_matrix.py`. Its `STATUS` table holds
-the 88 cells asserted below; `test_producer_consumer_matrix_document_agrees_with_the_executable_table` fails
-if this page and the table drift apart. Each producer row is `test_producer_consumer_matrix_<row>_row`,
-parametrized over the eight consumers.
+The cells are `parity/producer_consumer.toml`, rendered between the markers below.
+`python/tests/test_producer_consumer_matrix.py` reads that file and executes each
+producer row as `test_producer_consumer_matrix_<row>_row`, parametrized over the
+eight consumers.
 
 The statistical carrier `inference.MeasuredInference` has its own original-source
 producer and independent `load` consumer. It is not an additional decision
@@ -33,6 +33,7 @@ requiring an exception, with the exact type where the consumer types its input
 
 ## Producers (rows)
 
+<!-- generated:producer-consumer:producers:begin -->
 | Row key | Object | Built from |
 | --- | --- | --- |
 | `native_response` | a native response claim | `program_claims.native_claim(view, program)` (`NativeClaim`) |
@@ -46,6 +47,7 @@ requiring an exception, with the exact type where the consumer types its input
 | `decision` | a decision result | `decision.Decision` (`Contract.evaluate(...)`) |
 | `study_ranking` | a study ranking | `design.DesignRankingResult` (`design.rank_designs`, basis `net_value`) |
 | `failed_contract` | a failed identification contract (added: the only producer `repair` takes) | `repair.BackdoorContract` or `TransportContract` |
+<!-- generated:producer-consumer:producers:end -->
 
 `failed_contract` is outside the original producer inventory; it is added so that the `repair`
 column has a DIRECT route. "External bound claim" is read as a bound external claim
@@ -54,6 +56,7 @@ column has a DIRECT route. "External bound claim" is read as a bound external cl
 
 ## Consumers (columns) and their entry points
 
+<!-- generated:producer-consumer:consumers:begin -->
 | Column key | Python entry | Rust entry |
 | --- | --- | --- |
 | `decision` | `Contract.evaluate`, `composition.evaluate_with_support`, `decision_robust.finite_scenarios`, `decision_robust.identified_sets` | `decision_eval::evaluate_contract`, `evaluate_contract_on_means`, `composition_boundary`, `decision_robustness::evaluate_robust`, `decision_adapters::evaluate_identified_sets` |
@@ -64,9 +67,11 @@ column has a DIRECT route. "External bound claim" is read as a bound external cl
 | `repair` | `repair.obligations`, `repair.repair` | `repair::repair`, `obligation_adapters` |
 | `bundle_node` | `composition_bundle.Bundle.builder().add_artifact` | `composition_bundle::CompositionBundle`, `composition_verifiers::standard_consumer` |
 | `recalc_plan` | `recalc.plan_recalculation`, `RecalcSession.execute` | `analysis/recalc_cell.rs`, `analysis/recalc_receipt.rs` |
+<!-- generated:producer-consumer:consumers:end -->
 
 ## The matrix
 
+<!-- generated:producer-consumer:matrix:begin -->
 | Producer | `decision` | `inverse_query` | `design_ranking` | `sensitivity_decision` | `scenario_decision` | `repair` | `bundle_node` | `recalc_plan` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `native_response` | DIRECT: `NativeClaim.as_decision_source(contract).source` into `Contract.evaluate` (A 3, B 3.5); Rust `evaluate_contract_on_means`; a quantile or probability contract is REFUSED `native_claims.source_not_supplied` (`decision_contract_unsatisfied`) | ADAPTER: `NativeDecisionSource.mean_claim()` into `InverseQuery.evaluate`; the claim itself is rejected (`CausalTypeError`); quantile or probability REFUSED `decision_evaluation.mean_source_insufficient` | REFUSED: no entry takes it; as a prior it raises `CausalTypeError` | REFUSED: `CausalTypeError`, artifact must be a `SensitivityArtifact` | REFUSED: `CausalTypeError`; the CPDAG entry refuses `scenario_decision.no_native_run` (`not_executed`) | REFUSED: `CausalTypeError` from `obligations` and `repair` | REFUSED: no export; `CausalTypeError` (an artifact is its container bytes) | ADAPTER: the caller declares `stage_identity(Stage.QUERY, program_identity)`; the plan reads the digest only |
@@ -83,9 +88,11 @@ column has a DIRECT route. "External bound claim" is read as a bound external cl
 
 Counts: 88 cells, **15 DIRECT**, **15 ADAPTER**, **58 REFUSED**, **0 UNVERIFIED**. Every cell is
 executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
+<!-- generated:producer-consumer:matrix:end -->
 
 ## Refusals the matrix relies on
 
+<!-- generated:producer-consumer:refusals:begin -->
 | Code | Detail | Where |
 | --- | --- | --- |
 | `decision_contract_unsatisfied` | `native_claims.source_not_supplied` (expected `joint_draws,marginal_draws`, supplied `mean`) | `NativeClaim.as_decision_source` for a quantile, probability or nonlinear contract |
@@ -100,6 +107,7 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 | `cell_not_licensed` | `sensitivity_decision_composition.composition_not_licensed` | a sampling interval composed with an assumption range |
 | `joint_law_required` | `composition_bundle.unsupported_law` | a mean decision whose functional needs a joint law, or a joint-law result over a mean-only claim |
 | `design_cost_units_mismatch` | `design_ranking.cost_units_mismatch` | `design.consume` under a different cost map |
+<!-- generated:producer-consumer:refusals:end -->
 
 ## Findings
 
@@ -127,7 +135,6 @@ executed by `test_producer_consumer_matrix_<row>_row[<consumer>]`.
 ## Tests that cite this page
 
 `test_producer_consumer_matrix_declares_every_cell_once_and_counts_them`,
-`test_producer_consumer_matrix_document_agrees_with_the_executable_table`,
 `test_producer_consumer_matrix_native_response_row`, `test_producer_consumer_matrix_fitted_effect_model_row`,
 `test_producer_consumer_matrix_retargeted_batch_row`, `test_producer_consumer_matrix_external_claim_row`,
 `test_producer_consumer_matrix_joint_draws_row`, `test_producer_consumer_matrix_bayesian_prior_row`,

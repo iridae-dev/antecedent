@@ -4,8 +4,8 @@ Rows are the producers of a scientific object, columns the consumers that could 
 Each cell is ``DIRECT`` (a licensed route takes the object), ``ADAPTER`` (a named,
 caller-written step or a different entry point takes it) or ``REFUSED`` (the consumer must
 not take it: a joint law, a posterior or a causal response is never inferred from a
-neighbouring object). This file is the executable source of truth: the table below is
-asserted cell by cell, and the document is checked against it.
+neighbouring object). Cell status lives in ``parity/producer_consumer.toml``;
+this file executes each cell and does not read the markdown table.
 
 Every ``DIRECT`` and ``ADAPTER`` cell runs a small producer through the consumer and asserts a
 hand-derived value; every ``REFUSED`` cell feeds the producer to every entry point of the
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import sys
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from functools import lru_cache
@@ -103,21 +104,21 @@ CONSUMERS: tuple[str, ...] = (
 TYPED = (CausalTypeError, CausalValueError, CausalUnsupportedError, CausalSerializationError)
 
 # --------------------------------------------------------------------------------- the table
-# One row per producer, one status per consumer, in CONSUMERS order. The checks registered
-# below must agree with it; the document must agree with it.
-D, A, R = "DIRECT", "ADAPTER", "REFUSED"
+# One row per producer, one status per consumer, in CONSUMERS order. The checks
+# registered below must agree with parity/producer_consumer.toml.
+_MATRIX = tomllib.loads(
+    (Path(__file__).resolve().parents[2] / "parity" / "producer_consumer.toml").read_text(
+        encoding="utf-8"
+    )
+)
+if tuple(row["key"] for row in _MATRIX["producer"]) != PRODUCERS:
+    raise AssertionError("producer_consumer.toml producers drifted from this file")
+if tuple(row["key"] for row in _MATRIX["consumer"]) != CONSUMERS:
+    raise AssertionError("producer_consumer.toml consumers drifted from this file")
+_BY_PAIR = {(row["producer"], row["consumer"]): row["status"] for row in _MATRIX["cell"]}
 STATUS: dict[str, tuple[str, ...]] = {
-    "native_response": (D, A, R, R, R, R, R, A),
-    "fitted_effect_model": (R, R, R, R, R, R, R, A),
-    "retargeted_batch": (R, R, R, R, R, R, R, D),
-    "external_claim": (D, D, R, R, R, R, D, A),
-    "joint_draws": (D, D, R, R, R, R, D, A),
-    "bayesian_prior": (R, R, A, R, R, R, R, A),
-    "identified_scenarios": (A, A, R, R, D, R, R, A),
-    "sensitivity_artifact": (R, R, R, D, R, R, D, A),
-    "decision": (R, R, A, R, R, R, D, A),
-    "study_ranking": (R, R, D, R, R, R, D, A),
-    "failed_contract": (R, R, R, R, R, D, R, A),
+    producer: tuple(_BY_PAIR[(producer, consumer)] for consumer in CONSUMERS)
+    for producer in PRODUCERS
 }
 
 
@@ -1348,24 +1349,6 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
                 assert (producer, consumer) in CHECKS, (producer, consumer)
     for producer, consumer in CHECKS:
         assert _status(producer, consumer) != "REFUSED", (producer, consumer)
-
-
-def test_producer_consumer_matrix_document_agrees_with_the_executable_table() -> None:
-    path = Path(__file__).resolve().parents[2] / "docs" / "producer-consumer-matrix.md"
-    lines = path.read_text(encoding="utf-8").splitlines()
-    rows: dict[str, tuple[str, ...]] = {}
-    for line in lines:
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) != 1 + len(CONSUMERS) or not cells[0].startswith("`"):
-            continue
-        key = cells[0].strip("`")
-        if key in STATUS:
-            rows[key] = tuple(
-                cell.replace("*", "").split(":", 1)[0].split(" ", 1)[0] for cell in cells[1:]
-            )
-    assert rows == STATUS
-    text = path.read_text(encoding="utf-8")
-    assert "test_producer_consumer_matrix_" in text
 
 
 # ------------------------------------------------------------------------- one test per row
