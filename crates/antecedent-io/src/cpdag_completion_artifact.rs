@@ -580,21 +580,19 @@ fn premises_identity(wire: &CpdagCompletionArtifactWire) -> Result<String, IoErr
         (wire.search_operations, wire.search_depth, wire.search_memory_bytes),
         (wire.operation_limit, wire.depth_limit, wire.max_support_rows),
     );
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("cpdag_completion_scenarios_v1", cpdag, coordinates, &wire.query, request, budget),
-    )?
-    .to_hex())
+    )
 }
 
 fn data_identity(wire: &CpdagCompletionArtifactWire) -> Result<String, IoError> {
     let mut evidence = wire.evidence.clone();
     evidence.bindings.sort_by(|a, b| a.completion.cmp(&b.completion));
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("cpdag_completion_data_v1", &wire.provider, evidence, &wire.laws),
-    )?
-    .to_hex())
+    )
 }
 
 fn query_wire(query: &ClassicalTransportQuery) -> ScenarioQueryWire {
@@ -819,12 +817,18 @@ impl CpdagCompletionArtifactWire {
     ) -> Result<(Self, CpdagScenarioReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
-        if premises_identity(&wire)? != wire.premises_digest {
-            return Err(CpdagArtifactError::PremisesMismatch.into());
-        }
-        if data_identity(&wire)? != wire.data_digest {
-            return Err(CpdagArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            premises_identity(&wire),
+            std::convert::identity,
+            || CpdagArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            data_identity(&wire),
+            std::convert::identity,
+            || CpdagArtifactError::DataIdentityMismatch.into(),
+        )?;
         let premises = wire.to_premises()?;
         // Replay under the producer's memory limit, which the consumer's own
         // hard limit already bounds, so a memory truncation reproduces.

@@ -30,7 +30,7 @@
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, SearchStop, reason_code};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
-use antecedent_io::{IoError, from_cbor, to_cbor};
+use antecedent_io::{IoError, decode_with_version, to_cbor};
 use antecedent_validate::{
     JointDeviationSpec, JointFactor, JointFactorBound, JointMechanismSensitivityResult,
     JointSensitivityError, JointSensitivityLimits, TippingStatus,
@@ -242,11 +242,6 @@ impl Default for JointSensitivityConsumeLimits {
             max_memory_bytes: declared.memory_bytes,
         }
     }
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 /// Domain tags of the three identity digests of a joint sensitivity artifact.
@@ -489,11 +484,13 @@ impl JointSensitivityArtifactWire {
         limits: JointSensitivityConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        let peek: VersionPeek = from_cbor(bytes)?;
-        if peek.version != JOINT_SENSITIVITY_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = from_cbor(bytes)?;
+        let wire: Self = decode_with_version(bytes, |version: u32| {
+            if version == JOINT_SENSITIVITY_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         let declared = &wire.body.perturbation;
         let effective = wire.body.receipt.memory_limit_bytes;
         let affordable = ctx.memory.hard_limit_bytes.is_none_or(|hard| hard >= effective);

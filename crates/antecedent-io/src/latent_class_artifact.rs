@@ -28,7 +28,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
-use antecedent_estimate::EstimationError;
 use antecedent_estimate::latent_class_effects::{
     LATENT_CLASS_CAVEAT, LATENT_CLASS_INFERENCE_CLAIM, LatentClassConfig, LatentClassData,
     LatentClassResult, PremiseStatus, fit_latent_class_effects,
@@ -58,94 +57,14 @@ const ARTIFACT_KIND: &str = "latent_class_effects_v1";
 const META_SECTION: &str = "latent_class_meta";
 const DATA_SECTION: &str = "latent_class_data";
 
-/// Why a latent-class artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum LatentClassArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("latent class artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported latent class artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported latent class semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("latent class consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed latent class artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("latent_class.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored record differs from the refitted one.
-    #[error("stored latent class record does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("latent class artifact does not encode: {0}")]
-    Encode(String),
-    /// The core fit refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl LatentClassArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal, a changed identity field and a record that does not replay;
-    /// absent for corruption, unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "latent_class.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ResultMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "latent_class.report_replay_mismatch".to_owned(),
-                format!("the stored {what} does not replay"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for LatentClassArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for LatentClassArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a latent-class artifact was refused or could not be produced.
+    LatentClassArtifactError,
+    "latent class",
+    "latent_class",
+    "record",
+    true
+);
 
 fn invalid_request(message: &str) -> LatentClassArtifactError {
     LatentClassArtifactError::Refused {

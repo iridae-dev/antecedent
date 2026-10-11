@@ -263,7 +263,7 @@ impl Artifact {
             prior: &self.prior,
             options: &self.options,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &premises)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &premises)
     }
     /// Export internal candidate evidence, never a public interval result.
     /// # Errors
@@ -306,9 +306,13 @@ impl Artifact {
         {
             return Err(invalid("consumer sampler or receipt shape limit"));
         }
-        if wire.expected_premises_digest()? != wire.premises_digest
-            || expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest)
-        {
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || invalid("Bayesian premises identity mismatch"),
+        )?;
+        if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(invalid("Bayesian premises identity mismatch"));
         }
         let (point, _) = NestedMarkovArtifactWire::consume_expecting(

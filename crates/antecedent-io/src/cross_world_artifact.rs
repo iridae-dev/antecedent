@@ -244,11 +244,10 @@ pub struct CrossWorldArtifactWire {
 pub fn cross_world_data_digest(names: &[String], columns: &[Vec<f64>]) -> Result<String, IoError> {
     let table: Vec<Vec<u64>> =
         columns.iter().map(|c| c.iter().map(|x| x.to_bits()).collect()).collect();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::DataSnapshot,
         &("cross_world_edge_contrast_v1.table", names, table),
-    )?
-    .to_hex())
+    )
 }
 
 /// Scientific identity of a cross-world execution: the variable names, graph,
@@ -262,7 +261,7 @@ pub fn cross_world_data_digest(names: &[String], columns: &[Vec<f64>]) -> Result
 pub fn cross_world_identity(wire: &CrossWorldArtifactWire) -> Result<String, IoError> {
     let mut edges = wire.graph_edges.clone();
     edges.sort_unstable();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::Program,
         &(
             "cross_world_edge_contrast_v1",
@@ -273,8 +272,7 @@ pub fn cross_world_identity(wire: &CrossWorldArtifactWire) -> Result<String, IoE
             &wire.mechanism,
             &wire.data_digest,
         ),
-    )?
-    .to_hex())
+    )
 }
 
 impl CrossWorldArtifactWire {

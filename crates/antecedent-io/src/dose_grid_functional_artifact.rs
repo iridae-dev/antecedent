@@ -446,7 +446,7 @@ impl DoseGridRequestWire {
     }
 
     fn premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(IdentityDomain::Claim, &self.premises_view())?.to_hex())
+        crate::digest_hex(IdentityDomain::Claim, &self.premises_view())
     }
 
     fn data_digest(&self) -> Result<String, IoError> {
@@ -455,7 +455,7 @@ impl DoseGridRequestWire {
             dose: bits(&self.dose),
             outcome: bits(&self.outcome),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::DataSnapshot, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::DataSnapshot, &view)
     }
 
     fn evaluation_points(&self, functional: DoseFunctional) -> Vec<f64> {
@@ -743,12 +743,15 @@ impl DoseGridArtifactWire {
         })?;
         wire.request.check_limits(&limits)?;
         let undecodable = |e: IoError| DoseGridArtifactError::Undecodable(e.to_string());
-        if wire.request.premises_digest().map_err(undecodable)? != wire.premises_digest {
-            return Err(DoseGridArtifactError::PremisesMismatch);
-        }
-        if wire.request.data_digest().map_err(undecodable)? != wire.data_digest {
-            return Err(DoseGridArtifactError::DataMismatch);
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.request.premises_digest(),
+            undecodable,
+            || DoseGridArtifactError::PremisesMismatch,
+        )?;
+        crate::require_digest(&wire.data_digest, wire.request.data_digest(), undecodable, || {
+            DoseGridArtifactError::DataMismatch
+        })?;
         let fresh = wire.request.evaluate()?;
         let stored = crate::to_cbor(&wire.result).map_err(undecodable)?;
         let recomputed = crate::to_cbor(&fresh).map_err(undecodable)?;

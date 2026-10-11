@@ -554,7 +554,7 @@ impl RecoveryChainArtifactWire {
             witness: &self.witness,
             witness_check: &self.witness_check,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::IdentificationProduct, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::IdentificationProduct, &view)
     }
 
     /// The data digest the stored laws should carry.
@@ -567,7 +567,7 @@ impl RecoveryChainArtifactWire {
             observed: self.observed.as_ref().map(ChainLawWire::bits),
             recovered: self.recovered.as_ref().map(ChainRecoveredWire::bits),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::DataSnapshot, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::DataSnapshot, &view)
     }
 
     fn validate_shape(&self) -> Result<(), RecoveryChainArtifactError> {
@@ -663,12 +663,15 @@ impl RecoveryChainArtifactWire {
             IoError::Refused { .. } => RecoveryChainArtifactError::UnsupportedSemantics("shape"),
             other => undecodable(other),
         })?;
-        if wire.expected_premises_digest().map_err(undecodable)? != wire.premises_digest {
-            return Err(RecoveryChainArtifactError::PremisesMismatch);
-        }
-        if wire.expected_data_digest().map_err(undecodable)? != wire.data_digest {
-            return Err(RecoveryChainArtifactError::DataMismatch);
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            undecodable,
+            || RecoveryChainArtifactError::PremisesMismatch,
+        )?;
+        crate::require_digest(&wire.data_digest, wire.expected_data_digest(), undecodable, || {
+            RecoveryChainArtifactError::DataMismatch
+        })?;
         let graph = wire.graph.to_graph().map_err(undecodable)?;
         let query = wire.query.to_query();
         let decision = decide_chain_recovery(&graph, &query, ctx)?;

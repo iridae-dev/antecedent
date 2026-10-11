@@ -194,7 +194,7 @@ impl TemporalRecalcArtifactWire {
         let mut bidirected = r.bidirected.clone();
         bidirected.sort_unstable();
         bidirected.dedup();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &(
                 TEMPORAL_RECALC_FEATURE,
@@ -209,19 +209,17 @@ impl TemporalRecalcArtifactWire {
                 r.benefit_per_unit.to_bits(),
                 r.cost.to_bits(),
             ),
-        )?
-        .to_hex())
+        )
     }
     /// Rehash every history's actual unit/time ownership and the target law.
     /// # Errors
     /// Encoding failure.
     pub fn expected_data_digest(&self) -> Result<String, IoError> {
         let r = &self.request;
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::DataSnapshot,
             &(&r.snapshot_id, &r.units, &r.initial_state_id, r.initial_state.map(f64::to_bits)),
-        )?
-        .to_hex())
+        )
     }
     fn validate(&self) -> Result<(), IoError> {
         let invalid_temporal_artifact = |s: &str| IoError::Refused {
@@ -244,11 +242,18 @@ impl TemporalRecalcArtifactWire {
                 "unsupported or unbounded empirical point shape",
             ));
         }
-        if self.premises_digest != self.expected_premises_digest()?
-            || self.data_digest != self.expected_data_digest()?
-        {
-            return Err(invalid_temporal_artifact("premise/data identity mismatch"));
-        }
+        crate::require_digest(
+            &self.premises_digest,
+            self.expected_premises_digest(),
+            std::convert::identity,
+            || invalid_temporal_artifact("premise/data identity mismatch"),
+        )?;
+        crate::require_digest(
+            &self.data_digest,
+            self.expected_data_digest(),
+            std::convert::identity,
+            || invalid_temporal_artifact("premise/data identity mismatch"),
+        )?;
         Ok(())
     }
     /// Encode; this does not by itself grant scientific acceptance.

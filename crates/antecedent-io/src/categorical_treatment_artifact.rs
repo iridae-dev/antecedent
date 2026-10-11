@@ -32,7 +32,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
-use antecedent_estimate::EstimationError;
 use antecedent_estimate::categorical_treatment::{
     CATEGORICAL_INFERENCE_CLAIM, CATEGORICAL_OMNIBUS_NULL, CategoricalSummary,
     CategoricalTreatmentFit, CategoricalTreatmentInput, CategoricalTreatmentSpec, LevelCount,
@@ -71,89 +70,14 @@ const NUMBERS_SECTION: &str = "categorical_treatment_numbers";
 const REPLAY_SUMMARY: &str = "summary";
 const REPLAY_ROWS: &str = "rows";
 
-/// Why a categorical-treatment artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum CategoricalTreatmentArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("categorical treatment artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported categorical treatment artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported categorical treatment semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("categorical treatment consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed categorical treatment artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("categorical_treatment.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored result differs from the recomputed one.
-    #[error("stored categorical treatment result does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("categorical treatment artifact does not encode: {0}")]
-    Encode(String),
-    /// The core fit refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl CategoricalTreatmentArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal and for a changed identity field; absent for corruption,
-    /// unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "categorical_treatment.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for CategoricalTreatmentArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for CategoricalTreatmentArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a categorical-treatment artifact was refused or could not be produced.
+    CategoricalTreatmentArtifactError,
+    "categorical treatment",
+    "categorical_treatment",
+    "result",
+    false
+);
 
 fn invalid_request(message: &str) -> CategoricalTreatmentArtifactError {
     CategoricalTreatmentArtifactError::Refused {

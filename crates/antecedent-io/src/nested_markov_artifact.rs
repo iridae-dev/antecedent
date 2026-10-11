@@ -542,7 +542,7 @@ impl NestedMarkovArtifactWire {
                 .map(|r| (r.regime.as_str(), r.fixed.as_slice(), r.levels.as_slice()))
                 .collect(),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored counts should carry.
@@ -558,7 +558,7 @@ impl NestedMarkovArtifactWire {
                 .map(|r| r.cells.iter().map(|v| v.to_bits()).collect())
                 .collect(),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// Encode as CBOR.
@@ -650,12 +650,18 @@ impl NestedMarkovArtifactWire {
     ) -> Result<(Self, PilotReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(NestedMarkovArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(NestedMarkovArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || NestedMarkovArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || NestedMarkovArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(NestedMarkovArtifactError::ExpectationMismatch("premises").into());
         }

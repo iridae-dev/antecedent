@@ -333,11 +333,10 @@ fn data_digest(catalog: &EvidenceCatalog, laws: &[ExactLawWire]) -> Result<Strin
         .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
         .collect::<Vec<_>>();
     snapshots.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("mixed_source_data_v1", bindings, snapshots),
-    )?
-    .to_hex())
+    )
 }
 
 fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
@@ -432,11 +431,7 @@ impl MixedSourceArtifactWire {
     /// # Errors
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &self.premises_view(),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -524,26 +519,26 @@ impl MixedSourceArtifactWire {
         if self.search_depth > limits.search.depth {
             return Err(exceeded("search depth limit"));
         }
-        if self.operation_limit > limits.evaluation.operations {
-            return Err(exceeded("operation limit"));
-        }
-        if self.depth_limit > limits.evaluation.depth {
-            return Err(exceeded("depth limit"));
-        }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(exceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(exceeded("law count"));
+        let replay = crate::ConsumeLimits {
+            operations: limits.evaluation.operations,
+            depth: limits.evaluation.depth,
+            max_support_rows: limits.max_support_rows,
+            max_laws: limits.max_laws,
+            max_law_cells: limits.max_law_cells,
+        };
+        if let Some(what) = replay.budget(
+            self.operation_limit,
+            self.depth_limit,
+            self.max_support_rows,
+            self.laws.len(),
+        ) {
+            return Err(exceeded(what));
         }
         if self.requests.len() > limits.max_requests {
             return Err(exceeded("request count"));
         }
-        if self.laws.iter().any(|law| {
-            law.probabilities.len() > limits.max_law_cells
-                || law.empirical_counts.as_ref().is_some_and(|c| c.len() > limits.max_law_cells)
-        }) {
-            return Err(exceeded("law cells"));
+        if let Some(what) = replay.law_cells(&self.laws, true) {
+            return Err(exceeded(what));
         }
         Ok(())
     }
@@ -561,13 +556,19 @@ impl MixedSourceArtifactWire {
     ) -> Result<ConsumedMixedSource, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(MixedSourceArtifactError::PremisesMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || MixedSourceArtifactError::PremisesMismatch.into(),
+        )?;
         let catalog = wire.catalog.to_catalog()?;
-        if data_digest(&catalog, &wire.laws)? != wire.data_digest {
-            return Err(MixedSourceArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.laws),
+            std::convert::identity,
+            || MixedSourceArtifactError::DataIdentityMismatch.into(),
+        )?;
         let graph = admg_from_wire(&wire.graph)?;
         let query = wire.query.to_query();
         let arena = expr_arena_from_wire(&wire.expression)?;

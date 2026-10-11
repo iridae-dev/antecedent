@@ -5,7 +5,7 @@
 //! refused before any sensitivity range is compared.
 use antecedent_core::{ExecutionContext, RegimeId};
 use antecedent_io::z_transport_artifact::{ZTransportArtifactWire, ZTransportConsumeLimits};
-use antecedent_io::{IoError, from_cbor, to_cbor};
+use antecedent_io::{IoError, decode_with_version, to_cbor};
 use antecedent_validate::z_transport_mechanism_sensitivity;
 use serde::{Deserialize, Serialize};
 
@@ -47,11 +47,6 @@ pub struct ZTransportSensitivityArtifactWire {
     pub interval_interpretation: String,
     /// Optimization receipt method.
     pub method: String,
-}
-
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
 }
 
 impl ZTransportSensitivityArtifactWire {
@@ -171,11 +166,13 @@ impl ZTransportSensitivityArtifactWire {
         limits: ZTransportConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<Self, IoError> {
-        let peek: VersionPeek = from_cbor(bytes)?;
-        if peek.version != Z_TRANSPORT_SENSITIVITY_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = from_cbor(bytes)?;
+        let wire: Self = decode_with_version(bytes, |version: u32| {
+            if version == Z_TRANSPORT_SENSITIVITY_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version })
+            }
+        })?;
         if Self::baseline_digest(&wire.baseline_artifact) != wire.baseline_artifact_digest {
             return Err(IoError::Convert(
                 "z-transport sensitivity baseline digest mismatch".into(),

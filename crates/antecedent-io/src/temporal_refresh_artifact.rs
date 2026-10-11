@@ -411,11 +411,7 @@ impl TemporalRefreshArtifactWire {
     pub fn compute_seal(&self) -> Result<String, IoError> {
         let mut body = self.clone();
         body.seal = String::new();
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &("temporal_refresh_seal_v1", body),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &("temporal_refresh_seal_v1", body))
     }
 
     /// Encode as CBOR.

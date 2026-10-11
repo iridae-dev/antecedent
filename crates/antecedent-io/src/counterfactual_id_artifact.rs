@@ -322,11 +322,7 @@ pub struct CounterfactualIdArtifactWire {
 /// Encoding failure.
 #[doc(hidden)]
 pub fn counterfactual_id_data_digest(law: &CounterfactualIdLawWire) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
-        IdentityDomain::DataSnapshot,
-        &("counterfactual_id_admg_v1.law", law),
-    )?
-    .to_hex())
+    crate::digest_hex(IdentityDomain::DataSnapshot, &("counterfactual_id_admg_v1.law", law))
 }
 
 /// Scientific identity: names, levels, graph, query, estimand, contract, the
@@ -337,7 +333,7 @@ pub fn counterfactual_id_data_digest(law: &CounterfactualIdLawWire) -> Result<St
 /// Encoding failure.
 #[doc(hidden)]
 pub fn counterfactual_id_identity(wire: &CounterfactualIdArtifactWire) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::Program,
         &(
             "counterfactual_id_admg_v1",
@@ -351,8 +347,7 @@ pub fn counterfactual_id_identity(wire: &CounterfactualIdArtifactWire) -> Result
             (wire.search.operations_limit, wire.search.depth_limit, wire.search.memory_limit_bytes),
             &wire.data_digest,
         ),
-    )?
-    .to_hex())
+    )
 }
 
 impl CounterfactualIdArtifactWire {

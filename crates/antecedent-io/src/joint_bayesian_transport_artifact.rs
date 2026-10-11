@@ -633,7 +633,7 @@ impl JointBayesianArtifactWire {
                 .collect(),
             bounds: (JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored observations should carry.
@@ -646,7 +646,7 @@ impl JointBayesianArtifactWire {
             sources: &self.sources,
             target: &self.target,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// Encode as CBOR.
@@ -766,12 +766,18 @@ impl JointBayesianArtifactWire {
     ) -> Result<(Self, JointTransportFit), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(JointBayesianArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(JointBayesianArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || JointBayesianArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || JointBayesianArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(JointBayesianArtifactError::ExpectationMismatch("premises").into());
         }

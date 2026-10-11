@@ -102,37 +102,9 @@ fn engine_refusal(refusal: &JointTransportRefusal) -> IoError {
 }
 
 /// Bounds a consumer imposes. Nothing the artifact stores raises them.
-#[derive(Clone, Copy, Debug)]
-pub struct LearnedJointConsumeLimits {
-    /// Most sources.
-    pub max_sources: usize,
-    /// Most source units over all sources.
-    pub max_source_rows: usize,
-    /// Most target units.
-    pub max_target_rows: usize,
-    /// Most covariates.
-    pub max_features: usize,
-    /// Most posterior draws.
-    pub max_draws: usize,
-    /// Most stored draw values (`draws * coordinates`).
-    pub max_draw_cells: usize,
-    /// Most stored datum ids over all identities.
-    pub max_datum_ids: usize,
-}
-
-impl Default for LearnedJointConsumeLimits {
-    fn default() -> Self {
-        Self {
-            max_sources: 64,
-            max_source_rows: 200_000,
-            max_target_rows: 200_000,
-            max_features: 32,
-            max_draws: JOINT_TRANSPORT_MAX_DRAWS,
-            max_draw_cells: 4_000_000,
-            max_datum_ids: 400_000,
-        }
-    }
-}
+///
+/// The same bounds as a joint Bayesian transport artifact, including the defaults.
+pub use crate::joint_bayesian_transport_artifact::JointBayesianConsumeLimits as LearnedJointConsumeLimits;
 
 /// An identity a consumer expects the artifact to carry; `None` skips that check.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -580,7 +552,7 @@ impl LearnedJointArtifactWire {
                 .collect(),
             bounds: (JOINT_TRANSPORT_MAX_DRAWS, JOINT_TRANSPORT_MAX_PARAMETERS),
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored observations should carry.
@@ -593,7 +565,7 @@ impl LearnedJointArtifactWire {
             sources: &self.sources,
             target: &self.target,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// Encode as CBOR.
@@ -711,12 +683,18 @@ impl LearnedJointArtifactWire {
     ) -> Result<(Self, LearnedJointFit), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(LearnedJointArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(LearnedJointArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || LearnedJointArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || LearnedJointArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(LearnedJointArtifactError::ExpectationMismatch("premises").into());
         }

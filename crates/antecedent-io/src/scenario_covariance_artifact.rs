@@ -622,19 +622,17 @@ pub struct ScenarioCovarianceArtifactWire {
 }
 
 fn premises_identity(wire: &ScenarioCovarianceArtifactWire) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("scenario_shared_covariance_v1", &wire.scenarios, &wire.method),
-    )?
-    .to_hex())
+    )
 }
 
 fn data_identity(wire: &ScenarioCovarianceArtifactWire) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("scenario_shared_covariance_data_v1", &wire.table),
-    )?
-    .to_hex())
+    )
 }
 
 impl ScenarioCovarianceArtifactWire {
@@ -764,12 +762,18 @@ impl ScenarioCovarianceArtifactWire {
     ) -> Result<(Self, ScenarioCovariance), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if premises_identity(&wire)? != wire.premises_digest {
-            return Err(ScenarioCovarianceArtifactError::PremisesMismatch.into());
-        }
-        if data_identity(&wire)? != wire.data_digest {
-            return Err(ScenarioCovarianceArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            premises_identity(&wire),
+            std::convert::identity,
+            || ScenarioCovarianceArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            data_identity(&wire),
+            std::convert::identity,
+            || ScenarioCovarianceArtifactError::DataIdentityMismatch.into(),
+        )?;
         let covariance = wire.spec().compute(ctx)?;
         let replayed = CovarianceResultWire::from_covariance(&covariance);
         if crate::to_cbor(&replayed)? != crate::to_cbor(&wire.result)? {

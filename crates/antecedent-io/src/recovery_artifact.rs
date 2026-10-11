@@ -412,7 +412,7 @@ fn data_digest(catalog: &EvidenceCatalog, law: &ExactLawWire) -> Result<String, 
         })
         .collect::<Vec<_>>();
     bindings.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(
             "observation_recovery_data_v1",
@@ -424,8 +424,7 @@ fn data_digest(catalog: &EvidenceCatalog, law: &ExactLawWire) -> Result<String, 
             // The table's content, bit for bit: data identity is never left to replay.
             (&law.axes, law.probabilities.iter().map(|p| p.to_bits()).collect::<Vec<u64>>()),
         ),
-    )?
-    .to_hex())
+    )
 }
 
 fn request_wire(request: &Assignment) -> Vec<(u32, ValueWire)> {
@@ -536,11 +535,7 @@ impl RecoveryArtifactWire {
     /// # Errors
     /// The premises do not encode.
     pub fn expected_premises_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
-            IdentityDomain::TransportCertificate,
-            &self.premises_view(),
-        )?
-        .to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &self.premises_view())
     }
 
     /// The data-identity digest the stored snapshot ids should carry.
@@ -673,13 +668,19 @@ impl RecoveryArtifactWire {
             other => unsupported(other),
         })?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest().map_err(unsupported)? != wire.premises_digest {
-            return Err(RecoveryArtifactError::PremisesMismatch);
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            unsupported,
+            || RecoveryArtifactError::PremisesMismatch,
+        )?;
         let catalog = wire.catalog.to_catalog().map_err(unsupported)?;
-        if data_digest(&catalog, &wire.observed_law).map_err(unsupported)? != wire.data_digest {
-            return Err(RecoveryArtifactError::DataIdentityMismatch);
-        }
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.observed_law),
+            unsupported,
+            || RecoveryArtifactError::DataIdentityMismatch,
+        )?;
         let graph = admg_from_wire(&wire.graph).map_err(unsupported)?;
         let query = wire.query.to_query();
         let effect = wire

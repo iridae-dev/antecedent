@@ -350,11 +350,10 @@ fn data_digest(
         .map(|law| (law.population.clone(), law.regime, law.snapshot.clone()))
         .collect::<Vec<_>>();
     snapshots.sort();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("temporal_transport_data_v1", bindings, snapshots),
-    )?
-    .to_hex())
+    )
 }
 
 /// Scientific identity of a temporal sequence execution: the unrolled graph and
@@ -380,7 +379,7 @@ pub fn temporal_sequence_identity(wire: &TemporalSequenceArtifactWire) -> Result
         (wire.search_operations, wire.search_depth, wire.search_memory_bytes),
         (wire.operation_limit, wire.depth_limit, wire.max_support_rows),
     );
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &(
             "temporal_transport_sequence_v1",
@@ -393,8 +392,7 @@ pub fn temporal_sequence_identity(wire: &TemporalSequenceArtifactWire) -> Result
             &wire.sequence,
             budget,
         ),
-    )?
-    .to_hex())
+    )
 }
 
 /// A supplied exact provider carries no fitted tables.
@@ -598,12 +596,19 @@ impl TemporalSequenceArtifactWire {
     ) -> Result<(Self, TemporalSequenceReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
-        if temporal_sequence_identity(&wire)? != wire.premises_digest {
-            return Err(TemporalTransportArtifactError::PremisesMismatch.into());
-        }
-        if data_digest(&wire.catalog.to_catalog()?, &wire.laws)? != wire.data_digest {
-            return Err(TemporalTransportArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            temporal_sequence_identity(&wire),
+            std::convert::identity,
+            || TemporalTransportArtifactError::PremisesMismatch.into(),
+        )?;
+        let catalog = wire.catalog.to_catalog()?;
+        crate::require_digest(
+            &wire.data_digest,
+            data_digest(&catalog, &wire.laws),
+            std::convert::identity,
+            || TemporalTransportArtifactError::DataIdentityMismatch.into(),
+        )?;
         let spec = wire.spec()?;
         let sequence = wire.sequence.iter().map(ValueWire::to_value).collect::<Vec<Value>>();
         let catalog = wire.catalog.to_catalog()?;

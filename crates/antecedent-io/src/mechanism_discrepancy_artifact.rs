@@ -30,7 +30,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
-use antecedent_estimate::EstimationError;
 use antecedent_estimate::mechanism_discrepancy::{
     DiscrepancyConclusion, DiscrepancyOptions, MECHANISM_DISCREPANCY_ALIGNMENT,
     MECHANISM_DISCREPANCY_CAVEAT, MECHANISM_DISCREPANCY_DEPENDENCE,
@@ -59,90 +58,14 @@ const DEPENDENCE_INDEPENDENT: &str = "independent";
 const DEPENDENCE_SHARED_UNITS: &str = "shared_units";
 const DEPENDENCE_UNKNOWN: &str = "unknown";
 
-/// Why a mechanism discrepancy artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum MechanismDiscrepancyArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("mechanism discrepancy artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported mechanism discrepancy artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate, caveat or invariance flag that is not
-    /// this format's.
-    #[error("unsupported mechanism discrepancy semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("mechanism discrepancy consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed mechanism discrepancy artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("mechanism_discrepancy.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored result differs from the recomputed one.
-    #[error("stored mechanism discrepancy result does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("mechanism discrepancy artifact does not encode: {0}")]
-    Encode(String),
-    /// The core diagnostic refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl MechanismDiscrepancyArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal and for a changed identity field; absent for corruption,
-    /// unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "mechanism_discrepancy.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for MechanismDiscrepancyArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for MechanismDiscrepancyArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a mechanism discrepancy artifact was refused or could not be produced.
+    MechanismDiscrepancyArtifactError,
+    "mechanism discrepancy",
+    "mechanism_discrepancy",
+    "result",
+    false
+);
 
 fn invalid_request(message: &str) -> MechanismDiscrepancyArtifactError {
     MechanismDiscrepancyArtifactError::Refused {

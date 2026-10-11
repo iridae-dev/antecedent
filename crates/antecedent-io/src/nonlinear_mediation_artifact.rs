@@ -28,7 +28,6 @@
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent_core::CanonicalWriter;
-use antecedent_estimate::EstimationError;
 use antecedent_estimate::nonlinear_mediation::{
     NONLINEAR_MEDIATION_CALIBRATION, NONLINEAR_MEDIATION_INTERVAL_STATUS, NonlinearMediationConfig,
     NonlinearMediationEstimand, NonlinearMediationEstimate, NonlinearMediationInput,
@@ -69,94 +68,14 @@ pub const NONLINEAR_MEDIATION_ARTIFACT_CAVEATS: [&str; 2] = [
      ignorability, which are declared and cannot be tested from the data",
 ];
 
-/// Why a nonlinear-mediation artifact was refused or could not be produced.
-#[derive(Clone, Debug, PartialEq, thiserror::Error)]
-#[non_exhaustive]
-pub enum NonlinearMediationArtifactError {
-    /// The bytes do not decode as this format.
-    #[error("nonlinear mediation artifact does not decode: {0}")]
-    Decode(String),
-    /// Another major version, refused before the payload is interpreted.
-    #[error("unsupported nonlinear mediation artifact version {version}")]
-    UnsupportedVersion {
-        /// The stored version.
-        version: u16,
-    },
-    /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
-    #[error("unsupported nonlinear mediation semantics: {0}")]
-    UnsupportedSemantics(&'static str),
-    /// A collection exceeds the format's bound.
-    #[error("nonlinear mediation consumer limit exceeded: {0}")]
-    LimitsExceeded(&'static str),
-    /// The stored declarations are not a well-formed request.
-    #[error("malformed nonlinear mediation artifact: {0}")]
-    Malformed(String),
-    /// A stored or retained identity field differs from the one the inputs produce.
-    #[error("nonlinear_mediation.wrong_contract: {field} changed")]
-    IdentityMismatch {
-        /// Which identity field differs.
-        field: &'static str,
-    },
-    /// A stored record differs from the recomputed one.
-    #[error("stored nonlinear mediation record does not replay: {0}")]
-    ResultMismatch(&'static str),
-    /// The artifact could not be encoded.
-    #[error("nonlinear mediation artifact does not encode: {0}")]
-    Encode(String),
-    /// The core estimator refused (registered reason code; the message begins with its detail).
-    #[error("{message}")]
-    Refused {
-        /// Registered reason code.
-        code: &'static str,
-        /// `detail: explanation`.
-        message: String,
-    },
-}
-
-impl NonlinearMediationArtifactError {
-    /// The registered refusal this error carries: `(code, detail, explanation)`.
-    ///
-    /// Present for a core refusal, a changed identity field and a record that does not replay;
-    /// absent for corruption, unsupported versions and encoding failures.
-    #[must_use]
-    pub fn refusal(&self) -> Option<(&'static str, String, String)> {
-        match self {
-            Self::Refused { code, message } => {
-                let (detail, text) = message.split_once(": ").unwrap_or((message.as_str(), ""));
-                Some((*code, detail.to_owned(), text.to_owned()))
-            }
-            Self::IdentityMismatch { field } => Some((
-                antecedent_core::reason_code!("route_not_supported"),
-                "nonlinear_mediation.wrong_contract".to_owned(),
-                format!("{field} changed"),
-            )),
-            Self::ResultMismatch(what) => Some((
-                antecedent_core::reason_code!("invalid_argument"),
-                "nonlinear_mediation.report_replay_mismatch".to_owned(),
-                format!("the stored {what} does not replay"),
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl From<EstimationError> for NonlinearMediationArtifactError {
-    fn from(error: EstimationError) -> Self {
-        match error {
-            EstimationError::Refused { code, message }
-            | EstimationError::RefusedWithFields { code, message, .. } => {
-                Self::Refused { code, message }
-            }
-            other => Self::Malformed(other.to_string()),
-        }
-    }
-}
-
-impl From<crate::IoError> for NonlinearMediationArtifactError {
-    fn from(error: crate::IoError) -> Self {
-        Self::Decode(error.to_string())
-    }
-}
+crate::sectioned_artifact_error!(
+    /// Why a nonlinear-mediation artifact was refused or could not be produced.
+    NonlinearMediationArtifactError,
+    "nonlinear mediation",
+    "nonlinear_mediation",
+    "record",
+    true
+);
 
 fn invalid_request(message: &str) -> NonlinearMediationArtifactError {
     NonlinearMediationArtifactError::Refused {

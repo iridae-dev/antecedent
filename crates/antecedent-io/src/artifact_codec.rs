@@ -10,6 +10,7 @@
 use std::io::Cursor;
 
 use serde::Deserialize;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
@@ -124,6 +125,253 @@ pub enum ArtifactCheckError {
     /// A feature marker or claim that is not this format's.
     #[error("unsupported semantics: {0}")]
     UnsupportedSemantics(&'static str),
+}
+
+/// One refusal type for a sectioned checksummed artifact.
+///
+/// String const generics are not available, so each artifact expands this once.
+/// `$noun` is the display name, `$contract` the refusal prefix, `$replay` the
+/// noun in a result mismatch ("result" or "record"), and `$report` whether a
+/// result mismatch is a registered refusal.
+#[macro_export]
+macro_rules! sectioned_artifact_error {
+    (
+        $(#[$meta:meta])*
+        $name:ident,
+        $noun:literal,
+        $contract:literal,
+        $replay:literal,
+        $report:literal
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, PartialEq)]
+        #[non_exhaustive]
+        pub enum $name {
+            /// The bytes do not decode as this format.
+            Decode(String),
+            /// Another major version, refused before the payload is interpreted.
+            UnsupportedVersion {
+                /// The stored version.
+                version: u16,
+            },
+            /// A feature marker, claim, calibration coordinate or caveat that is not this format's.
+            UnsupportedSemantics(&'static str),
+            /// A collection exceeds the format's bound.
+            LimitsExceeded(&'static str),
+            /// The stored declarations are not a well-formed request.
+            Malformed(String),
+            /// A stored or retained identity field differs from the one the inputs produce.
+            IdentityMismatch {
+                /// Which identity field differs.
+                field: &'static str,
+            },
+            /// A stored result differs from the recomputed one.
+            ResultMismatch(&'static str),
+            /// The artifact could not be encoded.
+            Encode(String),
+            /// The core estimator refused. The message begins with its detail.
+            Refused {
+                /// Registered reason code.
+                code: &'static str,
+                /// `detail: explanation`.
+                message: String,
+            },
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    Self::Decode(message) => {
+                        write!(f, "{noun} artifact does not decode: {message}", noun = $noun)
+                    }
+                    Self::UnsupportedVersion { version } => {
+                        write!(f, "unsupported {noun} artifact version {version}", noun = $noun)
+                    }
+                    Self::UnsupportedSemantics(detail) => {
+                        write!(f, "unsupported {noun} semantics: {detail}", noun = $noun)
+                    }
+                    Self::LimitsExceeded(what) => {
+                        write!(f, "{noun} consumer limit exceeded: {what}", noun = $noun)
+                    }
+                    Self::Malformed(message) => {
+                        write!(f, "malformed {noun} artifact: {message}", noun = $noun)
+                    }
+                    Self::IdentityMismatch { field } => {
+                        write!(
+                            f,
+                            "{contract}.wrong_contract: {field} changed",
+                            contract = $contract
+                        )
+                    }
+                    Self::ResultMismatch(what) => write!(
+                        f,
+                        "stored {noun} {replay} does not replay: {what}",
+                        noun = $noun,
+                        replay = $replay,
+                    ),
+                    Self::Encode(message) => {
+                        write!(f, "{noun} artifact does not encode: {message}", noun = $noun)
+                    }
+                    Self::Refused { message, .. } => f.write_str(message),
+                }
+            }
+        }
+
+        impl std::error::Error for $name {}
+
+        impl $name {
+            /// The registered refusal this error carries: `(code, detail, explanation)`.
+            ///
+            /// Present for a core refusal, a changed identity and, when the artifact
+            /// reports a replay mismatch, a result that does not replay. Absent for
+            /// corruption, an unsupported version, a limit and an encoding failure.
+            #[must_use]
+            pub fn refusal(&self) -> Option<(&'static str, String, String)> {
+                match self {
+                    Self::Refused { code, message } => {
+                        let (detail, text) =
+                            message.split_once(": ").unwrap_or((message.as_str(), ""));
+                        Some((*code, detail.to_owned(), text.to_owned()))
+                    }
+                    Self::IdentityMismatch { field } => Some((
+                        antecedent_core::reason_code!("route_not_supported"),
+                        format!("{contract}.wrong_contract", contract = $contract),
+                        format!("{field} changed"),
+                    )),
+                    Self::ResultMismatch(what) => {
+                        if $report {
+                            Some((
+                                antecedent_core::reason_code!("invalid_argument"),
+                                format!(
+                                    "{contract}.report_replay_mismatch",
+                                    contract = $contract
+                                ),
+                                format!("the stored {what} does not replay"),
+                            ))
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            }
+        }
+
+        impl From<$crate::IoError> for $name {
+            fn from(error: $crate::IoError) -> Self {
+                Self::Decode(error.to_string())
+            }
+        }
+
+        impl From<antecedent_estimate::EstimationError> for $name {
+            fn from(error: antecedent_estimate::EstimationError) -> Self {
+                match error {
+                    antecedent_estimate::EstimationError::Refused { code, message }
+                    | antecedent_estimate::EstimationError::RefusedWithFields {
+                        code,
+                        message,
+                        ..
+                    } => Self::Refused { code, message },
+                    other => Self::Malformed(other.to_string()),
+                }
+            }
+        }
+    };
+}
+
+/// Exact-law replay bounds.
+///
+/// Each artifact's public `*ConsumeLimits` keeps its own defaults and any
+/// extra fields. This is the shared check of the stored evaluation budget,
+/// support, law count and law cells, with the labels those consumers already
+/// return.
+#[derive(Clone, Copy, Debug)]
+pub struct ConsumeLimits {
+    /// Operation budget of the replay.
+    pub operations: usize,
+    /// Depth budget of the replay.
+    pub depth: usize,
+    /// Largest support the replayed laws may materialize.
+    pub max_support_rows: usize,
+    /// Most laws an artifact may carry.
+    pub max_laws: usize,
+    /// Most cells one stored law may carry.
+    pub max_law_cells: usize,
+}
+
+impl ConsumeLimits {
+    /// The stored evaluation budget, support or law count that exceeds these
+    /// bounds: `operation limit`, `depth limit`, `support rows` or `law count`.
+    #[must_use]
+    pub fn budget(
+        &self,
+        operation_limit: usize,
+        depth_limit: usize,
+        stored_support_rows: usize,
+        law_count: usize,
+    ) -> Option<&'static str> {
+        if operation_limit > self.operations {
+            Some("operation limit")
+        } else if depth_limit > self.depth {
+            Some("depth limit")
+        } else if stored_support_rows > self.max_support_rows {
+            Some("support rows")
+        } else if law_count > self.max_laws {
+            Some("law count")
+        } else {
+            None
+        }
+    }
+
+    /// `law cells` when a stored law's probabilities, or its empirical counts
+    /// when `empirical` is set, exceed [`Self::max_law_cells`].
+    #[must_use]
+    pub fn law_cells(
+        &self,
+        laws: &[crate::exact_law_wire::ExactLawWire],
+        empirical: bool,
+    ) -> Option<&'static str> {
+        let over = laws.iter().any(|law| {
+            law.probabilities.len() > self.max_law_cells
+                || (empirical
+                    && law
+                        .empirical_counts
+                        .as_ref()
+                        .is_some_and(|counts| counts.len() > self.max_law_cells))
+        });
+        if over { Some("law cells") } else { None }
+    }
+}
+
+/// Hex digest of one canonical value.
+///
+/// The domain and the value are the digest inputs. This only shares the
+/// encode-and-hex step.
+///
+/// # Errors
+/// Canonical encoding failure.
+pub fn digest_hex<T: Serialize>(
+    domain: antecedent_core::IdentityDomain,
+    value: &T,
+) -> Result<String, IoError> {
+    Ok(crate::identity::digest_wire(domain, value)?.to_hex())
+}
+
+/// Refuse unless `stored` is the digest `expected` produced.
+///
+/// An encoding failure is `on_encode`. A digest that differs is `on_mismatch`.
+/// The bytes that were hashed are whatever `expected` already hashed.
+pub fn require_digest<E>(
+    stored: &str,
+    expected: Result<String, IoError>,
+    on_encode: impl FnOnce(IoError) -> E,
+    on_mismatch: impl FnOnce() -> E,
+) -> Result<(), E> {
+    match expected {
+        Ok(value) if value == stored => Ok(()),
+        Ok(_) => Err(on_mismatch()),
+        Err(error) => Err(on_encode(error)),
+    }
 }
 
 /// Integer width of a CBOR `version` field. Only `u16` and `u32` are accepted,

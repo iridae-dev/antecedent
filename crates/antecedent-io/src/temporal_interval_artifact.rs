@@ -459,11 +459,10 @@ impl TemporalIntervalArtifactWire {
     pub fn compute_seal(&self) -> Result<String, IoError> {
         let mut body = self.clone();
         body.seal = String::new();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &("temporal_interval_seal_v1", body),
-        )?
-        .to_hex())
+        )
     }
 
     /// Encode as CBOR.

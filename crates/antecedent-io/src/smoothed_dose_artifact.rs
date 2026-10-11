@@ -380,7 +380,7 @@ impl SmoothedDoseArtifactWire {
         let mut graph = self.graph.clone();
         graph.directed.sort_unstable();
         graph.bidirected.sort_unstable();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &PremisesView {
                 tag: "smoothed_dose_transport_premises_v1",
@@ -396,8 +396,7 @@ impl SmoothedDoseArtifactWire {
                 sampling: self.input.sampling,
                 variable_names: &self.variable_names,
             },
-        )?
-        .to_hex())
+        )
     }
 
     /// The data digest the stored rows hash to.
@@ -405,7 +404,7 @@ impl SmoothedDoseArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn expected_data_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &DataView {
                 tag: "smoothed_dose_transport_data_v1",
@@ -415,8 +414,7 @@ impl SmoothedDoseArtifactWire {
                 dose_density: &self.input.dose_density,
                 source: &self.input.source,
             },
-        )?
-        .to_hex())
+        )
     }
 
     /// The evidence digest the stored result hashes to.
@@ -424,11 +422,10 @@ impl SmoothedDoseArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn expected_evidence_digest(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &EvidenceView { tag: "smoothed_dose_transport_evidence_v1", result: &self.result },
-        )?
-        .to_hex())
+        )
     }
 
     /// Scientific execution identity.
@@ -436,7 +433,7 @@ impl SmoothedDoseArtifactWire {
     /// # Errors
     /// Canonical encoding failure.
     pub fn identity(&self) -> Result<String, IoError> {
-        Ok(crate::identity::digest_wire(IdentityDomain::LearnedTrial, self)?.to_hex())
+        crate::digest_hex(IdentityDomain::LearnedTrial, self)
     }
 
     /// [`Refusal::NamesMismatch`] unless the stored source and target
@@ -652,15 +649,24 @@ impl SmoothedDoseArtifactWire {
         if self.replay_workspace_bytes(ctx).is_none_or(|bytes| bytes > cap) {
             return Err(Refusal::LimitsExceeded("replay workspace above the memory limit").into());
         }
-        if self.premises_digest != self.expected_premises_digest()? {
-            return Err(Refusal::PremisesMismatch.into());
-        }
-        if self.data_digest != self.expected_data_digest()? {
-            return Err(Refusal::DataIdentityMismatch.into());
-        }
-        if self.evidence_digest != self.expected_evidence_digest()? {
-            return Err(Refusal::EvidenceMismatch.into());
-        }
+        crate::require_digest(
+            &self.premises_digest,
+            self.expected_premises_digest(),
+            std::convert::identity,
+            || Refusal::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &self.data_digest,
+            self.expected_data_digest(),
+            std::convert::identity,
+            || Refusal::DataIdentityMismatch.into(),
+        )?;
+        crate::require_digest(
+            &self.evidence_digest,
+            self.expected_evidence_digest(),
+            std::convert::identity,
+            || Refusal::EvidenceMismatch.into(),
+        )?;
         let graph = admg_from_wire(&self.graph)?;
         let diagram = antecedent_graph::SelectionDiagram::try_new(
             graph,

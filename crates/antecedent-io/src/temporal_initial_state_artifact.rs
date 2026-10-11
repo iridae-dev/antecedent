@@ -508,11 +508,10 @@ impl TemporalInitialStateArtifactWire {
     pub fn compute_seal(&self) -> Result<String, IoError> {
         let mut body = self.clone();
         body.seal = String::new();
-        Ok(crate::identity::digest_wire(
+        crate::digest_hex(
             IdentityDomain::TransportCertificate,
             &("temporal_initial_state_seal_v1", body),
-        )?
-        .to_hex())
+        )
     }
 
     /// Encode as CBOR.

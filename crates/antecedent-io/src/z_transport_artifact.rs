@@ -296,11 +296,10 @@ fn premises_digest(
     graph.bidirected.sort_unstable();
     let mut selections = selections.to_vec();
     selections.sort_unstable();
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("z_transport_point_v2", graph, selections, query, proof, expression),
-    )?
-    .to_hex())
+    )
 }
 
 /// Sort laws into a canonical order so the same evidence supplied in another
@@ -432,16 +431,18 @@ impl ZTransportArtifactWire {
     > {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        let expected = premises_digest(
-            &wire.graph,
-            &wire.selections,
-            &wire.query,
-            &wire.proof,
-            &wire.expression,
+        crate::require_digest(
+            &wire.premises_digest,
+            premises_digest(
+                &wire.graph,
+                &wire.selections,
+                &wire.query,
+                &wire.proof,
+                &wire.expression,
+            ),
+            std::convert::identity,
+            || ZTransportArtifactError::PremisesMismatch.into(),
         )?;
-        if expected != wire.premises_digest {
-            return Err(ZTransportArtifactError::PremisesMismatch.into());
-        }
         let graph = admg_from_wire(&wire.graph)?;
         let diagram = SelectionDiagram::try_new(
             graph,
@@ -496,23 +497,23 @@ impl ZTransportArtifactWire {
         &self,
         limits: &ZTransportConsumeLimits,
     ) -> Result<(), ZTransportArtifactError> {
-        if self.operation_limit > limits.evaluation.operations {
-            return Err(ZTransportArtifactError::LimitsExceeded("operation limit"));
+        let replay = crate::ConsumeLimits {
+            operations: limits.evaluation.operations,
+            depth: limits.evaluation.depth,
+            max_support_rows: limits.max_support_rows,
+            max_laws: limits.max_laws,
+            max_law_cells: limits.max_law_cells,
+        };
+        if let Some(what) = replay.budget(
+            self.operation_limit,
+            self.depth_limit,
+            self.max_support_rows,
+            self.laws.len(),
+        ) {
+            return Err(ZTransportArtifactError::LimitsExceeded(what));
         }
-        if self.depth_limit > limits.evaluation.depth {
-            return Err(ZTransportArtifactError::LimitsExceeded("depth limit"));
-        }
-        if self.max_support_rows > limits.max_support_rows {
-            return Err(ZTransportArtifactError::LimitsExceeded("support rows"));
-        }
-        if self.laws.len() > limits.max_laws {
-            return Err(ZTransportArtifactError::LimitsExceeded("law count"));
-        }
-        if self.laws.iter().any(|law| {
-            law.probabilities.len() > limits.max_law_cells
-                || law.empirical_counts.as_ref().is_some_and(|c| c.len() > limits.max_law_cells)
-        }) {
-            return Err(ZTransportArtifactError::LimitsExceeded("law cells"));
+        if let Some(what) = replay.law_cells(&self.laws, true) {
+            return Err(ZTransportArtifactError::LimitsExceeded(what));
         }
         Ok(())
     }

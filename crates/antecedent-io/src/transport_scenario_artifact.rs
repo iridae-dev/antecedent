@@ -490,11 +490,10 @@ pub struct TransportScenarioArtifactWire {
 pub(crate) fn scenario_data_identity(
     wire: &TransportScenarioArtifactWire,
 ) -> Result<String, IoError> {
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("transport_scenarios_data_v1", &wire.provider, &wire.catalog, &wire.laws, &wire.samples),
-    )?
-    .to_hex())
+    )
 }
 
 /// Scientific identity of a scenario-set execution: canonical scenarios (sorted
@@ -526,11 +525,10 @@ pub(crate) fn scenario_set_identity(
         (wire.scenario_operations, wire.scenario_depth, wire.scenario_memory_bytes),
         (wire.operation_limit, wire.depth_limit, wire.max_support_rows),
     );
-    Ok(crate::identity::digest_wire(
+    crate::digest_hex(
         IdentityDomain::TransportCertificate,
         &("transport_scenarios_v1", shape, weights, coordinates, &wire.query, request, budget),
-    )?
-    .to_hex())
+    )
 }
 
 fn scenario_wires(set: &TransportScenarioSet) -> Result<Vec<ScenarioWire>, IoError> {
@@ -841,12 +839,18 @@ impl TransportScenarioArtifactWire {
     ) -> Result<(Self, ScenarioSetReport), IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits, ctx)?;
-        if scenario_set_identity(&wire)? != wire.premises_digest {
-            return Err(TransportScenarioArtifactError::PremisesMismatch.into());
-        }
-        if scenario_data_identity(&wire)? != wire.data_digest {
-            return Err(TransportScenarioArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            scenario_set_identity(&wire),
+            std::convert::identity,
+            || TransportScenarioArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            scenario_data_identity(&wire),
+            std::convert::identity,
+            || TransportScenarioArtifactError::DataIdentityMismatch.into(),
+        )?;
         let coordinates = wire
             .coordinates
             .iter()

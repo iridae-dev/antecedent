@@ -680,7 +680,7 @@ impl SampledRecoveryArtifactWire {
             variable_names: &self.variable_names,
             config: &self.receipt.config,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     /// The data-identity digest the stored snapshot bindings and rows should carry.
@@ -708,7 +708,7 @@ impl SampledRecoveryArtifactWire {
             snapshot_id: &self.snapshot_id,
             rows: &self.rows,
         };
-        Ok(crate::identity::digest_wire(IdentityDomain::TransportCertificate, &view)?.to_hex())
+        crate::digest_hex(IdentityDomain::TransportCertificate, &view)
     }
 
     fn validate_shape(&self) -> Result<(), SampledRecoveryArtifactError> {
@@ -846,12 +846,18 @@ impl SampledRecoveryArtifactWire {
     ) -> Result<ConsumedSampledRecovery, IoError> {
         let wire = Self::decode(bytes)?;
         wire.check_limits(&limits)?;
-        if wire.expected_premises_digest()? != wire.premises_digest {
-            return Err(SampledRecoveryArtifactError::PremisesMismatch.into());
-        }
-        if wire.expected_data_digest()? != wire.data_digest {
-            return Err(SampledRecoveryArtifactError::DataIdentityMismatch.into());
-        }
+        crate::require_digest(
+            &wire.premises_digest,
+            wire.expected_premises_digest(),
+            std::convert::identity,
+            || SampledRecoveryArtifactError::PremisesMismatch.into(),
+        )?;
+        crate::require_digest(
+            &wire.data_digest,
+            wire.expected_data_digest(),
+            std::convert::identity,
+            || SampledRecoveryArtifactError::DataIdentityMismatch.into(),
+        )?;
         if expected.premises_digest.as_ref().is_some_and(|d| *d != wire.premises_digest) {
             return Err(SampledRecoveryArtifactError::ExpectationMismatch("premises").into());
         }

@@ -107,8 +107,9 @@ pub use analysis_wire::{
 };
 pub use arrow_section::{ARROW_IPC_CONTENT_TYPE, arrow_ipc_section, arrow_ipc_section_shared};
 pub use artifact_codec::{
-    ArtifactCheckError, ArtifactContainer, CONTENT_BYTES, CONTENT_CBOR, CodecError, OutSection,
-    decode_container, decode_with_version, encode_container, peek_version,
+    ArtifactCheckError, ArtifactContainer, CONTENT_BYTES, CONTENT_CBOR, CodecError, ConsumeLimits,
+    OutSection, decode_container, decode_with_version, digest_hex, encode_container, peek_version,
+    require_digest,
 };
 pub use causal_artifact::{
     CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, StaticResultWire,
