@@ -81,19 +81,7 @@ impl CheckedTemporalEffectExecution {
             .is_multi_step_sustained()
         {
             let mut assumptions = identification.required_assumptions.clone();
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(
-                    antecedent_core::ParametricAssumption {
-                        id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(SUSTAINED_LINEAR_SEM),
-                    },
-                ),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("temporal.sequential.gcomp"),
-                },
-                scope: antecedent_core::AssumptionScope::Estimation,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
+            assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
             let mut mechanisms = Vec::new();
             let (estimate, posterior) =
                     antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
@@ -209,25 +197,9 @@ impl CheckedTemporalEffectExecution {
                 &[],
                 Some(temporal_ctx),
             )?;
-            diagnostics.extend(super::temporal_path::temporal_dependence_se_diagnostics(
-                antecedent_estimate::CircularBlockFamily::SingleWindow,
-                dependence.block_length,
-                dependence.rows,
-                dependence.kernel_bias,
-                dependence.effective_rows,
-                dependence.replicates_attempted > 0,
-                &format!(
-                    "se_bootstrap refits the lag-aligned design on circular blocks of \
-                     consecutive rows ({}/{} replicates); se_analytic is NaN: the iid OLS SE \
-                     ignores serial dependence and no HAC SE is calibrated for this cell{}",
-                    estimate.bootstrap_replicates_ok.unwrap_or(0),
-                    dependence.replicates_attempted,
-                    if dependence.replicates_attempted == 0 {
-                        "; request bootstrap_replicates > 0 for an interval"
-                    } else {
-                        ""
-                    },
-                ),
+            diagnostics.extend(super::temporal_path::single_window_dependence_se_diagnostics(
+                &estimate,
+                &dependence,
             ));
             let ok = estimate.bootstrap_replicates_ok;
             (estimate, refutations, diagnostics, ok)

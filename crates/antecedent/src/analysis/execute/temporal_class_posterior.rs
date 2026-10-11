@@ -349,19 +349,7 @@ fn evaluate_temporal_class_atom_frequentist(
                     select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)
                 })?;
             let mut assumptions = case.result.required_assumptions.clone();
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(
-                    antecedent_core::ParametricAssumption {
-                        id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(UNFOLDED_LINEAR_SEM),
-                    },
-                ),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("temporal.sequential.gcomp"),
-                },
-                scope: antecedent_core::AssumptionScope::Estimation,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
+            assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
             let design = TemporalAtomDesign::sequential(
                 data,
                 &dag,
@@ -585,19 +573,7 @@ fn evaluate_temporal_class_atom_sequential_bayesian(
         let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
             .or_else(|_| select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment))?;
         let mut case_assumptions = case.result.required_assumptions.clone();
-        case_assumptions.push(antecedent_core::AssumptionRecord {
-            assumption: antecedent_core::Assumption::ParametricRestriction(
-                antecedent_core::ParametricAssumption {
-                    id: Arc::from("temporal.sequential.linear_sem"),
-                    description: Arc::from(UNFOLDED_LINEAR_SEM),
-                },
-            ),
-            source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                algorithm: Arc::from("temporal.sequential.gcomp"),
-            },
-            scope: antecedent_core::AssumptionScope::Estimation,
-            status: antecedent_core::AssumptionStatus::Declared,
-        });
+        case_assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
         let seed = completion_fit_seed(ctx, atom.key.wrapping_add(i as u64));
         let completion_bayes = BayesianGComputationAte { seed, ..bayes.clone() };
         let (estimate, posterior) =

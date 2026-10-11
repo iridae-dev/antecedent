@@ -136,47 +136,27 @@ impl CheckedTemporalClassEffectExecution {
         let envelope = &operation.bundle().envelope.envelope;
         let mut diagnostics =
             vec![temporal_class_envelope_diagnostic(envelope, operation.graph_class())];
-        let mut weighted_point = 0.0;
-        let mut total_weight = 0.0;
-        let mut se_items = Vec::new();
-        let mut primary_estimand = None;
-        let mut assumptions = antecedent_core::AssumptionSet::default();
-        let mut values = vec![None; envelope.cases.len()];
-        let mut designs = Vec::new();
-        let mut weights = Vec::new();
-        let mut indexers = Vec::new();
-        let mut refute_atoms = Vec::new();
-        for (index, (case, indexer)) in
-            envelope.cases.iter().zip(&operation.bundle().envelope.indexers).enumerate()
-        {
-            if !identification_status_ok_for_case(case.result.status)
-                || case.result.estimands.is_empty()
-            {
-                continue;
-            }
-            let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
-            let design = TemporalAtomDesign::linear(data, &estimand, query, indexer, split, ctx)?;
-            let estimate = design.effect_estimate(case.result.required_assumptions.clone());
-            let weight = case.weight.0;
-            weighted_point += weight * estimate.ate;
-            total_weight += weight;
-            values[index] = Some(estimate.ate);
-            se_items.push((weight, estimate.se_analytic));
-            if primary_estimand.is_none() {
-                primary_estimand = Some(estimand.clone());
-                assumptions = estimate.assumptions.clone();
-            }
-            refute_atoms.push(EnvelopeRefuteAtom {
-                key: index as u64,
-                weight,
-                estimand,
-                indexer: Some(indexer.clone()),
-                original: estimate,
-            });
-            designs.push(design);
-            weights.push(weight);
-            indexers.push(indexer);
-        }
+        let fit = fit_class_linear_atoms(
+            data,
+            query,
+            &operation.bundle().envelope,
+            &operation.bundle().envelope.indexers,
+            split,
+            ctx,
+        )?;
+        let ClassLinearAtoms {
+            values,
+            designs,
+            weights,
+            indexers,
+            points,
+            se_items,
+            refute_atoms,
+            primary_estimand,
+            assumptions,
+            weighted_point,
+            total_weight,
+        } = fit;
         if total_weight <= 0.0 {
             return Err(CausalError::Compile {
                 message: "temporal class envelope has no estimable identified cases".into(),
@@ -191,29 +171,18 @@ impl CheckedTemporalClassEffectExecution {
             0xC1A5_5E00,
             ctx,
         );
-        let points = designs
-            .iter()
-            .map(|design| design.effect_estimate(antecedent_core::AssumptionSet::default()).ate)
-            .collect::<Vec<_>>();
         let identified_set_interval = block
             .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
             .map(|interval| interval.with_truncated(envelope.truncated_completions > 0));
-        let se_analytic = mix_weighted_analytic_se(se_items);
         let se_bootstrap = block.se.is_finite().then_some(block.se);
-        let estimate = EffectEstimate::from_parts(
+        let estimate = class_mixture_estimate(
             weighted_point / total_weight,
-            se_analytic,
-            se_bootstrap,
-            (bootstrap_replicates > 0).then_some(block.completed),
-            (bootstrap_replicates > 0).then_some(block.attempted.saturating_sub(block.completed)),
-            ctx.cancellation.is_cancelled(),
-            false,
+            mix_weighted_analytic_se(se_items),
+            &block,
+            bootstrap_replicates,
             assumptions,
-            OverlapPolicy::ExplicitOverride,
-            None,
-            None,
-        )
-        .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
+            ctx,
+        );
         let tabular = TabularData::new(data.storage().clone());
         let ate_query = temporal_refuter_average(query);
         let (refutations, refute_diagnostics) = run_envelope_effect_refuters(
@@ -311,14 +280,7 @@ impl CheckedTemporalClassEffectExecution {
             }
             let Some(graph) = case.graph.sequential_dag() else {
                 unevaluable_weight += case.weight.0;
-                diagnostics.push(Diagnostic::new(
-                    "estimate.temporal_class.mag_sequential_unevaluable",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!(
-                        "completion {key} has bidirected edges; sequential g-comp is unevaluable"
-                    ),
-                ));
+                diagnostics.push(mag_sequential_unevaluable_diagnostic(key));
                 continue;
             };
             let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
@@ -329,19 +291,7 @@ impl CheckedTemporalClassEffectExecution {
                 primary_estimand = Some(estimand.clone());
             }
             let mut assumptions = case.result.required_assumptions.clone();
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(
-                    antecedent_core::ParametricAssumption {
-                        id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(UNFOLDED_LINEAR_SEM),
-                    },
-                ),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("temporal.sequential.gcomp"),
-                },
-                scope: antecedent_core::AssumptionScope::Estimation,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
+            assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
             let mut mechanisms = Vec::new();
             let (estimate, posterior) = antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(
                 data,
@@ -377,38 +327,16 @@ impl CheckedTemporalClassEffectExecution {
                     .into(),
             });
         }
-        let designs = atoms
-            .iter()
-            .map(|atom| {
-                TemporalAtomDesign::sequential(
-                    data,
-                    &atom.graph,
-                    &atom.indexer,
-                    &atom.estimand,
-                    query,
-                    atom.status,
-                    ctx,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let weights = atoms.iter().map(|atom| atom.weight).collect::<Vec<_>>();
-        let block = shared_circular_block_mixture_se(
-            &designs.iter().collect::<Vec<_>>(),
-            &weights,
-            temporal_class_block_span(atoms.iter().map(|atom| &atom.indexer)),
-            bootstrap_replicates,
-            0x5E0C_1A55,
-            ctx,
-        );
-        let points = atoms.iter().map(|atom| atom.estimate.ate).collect::<Vec<_>>();
-        let identified_set_interval = block
-            .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
-            .map(|interval| interval.with_truncated(envelope.truncated_completions > 0));
-        let se_analytic = mix_weighted_analytic_se(
-            atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
-        );
-        let se_bootstrap = block.se.is_finite().then_some(block.se);
-        if se_bootstrap.is_some() {
+        let SequentialAtomBlock { block, identified_set_interval, se_analytic } =
+            sequential_atom_block(
+                data,
+                query,
+                &atoms,
+                bootstrap_replicates,
+                envelope.truncated_completions > 0,
+                ctx,
+            )?;
+        if block.se.is_finite() {
             diagnostics.extend(envelope_shared_block_diagnostics(
                 total_weight,
                 envelope.unidentified_weight.0,
@@ -423,20 +351,14 @@ impl CheckedTemporalClassEffectExecution {
                 .into_iter()
                 .flat_map(identified_set_interval_diagnostics),
         );
-        let estimate = EffectEstimate::from_parts(
+        let estimate = class_mixture_estimate(
             weighted_point / total_weight,
             se_analytic,
-            se_bootstrap,
-            (bootstrap_replicates > 0).then_some(block.completed),
-            (bootstrap_replicates > 0).then_some(block.attempted.saturating_sub(block.completed)),
-            ctx.cancellation.is_cancelled(),
-            false,
+            &block,
+            bootstrap_replicates,
             atoms[0].estimate.assumptions.clone(),
-            OverlapPolicy::ExplicitOverride,
-            None,
-            None,
-        )
-        .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture);
+            ctx,
+        );
         let (refutations, extra_diagnostics, _) =
             super::sequential_validation::validate_sequential(
                 data,

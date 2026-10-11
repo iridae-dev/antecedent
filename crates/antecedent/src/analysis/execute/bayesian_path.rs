@@ -1610,19 +1610,7 @@ impl super::Study {
             }
             let mut assumptions = atom.identification.required_assumptions.clone();
             let design = if is_multi_step_sustained(query) {
-                assumptions.push(antecedent_core::AssumptionRecord {
-                    assumption: antecedent_core::Assumption::ParametricRestriction(
-                        antecedent_core::ParametricAssumption {
-                            id: Arc::from("temporal.sequential.linear_sem"),
-                            description: Arc::from(DBN_LINEAR_SEM),
-                        },
-                    ),
-                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                        algorithm: Arc::from("temporal.sequential.gcomp"),
-                    },
-                    scope: antecedent_core::AssumptionScope::Estimation,
-                    status: antecedent_core::AssumptionStatus::Declared,
-                });
+                assumptions.push(sequential_linear_sem_assumption(DBN_LINEAR_SEM));
                 TemporalAtomDesign::sequential(
                     data,
                     &crate::analysis::prepared::temporal_dag_from_dbn_atom(gp, atom.key, &vars)?,
@@ -1926,19 +1914,7 @@ impl super::Study {
                     continue;
                 };
                 let mut assumptions = identification.required_assumptions.clone();
-                assumptions.push(antecedent_core::AssumptionRecord {
-                    assumption: antecedent_core::Assumption::ParametricRestriction(
-                        antecedent_core::ParametricAssumption {
-                            id: Arc::from("temporal.sequential.linear_sem"),
-                            description: Arc::from(SUSTAINED_LINEAR_SEM),
-                        },
-                    ),
-                    source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                        algorithm: Arc::from("temporal.sequential.gcomp"),
-                    },
-                    scope: antecedent_core::AssumptionScope::Estimation,
-                    status: antecedent_core::AssumptionStatus::Declared,
-                });
+                assumptions.push(sequential_linear_sem_assumption(SUSTAINED_LINEAR_SEM));
                 let mut mechanisms = Vec::new();
                 let Ok((atom_estimate, Some(posterior))) =
                     antecedent_estimate::temporal_sequential::estimate_sustained_window_with_validation(

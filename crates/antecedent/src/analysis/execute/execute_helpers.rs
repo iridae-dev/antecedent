@@ -829,6 +829,180 @@ pub(super) fn temporal_class_block_span<'a>(
         .max(1)
 }
 
+/// The declared linear-SEM restriction every sequential g-computation fit
+/// carries; `description` names the SEM family the route fitted.
+pub(super) fn sequential_linear_sem_assumption(
+    description: &str,
+) -> antecedent_core::AssumptionRecord {
+    antecedent_core::AssumptionRecord {
+        assumption: antecedent_core::Assumption::ParametricRestriction(
+            antecedent_core::ParametricAssumption {
+                id: Arc::from("temporal.sequential.linear_sem"),
+                description: Arc::from(description),
+            },
+        ),
+        source: antecedent_core::AssumptionSource::AlgorithmDefault {
+            algorithm: Arc::from("temporal.sequential.gcomp"),
+        },
+        scope: antecedent_core::AssumptionScope::Estimation,
+        status: antecedent_core::AssumptionStatus::Declared,
+    }
+}
+
+/// Note that a bidirected completion carries no sequential g-computation.
+pub(super) fn mag_sequential_unevaluable_diagnostic(key: impl std::fmt::Display) -> Diagnostic {
+    Diagnostic::new(
+        "estimate.temporal_class.mag_sequential_unevaluable",
+        DiagnosticKind::Scientific,
+        DiagnosticSeverity::Info,
+        format!("completion {key} has bidirected edges; sequential g-comp is unevaluable"),
+    )
+}
+
+/// Frequentist mixture estimate of a frozen-weight class envelope from its
+/// weighted `point`, the mixed analytic SE and the shared circular-block draw.
+pub(super) fn class_mixture_estimate(
+    point: f64,
+    se_analytic: f64,
+    block: &class_envelope_se::SharedCircularBlockSe,
+    bootstrap_replicates: u32,
+    assumptions: antecedent_core::AssumptionSet,
+    ctx: &ExecutionContext,
+) -> EffectEstimate {
+    EffectEstimate::from_parts(
+        point,
+        se_analytic,
+        block.se.is_finite().then_some(block.se),
+        (bootstrap_replicates > 0).then_some(block.completed),
+        (bootstrap_replicates > 0).then_some(block.attempted.saturating_sub(block.completed)),
+        ctx.cancellation.is_cancelled(),
+        false,
+        assumptions,
+        OverlapPolicy::ExplicitOverride,
+        None,
+        None,
+    )
+    .with_block_family(antecedent_estimate::CircularBlockFamily::Mixture)
+}
+
+/// Shared circular-block mixture of the evaluable sequential atoms of a class
+/// envelope, with the atoms' point estimates and mixed analytic SE.
+struct SequentialAtomBlock {
+    block: class_envelope_se::SharedCircularBlockSe,
+    identified_set_interval: Option<antecedent_estimate::IdentifiedSetInterval>,
+    se_analytic: f64,
+}
+
+fn sequential_atom_block(
+    data: &TimeSeriesData,
+    query: &TemporalEffectQuery,
+    atoms: &[sequential_validation::SequentialValidationAtom],
+    bootstrap_replicates: u32,
+    truncated: bool,
+    ctx: &ExecutionContext,
+) -> Result<SequentialAtomBlock, CausalError> {
+    let designs = atoms
+        .iter()
+        .map(|atom| {
+            TemporalAtomDesign::sequential(
+                data,
+                &atom.graph,
+                &atom.indexer,
+                &atom.estimand,
+                query,
+                atom.status,
+                ctx,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let weights = atoms.iter().map(|atom| atom.weight).collect::<Vec<_>>();
+    let block = shared_circular_block_mixture_se(
+        &designs.iter().collect::<Vec<_>>(),
+        &weights,
+        temporal_class_block_span(atoms.iter().map(|atom| &atom.indexer)),
+        bootstrap_replicates,
+        0x5E0C_1A55,
+        ctx,
+    );
+    let points = atoms.iter().map(|atom| atom.estimate.ate).collect::<Vec<_>>();
+    let identified_set_interval = block
+        .identified_set_interval(&points, IDENTIFIED_SET_INTERVAL_LEVEL)
+        .map(|interval| interval.with_truncated(truncated));
+    let se_analytic = mix_weighted_analytic_se(
+        atoms.iter().map(|atom| (atom.weight, atom.estimate.se_analytic)),
+    );
+    Ok(SequentialAtomBlock { block, identified_set_interval, se_analytic })
+}
+
+/// Linear-adjustment atoms of a frequentist temporal class envelope, fitted in
+/// case order. The totals are not checked: callers own their refusal text.
+pub(super) struct ClassLinearAtoms<'a> {
+    pub values: Vec<Option<f64>>,
+    pub designs: Vec<TemporalAtomDesign>,
+    pub weights: Vec<f64>,
+    pub indexers: Vec<&'a TemporalIndexer>,
+    pub points: Vec<f64>,
+    pub se_items: Vec<(f64, f64)>,
+    pub refute_atoms: Vec<EnvelopeRefuteAtom>,
+    pub primary_estimand: Option<IdentifiedEstimand>,
+    pub assumptions: antecedent_core::AssumptionSet,
+    pub weighted_point: f64,
+    pub total_weight: f64,
+}
+
+pub(super) fn fit_class_linear_atoms<'a>(
+    data: &TimeSeriesData,
+    query: &TemporalEffectQuery,
+    envelope: &antecedent_identify::TemporalClassEnvelope,
+    indexers: &'a [TemporalIndexer],
+    split: Option<&antecedent_data::DiscoveryEstimationSplit>,
+    ctx: &ExecutionContext,
+) -> Result<ClassLinearAtoms<'a>, CausalError> {
+    let mut fit = ClassLinearAtoms {
+        values: vec![None; envelope.envelope.cases.len()],
+        designs: Vec::new(),
+        weights: Vec::new(),
+        indexers: Vec::new(),
+        points: Vec::new(),
+        se_items: Vec::new(),
+        refute_atoms: Vec::new(),
+        primary_estimand: None,
+        assumptions: antecedent_core::AssumptionSet::default(),
+        weighted_point: 0.0,
+        total_weight: 0.0,
+    };
+    for (index, (case, indexer)) in envelope.envelope.cases.iter().zip(indexers).enumerate() {
+        if !identification_status_ok_for_case(case.result.status) || case.result.estimands.is_empty()
+        {
+            continue;
+        }
+        let estimand = select_estimand(&case.result, EstimatorId::TemporalLinearAdjustment)?;
+        let design = TemporalAtomDesign::linear(data, &estimand, query, indexer, split, ctx)?;
+        let estimate = design.effect_estimate(case.result.required_assumptions.clone());
+        let weight = case.weight.0;
+        fit.weighted_point += weight * estimate.ate;
+        fit.total_weight += weight;
+        fit.values[index] = Some(estimate.ate);
+        fit.se_items.push((weight, estimate.se_analytic));
+        if fit.primary_estimand.is_none() {
+            fit.primary_estimand = Some(estimand.clone());
+            fit.assumptions = estimate.assumptions.clone();
+        }
+        fit.points.push(estimate.ate);
+        fit.refute_atoms.push(EnvelopeRefuteAtom {
+            key: index as u64,
+            weight,
+            estimand,
+            indexer: Some(indexer.clone()),
+            original: estimate,
+        });
+        fit.designs.push(design);
+        fit.weights.push(weight);
+        fit.indexers.push(indexer);
+    }
+    Ok(fit)
+}
+
 /// Embed complete-case influences into the original row universe before mixing.
 /// Equal vector lengths do not establish common observations.
 pub(super) fn static_aligned_influence(

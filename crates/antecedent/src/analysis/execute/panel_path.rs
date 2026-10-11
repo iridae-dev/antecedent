@@ -1242,14 +1242,7 @@ impl super::Study {
             let Some(dag) = case.graph.sequential_dag() else {
                 flags.push(GraphIdentFlag::Unidentified);
                 unevaluable_weight += weight;
-                diagnostics.push(Diagnostic::new(
-                    "estimate.temporal_class.mag_sequential_unevaluable",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!(
-                        "completion {key} has bidirected edges; sequential g-comp is unevaluable"
-                    ),
-                ));
+                diagnostics.push(mag_sequential_unevaluable_diagnostic(key));
                 continue;
             };
             let estimand = select_estimand(&case.result, EstimatorId::TemporalSequentialGcomp)
@@ -1258,19 +1251,7 @@ impl super::Study {
                 })?;
             flags.push(GraphIdentFlag::Identified);
             let mut assumptions = case.result.required_assumptions.clone();
-            assumptions.push(antecedent_core::AssumptionRecord {
-                assumption: antecedent_core::Assumption::ParametricRestriction(
-                    antecedent_core::ParametricAssumption {
-                        id: Arc::from("temporal.sequential.linear_sem"),
-                        description: Arc::from(UNFOLDED_LINEAR_SEM),
-                    },
-                ),
-                source: antecedent_core::AssumptionSource::AlgorithmDefault {
-                    algorithm: Arc::from("temporal.sequential.gcomp"),
-                },
-                scope: antecedent_core::AssumptionScope::Estimation,
-                status: antecedent_core::AssumptionStatus::Declared,
-            });
+            assumptions.push(sequential_linear_sem_assumption(UNFOLDED_LINEAR_SEM));
             // Each completion's unit posteriors draw from that completion's seed; a
             // completion whose fitted unit mechanisms coincide with an earlier one's
             // is refit on that completion's seed, so one model carries one posterior.
