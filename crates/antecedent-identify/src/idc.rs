@@ -331,35 +331,13 @@ fn mutilate_bar_x_underline_z(
     x_nodes: &BitSet,
     z_nodes: &BitSet,
 ) -> Result<Admg, IdentificationError> {
-    let mut out = Admg::empty();
-    for node in admg.nodes() {
-        out.add_node(*node).map_err(IdentificationError::from)?;
-    }
-    // Directed: drop incoming to X, drop outgoing from Z.
-    for i in 0..admg.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        if z_nodes.contains(from) {
-            continue; // no outgoing from Z
-        }
-        for &to in admg.children(from) {
-            if x_nodes.contains(to) {
-                continue; // no incoming to X
-            }
-            out.insert_directed(from, to).map_err(IdentificationError::from)?;
-        }
-    }
-    // Intervention removes all incoming arrowheads, including latent-parent
-    // arrows represented by bidirected edges incident to X.
-    for i in 0..admg.node_count() {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &b in admg.bidirected_neighbors(a) {
-            if b.raw() < a.raw() || x_nodes.contains(a) || x_nodes.contains(b) {
-                continue;
-            }
-            out.insert_bidirected(a, b).map_err(IdentificationError::from)?;
-        }
-    }
-    Ok(out)
+    admg.copy_filtered(
+        antecedent_graph::CopyLabels::Preserve,
+        |from, to| !z_nodes.contains(from) && !x_nodes.contains(to),
+        // Intervention removes latent arrows at X. This is not the keep-all rule.
+        |a, b| !x_nodes.contains(a) && !x_nodes.contains(b),
+    )
+    .map_err(IdentificationError::from)
 }
 
 #[cfg(test)]

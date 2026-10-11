@@ -1243,26 +1243,15 @@ fn mutilated_admg(
     graph: &antecedent_graph::Admg,
     treatments: &BitSet,
 ) -> Result<antecedent_graph::Admg, IdentificationError> {
-    let n = graph.node_count();
-    let mut mutilated = antecedent_graph::Admg::with_variables(index_u32(n));
     let build = || IdentificationError::invalid_input("z_transport.mutilated_graph");
-    for from_index in 0..n {
-        let from = DenseNodeId::from_raw(index_u32(from_index));
-        for to in graph.children(from) {
-            if !treatments.contains(*to) {
-                mutilated.insert_directed(from, *to).map_err(|_| build())?;
-            }
-        }
-        for other in graph.bidirected_neighbors(from) {
-            if other.as_usize() > from_index
-                && !treatments.contains(from)
-                && !treatments.contains(*other)
-            {
-                mutilated.insert_bidirected(from, *other).map_err(|_| build())?;
-            }
-        }
-    }
-    Ok(mutilated)
+    graph
+        .copy_filtered(
+            antecedent_graph::CopyLabels::StaticIndex { extra: 0 },
+            |_from, to| !treatments.contains(to),
+            // do(X) severs latent confounding of X.
+            |a, b| !treatments.contains(a) && !treatments.contains(b),
+        )
+        .map_err(|_| build())
 }
 
 /// The `do(treatments)`-mutilated form of a static `graph`: directed edges into

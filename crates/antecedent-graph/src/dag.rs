@@ -71,6 +71,28 @@ impl Dag {
         g
     }
 
+    /// Copy nodes `0..n` and the directed edges `keep` accepts.
+    ///
+    /// # Errors
+    ///
+    /// Node capacity, or an insertion the source graph itself would reject.
+    pub fn copy_filtered(
+        &self,
+        mut keep: impl FnMut(DenseNodeId, DenseNodeId) -> bool,
+    ) -> Result<Self, GraphError> {
+        let n = u32::try_from(self.node_count()).map_err(|_| GraphError::TooManyNodes)?;
+        let mut out = Self::with_variables(n);
+        for edge in self.edges() {
+            let Some((from, to)) = edge.parent_child() else {
+                continue;
+            };
+            if keep(from, to) {
+                out.insert_directed(from, to)?;
+            }
+        }
+        Ok(out)
+    }
+
     /// Build a DAG with one static node per schema variable (`VariableId` raw == dense id),
     /// then insert directed edges named by schema variable names.
     ///

@@ -330,21 +330,14 @@ fn backdoor_graph(
     target: DenseNodeId,
     visible_edge: &impl Fn(DenseNodeId, DenseNodeId) -> bool,
 ) -> Result<Admg, IdentificationError> {
-    let mut cut = Admg::with_variables(u32::try_from(graph.node_count()).expect("node count fits"));
-    for i in 0..graph.node_count() {
-        let u = DenseNodeId::from_raw(u32::try_from(i).expect("node index fits"));
-        for &v in graph.children(u) {
-            if u != target || !visible_edge(u, v) {
-                cut.insert_directed(u, v)?;
-            }
-        }
-        for &v in graph.bidirected_neighbors(u) {
-            if u < v {
-                cut.insert_bidirected(u, v)?;
-            }
-        }
-    }
-    Ok(cut)
+    graph
+        .copy_filtered(
+            antecedent_graph::CopyLabels::StaticIndex { extra: 0 },
+            |from, to| from != target || !visible_edge(from, to),
+            // The cut removes visible directed edges. Bidirected edges stay.
+            |_a, _b| true,
+        )
+        .map_err(IdentificationError::from)
 }
 
 pub(crate) fn joint_result(

@@ -562,31 +562,14 @@ pub(crate) fn remove_outgoing_set(
     dag: &Dag,
     nodes: &[DenseNodeId],
 ) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::msg("n"))?;
-    let mut out = Dag::with_variables(n);
-    for e in dag.edges() {
-        let (from, to) = e.parent_child().expect("dag");
-        if nodes.contains(&from) {
-            continue;
-        }
-        out.insert_directed(from, to).map_err(IdentificationError::from)?;
-    }
-    Ok(out)
+    dag.copy_filtered(|from, _to| !nodes.contains(&from)).map_err(IdentificationError::from)
 }
 
 /// `G` with every node in `nodes` fully removed (both incoming and outgoing
 /// edges dropped; node ids and count preserved).
 pub(crate) fn remove_nodes(dag: &Dag, nodes: &[DenseNodeId]) -> Result<Dag, IdentificationError> {
-    let n = u32::try_from(dag.node_count()).map_err(|_| IdentificationError::msg("n"))?;
-    let mut out = Dag::with_variables(n);
-    for e in dag.edges() {
-        let (from, to) = e.parent_child().expect("dag");
-        if nodes.contains(&from) || nodes.contains(&to) {
-            continue;
-        }
-        out.insert_directed(from, to).map_err(IdentificationError::from)?;
-    }
-    Ok(out)
+    dag.copy_filtered(|from, to| !nodes.contains(&from) && !nodes.contains(&to))
+        .map_err(IdentificationError::from)
 }
 
 pub(crate) fn var_to_dense(id: VariableId, dag: &Dag) -> Result<DenseNodeId, IdentificationError> {

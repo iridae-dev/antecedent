@@ -475,30 +475,13 @@ fn surgical_admg(
     treatment: DenseNodeId,
     keep_out: &HashSet<DenseNodeId>,
 ) -> Result<Admg, IdentificationError> {
-    let mut out = Admg::empty();
-    for node in admg.nodes() {
-        out.add_node(*node).map_err(IdentificationError::from)?;
-    }
-    for i in 0..admg.node_count() {
-        let from = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &to in admg.children(from) {
-            if from == treatment && !keep_out.contains(&to) {
-                continue;
-            }
-            out.insert_directed(from, to).map_err(IdentificationError::from)?;
-        }
-    }
-    // Bidirected edges unchanged.
-    for i in 0..admg.node_count() {
-        let a = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
-        for &b in admg.bidirected_neighbors(a) {
-            if b.raw() < a.raw() {
-                continue;
-            }
-            out.insert_bidirected(a, b).map_err(IdentificationError::from)?;
-        }
-    }
-    Ok(out)
+    admg.copy_filtered(
+        antecedent_graph::CopyLabels::Preserve,
+        |from, to| from != treatment || keep_out.contains(&to),
+        // Path surgery deletes directed treatment edges only. Bidirected edges stay.
+        |_a, _b| true,
+    )
+    .map_err(IdentificationError::from)
 }
 
 fn admg_to_dag(admg: &Admg) -> Result<Dag, IdentificationError> {

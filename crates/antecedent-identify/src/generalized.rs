@@ -1104,24 +1104,13 @@ pub(crate) fn mag_to_confounded_admg(mag: &Pag) -> Option<Admg> {
 }
 
 fn mutilate_outgoing(admg: &Admg, t: DenseNodeId) -> Admg {
-    let n = dense_u32(admg.node_count());
-    let mut out = Admg::with_variables(n);
-    for i in 0..admg.node_count() {
-        let u = DenseNodeId::from_raw(dense_u32(i));
-        for &v in admg.children(u) {
-            if u == t {
-                continue;
-            }
-            out.insert_directed(u, v).expect("outgoing-mutilated ADMG dropped a directed edge");
-        }
-        for &v in admg.bidirected_neighbors(u) {
-            if v.raw() > u.raw() {
-                out.insert_bidirected(u, v)
-                    .expect("outgoing-mutilated ADMG dropped a bidirected edge");
-            }
-        }
-    }
-    out
+    admg.copy_filtered(
+        antecedent_graph::CopyLabels::StaticIndex { extra: 0 },
+        |from, _to| from != t,
+        // Outgoing surgery leaves latent arrows in place.
+        |_a, _b| true,
+    )
+    .expect("outgoing-mutilated ADMG dropped an edge")
 }
 
 #[cfg(test)]

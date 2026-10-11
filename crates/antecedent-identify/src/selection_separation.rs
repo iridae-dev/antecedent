@@ -32,20 +32,13 @@ impl MutilatedSelection {
     ) -> Result<Self, IdentificationError> {
         let n = original.node_count();
         let capacity = || IdentificationError::msg("selection graph capacity");
-        let count = u32::try_from(n + targets.len()).map_err(|_| capacity())?;
-        let mut graph = Admg::with_variables(count);
-        for from in v.to_dense_ids() {
-            for &to in original.children(from) {
-                if v.contains(to) && !x.contains(to) {
-                    graph.insert_directed(from, to)?;
-                }
-            }
-            for &to in original.bidirected_neighbors(from) {
-                if from.raw() < to.raw() && v.contains(to) && !x.contains(from) && !x.contains(to) {
-                    graph.insert_bidirected(from, to)?;
-                }
-            }
-        }
+        let extra = u32::try_from(targets.len()).map_err(|_| capacity())?;
+        let mut graph = original.copy_filtered(
+            antecedent_graph::CopyLabels::StaticIndex { extra },
+            |from, to| v.contains(from) && v.contains(to) && !x.contains(to),
+            // do(X) drops latent arrows at X, and edges outside the induced set.
+            |a, b| v.contains(a) && v.contains(b) && !x.contains(a) && !x.contains(b),
+        )?;
         let mut selection_nodes = Vec::with_capacity(targets.len());
         for (i, &target) in targets.iter().enumerate() {
             if !v.contains(target) || x.contains(target) {

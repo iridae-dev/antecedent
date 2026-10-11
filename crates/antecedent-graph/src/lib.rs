@@ -51,7 +51,7 @@ pub mod unfold;
 pub mod unfold_pag;
 pub mod workspace;
 
-pub use admg::Admg;
+pub use admg::{Admg, CopyLabels};
 pub use antecedent_core::NodeRef;
 pub use completion::{
     CompletionSampler, CompletionValidationReport, PagCompletion, is_mag_completion,

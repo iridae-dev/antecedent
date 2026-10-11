@@ -9,6 +9,18 @@ use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::{BitSet, GraphWorkspace};
 
+/// How [`Admg::copy_filtered`] labels the copied nodes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CopyLabels {
+    /// Keep each source node's label.
+    Preserve,
+    /// Static labels `0..n`, plus `extra` trailing static nodes.
+    StaticIndex {
+        /// Trailing static nodes beyond the source node count.
+        extra: u32,
+    },
+}
+
 /// ADMG: directed edges and bidirected (latent-confounder) edges; no directed cycles.
 #[derive(Clone, Debug)]
 pub struct Admg {
@@ -54,6 +66,52 @@ impl Admg {
             let _ = g.add_node(NodeRef::Static(VariableId::from_raw(i)));
         }
         g
+    }
+
+    /// Copy nodes and the edges the predicates keep.
+    ///
+    /// `keep_bidirected` is the bidirected rule. Callers that drop latent
+    /// arrows at an intervention pass a predicate that rejects those endpoints.
+    /// Callers that leave confounding in place pass a predicate that accepts
+    /// every pair. The two are not interchangeable.
+    ///
+    /// # Errors
+    ///
+    /// Node capacity, or an insertion the source graph itself would reject.
+    pub fn copy_filtered(
+        &self,
+        labels: CopyLabels,
+        mut keep_directed: impl FnMut(DenseNodeId, DenseNodeId) -> bool,
+        mut keep_bidirected: impl FnMut(DenseNodeId, DenseNodeId) -> bool,
+    ) -> Result<Self, GraphError> {
+        let mut out = match labels {
+            CopyLabels::Preserve => {
+                let mut out = Self::empty();
+                for node in self.nodes() {
+                    out.add_node(*node)?;
+                }
+                out
+            }
+            CopyLabels::StaticIndex { extra } => {
+                let n = u32::try_from(self.node_count()).map_err(|_| GraphError::TooManyNodes)?;
+                let total = n.checked_add(extra).ok_or(GraphError::TooManyNodes)?;
+                Self::with_variables(total)
+            }
+        };
+        for i in 0..self.node_count() {
+            let from = DenseNodeId::from_raw(u32::try_from(i).expect("node index fits u32"));
+            for &to in self.children(from) {
+                if keep_directed(from, to) {
+                    out.insert_directed(from, to)?;
+                }
+            }
+            for &to in self.bidirected_neighbors(from) {
+                if to.raw() > from.raw() && keep_bidirected(from, to) {
+                    out.insert_bidirected(from, to)?;
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Schema-aligned ADMG with named directed edges (`VariableId` raw == dense id).

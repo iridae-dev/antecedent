@@ -966,25 +966,15 @@ struct Engine<'g> {
 /// `graph` (over `n` dense nodes) with every edge into `over` and every directed
 /// edge out of `under` removed (bidirected edges at an `over` node are edges into it).
 fn mutilated(graph: &Admg, n: usize, over: Mask, under: Mask) -> Admg {
-    let mut out = Admg::with_variables(u32::try_from(n).unwrap_or(0));
-    let dense = |i: usize| DenseNodeId::from_raw(u32::try_from(i).unwrap_or(0));
-    for from in 0..n {
-        for to in graph.children(dense(from)) {
-            let to = to.as_usize();
-            if over & bit(to) == 0 && under & bit(from) == 0 {
-                out.insert_directed(dense(from), dense(to))
-                    .expect("mutilated ADMG dropped a directed edge");
-            }
-        }
-        for to in graph.bidirected_neighbors(dense(from)) {
-            let to = to.as_usize();
-            if from < to && over & (bit(from) | bit(to)) == 0 {
-                out.insert_bidirected(dense(from), dense(to))
-                    .expect("mutilated ADMG dropped a bidirected edge");
-            }
-        }
-    }
-    out
+    debug_assert_eq!(n, graph.node_count());
+    graph
+        .copy_filtered(
+            antecedent_graph::CopyLabels::StaticIndex { extra: 0 },
+            |from, to| over & bit(to.as_usize()) == 0 && under & bit(from.as_usize()) == 0,
+            // A bidirected edge at an intervened node is an edge into it.
+            |a, b| over & (bit(a.as_usize()) | bit(b.as_usize())) == 0,
+        )
+        .expect("mutilated ADMG dropped an edge")
 }
 
 impl<'g> Engine<'g> {
