@@ -635,9 +635,8 @@ impl super::Study {
             (id_res.result, estimand, id_res.indexer, false)
         };
         require_identified(&identification)?;
-        if !query.effect_modifiers.is_empty() {
+        if !query.effect_modifiers.is_empty() && !query.is_multi_step_sustained() {
             if query.effect_modifiers.len() != 1
-                || matches!(query.policy, antecedent_core::TemporalPolicy::Sustained { from, until } if from != until)
                 || matches!(query.policy, antecedent_core::TemporalPolicy::Dynamic { .. })
             {
                 return Err(CausalError::Unsupported {
@@ -651,7 +650,10 @@ impl super::Study {
             }
             let prior_scale = match &self.inference {
                 InferenceMode::Bayesian(cfg) => {
-                    if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some() {
+                    if cfg.prior.is_some()
+                        || cfg.prior_artifact.is_some()
+                        || cfg.external_compose.is_some()
+                    {
                         return Err(CausalError::Unsupported {
                             message: "temporal conditional effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
                         });
@@ -1657,9 +1659,9 @@ impl super::Study {
                 &estimand,
                 &first.indexer,
                 &identification,
-                probe.try_treatment_offset().map_err(|e| CausalError::Compile {
-                    message: e.to_string(),
-                })?,
+                probe
+                    .try_treatment_offset()
+                    .map_err(|e| CausalError::Compile { message: e.to_string() })?,
                 probe.outcome_offset(),
                 &ctx.kernel_policy,
                 prior_scale,
@@ -6037,7 +6039,9 @@ impl super::Study {
         }
         let prior_scale = match &self.inference {
             InferenceMode::Bayesian(cfg) => {
-                if cfg.prior.is_some() || cfg.prior_artifact.is_some() || cfg.external_compose.is_some()
+                if cfg.prior.is_some()
+                    || cfg.prior_artifact.is_some()
+                    || cfg.external_compose.is_some()
                 {
                     return Err(CausalError::Unsupported {
                         message: "temporal cross-world effect uses the isotropic conjugate prior scale; a mapped coefficient prior is not licensed",
@@ -6048,17 +6052,14 @@ impl super::Study {
             InferenceMode::Frequentist => None,
         };
         let (treatment, outcome, mediator, active, control) = match &self.query {
-            CausalQuery::NestedCounterfactual(q) => (
-                q.treatment,
-                q.outcome,
-                Some(q.mediator),
-                q.active_value(),
-                q.control_value(),
-            ),
+            CausalQuery::NestedCounterfactual(q) => {
+                (q.treatment, q.outcome, Some(q.mediator), q.active_value(), q.control_value())
+            }
             CausalQuery::PathSpecific(q) => {
                 if q.path_nodes.len() != 1 {
                     return Err(CausalError::Unsupported {
-                        message: "temporal path-specific effect is the one-mediator edge product".into(),
+                        message: "temporal path-specific effect is the one-mediator edge product"
+                            .into(),
                     });
                 }
                 let active = hard_level(&q.active)?;
@@ -6066,17 +6067,22 @@ impl super::Study {
                 (q.treatment, q.outcome, Some(q.path_nodes[0]), active, control)
             }
             CausalQuery::Counterfactual(q) => {
-                let treatment = q
-                    .interventions
-                    .first()
-                    .and_then(Intervention::primary_variable)
-                    .ok_or_else(|| CausalError::Unsupported {
-                        message: "temporal counterfactual needs one hard intervention".into(),
-                    })?;
+                let treatment =
+                    q.interventions.first().and_then(Intervention::primary_variable).ok_or_else(
+                        || CausalError::Unsupported {
+                            message: "temporal counterfactual needs one hard intervention".into(),
+                        },
+                    )?;
                 let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
                     message: "temporal counterfactual needs one outcome".into(),
                 })?;
-                (treatment, outcome, None, hard_level(&q.interventions[0])?, hard_level(&q.control)?)
+                (
+                    treatment,
+                    outcome,
+                    None,
+                    hard_level(&q.interventions[0])?,
+                    hard_level(&q.control)?,
+                )
             }
             CausalQuery::Distribution(q) => {
                 let treatment = q
@@ -6084,7 +6090,8 @@ impl super::Study {
                     .first()
                     .and_then(Intervention::primary_variable)
                     .ok_or_else(|| CausalError::Unsupported {
-                        message: "temporal interventional distribution needs one hard intervention".into(),
+                        message: "temporal interventional distribution needs one hard intervention"
+                            .into(),
                     })?;
                 let outcome = *q.outcomes.first().ok_or_else(|| CausalError::Unsupported {
                     message: "temporal interventional distribution needs one outcome".into(),
@@ -6114,23 +6121,37 @@ impl super::Study {
         let estimand = identification.estimands.first().cloned().ok_or_else(|| {
             CausalError::Compile { message: "temporal cross-world proof has no estimand".into() }
         })?;
-        let fit = |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
-            antecedent_estimate::temporal_linear_slopes(
-                data,
-                &estimand,
-                &found.indexer,
-                outcome,
-                treatments,
-                probe.try_treatment_offset().map_err(|e| CausalError::Compile {
-                    message: e.to_string(),
-                })?,
-                probe.outcome_offset(),
-                contemporaneous,
-                &ctx.kernel_policy,
-                prior_scale,
-            )
-            .map_err(CausalError::from)
-        };
+        let mut direct_estimand = estimand.clone();
+        if matches!(
+            &self.query,
+            CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_)
+        ) {
+            direct_estimand.adjustment_set = Arc::from([]);
+        }
+        let fit =
+            |outcome: VariableId, treatments: &[VariableId], contemporaneous: &[VariableId]| {
+                let used = match &self.query {
+                    CausalQuery::NestedCounterfactual(_) | CausalQuery::PathSpecific(_) => {
+                        &direct_estimand
+                    }
+                    _ => &estimand,
+                };
+                antecedent_estimate::temporal_linear_slopes(
+                    data,
+                    used,
+                    &found.indexer,
+                    outcome,
+                    treatments,
+                    probe
+                        .try_treatment_offset()
+                        .map_err(|e| CausalError::Compile { message: e.to_string() })?,
+                    probe.outcome_offset(),
+                    contemporaneous,
+                    &ctx.kernel_policy,
+                    prior_scale,
+                )
+                .map_err(CausalError::from)
+            };
         let delta = active - control;
         let point = match &self.query {
             CausalQuery::NestedCounterfactual(_) => {
@@ -6149,11 +6170,6 @@ impl super::Study {
                 slopes[0] * delta
             }
             CausalQuery::Distribution(_) => {
-                if !estimand.adjustment_set.is_empty() {
-                    return Err(CausalError::Unsupported {
-                        message: "temporal interventional mean is licensed when the back-door set is empty".into(),
-                    });
-                }
                 let (intercept, slopes) = fit(outcome, &[treatment], &[])?;
                 intercept + slopes[0] * active
             }
@@ -6165,6 +6181,7 @@ impl super::Study {
             self.query.clone(),
             treatment,
             outcome,
+            mediator,
             active,
             control,
         );
@@ -6213,6 +6230,7 @@ fn template_scoped_cross_world(
     query: CausalQuery,
     treatment: VariableId,
     outcome: VariableId,
+    mediator: Option<VariableId>,
     active: f64,
     control: f64,
 ) -> IdentificationResult {
@@ -6221,36 +6239,62 @@ fn template_scoped_cross_world(
         .estimands
         .first()
         .map(|estimand| {
-            let mut mapped: Vec<VariableId> = estimand.adjustment_set.iter().copied().map(map).collect();
+            let mut mapped: Vec<VariableId> =
+                estimand.adjustment_set.iter().copied().map(map).collect();
             mapped.sort_by_key(|id| id.raw());
             mapped.dedup();
             mapped
         })
         .unwrap_or_default();
-    let mut arena = antecedent_expr::CausalExprArena::new();
-    let functional = if matches!(query, CausalQuery::Distribution(_)) {
-        arena.backdoor_mean(treatment, outcome, &adjustment, antecedent_core::Value::f64(active))
-    } else {
-        arena.backdoor_ate(
-            treatment,
-            outcome,
-            &adjustment,
-            antecedent_core::Value::f64(active),
-            antecedent_core::Value::f64(control),
-        )
-    };
-    let method = identification
+    let mut arena = CausalExprArena::new();
+    let backdoor_method = identification
         .estimands
         .first()
         .map(|estimand| estimand.method.clone())
-        .unwrap_or_else(|| std::sync::Arc::from("temporal.backdoor.unfolded"));
+        .unwrap_or_else(|| Arc::from("temporal.backdoor.unfolded"));
+    let active_value = antecedent_core::Value::f64(active);
+    let control_value = antecedent_core::Value::f64(control);
+    // Nested and path points are the direct slope and the mediator-edge product
+    // that were fit. A counterfactual and an interventional mean stay the
+    // back-door formula of the adjustment set that entered that fit.
+    let (method, adjustment, mediators, functional) = match &query {
+        CausalQuery::NestedCounterfactual(_) => {
+            let mediator = mediator.expect("nested mediator");
+            (
+                Arc::from(EstimandMethod::TemporalMediationDirect.as_str()),
+                Arc::from([]),
+                Arc::from([mediator]),
+                direct_slope_functional(&mut arena, treatment, mediator, outcome, active, control),
+            )
+        }
+        CausalQuery::PathSpecific(_) => {
+            let mediator = mediator.expect("path mediator");
+            (
+                Arc::from(EstimandMethod::PathSpecificNatural.as_str()),
+                Arc::from([]),
+                Arc::from([mediator]),
+                mediator_edge_product_functional(
+                    &mut arena, treatment, mediator, outcome, active, control,
+                ),
+            )
+        }
+        CausalQuery::Distribution(_) => {
+            let functional = arena.backdoor_mean(treatment, outcome, &adjustment, active_value);
+            (backdoor_method, Arc::from(adjustment), Arc::from([]), functional)
+        }
+        _ => {
+            let functional =
+                arena.backdoor_ate(treatment, outcome, &adjustment, active_value, control_value);
+            (backdoor_method, Arc::from(adjustment), Arc::from([]), functional)
+        }
+    };
     identification.query = query;
     identification.arena = arena;
-    identification.estimands = vec![antecedent_expr::IdentifiedEstimand::new(
+    identification.estimands = vec![IdentifiedEstimand::new(
         method,
-        std::sync::Arc::from(adjustment),
-        std::sync::Arc::from([]),
-        std::sync::Arc::from([]),
+        adjustment,
+        Arc::from([]),
+        mediators,
         functional,
         None,
     )];
@@ -6258,9 +6302,128 @@ fn template_scoped_cross_world(
     identification
 }
 
+/// Linear natural direct effect: the treatment slope in the outcome regression
+/// that holds the contemporaneous mediator, times the level gap.
+fn direct_slope_functional(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    active: f64,
+    control: f64,
+) -> antecedent_expr::ExprId {
+    let left = held_mediator_mean(arena, treatment, mediator, outcome, active);
+    let right = held_mediator_mean(arena, treatment, mediator, outcome, control);
+    let contrast = arena.intern(ExprNode::Contrast {
+        left,
+        right,
+        op: antecedent_expr::ContrastOp::Difference,
+    });
+    arena.set_derivation(
+        contrast,
+        DerivationMeta::rule(
+            "temporal.cross_world.direct_slope",
+            Some(Arc::from(
+                "outcome-regression treatment slope with the contemporaneous mediator held, times the level gap",
+            )),
+        ),
+    );
+    contrast
+}
+
+fn held_mediator_mean(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    level: f64,
+) -> antecedent_expr::ExprId {
+    let variables = arena.intern_var_set([outcome]);
+    let conditioned_on = arena.intern_var_set([treatment, mediator]);
+    let intervention =
+        arena.intern_intervention_assignments([antecedent_expr::InterventionAssignment::concrete(
+            treatment,
+            antecedent_core::Value::f64(level),
+        )]);
+    let distribution =
+        arena.intern_distribution(variables, conditioned_on, intervention, DomainRef::Interventional);
+    arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution,
+    })
+}
+
+/// Product of the treatment-to-mediator edge over the level gap and the
+/// mediator-to-outcome partial slope.
+fn mediator_edge_product_functional(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    active: f64,
+    control: f64,
+) -> antecedent_expr::ExprId {
+    let through = arena.backdoor_ate(
+        treatment,
+        mediator,
+        &[],
+        antecedent_core::Value::f64(active),
+        antecedent_core::Value::f64(control),
+    );
+    let onward_high = held_treatment_mean(arena, treatment, mediator, outcome, control, 1.0);
+    let onward_low = held_treatment_mean(arena, treatment, mediator, outcome, control, 0.0);
+    let onward = arena.intern(ExprNode::Contrast {
+        left: onward_high,
+        right: onward_low,
+        op: antecedent_expr::ContrastOp::Difference,
+    });
+    let factors = arena.intern_list([through, onward]);
+    let product = arena.intern(ExprNode::Product(factors));
+    arena.set_derivation(
+        product,
+        DerivationMeta::rule(
+            "temporal.cross_world.mediator_edge_product",
+            Some(Arc::from(
+                "product of the treatment-to-mediator slope and the mediator-to-outcome slope, times the level gap",
+            )),
+        ),
+    );
+    product
+}
+
+fn held_treatment_mean(
+    arena: &mut CausalExprArena,
+    treatment: VariableId,
+    mediator: VariableId,
+    outcome: VariableId,
+    treatment_level: f64,
+    mediator_level: f64,
+) -> antecedent_expr::ExprId {
+    let variables = arena.intern_var_set([outcome]);
+    let conditioned_on = arena.intern_var_set([treatment, mediator]);
+    let intervention = arena.intern_intervention_assignments([
+        antecedent_expr::InterventionAssignment::concrete(
+            treatment,
+            antecedent_core::Value::f64(treatment_level),
+        ),
+        antecedent_expr::InterventionAssignment::concrete(
+            mediator,
+            antecedent_core::Value::f64(mediator_level),
+        ),
+    ]);
+    let distribution =
+        arena.intern_distribution(variables, conditioned_on, intervention, DomainRef::Interventional);
+    arena.intern(ExprNode::Expectation {
+        function: OutcomeExprId::identity(outcome),
+        distribution,
+    })
+}
+
 fn hard_level(intervention: &Intervention) -> Result<f64, CausalError> {
     match intervention {
-        Intervention::Set { value: antecedent_core::Value::Float64(level), .. } if level.is_finite() => {
+        Intervention::Set { value: antecedent_core::Value::Float64(level), .. }
+            if level.is_finite() =>
+        {
             Ok(*level)
         }
         _ => Err(CausalError::Unsupported {
@@ -6280,10 +6443,7 @@ pub(super) fn temporal_linear_derivative_response(
     policy: &antecedent_core::KernelPolicy,
     prior_scale: Option<f64>,
 ) -> Result<CausalResponse, CausalError> {
-    use antecedent_core::{
-        DerivativeScale, DerivativeWeighting, ResponseFunctional as F, SupportRegion, SupportReport,
-        SupportStatus,
-    };
+    use antecedent_core::{DerivativeScale, DerivativeWeighting, ResponseFunctional as F};
     if query.target_population != antecedent_core::TargetPopulation::AllObserved {
         return Err(CausalError::Unsupported {
             message: "temporal derivative requires the all-observed population".into(),
@@ -6304,7 +6464,11 @@ pub(super) fn temporal_linear_derivative_response(
         )
         .map_err(CausalError::from)
     };
-    let scale_one = |scale: DerivativeScale, at: f64, intercept: f64, slope: f64| -> Result<f64, CausalError> {
+    let scale_one = |scale: DerivativeScale,
+                     at: f64,
+                     intercept: f64,
+                     slope: f64|
+     -> Result<f64, CausalError> {
         let mean = intercept + slope * at;
         match scale {
             DerivativeScale::Identity => Ok(slope),
@@ -6319,32 +6483,42 @@ pub(super) fn temporal_linear_derivative_response(
         }
     };
     let mut support_at = vec![0.0_f64];
+    let support_treatments;
+    let mut average_over_observed = false;
     let value = match &query.functional {
         F::AverageDerivative { outcome, treatment, weighting } => {
             if !matches!(weighting, DerivativeWeighting::Observed) {
                 return Err(CausalError::Unsupported {
-                    message: "temporal average derivative is licensed for the observed weighting".into(),
+                    message: "temporal average derivative is licensed for the observed weighting"
+                        .into(),
                 });
             }
+            support_treatments = vec![*treatment];
+            average_over_observed = true;
             let (_, slopes) = fit(*outcome, &[*treatment])?;
             ResponseValue::Scalar(slopes[0])
         }
         F::PointDerivative { outcome, treatment, at, order, scale } => {
             if *order != 1 {
                 return Err(CausalError::Unsupported {
-                    message: "temporal point derivative is the first derivative of the linear fit".into(),
+                    message: "temporal point derivative is the first derivative of the linear fit"
+                        .into(),
                 });
             }
             let (intercept, slopes) = fit(*outcome, &[*treatment])?;
+            support_treatments = vec![*treatment];
             support_at = vec![*at];
             ResponseValue::Scalar(scale_one(*scale, *at, intercept, slopes[0])?)
         }
         F::DirectionalDerivative { outcomes, treatments, at, direction } => {
             if at.len() != treatments.len() || direction.len() != treatments.len() {
                 return Err(CausalError::Unsupported {
-                    message: "temporal directional derivative point and direction follow the treatments".into(),
+                    message:
+                        "temporal directional derivative point and direction follow the treatments"
+                            .into(),
                 });
             }
+            support_treatments = treatments.to_vec();
             support_at = at.to_vec();
             let mut values = Vec::with_capacity(outcomes.len());
             for &outcome in outcomes.iter() {
@@ -6361,6 +6535,7 @@ pub(super) fn temporal_linear_derivative_response(
                     message: "temporal Jacobian is evaluated at one point per treatment".into(),
                 });
             }
+            support_treatments = treatments.to_vec();
             support_at = at.to_vec();
             let mut values = Vec::with_capacity(outcomes.len() * treatments.len());
             for &outcome in outcomes.iter() {
@@ -6371,8 +6546,12 @@ pub(super) fn temporal_linear_derivative_response(
                     let scaled = match scale {
                         DerivativeScale::Identity => slope,
                         DerivativeScale::LogTreatment if point > 0.0 => point * slope,
-                        DerivativeScale::LogOutcome if mean.is_finite() && mean != 0.0 => slope / mean,
-                        DerivativeScale::LogLog if point > 0.0 && mean.is_finite() && mean != 0.0 => {
+                        DerivativeScale::LogOutcome if mean.is_finite() && mean != 0.0 => {
+                            slope / mean
+                        }
+                        DerivativeScale::LogLog
+                            if point > 0.0 && mean.is_finite() && mean != 0.0 =>
+                        {
                             point * slope / mean
                         }
                         _ => {
@@ -6396,24 +6575,124 @@ pub(super) fn temporal_linear_derivative_response(
             });
         }
     };
+    let support = derivative_support_report(
+        data,
+        &support_treatments,
+        &support_at,
+        average_over_observed,
+    );
     Ok(CausalResponse {
         estimand: query.functional.clone(),
         identification_status: identification.status,
         estimate: ResponseIdentification::PointIdentified(value),
         uncertainty: ResponseUncertainty::None,
-        support: SupportReport {
-            status: SupportStatus::Supported,
-            query_region: SupportRegion {
-                minima: std::sync::Arc::from(support_at.clone()),
-                maxima: std::sync::Arc::from(support_at),
-            },
-            diagnostics: Vec::new(),
-            warnings: Vec::new(),
-            point_status: None,
-        },
+        support,
         assumptions: identification.required_assumptions.clone(),
         provenance_id: std::sync::Arc::from("estimate.temporal.linear_derivative"),
         horizon_identification: None,
         interaction_structurally_zero: false,
     })
+}
+
+/// Average derivatives are supported on the observed treatment range. A requested
+/// evaluation point is outside the data when it leaves that range.
+fn derivative_support_report(
+    data: &TimeSeriesData,
+    treatments: &[VariableId],
+    requested: &[f64],
+    average_over_observed: bool,
+) -> antecedent_core::SupportReport {
+    use antecedent_core::{SupportRegion, SupportReport, SupportStatus};
+    let range = |variable: VariableId| -> Option<(f64, f64)> {
+        let values = data.float64_values(variable).ok()?;
+        let mut min = f64::INFINITY;
+        let mut max = f64::NEG_INFINITY;
+        for value in values {
+            if value.is_finite() {
+                min = min.min(value);
+                max = max.max(value);
+            }
+        }
+        (min.is_finite() && max.is_finite()).then_some((min, max))
+    };
+    if average_over_observed {
+        let (minima, maxima, status) = match treatments.first().and_then(|id| range(*id)) {
+            Some((min, max)) => (vec![min], vec![max], SupportStatus::Supported),
+            None => (vec![f64::NAN], vec![f64::NAN], SupportStatus::OutsideEmpiricalSupport),
+        };
+        let mut warnings = Vec::new();
+        if status != SupportStatus::Supported {
+            warnings.push(Diagnostic::new(
+                "estimate.temporal.linear_derivative.support",
+                DiagnosticKind::Support,
+                DiagnosticSeverity::Warning,
+                "the average derivative has no finite observed treatment values",
+            ));
+        }
+        return SupportReport {
+            status,
+            query_region: SupportRegion {
+                minima: std::sync::Arc::from(minima),
+                maxima: std::sync::Arc::from(maxima),
+            },
+            diagnostics: Vec::new(),
+            warnings,
+            point_status: None,
+        };
+    }
+    let inside = treatments.iter().zip(requested).all(|(variable, point)| {
+        range(*variable).is_some_and(|(min, max)| point.is_finite() && *point >= min && *point <= max)
+    });
+    let status = if inside && treatments.len() == requested.len() && !requested.is_empty() {
+        SupportStatus::Supported
+    } else {
+        SupportStatus::OutsideEmpiricalSupport
+    };
+    let mut warnings = Vec::new();
+    if status != SupportStatus::Supported {
+        warnings.push(Diagnostic::new(
+            "estimate.temporal.linear_derivative.support",
+            DiagnosticKind::Support,
+            DiagnosticSeverity::Warning,
+            "the requested evaluation point is outside the observed treatment series",
+        ));
+    }
+    SupportReport {
+        status,
+        query_region: SupportRegion {
+            minima: std::sync::Arc::from(requested),
+            maxima: std::sync::Arc::from(requested),
+        },
+        diagnostics: Vec::new(),
+        warnings,
+        point_status: None,
+    }
+}
+
+pub(super) fn scope_temporal_cross_world(
+    identification: IdentificationResult,
+    indexer: &antecedent_core::TemporalIndexer,
+    query: CausalQuery,
+    treatment: VariableId,
+    outcome: VariableId,
+    mediator: Option<VariableId>,
+    active: f64,
+    control: f64,
+) -> IdentificationResult {
+    template_scoped_cross_world(
+        identification,
+        indexer,
+        query,
+        treatment,
+        outcome,
+        mediator,
+        active,
+        control,
+    )
+}
+
+pub(super) fn temporal_cross_world_hard_level(
+    intervention: &Intervention,
+) -> Result<f64, CausalError> {
+    hard_level(intervention)
 }

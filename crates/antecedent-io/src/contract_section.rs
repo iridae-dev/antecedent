@@ -1284,13 +1284,8 @@ pub fn verify_contract_against_body(
     }
     if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. }) {
         if contract.graph_class == "TemporalDag" {
-            let point = body.estimate.is_some_and(f64::is_finite)
-                && body.interval_lower.is_none()
-                && body.interval_upper.is_none()
-                && body.posterior_artifact.is_none()
-                && !body.standard_error.is_some_and(f64::is_finite);
-            if !point {
-                unresolved.push(Arc::from("body.temporal_nested_point"));
+            if let Err(reason) = verify_temporal_nested_point(contract, body) {
+                unresolved.push(Arc::from(reason));
             }
         } else if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
             unresolved.push(Arc::from(reason));
@@ -1939,23 +1934,84 @@ fn verify_nested_counterfactual_result(
     if !actual.is_finite() {
         return Err("body.nested_counterfactual_estimate");
     }
-    if bayesian_point {
-        if body.standard_error.is_some_and(f64::is_finite)
+    if bayesian_point
+        && (body.standard_error.is_some_and(f64::is_finite)
             || body.interval_lower.is_some()
             || body.interval_upper.is_some()
-            || body.posterior_artifact.is_some()
-        {
-            return Err("body.nested_counterfactual_estimate");
-        }
-        return Ok(());
+            || body.posterior_artifact.is_some())
+    {
+        return Err("body.nested_counterfactual_estimate");
+    }
+    let expected = natural_direct_from_fit(fit, snapshot.row_count, active_bits, control_bits)?;
+    if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
+        return Err("body.nested_counterfactual_estimate");
+    }
+    Ok(())
+}
+
+/// A temporal nested point is the natural direct effect of the published
+/// outcome-regression moments, not an arbitrary finite scalar.
+fn verify_temporal_nested_point(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+) -> Result<(), &'static str> {
+    let shape = body.estimate.is_some_and(f64::is_finite)
+        && body.interval_lower.is_none()
+        && body.interval_upper.is_none()
+        && body.posterior_artifact.is_none()
+        && !body.standard_error.is_some_and(f64::is_finite);
+    if !shape {
+        return Err("body.temporal_nested_point");
+    }
+    let crate::CausalQueryWire::NestedCounterfactual { control_bits, active_bits, .. } =
+        contract.target.query
+    else {
+        return Err("body.temporal_nested_point");
+    };
+    let snapshot =
+        contract.data_snapshot.as_ref().ok_or("dependencies.nested_counterfactual_fit_moments")?;
+    let fit = snapshot
+        .nested_counterfactual_fit
+        .as_ref()
+        .ok_or("dependencies.nested_counterfactual_fit_moments")?;
+    let expected = natural_direct_from_fit(fit, snapshot.row_count, active_bits, control_bits)
+        .map_err(|reason| match reason {
+            "body.nested_counterfactual_estimate" => "body.temporal_nested_point",
+            other => other,
+        })?;
+    let actual = body.estimate.ok_or("body.temporal_nested_point")?;
+    if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
+        return Err("body.temporal_nested_point");
+    }
+    Ok(())
+}
+
+fn natural_direct_from_fit(
+    fit: &crate::NestedCounterfactualFitWire,
+    snapshot_rows: u64,
+    active_bits: u64,
+    control_bits: u64,
+) -> Result<f64, &'static str> {
+    if fit.format != 1
+        || fit.complete_case_rows < 4
+        || fit.complete_case_rows > snapshot_rows
+        || fit.gram.iter().chain(&fit.outcome_cross).any(|value| !value.is_finite())
+        || (fit.gram[0] - fit.complete_case_rows as f64).abs() > 1e-9
+        || (0..3).any(|row| {
+            (0..3).any(|column| {
+                (fit.gram[row * 3 + column] - fit.gram[column * 3 + row]).abs() > 1e-9
+            })
+        })
+    {
+        return Err("dependencies.nested_counterfactual_fit_moments");
     }
     let beta = solve_nested_outcome_moments(fit.gram, fit.outcome_cross)
         .ok_or("dependencies.nested_counterfactual_fit_rank")?;
     let expected = beta[1] * (f64::from_bits(active_bits) - f64::from_bits(control_bits));
-    if !expected.is_finite() || (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
+    if !expected.is_finite() {
         return Err("body.nested_counterfactual_estimate");
     }
-    Ok(())
+    Ok(expected)
 }
 
 fn solve_nested_outcome_moments(gram: [f64; 9], cross: [f64; 3]) -> Option<[f64; 3]> {
@@ -4972,6 +5028,123 @@ mod tests {
         for status in ["not_certified", "proven_non_transportable", "surprise"] {
             assert_eq!(claim_kind_name(&body, Some(&slot(status, 1.0, 0.0, 0.0))), "incomplete");
         }
+    }
+
+    fn orthogonal_direct_fit() -> crate::NestedCounterfactualFitWire {
+        crate::NestedCounterfactualFitWire {
+            format: 1,
+            complete_case_rows: 4,
+            gram: [4.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 4.0],
+            outcome_cross: [0.0, 8.0, 0.0],
+        }
+    }
+
+    fn nested_query_wire() -> CausalQueryWire {
+        causal_query_to_wire(&CausalQuery::NestedCounterfactual(
+            antecedent_core::NestedCounterfactualQuery::with_levels(
+                VariableId::from_raw(0),
+                VariableId::from_raw(1),
+                VariableId::from_raw(2),
+                0.0,
+                1.0,
+            )
+            .unwrap(),
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn bayesian_nested_point_must_match_the_solved_natural_direct_effect() {
+        let bind = |estimate: f64| {
+            let (mut body, target, _) = fixture_body();
+            body.estimate = Some(estimate);
+            body.standard_error = None;
+            body.interval_lower = None;
+            body.interval_upper = None;
+            body.posterior_artifact = None;
+            let query = nested_query_wire();
+            body.query = query.clone();
+            body.identification.query = query.clone();
+            body.identification.estimands = vec![crate::IdentifiedEstimandWire {
+                method: "path_specific.natural".into(),
+                adjustment_set: Vec::new(),
+                instruments: Vec::new(),
+                mediators: vec![1],
+                functional: 0,
+                rd_design: None,
+            }];
+            let mut contract = contract_for(target, &body);
+            contract.identifier = Some("path_specific.natural".into());
+            contract.estimator = Some("mediation.linear".into());
+            contract.target.query = query;
+            contract.inference_binding.as_mut().unwrap().inference = "bayesian".into();
+            let program = contract.program.as_mut().unwrap();
+            program.commitments.resolved_estimator = Some("mediation.linear".into());
+            program.commitments.inference = "bayesian".into();
+            program.checked_nested_counterfactual = Some(crate::CheckedNestedCounterfactualWire {
+                format: 1,
+                treatment: 0,
+                mediator: 1,
+                outcome: 2,
+                control_bits: 0.0f64.to_bits(),
+                active_bits: 1.0f64.to_bits(),
+                model: "linear_gaussian".into(),
+                procedure: "natural_direct_shared_exogenous".into(),
+            });
+            if let crate::GraphIdentityWire::Dag(dag) =
+                &mut contract.identification.as_mut().unwrap().graph
+            {
+                dag.node_count = 3;
+                dag.edges = vec![(0, 1), (0, 2), (1, 2)];
+            }
+            contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit =
+                Some(orthogonal_direct_fit());
+            (body, contract)
+        };
+        let (matched, contract) = bind(2.0);
+        assert_eq!(verify_nested_counterfactual_result(&contract, &matched), Ok(()));
+        let (wrong, contract) = bind(99.0);
+        assert_eq!(
+            verify_nested_counterfactual_result(&contract, &wrong),
+            Err("body.nested_counterfactual_estimate")
+        );
+    }
+
+    #[test]
+    fn temporal_nested_point_must_match_the_solved_natural_direct_effect() {
+        let (mut body, target, names) = fixture_body();
+        body.standard_error = None;
+        body.interval_lower = None;
+        body.interval_upper = None;
+        body.posterior_artifact = None;
+        body.estimate = Some(99.0);
+        let query = nested_query_wire();
+        body.query = query.clone();
+        let mut contract = contract_for(target, &body);
+        contract.graph_class = "TemporalDag".into();
+        contract.target.query = query;
+        contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit =
+            Some(orthogonal_direct_fit());
+        let header = AnalysisResultHeader { variable_names: names };
+        let wrong = verify_contract_against_body(&header, &body, &contract);
+        assert!(
+            wrong.iter().any(|reason| reason.as_ref() == "body.temporal_nested_point"),
+            "{wrong:?}"
+        );
+        body.estimate = Some(2.0);
+        let matched = verify_contract_against_body(&header, &body, &contract);
+        assert!(
+            !matched.iter().any(|reason| reason.as_ref() == "body.temporal_nested_point"),
+            "{matched:?}"
+        );
+        contract.data_snapshot.as_mut().unwrap().nested_counterfactual_fit = None;
+        let unbound = verify_contract_against_body(&header, &body, &contract);
+        assert!(
+            unbound
+                .iter()
+                .any(|reason| reason.as_ref() == "dependencies.nested_counterfactual_fit_moments"),
+            "{unbound:?}"
+        );
     }
 
     #[test]

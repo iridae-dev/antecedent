@@ -47,9 +47,8 @@ fn graph() -> TemporalDag {
 }
 
 fn attach(functional: ResponseFunctional) -> ResponseQuery {
-    ResponseQuery::new(functional).with_temporal(
-        TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap(),
-    )
+    ResponseQuery::new(functional)
+        .with_temporal(TemporalResponseSpec::new([1], TemporalPolicy::pulse(-1), Some(1)).unwrap())
 }
 
 fn functionals() -> Vec<(&'static str, ResponseFunctional)> {
@@ -153,21 +152,124 @@ fn temporal_dag_derivatives_publish_the_linear_slope() {
                         "{key} accepted={accepted} bayesian={bayesian}: {got} != {want}"
                     );
                 }
-                assert!(result.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == "estimate.temporal.linear_derivative"
-                }));
+                assert!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .any(|d| { d.code.as_ref() == "estimate.temporal.linear_derivative" })
+                );
                 assert!(result.posterior.is_none());
                 if let Some(binding) = &result.interval {
                     assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
                 }
                 let plan = &result.logical_plan;
-                let estimator = if bayesian {
-                    "response.temporal.bayesian"
-                } else {
-                    "temporal.response.gcomp"
-                };
+                let estimator =
+                    if bayesian { "response.temporal.bayesian" } else { "temporal.response.gcomp" };
                 assert_eq!(plan.estimator.as_deref(), Some(estimator));
             }
         }
     }
+}
+
+#[test]
+fn derivative_support_reports_a_point_outside_the_observed_series() {
+    use antecedent_core::SupportStatus;
+
+    let n = 40;
+    let x: Vec<f64> = (0..n).map(|t| 2.0 + [0.0, 1.0, 2.0][t % 3]).collect();
+    let b: Vec<f64> = (0..n).map(|t| if t % 2 == 0 { 0.0 } else { 1.0 }).collect();
+    let y: Vec<f64> = (0..n)
+        .map(|t| {
+            if t == 0 {
+                0.0
+            } else {
+                3.0 + 2.0 * x[t - 1] + 0.5 * b[t - 1]
+            }
+        })
+        .collect();
+    let v: Vec<f64> = (0..n)
+        .map(|t| if t == 0 { 0.0 } else { 1.0 + x[t - 1] - b[t - 1] })
+        .collect();
+    let data = TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("b", b.as_slice()), ("y", y.as_slice()), ("v", v.as_slice())],
+        1,
+    )
+    .unwrap();
+    let ctx = ExecutionContext::for_tests(11);
+    let run = |functional: ResponseFunctional| {
+        Study::series(data.clone())
+            .graph(graph())
+            .query(CausalQuery::Response(attach(functional)))
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate_retained(&ctx)
+            .unwrap()
+    };
+    let point = |at| ResponseFunctional::PointDerivative {
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        at,
+        order: 1,
+        scale: DerivativeScale::Identity,
+    };
+    let outside = run(point(0.0));
+    let outside_response = outside.response.as_ref().unwrap();
+    let ResponseIdentification::PointIdentified(ResponseValue::Scalar(slope)) =
+        &outside_response.estimate
+    else {
+        panic!("outside point still has the linear slope");
+    };
+    assert!((slope - 2.0).abs() < 1e-6, "outside slope {slope}");
+    let outside_support = &outside_response.support;
+    assert_eq!(outside_support.status, SupportStatus::OutsideEmpiricalSupport);
+    assert_eq!(outside_support.query_region.minima.as_ref(), &[0.0]);
+    assert!(outside_support.warnings.iter().any(|warning| {
+        warning.message.as_ref().contains("outside the observed treatment series")
+    }));
+
+    let inside = run(point(3.0));
+    assert_eq!(inside.response.as_ref().unwrap().support.status, SupportStatus::Supported);
+
+    let average = run(ResponseFunctional::AverageDerivative {
+        outcome: VariableId::from_raw(2),
+        treatment: VariableId::from_raw(0),
+        weighting: DerivativeWeighting::Observed,
+    });
+    let average_support = &average.response.as_ref().unwrap().support;
+    assert_eq!(average_support.status, SupportStatus::Supported);
+    assert!(average_support.query_region.minima[0] >= 2.0);
+    assert!(average_support.query_region.maxima[0] <= 4.0);
+    assert_ne!(average_support.query_region.minima.as_ref(), &[0.0]);
+
+    let jacobian = |at: [f64; 2]| ResponseFunctional::Jacobian {
+        outcomes: Arc::from([VariableId::from_raw(2)]),
+        treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+        at: Arc::from(at),
+        scale: DerivativeScale::Identity,
+    };
+    assert_eq!(
+        run(jacobian([0.0, 0.5])).response.as_ref().unwrap().support.status,
+        SupportStatus::OutsideEmpiricalSupport
+    );
+    assert_eq!(
+        run(jacobian([3.0, 0.5])).response.as_ref().unwrap().support.status,
+        SupportStatus::Supported
+    );
+    let directional = |at: [f64; 2]| ResponseFunctional::DirectionalDerivative {
+        outcomes: Arc::from([VariableId::from_raw(2)]),
+        treatments: Arc::from([VariableId::from_raw(0), VariableId::from_raw(1)]),
+        at: Arc::from(at),
+        direction: Arc::from([1.0, 0.0]),
+    };
+    assert_eq!(
+        run(directional([10.0, 0.5])).response.as_ref().unwrap().support.status,
+        SupportStatus::OutsideEmpiricalSupport
+    );
+    assert_eq!(
+        run(directional([3.0, 0.5])).response.as_ref().unwrap().support.status,
+        SupportStatus::Supported
+    );
 }

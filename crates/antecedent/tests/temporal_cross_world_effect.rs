@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use antecedent::{AcceptedGraph, BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_core::{
-    CausalQuery, CounterfactualQuery, ExecutionContext, Intervention, InterventionalDistributionQuery,
-    Lag, NestedCounterfactualQuery, PathSpecificEffectQuery, Value, VariableId,
+    CausalQuery, CounterfactualQuery, ExecutionContext, Intervention,
+    InterventionalDistributionQuery, Lag, NestedCounterfactualQuery, PathSpecificEffectQuery,
+    Value, VariableId,
 };
 use antecedent_data::TimeSeriesData;
 use antecedent_graph::{TemporalDag, ensure_lagged};
@@ -54,9 +55,7 @@ fn queries() -> Vec<(&'static str, CausalQuery, f64)> {
         ),
         (
             "path",
-            CausalQuery::PathSpecific(
-                PathSpecificEffectQuery::binary(x, y).with_path_nodes([m]),
-            ),
+            CausalQuery::PathSpecific(PathSpecificEffectQuery::binary(x, y).with_path_nodes([m])),
             2.0,
         ),
         (
@@ -121,16 +120,124 @@ fn temporal_dag_cross_world_points_match_the_linear_mechanism() {
                     "{key} accepted={accepted} bayesian={bayesian} ate={}",
                     result.estimate.ate
                 );
-                assert!(result.diagnostics.iter().any(|d| {
-                    d.code.as_ref() == "estimate.temporal.cross_world"
-                }));
+                assert!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .any(|d| { d.code.as_ref() == "estimate.temporal.cross_world" })
+                );
                 assert!(result.posterior.is_none());
                 if let Some(binding) = &result.interval {
                     assert_eq!(binding.method, antecedent_core::IntervalMethod::None);
                 }
                 let plan = &result.logical_plan;
                 assert_eq!(plan.estimator.as_deref(), Some("temporal.linear.adjustment"));
+                let rule = result
+                    .identification
+                    .arena
+                    .derivation(result.estimand.functional)
+                    .map(|meta| meta.rule.to_string());
+                assert!(result.estimand.adjustment_set.is_empty(), "{key}");
+                match key {
+                    "nested" => {
+                        assert_eq!(rule.as_deref(), Some("temporal.cross_world.direct_slope"));
+                        assert_eq!(result.estimand.method.as_ref(), "temporal_mediation.direct");
+                        assert_eq!(
+                            result.estimand.mediators.as_ref(),
+                            &[VariableId::from_raw(1)]
+                        );
+                        assert!(matches!(
+                            result.identification.arena.node(result.estimand.functional),
+                            antecedent_expr::ExprNode::Contrast { .. }
+                        ));
+                    }
+                    "path" => {
+                        assert_eq!(
+                            rule.as_deref(),
+                            Some("temporal.cross_world.mediator_edge_product")
+                        );
+                        assert_eq!(result.estimand.method.as_ref(), "path_specific.natural");
+                        assert_eq!(
+                            result.estimand.mediators.as_ref(),
+                            &[VariableId::from_raw(1)]
+                        );
+                        assert!(matches!(
+                            result.identification.arena.node(result.estimand.functional),
+                            antecedent_expr::ExprNode::Product(_)
+                        ));
+                    }
+                    "counterfactual" | "distribution" => {
+                        assert_eq!(rule.as_deref(), Some("backdoor.adjustment"));
+                        assert_eq!(result.estimand.method.as_ref(), "temporal.backdoor.unfolded");
+                        assert!(result.estimand.mediators.is_empty());
+                    }
+                    _ => panic!("{key}"),
+                }
             }
+        }
+    }
+}
+
+#[test]
+fn nested_and_path_stay_the_fitted_quantities_when_adjustment_is_nonempty() {
+    let n = 80;
+    let mut x = vec![0.0; n];
+    let mut m = vec![0.0; n];
+    let mut y = vec![0.0; n];
+    let mut z = vec![0.0; n];
+    for t in 1..n {
+        z[t] = if t % 2 == 0 { 0.4 } else { -0.4 };
+        x[t] = 0.5 * z[t] + ((t as f64) * 0.2).sin();
+        let shock = if t % 3 == 0 { 0.3 } else { -0.2 };
+        m[t] = 0.5 * x[t - 1] + shock;
+        y[t] = 1.5 * x[t - 1] + 4.0 * m[t] + z[t - 1];
+    }
+    let data = TimeSeriesData::from_f64_columns(
+        [("x", x.as_slice()), ("m", m.as_slice()), ("y", y.as_slice()), ("z", z.as_slice())],
+        1,
+    )
+    .unwrap();
+    let mut confounded = TemporalDag::empty();
+    let z1 = ensure_lagged(&mut confounded, VariableId::from_raw(3), Lag::from_raw(1)).unwrap();
+    let x1 = ensure_lagged(&mut confounded, VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+    let m0 = ensure_lagged(&mut confounded, VariableId::from_raw(1), Lag::CONTEMPORANEOUS).unwrap();
+    let y0 = ensure_lagged(&mut confounded, VariableId::from_raw(2), Lag::CONTEMPORANEOUS).unwrap();
+    confounded.insert_directed(z1, x1).unwrap();
+    confounded.insert_directed(z1, y0).unwrap();
+    confounded.insert_directed(x1, m0).unwrap();
+    confounded.insert_directed(x1, y0).unwrap();
+    confounded.insert_directed(m0, y0).unwrap();
+    let ctx = ExecutionContext::for_tests(11);
+    for (key, query, _) in queries() {
+        let result = Study::series(data.clone())
+            .graph(confounded.clone())
+            .query(query)
+            .refute(RefuteSuite::None)
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate_retained(&ctx)
+            .unwrap();
+        assert!(result.estimate.ate.is_finite(), "{key}");
+        let rule = result
+            .identification
+            .arena
+            .derivation(result.estimand.functional)
+            .map(|meta| meta.rule.to_string());
+        match key {
+            "nested" => {
+                assert_eq!(rule.as_deref(), Some("temporal.cross_world.direct_slope"));
+                assert!(result.estimand.adjustment_set.is_empty(), "{key}");
+            }
+            "path" => {
+                assert_eq!(rule.as_deref(), Some("temporal.cross_world.mediator_edge_product"));
+                assert!(result.estimand.adjustment_set.is_empty(), "{key}");
+            }
+            "counterfactual" | "distribution" => {
+                assert_eq!(rule.as_deref(), Some("backdoor.adjustment"));
+            }
+            _ => panic!("{key}"),
         }
     }
 }

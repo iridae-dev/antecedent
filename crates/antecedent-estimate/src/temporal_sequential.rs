@@ -32,7 +32,10 @@ use antecedent_data::{LaggedColumn, LaggedSampleWorkspace, TemporalIndexer, Time
 use antecedent_expr::{EstimandMethod, IdentifiedEstimand};
 use antecedent_graph::{DenseNodeId, TemporalDag};
 use antecedent_prob::{BayesLikelihood, PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
-use antecedent_stats::{CompiledDesign, DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
+use antecedent_stats::{
+    CompiledDesign, DenseLinearAlgebra, DesignColumnMap, DesignColumnRole, FaerBackend,
+    LeastSquaresWorkspace,
+};
 
 use crate::serial_dependence::{DependenceScope, SerialDependence};
 use crate::{
@@ -251,6 +254,7 @@ pub fn estimate_sustained_window_with_validation(
         bootstrap_replicates,
         bayesian,
         ctx,
+        query.effect_modifiers.as_ref(),
         validation,
     )
 }
@@ -332,6 +336,7 @@ impl SequentialContrastDesign {
             query.outcome_offset(),
             &overlays,
             SequentialEval::Contrast { delta },
+            query.effect_modifiers.as_ref(),
             ctx,
         )?;
         Ok(Self { setup })
@@ -528,6 +533,7 @@ pub fn estimate_sequence_mechanisms(
         bootstrap_replicates,
         bayesian,
         ctx,
+        &[],
         None,
     )
 }
@@ -554,6 +560,13 @@ struct SequentialSetup {
     n: usize,
     max_lag: u32,
     eval: SequentialEval,
+    /// Named modifiers. Empty leaves every mechanism the parent regression it was.
+    modifiers: Vec<VariableId>,
+    /// Coefficient slots of `parent × modifier`, aligned with `parents`.
+    /// `interaction_at[node][parent]` is one slot per modifier, in modifier order.
+    interaction_at: Vec<Vec<Vec<usize>>>,
+    /// Modifier columns at each fitted node's lag, used to recompute `E[W]` on a row map.
+    node_modifier_values: Vec<Vec<Vec<f64>>>,
 }
 
 impl SequentialSetup {
@@ -569,8 +582,10 @@ impl SequentialSetup {
         outcome_offset: i32,
         overlays: &[SequentialMechanismOverlay],
         eval: SequentialEval,
+        modifiers: &[VariableId],
         ctx: &ExecutionContext,
     ) -> Result<Self, EstimationError> {
+        let modifiers = if matches!(eval, SequentialEval::Contrast { .. }) { modifiers } else { &[] };
         let unfolded =
             graph.unfold(indexer.clone()).map_err(|e| EstimationError::data_msg(e.to_string()))?;
         let dag = &unfolded.dag;
@@ -642,7 +657,37 @@ impl SequentialSetup {
             column_of[i] = columns.len();
             columns.push(LaggedColumn { variable: key.variable, lag: Lag::from_raw(lag) });
         }
-        let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
+        let mut modifier_at: Vec<(VariableId, u32, usize)> = Vec::new();
+        if !modifiers.is_empty() {
+            for &i in &order {
+                let hard =
+                    overlay_at[i].is_some_and(|overlay| overlay.node.level.is_some());
+                let parent_ids: Vec<usize> = dag
+                    .parents(DenseNodeId::from_raw(i as u32))
+                    .iter()
+                    .map(|parent| parent.as_usize())
+                    .collect();
+                if hard || parent_ids.is_empty() || !parent_ids.iter().any(|&p| intervention[p]) {
+                    continue;
+                }
+                let key = indexer
+                    .key_of(i as u32)
+                    .map_err(|e| EstimationError::data_msg(e.to_string()))?;
+                let lag = u32::try_from(anchor - key.offset)
+                    .map_err(|_| EstimationError::unsupported("invalid unfolded time offset"))?;
+                max_lag = max_lag.max(lag);
+                for &modifier in modifiers {
+                    if modifier_at.iter().any(|(variable, stored, _)| {
+                        *variable == modifier && *stored == lag
+                    }) {
+                        continue;
+                    }
+                    modifier_at.push((modifier, lag, columns.len()));
+                    columns.push(LaggedColumn { variable: modifier, lag: Lag::from_raw(lag) });
+                }
+            }
+        }
+        let plan = data.plan_lagged_sample(max_lag, Arc::from(columns.clone()))?;
         let mut workspace = LaggedSampleWorkspace::default();
         let sample = plan.prepare(data, &mut workspace, &ctx.kernel_policy)?;
         let n = sample.n;
@@ -654,6 +699,8 @@ impl SequentialSetup {
         let mut designs = vec![None; node_count];
         let mut parents = vec![Vec::new(); node_count];
         let mut free_columns = vec![None; node_count];
+        let mut interaction_at = vec![Vec::new(); node_count];
+        let mut node_modifier_values = vec![Vec::new(); node_count];
         for &i in &order {
             parents[i] =
                 dag.parents(DenseNodeId::from_raw(i as u32)).iter().map(|p| p.as_usize()).collect();
@@ -676,12 +723,57 @@ impl SequentialSetup {
                 .skip(1)
                 .map(|&p| (VariableId::from_raw(p as u32), sample.column(column_of[p])))
                 .collect();
-            designs[i] = Some(CompiledDesign::linear_adjustment(
+            let design = CompiledDesign::linear_adjustment(
                 t,
                 &covs,
                 sample.column(column_of[i]),
                 &[],
-            )?);
+            )?;
+            let parent_values: Vec<&[f64]> =
+                parents[i].iter().map(|&p| sample.column(column_of[p])).collect();
+            let intervened: Vec<bool> = parents[i].iter().map(|&p| intervention[p]).collect();
+            let child_lag = columns[column_of[i]].lag.raw();
+            let modifier_values: Vec<Vec<f64>> = if intervened.iter().any(|flag| *flag) {
+                modifiers
+                    .iter()
+                    .map(|modifier| {
+                        let index = modifier_at
+                            .iter()
+                            .find(|(variable, lag, _)| variable == modifier && *lag == child_lag)
+                            .map(|(_, _, index)| *index)
+                            .ok_or_else(|| {
+                                EstimationError::unsupported(
+                                    "sustained modifier is missing from the aligned window",
+                                )
+                            })?;
+                        Ok(sample.column(index).to_vec())
+                    })
+                    .collect::<Result<Vec<_>, EstimationError>>()?
+            } else {
+                Vec::new()
+            };
+            let modifier_refs: Vec<&[f64]> = modifier_values.iter().map(Vec::as_slice).collect();
+            let parent_variables: Vec<VariableId> = parents[i]
+                .iter()
+                .map(|&p| indexer.key_of(p as u32).expect("unfolded parent").variable)
+                .collect();
+            let modifier_is_parent: Vec<bool> = modifiers
+                .iter()
+                .map(|modifier| parent_variables.contains(modifier))
+                .collect();
+            let (design, slots) = extend_mechanism_design(
+                design,
+                &parent_values,
+                &intervened,
+                &modifier_refs,
+                modifiers,
+                &modifier_is_parent,
+            );
+            interaction_at[i] = slots;
+            if !modifier_values.is_empty() {
+                node_modifier_values[i] = modifier_values;
+            }
+            designs[i] = Some(design);
         }
         let mut factual = vec![0.0; node_count];
         for &i in &order {
@@ -701,10 +793,43 @@ impl SequentialSetup {
             n,
             max_lag,
             eval,
+            modifiers: modifiers.to_vec(),
+            interaction_at,
+            node_modifier_values,
         })
     }
 
-    fn propagate(&self, coefficients: &[Vec<f64>], factual: &[f64]) -> f64 {
+    fn modifier_mean(&self, node: usize, modifier: usize, rows: Option<&[usize]>) -> f64 {
+        let column = &self.node_modifier_values[node][modifier];
+        if let Some(rows) = rows.filter(|rows| !rows.is_empty()) {
+            rows.iter().map(|&row| column[row]).sum::<f64>() / rows.len() as f64
+        } else {
+            column.iter().sum::<f64>() / self.n as f64
+        }
+    }
+
+    /// Parent slope in the contrast. An intervened parent that names modifiers
+    /// contributes `β_p + Σ_m β_{p×W_m} E[W_m]`; the modifier's own level does not.
+    fn marginal_parent_slope(
+        &self,
+        coefficients: &[f64],
+        node: usize,
+        parent: usize,
+        rows: Option<&[usize]>,
+    ) -> f64 {
+        let mut slope = coefficients[parent + 1];
+        for (modifier, &slot) in self.interaction_at[node][parent].iter().enumerate() {
+            slope += coefficients[slot] * self.modifier_mean(node, modifier, rows);
+        }
+        slope
+    }
+
+    fn propagate(
+        &self,
+        coefficients: &[Vec<f64>],
+        factual: &[f64],
+        rows: Option<&[usize]>,
+    ) -> f64 {
         match self.eval {
             SequentialEval::Contrast { delta } => {
                 let mut differences = vec![0.0; self.node_count];
@@ -715,7 +840,10 @@ impl SequentialSetup {
                         self.parents[i]
                             .iter()
                             .enumerate()
-                            .map(|(p, &node)| coefficients[i][p + 1] * differences[node])
+                            .map(|(p, &node)| {
+                                self.marginal_parent_slope(&coefficients[i], i, p, rows)
+                                    * differences[node]
+                            })
                             .sum()
                     };
                 }
@@ -806,9 +934,9 @@ impl SequentialSetup {
                             rows.iter().map(|&r| column[r]).sum::<f64>() / rows.len() as f64;
                     }
                 }
-                self.propagate(&coefficients, &factual)
+                self.propagate(&coefficients, &factual, None)
             }
-            _ => self.propagate(&coefficients, &self.factual),
+            _ => self.propagate(&coefficients, &self.factual, rows),
         })
     }
 
@@ -823,8 +951,8 @@ impl SequentialSetup {
                 let mut down = base.to_vec();
                 up[i][k] += h;
                 down[i][k] -= h;
-                gradient[i][k] = (self.propagate(&up, &self.factual)
-                    - self.propagate(&down, &self.factual))
+                gradient[i][k] = (self.propagate(&up, &self.factual, None)
+                    - self.propagate(&down, &self.factual, None))
                     / (2.0 * h);
             }
         }
@@ -847,7 +975,8 @@ impl SequentialSetup {
                 let (mut up, mut down) = (self.factual.clone(), self.factual.clone());
                 up[i] += h;
                 down[i] -= h;
-                let slope = (self.propagate(base, &up) - self.propagate(base, &down)) / (2.0 * h);
+                let slope = (self.propagate(base, &up, None) - self.propagate(base, &down, None))
+                    / (2.0 * h);
                 (slope.is_finite() && slope != 0.0).then_some((i, slope))
             })
             .collect()
@@ -931,6 +1060,74 @@ impl SequentialSetup {
     }
 }
 
+/// Append modifier main effects and intervened-parent interactions.
+///
+/// Parent slopes stay in columns `1..=parents`. Each intervened parent then
+/// gains one `parent × modifier` column per modifier, after any modifier that
+/// is not already a parent.
+fn extend_mechanism_design(
+    design: CompiledDesign,
+    parent_values: &[&[f64]],
+    intervened: &[bool],
+    modifier_values: &[&[f64]],
+    modifier_ids: &[VariableId],
+    modifier_is_parent: &[bool],
+) -> (CompiledDesign, Vec<Vec<usize>>) {
+    let mut slots = vec![Vec::new(); parent_values.len()];
+    if modifier_values.is_empty() || !intervened.iter().any(|flag| *flag) {
+        return (design, slots);
+    }
+    let mut extras = Vec::new();
+    let mut roles = Vec::new();
+    for (values, (&id, &already)) in
+        modifier_values.iter().zip(modifier_ids.iter().zip(modifier_is_parent))
+    {
+        if !already {
+            extras.push((*values).to_vec());
+            roles.push(id);
+        }
+    }
+    let base = design.ncols;
+    let n_main = extras.len();
+    let mut products = 0usize;
+    for (modifier, values) in modifier_values.iter().enumerate() {
+        for (parent, (column, &is_intervened)) in
+            parent_values.iter().zip(intervened).enumerate()
+        {
+            if !is_intervened {
+                continue;
+            }
+            extras.push(column.iter().zip(*values).map(|(left, right)| left * right).collect());
+            roles.push(modifier_ids[modifier]);
+            slots[parent].push(base + n_main + products);
+            products += 1;
+        }
+    }
+    (append_design_columns(design, &extras, &roles), slots)
+}
+
+fn append_design_columns(
+    mut design: CompiledDesign,
+    extras: &[Vec<f64>],
+    roles: &[VariableId],
+) -> CompiledDesign {
+    if extras.is_empty() {
+        return design;
+    }
+    let mut matrix = design.matrix.to_vec();
+    let mut column_roles: Vec<DesignColumnRole> = (0..design.ncols)
+        .map(|index| design.columns.role(index).expect("design column"))
+        .collect();
+    for (extra, &role) in extras.iter().zip(roles) {
+        matrix.extend_from_slice(extra);
+        column_roles.push(DesignColumnRole::Covariate(role));
+    }
+    design.ncols = column_roles.len();
+    design.matrix = Arc::from(matrix);
+    design.columns = DesignColumnMap::from_roles(column_roles);
+    design
+}
+
 #[allow(
     clippy::cast_possible_truncation,
     reason = "dense node ids and row indices are u32 by construction, so every index below the graph's node count fits"
@@ -949,10 +1146,12 @@ fn estimate_sequential(
     bootstrap_replicates: u32,
     bayesian: Option<&BayesianGComputationAte>,
     ctx: &ExecutionContext,
+    modifiers: &[VariableId],
     mut validation: Option<&mut Vec<SequentialBayesianMechanism>>,
 ) -> Result<(EffectEstimate, Option<CausalPosterior>), EstimationError> {
-    let setup =
-        SequentialSetup::build(data, graph, indexer, outcome, outcome_offset, overlays, eval, ctx)?;
+    let setup = SequentialSetup::build(
+        data, graph, indexer, outcome, outcome_offset, overlays, eval, modifiers, ctx,
+    )?;
     let order = &setup.order;
     let parents = &setup.parents;
     let designs = &setup.designs;
@@ -1008,14 +1207,19 @@ fn estimate_sequential(
                         }
                     })
                     .collect();
-                if let Some((_, columns, owner)) =
-                    mechanisms.iter().find(|(v, _, _)| *v == child.variable)
-                {
-                    if columns != &parent_columns {
-                        return Err(EstimationError::unsupported(
-                            "stationary mechanism has inconsistent unfolded parents",
-                        ));
-                    }
+                if mechanisms.iter().any(|(variable, columns, _)| {
+                    *variable == child.variable && columns != &parent_columns
+                }) {
+                    return Err(EstimationError::unsupported(
+                        "stationary mechanism has inconsistent unfolded parents",
+                    ));
+                }
+                if let Some((_, _, owner)) = mechanisms.iter().find(|(variable, columns, owner)| {
+                    *variable == child.variable
+                        && columns == &parent_columns
+                        && designs[*owner].as_ref().map(|design| design.ncols)
+                            == designs[i].as_ref().map(|design| design.ncols)
+                }) {
                     mechanism_of[i] = *owner;
                     continue;
                 }
@@ -1024,6 +1228,15 @@ fn estimate_sequential(
                 // multiply the likelihood or create independent copies of beta.
                 let mut columns = parent_columns.clone();
                 columns.push(LaggedColumn { variable: child.variable, lag: Lag::CONTEMPORANEOUS });
+                let use_modifiers = setup.interaction_at[i].iter().any(|slots| !slots.is_empty());
+                if use_modifiers {
+                    for &modifier in &setup.modifiers {
+                        columns.push(LaggedColumn {
+                            variable: modifier,
+                            lag: Lag::CONTEMPORANEOUS,
+                        });
+                    }
+                }
                 let max_lag = columns.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
                 let plan = data.plan_lagged_sample(max_lag, Arc::from(columns))?;
                 let mut workspace = LaggedSampleWorkspace::default();
@@ -1040,6 +1253,42 @@ fn estimate_sequential(
                     sample.column(parent_columns.len()),
                     &[],
                 )?;
+                let design = if use_modifiers {
+                    let parent_values: Vec<&[f64]> =
+                        (0..parent_columns.len()).map(|j| sample.column(j)).collect();
+                    let modifier_values: Vec<&[f64]> = setup
+                        .modifiers
+                        .iter()
+                        .enumerate()
+                        .map(|(m, _)| sample.column(parent_columns.len() + 1 + m))
+                        .collect();
+                    let intervened: Vec<bool> =
+                        parents[i].iter().map(|&parent| setup.intervention[parent]).collect();
+                    let modifier_is_parent: Vec<bool> = setup
+                        .modifiers
+                        .iter()
+                        .map(|modifier| {
+                            parent_columns.iter().any(|column| column.variable == *modifier)
+                        })
+                        .collect();
+                    let (design, slots) = extend_mechanism_design(
+                        design,
+                        &parent_values,
+                        &intervened,
+                        &modifier_values,
+                        &setup.modifiers,
+                        &modifier_is_parent,
+                    );
+                    if slots != setup.interaction_at[i] {
+                        return Err(EstimationError::unsupported(
+                            "sustained modifier columns do not match the unfolded design",
+                        ));
+                    }
+                    design
+                } else {
+                    design
+                };
+                let width = design.ncols;
                 let prep = PreparedBayesianProblem {
                     design,
                     method: estimand.method.clone(),
@@ -1059,14 +1308,13 @@ fn estimate_sequential(
                         let direction = contrast_gradient
                             .as_ref()
                             .and_then(|g| g.get(&child.variable).cloned())
+                            .filter(|direction| direction.len() == width)
                             .unwrap_or_else(|| {
                                 let intercept = match eval {
                                     SequentialEval::Contrast { .. } => 0.0,
                                     SequentialEval::Level => 1.0,
                                 };
-                                (0..=parent_columns.len())
-                                    .map(|k| if k == 0 { intercept } else { 1.0 })
-                                    .collect()
+                                (0..width).map(|k| if k == 0 { intercept } else { 1.0 }).collect()
                             });
                         SerialDependence::LongRunTempering(DependenceScope::Direction(Arc::from(
                             direction,
@@ -1129,7 +1377,7 @@ fn estimate_sequential(
                     }
                 }
             }
-            let level = setup.propagate(&coefficients, &setup.factual);
+            let level = setup.propagate(&coefficients, &setup.factual, None);
             values.push(if root_mean_se > 0.0 {
                 level + root_mean_se * antecedent_kernels::standard_normal(&mut root_rng)
             } else {
@@ -1405,6 +1653,7 @@ mod tests {
                 0,
                 &overlays,
                 eval,
+                &[],
                 &ctx,
             )
             .unwrap()
