@@ -58,7 +58,7 @@ from .._native import (
 from .._native import (
     scenario_shared_covariance_stage as _covariance_stage,
 )
-from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from ..graph import Admg, Cpdag, Pag
 from ._impl import EvidenceCatalog, VariableCoordinate, _non_negative, _optional_non_negative
 from ._scenarios import _wire
@@ -68,7 +68,7 @@ COVARIANCE_SCOPE: Final = "shared_row_covariance_point_only"
 POINT_ONLY: Final = "point_only"
 
 
-class TransportScenarioRefusal(CausalUnsupportedError):
+class TransportScenarioRefusal(StructuredRefusal):
     """A structured Rust refusal: ``reason_code`` (registered) plus the typed ``detail``.
 
     ``code`` repeats ``reason_code``; ``detail`` is the namespaced
@@ -79,9 +79,9 @@ class TransportScenarioRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         detail = str(refusal.get("detail") or "")
         message = str(refusal.get("message") or "")
-        super().__init__(f"{detail}: {message}" if detail else message, reason_code=refusal["code"])
-        self.code: str = refusal["code"]
-        self.detail: str = detail
+        super().__init__(
+            {**refusal, "detail": detail}, text=f"{detail}: {message}" if detail else message
+        )
         self.refusal_message: str = message
 
 

@@ -53,12 +53,12 @@ from . import _native, design, repair
 from ._native import proposal_bundle_build as _build
 from ._native import proposal_ranked_candidates as _ranked_candidates
 from ._refusal import raise_refusal
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 EvidenceKindName = Literal["available", "manipulable", "proposed"]
 
 
-class ProposalRefusal(CausalUnsupportedError):
+class ProposalRefusal(StructuredRefusal):
     """A refused bundle, verification or arrival.
 
     ``detail`` is the stable ``proposal_receipt.*`` detail (for example
@@ -70,10 +70,8 @@ class ProposalRefusal(CausalUnsupportedError):
     def __init__(self, refusal: Mapping[str, Any]) -> None:
         detail = str(refusal["detail"])
         message = str(refusal.get("message", ""))
-        super().__init__(f"{detail}: {message}", reason_code=refusal["code"])
-        self.stage: str = str(refusal.get("stage", "proposal"))
-        self.detail: str = detail
-        self.message: str = message
+        super().__init__(refusal, text=f"{detail}: {message}")
+        self.stage = str(refusal.get("stage", "proposal"))
 
 
 def _raise(refusal: str | None) -> None:

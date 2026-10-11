@@ -48,7 +48,7 @@ from .._native import (
     temporal_initial_state_prepare as _initial_state_prepare,
 )
 from .._refusal import raise_refusal
-from ..errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from ..errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 MARGINALIZED_LABEL = "marginalized_initial_state"
 FIXED_LABEL = "fixed_initial_state"
@@ -60,7 +60,7 @@ _U32 = 2**32 - 1
 _U64 = 2**64 - 1
 
 
-class TemporalExtensionRefusal(CausalUnsupportedError):
+class TemporalExtensionRefusal(StructuredRefusal):
     """A temporal-extension refusal carrying the structured Rust fields.
 
     ``reason_code`` and ``remedy`` are inherited and the code is registered. ``detail`` is
@@ -73,9 +73,8 @@ class TemporalExtensionRefusal(CausalUnsupportedError):
         detail = str(refusal.get("detail") or "")
         message = str(refusal.get("message") or "")
         text = f"{detail}: {message}" if detail else message
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        self.stage: str = str(refusal.get("stage", ""))
-        self.detail: str = detail
+        super().__init__({**refusal, "detail": detail}, text=text)
+        self.stage = str(refusal.get("stage", ""))
 
 
 def _raise(refusal: str | None) -> None:

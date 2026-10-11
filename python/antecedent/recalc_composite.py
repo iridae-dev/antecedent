@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from . import _native
 from ._recalc_bounds import _columns
@@ -13,7 +13,7 @@ from ._refusal import raise_refusal
 from .composition import SupportedDecision, _supported_from_wire
 from .decision import Contract
 from .design import StructuralCandidate, StructuralEntry
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .program_claims import ProgramBinding
 from .recalc import RecalcPlan, RecalcReceipt, _seed
 from .recalc_external import CallbackProvider, ExternalCallbackRefusal, ExternalCallbackRequest
@@ -72,13 +72,11 @@ def _raise(error: str | None) -> None:
     raise_refusal(error, ExternalCallbackRefusal)
 
 
-class ConditionalStudyRankingRefusal(CausalUnsupportedError):
+class ConditionalStudyRankingRefusal(StructuredRefusal):
     """A bounded policy, actual-source or independent projection refusal."""
 
-    def __init__(self, wire):
-        super().__init__(wire["message"], reason_code=wire["code"])
-        self.detail = wire["detail"]
-        self.stage = wire["stage"]
+    def __init__(self, wire: Mapping[str, Any]) -> None:
+        super().__init__(wire, text=wire["message"])
 
 
 @dataclass(frozen=True, slots=True)
