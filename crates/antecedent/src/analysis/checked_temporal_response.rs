@@ -446,9 +446,7 @@ fn temporal_graph_signature(graph: &TemporalDag) -> TemporalGraphSignature {
             _ => unreachable!("TemporalDag stores lagged nodes only"),
         })
         .collect::<Vec<_>>();
-    let mut edges = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-    edges.sort_unstable();
-    TemporalGraphSignature { nodes: nodes.into(), edges: edges.into() }
+    TemporalGraphSignature { nodes: nodes.into(), edges: graph.directed_edge_pairs_sorted().into() }
 }
 
 #[cfg(test)]

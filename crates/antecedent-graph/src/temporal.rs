@@ -160,6 +160,18 @@ impl TemporalDag {
         })
     }
 
+    /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
+    #[must_use]
+    pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
+        let mut pairs: Vec<(u32, u32)> = self
+            .edges()
+            .filter_map(MarkedEdge::parent_child)
+            .map(|(from, to)| (from.raw(), to.raw()))
+            .collect();
+        pairs.sort_unstable();
+        pairs
+    }
+
     /// Reachability.
     #[must_use]
     pub fn reaches(&self, from: DenseNodeId, to: DenseNodeId) -> bool {
@@ -207,6 +219,19 @@ mod tests {
         let mut g = TemporalDag::empty();
         let n = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
         assert!(matches!(g.insert_directed(n, n), Err(GraphError::ContemporaneousSelfEdge { .. })));
+    }
+
+    #[test]
+    fn directed_edge_pairs_are_sorted_dense_pairs() {
+        let mut g = TemporalDag::empty();
+        assert!(g.directed_edge_pairs_sorted().is_empty());
+        let a = g.add_lagged(VariableId::from_raw(0), Lag::from_raw(1)).unwrap();
+        let b = g.add_lagged(VariableId::from_raw(1), Lag::from_raw(1)).unwrap();
+        let c = g.add_lagged(VariableId::from_raw(0), Lag::CONTEMPORANEOUS).unwrap();
+        g.insert_directed(b, c).unwrap();
+        g.insert_directed(a, c).unwrap();
+        g.insert_directed(a, b).unwrap();
+        assert_eq!(g.directed_edge_pairs_sorted(), vec![(0, 1), (0, 2), (1, 2)]);
     }
 
     #[test]

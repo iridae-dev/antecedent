@@ -77,13 +77,10 @@ impl CheckedTemporalEffectOperation {
             });
         }
         temporal_proof_binds_query(&identification, query, &indexer)?;
-        let mut graph_edges =
-            graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-        graph_edges.sort_unstable();
         Ok(Self {
             graph: graph.clone(),
             graph_nodes: graph.nodes().to_vec(),
-            graph_edges,
+            graph_edges: graph.directed_edge_pairs_sorted(),
             query: query.clone(),
             identification,
             estimand,
@@ -130,9 +127,7 @@ impl CheckedTemporalEffectOperation {
         if graph.nodes() != self.graph_nodes {
             return false;
         }
-        let mut edges = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw())).collect::<Vec<_>>();
-        edges.sort_unstable();
-        edges == self.graph_edges
+        graph.directed_edge_pairs_sorted() == self.graph_edges
     }
 
     /// Canonical structural signature of the retained temporal template.
@@ -141,7 +136,7 @@ impl CheckedTemporalEffectOperation {
     /// as integers, so the string does not follow `Debug`.
     #[must_use]
     pub(crate) fn graph_signature(&self) -> String {
-        temporal_structure(&self.graph_nodes, self.graph_edges.iter().copied())
+        temporal_structure(&self.graph_nodes, &self.graph_edges)
     }
 
     #[must_use]
@@ -154,11 +149,11 @@ impl CheckedTemporalEffectOperation {
 /// directed endpoints. The text is the identity, not `Debug` output.
 #[must_use]
 pub(crate) fn temporal_dag_signature(graph: &TemporalDag) -> String {
-    let edges = graph.edges().map(|edge| (edge.a.raw(), edge.b.raw()));
-    temporal_structure(graph.nodes(), edges)
+    temporal_structure(graph.nodes(), &graph.directed_edge_pairs_sorted())
 }
 
-fn temporal_structure(nodes: &[NodeRef], edges: impl Iterator<Item = (u32, u32)>) -> String {
+/// `edges` are ascending `(parent, child)` dense-id pairs.
+fn temporal_structure(nodes: &[NodeRef], edges: &[(u32, u32)]) -> String {
     let mut out = String::from("nodes=");
     for (index, node) in nodes.iter().enumerate() {
         if index > 0 {
@@ -189,8 +184,6 @@ fn temporal_structure(nodes: &[NodeRef], edges: impl Iterator<Item = (u32, u32)>
             }
         }
     }
-    let mut edges: Vec<(u32, u32)> = edges.collect();
-    edges.sort_unstable();
     out.push_str(";edges=");
     for (index, (from, to)) in edges.iter().enumerate() {
         if index > 0 {
