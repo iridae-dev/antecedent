@@ -332,8 +332,9 @@ fn not_finite(informative: usize, which: &str) -> EstimationError {
     )
 }
 
-/// Root of the monotone score: bracket it, then a safeguarded Newton iteration.
-fn solve(
+/// Root of the monotone scalar conditional score (not a linear solve): bracket it, then a
+/// safeguarded Newton iteration.
+fn solve_log_odds_ratio(
     types: &[SetType],
     informative: usize,
     ctx: &ExecutionContext,
@@ -409,7 +410,7 @@ pub fn conditional_odds_ratio(
             "every case is as exposed as its set allows, so the estimate is infinite",
         ));
     }
-    let beta = solve(&sets.types, informative, ctx)?;
+    let beta = solve_log_odds_ratio(&sets.types, informative, ctx)?;
     Ok(ConditionalOddsRatio { log_odds_ratio: beta, odds_ratio: beta.exp(), counts: sets.counts })
 }
 

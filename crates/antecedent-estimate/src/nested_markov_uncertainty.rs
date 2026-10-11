@@ -13,7 +13,7 @@
 
 mod internal {
     use antecedent_core::ExecutionContext;
-    use antecedent_stats::{chol_solve, cholesky_spd, special::normal_ppf};
+    use antecedent_stats::{cholesky_spd, special::normal_ppf};
 
     use crate::error::EstimationError;
     use crate::nested_markov_binary::{
@@ -166,17 +166,7 @@ mod internal {
         let chol = cholesky_spd(information, PARAMETER_COUNT).ok_or_else(|| {
             refusal("nested_markov.fisher_singular_information", "expected information is not SPD")
         })?;
-        let mut covariance = vec![0.; PARAMETER_COUNT * PARAMETER_COUNT];
-        for j in 0..PARAMETER_COUNT {
-            let mut column = [0.; PARAMETER_COUNT];
-            column[j] = 1.;
-            let solved = chol_solve(&chol, PARAMETER_COUNT, &column).ok_or_else(|| {
-                refusal("nested_markov.fisher_singular_information", "information solve failed")
-            })?;
-            for i in 0..PARAMETER_COUNT {
-                covariance[i * PARAMETER_COUNT + j] = solved[i];
-            }
-        }
+        let covariance = antecedent_kernels::chol_inverse(&chol, PARAMETER_COUNT);
         let mut residual = 0.0_f64;
         for i in 0..PARAMETER_COUNT {
             for j in 0..PARAMETER_COUNT {

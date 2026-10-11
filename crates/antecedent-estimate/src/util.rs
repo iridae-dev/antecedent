@@ -33,6 +33,25 @@ pub(crate) fn solve_spd(a: &[f64], b: &[f64], p: usize) -> Option<Vec<f64>> {
     chol_solve(&chol, p, b)
 }
 
+/// `n` draws from `N(mean, variance)` on the seeded direct-draw stream of the shared
+/// multivariate sampler; `None` when `variance` is not positive and finite (the sampler's
+/// Cholesky refuses it) or the draw fails.
+#[must_use]
+pub(crate) fn normal_draws(mean: f64, variance: f64, n: usize, seed: u64) -> Option<Vec<f64>> {
+    if !(variance.is_finite() && variance > 0.0) {
+        return None;
+    }
+    antecedent_prob::sample_gaussian_mvn(
+        &[mean],
+        &[variance],
+        n,
+        seed,
+        &mut antecedent_prob::LaplaceWorkspace::default(),
+    )
+    .ok()
+    .map(|draws| draws.to_vec())
+}
+
 /// `X'X` (row-major `p × p`) of a column-major `n × p` design.
 #[must_use]
 pub(crate) fn gram(x: &[f64], n: usize, p: usize) -> Vec<f64> {

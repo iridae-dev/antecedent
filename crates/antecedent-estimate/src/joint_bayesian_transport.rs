@@ -83,8 +83,6 @@ pub const JOINT_TRANSPORT_MAX_PARAMETERS: usize = 256;
 pub const JOINT_TRANSPORT_ROUTE: &str = "antecedent.transport.joint_bayesian";
 /// Sampler recorded on exact conjugate fits.
 pub const JOINT_TRANSPORT_SAMPLER: &str = "exact_conjugate_iid";
-/// Relative pivot below which a data information matrix counts as singular.
-pub const JOINT_TRANSPORT_PIVOT_TOLERANCE: f64 = 1e-10;
 
 /// Detail of the route-level refusal of the public interval route.
 pub const DETAIL_ROUTE_FROZEN: &str = "bayesian_transport.route_frozen";
@@ -704,30 +702,18 @@ fn parameter_names(layout: &Layout, model: &JointTransportModel, ids: &[&str]) -
     names
 }
 
-/// Lower Cholesky factor, or the failing index and its relative pivot.
-fn cholesky(a: &[f64], n: usize) -> Result<Vec<f64>, (usize, f64)> {
+/// Lower Cholesky factor with its smallest relative pivot, or the failing index and its
+/// relative pivot, under the one kernel acceptance rule.
+fn cholesky(a: &[f64], n: usize) -> Result<(Vec<f64>, f64), (usize, f64)> {
+    use antecedent_kernels::cholesky::{cholesky_spd_pivots_into, CholeskyError};
     let mut l = vec![0.0; n * n];
-    for j in 0..n {
-        let mut d = a[j * n + j];
-        for k in 0..j {
-            d -= l[j * n + k] * l[j * n + k];
-        }
-        let scale = a[j * n + j].abs().max(f64::MIN_POSITIVE);
-        let ratio = d / scale;
-        if ratio.is_nan() || ratio <= JOINT_TRANSPORT_PIVOT_TOLERANCE {
-            return Err((j, ratio));
-        }
-        let root = d.sqrt();
-        l[j * n + j] = root;
-        for i in (j + 1)..n {
-            let mut s = a[i * n + j];
-            for k in 0..j {
-                s -= l[i * n + k] * l[j * n + k];
-            }
-            l[i * n + j] = s / root;
-        }
+    match cholesky_spd_pivots_into(a, n, &mut l) {
+        Ok(smallest) => Ok((l, smallest)),
+        Err(refusal) => Err(match refusal.error {
+            CholeskyError::NotPositiveDefinite { index } => (index, refusal.ratio),
+            CholeskyError::BufferTooShort => (0, f64::NAN),
+        }),
     }
-    Ok(l)
 }
 
 /// Solve `L y = b`.
@@ -794,7 +780,7 @@ fn prior_block(prior: &GaussianPrior, dim: usize) -> Result<PriorBlock, Refused>
             invalid(DETAIL_INVALID_PRIOR, "prior covariance must be finite and symmetric").into()
         );
     }
-    let factor = cholesky(&prior.covariance, dim).map_err(|(index, ratio)| {
+    let (factor, _) = cholesky(&prior.covariance, dim).map_err(|(index, ratio)| {
         let mut refusal =
             invalid(DETAIL_INVALID_PRIOR, "prior covariance must be positive definite");
         refusal.failure.min_pivot_ratio = Some(ratio);
@@ -822,13 +808,6 @@ fn singular(names: &[String], index: usize, ratio: f64, what: &str) -> JointTran
     refusal.failure.min_pivot_ratio = Some(ratio);
     refusal.failure.failing_column = Some(names[index].clone());
     refusal
-}
-
-/// Smallest relative pivot of a factorization that succeeded (a diagnostic only).
-fn smallest_pivot_ratio(a: &[f64], factor: &[f64], n: usize) -> f64 {
-    (0..n)
-        .map(|j| factor[j * n + j] * factor[j * n + j] / a[j * n + j].abs().max(f64::MIN_POSITIVE))
-        .fold(f64::INFINITY, f64::min)
 }
 
 struct Assembly<'a> {
@@ -867,7 +846,7 @@ fn assemble_posterior(
         }
     }
     let data_pivot = match cholesky(&info, dim) {
-        Ok(factor) => smallest_pivot_ratio(&info, &factor, dim),
+        Ok((_, smallest)) => smallest,
         Err((index, ratio)) if check_data_information => {
             return Err(singular(asm.names, index, ratio, "the data information matrix").into());
         }
@@ -895,7 +874,7 @@ fn assemble_posterior(
     for (m, p) in moment.iter_mut().zip(prior_part) {
         *m += p;
     }
-    let factor = cholesky(&precision, dim)
+    let (factor, _) = cholesky(&precision, dim)
         .map_err(|(index, ratio)| singular(asm.names, index, ratio, "the posterior precision"))?;
     let mean = chol_solve(&factor, dim, &moment);
     let covariance = chol_inverse(&factor, dim);

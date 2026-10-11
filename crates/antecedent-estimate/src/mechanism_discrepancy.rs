@@ -589,15 +589,7 @@ fn ols(c: &Canonical) -> Result<Ols, EstimationError> {
         )
     })?;
     let beta = chol_solve(&lower, p, &c.xty);
-    let mut inverse = vec![0.0; p * p];
-    for j in 0..p {
-        let mut unit = vec![0.0; p];
-        unit[j] = 1.0;
-        let column = chol_solve(&lower, p, &unit);
-        for (i, v) in column.iter().enumerate() {
-            inverse[i * p + j] = *v;
-        }
-    }
+    let inverse = antecedent_kernels::chol_inverse(&lower, p);
     let residual_df = c.n - p;
     let rss = (c.yty - dot(&beta, &c.xty)).max(0.0);
     if rss <= EXACT_FIT_TOLERANCE * c.yty {

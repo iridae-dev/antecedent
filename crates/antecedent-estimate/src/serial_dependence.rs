@@ -822,7 +822,14 @@ impl Whitener {
             }
             a[(k - 1) * q + k - 1] -= 1.0;
         }
-        if !solve_dense_in_place(&mut a, &mut rho, q) {
+        // `A` is neither symmetric nor positive definite (a Toeplitz-plus-Hankel system), so
+        // it is solved through the shared equilibrated inverse rather than a Cholesky.
+        let inverse = antecedent_stats::invert_square(&a[..q * q], q)?;
+        let rhs = rho;
+        for (k, r) in rho.iter_mut().enumerate().take(q) {
+            *r = (0..q).map(|j| inverse[k * q + j] * rhs[j]).sum();
+        }
+        if !rho[..q].iter().all(|v| v.is_finite()) {
             return None;
         }
         let gamma0 = 1.0 / (1.0 - phi[..q].iter().zip(&rho).map(|(f, r)| f * r).sum::<f64>());
@@ -994,40 +1001,6 @@ fn cholesky_solve(l: &[f64], b: &[f64], m: usize) -> Vec<f64> {
     let mut x = vec![0.0; m];
     antecedent_kernels::chol_solve_into(l, m, b, &mut y, &mut x);
     x
-}
-
-/// Gaussian elimination with partial pivoting for a small dense system, in
-/// place: `a` is destroyed and `b` receives the solution (`false` when singular
-/// or non-finite).
-fn solve_dense_in_place(a: &mut [f64], b: &mut [f64], m: usize) -> bool {
-    for col in 0..m {
-        let Some(pivot) =
-            (col..m).max_by(|&i, &j| a[i * m + col].abs().total_cmp(&a[j * m + col].abs()))
-        else {
-            return false;
-        };
-        if a[pivot * m + col].abs() < 1e-300 {
-            return false;
-        }
-        if pivot != col {
-            for k in 0..m {
-                a.swap(col * m + k, pivot * m + k);
-            }
-            b.swap(col, pivot);
-        }
-        for row in col + 1..m {
-            let f = a[row * m + col] / a[col * m + col];
-            for k in col..m {
-                a[row * m + k] -= f * a[col * m + k];
-            }
-            b[row] -= f * b[col];
-        }
-    }
-    for i in (0..m).rev() {
-        let s: f64 = (i + 1..m).map(|k| a[i * m + k] * b[k]).sum();
-        b[i] = (b[i] - s) / a[i * m + i];
-    }
-    b[..m].iter().all(|v| v.is_finite())
 }
 
 /// Lagged cross-products of the augmented design `A = [X | e]` (`e` the OLS
@@ -1793,6 +1766,30 @@ mod tests {
             picked_high += usize::from(f.residual_ar_order >= 2);
         }
         assert!(picked_high <= 4, "REML picked q >= 2 on {picked_high}/40 AR(1) designs");
+    }
+
+    #[test]
+    fn yule_walker_solution_matches_the_closed_form_autocorrelations() {
+        // AR(1): gamma0 = 1 / (1 - phi^2). AR(2): rho_1 = phi1 / (1 - phi2) and
+        // gamma0 = (1 - phi2) / ((1 + phi2)((1 - phi2)^2 - phi1^2)).
+        let ar1 = Whitener::new(&[0.6]).unwrap();
+        assert!((ar1.gamma0 - 1.0 / (1.0 - 0.36)).abs() < 1e-12, "{}", ar1.gamma0);
+        let (phi1, phi2) = (0.3, 0.5);
+        let ar2 = Whitener::new(&[phi1, phi2]).unwrap();
+        let expected = (1.0 - phi2) / ((1.0 + phi2) * ((1.0 - phi2).powi(2) - phi1 * phi1));
+        assert!((ar2.gamma0 - expected).abs() < 1e-12, "{} vs {expected}", ar2.gamma0);
+        // The 2x2 covariance block's off-diagonal is gamma0 * rho_1 with the closed form.
+        let rho1 = phi1 / (1.0 - phi2);
+        let l = &ar2.chol;
+        assert!((l[2] * l[0] - expected * rho1).abs() < 1e-12, "{}", l[2] * l[0]);
+    }
+
+    #[test]
+    fn a_unit_root_is_refused_rather_than_solved() {
+        // phi = 1 makes the Yule-Walker system singular; the shared equilibrated inverse
+        // refuses it where the former absolute 1e-300 pivot test would divide by noise.
+        assert!(Whitener::new(&[1.0]).is_none());
+        assert!(Whitener::new(&[1.0 - 1e-6]).is_some());
     }
 
     #[test]

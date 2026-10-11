@@ -1327,33 +1327,9 @@ mod tests {
     }
 
     fn solve_moments(gram: [f64; 9], cross: [f64; 3]) -> Option<[f64; 3]> {
-        let mut augmented = [[0.0_f64; 4]; 3];
-        for row in 0..3 {
-            augmented[row][..3].copy_from_slice(&gram[row * 3..row * 3 + 3]);
-            augmented[row][3] = cross[row];
-        }
-        for pivot in 0..3 {
-            let best = (pivot..3).max_by(|left, right| {
-                augmented[*left][pivot].abs().total_cmp(&augmented[*right][pivot].abs())
-            })?;
-            augmented.swap(pivot, best);
-            let divisor = augmented[pivot][pivot];
-            if divisor == 0.0 {
-                return None;
-            }
-            for column in pivot..4 {
-                augmented[pivot][column] /= divisor;
-            }
-            for row in 0..3 {
-                if row == pivot {
-                    continue;
-                }
-                let factor = augmented[row][pivot];
-                for column in pivot..4 {
-                    augmented[row][column] -= factor * augmented[pivot][column];
-                }
-            }
-        }
-        Some([augmented[0][3], augmented[1][3], augmented[2][3]])
+        let rows: [[f64; 3]; 3] =
+            std::array::from_fn(|r| [gram[3 * r], gram[3 * r + 1], gram[3 * r + 2]]);
+        let inverse = crate::util::invert_fixed(&rows)?;
+        Some(std::array::from_fn(|r| (0..3).map(|c| inverse[r][c] * cross[c]).sum()))
     }
 }

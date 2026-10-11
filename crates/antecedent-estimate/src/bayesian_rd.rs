@@ -232,6 +232,7 @@ fn invert(a: [[f64; 4]; 4]) -> Result<[[f64; 4]; 4], EstimationError> {
     crate::util::invert_fixed(&a)
         .ok_or_else(|| EstimationError::stats_msg("Bayesian RD posterior design is singular"))
 }
+/// `n` seeded draws of one posterior coordinate, whose marginal is `N(mean[col], cov[col][col])`.
 fn draw_column(
     mean: [f64; 4],
     cov: &[[f64; 4]; 4],
@@ -239,30 +240,9 @@ fn draw_column(
     n: usize,
     seed: u64,
 ) -> Result<Vec<f64>, EstimationError> {
-    let var = cov[col][col];
-    if !(var.is_finite() && var > 0.0) {
-        return Err(EstimationError::stats_msg(
-            "Bayesian RD posterior covariance is not positive definite",
-        ));
-    }
-    let sd = var.sqrt();
-    // An unmixed xorshift state makes the first draw nearly linear in the seed.
-    let mut state = crate::splitmix::seed_mix(seed).max(1);
-    let mut out = Vec::with_capacity(n);
-    for _ in 0..n {
-        out.push(mean[col] + sd * normal(&mut state));
-    }
-    Ok(out)
-}
-fn normal(s: &mut u64) -> f64 {
-    fn u(s: &mut u64) -> f64 {
-        *s ^= *s << 13;
-        *s ^= *s >> 7;
-        *s ^= *s << 17;
-        ((*s >> 11) as f64 + 0.5) / ((1_u64 << 53) as f64)
-    }
-    let r = (-2.0 * u(s).ln()).sqrt();
-    r * (std::f64::consts::TAU * u(s)).cos()
+    crate::util::normal_draws(mean[col], cov[col][col], n, seed).ok_or_else(|| {
+        EstimationError::stats_msg("Bayesian RD posterior covariance is not positive definite")
+    })
 }
 
 #[cfg(test)]

@@ -452,28 +452,9 @@ fn dot(a: &[f64], b: &[f64]) -> f64 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
-/// Whether a symmetric matrix is positive definite, by an unpivoted Cholesky.
+/// Whether a symmetric matrix is positive definite under the shared Cholesky rule.
 fn positive_definite(a: &[f64], n: usize) -> bool {
-    let mut l = vec![0.0; n * n];
-    for j in 0..n {
-        let mut d = a[j * n + j];
-        for k in 0..j {
-            d -= l[j * n + k] * l[j * n + k];
-        }
-        if d.is_nan() || d <= 1e-10 * a[j * n + j].abs().max(f64::MIN_POSITIVE) {
-            return false;
-        }
-        let root = d.sqrt();
-        l[j * n + j] = root;
-        for i in (j + 1)..n {
-            let mut s = a[i * n + j];
-            for k in 0..j {
-                s -= l[i * n + k] * l[j * n + k];
-            }
-            l[i * n + j] = s / root;
-        }
-    }
-    true
+    antecedent_stats::cholesky_spd(a, n).is_some()
 }
 
 fn check_prior(prior: &GaussianPrior, dim: usize) -> Result<(), Refused> {

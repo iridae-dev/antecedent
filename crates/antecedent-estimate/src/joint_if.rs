@@ -473,38 +473,35 @@ fn pava_increasing(y: &mut [f64]) {
     }
 }
 
+/// Slack of the correlation factorization relative to its unit diagonal: a pivot within it
+/// of zero is a rank-deficient direction (perfectly collinear scores), one below it is an
+/// indefinite matrix.
+const CORRELATION_PSD_TOLERANCE: f64 = 1e-10;
+
+/// Lower factor of the (possibly rank-deficient) correlation matrix of the joint scores, by
+/// the kernel's PSD-tolerant Cholesky.
 fn cholesky_corr(corr: &[f64], k: usize) -> Result<Vec<f64>, EstimationError> {
     let mut l = vec![0.0; k * k];
-    for i in 0..k {
-        for j in 0..=i {
-            let mut sum = corr[i * k + j];
-            for p in 0..j {
-                sum -= l[i * k + p] * l[j * k + p];
-            }
-            if i == j {
-                if sum < -1e-10 {
-                    return Err(EstimationError::data_msg(
-                        "covariance must be positive semidefinite",
-                    ));
-                }
-                if sum <= 1e-12 {
-                    l[i * k + j] = 0.0;
-                } else {
-                    l[i * k + j] = sum.sqrt();
-                }
-            } else if l[j * k + j] > 0.0 {
-                l[i * k + j] = sum / l[j * k + j];
-            } else if sum.abs() > 1e-10 {
-                return Err(EstimationError::data_msg("covariance must be positive semidefinite"));
-            }
-        }
-    }
+    antecedent_kernels::cholesky::cholesky_psd_into(corr, k, CORRELATION_PSD_TOLERANCE, &mut l)
+        .map_err(|_| EstimationError::data_msg("covariance must be positive semidefinite"))?;
     Ok(l)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn correlation_factor_zeroes_collinear_scores_and_refuses_an_indefinite_matrix() {
+        // Perfectly correlated pair: the second direction has no variance of its own.
+        let l = cholesky_corr(&[1.0, 1.0, 1.0, 1.0], 2).unwrap();
+        assert_eq!(l, [1.0, 0.0, 1.0, 0.0]);
+        // |r| > 1 is not a correlation matrix.
+        let error = cholesky_corr(&[1.0, 1.2, 1.2, 1.0], 2).unwrap_err();
+        assert!(error.to_string().contains("positive semidefinite"), "{error}");
+        // Within the slack of rank deficiency is still accepted.
+        assert!(cholesky_corr(&[1.0, 1.0, 1.0, 1.0 - 1e-12], 2).is_ok());
+    }
 
     #[test]
     fn review_relative_weights_preserve_mean_covariance_and_effective_size() {
