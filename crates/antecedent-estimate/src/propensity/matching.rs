@@ -22,10 +22,10 @@ use antecedent_expr::IdentifiedEstimand;
 use antecedent_stats::{FaerBackend, GlmOptions, MatchingDistance};
 
 use super::prepare::{
-    PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityModel,
     default_propensity_overlap, gather, gather_optional_multiway, gather_optional_row_labels,
     gather_rowmajor, prepare_propensity_problem_with_registry, restrict_to_rows,
-    split_by_treatment, trim_of, trim_retained_rows,
+    split_by_treatment, trim_of, trim_retained_rows, PreparedPropensityProblem,
+    PropensityEstimationWorkspace, PropensityModel,
 };
 use crate::adjustment::EffectEstimate;
 use crate::error::EstimationError;
@@ -732,7 +732,20 @@ fn predict_linear(beta: &[f64], features: &[f64], dim: usize, row: usize) -> f64
 }
 
 /// Gaussian elimination with partial pivoting; returns solution in `b`, or `None` if singular.
+///
+/// The pivot floor is relative to the largest absolute entry, the same rule as
+/// `weighting::solve_symmetric_posdef`. An absolute `1e-14` rejects a well-scaled
+/// design whose columns are in units of `1e-8` and accepts a collinear pair in
+/// units of `1e8`.
 fn solve_linear_system(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64>> {
+    let mut scale = 0.0_f64;
+    for v in a.iter().take(p * p) {
+        scale = scale.max(v.abs());
+    }
+    if !(scale.is_finite() && scale > 0.0) {
+        return None;
+    }
+    let tol = 1e-12 * scale;
     for col in 0..p {
         let mut pivot = col;
         let mut best = a[col * p + col].abs();
@@ -743,7 +756,7 @@ fn solve_linear_system(a: &mut [f64], b: &mut [f64], p: usize) -> Option<Vec<f64
                 pivot = r;
             }
         }
-        if best < 1e-14 {
+        if best <= tol {
             return None;
         }
         if pivot != col {
@@ -789,6 +802,20 @@ mod tests {
     use antecedent_kernels::standard_normal;
 
     use super::*;
+
+    #[test]
+    fn pivot_floor_follows_the_matrix_scale() {
+        // A design in units of 1e-8 is a scaled identity, not a singular system.
+        let mut tiny = [1e-16, 0.0, 0.0, 1e-16];
+        let mut tiny_b = [1e-16, 2e-16];
+        let x = solve_linear_system(&mut tiny, &mut tiny_b, 2).expect("tiny identity");
+        assert!((x[0] - 1.0).abs() < 1e-6 && (x[1] - 2.0).abs() < 1e-6);
+        // A pair collinear to 1 part in 1e16 of a 1e16 Gram must be refused.
+        // An absolute 1e-14 floor accepts the residual pivot of 1.
+        let mut huge = [1e16, 1e16, 1e16, 1e16 + 1.0];
+        let mut huge_b = [1.0, 1.0];
+        assert!(solve_linear_system(&mut huge, &mut huge_b, 2).is_none());
+    }
 
     fn confounded_scm(n: usize, seed: u64) -> (TabularData, IdentifiedEstimand) {
         let mut rng =
