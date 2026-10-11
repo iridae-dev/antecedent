@@ -20,7 +20,7 @@ use pyo3::types::{PyAny, PyDict, PyList, PyModule};
 
 use crate::callbacks::PyUtility;
 use crate::gcm_api::{DesignConstraintViolation, DesignRanking, RankedDesign};
-use crate::{catch_ffi, py_err, py_execution_context, py_msg};
+use crate::{catch_ffi, detach_catch, py_err, py_execution_context, py_msg};
 
 type QueryVarUnlock = (QueryId, Arc<[VariableId]>);
 type QueryEnvUnlock = (QueryId, Arc<[EnvironmentId]>);
@@ -496,6 +496,7 @@ fn candidate_kind(c: &CandidateDesign) -> String {
 ))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn rank_designs(
+    py: Python<'_>,
     graph_weights: Vec<f64>,
     identified: Vec<u8>,
     graph_keys: Vec<u64>,
@@ -520,7 +521,8 @@ pub(crate) fn rank_designs(
     seed: u64,
     threads: Option<u32>,
 ) -> PyResult<DesignRanking> {
-    catch_ffi(|| {
+    // Python objects stay on this thread. The Monte Carlo ranking below releases the GIL.
+    let inputs = catch_ffi(|| {
         let flags: Vec<GraphIdentFlag> = identified
             .into_iter()
             .map(|v| if v == 0 { GraphIdentFlag::Unidentified } else { GraphIdentFlag::Identified })
@@ -554,7 +556,6 @@ pub(crate) fn rank_designs(
                     })
                     .collect()
             });
-
         let ranker = DesignRanker::new()
             .with_config(DesignRankConfig {
                 min_batches,
@@ -563,6 +564,36 @@ pub(crate) fn rank_designs(
                 rank_uncertainty_threshold,
             })
             .with_constraints(DesignConstraints { max_cost, max_sample_budget });
+        Ok((
+            graphs,
+            parsed,
+            objective,
+            unlock_vars,
+            unlock_envs,
+            effect_width,
+            model_loglik,
+            decision,
+            intervene_flags,
+            graph_features,
+            ranker,
+        ))
+    })
+    .map_err(|e| crate::interrupt::attribute(py, e))?;
+    let (
+        graphs,
+        parsed,
+        objective,
+        unlock_vars,
+        unlock_envs,
+        effect_width,
+        model_loglik,
+        decision,
+        intervene_flags,
+        graph_features,
+        ranker,
+    ) = inputs;
+
+    detach_catch(py, move || {
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let unlock_var_slice = unlock_vars.as_deref();
         let unlock_env_slice = unlock_envs.as_deref();
@@ -630,7 +661,6 @@ pub(crate) fn rank_designs(
             violations,
         })
     })
-    .map_err(|e| Python::attach(|py| crate::interrupt::attribute(py, e)))
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
