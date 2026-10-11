@@ -53,7 +53,7 @@ import numpy as np
 from ._native import consume_effect_constancy_artifact as _consume
 from ._native import evaluate_effect_constancy as _evaluate
 from ._refusal import raise_refusal
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
     "ConstancyConclusion",
@@ -74,8 +74,8 @@ _SUPPORT = ("supported", "partial", "unsupported")
 _MAX_PARTITIONS = 1024
 
 
-class TemporalRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class TemporalRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``reason_code`` and ``remedy`` are the inherited, registered fields; ``detail`` is the
     namespaced ``family.slot`` slot (for example ``effect_constancy.incompatible_partitions``
@@ -85,20 +85,7 @@ class TemporalRefusal(CausalUnsupportedError):
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
-        detail = str(refusal["detail"])
-        parts = [detail]
-        message = refusal.get("message")
-        if message:
-            parts[0] = f"{detail}: {message}"
-        if refusal.get("offending"):
-            parts.append(f"at {refusal['offending']}")
-        super().__init__(" ".join(parts), reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = detail
-        #: Offending unit, node, field or factor, when there is one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal)
         #: The refusing witness as a mapping, when the evaluator retained one.
         self.witness: Mapping[str, Any] | None = refusal.get("witness")
         #: Prerequisite gates a closed route lacks, in a fixed order.

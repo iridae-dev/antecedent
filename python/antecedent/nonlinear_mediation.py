@@ -53,7 +53,7 @@ import numpy as np
 from ._native import consume_nonlinear_mediation_artifact as _consume
 from ._native import evaluate_nonlinear_mediation as _evaluate
 from ._refusal import raise_refusal
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 __all__ = [
     "DEFAULT_SEED",
@@ -74,8 +74,8 @@ DEFAULT_SEED = 0x4234_4D45_4449_4154
 _MAX_COUNT = 2**32 - 1
 
 
-class MediationRefusal(CausalUnsupportedError):
-    """A :class:`CausalUnsupportedError` carrying the structured Rust refusal fields.
+class MediationRefusal(StructuredRefusal):
+    """A :class:`StructuredRefusal` for the structured Rust refusal fields.
 
     ``reason_code`` is the registered code; ``detail`` is the namespaced ``family.slot`` slot
     (for example ``nonlinear_mediation.confounding``,
@@ -85,18 +85,7 @@ class MediationRefusal(CausalUnsupportedError):
     """
 
     def __init__(self, refusal: Mapping[str, Any]) -> None:
-        detail = str(refusal["detail"])
-        message = refusal.get("message")
-        text = f"{detail}: {message}" if message else detail
-        if refusal.get("offending"):
-            text = f"{text} at {refusal['offending']}"
-        super().__init__(text, reason_code=refusal["code"], remedy=refusal.get("remedy"))
-        #: Refusing stage.
-        self.stage: str = refusal.get("stage", "")
-        #: Namespaced ``family.slot`` detail.
-        self.detail: str = detail
-        #: Changed identity field, when a consumer refused one.
-        self.offending: str | None = refusal.get("offending")
+        super().__init__(refusal)
 
 
 def _raise_refusal(payload: str | None) -> None:
