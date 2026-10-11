@@ -2304,7 +2304,7 @@ mod tests {
         assert_eq!(fit.selections.len(), 5);
 
         let arms: Vec<u32> = replicate.treatment.iter().map(|&t| u32::from(t > 0.5)).collect();
-        let folds = crate::learn_nuisance::crossfit_fold_plan(
+        let folds = crate::crossfit_plan::crossfit_fold_plan(
             &arms,
             &replicate.row_index,
             5,

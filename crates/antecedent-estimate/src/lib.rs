@@ -33,6 +33,7 @@ pub mod continuous_dose;
 pub mod cpdag_scenarios;
 pub mod crossfit_aipw;
 pub mod crossfit_cache;
+mod crossfit_plan;
 pub mod design_compile;
 pub mod dml;
 pub mod dr;

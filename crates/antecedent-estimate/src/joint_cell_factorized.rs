@@ -60,10 +60,11 @@ use antecedent_learn::{
 };
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
-use crate::aipw::{predict_colmajor, select_rows_colmajor};
+use crate::aipw::predict_colmajor;
 use crate::cell_aipw::{cell_minus_control_coefficients, interaction_coefficients};
 use crate::error::EstimationError;
-use crate::learn_nuisance::{crossfit_fold_plan, design_for_spec};
+use crate::crossfit_plan::{rows_colmajor, CrossfitPlan, FoldSource, SHARED_FOLD_ID_ERRORS};
+use crate::learn_nuisance::design_for_spec;
 use crate::propensity::{
     fit_ridge_fold, refuse, PropensityNuisance, RidgeFoldInput, RidgeFoldSelection, RidgeTuning,
 };
@@ -732,8 +733,7 @@ impl ConditionalFits<'_> {
         if let Some(learned) = self.learned {
             return self.fit_learned(learned, fold, &rows, target);
         }
-        let mut design_train = Vec::new();
-        select_rows_colmajor(&problem.design, problem.n, problem.ncols, &rows, &mut design_train);
+        let design_train = rows_colmajor(&problem.design, problem.n, problem.ncols, &rows);
         let units: Vec<u32> = rows.iter().map(|&i| problem.row_index[i]).collect();
         let input = RidgeFoldInput {
             design_train: &design_train,
@@ -889,8 +889,7 @@ fn outcome_predictions(
                 problem.ncols
             ));
         }
-        let mut design = Vec::new();
-        select_rows_colmajor(&problem.design, problem.n, problem.ncols, &rows, &mut design);
+        let design = rows_colmajor(&problem.design, problem.n, problem.ncols, &rows);
         let y: Vec<f64> = rows.iter().map(|&i| problem.outcome[i]).collect();
         let fit = FaerBackend
             .least_squares(&design, rows.len(), problem.ncols, &y, &mut workspace)
@@ -1115,14 +1114,21 @@ fn fit_with_nuisance(
     let problem = prepare_problem(data, treatments, outcome, adjustment)?;
     let n = problem.n;
     let n_cells = 1u32 << k;
-    let plan = crossfit_fold_plan(&problem.cell, &problem.row_index, config.folds, config.seed)?;
+    let plan = CrossfitPlan::derive(
+        n,
+        config.folds,
+        FoldSource::Stratified {
+            strata: &problem.cell,
+            units: &problem.row_index,
+            seed: config.seed,
+        },
+        &SHARED_FOLD_ID_ERRORS,
+    )?;
     let folds: Vec<FoldSplit> = (0..config.folds)
         .map(|fold| {
-            let train: Vec<usize> = (0..n).filter(|&i| plan[i] as usize != fold).collect();
-            let valid: Vec<usize> = (0..n).filter(|&i| plan[i] as usize == fold).collect();
-            let mut design_valid = Vec::new();
-            select_rows_colmajor(&problem.design, n, problem.ncols, &valid, &mut design_valid);
-            FoldSplit { train, valid, design_valid }
+            let valid = plan.valid(fold).to_vec();
+            let design_valid = rows_colmajor(&problem.design, n, problem.ncols, &valid);
+            FoldSplit { train: plan.train(fold).to_vec(), valid, design_valid }
         })
         .collect();
     let rows_in_cell: Vec<usize> =
@@ -1247,7 +1253,7 @@ fn fit_with_nuisance(
         observed_outcome: problem.outcome.clone().into(),
         n_rows: n,
         row_index: Arc::from(problem.row_index.clone()),
-        fold_ids: Arc::from(plan),
+        fold_ids: Arc::from(plan.into_fold_ids()),
         n_folds: u32::try_from(config.folds).unwrap_or(u32::MAX),
         scores: Arc::from(scores),
         columns: Arc::from(columns),

@@ -31,7 +31,8 @@ use antecedent_learn::{
 
 use super::penalized_report::{FailedFit, FoldSupport};
 use crate::error::EstimationError;
-use crate::learn_nuisance::{crossfit_fold_plan, intercept_is_constant, learn_err};
+use crate::crossfit_plan::{derive_fold_ids, FoldSource, SHARED_FOLD_ID_ERRORS};
+use crate::learn_nuisance::{intercept_is_constant, learn_err};
 use crate::splitmix::mix64;
 
 /// Inner cross-validation folds used to choose the penalty when none is declared.
@@ -710,11 +711,15 @@ pub(crate) fn fit_penalized_fold(
     let target = TargetView::new(input.t_train);
 
     let arms: Vec<u32> = input.t_train.iter().map(|&t| u32::from(t > 0.5)).collect();
-    let plan = crossfit_fold_plan(
-        &arms,
-        input.units,
+    let plan = derive_fold_ids(
+        arms.len(),
         tuning.inner_folds,
-        mix64(input.seed ^ INNER_PLAN_TAG.wrapping_add(input.fold as u64)),
+        FoldSource::Stratified {
+            strata: &arms,
+            units: input.units,
+            seed: mix64(input.seed ^ INNER_PLAN_TAG.wrapping_add(input.fold as u64)),
+        },
+        &SHARED_FOLD_ID_ERRORS,
     )?;
     let inner: Vec<u16> = plan.iter().map(|&f| u16::try_from(f).unwrap_or(u16::MAX)).collect();
 

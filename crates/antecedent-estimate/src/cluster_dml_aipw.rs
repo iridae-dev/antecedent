@@ -510,7 +510,7 @@ pub fn cluster_fold_plan(
     folds: usize,
     seed: u64,
 ) -> Result<Vec<u32>, EstimationError> {
-    crate::learn_nuisance::crossfit_fold_plan(&vec![0; clusters.len()], clusters, folds, seed)
+    crate::crossfit_plan::crossfit_fold_plan(&vec![0; clusters.len()], clusters, folds, seed)
 }
 
 /// The route is licensed for the untrimmed `AllObserved` mean ATE only.

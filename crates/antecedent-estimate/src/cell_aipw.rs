@@ -22,8 +22,11 @@ use antecedent_core::{OutcomeFunctional, VariableId};
 use antecedent_data::TabularData;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, GlmOptions};
 
-use crate::aipw::{predict_colmajor, select_rows_colmajor};
+use crate::aipw::predict_colmajor;
 use crate::crossfit_aipw::{thresholds_of, DEFAULT_AIPW_FOLDS};
+use crate::crossfit_plan::{
+    rows_colmajor, CrossfitPlan, FoldRows, FoldSource, SHARED_FOLD_ID_ERRORS,
+};
 use crate::error::EstimationError;
 use crate::overlap::OverlapPolicy;
 use crate::propensity::clip_of;
@@ -69,7 +72,7 @@ pub struct CellSaturatedAipw {
     /// Overlap policy (clip applied to each cell propensity before normalize).
     pub overlap: OverlapPolicy,
     /// Seed of the cell-stratified, unit-level fold plan (see
-    /// `learn_nuisance::crossfit_fold_plan`); set it to the run's master seed.
+    /// `crossfit_plan::crossfit_fold_plan`); set it to the run's master seed.
     pub fold_seed: u64,
 }
 
@@ -333,6 +336,13 @@ fn nearest_index(grid: &[f64], value: f64) -> usize {
     best
 }
 
+/// A fold's fitted cell propensities and the gathered validation design.
+struct CellFoldNuisance {
+    design_valid: Vec<f64>,
+    e_valid: Vec<f64>,
+    floor: f64,
+}
+
 fn crossfit_cell_scores(
     prepared: &PreparedCells,
     thresholds: &[Option<f64>],
@@ -360,140 +370,120 @@ fn crossfit_cell_scores(
             }
             let mut scores = vec![0.0; n * columns.len()];
             let mut propensities = vec![0.0; n * columns.len()];
-            let fold_ids: Vec<u32> = match prepared.fold_assignment.as_deref() {
-                Some(ids) if ids.len() == n => ids.to_vec(),
-                Some(_) => {
-                    return Err(EstimationError::data_msg(
-                        "shared fold assignment length must match complete-case rows",
-                    ));
-                }
-                None => crate::learn_nuisance::crossfit_fold_plan(
-                    &prepared.cell,
-                    &prepared.row_index,
-                    folds,
-                    est.fold_seed,
-                )?,
+            let source = match prepared.fold_assignment.as_deref() {
+                Some(ids) => FoldSource::Shared(ids),
+                None => FoldSource::Stratified {
+                    strata: &prepared.cell,
+                    units: &prepared.row_index,
+                    seed: est.fold_seed,
+                },
             };
-
-            if fold_ids.iter().any(|&id| id as usize >= folds) {
-                return Err(EstimationError::data_msg("shared fold ids must lie in 0..folds"));
-            }
+            let plan = CrossfitPlan::derive(n, folds, source, &SHARED_FOLD_ID_ERRORS)?;
             let clip = clip_of(est.overlap);
             let mut out_ws = crate::aipw::AipwWorkspace::default();
 
-            for fold in 0..folds {
-                let train: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize != fold).collect();
-                let valid: Vec<usize> = (0..n).filter(|&i| fold_ids[i] as usize == fold).collect();
-                let mut design_train = Vec::new();
-                select_rows_colmajor(
-                    &prepared.design,
-                    n,
-                    prepared.ncols,
-                    &train,
-                    &mut design_train,
-                );
-                let mut design_valid = Vec::new();
-                select_rows_colmajor(
-                    &prepared.design,
-                    n,
-                    prepared.ncols,
-                    &valid,
-                    &mut design_valid,
-                );
+            plan.run(
+                None,
+                |_fold| Ok(()),
+                |FoldRows { train, valid, .. }| {
+                    let design_train = rows_colmajor(&prepared.design, n, prepared.ncols, train);
+                    let design_valid = rows_colmajor(&prepared.design, n, prepared.ncols, valid);
 
-                let train_cells: Vec<_> =
-                    train.iter().map(|&i| prepared.cell[i] as usize).collect();
-                for c in 0..n_cells {
-                    if !train_cells.contains(&c) {
-                        return Err(EstimationError::unsupported(
-                            "unsupported cell: cross-fit training fold is missing a joint treatment combination",
-                        ));
-                    }
-                }
-                let e_valid = multinomial_propensity(
-                    &design_train,
-                    train.len(),
-                    &train_cells,
-                    &design_valid,
-                    valid.len(),
-                    prepared.ncols,
-                    n_cells,
-                    est.backend,
-                )?;
-                note_cell_model_fit();
-                // The clip is the only floor. With none, a cell propensity of exactly 0 (infinite
-                // weight) is refused rather than silently floored at a hidden constant.
-                let floor = clip.unwrap_or(0.0);
-                if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
-                    return Err(EstimationError::OverlapWithFields {
-                        message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
-                        fields: Box::new(crate::overlap::propensity_score_fields(&e_valid)),
-                    });
-                }
-
-                for (t_idx, &threshold) in thresholds.iter().enumerate() {
+                    let train_cells: Vec<_> =
+                        train.iter().map(|&i| prepared.cell[i] as usize).collect();
                     for c in 0..n_cells {
-                        for (k, &i) in valid.iter().enumerate() {
-                            propensities[(t_idx * n_cells + c) * n + i] =
-                                e_valid[c * valid.len() + k];
-                        }
-                    }
-                    let y_all = match threshold {
-                        None => prepared.outcome.clone(),
-                        Some(c) => prepared.outcome.iter().map(|&yi| f64::from(yi > c)).collect(),
-                    };
-                    for c in 0..n_cells {
-                        let cell_train: Vec<usize> = train
-                            .iter()
-                            .copied()
-                            .filter(|&i| prepared.cell[i] as usize == c)
-                            .collect();
-                        // The per-cell OLS needs residual degrees of freedom: a cell with no more
-                        // training rows than design columns is an exact interpolant (or
-                        // underdetermined), and swapping in a cell mean would silently leave double
-                        // robustness resting on the propensity alone. Refuse instead.
-                        if cell_train.len() <= prepared.ncols {
+                        if !train_cells.contains(&c) {
                             return Err(EstimationError::unsupported(
-                                "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
+                                "unsupported cell: cross-fit training fold is missing a joint treatment combination",
                             ));
                         }
-                        let mut design_c = Vec::new();
-                        select_rows_colmajor(
-                            &prepared.design,
-                            n,
-                            prepared.ncols,
-                            &cell_train,
-                            &mut design_c,
-                        );
-                        let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
-                        let fit = est
-                            .backend
-                            .least_squares(
-                                &design_c,
-                                cell_train.len(),
+                    }
+                    let e_valid = multinomial_propensity(
+                        &design_train,
+                        train.len(),
+                        &train_cells,
+                        &design_valid,
+                        valid.len(),
+                        prepared.ncols,
+                        n_cells,
+                        est.backend,
+                    )?;
+                    note_cell_model_fit();
+                    // The clip is the only floor. With none, a cell propensity of exactly 0
+                    // (infinite weight) is refused rather than silently floored at a hidden
+                    // constant.
+                    let floor = clip.unwrap_or(0.0);
+                    if clip.is_none() && e_valid.iter().any(|&e| e.is_nan() || e <= 0.0) {
+                        return Err(EstimationError::OverlapWithFields {
+                            message: "a fitted cell propensity is 0 (or not finite) and no clip is set; the inverse-probability weight is infinite — set an overlap clip",
+                            fields: Box::new(crate::overlap::propensity_score_fields(&e_valid)),
+                        });
+                    }
+                    Ok(CellFoldNuisance { design_valid, e_valid, floor })
+                },
+                |FoldRows { train, valid, .. }, nuisance| {
+                    let CellFoldNuisance { design_valid, e_valid, floor } = nuisance;
+                    for (t_idx, &threshold) in thresholds.iter().enumerate() {
+                        for c in 0..n_cells {
+                            for (k, &i) in valid.iter().enumerate() {
+                                propensities[(t_idx * n_cells + c) * n + i] =
+                                    e_valid[c * valid.len() + k];
+                            }
+                        }
+                        let y_all = match threshold {
+                            None => prepared.outcome.clone(),
+                            Some(c) => {
+                                prepared.outcome.iter().map(|&yi| f64::from(yi > c)).collect()
+                            }
+                        };
+                        for c in 0..n_cells {
+                            let cell_train: Vec<usize> = train
+                                .iter()
+                                .copied()
+                                .filter(|&i| prepared.cell[i] as usize == c)
+                                .collect();
+                            // The per-cell OLS needs residual degrees of freedom: a cell with no
+                            // more training rows than design columns is an exact interpolant (or
+                            // underdetermined), and swapping in a cell mean would silently leave
+                            // double robustness resting on the propensity alone. Refuse instead.
+                            if cell_train.len() <= prepared.ncols {
+                                return Err(EstimationError::unsupported(
+                                    "sparse cell: a cross-fit training cell has no more rows than design columns, so its outcome model has no residual degrees of freedom",
+                                ));
+                            }
+                            let design_c =
+                                rows_colmajor(&prepared.design, n, prepared.ncols, &cell_train);
+                            let y_c: Vec<f64> = cell_train.iter().map(|&i| y_all[i]).collect();
+                            let fit = est
+                                .backend
+                                .least_squares(
+                                    &design_c,
+                                    cell_train.len(),
+                                    prepared.ncols,
+                                    &y_c,
+                                    &mut out_ws.outcome,
+                                )
+                                .map_err(stats_err)?;
+                            note_cell_model_fit();
+                            let mut pred = Vec::new();
+                            predict_colmajor(
+                                &design_valid,
+                                valid.len(),
                                 prepared.ncols,
-                                &y_c,
-                                &mut out_ws.outcome,
-                            )
-                            .map_err(stats_err)?;
-                        note_cell_model_fit();
-                        let mut pred = Vec::new();
-                        predict_colmajor(
-                            &design_valid,
-                            valid.len(),
-                            prepared.ncols,
-                            &fit.coefficients,
-                            &mut pred,
-                        );
-                        let col = t_idx * n_cells + c;
-                        for (k, &i) in valid.iter().enumerate() {
-                            let a = f64::from(prepared.cell[i] as usize == c);
-                            let e = e_valid[c * valid.len() + k].max(floor);
-                            scores[col * n + i] = pred[k] + (a / e) * (y_all[i] - pred[k]);
+                                &fit.coefficients,
+                                &mut pred,
+                            );
+                            let col = t_idx * n_cells + c;
+                            for (k, &i) in valid.iter().enumerate() {
+                                let a = f64::from(prepared.cell[i] as usize == c);
+                                let e = e_valid[c * valid.len() + k].max(floor);
+                                scores[col * n + i] = pred[k] + (a / e) * (y_all[i] - pred[k]);
+                            }
                         }
                     }
-                }
-            }
+                    Ok(())
+                },
+            )?;
 
             Ok(ScoreTable {
                 observed_arm: prepared.cell.clone().into(),
@@ -501,7 +491,7 @@ fn crossfit_cell_scores(
                 observed_outcome: prepared.outcome.clone().into(),
                 n_rows: n,
                 row_index: Arc::from(prepared.row_index.clone()),
-                fold_ids: Arc::from(fold_ids),
+                fold_ids: Arc::from(plan.into_fold_ids()),
                 n_folds: u32::try_from(folds).unwrap_or(u32::MAX),
                 scores: Arc::from(scores),
                 columns: Arc::from(columns),

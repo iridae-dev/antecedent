@@ -56,7 +56,7 @@ pub struct PreparedPropensityProblem {
     /// Treatment variable id (for score-table provenance).
     pub treatment_id: VariableId,
     /// Optional complete-case fold ids. `None` draws a seeded, arm-stratified, unit-level
-    /// plan from [`Self::fold_seed`] (see `learn_nuisance::crossfit_fold_plan`).
+    /// plan from [`Self::fold_seed`] (see `crossfit_plan::crossfit_fold_plan`).
     pub fold_assignment: Option<Arc<[u32]>>,
     /// Independence unit (cluster label) of each complete-case row. When set, the default
     /// fold plan deals whole units to folds (`cluster_dml_aipw::cluster_fold_plan`) instead
