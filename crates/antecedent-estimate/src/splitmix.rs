@@ -14,6 +14,55 @@ pub(crate) const fn seed_mix(seed: u64) -> u64 {
     mix64(seed.wrapping_add(GOLDEN_GAMMA))
 }
 
+/// Second Weyl multiplier of the per-index stream key: replicate and row indices of test
+/// fixtures are combined as `(replicate + 1)·GOLDEN_GAMMA ^ (index + 1)·INDEX_GAMMA`.
+pub(crate) const INDEX_GAMMA: u64 = 0xD1B5_4A32_D192_ED03;
+
+/// Multiplier of the third key coordinate (a salt) of the test-fixture stream key.
+#[cfg(test)]
+pub(crate) const SALT_GAMMA: u64 = 0xA076_1D64_78BD_642F;
+
+/// A uniform draw in `[0, 1)` keyed by `(replicate, index)`, so every fixture row of every
+/// replicate is a pure function of its coordinates (test fixtures).
+#[cfg(test)]
+#[must_use]
+pub(crate) fn keyed_unit(replicate: u64, index: u64) -> f64 {
+    keyed_unit_salted(replicate, index, 0)
+}
+
+/// [`keyed_unit`] with a third coordinate `salt` (zero reproduces [`keyed_unit`]).
+#[cfg(test)]
+#[must_use]
+pub(crate) fn keyed_unit_salted(replicate: u64, index: u64, salt: u64) -> f64 {
+    unit_f64(mix64(
+        replicate.wrapping_add(1).wrapping_mul(GOLDEN_GAMMA)
+            ^ index.wrapping_add(1).wrapping_mul(INDEX_GAMMA)
+            ^ salt.wrapping_mul(SALT_GAMMA),
+    ))
+}
+
+/// A sequential `SplitMix64` stream of test fixtures.
+#[cfg(test)]
+pub(crate) struct FixtureRng(u64);
+
+#[cfg(test)]
+impl FixtureRng {
+    /// A stream whose first output is `splitmix64` of `seed`.
+    pub(crate) const fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+
+    /// The next 64 random bits.
+    pub(crate) fn next_u64(&mut self) -> u64 {
+        splitmix64(&mut self.0)
+    }
+
+    /// The next uniform draw in `[0, 1)`.
+    pub(crate) fn uniform(&mut self) -> f64 {
+        unit_f64(self.next_u64())
+    }
+}
+
 /// The top 53 bits of `bits` as a uniform draw in `[0, 1)` (test fixtures).
 #[cfg(test)]
 #[must_use]

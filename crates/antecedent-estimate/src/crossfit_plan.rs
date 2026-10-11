@@ -274,7 +274,7 @@ pub(crate) fn crossfit_fold_plan(
     let mut dealt = 0usize;
     for (&stratum, members) in &mut groups {
         let mut rng = CausalRng::from_seed(
-            seed ^ u64::from(stratum).wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03),
+            seed ^ u64::from(stratum).wrapping_add(1).wrapping_mul(crate::splitmix::INDEX_GAMMA),
         );
         for i in (1..members.len()).rev() {
             let j = (rng.next_f64() * (i as f64 + 1.0)) as usize;

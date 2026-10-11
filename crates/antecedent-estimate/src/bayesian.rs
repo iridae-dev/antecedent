@@ -3320,23 +3320,12 @@ mod tests {
         assert!(!has_fallback_note(&plain), "{:?}", plain.diagnostics.notes);
     }
 
-    /// Seeded standard-normal draws for the calibration DGPs: Box-Muller over an LCG.
-    ///
-    /// Test-local on purpose — the calibration cases need a stream that is reproducible
-    /// from a plain `u64` without pulling in the execution context's RNG plumbing.
-    ///
-    /// The seed is scrambled (SplitMix64 finalizer) first: seeding the LCG with the
-    /// raw replicate index makes the states of seeds `s` and `s + 1` differ by a fixed
-    /// `MUL^k` at every step, so consecutive calibration datasets form a lattice
-    /// rather than independent draws.
-    fn box_muller_lcg(seed: u64) -> impl FnMut() -> f64 {
-        const LCG_MUL: u64 = 6_364_136_223_846_793_005;
-        const TWO_POW_53: f64 = (1u64 << 53) as f64;
-        let mut state = crate::splitmix::seed_mix(seed);
-        let mut next_unit = move || {
-            state = state.wrapping_mul(LCG_MUL).wrapping_add(1);
-            ((state >> 11) as f64) / TWO_POW_53
-        };
+    /// Seeded standard-normal draws for the calibration DGPs: Box-Muller over a `SplitMix64`
+    /// fixture stream whose state is the scrambled seed, so consecutive replicate seeds start
+    /// unrelated streams.
+    fn box_muller_fixture(seed: u64) -> impl FnMut() -> f64 {
+        let mut rng = crate::splitmix::FixtureRng::new(crate::splitmix::seed_mix(seed));
+        let mut next_unit = move || rng.uniform();
         move || {
             let u = next_unit();
             let v = next_unit();
@@ -3366,7 +3355,7 @@ mod tests {
         )
         .unwrap();
         let schema = b.build().unwrap();
-        let mut gauss = box_muller_lcg(seed);
+        let mut gauss = box_muller_fixture(seed);
         let mut x = vec![0.0; n];
         let mut y = vec![0.0; n];
         for t in 1..n {
@@ -3668,7 +3657,7 @@ mod tests {
         unit_eff: f64,
         treat: f64,
     ) -> antecedent_data::TimeSeriesData {
-        let mut gauss = box_muller_lcg(seed);
+        let mut gauss = box_muller_fixture(seed);
         let x = vec![treat; n];
         let mut y = vec![0.0; n];
         // Treatment is constant within unit. Stacked iid treats T repeats as
@@ -3736,7 +3725,7 @@ mod tests {
         // (formerly `1.4·sin(0.37u)`) freezes the between-unit imbalance across
         // replicates, so the interval, which correctly prices intercept variance,
         // covered 100% at 400 replicates. SD ≈ 0.99 matches that pattern's spread.
-        let mut intercepts = box_muller_lcg(seed ^ 0x0E7F_0E7F);
+        let mut intercepts = box_muller_fixture(seed ^ 0x0E7F_0E7F);
         let units: Vec<PanelUnit> = (0..n_units)
             .map(|u| {
                 let unit_eff = 0.99 * intercepts();

@@ -4634,17 +4634,10 @@ mod tests {
     /// `y1 = scale·(1 + 2a − 0.5b + 0.6a² + x + e₁) + extra·a`.
     fn plugin_gradient_data(scale: f64, extra: f64) -> TabularData {
         let n: usize = 400;
-        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut rng = crate::splitmix::FixtureRng::new(0x9E37_79B9_7F4A_7C15);
         let mut noise = || {
             // Sum of four uniforms, centred: a deterministic, roughly Gaussian draw.
-            (0..4)
-                .map(|_| {
-                    state = state
-                        .wrapping_mul(6_364_136_223_846_793_005)
-                        .wrapping_add(1_442_695_040_888_963_407);
-                    (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
-                })
-                .sum::<f64>()
+            (0..4).map(|_| rng.uniform() - 0.5).sum::<f64>()
         };
         let (mut a, mut b, mut x, mut y1, mut y2) =
             (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());

@@ -214,10 +214,6 @@ pub fn complier_wald_effect(
 mod tests {
     use super::*;
 
-    fn uniform(state: u64) -> f64 {
-        crate::splitmix::unit_f64(crate::splitmix::mix64(state))
-    }
-
     fn study(
         arms: usize,
         replicate: usize,
@@ -240,10 +236,7 @@ mod tests {
             } else {
                 vec![1.0 / arms as f64; arms]
             };
-            let draw = uniform(
-                (replicate as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
-                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-            );
+            let draw = crate::splitmix::keyed_unit(replicate as u64, i as u64);
             let mut cumulative = 0.0;
             let action = row
                 .iter()
@@ -340,10 +333,7 @@ mod tests {
                         "high_boundary" => 0.8,
                         _ => 0.2 + 0.6 * (i % 7) as f64 / 6.0,
                     };
-                    let treated = uniform(
-                        (rep as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
-                            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-                    ) < p;
+                    let treated = crate::splitmix::keyed_unit(rep as u64, i as u64) < p;
                     let outcome = 2.0
                         + coefficient * x
                         + 0.4 * (0.29 * i as f64).sin()
@@ -386,11 +376,7 @@ mod tests {
         one_sided: bool,
     ) -> (Vec<f64>, Vec<bool>, Vec<bool>, Vec<f64>) {
         let draw = |i: usize, salt: u64| {
-            uniform(
-                (rep as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
-                    ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03)
-                    ^ salt.wrapping_mul(0xA076_1D64_78BD_642F),
-            )
+            crate::splitmix::keyed_unit_salted(rep as u64, i as u64, salt)
         };
         let mut outcomes = Vec::with_capacity(n);
         let mut assignment = Vec::with_capacity(n);

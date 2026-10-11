@@ -416,17 +416,6 @@ mod tests {
 
     use super::*;
 
-    struct XorShift(u64);
-
-    impl XorShift {
-        fn next(&mut self) -> u64 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            self.0
-        }
-    }
-
     #[test]
     fn cluster_total_interval_covers_known_truth() {
         // Fixed finite population of cluster potential outcomes with a constant
@@ -452,13 +441,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let clusters = (0..K).flat_map(|cluster| [cluster as u32; 2]).collect::<Vec<_>>();
-        let mut rng = XorShift(0x0BAD_C0DE_D15E_A5E1);
+        let mut rng = crate::splitmix::FixtureRng::new(0x0BAD_C0DE_D15E_A5E1);
         let mut covered = 0_usize;
         let mut supported = 0_usize;
         for _ in 0..REPLICATES {
             let mut order = (0..K).collect::<Vec<_>>();
             for i in (1..K).rev() {
-                let j = (rng.next() as usize) % (i + 1);
+                let j = (rng.next_u64() as usize) % (i + 1);
                 order.swap(i, j);
             }
             let mut treated_cluster = [false; K];

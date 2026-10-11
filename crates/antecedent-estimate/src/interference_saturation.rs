@@ -375,6 +375,10 @@ struct WeightedMean {
     cluster_totals: BTreeMap<u32, f64>,
 }
 
+/// Horvitz–Thompson and Hájek means of the units realized at one exposure level, with the
+/// Cauchy-bounded variance and the per-cluster totals of that level. Not the arithmetic
+/// weighted mean of `antecedent_kernels::weighted_mean`: the weights are inverse exposure
+/// probabilities of a requested level, and the outputs carry the design-based variance.
 fn weighted_mean(
     outcomes: &[f64],
     clusters: &[u32],
@@ -446,21 +450,6 @@ mod tests {
 
     use super::{estimate_saturation_interference, estimate_saturation_interference_pointwise};
 
-    struct Random(u64);
-
-    impl Random {
-        fn next(&mut self) -> u64 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            self.0
-        }
-
-        fn uniform(&mut self) -> f64 {
-            (self.next() >> 11) as f64 / (1_u64 << 53) as f64
-        }
-    }
-
     #[test]
     fn saturation_exposure_interval_covers_known_truth() {
         // Fixed finite-population potential outcomes; only the two randomization
@@ -481,13 +470,13 @@ mod tests {
                 ]
             })
             .collect::<Vec<_>>();
-        let mut rng = Random(0x51A7_0F3C_9E2D_11AB);
+        let mut rng = crate::splitmix::FixtureRng::new(0x51A7_0F3C_9E2D_11AB);
         let mut covered = 0_usize;
         let mut supported = 0_usize;
         for _ in 0..REPLICATES {
             let mut order = (0..CLUSTERS).collect::<Vec<_>>();
             for i in (1..CLUSTERS).rev() {
-                let j = (rng.next() as usize) % (i + 1);
+                let j = (rng.next_u64() as usize) % (i + 1);
                 order.swap(i, j);
             }
             let mut high = [false; CLUSTERS];
@@ -563,11 +552,11 @@ mod tests {
                 .collect::<Vec<_>>();
             let mut covered = [0_usize; 3];
             let mut supported = [0_usize; 3];
-            let mut rng = Random(0x6473_58ce_9ab2_1def);
+            let mut rng = crate::splitmix::FixtureRng::new(0x6473_58ce_9ab2_1def);
             for _ in 0..DRAWS {
                 let mut order = (0..cluster_count).collect::<Vec<_>>();
                 for i in (1..cluster_count).rev() {
-                    let j = (rng.next() as usize) % (i + 1);
+                    let j = (rng.next_u64() as usize) % (i + 1);
                     order.swap(i, j);
                 }
                 let mut high = vec![false; cluster_count];

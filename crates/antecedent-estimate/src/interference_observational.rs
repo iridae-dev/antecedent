@@ -285,21 +285,6 @@ mod tests {
 
     use super::{estimate_observational_exposure, ObservationalExposureSpec};
 
-    struct XorShift(u64);
-
-    impl XorShift {
-        fn next(&mut self) -> u64 {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            self.0
-        }
-
-        fn uniform(&mut self) -> f64 {
-            (self.next() >> 11) as f64 / (1_u64 << 53) as f64
-        }
-    }
-
     #[test]
     fn observational_known_exposure_interval_covers_known_truth() {
         // Fixed finite population of unit potential outcomes; per-unit exposure is
@@ -327,7 +312,7 @@ mod tests {
             .map(|unit| 0.5 * (unit / 2 % 5) as f64 + 0.1 * (unit % 2) as f64)
             .collect::<Vec<_>>();
         let probabilities = vec![0.25; CLUSTERS * 2];
-        let mut rng = XorShift(0x39F1_77C4_2B8E_A013);
+        let mut rng = crate::splitmix::FixtureRng::new(0x39F1_77C4_2B8E_A013);
         let mut covered = 0_usize;
         let mut supported = 0_usize;
         for _ in 0..REPLICATES {

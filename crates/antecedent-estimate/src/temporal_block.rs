@@ -801,13 +801,8 @@ mod tests {
 
     #[test]
     fn dependence_block_length_keeps_the_rule_for_weak_and_grows_for_persistent_scores() {
-        let mut state = 0x2545_f491_4f6c_dd1d_u64;
-        let mut uniform = || {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
-        };
+        let mut rng = crate::splitmix::FixtureRng::new(0x2545_f491_4f6c_dd1d_u64);
+        let mut uniform = || rng.uniform() - 0.5;
         let iid: Vec<f64> = (0..400).map(|_| uniform()).collect();
         let mut level = 0.0;
         let persistent: Vec<f64> = (0..400)
@@ -876,13 +871,8 @@ mod tests {
             let cap = (3.0 * nf.sqrt()).min(nf / 3.0).ceil();
             b.clamp(1.0, cap.max(1.0)).ceil() as usize
         }
-        let mut state = 0x2545_f491_4f6c_dd1d_u64;
-        let mut uniform = || {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
-        };
+        let mut rng = crate::splitmix::FixtureRng::new(0x2545_f491_4f6c_dd1d_u64);
+        let mut uniform = || rng.uniform() - 0.5;
         for n in [8usize, 41, 400, 5000] {
             for rho in [0.0, 0.5, 0.85, 0.97, -0.6] {
                 let mut level = 0.0;
@@ -903,13 +893,8 @@ mod tests {
 
     #[test]
     fn normal_equation_scores_carry_the_persistent_residual_into_the_block_length() {
-        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
-        let mut uniform = || {
-            state ^= state << 13;
-            state ^= state >> 7;
-            state ^= state << 17;
-            (state >> 11) as f64 / (1u64 << 53) as f64 - 0.5
-        };
+        let mut rng = crate::splitmix::FixtureRng::new(0x9E37_79B9_7F4A_7C15_u64);
+        let mut uniform = || rng.uniform() - 0.5;
         let n = 400;
         // Short-memory regressor, strongly persistent residual.
         let x: Vec<f64> = (0..n).map(|_| uniform()).collect();
@@ -1029,11 +1014,10 @@ mod tests {
         // AR(1)(0.81) score of length 400 (the persistent ρ = 0.9 design's score):
         // about 3% at the production block (74), more at a shorter block.
         let mut state = 0.0_f64;
-        let mut lcg = 0x1234_5678_u64;
+        let mut rng = crate::splitmix::FixtureRng::new(0x1234_5678_u64);
         let persistent: Vec<f64> = (0..400)
             .map(|_| {
-                lcg = lcg.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-                let u = (lcg >> 11) as f64 / (1u64 << 53) as f64 - 0.5;
+                let u = rng.uniform() - 0.5;
                 state = 0.81 * state + u;
                 state
             })

@@ -102,10 +102,6 @@ pub fn fit_ancova(
 mod tests {
     use super::*;
 
-    fn uniform(state: u64) -> f64 {
-        crate::splitmix::unit_f64(crate::splitmix::mix64(state))
-    }
-
     #[test]
     fn recovers_known_linear_effect_and_refuses_collinearity() {
         let x1 = [0., 1., 2., 3., 4., 5., 6., 7.];
@@ -153,10 +149,7 @@ mod tests {
             for rep in 0..REPLICATES {
                 let assignment = (0..N)
                     .map(|i| {
-                        uniform(
-                            (rep as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
-                                ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-                        ) < probability
+                        crate::splitmix::keyed_unit(rep as u64, i as u64) < probability
                     })
                     .collect::<Vec<_>>();
                 let outcome = (0..N)

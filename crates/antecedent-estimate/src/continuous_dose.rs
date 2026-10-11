@@ -358,10 +358,6 @@ mod policy_tests {
     )]
     use super::*;
 
-    fn uniform(state: u64) -> f64 {
-        crate::splitmix::unit_f64(crate::splitmix::mix64(state))
-    }
-
     #[test]
     fn fixed_group_dose_policy_paired_intervals_cover_kernel_smoothed_truth() {
         const N: usize = 800;
@@ -382,10 +378,7 @@ mod policy_tests {
         for replicate in 0..REPLICATES {
             let dose = (0..N)
                 .map(|i| {
-                    uniform(
-                        (replicate as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
-                            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-                    )
+                    crate::splitmix::keyed_unit(replicate as u64, i as u64)
                 })
                 .collect::<Vec<_>>();
             let outcome = (0..N)
@@ -459,10 +452,7 @@ mod policy_tests {
         for rep in 0..REPLICATES {
             let dose = (0..N)
                 .map(|i| {
-                    uniform(
-                        (rep as u64 + 1).wrapping_mul(crate::splitmix::GOLDEN_GAMMA)
-                            ^ (i as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03),
-                    )
+                    crate::splitmix::keyed_unit(rep as u64, i as u64)
                 })
                 .collect::<Vec<_>>();
             let outcome = (0..N)
