@@ -29,18 +29,18 @@
 use antecedent_core::{
     ExternalCapability, ExternalRefusal, ExternalTrustState, ScientificQuantity, SupportStatus,
 };
-use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
 };
+use antecedent_io::IoError;
 
 use crate::decision_contract::{
     DecisionAction, DecisionContract, DecisionContractError, DecisionCriterion, DecisionFunctional,
     SourceRepresentation,
 };
 use crate::decision_eval::{
-    ActionOutcome, DecisionEvalError, DecisionResult, FunctionalValue, MeanSource, Verdict,
-    evaluate_contract, evaluate_contract_on_means, evaluate_functional,
+    evaluate_contract, evaluate_contract_on_means, evaluate_functional, ActionOutcome,
+    DecisionEvalError, DecisionResult, FunctionalValue, MeanSource, Verdict,
 };
 use crate::decision_structural::StructuralAtom;
 
@@ -53,6 +53,25 @@ pub enum ProviderKind {
     ExternalAttested,
     /// An external object verified for its exact request.
     ExternalExactRequestVerified,
+}
+
+impl ProviderKind {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Native => "native",
+            Self::ExternalAttested => "external_attested",
+            Self::ExternalExactRequestVerified => "external_exact_request_verified",
+        }
+    }
+}
+
+fn trust_label(trust: DistributionTrust) -> &'static str {
+    match trust {
+        DistributionTrust::NativeLicensed => "native_licensed",
+        DistributionTrust::ExternalAttested => "external_attested",
+        DistributionTrust::VerifiedExtension => "verified_extension",
+        DistributionTrust::Unverified => "unverified",
+    }
 }
 
 /// Calibration standing of an input after trust resolution.
@@ -340,13 +359,7 @@ fn absorb(hasher: &mut blake3::Hasher, part: &str) {
 }
 
 fn absorb_quantity(hasher: &mut blake3::Hasher, quantity: &ScientificQuantity) {
-    absorb(hasher, &quantity.variable_id);
-    absorb(hasher, &quantity.population_id);
-    absorb(hasher, &quantity.regime_id);
-    absorb(hasher, &quantity.functional_id);
-    absorb(hasher, &quantity.transform_id);
-    absorb(hasher, &format!("{:?}", quantity.conditioning));
-    hasher.update(&quantity.horizon.to_le_bytes());
+    hasher.update(&quantity.canonical_bytes());
 }
 
 fn absorb_values(hasher: &mut blake3::Hasher, values: &[f64]) {
@@ -396,10 +409,10 @@ fn lineage_digest(
     }
     for (quantity, status) in coordinates {
         absorb_quantity(&mut hasher, quantity);
-        absorb(&mut hasher, &format!("{status:?}"));
+        absorb(&mut hasher, status.as_str());
     }
-    absorb(&mut hasher, &format!("{kind:?}"));
-    absorb(&mut hasher, &format!("{trust:?}"));
+    absorb(&mut hasher, kind.label());
+    absorb(&mut hasher, trust_label(trust));
     hasher.finalize().to_hex().to_string()
 }
 
@@ -1454,7 +1467,11 @@ fn validate_route(
         }
         RouteKind::JointLaw => input.provenance.capabilities.contains(&ExternalCapability::Sample),
     };
-    if aligned && capable && !route.id.trim().is_empty() { Ok(()) } else { Err(unlicensed()) }
+    if aligned && capable && !route.id.trim().is_empty() {
+        Ok(())
+    } else {
+        Err(unlicensed())
+    }
 }
 
 fn find_relation<'a>(

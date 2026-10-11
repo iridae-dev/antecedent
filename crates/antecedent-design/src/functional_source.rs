@@ -4,10 +4,10 @@
 
 use crate::decision_artifact::{contract_from_json_refusal, contract_to_json};
 use crate::decision_contract::{DecisionContract, DecisionFunctional};
-use crate::decision_eval::{FunctionalValue, evaluate_functional};
-use antecedent_core::{CompositionLink, CompositionStage, ProvenanceChain, reason_code};
+use crate::decision_eval::{evaluate_functional, FunctionalValue};
+use antecedent_core::{reason_code, CompositionLink, CompositionStage, ProvenanceChain};
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionIdentity};
-use antecedent_io::{IoError, from_cbor, to_cbor};
+use antecedent_io::{from_cbor, to_cbor, IoError};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -154,7 +154,7 @@ impl LawFunctionalArtifact {
             .expect("evaluated action");
         Ok(serde_json::json!({
             "identity":blake3::hash(&self.export()?).to_hex().to_string(),
-            "value":self.result.value,"standard_error":self.result.standard_error,"source_mode":format!("{:?}",self.result.source_mode),
+            "value":self.result.value,"standard_error":self.result.standard_error,"source_mode":format!("{}:{}", self.result.source_mode.representation.label(), self.result.source_mode.needs_error_receipt),
             "source_metadata":self.source.metadata(),
             "source_evidence":self.source_evidence.as_ref().map(crate::source_evidence::SourceEvidence::summary),
             "native_row_origin_verified":false,"source_evidence_scope":"original scoped diagnostic citation; matching quantities and snapshot do not prove native row origin","action":self.action,"functional":self.functional,

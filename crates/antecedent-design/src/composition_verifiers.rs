@@ -56,35 +56,35 @@ use antecedent_io::external_claim_artifact::{
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::reader::ArtifactReader;
-use antecedent_io::sensitivity_artifact::{MAX_SENSITIVITY_ARTIFACT_BYTES, SensitivityArtifact};
+use antecedent_io::sensitivity_artifact::{SensitivityArtifact, MAX_SENSITIVITY_ARTIFACT_BYTES};
 use antecedent_io::wire::ArtifactKind;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::composition_bundle::{
-    BundleConsumer, BundleStage, EvidenceRelationship, FACT_EVIDENCE_DIGEST, FACT_LAW,
-    FACT_QUANTITY_DIGEST, FACT_REQUEST, FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT,
-    LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeVerifier, UpstreamNode, VerifiedNode,
+    BundleConsumer, BundleStage, EvidenceRelationship, NodeFailure, NodeKind, NodeVerifier,
+    UpstreamNode, VerifiedNode, FACT_EVIDENCE_DIGEST, FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST,
+    FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY,
 };
 use crate::decision_artifact::{
-    DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
-    mean_result_to_bytes, mean_source_digest, source_digest,
+    mean_result_to_bytes, mean_source_digest, source_digest, DecisionContractArtifact,
+    DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
 };
 use crate::decision_contract::{DecisionContract, SourceRepresentation};
-use crate::decision_eval::{DecisionEvalError, MeanSource, evaluate_contract_on_means};
+use crate::decision_eval::{evaluate_contract_on_means, DecisionEvalError, MeanSource};
 use crate::decision_robust_artifact::{
     AdmissibleContractArtifact, ExternalTrustLimit, RobustResultArtifact,
 };
 use crate::decision_structural_artifact::StructuralResultArtifact;
 use crate::design_ranking_artifact::{
-    ConsumeExpectation, DESIGN_RANKING_ARTIFACT_KIND, DesignRankingArtifactError,
-    MAX_DESIGN_RANKING_ARTIFACT_BYTES, consume as consume_ranking,
+    consume as consume_ranking, ConsumeExpectation, DesignRankingArtifactError,
+    DESIGN_RANKING_ARTIFACT_KIND, MAX_DESIGN_RANKING_ARTIFACT_BYTES,
 };
 use crate::inverse_query_artifact::{
-    INVERSE_QUERY_ARTIFACT_FEATURE, InverseQueryArtifact, MAX_INVERSE_QUERY_ARTIFACT_BYTES,
+    InverseQueryArtifact, INVERSE_QUERY_ARTIFACT_FEATURE, MAX_INVERSE_QUERY_ARTIFACT_BYTES,
 };
 use crate::repair_artifact::{
-    REPAIR_ARTIFACT_KIND, RepairArtifactError, RepairConsumeLimits, RepairReportArtifact,
+    RepairArtifactError, RepairConsumeLimits, RepairReportArtifact, REPAIR_ARTIFACT_KIND,
 };
 use crate::signal::SignalTrustLabel;
 use crate::source_projection_artifact::SourceProjectionArtifact;
@@ -241,7 +241,31 @@ fn content_identity(tag: &str, bytes: &[u8], limit: usize) -> Result<String, IoE
 }
 
 fn coordinate_id(quantity: &ScientificQuantityWire) -> String {
-    let digest = blake3::hash(format!("{quantity:?}").as_bytes()).to_hex().to_string();
+    let mut bytes = Vec::new();
+    let put = |out: &mut Vec<u8>, value: &str| {
+        out.extend_from_slice(&(value.len() as u64).to_le_bytes());
+        out.extend_from_slice(value.as_bytes());
+    };
+    bytes.extend_from_slice(&quantity.version.to_le_bytes());
+    for field in [
+        &quantity.variable_id,
+        &quantity.variable_name,
+        &quantity.role,
+        &quantity.units,
+        &quantity.population_id,
+        &quantity.regime_id,
+        &quantity.functional_id,
+        &quantity.transform_id,
+    ] {
+        put(&mut bytes, field);
+    }
+    bytes.extend_from_slice(&quantity.horizon.to_le_bytes());
+    bytes.extend_from_slice(&(quantity.conditioning.len() as u64).to_le_bytes());
+    for condition in &quantity.conditioning {
+        put(&mut bytes, &condition.variable_id);
+        put(&mut bytes, &condition.value_id);
+    }
+    let digest = blake3::hash(&bytes).to_hex().to_string();
     digest[..16].to_owned()
 }
 

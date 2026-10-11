@@ -59,7 +59,21 @@ impl ProviderDescriptor {
     /// Stable complete descriptor digest.
     #[must_use]
     pub fn digest(&self) -> StageIdentity {
-        text_identity("callback.descriptor.v1", &format!("{self:?}"))
+        let mut text = String::new();
+        for field in [
+            self.identity.provider_id.as_str(),
+            self.identity.object_id.as_str(),
+            self.identity.version_id.as_str(),
+            self.identity.snapshot_id.as_str(),
+            self.identity.request_id.as_str(),
+            self.environment_id.as_str(),
+            self.policy.label(),
+        ] {
+            use std::fmt::Write;
+            let _ = write!(text, "{}:{field}", field.len());
+        }
+        text.push(if self.idempotency_supported { '1' } else { '0' });
+        text_identity("callback.descriptor.v1", &text)
     }
 }
 /// Complete bounded callback inputs and the existing scientific program contract.
@@ -278,17 +292,15 @@ impl ExternalCallbackRequest {
     /// Full input digest. Validate bounded request before using this method on untrusted inputs.
     #[must_use]
     pub fn digest(&self) -> StageIdentity {
-        let mut parts = vec![
-            format!(
-                "{:?}:{:?}:{:?}:{:?}:{:?}",
-                self.program,
-                self.claim,
-                self.contract,
-                self.descriptor,
-                (self.seed, &self.idempotency_key)
-            )
-            .into_bytes(),
-        ];
+        let mut parts = vec![format!(
+            "{:?}:{:?}:{:?}:{:?}:{:?}",
+            self.program,
+            self.claim,
+            self.contract,
+            self.descriptor,
+            (self.seed, &self.idempotency_key)
+        )
+        .into_bytes()];
         for (name, values) in &self.columns {
             parts.push(name.as_bytes().to_vec());
             let mut hash = blake3::Hasher::new_derive_key("antecedent.callback.column.v1");
@@ -757,5 +769,28 @@ impl ExternalCallbackSession {
         self.live = Some(LiveOutput { claim: Arc::clone(&claim), artifact: Arc::new(artifact) });
         self.portable = None;
         Ok(ExternalCallbackOutcome { plan, receipt, claim, previous, requested, capabilities })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn descriptor_digest_is_not_debug_formatting() {
+        let descriptor = ProviderDescriptor {
+            identity: ProviderObjectIdentity {
+                provider_id: "p".into(),
+                object_id: "o".into(),
+                version_id: "v".into(),
+                snapshot_id: "s".into(),
+                request_id: "r".into(),
+            },
+            environment_id: "env".into(),
+            policy: CallbackPolicy::Deterministic,
+            idempotency_supported: false,
+        };
+        let debug = text_identity("callback.descriptor.v1", &format!("{descriptor:?}"));
+        assert_ne!(descriptor.digest(), debug);
     }
 }

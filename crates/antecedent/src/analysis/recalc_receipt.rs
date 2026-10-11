@@ -644,10 +644,6 @@ impl RecalcRequest {
         }
         let rows = self.columns.first().map_or(0, |(_, v)| v.len());
         let folds = to_u64(DEFAULT_AIPW_FOLDS);
-        let query = AverageEffectQuery::binary_ate(
-            VariableId::from_raw(self.treatment),
-            VariableId::from_raw(self.outcome),
-        );
         let target = self.target.as_ref().map_or_else(
             || literal("target_population", "all_observed"),
             |t| {
@@ -661,7 +657,10 @@ impl RecalcRequest {
             Stage::Graph,
             digest("graph", &[to_u64(self.columns.len()).to_le_bytes().to_vec(), edge_bytes]),
         );
-        ids.set(Stage::Query, literal("query", &format!("{query:?}")));
+        ids.set(
+            Stage::Query,
+            literal("query", &format!("binary_ate:{}:{}", self.treatment, self.outcome)),
+        );
         ids.set(Stage::Regime, literal("regime", "static.binary"));
         ids.set(Stage::Evidence, literal("evidence", "observational.no_external"));
         ids.set(Stage::SourcePopulation, literal("source_population", "all_observed"));

@@ -14,12 +14,12 @@ use antecedent_identify::IdentificationEnvelope;
 
 use super::builder::{DataInput, RefuteSuite};
 use super::execute::Study;
-use crate::AcceptedGraph;
 use crate::error::CausalError;
 use crate::inference::InferenceMode;
 use crate::planner::PhysicalExecutionPlan;
 use crate::strategy_table::{EstimatorId, IdentifierId};
 use crate::support::StructureSource;
+use crate::AcceptedGraph;
 
 impl Study {
     /// Structure was supplied explicitly or accepted from review, not
@@ -102,7 +102,37 @@ pub(crate) fn plan_record_is(
 pub(crate) fn same_accepted_graph(retained: &AcceptedGraph, current: &AcceptedGraph) -> bool {
     retained.class() == current.class()
         && retained.version() == current.version()
-        && format!("{retained:?}") == format!("{current:?}")
+        && retained.algorithm_id() == current.algorithm_id()
+        && retained.variable_names() == current.variable_names()
+        && retained.as_dag() == current.as_dag()
+        && retained.as_admg() == current.as_admg()
+        && retained.as_cpdag() == current.as_cpdag()
+        && retained.as_pag() == current.as_pag()
+        && retained.as_temporal_dag() == current.as_temporal_dag()
+        && retained.as_temporal_cpdag() == current.as_temporal_cpdag()
+        && retained.as_temporal_pag() == current.as_temporal_pag()
+        && same_temporal_admg(retained.as_temporal_admg(), current.as_temporal_admg())
+}
+
+fn same_temporal_admg(
+    retained: Option<&antecedent_graph::TemporalAdmg>,
+    current: Option<&antecedent_graph::TemporalAdmg>,
+) -> bool {
+    match (retained, current) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            a.nodes() == b.nodes()
+                && (0..a.node_count()).all(|i| {
+                    let id = antecedent_graph::DenseNodeId::from_raw(
+                        u32::try_from(i).unwrap_or(u32::MAX),
+                    );
+                    a.children(id) == b.children(id)
+                        && a.parents(id) == b.parents(id)
+                        && a.bidirected_neighbors(id) == b.bidirected_neighbors(id)
+                })
+        }
+        _ => false,
+    }
 }
 
 /// Completion count and identified / unidentified mass of an envelope.
@@ -127,6 +157,27 @@ pub(crate) fn series_input(retained: &DataInput, data: TimeSeriesData) -> DataIn
     match retained {
         DataInput::Event(_) => DataInput::Event(data),
         _ => DataInput::Temporal(data),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_accepted_graph;
+    use crate::AcceptedGraph;
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    #[test]
+    fn same_accepted_graph_compares_edges() {
+        let mut left = Dag::with_variables(2);
+        left.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        let mut right = Dag::with_variables(2);
+        right.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert!(same_accepted_graph(&AcceptedGraph::dag(left), &AcceptedGraph::dag(right)));
+        let mut reversed = Dag::with_variables(2);
+        reversed.insert_directed(DenseNodeId::from_raw(1), DenseNodeId::from_raw(0)).unwrap();
+        let mut again = Dag::with_variables(2);
+        again.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        assert!(!same_accepted_graph(&AcceptedGraph::dag(again), &AcceptedGraph::dag(reversed)));
     }
 }
 

@@ -311,7 +311,7 @@ impl CheckedConditionalOperation {
     }
 }
 
-fn same_class_envelope<G: std::fmt::Debug>(
+fn same_class_envelope<G: PartialEq>(
     actual: &antecedent_identify::IdentificationEnvelope<G>,
     retained: &antecedent_identify::IdentificationEnvelope<G>,
 ) -> bool {
@@ -331,7 +331,7 @@ fn same_class_envelope<G: std::fmt::Debug>(
         && (actual.unidentified_weight.0 - retained.unidentified_weight.0).abs() <= f64::EPSILON
         && actual.cases.len() == retained.cases.len()
         && actual.cases.iter().zip(&retained.cases).all(|(a, b)| {
-            format!("{:?}", a.graph) == format!("{:?}", b.graph)
+            a.graph == b.graph
                 && (a.weight.0 - b.weight.0).abs() <= f64::EPSILON
                 && a.result.status == b.result.status
                 && a.result.estimands.iter().any(|candidate| {

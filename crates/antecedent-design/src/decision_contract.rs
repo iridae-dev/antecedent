@@ -227,6 +227,19 @@ pub enum SourceRepresentation {
     JointDraws,
 }
 
+impl SourceRepresentation {
+    pub(crate) const fn label(self) -> &'static str {
+        match self {
+            Self::Mean => "mean",
+            Self::MeanAndCovariance => "mean_and_covariance",
+            Self::Cdf => "cdf",
+            Self::QuantileFunction => "quantile_function",
+            Self::MarginalDraws => "marginal_draws",
+            Self::JointDraws => "joint_draws",
+        }
+    }
+}
+
 /// The ways a source can satisfy a functional.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceRequirement {
@@ -735,31 +748,7 @@ fn put_list(out: &mut Vec<u8>, items: &[Vec<u8>]) {
 }
 
 fn encode_quantity(out: &mut Vec<u8>, q: &ScientificQuantity) {
-    for field in [
-        &q.variable_id,
-        &q.variable_name,
-        &q.units,
-        &q.population_id,
-        &q.regime_id,
-        &q.functional_id,
-        &q.transform_id,
-    ] {
-        put_str(out, field);
-    }
-    out.push(match q.role {
-        antecedent_core::QuantityRole::Treatment => 1,
-        antecedent_core::QuantityRole::Outcome => 2,
-        antecedent_core::QuantityRole::Covariate => 3,
-        antecedent_core::QuantityRole::Mediator => 4,
-        antecedent_core::QuantityRole::Selection => 5,
-        antecedent_core::QuantityRole::Utility => 6,
-    });
-    out.extend_from_slice(&q.horizon.to_le_bytes());
-    out.extend_from_slice(&(q.conditioning.len() as u64).to_le_bytes());
-    for condition in &q.conditioning {
-        put_str(out, &condition.variable_id);
-        put_str(out, &condition.value_id);
-    }
+    out.extend(q.canonical_bytes());
 }
 
 fn encode_action(action: &DecisionAction) -> Vec<u8> {
@@ -1263,11 +1252,9 @@ mod tests {
         let mut units = contract();
         units.utility_units = " ".into();
         assert!(matches!(units.validate(), Err(E::InvalidDeclaration(_))));
-        assert!(
-            UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1))
-                .evaluate(&[2.0])
-                .is_err()
-        );
+        assert!(UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Input(1))
+            .evaluate(&[2.0])
+            .is_err());
     }
 
     #[test]

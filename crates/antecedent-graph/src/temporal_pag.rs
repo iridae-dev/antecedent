@@ -13,7 +13,7 @@ use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Temporal PAG: lagged nodes with ancestral-graph marks including circles.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TemporalPag {
     nodes: Vec<NodeRef>,
     adj: Vec<Vec<AdjEntry>>,

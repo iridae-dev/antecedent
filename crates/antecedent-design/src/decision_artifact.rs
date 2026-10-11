@@ -11,7 +11,7 @@ use antecedent_core::{
     CompositionLink, CompositionStage, ProvenanceChain, ProvenanceChainError, ScientificQuantity,
 };
 use antecedent_io::container::{
-    ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor,
+    section_descriptor, ArtifactManifest, EncodedArtifact, SectionBytes,
 };
 use antecedent_io::convert::{from_cbor, to_cbor};
 use antecedent_io::distribution_artifact::DistributionArtifact;
@@ -26,8 +26,8 @@ use crate::decision_contract::{
     StructuralPolicy, UtilityExpr,
 };
 use crate::decision_eval::{
-    ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource, SourceReceipt, Verdict,
-    evaluate_contract,
+    evaluate_contract, ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource,
+    SourceReceipt, Verdict,
 };
 
 /// Maximum artifact bytes accepted before any decode allocation.
@@ -402,7 +402,7 @@ impl DecisionContractArtifact {
 pub fn source_digest(source: &DistributionArtifact) -> String {
     let mut hasher = blake3::Hasher::new();
     for quantity in source.quantities() {
-        hasher.update(format!("{quantity:?}").as_bytes());
+        hasher.update(&to_cbor(quantity).unwrap_or_default());
     }
     hasher.update(&(source.n_draws() as u64).to_le_bytes());
     for value in source.draws() {
@@ -842,7 +842,7 @@ pub fn mean_source_digest(source: &MeanSource) -> String {
     let mut hasher = blake3::Hasher::new();
     hasher.update(b"antecedent.decision_mean_source.v1");
     for quantity in &source.coordinates {
-        hasher.update(format!("{quantity:?}").as_bytes());
+        hasher.update(&quantity.canonical_bytes());
     }
     for value in &source.means {
         hasher.update(&value.to_le_bytes());

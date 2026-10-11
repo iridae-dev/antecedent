@@ -19,6 +19,16 @@ pub struct TemporalDag {
     insert_ws: GraphWorkspace,
 }
 
+impl PartialEq for TemporalDag {
+    fn eq(&self, other: &Self) -> bool {
+        self.nodes == other.nodes
+            && self.children == other.children
+            && self.parents == other.parents
+    }
+}
+
+impl Eq for TemporalDag {}
+
 impl TemporalDag {
     /// Empty temporal DAG.
     #[must_use]

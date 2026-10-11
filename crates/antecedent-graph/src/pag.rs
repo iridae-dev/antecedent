@@ -12,7 +12,7 @@ use crate::types::{DenseNodeId, Endpoint, MarkedEdge, MiddleMark, NodeRef};
 use crate::workspace::GraphWorkspace;
 
 /// Static PAG over variables .
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pag {
     nodes: Vec<NodeRef>,
     adj: Vec<Vec<AdjEntry>>,

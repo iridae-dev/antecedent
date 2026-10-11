@@ -22,6 +22,17 @@ pub struct Admg {
     insert_ws: GraphWorkspace,
 }
 
+impl PartialEq for Admg {
+    fn eq(&self, other: &Self) -> bool {
+        self.nodes == other.nodes
+            && self.children == other.children
+            && self.parents == other.parents
+            && self.bidirected == other.bidirected
+    }
+}
+
+impl Eq for Admg {}
+
 impl Admg {
     /// Empty ADMG.
     #[must_use]

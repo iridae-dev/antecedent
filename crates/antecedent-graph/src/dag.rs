@@ -23,6 +23,16 @@ pub struct Dag {
     insert_ws: GraphWorkspace,
 }
 
+impl PartialEq for Dag {
+    fn eq(&self, other: &Self) -> bool {
+        self.nodes == other.nodes
+            && self.children == other.children
+            && self.parents == other.parents
+    }
+}
+
+impl Eq for Dag {}
+
 impl Dag {
     /// Empty DAG.
     #[must_use]

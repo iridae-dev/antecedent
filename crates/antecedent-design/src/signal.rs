@@ -122,8 +122,8 @@ impl SignalRequest {
         put_str(&mut hasher, "antecedent.signal_request.v1");
         put_str(&mut hasher, &self.candidate_id);
         put_str(&mut hasher, &self.prior_id);
-        put_str(&mut hasher, &format!("{:?}", self.state_quantity));
-        put_str(&mut hasher, &format!("{:?}", self.observation_quantity));
+        hasher.update(&self.state_quantity.canonical_bytes());
+        hasher.update(&self.observation_quantity.canonical_bytes());
         hasher.update(&self.sample_size.to_le_bytes());
         hasher.update(&self.rng_seed.to_le_bytes());
         let mut lineage = self.evidence_lineage.clone();
@@ -803,8 +803,8 @@ impl ExternalSignalBody {
         let mut hasher = blake3::Hasher::new();
         put_str(&mut hasher, self.mode().as_str());
         hasher.update(&self.sample_size.to_le_bytes());
-        put_str(&mut hasher, &format!("{:?}", self.state_quantity));
-        put_str(&mut hasher, &format!("{:?}", self.observation_quantity));
+        hasher.update(&self.state_quantity.canonical_bytes());
+        hasher.update(&self.observation_quantity.canonical_bytes());
         match &self.law {
             ExternalLaw::Likelihood { states, statistics, probabilities } => {
                 put_f64s(&mut hasher, states);

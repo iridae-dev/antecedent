@@ -107,6 +107,45 @@ impl ScientificQuantity {
         result
     }
 
+    /// Length-prefixed encoding of every identity field.
+    ///
+    /// Role is a tag byte, not its `Debug` name, so a derive change cannot
+    /// move a digest.
+    #[must_use]
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        fn put_str(out: &mut Vec<u8>, value: &str) {
+            out.extend_from_slice(&(value.len() as u64).to_le_bytes());
+            out.extend_from_slice(value.as_bytes());
+        }
+        let mut out = Vec::new();
+        for field in [
+            &self.variable_id,
+            &self.variable_name,
+            &self.units,
+            &self.population_id,
+            &self.regime_id,
+            &self.functional_id,
+            &self.transform_id,
+        ] {
+            put_str(&mut out, field);
+        }
+        out.push(match self.role {
+            QuantityRole::Treatment => 1,
+            QuantityRole::Outcome => 2,
+            QuantityRole::Covariate => 3,
+            QuantityRole::Mediator => 4,
+            QuantityRole::Selection => 5,
+            QuantityRole::Utility => 6,
+        });
+        out.extend_from_slice(&self.horizon.to_le_bytes());
+        out.extend_from_slice(&(self.conditioning.len() as u64).to_le_bytes());
+        for condition in &self.conditioning {
+            put_str(&mut out, &condition.variable_id);
+            put_str(&mut out, &condition.value_id);
+        }
+        out
+    }
+
     /// Validate required identities and canonical conditioning before binding.
     ///
     /// # Errors
@@ -253,17 +292,22 @@ mod tests {
 
     #[test]
     fn posterior_over_effect_is_not_an_outcome_law() {
-        assert!(
-            !DistributionMeaning::CausalFunctionalPosterior
-                .answers_interventional_outcome_threshold()
-        );
+        assert!(!DistributionMeaning::CausalFunctionalPosterior
+            .answers_interventional_outcome_threshold());
         assert!(
             !DistributionMeaning::PosteriorPredictive.answers_interventional_outcome_threshold()
         );
-        assert!(
-            DistributionMeaning::InterventionalPredictive
-                .answers_interventional_outcome_threshold()
-        );
+        assert!(DistributionMeaning::InterventionalPredictive
+            .answers_interventional_outcome_threshold());
+    }
+
+    #[test]
+    fn canonical_bytes_do_not_embed_debug_role_names() {
+        let bytes = quantity().canonical_bytes();
+        assert!(bytes.windows(7).all(|w| w != b"Outcome"));
+        let mut renamed = quantity();
+        renamed.role = QuantityRole::Treatment;
+        assert_ne!(bytes, renamed.canonical_bytes());
     }
 
     #[test]
