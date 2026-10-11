@@ -45,6 +45,8 @@ publish_order() {
 import json
 import subprocess
 import sys
+import tomllib
+from pathlib import Path
 from collections import defaultdict
 
 meta = json.loads(
@@ -62,6 +64,30 @@ deps = {name: set() for name in members}
 version_errors = []
 for name, pkg in members.items():
     for dep in pkg.get("dependencies", []):
+        if dep["name"] == name and dep.get("kind") == "dev":
+            # A versioned self dependency survives Cargo packaging and tries to
+            # resolve this not-yet-published crate from the registry. A path-only
+            # self dependency is omitted from the published dev dependencies.
+            manifest = tomllib.loads(
+                Path(pkg["manifest_path"]).read_text(encoding="utf-8")
+            )
+            tables = [manifest.get("dev-dependencies", {})]
+            tables.extend(
+                target.get("dev-dependencies", {})
+                for target in manifest.get("target", {}).values()
+            )
+            alias = dep.get("rename") or name
+            versioned = any(
+                isinstance(table.get(alias), str)
+                or isinstance(table.get(alias), dict)
+                and "version" in table[alias]
+                for table in tables
+            )
+            if versioned or dep["req"] != "*":
+                version_errors.append(
+                    f"{name}: versioned self dev dependency must be path-only; "
+                    "remove its version before packaging"
+                )
         if dep["name"] in members:
             expected = "^" + members[dep["name"]]["version"]
             # Cargo omits unversioned path-only dev dependencies from packages.

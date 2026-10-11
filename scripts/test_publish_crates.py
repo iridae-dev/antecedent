@@ -10,7 +10,12 @@ from pathlib import Path
 
 class PublishVersionTests(unittest.TestCase):
     def run_gate(
-        self, requirement: str, kind: str | None = None
+        self,
+        requirement: str,
+        kind: str | None = None,
+        *,
+        self_version: str | None = None,
+        self_dependency: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         packages = [
             {
@@ -24,11 +29,26 @@ class PublishVersionTests(unittest.TestCase):
                 "name": "antecedent-consumer",
                 "version": "2.3.0",
                 "dependencies": [
-                    {"name": "antecedent-core", "req": requirement, "kind": kind}
+                    {
+                        "name": "antecedent-consumer"
+                        if self_dependency
+                        else "antecedent-core",
+                        "req": requirement,
+                        "kind": kind,
+                    }
                 ],
             },
         ]
         with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "consumer.toml"
+            self_spec = 'path = "."'
+            if self_version is not None:
+                self_spec += f', version = "{self_version}"'
+            manifest.write_text(
+                f"[dev-dependencies]\nantecedent-consumer = {{ {self_spec} }}\n",
+                encoding="utf-8",
+            )
+            packages[1]["manifest_path"] = str(manifest)
             cargo = Path(directory) / "cargo"
             cargo.write_text(
                 "#!/usr/bin/env python3\nimport os, sys\n"
@@ -80,6 +100,25 @@ class PublishVersionTests(unittest.TestCase):
     def test_unpublished_path_only_dev_dependency_is_allowed(self) -> None:
         result = self.run_gate("*", "dev")
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_versioned_self_dev_dependency_refuses_before_any_packaging(self) -> None:
+        result = self.run_gate(
+            "^2.3.0", "dev", self_version="2.3.0", self_dependency=True
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("versioned self dev dependency must be path-only", result.stderr)
+        self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
+
+    def test_explicit_wildcard_self_dev_dependency_is_still_versioned(self) -> None:
+        result = self.run_gate("*", "dev", self_version="*", self_dependency=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("versioned self dev dependency must be path-only", result.stderr)
+        self.assertNotIn("TEST_PACKAGE_VERIFIED", result.stdout)
+
+    def test_path_only_self_dev_dependency_is_omitted_and_allowed(self) -> None:
+        result = self.run_gate("*", "dev", self_dependency=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("packaged=2 check-only=0", result.stdout)
 
 
 if __name__ == "__main__":
