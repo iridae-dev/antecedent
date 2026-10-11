@@ -64,10 +64,13 @@ def test_fns(module: str):
 fns_cache = {}
 
 # ------------------------------------------------ citations in the prose
-# `static_calibration::name`, `crates/antecedent/tests/v19_x.rs::name`, and the
+# `static_calibration::name`, `crates/antecedent/tests/derivative_calibration.rs::name`, and the
 # shorthand `::name` that continues the last-named module inside one citation.
+MODULES = sorted((p.stem for p in tests_dir.glob("*.rs")), key=len, reverse=True)
 CITE_RE = re.compile(
-    r"(?:crates/antecedent/tests/)?(v1(?:9|10)_[a-z0-9_]+)(?:\.rs)?::([A-Za-z0-9_{},*]+)"
+    r"(?:crates/antecedent/tests/)?(?<![A-Za-z0-9_])("
+    + "|".join(re.escape(m) for m in MODULES)
+    + r")(?:\.rs)?::([A-Za-z0-9_{},*]+)"
     r"((?:,\s*::[A-Za-z0-9_{},*]+)*)"
 )
 CONT_RE = re.compile(r"::([A-Za-z0-9_{},*]+)")

@@ -886,7 +886,7 @@ fn single_atom_two_lag_dbn_posterior() -> GraphPosterior {
         vec![0.0; 4],
         vec![0.0; 4],
         1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("v19_gp_temporal_sustained"),
+        antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_sustained"),
         0,
     )
     .unwrap()
@@ -991,7 +991,7 @@ fn single_atom_xy_dbn_posterior() -> GraphPosterior {
         vec![0.0; 4],
         vec![0.0; 4],
         1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("v19_gp_temporal_response_curve"),
+        antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_response_curve"),
         0,
     )
     .unwrap()
@@ -1611,7 +1611,7 @@ fn single_atom_mediation_dbn_posterior() -> GraphPosterior {
         vec![0.0; VARIABLES * VARIABLES],
         vec![0.0; VARIABLES * VARIABLES],
         1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("v19_gp_temporal_mediation"),
+        antecedent_prob::InferenceDiagnostics::analytic("gp_temporal_mediation"),
         0,
     )
     .unwrap()

@@ -80,7 +80,7 @@ fn frozen_parts() -> SensitivityParts {
         uncertainty: withheld(),
         provenance: SensitivityProvenance {
             source_kind: "supplied_surface".into(),
-            query_binding: "f17-io-test".into(),
+            query_binding: "io-test".into(),
             provider_snapshot: "snapshot-1".into(),
             source_regime: "regime:1".into(),
             method: "hand-derived surface".into(),

@@ -1721,7 +1721,7 @@ mod tests {
         );
     }
 
-    // -- rank_uncertainty_ok (E2) -------------------------------------------------
+    // -- rank_uncertainty_ok -------------------------------------------------
 
     /// Draws `mean + amplitude·(±1)` alternating, `n` of them.
     fn alternating(mean: f64, amplitude: f64, n: usize) -> Vec<f64> {

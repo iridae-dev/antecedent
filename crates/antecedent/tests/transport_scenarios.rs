@@ -878,7 +878,7 @@ fn empirical_plug_in_points_compile_per_scenario_through_the_same_plan() {
 }
 
 // ---------------------------------------------------------------------------
-// Data identity (D1)
+// Data identity
 // ---------------------------------------------------------------------------
 
 /// `catalog(true)` with snapshot bindings for its two regimes.
@@ -974,7 +974,7 @@ fn the_data_identity_binds_the_catalog_laws_provider_and_samples() {
 }
 
 // ---------------------------------------------------------------------------
-// Coordinate schema on sample rows (D2)
+// Coordinate schema on sample rows
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1021,7 +1021,7 @@ fn sample_rows_are_validated_against_the_shared_schema() {
 }
 
 // ---------------------------------------------------------------------------
-// Shared budget (D3)
+// Shared budget
 // ---------------------------------------------------------------------------
 
 /// Bytes an engine holds per charged step on the three-variable schema.
@@ -1226,7 +1226,7 @@ fn a_report_truncated_by_a_recorded_bound_replays_to_the_identical_prefix() {
 }
 
 // ---------------------------------------------------------------------------
-// Empirical path (D4)
+// Empirical path
 // ---------------------------------------------------------------------------
 
 #[test]

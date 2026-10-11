@@ -686,7 +686,7 @@ def check(surface: Surface) -> list[str]:
     tests = ROOT / "crates/antecedent/tests"
     for suite in sorted(tests.glob("*.rs")):
         text = suite.read_text(errors="ignore")
-        if suite.name.startswith(("v19_", "v110_calibration_")) or "for_record(" in text:
+        if "for_record(" in text:
             required.append(suite.relative_to(ROOT).as_posix())
     for harness in sorted((tests / "common").rglob("*")):
         if harness.is_file():

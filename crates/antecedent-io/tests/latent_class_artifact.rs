@@ -82,7 +82,7 @@ fn close(actual: f64, expected: f64, tolerance: f64, what: &str) {
 
 fn seal(seed: u64, bootstrap: u32) -> (LatentClassArtifact, Vec<u8>) {
     let artifact = LatentClassArtifact::seal(&request(seed, bootstrap)).unwrap();
-    let bytes = artifact.to_bytes("b4-latent-test").unwrap();
+    let bytes = artifact.to_bytes("latent-class-test").unwrap();
     (artifact, bytes)
 }
 

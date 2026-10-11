@@ -689,7 +689,7 @@ mod envelope_refuter_target_tests {
             vec![0.0; 9],
             vec![0.0; 9],
             1.0,
-            InferenceDiagnostics::analytic("d4_single_atom"),
+            InferenceDiagnostics::analytic("single_atom"),
             0,
         )
         .unwrap();

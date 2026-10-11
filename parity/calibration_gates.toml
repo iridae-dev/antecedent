@@ -617,121 +617,121 @@ passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p0"
+group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p1"
+group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p2"
+group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_envelope_nominal_90_coverage.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p0"
+group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p1"
+group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p2"
+group = "mixture_interval_calibration__bayesian_temporal_cpdag_mediation_unconfounded_nominal_90_coverage.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p0"
+group = "derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p1"
+group = "derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p2"
+group = "derivative_calibration__ade_skewed_heteroskedastic_treatment_probe.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_calibration__mediation_confounded_mediator_probe.p0"
+group = "static_calibration__mediation_confounded_mediator_probe.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_calibration__mediation_confounded_mediator_probe.p1"
+group = "static_calibration__mediation_confounded_mediator_probe.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_calibration__mediation_confounded_mediator_probe.p2"
+group = "static_calibration__mediation_confounded_mediator_probe.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p0"
+group = "static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p1"
+group = "static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p2"
+group = "static_calibration__response_curve_dag_frequentist_weak_overlap_probe.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p0"
+group = "static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p1"
+group = "static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p2"
+group = "static_envelope_calibration__unknown_two_scenario_joint_band_nominal_95_coverage.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p0"
+group = "temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p1"
+group = "temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p2"
+group = "temporal_class_calibration__bayesian_temporal_cpdag_heterogeneous_se_identified_set_covers_noisy_completion.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p0"
+group = "temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p0"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p1"
+group = "temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p1"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"
 
 [[gate]]
-group = "v19_temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p2"
+group = "temporal_class_calibration__frequentist_temporal_cpdag_heterogeneous_se_identified_set_interval_covers_noisy_completion.p2"
 passed = 1
 calibration_sha = "5c76724fbac09c655ec77576a648afb0ed1a0779"

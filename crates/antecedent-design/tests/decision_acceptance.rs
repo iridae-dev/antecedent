@@ -962,7 +962,7 @@ fn contract_artifact_retains_the_declared_robustness_policy_only() {
         let contract = structural_contract(criterion, policy);
         let artifact = DecisionContractArtifact::new(contract.clone()).unwrap();
         let loaded = DecisionContractArtifact::from_bytes(
-            &artifact.to_bytes("f6").unwrap(),
+            &artifact.to_bytes("decision-acceptance").unwrap(),
             artifact.identity(),
         )
         .unwrap();

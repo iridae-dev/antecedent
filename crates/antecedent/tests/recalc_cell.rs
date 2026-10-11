@@ -780,7 +780,7 @@ fn cell_crossfit_scores_resume_the_same_way() {
     let first = execute_with_receipt(&mut session, &base, &ctx(61)).unwrap();
     assert_eq!(first.receipt.totals().fold_fits, 10);
     let artifact = freeze_crossfit_scores(&session, 600, RetargetSupport::Licensed).unwrap();
-    let bytes = artifact.to_bytes("c2-crossfit-scores").unwrap();
+    let bytes = artifact.to_bytes("crossfit-scores").unwrap();
 
     let mut changed = base.clone();
     let z = &base.columns[2].1;

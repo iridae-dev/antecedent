@@ -1118,7 +1118,7 @@ fn prepared_batch_reuses_plans_and_records_screen() {
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .candidate_screen(CandidateScreen {
-            screen_id: Arc::from("v15.screen"),
+            screen_id: Arc::from("known_truth.screen"),
             procedure: CandidateProcedure::BenjaminiHochberg,
             screen_rows: screen_rows.into(),
             estimate_rows: estimate_rows.clone().into(),
@@ -1128,11 +1128,11 @@ fn prepared_batch_reuses_plans_and_records_screen() {
     let results = prepared.estimate(&data, &ctx).unwrap();
     assert_eq!(results.len(), 2);
     let sel = results[0].candidate_selection.as_ref().expect("selection provenance");
-    assert_eq!(sel.screen_id.as_ref(), "v15.screen");
+    assert_eq!(sel.screen_id.as_ref(), "known_truth.screen");
     assert_eq!(sel.procedure, CandidateProcedure::BenjaminiHochberg);
     assert!(sel.disjoint);
     let recorded = results[0].estimate.candidate_selection.as_ref().expect("estimate artifact");
-    assert_eq!(recorded.screen_id.as_ref(), "v15.screen");
+    assert_eq!(recorded.screen_id.as_ref(), "known_truth.screen");
     assert_eq!(recorded.procedure.as_ref(), "bh");
     assert!(!recorded.screen_rows.is_empty());
     assert!(!recorded.estimate_rows.is_empty());
@@ -1829,7 +1829,7 @@ fn candidate_selection_survives_when_joint_if_cannot_form() {
         .refute(RefuteSuite::None)
         .bootstrap_replicates(0)
         .candidate_screen(CandidateScreen {
-            screen_id: Arc::from("v15.no-joint"),
+            screen_id: Arc::from("known_truth.no-joint"),
             procedure: CandidateProcedure::BenjaminiHochberg,
             screen_rows: (0..n / 2).collect(),
             estimate_rows: (n / 2..n).collect(),

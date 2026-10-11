@@ -47,7 +47,7 @@ use common::calibration::{
     map_replicates, n_sim, normal_interval, quantile_interval,
 };
 use common::calibration_bind::{bind, bind_all};
-// The laws this suite shares with the `v110` suites live in one owner, so the
+// The laws this suite shares with the `calibration_*` suites live in one owner, so the
 // two measurements of a cell cannot silently diverge.
 use common::static_dgp::{
     bernoulli, counterfactual_data, distribution_data, path_data, sigmoid, table, two_path_data,
@@ -1505,7 +1505,7 @@ fn bayesian_gcomp_misspecification_probe() {
     gated_reported.emit();
 }
 
-/// Drift pin on every law this suite shares with the `v110` suites.
+/// Drift pin on every law this suite shares with the `calibration_*` suites.
 ///
 /// These digests were measured on the data these generators produce, and the
 /// `parity/coverage_records.toml` rows that cite these DGPs were measured on

@@ -70,7 +70,7 @@ fn adjusted_request() -> VectorTreatmentRequest {
 
 fn export(request: &VectorTreatmentRequest) -> (VectorTreatmentArtifact, Vec<u8>) {
     let artifact = VectorTreatmentArtifact::seal(request).unwrap();
-    let bytes = artifact.to_bytes("b4-vector-test").unwrap();
+    let bytes = artifact.to_bytes("vector-test").unwrap();
     (artifact, bytes)
 }
 

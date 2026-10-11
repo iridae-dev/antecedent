@@ -139,7 +139,7 @@ fn disagreeing_mixture_posterior(modifier: bool) -> GraphPosterior {
         vec![0.0; cells],
         vec![0.0; cells],
         1.0 / WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("v19_static_mixture"),
+        InferenceDiagnostics::analytic("static_mixture"),
         0,
     )
     .unwrap()
@@ -160,7 +160,7 @@ fn same_estimand_mixture_posterior(modifier: bool) -> GraphPosterior {
         vec![0.0; cells],
         vec![0.0; cells],
         1.0 / WEIGHTS.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("v19_static_mixture_same_estimand"),
+        InferenceDiagnostics::analytic("static_mixture_same_estimand"),
         0,
     )
     .unwrap()

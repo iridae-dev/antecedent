@@ -86,7 +86,7 @@ fn ordered_request() -> CategoricalTreatmentRequest {
 
 fn export(request: &CategoricalTreatmentRequest) -> (CategoricalTreatmentArtifact, Vec<u8>) {
     let artifact = CategoricalTreatmentArtifact::seal(request).unwrap();
-    let bytes = artifact.to_bytes("b4-categorical-test").unwrap();
+    let bytes = artifact.to_bytes("categorical-test").unwrap();
     (artifact, bytes)
 }
 

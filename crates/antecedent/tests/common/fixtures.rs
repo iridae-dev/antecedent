@@ -182,7 +182,7 @@ fn dbn_posterior(weights: &[f64], lag_masks: &[u64]) -> GraphPosterior {
         edges.clone(),
         edges,
         1.0 / weights.iter().map(|w| w * w).sum::<f64>(),
-        InferenceDiagnostics::analytic("v19_heterogeneous_dbn"),
+        InferenceDiagnostics::analytic("heterogeneous_dbn"),
         0,
     )
     .unwrap()

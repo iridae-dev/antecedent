@@ -3085,7 +3085,7 @@ fn lag1_gp_posterior() -> GraphPosterior {
         vec![0.0; 4],
         vec![0.0; 4],
         1.0,
-        InferenceDiagnostics::analytic("v110_gp_pulse"),
+        InferenceDiagnostics::analytic("gp_pulse"),
         0,
     )
     .unwrap()

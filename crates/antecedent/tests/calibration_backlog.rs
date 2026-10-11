@@ -788,7 +788,7 @@ fn frontdoor_admg_gp() -> GraphPosterior {
         vec![0.0; n * n],
         vec![0.0; n * n],
         1.0,
-        InferenceDiagnostics::analytic("v110_admg_graph_posterior_response"),
+        InferenceDiagnostics::analytic("admg_graph_posterior_response"),
         0,
     )
     .unwrap()
@@ -1239,7 +1239,7 @@ fn temporal_class_gp(kind: GraphPosteriorAtomKind) -> GraphPosterior {
         vec![0.0; n * n],
         vec![0.0; n * n],
         1.0,
-        InferenceDiagnostics::analytic("v110_temporal_class_posterior_response"),
+        InferenceDiagnostics::analytic("temporal_class_posterior_response"),
         0,
     )
     .unwrap()

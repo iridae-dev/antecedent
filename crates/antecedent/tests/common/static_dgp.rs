@@ -25,7 +25,7 @@ use antecedent_graph::{DenseNodeId, Pag};
 
 use super::calibration::gaussian;
 
-/// Stream tag of every uniform draw in this module: the tag the `v19` static
+/// Stream tag of every uniform draw in this module: the tag the static
 /// suite used, so folding these generators together changed no replicate.
 pub const STREAM_TAG: u64 = 0x0F0F_F0F0_1234_5678;
 

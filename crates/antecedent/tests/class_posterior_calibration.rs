@@ -90,7 +90,7 @@ fn class_posterior() -> GraphPosterior {
         vec![0.0; 9],
         vec![0.0; 9],
         1.0,
-        InferenceDiagnostics::analytic("v110_class_posterior"),
+        InferenceDiagnostics::analytic("class_posterior"),
         0,
     )
     .unwrap()

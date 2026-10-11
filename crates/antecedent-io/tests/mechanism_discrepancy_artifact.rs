@@ -54,7 +54,7 @@ fn close(actual: f64, expected: f64, what: &str) {
 
 fn export(request: &MechanismDiscrepancyRequestWire) -> (MechanismDiscrepancyArtifact, Vec<u8>) {
     let artifact = MechanismDiscrepancyArtifact::seal(request).unwrap();
-    let bytes = artifact.to_bytes("b3-discrepancy-test").unwrap();
+    let bytes = artifact.to_bytes("discrepancy-test").unwrap();
     (artifact, bytes)
 }
 

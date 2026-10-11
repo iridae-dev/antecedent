@@ -931,13 +931,13 @@ REQUIRED_COMPOSITION_ROWS = {
     "compiler.panel_response_bayesian_unit_surfaces", "compiler.panel_class_pulse_bayesian",
     "compiler.panel_class_response_surfaces", "compiler.panel_class_multi_step_sustained",
     "compiler.contract_section", "compiler.request_identity", "compiler.provenance_ancestry",
-    "compiler.v110_contract_file", "compiler.licensed_family", "compiler.prepared_second_shot",
+    "compiler.identity_contract_file", "compiler.licensed_family", "compiler.prepared_second_shot",
     "compiler.prepared_family", "compiler.identity_encoding", "compiler.dbn_atom_identity",
     "compiler.score_reuse_identity", "compiler.state_expected_version",
     "compiler.series_refresh_atomicity", "compiler.series_state_reuse",
     "compiler.score_batch_reuse", "compiler.capability_reports", "compiler.support_neighbors",
     "compiler.capability_prefix", "compiler.claim_core", "compiler.design_rank",
-    "compiler.composition_prefix", "compiler.python_v110_smoke",
+    "compiler.composition_prefix", "compiler.python_contract_smoke",
     "compiler.python_stub_conformance",
 }
 compiler_rows = {

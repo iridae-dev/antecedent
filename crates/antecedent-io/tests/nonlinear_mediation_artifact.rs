@@ -101,7 +101,7 @@ fn close(actual: f64, expected: f64, what: &str) {
 
 fn seal(replicates: u32) -> (NonlinearMediationArtifact, Vec<u8>) {
     let artifact = NonlinearMediationArtifact::seal(&request(replicates)).unwrap();
-    let bytes = artifact.to_bytes("b4-mediation-test").unwrap();
+    let bytes = artifact.to_bytes("mediation-test").unwrap();
     (artifact, bytes)
 }
 

@@ -247,7 +247,7 @@ fn single_atom_response_posterior() -> GraphPosterior {
         vec![0.0; 9],
         vec![0.0; 9],
         1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("v110_gp_response_bayes"),
+        antecedent_prob::InferenceDiagnostics::analytic("gp_response_bayes"),
         0,
     )
     .unwrap()
@@ -518,7 +518,7 @@ fn single_class_graph_posterior(graph: &Structure) -> GraphPosterior {
         vec![0.0; 16],
         vec![0.0; 16],
         1.0,
-        antecedent_prob::InferenceDiagnostics::analytic("v110_gp_class_response"),
+        antecedent_prob::InferenceDiagnostics::analytic("gp_class_response"),
         0,
     )
     .unwrap()
