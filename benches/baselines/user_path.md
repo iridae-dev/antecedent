@@ -1,4 +1,4 @@
-# User-path jobs (1.11 P1)
+# User-path jobs
 
 Established: 2026-09-19 (the date this file was first committed; the measurement date was not written down)
 Machine class: not recorded; docs/hot_paths.md describes these baselines as Apple M1 class references
@@ -31,7 +31,7 @@ Jobs (default user path: `ExecutionContext::production_default`, published inter
 
 Recorded on each run (stderr): wall time, `copy_count`, `bytes_borrowed`, `exec.identify.cached` hits, `max_threads`. Peak RSS is local (`/usr/bin/time -l`).
 
-Full 10⁴ / 10⁵ numbers set 1.11 / 2.0 sitting-time budgets. They do not replace `hot_paths.md`.
+Full 10⁴ / 10⁵ numbers set the sitting-time budgets. They do not replace `hot_paths.md`.
 
 ## Profile poles (local)
 

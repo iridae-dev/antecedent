@@ -117,7 +117,7 @@ How to read it alongside the Arrow CDI row above:
 
 This script does not replace Criterion baselines or latency-tier tests.
 
-## 1.3 staged execution
+## Staged execution
 
 Cached derivative estimation and refitted GCM unit counterfactual execution are
 measured in `antecedent/benches/staged_handle.rs`.

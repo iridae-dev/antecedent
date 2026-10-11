@@ -1557,7 +1557,7 @@ Python interfaces support NumPy, pandas, and Arrow CDI. Rust uses `TableView`.
 
 Durable artifact format **0.5** is current; it includes the optional
 identified-set interval on structural-mixture analysis results. Format 0.4 was
-the 1.0 wire freeze, and 0.4 artifacts migrate unchanged. Versioned artifacts
+the first frozen wire format, and 0.4 artifacts migrate unchanged. Versioned artifacts
 include:
 
 * graphs;

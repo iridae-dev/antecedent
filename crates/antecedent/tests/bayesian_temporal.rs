@@ -667,14 +667,14 @@ fn bayesian_temporal_mediation_tempers_both_mechanisms() {
     assert!(product.contains("tempered"), "{product}");
 }
 
-/// `conformance/bayesian/release_12_moments`: the tempered mediation posteriors
+/// `conformance/bayesian/posterior_moments`: the tempered mediation posteriors
 /// match the independent NIG reference (moments and each mechanism's `κ̂`).
 #[test]
-fn release_12_mediation_moments_and_tempering_match_the_reference() {
+fn posterior_mediation_moments_and_tempering_match_the_reference() {
     let fixture: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../conformance/bayesian/release_12_moments/expected.json"
+            "/../../conformance/bayesian/posterior_moments/expected.json"
         ))
         .unwrap(),
     )
@@ -779,16 +779,16 @@ fn release_12_mediation_moments_and_tempering_match_the_reference() {
     }
 }
 
-/// `conformance/bayesian/release_12_moments` (`dependent_pulse`): on an AR(2)(0.3, 0.5)
+/// `conformance/bayesian/posterior_moments` (`dependent_pulse`): on an AR(2)(0.3, 0.5)
 /// treatment and residual the Pulse posterior matches the independently tempered
 /// NIG reference, and the reported `κ̂` (REML order 2, residual-scale factor and
 /// delta-method spread all active) matches the numpy re-derivation.
 #[test]
-fn release_12_dependent_pulse_moments_and_tempering_match_the_reference() {
+fn posterior_dependent_pulse_moments_and_tempering_match_the_reference() {
     let fixture: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../conformance/bayesian/release_12_moments/expected.json"
+            "/../../conformance/bayesian/posterior_moments/expected.json"
         ))
         .unwrap(),
     )

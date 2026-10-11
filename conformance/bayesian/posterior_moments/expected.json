@@ -1580,6 +1580,6 @@
   "oracle": {
     "kind": "independent_reimplementation",
     "project": "NumPy Normal-inverse-gamma posterior equations",
-    "generator": "conformance/bayesian/release_12_moments/generate.py (retained; imports NumPy only, no Antecedent code)"
+    "generator": "conformance/bayesian/posterior_moments/generate.py (retained; imports NumPy only, no Antecedent code)"
   }
 }

@@ -24,5 +24,5 @@ test_sources = [
  "crates/antecedent-validate/src/overlap.rs unit tests",
  "crates/antecedent-validate/src/overlap_rule.rs unit tests",
  "conformance/validate/overlap_graph_refutation",
- "python/tests/test_release_12.py",
+ "python/tests/test_posterior_moments.py",
 ]

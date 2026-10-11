@@ -166,7 +166,7 @@ evidence_assertion = "two_point_curve_contrast_conforms_to_average_effect_under_
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success. Named test is the shared static response-facade test whose Bayesian block checks the posterior mean against the response_surfaces pin (explicit and accepted structure, curve and intervention)."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
 id = "estimate.response.temporal.bayesian"
@@ -177,7 +177,7 @@ evidence_assertion = "bayesian_temporal_response_and_sustained_window_known_trut
 known_truth_fixture = "conformance/bayesian/response_surfaces"
 python_facade = "full"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
 id = "estimate.observation_cox_ipcw"

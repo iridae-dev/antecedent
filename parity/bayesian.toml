@@ -255,23 +255,23 @@ notes = "BetaHyperparameters / GammaHyperparameters (crates/antecedent-prob/src/
 id = "estimate.bayesian_conditional"
 status = "done"
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/bayesian/release_12_moments"
+known_truth_fixture = "conformance/bayesian/posterior_moments"
 python_facade = "full"
 evidence_test = "crates/antecedent/tests/prepared_analysis.rs"
 evidence_assertion = "bayesian_conditional_staged_known_truth"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
 id = "estimate.bayesian_temporal_mediation"
 status = "done"
 evidence_kind = "internal_known_truth"
-known_truth_fixture = "conformance/bayesian/release_12_moments"
+known_truth_fixture = "conformance/bayesian/posterior_moments"
 python_facade = "full"
-evidence_test = "python/tests/test_release_12.py"
+evidence_test = "python/tests/test_posterior_moments.py"
 evidence_assertion = "test_mediation_validation_targets_and_prior_grid"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
 id = "validate.dbn_posterior"
@@ -282,7 +282,7 @@ python_facade = "full"
 evidence_test = "crates/antecedent/tests/manufacturing_temporal.rs"
 evidence_assertion = "manufacturing_dbn_posterior_bayesian_envelope"
 limitations = "Only the recorded forms and assumptions are licensed. Independent equations and structural DGPs do not establish external-package parity, general interval calibration or causal validity from diagnostic success."
-notes = "Executed Rust staged tests and Python test_release_12.py; matching provenance card records algorithm deviations. No external source translation."
+notes = "Executed Rust staged tests and Python test_posterior_moments.py; matching provenance card records algorithm deviations. No external source translation."
 
 [[capabilities]]
 id = "bayes.panel.random_intercept_non_gaussian"

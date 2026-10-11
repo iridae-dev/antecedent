@@ -15,7 +15,7 @@ from antecedent.inference import decode_posterior_artifact, encode_posterior_art
 from _repo_text import load_json
 
 FIXTURE = load_json(
-    Path(__file__).parents[2] / "conformance/bayesian/release_12_moments/expected.json"
+    Path(__file__).parents[2] / "conformance/bayesian/posterior_moments/expected.json"
 )
 
 

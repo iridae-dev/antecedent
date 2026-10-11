@@ -24,7 +24,7 @@ Memory: multi-env sample plans must not clone sibling environment series
 `jpcmci_plus.multi_env_plan` diagnostic). Soft latency budgets above are
 asserted on a single timed iteration when Criterion runs with `--test`.
 
-## 1.2 Bayesian mediation reference
+## Bayesian mediation reference
 
 `bayesian_mediation_n800_draws512` fits independent Gaussian mediator/outcome
 posteriors on two prepared designs and composes direct, mediated, total and

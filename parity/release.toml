@@ -6,7 +6,7 @@ library = "antecedent"
 id = "release.parity_closure"
 status = "done"
 evidence_kind = "process_attested"
-notes = "Shipped pinned baseline rows are done across inventories; no waivers other than the bit-identical replay waivers in calibration_waivers.toml; required 1.0 chapters closed. Enforced by scripts/gate_release.sh (parity honesty pass over every inventory, all_done for release.toml) and scripts/gate_parity_schema.sh; no unit test executes it."
+notes = "Shipped pinned baseline rows are done across inventories; no waivers other than the bit-identical replay waivers in calibration_waivers.toml; required chapters closed. Enforced by scripts/gate_release.sh (parity honesty pass over every inventory, all_done for release.toml) and scripts/gate_parity_schema.sh; no unit test executes it."
 
 [[capabilities]]
 id = "release.graph_dot_json"

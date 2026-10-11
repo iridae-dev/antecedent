@@ -159,7 +159,7 @@ install upstream packages. Regeneration is out-of-repo; keep the frozen
 `reference.command` as the audit trail.
 
 Permanent product contracts are marked `done` with an inline note. There is no
-waiver / deviation status. Required 1.0 chapters are closed in the inventories
+waiver / deviation status. Required chapters are closed in the inventories
 below.
 
 Do not mark a capability `done` without conformance fixtures under

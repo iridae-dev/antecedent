@@ -4,7 +4,7 @@
 unlicensed utilities: augmented IPW, every assignment design and exposure
 mapping, and ``seed`` as the exposure-probability Monte Carlo seed. They keep
 that capability and those numbers. The expected values in
-``fixtures/design_utilities_v1_9_0.json`` were recorded by running these exact
+``fixtures/design_utilities.json`` were recorded by running these exact
 closed-form calls against a recorded build.
 """
 
@@ -22,7 +22,7 @@ from antecedent.transport import advanced as transport
 from _repo_text import read_text
 
 EXPECTED = json.loads(
-    read_text(Path(__file__).parent / "fixtures" / "design_utilities_v1_9_0.json")
+    read_text(Path(__file__).parent / "fixtures" / "design_utilities.json")
 )
 
 
@@ -165,7 +165,7 @@ def _close(actual, expected):
 
 
 @pytest.mark.parametrize("name", sorted(EXPECTED["cases"]))
-def test_design_utility_matches_v1_9_0(name):
+def test_design_utility_matches_recorded_reference(name):
     assert EXPECTED["version"] == "1.9.0"
     actual = _cases()[name]
     expected = EXPECTED["cases"][name]
