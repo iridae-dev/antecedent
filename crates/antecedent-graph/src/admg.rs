@@ -324,6 +324,18 @@ impl Admg {
         }
     }
 
+    /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
+    #[must_use]
+    pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
+        let mut pairs = Vec::new();
+        for (i, kids) in self.children.iter().enumerate() {
+            let from = u32::try_from(i).expect("node fit");
+            pairs.extend(kids.iter().map(|to| (from, to.raw())));
+        }
+        pairs.sort_unstable();
+        pairs
+    }
+
     /// Connected components under bidirected edges (districts).
     ///
     /// Returns a district id per dense node (`0..n_districts-1`).
@@ -494,6 +506,16 @@ mod tests {
         assert_eq!(split.len(), 2);
         assert!(split[0].equal_set(&set(3, &[0])));
         assert!(split[1].equal_set(&set(3, &[2])));
+    }
+
+    #[test]
+    fn directed_edge_pairs_are_sorted_raw_ids() {
+        let mut g = Admg::with_variables(4);
+        for (a, b) in [(2, 3), (0, 3), (0, 1), (1, 2)] {
+            g.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        g.insert_bidirected(DenseNodeId::from_raw(1), DenseNodeId::from_raw(3)).unwrap();
+        assert_eq!(g.directed_edge_pairs_sorted(), vec![(0, 1), (0, 3), (1, 2), (2, 3)]);
     }
 
     #[test]

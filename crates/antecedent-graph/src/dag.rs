@@ -247,6 +247,18 @@ impl Dag {
         })
     }
 
+    /// Directed edges as raw `(parent, child)` dense-id pairs in ascending order.
+    #[must_use]
+    pub fn directed_edge_pairs_sorted(&self) -> Vec<(u32, u32)> {
+        let mut pairs: Vec<(u32, u32)> = self
+            .edges()
+            .filter_map(MarkedEdge::parent_child)
+            .map(|(from, to)| (from.raw(), to.raw()))
+            .collect();
+        pairs.sort_unstable();
+        pairs
+    }
+
     /// Enumerate simple directed paths from `from` to `to` (inclusive endpoints).
     ///
     /// Bounded by `max_paths` and `max_len` (number of nodes on the path).
@@ -330,6 +342,16 @@ impl Dag {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn directed_edge_pairs_are_sorted_raw_ids() {
+        let mut g = Dag::with_variables(4);
+        for (u, v) in [(2, 3), (0, 3), (0, 1), (1, 2)] {
+            g.insert_directed(DenseNodeId::from_raw(u), DenseNodeId::from_raw(v)).unwrap();
+        }
+        assert_eq!(g.directed_edge_pairs_sorted(), vec![(0, 1), (0, 3), (1, 2), (2, 3)]);
+        assert!(Dag::with_variables(2).directed_edge_pairs_sorted().is_empty());
+    }
 
     #[test]
     fn directed_paths_reports_max_paths_truncation() {

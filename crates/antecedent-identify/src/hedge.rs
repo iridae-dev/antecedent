@@ -42,12 +42,11 @@ impl HedgeProblem {
         let admg = prepared.admg();
         let n = admg.node_count();
         let mut variables = Vec::with_capacity(n);
-        let mut directed = Vec::new();
+        let directed = admg.directed_edge_pairs_sorted();
         let mut bidirected = Vec::new();
         for i in 0..n {
             let id = DenseNodeId::from_raw(u32::try_from(i).expect("fit"));
             variables.push(prepared.dense_to_var(id)?);
-            directed.extend(admg.children(id).iter().map(|c| (id.raw(), c.raw())));
             bidirected.extend(
                 admg.bidirected_neighbors(id)
                     .iter()
@@ -55,7 +54,6 @@ impl HedgeProblem {
                     .map(|b| (id.raw(), b.raw())),
             );
         }
-        directed.sort_unstable();
         bidirected.sort_unstable();
         let vars_of = |set: &BitSet| -> Result<Arc<[VariableId]>, IdentificationError> {
             set.to_dense_ids().into_iter().map(|d| prepared.dense_to_var(d)).collect()
