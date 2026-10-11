@@ -27,11 +27,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
-_PREP = ROOT / "docs" / "release-notes" / "preparation.toml"
-DOC_VERSION = (
-    tomllib.loads(_PREP.read_text())["target_version"] if _PREP.is_file() else VERSION
-)
 
 Mutation = Callable[[str], str]
 
@@ -183,18 +178,6 @@ def in_block(header: str, row_id: str, fn: Mutation) -> Mutation:
     return apply
 
 
-def changelog_current(line: str) -> Mutation:
-    def apply(text: str) -> str:
-        for head in (f"## [{DOC_VERSION}]", f"## {DOC_VERSION}"):
-            if head in text:
-                i = text.index(head)
-                j = text.index("\n", i)
-                return text[: j + 1] + "\n" + line + "\n" + text[j + 1 :]
-        raise ValueError(f"CHANGELOG.md has no {DOC_VERSION} heading")
-
-    return apply
-
-
 # -------------------------------------------------------------------- cases
 
 
@@ -202,51 +185,46 @@ def docs_cases() -> list[bool]:
     g = "gate_docs_support_matrix.sh"
     return [
         case(g, "control", {}, [], must_fail=False),
+        # Hand prose is not a fact source. Deferral and strength words outside
+        # generated markers do not fail the gate.
         case(
             g,
-            "walkthrough_deferral",
-            {
-                "docs/python-workflow.md": append(
-                    "Panel promotions stay a separately gated line of work."
-                )
-            },
-            ["forbidden deferral_prose 'separately gated'"],
-        ),
-        case(
-            g,
-            "adr_follow_on",
-            {
-                "adr/0022-causal-compiler-contract.md": append(
-                    "Consuming gates are follow-on work on this decision."
-                )
-            },
-            ["forbidden deferral_prose 'follow-on'"],
-        ),
-        case(
-            g,
-            "changelog_current_section",
-            {"CHANGELOG.md": changelog_current("- Panel class response is deferred.")},
-            ["CHANGELOG.md: forbidden deferral_prose 'deferred'"],
-        ),
-        case(
-            g,
-            "readme_version_deferral",
-            {"README.md": append("Weighted exports land in 1.12.")},
-            ["README.md: forbidden"],
-        ),
-        case(
-            g,
-            "claim_sentence_edited",
-            {"docs/python-workflow.md": replace("retains a reusable study", "retains a study")},
-            ["docs/python-workflow.md: claim reusable_headline occurs 0 times"],
-        ),
-        case(
-            g,
-            "later_release_deferral",
+            "prose_deferral_allowed",
             {"docs/capabilities.md": append("Panel ATE is planned for the next release.")},
-            ["forbidden deferral_prose 'next release'"],
+            [],
+            must_fail=False,
         ),
-        # Stating a limitation is not deferring work.
+        case(
+            g,
+            "prose_strength_allowed",
+            {"README.md": append("The estimator is doubly robust and calibrated.")},
+            [],
+            must_fail=False,
+        ),
+        case(
+            g,
+            "workflow_sentence_edited",
+            {"docs/python-workflow.md": replace("retains a reusable study", "retains a study")},
+            [],
+            must_fail=False,
+        ),
+        case(
+            g,
+            "claim_marker_edited",
+            {
+                "README.md": replace(
+                    "the record still attests the current code.",
+                    "the record attests some older code.",
+                )
+            },
+            ["README.md: generated claim calibrated_slot_means_a_current_matching_record"],
+        ),
+        case(
+            g,
+            "query_inventory_edited",
+            {"docs/capabilities.md": replace("| Counterfactual |", "| CounterfactualX |")},
+            ["docs/capabilities.md: generated query-inventory"],
+        ),
         case(
             g,
             "known_limitations_allowed",
@@ -259,7 +237,6 @@ def docs_cases() -> list[bool]:
             [],
             must_fail=False,
         ),
-        # Earlier CHANGELOG sections are frozen history and are not rescanned.
         case(
             g,
             "changelog_history_frozen",

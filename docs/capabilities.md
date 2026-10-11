@@ -101,6 +101,228 @@ known-truth checks run at that support boundary. The full-curve band and
 competing-risk or weighted contrasts do not inherit this scalar license. See
 [Survival outcomes](survival-outcomes.md).
 
+## Licensed coordinates
+
+The per-query counts and the grouped licensed coordinates are generated from the support registry.
+
+<!-- generated:query-inventory:begin -->
+Generated from `parity/support_axes.toml`, `parity/support_licensed.toml`,
+and `parity/support_n_a.toml` by `scripts/generate_claim_inventory.py`.
+Licensed coordinates are grouped only where the cell lists the full product
+of the structures, inferences, and validations shown. A coordinate that is
+not listed is n/a or refused. Refusal is the default;
+`parity/support_closed.toml` names reasons and does not create a fourth state.
+The [support matrix](support-matrix.md) is the license.
+Do not edit this block by hand.
+
+| Query | Licensed | n/a | Refused |
+|---|---:|---:|---:|
+| AnomalyAttribution | 4 | 36 | 140 |
+| AverageDerivative | 20 | 68 | 92 |
+| AverageEffect | 92 | 88 | 0 |
+| ChangeAttribution | 4 | 36 | 140 |
+| ConditionalEffect | 54 | 90 | 36 |
+| Counterfactual | 20 | 36 | 124 |
+| DirectionalDerivative | 20 | 68 | 92 |
+| Elasticity | 20 | 68 | 92 |
+| InterventionalDistribution | 36 | 36 | 108 |
+| InterventionResponse | 99 | 81 | 0 |
+| MediationEffect | 12 | 90 | 78 |
+| NestedCounterfactualEffect | 18 | 36 | 126 |
+| PathSpecificEffect | 28 | 36 | 116 |
+| PointDerivative | 20 | 68 | 92 |
+| PulseEffect | 54 | 108 | 18 |
+| ResponseCurve | 48 | 116 | 16 |
+| ResponseJacobian | 20 | 68 | 92 |
+| SemiElasticity | 20 | 68 | 92 |
+| SustainedEffect | 54 | 108 | 18 |
+| TemporalConditionalPulse | 16 | 108 | 56 |
+| TemporalConditionalSustained | 16 | 108 | 56 |
+| TemporalMediationEffect | 36 | 108 | 36 |
+| TransportQuery | 4 | 90 | 86 |
+| InterferenceQuery | 2 | 90 | 88 |
+
+717 licensed cells.
+
+| Query | Graph class | Structures | Inferences | Validations | Cells |
+|---|---|---|---|---|---:|
+| AnomalyAttribution | Dag | explicit | Frequentist, Bayesian | none | 2 |
+| AnomalyAttribution | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
+| AverageDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| AverageDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| AverageDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| AverageDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| AverageEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| AverageEffect | CoDetermined | explicit | Frequentist | none | 1 |
+| AverageEffect | Unknown | explicit | Frequentist | none | 1 |
+| ChangeAttribution | Dag | explicit | Frequentist, Bayesian | none | 2 |
+| ChangeAttribution | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
+| ConditionalEffect | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ConditionalEffect | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ConditionalEffect | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| Counterfactual | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Counterfactual | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Counterfactual | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| Counterfactual | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| DirectionalDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| DirectionalDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| DirectionalDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| DirectionalDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| Elasticity | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Elasticity | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| Elasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| Elasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| InterventionalDistribution | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
+| InterventionalDistribution | Admg | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| InterventionalDistribution | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| InterventionalDistribution | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| InterventionalDistribution | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| InterventionalDistribution | TemporalAdmg | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| InterventionResponse | Dag | explicit | Frequentist | none | 1 |
+| InterventionResponse | Dag | explicit | Frequentist | cheap | 1 |
+| InterventionResponse | Dag | explicit | Frequentist | full | 1 |
+| InterventionResponse | Dag | explicit | Bayesian | none | 1 |
+| InterventionResponse | Dag | accepted | Frequentist | none | 1 |
+| InterventionResponse | Dag | accepted | Frequentist | cheap | 1 |
+| InterventionResponse | Dag | accepted | Frequentist | full | 1 |
+| InterventionResponse | Dag | accepted | Bayesian | none | 1 |
+| InterventionResponse | Dag | graph_posterior | Frequentist | none | 1 |
+| InterventionResponse | Dag | graph_posterior | Frequentist | cheap | 1 |
+| InterventionResponse | Dag | graph_posterior | Frequentist | full | 1 |
+| InterventionResponse | Dag | graph_posterior | Bayesian | none | 1 |
+| InterventionResponse | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | Cpdag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Cpdag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Cpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | Pag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Pag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | Pag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalDag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalDag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalDag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalCpdag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalCpdag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalCpdag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalPag | explicit | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalPag | accepted | Frequentist, Bayesian | none | 2 |
+| InterventionResponse | TemporalPag | graph_posterior | Frequentist, Bayesian | none, cheap, full | 6 |
+| InterventionResponse | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| InterventionResponse | CoDetermined | explicit | Frequentist | none | 1 |
+| MediationEffect | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
+| NestedCounterfactualEffect | Dag | explicit | Frequentist, Bayesian | none | 2 |
+| NestedCounterfactualEffect | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| NestedCounterfactualEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| NestedCounterfactualEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PathSpecificEffect | Dag | explicit, accepted | Frequentist, Bayesian | none, cheap, full | 12 |
+| PathSpecificEffect | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| PathSpecificEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PathSpecificEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PointDerivative | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| PointDerivative | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| PointDerivative | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PointDerivative | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| PulseEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PulseEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| PulseEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| ResponseCurve | Dag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | Admg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | Cpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | Pag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseCurve | TemporalAdmg | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseJacobian | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| ResponseJacobian | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| ResponseJacobian | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| ResponseJacobian | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| SemiElasticity | Dag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| SemiElasticity | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| SemiElasticity | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| SemiElasticity | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| SustainedEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SustainedEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| SustainedEffect | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalConditionalPulse | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| TemporalConditionalPulse | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalConditionalPulse | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalConditionalSustained | TemporalDag | explicit, accepted | Frequentist, Bayesian | none | 4 |
+| TemporalConditionalSustained | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalConditionalSustained | TemporalPag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none | 6 |
+| TemporalMediationEffect | TemporalDag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TemporalMediationEffect | TemporalCpdag | explicit, accepted, graph_posterior | Frequentist, Bayesian | none, cheap, full | 18 |
+| TransportQuery | Admg | explicit | Frequentist, Bayesian | none | 2 |
+| TransportQuery | TemporalAdmg | explicit | Frequentist, Bayesian | none | 2 |
+| InterferenceQuery | Dag | explicit | Frequentist, Bayesian | none | 2 |
+<!-- generated:query-inventory:end -->
+
+## Registry claims
+
+<!-- generated:claims:begin -->
+Rendered from `parity/claims.toml` by `scripts/generate_claim_inventory.py`.
+Do not edit this block by hand.
+
+### `reusable_headline`
+
+Licensed by `parity/python_products.toml`.
+
+```text
+Every licensed analysis outside the transport day-1 views retains a reusable study and exports a contracted execution; custom validator results travel as caller-attested, not re-verifiable, evidence, and a row-weight retarget re-executes only on its own data snapshot.
+```
+
+### `transport_not_certified_is_not_impossibility`
+
+Licensed by `parity/transport_stages.toml`.
+
+```text
+A not-certified transport outcome is a conservative refusal, not a proof of impossibility.
+```
+
+### `transport_classical_completeness_is_paper_family`
+
+Licensed by `parity/transport_stages.toml`.
+
+```text
+Classical sID completeness applies only to the paper experimental-information family, not to every catalog the API can represent.
+```
+
+### `transport_stage_support_is_not_analyze_cartesian`
+
+Licensed by `parity/transport_stages.toml`.
+
+```text
+Stage transport routes are licensed in `transport_stages.toml`; the analyze Cartesian cell remains trial-IPW `TransportQuery` on an explicit `Admg`.
+```
+
+### `calibrated_slot_means_a_current_matching_record`
+
+Licensed by `parity/coverage_records.toml`.
+
+```text
+the record still attests the current code.
+```
+
+### `exact_dag_posterior_is_enumeration`
+
+Licensed by `parity/bayesian.toml`.
+
+```text
+* exact DAG posterior;
+```
+
+### `kennedy_dr_is_a_least_squares_construction`
+
+Licensed by `parity/estimate.toml`.
+
+```text
+a local-quadratic of the doubly robust pseudo-outcome) and needs finite
+```
+<!-- generated:claims:end -->
+
 ## Graph primitives
 
 Implemented graph representations:
@@ -161,7 +383,7 @@ CBOR artifacts.
 
 ### Bayesian structure learning
 
-* exact DAG posterior;
+<!-- generated:claim:exact_dag_posterior_is_enumeration:begin -->* exact DAG posterior;<!-- generated:claim:exact_dag_posterior_is_enumeration:end -->
 * order MCMC;
 * structure MCMC;
 * CI-screened graph posterior;
@@ -453,7 +675,7 @@ Applying the first two outside their assumed regime produces a biased estimate
 with no runtime signal.
 
 `response.kennedy_dr` is also a least-squares construction (additive GAMs plus
-a local-quadratic of the doubly robust pseudo-outcome) and needs finite
+<!-- generated:claim:kennedy_dr_is_a_least_squares_construction:begin -->a local-quadratic of the doubly robust pseudo-outcome) and needs finite<!-- generated:claim:kennedy_dr_is_a_least_squares_construction:end -->
 outcome moments. Unlike the three cases above, it reports
 `response.outcome_tail_ratio` at runtime and warns
 `response.heavy_tailed_outcome` when the ratio exceeds 20. That warning does
@@ -1344,8 +1566,8 @@ Counterfactual primitives exist:
 * temporal trajectories;
 * unit-level counterfactual analysis.
 
-`analyze` licenses `Counterfactual` on an explicit or accepted DAG at
-validation `none`, Frequentist and Bayesian, as a two-world GCM ITE. Unit ITEs
+`Counterfactual` runs as a two-world GCM ITE on the licensed coordinates in
+the per-query inventory. Unit ITEs
 are exact only for invertible additive-noise mechanisms; downstream of a
 discrete or state-space mechanism a unit effect is one sampled counterfactual
 that varies with the seed. Per-unit intervals (`IteResult::unit_effect_intervals`)
@@ -1358,9 +1580,7 @@ delta-method interval would ignore selection (diagnostic
 `gcm.counterfactual.uncertainty_unavailable`). A pointwise interval for the
 conditional average effect tau(x), a different estimand, is
 [`DrLearner::fit_pointwise_profiles`](dr-pointwise-cate.md) (uncalibrated).
-Nested counterfactuals, temporal trajectories,
-graph-posterior structure, and cheap/full validation remain refused. The public license is the
-[support matrix](support-matrix.md).
+The public license is the [support matrix](support-matrix.md).
 
 ## Attribution and diagnostics
 
