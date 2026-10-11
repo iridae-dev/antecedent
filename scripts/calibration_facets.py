@@ -65,6 +65,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import _rust_source as _rust
+
 ROOT = Path(__file__).resolve().parents[1]
 LIST = ROOT / "scripts" / "calibration_surface.list"
 RECORDS = ROOT / "parity" / "coverage_records.toml"
@@ -101,8 +103,6 @@ MAX_PATHS_SHOWN = 12
 # Rust source: comments and literals removed, so names are code, not prose.
 # --------------------------------------------------------------------------
 
-_SPECIAL = re.compile(r"//|/\*|b?r#*\"|\"|'")
-_CHAR = re.compile(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|.)|[^\\'\n])'")
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _DEF = re.compile(
     r"^[ \t]*(?:pub(?:\([^)]*\))?[ \t]+)?(?:(?:unsafe|async|const|extern|default)[ \t]+)*"
@@ -114,132 +114,13 @@ _DEF = re.compile(
 
 def rust_code(text: str) -> str:
     """`text` with comments dropped and string / char literal contents blanked."""
-    out: list[str] = []
-    i, n = 0, len(text)
-    while i < n:
-        m = _SPECIAL.search(text, i)
-        if m is None:
-            out.append(text[i:])
-            break
-        start = m.start()
-        tok = m.group(0)
-        if tok.startswith(("r", "b")) and start > 0 and (
-            text[start - 1].isalnum() or text[start - 1] == "_"
-        ):
-            # `for"` / `abr"`: an identifier that ends in r or b, then a quote.
-            out.append(text[i : start + len(tok) - 1])
-            i = start + len(tok) - 1
-            continue
-        out.append(text[i:start])
-        if tok == "//":
-            end = text.find("\n", start)
-            i = n if end < 0 else end
-        elif tok == "/*":
-            depth, j = 1, start + 2
-            while j < n and depth:
-                if text.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif text.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    if text[j] == "\n":
-                        out.append("\n")
-                    j += 1
-            i = j
-        elif tok == '"':
-            j = start + 1
-            while j < n and text[j] != '"':
-                if text[j] == "\n":
-                    out.append("\n")
-                j += 2 if text[j] == "\\" else 1
-            out.append('""')
-            i = j + 1
-        elif tok == "'":
-            ch = _CHAR.match(text, start)
-            if ch:
-                out.append("' '")
-                i = ch.end()
-            else:  # a lifetime or label
-                out.append("'")
-                i = start + 1
-        else:  # raw string r#"…"#
-            hashes = tok.count("#")
-            end = text.find('"' + "#" * hashes, m.end())
-            end = n if end < 0 else end + 1 + hashes
-            out.append('""' + "\n" * text.count("\n", start, end))
-            i = end
-    return "".join(out)
-
+    return _rust.rust_code(text)
 
 
 def rust_mask(text: str, line_docs: list[tuple[int, int]] | None = None) -> str:
     """`text` with comments and string / char literals blanked to spaces, keeping every
     offset and newline, so braces found in the mask are braces of the code."""
-    out: list[str] = []
-    i, n = 0, len(text)
-
-    def blank(a: int, b: int) -> None:
-        out.append("".join("\n" if c == "\n" else " " for c in text[a:b]))
-
-    while i < n:
-        m = _SPECIAL.search(text, i)
-        if m is None:
-            out.append(text[i:])
-            break
-        start = m.start()
-        tok = m.group(0)
-        if tok.startswith(("r", "b")) and start > 0 and (
-            text[start - 1].isalnum() or text[start - 1] == "_"
-        ):
-            out.append(text[i : start + len(tok) - 1])
-            i = start + len(tok) - 1
-            continue
-        out.append(text[i:start])
-        if tok == "//":
-            end = text.find("\n", start)
-            end = n if end < 0 else end
-            if (
-                line_docs is not None
-                and text.startswith("///", start)
-                and not text.startswith("////", start)
-            ):
-                line_docs.append((start, end))
-            blank(start, end)
-            i = end
-        elif tok == "/*":
-            depth, j = 1, start + 2
-            while j < n and depth:
-                if text.startswith("/*", j):
-                    depth, j = depth + 1, j + 2
-                elif text.startswith("*/", j):
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            j = min(j, n)
-            blank(start, j)
-            i = j
-        elif tok == '"':
-            j = start + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            end = min(j + 1, n)
-            blank(start, end)
-            i = end
-        elif tok == "'":
-            ch = _CHAR.match(text, start)
-            if ch:
-                blank(start, ch.end())
-                i = ch.end()
-            else:  # a lifetime or label
-                out.append("'")
-                i = start + 1
-        else:  # raw string r#"..."#
-            hashes = tok.count("#")
-            end = text.find('"' + "#" * hashes, m.end())
-            end = n if end < 0 else end + 1 + hashes
-            blank(start, end)
-            i = end
-    return "".join(out)
+    return _rust.rust_mask(text, line_docs)
 
 
 _TEST_MOD = re.compile(

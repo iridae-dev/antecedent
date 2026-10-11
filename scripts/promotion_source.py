@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from _py_closure import closure_nodes
 from test_evidence import (
     _attrs_before,
     _is_cfg_test,
@@ -1049,17 +1050,7 @@ def rust_assertion_args(path: Path, name: str) -> list[str]:
 
 def _py_closure(path: Path, name: str) -> list[ast.AST]:
     tree = ast.parse(path.read_text(errors="ignore"))
-    defs = {n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
-    seen: set[str] = set()
-    todo, out = [name], []
-    while todo:
-        nm = todo.pop()
-        if nm in seen or nm not in defs:
-            continue
-        seen.add(nm)
-        out.append(defs[nm])
-        todo.extend(n.id for n in ast.walk(defs[nm]) if isinstance(n, ast.Name))
-    return out
+    return closure_nodes(tree, name)
 
 
 _PY_CHECKS = {"raises", "warns", "fail", "deprecated_call"}

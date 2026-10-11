@@ -59,30 +59,7 @@ self_test() {
   if ! check_ci_run "$tmp/green.json" "$head" >"$tmp/out" 2>&1; then
     echo "SELF-TEST FAIL: an all-green run on HEAD was rejected"; cat "$tmp/out"; status=1
   fi
-  python3 - "$tmp" <<'PY'
-import json, sys
-from pathlib import Path
-tmp = Path(sys.argv[1])
-green = json.loads((tmp / "green.json").read_text())
-def write(name, payload):
-    (tmp / name).write_text(json.dumps(payload))
-# One matrix leg missing (the last wheel expansion).
-wheels = [j for j in green["jobs"] if j["name"].startswith("Wheel ")]
-write("missing_leg.json", {**green, "jobs": [j for j in green["jobs"] if j is not wheels[-1]]})
-# A whole required job id absent.
-write("missing_job.json", {**green, "jobs": [j for j in green["jobs"] if j["name"] != "Domain gates"]})
-# A required job that failed.
-write("failed_job.json", {**green, "jobs": [
-    {**j, "conclusion": "failure"} if j["name"] == "Python lint and types" else j
-    for j in green["jobs"]
-]})
-# Green, but for a different commit.
-write("wrong_sha.json", {**green, "headSha": "0" * 40})
-# Jobs reported by workflow id instead of display name.
-write("ids_not_names.json", {**green, "jobs": [
-    {"name": n, "conclusion": "success"} for n in ("rust", "gates", "python-lint", "python-wheels")
-]})
-PY
+  python3 "$ROOT/scripts/gate_release_candidate.py" "$tmp"
   local case
   for case in missing_leg missing_job failed_job wrong_sha ids_not_names; do
     if check_ci_run "$tmp/$case.json" "$head" >"$tmp/out" 2>&1; then
@@ -202,14 +179,7 @@ echo "== release candidate: local wheel, full suite against the installed wheel 
     numpy pandas pyarrow pytest
   # Run outside python/ so the source tree cannot shadow the installed wheel.
   cd "$run_dir"
-  "$venv_dir/venv/bin/python" - "$venv_dir" <<'PY'
-import os
-import sys
-import antecedent
-if not os.path.realpath(antecedent.__file__).startswith(os.path.realpath(sys.argv[1])):
-    raise SystemExit(f"FAIL: antecedent imported from {antecedent.__file__}, not the wheel")
-print("installed wheel:", antecedent.__version__, antecedent.__file__)
-PY
+  "$venv_dir/venv/bin/python" "$ROOT/scripts/gate_release_candidate_2.py" "$venv_dir"
   "$venv_dir/venv/bin/python" -m pytest -q -p no:cacheprovider "$ROOT/python/tests"
 )
 

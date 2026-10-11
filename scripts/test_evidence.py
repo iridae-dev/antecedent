@@ -34,6 +34,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import _py_closure
+import _rust_source as _rust
+
 ROOT = Path(__file__).resolve().parent.parent
 
 PARSE_MARKERS = re.compile(
@@ -55,57 +58,9 @@ class Masked:
     skeleton: str
 
 
-_LEX = re.compile(
-    r"//[^\n]*|/\*|(?<![\w])b?r(#*)\"|(?<![\w])b?\"(?:\\.|[^\"\\])*\"|'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]{1,6}\}|.)|[^\\'\n])'",
-    re.S,
-)
-
-
 def mask_rust(text: str) -> Masked:
-    code = list(text)
-    skel = list(text)
-    n = len(text)
-
-    def blank(lo: int, hi: int, *, keep_code: bool) -> None:
-        for k in range(lo, hi):
-            if text[k] != "\n":
-                skel[k] = " "
-                if not keep_code:
-                    code[k] = " "
-
-    i = 0
-    while True:
-        m = _LEX.search(text, i)
-        if not m:
-            break
-        tok = m.group(0)
-        if tok.startswith("//"):
-            blank(m.start(), m.end(), keep_code=False)
-            i = m.end()
-        elif tok == "/*":
-            depth, j = 1, m.end()
-            while j < n and depth:
-                nxt_open = text.find("/*", j)
-                nxt_close = text.find("*/", j)
-                if nxt_close == -1:
-                    j = n
-                    break
-                if nxt_open != -1 and nxt_open < nxt_close:
-                    depth, j = depth + 1, nxt_open + 2
-                else:
-                    depth, j = depth - 1, nxt_close + 2
-            blank(m.start(), j, keep_code=False)
-            i = j
-        elif m.group(1) is not None:
-            hashes = m.group(1)
-            end = text.find('"' + hashes, m.end())
-            end = n if end == -1 else end + 1 + len(hashes)
-            blank(m.end(), max(m.end(), end - 1 - len(hashes)), keep_code=True)
-            i = end
-        else:
-            blank(m.start() + (2 if tok.startswith("b") else 1), m.end() - 1, keep_code=True)
-            i = m.end()
-    return Masked("".join(code), "".join(skel))
+    parsed = _rust.lex(text)
+    return Masked(parsed.kept, parsed.kept_skeleton)
 
 
 _BRACKETS = {"{": re.compile(r"[{}]"), "(": re.compile(r"[()]"), "[": re.compile(r"[\[\]]")}
@@ -692,21 +647,10 @@ def _rust_closure_parts(path: Path, name: str) -> tuple[str, str]:
 
 @functools.cache
 def python_closure(path: Path, name: str) -> str:
-    text = _strip_python(path.read_text(errors="ignore"))
-    defs: dict[str, str] = {}
-    for m in re.finditer(r"^(?:async\s+)?def\s+(\w+)\s*\(.*?(?=^\S|\Z)", text, re.M | re.S):
-        defs[m.group(1)] = m.group(0)
-    for m in re.finditer(r"^([A-Z_][A-Z0-9_]*)\s*=.*?(?=^\S|\Z)", text, re.M | re.S):
-        defs[m.group(1)] = m.group(0)
-    out, seen, todo = [], set(), [name]
-    while todo:
-        nm = todo.pop()
-        if nm in seen or nm not in defs:
-            continue
-        seen.add(nm)
-        out.append(defs[nm])
-        todo.extend(re.findall(r"\b([A-Za-z_]\w*)\b", defs[nm]))
-    return "\n".join(out)
+    try:
+        return _py_closure.closure_source(path, name)
+    except SyntaxError:
+        return ""
 
 
 def closure(path: Path, name: str) -> str:

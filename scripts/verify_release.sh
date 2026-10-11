@@ -48,14 +48,7 @@ verify_tag() {
     fail "no successful ci run on $sha (gh run list --workflow ci.yml --commit $sha)"
   fi
   gh run view "$run_id" --json headSha,headBranch,event,conclusion,workflowName,jobs >"$tmp/run.json"
-  python3 - "$tmp/run.json" <<'PY'
-import json
-import sys
-from pathlib import Path
-run = json.loads(Path(sys.argv[1]).read_text())
-if (run.get("event"), run.get("headBranch"), run.get("conclusion"), run.get("workflowName")) != ("push", "main", "success", "ci"):
-    raise SystemExit("FAIL: release requires a successful main-push CI run")
-PY
+  python3 "$ROOT/scripts/verify_release.py" "$tmp/run.json"
   local required
   required="$(uv run --quiet --project python --only-group dev python scripts/ci_workflow.py required-jobs)"
   # shellcheck disable=SC2086
