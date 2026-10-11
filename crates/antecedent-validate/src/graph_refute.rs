@@ -20,8 +20,8 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_identify::IdentifiedEstimand;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
-    linear_estimator_no_bootstrap, masked_sample_sd, refit_effect, validity_from_flags,
+    check_cancelled, complete_case_rows, full_sample_refit_ate, linear_estimator_no_bootstrap,
+    masked_sample_sd, refit_effect, validity_from_flags, RefutationProblem, RefutationReport,
 };
 use crate::error::ValidationError;
 
@@ -109,8 +109,9 @@ impl GraphRefuter {
             problem.data
         };
 
+        let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
         let mut worst_delta = 0.0_f64;
-        let mut worst_ate = problem.original.ate;
+        let mut worst_ate = centre;
         let mut worst_dropped = problem.estimand.adjustment_set[0];
         for drop_idx in 0..problem.estimand.adjustment_set.len() {
             check_cancelled(ctx)?;
@@ -124,8 +125,7 @@ impl GraphRefuter {
             }
             // Relative change with an sd-based floor on the denominator: a near-zero original
             // estimate that moves materially when a covariate is dropped is set-sensitive.
-            let delta =
-                (est.ate - problem.original.ate).abs() / problem.original.ate.abs().max(floor);
+            let delta = (est.ate - centre).abs() / centre.abs().max(floor);
             if delta >= worst_delta {
                 worst_delta = delta;
                 worst_ate = est.ate;

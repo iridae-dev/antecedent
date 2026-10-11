@@ -52,8 +52,9 @@ use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 use antecedent_kernels::unbiased_index;
 
 use crate::common::{
-    RefutationProblem, RefutationReport, check_cancelled, complete_case_rows,
-    forced_refit_estimator, linear_estimator_no_bootstrap, refit_effect, with_resampled_rows,
+    check_cancelled, complete_case_rows, forced_refit_estimator, full_sample_refit_ate,
+    linear_estimator_no_bootstrap, refit_effect, with_resampled_rows, RefutationProblem,
+    RefutationReport,
 };
 use crate::error::ValidationError;
 
@@ -141,9 +142,14 @@ impl BootstrapRefute {
         }
         require_survivors(boot.draws.len(), self.replicates)?;
         let scale = boot.fixed_b();
+        let centre_rows: Vec<usize> = (0..aligned.rows).collect();
+        let centre = (aligned.estimate)(&centre_rows).ok_or_else(|| {
+            ValidationError::estimation_msg("composed bootstrap centre refit failed".to_string())
+        })?;
         Ok(coverage_report(
             problem,
             boot.column(0),
+            centre,
             self.ci_level,
             self.replicates,
             scale,
@@ -239,6 +245,7 @@ impl BootstrapRefute {
         Ok(coverage_report(
             problem,
             boot.column(0),
+            full,
             self.ci_level,
             self.replicates,
             scale,
@@ -358,9 +365,11 @@ impl BootstrapRefute {
                         &mut y_boot,
                     )?);
                 }
+                let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
                 return Ok(coverage_report(
                     problem,
                     ates,
+                    centre,
                     self.ci_level,
                     self.replicates,
                     1.0,
@@ -387,7 +396,8 @@ impl BootstrapRefute {
         }
         // Panel temporal designs resample stacked rows iid here (no per-unit block
         // or cluster plan yet); static designs are iid by construction.
-        Ok(coverage_report(problem, ates, self.ci_level, self.replicates, 1.0, None))
+        let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
+        Ok(coverage_report(problem, ates, centre, self.ci_level, self.replicates, 1.0, None))
     }
 }
 
@@ -399,6 +409,7 @@ impl BootstrapRefute {
 fn coverage_report(
     problem: &RefutationProblem<'_>,
     mut ates: Vec<f64>,
+    centre: f64,
     ci_level: f64,
     replicates: u32,
     scale: f64,
@@ -426,7 +437,7 @@ fn coverage_report(
     let width = hi - lo;
     // A non-finite replicate (total order puts `-NaN` first, `NaN` last) makes the endpoints
     // or the mean non-finite; every comparison below is then false, so the check fails closed.
-    let passed = problem.original.ate >= lo && problem.original.ate <= hi;
+    let passed = centre.is_finite() && centre >= lo && centre <= hi;
     RefutationReport {
         refuter: Arc::from("bootstrap.ci_coverage"),
         original_ate: problem.original.ate,
@@ -438,11 +449,10 @@ fn coverage_report(
             None
         } else {
             Some(Arc::from(format!(
-                "original ATE {} outside {}% bootstrap CI [{lo}, {hi}] from {m} of {replicates} \
-                 replicates (the point estimate against its own refit bootstrap interval: \
+                "full-sample refit {centre} outside {}% bootstrap CI [{lo}, {hi}] from {m} of \
+                 {replicates} replicates (the refit against its own bootstrap interval: \
                  neither a placebo falsification nor a calibration check of a published \
                  credible interval){}",
-                problem.original.ate,
                 ci_level * 100.0,
                 stand_in.map(|note| format!("; {note}")).unwrap_or_default()
             )))

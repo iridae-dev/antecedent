@@ -17,9 +17,9 @@ use antecedent_data::TableView;
 use antecedent_estimate::{EstimationWorkspace, LinearAdjustmentAte};
 
 use crate::common::{
-    RefutationProblem, RefutationReport, check_cancelled, check_replicate_count,
-    complete_case_rows, fill_gaussian, float64_full, linear_estimator_no_bootstrap, refit_effect,
-    with_replaced_float,
+    check_cancelled, check_replicate_count, complete_case_rows, fill_gaussian, float64_full,
+    full_sample_refit_ate, linear_estimator_no_bootstrap, refit_effect, with_replaced_float,
+    RefutationProblem, RefutationReport,
 };
 use crate::error::ValidationError;
 use crate::sensitivity::{residual_sd_pair_on_adjustment, temporal_residual_sd_pair};
@@ -130,6 +130,7 @@ impl UnobservedCommonCause {
             });
         }
         let (kt, ky) = (self.effect_on_treatment * sd_t, self.effect_on_outcome * sd_y);
+        let centre = full_sample_refit_ate(problem, &self.estimator, workspace, ctx)?;
         let mut u = vec![0.0; n];
         let mut sum_delta = 0.0;
         let mut sum_ate = 0.0;
@@ -155,7 +156,7 @@ impl UnobservedCommonCause {
                      usable effect",
                 ));
             }
-            sum_delta += (est.ate - problem.original.ate).abs();
+            sum_delta += (est.ate - centre).abs();
             sum_ate += est.ate;
         }
         let mean_delta = sum_delta / f64::from(self.replicates);
@@ -166,7 +167,7 @@ impl UnobservedCommonCause {
         )?;
         // The scale of an ATE in residual-SD units; the floor keeps a null estimate finite.
         let ate_scale = (sd_y / sd_t) * treatment_delta.abs();
-        let std_delta = mean_delta / problem.original.ate.abs().max(1e-3 * ate_scale);
+        let std_delta = mean_delta / centre.abs().max(1e-3 * ate_scale);
         let passed = std_delta < self.std_delta_threshold;
         Ok(RefutationReport {
             refuter: Arc::from("unobserved.common_cause"),
