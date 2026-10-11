@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
+use antecedent_core::{ExecutionContext, Fnv1a64};
 
 use crate::diagnostics::InferenceDiagnostics;
 use crate::error::ProbError;
@@ -155,26 +155,24 @@ impl ConjugateGramKey {
 }
 
 fn hash_design_contents(x: &[f64], weights: Option<&[f64]>) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325_u64;
-    let mut mix = |v: u64| {
-        h ^= v;
-        h = h.wrapping_mul(0x0100_0000_01b3);
-    };
-    mix(x.len() as u64);
+    let mut h = Fnv1a64::new();
+    h.fold(x.len() as u64);
     for &v in x {
-        mix(v.to_bits());
+        h.fold(v.to_bits());
     }
     match weights {
-        None => mix(0),
+        None => {
+            h.fold(0);
+        }
         Some(w) => {
-            mix(1);
-            mix(w.len() as u64);
+            h.fold(1);
+            h.fold(w.len() as u64);
             for &v in w {
-                mix(v.to_bits());
+                h.fold(v.to_bits());
             }
         }
     }
-    h
+    h.finish()
 }
 
 impl LaplaceWorkspace {

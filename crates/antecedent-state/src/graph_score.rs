@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use antecedent_core::Fnv1a64;
 use antecedent_stats::{DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace};
 
 use crate::error::StateError;
@@ -95,20 +96,13 @@ impl GraphScoreData {
 
 /// FNV-1a over the shape and the bit pattern of every value.
 fn content_fingerprint(n_rows: usize, n_vars: usize, columns: &[f64]) -> u64 {
-    const PRIME: u64 = 0x0000_0100_0000_01B3;
-    let mut h: u64 = 0xCBF2_9CE4_8422_2325;
-    let mut mix = |word: u64| {
-        for byte in word.to_le_bytes() {
-            h ^= u64::from(byte);
-            h = h.wrapping_mul(PRIME);
-        }
-    };
-    mix(n_rows as u64);
-    mix(n_vars as u64);
+    let mut h = Fnv1a64::new();
+    h.word(n_rows as u64);
+    h.word(n_vars as u64);
     for v in columns {
-        mix(v.to_bits());
+        h.word(v.to_bits());
     }
-    h
+    h.finish()
 }
 
 /// Local-score cache keyed by `(node, sorted parent set)`.

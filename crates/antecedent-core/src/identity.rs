@@ -21,6 +21,75 @@ pub fn to_hex(bytes: &[u8]) -> String {
     out
 }
 
+/// FNV-1a 64-bit offset basis.
+pub const FNV1A_64_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+/// FNV-1a 64-bit prime.
+pub const FNV1A_64_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+/// Streaming 64-bit FNV-1a for in-memory cache keys.
+///
+/// Not collision resistant and not a persisted identity: use
+/// [`CanonicalWriter`] for anything that is stored or compared across
+/// processes. [`Self::byte`]/[`Self::bytes`]/[`Self::word`] are standard
+/// FNV-1a (per-byte xor then multiply). [`Self::fold`] xors a whole `u64`
+/// before one multiply; it is cheaper and weaker, kept so an existing
+/// in-memory key keeps its value.
+#[derive(Clone, Copy, Debug)]
+pub struct Fnv1a64(u64);
+
+impl Default for Fnv1a64 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Fnv1a64 {
+    /// Start at the FNV offset basis.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(FNV1A_64_OFFSET)
+    }
+
+    /// Fold one byte (xor, then multiply by the prime).
+    pub fn byte(&mut self, byte: u8) -> &mut Self {
+        self.0 ^= u64::from(byte);
+        self.0 = self.0.wrapping_mul(FNV1A_64_PRIME);
+        self
+    }
+
+    /// Fold bytes in order, per byte.
+    pub fn bytes(&mut self, bytes: &[u8]) -> &mut Self {
+        for &byte in bytes {
+            self.byte(byte);
+        }
+        self
+    }
+
+    /// Fold a `u64` as its eight little-endian bytes, per byte.
+    pub fn word(&mut self, word: u64) -> &mut Self {
+        self.bytes(&word.to_le_bytes())
+    }
+
+    /// Xor a whole `u64` in, then multiply once (word-at-a-time variant).
+    pub fn fold(&mut self, word: u64) -> &mut Self {
+        self.0 ^= word;
+        self.0 = self.0.wrapping_mul(FNV1A_64_PRIME);
+        self
+    }
+
+    /// The current 64-bit hash.
+    #[must_use]
+    pub const fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+/// Standard 64-bit FNV-1a of `bytes`.
+#[must_use]
+pub fn fnv1a_u64(bytes: &[u8]) -> u64 {
+    Fnv1a64::new().bytes(bytes).finish()
+}
+
 /// Streaming length-prefixed canonical writer hashed with BLAKE3.
 ///
 /// Framing: every field is either a little-endian `u64` word or a `u64`
@@ -346,6 +415,19 @@ mod tests {
 
     /// The old `antecedent-io` `Canon` buffered every field and hashed once; the
     /// streaming writer must produce the same digest.
+    #[test]
+    fn fnv1a_matches_reference_vectors() {
+        assert_eq!(fnv1a_u64(b""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(fnv1a_u64(b"a"), 0xaf63_dc4c_8601_ec8c);
+        assert_eq!(fnv1a_u64(b"foobar"), 0x8594_4171_f739_67e8);
+        let mut by_word = Fnv1a64::new();
+        by_word.word(0x0102_0304_0506_0708);
+        assert_eq!(by_word.finish(), fnv1a_u64(&0x0102_0304_0506_0708_u64.to_le_bytes()));
+        let mut folded = Fnv1a64::new();
+        folded.fold(7);
+        assert_eq!(folded.finish(), (FNV1A_64_OFFSET ^ 7).wrapping_mul(FNV1A_64_PRIME));
+    }
+
     #[test]
     fn canonical_writer_matches_buffered_canon_framing() {
         fn word(buf: &mut Vec<u8>, w: u64) {
