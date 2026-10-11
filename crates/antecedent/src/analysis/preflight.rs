@@ -29,12 +29,12 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
 use antecedent_core::{
-    CausalQuery, ExecutionContext, Intervention, ResponseFunctional, VariableId, reason_code,
+    reason_code, CausalQuery, ExecutionContext, Intervention, ResponseFunctional, VariableId,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_estimate::{EstimationError, ExactF64, RefusalFields};
 use antecedent_stats::{
-    FaerBackend, GlmOptions, PropensityWorkspace, StatsError, fit_propensity_diagnostic,
+    fit_propensity_diagnostic, FaerBackend, GlmOptions, PropensityWorkspace, StatsError,
 };
 use serde::Serialize;
 
@@ -365,12 +365,26 @@ impl<'a> Frame<'a> {
         ids.extend_from_slice(&input.adjustment);
         let mut names = Vec::with_capacity(ids.len());
         let mut raw: Vec<Cow<'a, [f64]>> = Vec::with_capacity(ids.len());
+        // Same row rule as the estimators: analysis mask intersect column validity,
+        // not "every borrowed value happens to be finite".
+        let mut keep = vec![true; rows_total];
+        if let Some(mask) = data.storage().analysis_mask() {
+            for (i, slot) in keep.iter_mut().enumerate() {
+                *slot = mask.is_valid(i);
+            }
+        }
         for &id in &ids {
             names.push(schema.get(id)?.name.to_string());
-            raw.push(data.float64_cow(id)?);
+            let validity = data.column(id)?.validity();
+            for (i, slot) in keep.iter_mut().enumerate() {
+                if *slot && !validity.is_valid(i) {
+                    *slot = false;
+                }
+            }
+            raw.push(Cow::Owned(data.float64_values(id)?));
         }
         let complete: Vec<usize> =
-            (0..rows_total).filter(|&i| raw.iter().all(|c| c[i].is_finite())).collect();
+            keep.iter().enumerate().filter(|(_, k)| **k).map(|(i, _)| i).collect();
         let missingness = names
             .iter()
             .zip(&raw)
@@ -624,7 +638,11 @@ fn r_squared(a: &[f64], b: &[f64]) -> Option<f64> {
         sbb += (y - mb) * (y - mb);
         sab += (x - ma) * (y - mb);
     }
-    if saa > 0.0 && sbb > 0.0 { Some(sab * sab / (saa * sbb)) } else { None }
+    if saa > 0.0 && sbb > 0.0 {
+        Some(sab * sab / (saa * sbb))
+    } else {
+        None
+    }
 }
 
 /// Normalized bit pattern of a value (`-0.0` equals `0.0`).
@@ -1046,7 +1064,11 @@ impl NuisanceFitDiagnostics {
 fn kish_ess(weights: &[f64]) -> f64 {
     let sum: f64 = weights.iter().sum();
     let sum_sq: f64 = weights.iter().map(|w| w * w).sum();
-    if sum_sq > 0.0 { sum * sum / sum_sq } else { 0.0 }
+    if sum_sq > 0.0 {
+        sum * sum / sum_sq
+    } else {
+        0.0
+    }
 }
 
 #[allow(
@@ -1752,7 +1774,7 @@ mod tests {
     use antecedent_data::{TableView, TabularData};
 
     use super::{
-        PreflightInput, RankDropPlan, scan_rank, separates_arms, tolerance, verify_span_preserved,
+        scan_rank, separates_arms, tolerance, verify_span_preserved, PreflightInput, RankDropPlan,
     };
 
     fn column(n: usize, seed: u64) -> Vec<f64> {
