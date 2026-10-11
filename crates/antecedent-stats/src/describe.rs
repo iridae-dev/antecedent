@@ -29,10 +29,12 @@ pub fn mean_and_se(values: &[f64]) -> Option<(f64, f64)> {
 }
 
 /// Standard error of the mean of independent scores (an influence-function SE):
-/// `sqrt(max(Σ(v − mean)² / (n − 1) / n, 0))`.
+/// `sqrt(Σ(v − mean)² / (n − 1) / n)`.
 ///
-/// `NaN` for fewer than two values; non-finite inputs propagate to `NaN` or
-/// `∞` rather than being refused (see [`mean_and_se`] for the refusing form).
+/// `NaN` for fewer than two values; a `NaN` input gives a `NaN` standard error (a `NaN`
+/// variance is never clamped to a confident `0.0`), and an infinite input gives `NaN` or
+/// `∞`. The sum of squares is non-negative by construction, so no clamp is applied. See
+/// [`mean_and_se`] for the refusing form that returns `None` instead.
 #[must_use]
 pub fn iid_se(values: &[f64]) -> f64 {
     let n = values.len();
@@ -42,7 +44,7 @@ pub fn iid_se(values: &[f64]) -> f64 {
     let nf = n as f64;
     let mean = values.iter().sum::<f64>() / nf;
     let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (nf - 1.0);
-    (var / nf).max(0.0).sqrt()
+    (var / nf).sqrt()
 }
 
 #[cfg(test)]
@@ -66,6 +68,15 @@ mod tests {
         assert!(mean_and_se(&[1.0, f64::INFINITY]).is_none());
         let (mean, se) = mean_and_se(&[2.0, 2.0, 2.0]).unwrap();
         assert!((mean - 2.0).abs() < f64::EPSILON && se.abs() < f64::MIN_POSITIVE);
+    }
+
+    #[test]
+    fn iid_se_propagates_nan_instead_of_reporting_zero() {
+        assert!(iid_se(&[1.0, f64::NAN, 3.0]).is_nan());
+        assert!(iid_se(&[f64::NAN, f64::NAN]).is_nan());
+        assert!(!iid_se(&[1.0, f64::INFINITY, 3.0]).is_finite());
+        // A genuinely constant sample is still an exact zero.
+        assert_eq!(iid_se(&[2.0, 2.0, 2.0]), 0.0);
     }
 
     #[test]

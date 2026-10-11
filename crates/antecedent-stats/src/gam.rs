@@ -903,7 +903,7 @@ fn validate_knots(knots: &[f64], n_basis: usize) -> Result<(), StatsError> {
 #[allow(clippy::float_cmp)] // Only exactly constant data need an artificial knot domain.
 fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
     let mut sorted = x.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(f64::total_cmp);
     let xmin = sorted[0];
     let xmax = sorted[sorted.len() - 1];
     if !(xmax - xmin).is_finite() {
@@ -917,19 +917,9 @@ fn quantile_knots(x: &[f64], n_basis: usize) -> Result<Vec<f64>, StatsError> {
         knots.push(xmin);
     }
     if n_interior > 0 {
-        let n = sorted.len();
         for i in 1..=n_interior {
             let q = i as f64 / (n_interior + 1) as f64;
-            let pos = q * (n - 1) as f64;
-            #[allow(
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss,
-                reason = "pos = q * (n - 1) with q in (0, 1) lies in [0, n - 1], so floor and ceil are non-negative indices"
-            )]
-            let (lo, hi) = (pos.floor() as usize, pos.ceil() as usize);
-            let t = pos - lo as f64;
-            let v = sorted[lo] * (1.0 - t) + sorted[hi.min(n - 1)] * t;
-            knots.push(v);
+            knots.push(antecedent_kernels::quantile_type7_sorted(&sorted, q));
         }
     }
     for _ in 0..CUBIC_ORDER {
