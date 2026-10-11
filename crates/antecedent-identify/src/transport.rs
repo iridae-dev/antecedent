@@ -432,17 +432,25 @@ fn outcome_ancestors(
     treatments: &[VariableId],
 ) -> Result<std::collections::BTreeSet<VariableId>, IdentificationError> {
     let graph = diagram.causal_graph();
-    let mut ancestors = std::collections::BTreeSet::new();
-    let mut pending = outcomes.to_vec();
-    while let Some(variable) = pending.pop() {
-        if treatments.contains(&variable) || !ancestors.insert(variable) {
-            continue;
-        }
-        for parent in graph.parents(prepared.var_to_dense(variable)?) {
-            pending.push(prepared.dense_to_var(*parent)?);
+    let n = graph.node_count();
+    // Treatments are neither members nor expanded: the closure stays on the other nodes.
+    let mut active = BitSet::full(n);
+    for treatment in treatments {
+        if let Ok(dense) = prepared.var_to_dense(*treatment) {
+            active.remove(dense);
         }
     }
-    Ok(ancestors)
+    let mut seeds = BitSet::with_len(n);
+    for outcome in outcomes.iter().filter(|outcome| !treatments.contains(outcome)) {
+        seeds.insert(prepared.var_to_dense(*outcome)?);
+    }
+    let closure = graph.ancestors_within(
+        &seeds,
+        &active,
+        None,
+        &mut antecedent_graph::GraphWorkspace::default(),
+    );
+    closure.to_dense_ids().into_iter().map(|dense| prepared.dense_to_var(dense)).collect()
 }
 
 /// The target observational truncated factorization of a causally sufficient
