@@ -100,50 +100,18 @@ pub fn gauss_legendre(n: usize) -> (Vec<f64>, Vec<f64>) {
     (nodes, weights)
 }
 
-/// The 97.5% standard-normal quantile — the two-sided 95% critical value `z_{0.975}`.
+/// The 97.5% standard-normal quantile, the two-sided 95% critical value `z_{0.975}`.
 ///
-/// A single owner for the constant that a Wald 95% interval multiplies its standard error
-/// by. Equal to `normal_ppf(0.975)` to full `f64` precision, but a `const` so it carries no
-/// evaluation cost and reads identically at every interval site.
-pub const NORMAL_Q975: f64 = 1.959_963_984_540_054;
+/// Re-export of the kernels constant, the single workspace owner.
+pub use antecedent_kernels::NORMAL_Q975;
 
-/// Standard-normal PPF: Acklam's rational approximation refined by one Halley step.
-///
-/// Acklam's approximation alone has relative error ~1.6e-9 at p=0.975, rising to ~7.6e-9
-/// in the far tails (p=1e-12, 1e-15) — inconsistent with the ~1e-13 accuracy of the
-/// Cody-rational `erf`/`erfc` in `antecedent-kernels`, which back the CDF/PDF used here.
-/// One Halley (second-order Newton) correction against the exact CDF/PDF brings this to
-/// near machine epsilon for ordinary probabilities. Subnormal probabilities have
-/// reduced relative precision. Returns infinities at 0 and 1, and NaN outside [0, 1].
+/// Standard-normal PPF: an alias of [`antecedent_kernels::norm_inv`], the one high-accuracy
+/// owner (Acklam seed plus one Halley step, a few ulps over the normal range). Returns
+/// infinities at 0 and 1, and NaN outside [0, 1].
+#[inline]
 #[must_use]
 pub fn normal_ppf(p: f64) -> f64 {
-    let x0 = antecedent_kernels::norm_inv(p);
-    if !x0.is_finite() {
-        return x0;
-    }
-    // One Halley refinement step against the exact (Cody-rational) normal CDF/PDF:
-    // for f(x) = Phi(x) - p, phi = f'(x), and f''(x) = -x * phi(x), the Halley update
-    // 2 f f' / (2 f'^2 - f f'') simplifies to 2f / (2*phi + f*x). This converts Acklam's
-    // ~1e-9 starting error into a near-machine-epsilon result in a single step.
-    //
-    // For p > 0.5 (x0 > 0), compute the residual via the survival function instead of the
-    // CDF: `norm_cdf` saturates to exactly 1.0 once x exceeds ~8, which would silently
-    // erase the sub-ulp information the refinement needs in the upper tail. `norm_sf`
-    // stays accurate there by construction, and Phi(x) - p == -(Sf(x) - (1 - p)).
-    let f = if p <= 0.5 {
-        antecedent_kernels::norm_cdf(x0) - p
-    } else {
-        -(antecedent_kernels::norm_sf(x0) - (1.0 - p))
-    };
-    let phi = antecedent_kernels::norm_pdf(x0);
-    let denom = 2.0 * phi + f * x0;
-    if phi > 0.0 && denom.is_finite() && denom != 0.0 {
-        let refined = x0 - 2.0 * f / denom;
-        if refined.is_finite() {
-            return refined;
-        }
-    }
-    x0
+    antecedent_kernels::norm_inv(p)
 }
 
 /// Digamma `ψ(z) = d/dz ln Γ(z)` (reflection + asymptotic series).

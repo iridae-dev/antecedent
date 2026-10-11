@@ -39,7 +39,7 @@ use crate::signal::{
 
 /// Critical value for the unpaired rank-uncertainty comparison of two independently
 /// evaluated candidates.
-const RANK_Z: f64 = 1.96;
+const RANK_Z: f64 = antecedent_kernels::NORMAL_Q975;
 
 /// Positive linear map from the caller's cost unit to the decision's utility unit:
 /// `StudyCostUtility = utility_per_cost · cost`.

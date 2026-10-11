@@ -1806,7 +1806,7 @@ mod tests {
             rank_uncertainty_threshold: 0.0,
         };
         assert_eq!(cfg.n_looks(), 1);
-        assert!((cfg.critical_value() - 1.959_963_984_540_054).abs() < 1e-9);
+        assert!((cfg.critical_value() - antecedent_kernels::NORMAL_Q975).abs() < 1e-14);
     }
 
     /// The reported flag uses the same adjusted boundary and the paired standard error.

@@ -89,7 +89,7 @@ const REPLAY_TOLERANCE: f64 = 1e-8;
 /// Tolerance of probability-mass and coherence checks on retained tables.
 const MASS_TOLERANCE: f64 = 1e-6;
 /// Critical value of the rank-uncertainty comparison (matches the evaluator).
-const RANK_Z: f64 = 1.96;
+const RANK_Z: f64 = antecedent_kernels::NORMAL_Q975;
 
 // -- wire -------------------------------------------------------------------------------
 

@@ -181,11 +181,47 @@ pub fn norm_pdf(x: f64) -> f64 {
     INV_SQRT_2PI * (-0.5 * x * x).exp()
 }
 
-/// Standard normal quantile Φ⁻¹(p) (Acklam rational approximation).
+/// The 97.5% standard-normal quantile `z_{0.975}`, the two-sided 95% critical value.
 ///
-/// Absolute error is typically below ~1e-9 on `(0, 1)`. Returns `±∞` at the
-/// endpoints and `NaN` outside `[0, 1]`.
+/// The single workspace owner of the constant a Wald 95% interval multiplies its standard
+/// error by. The nearest `f64` to `z_{0.975} = 1.95996398454005423552…` (verified against 40-digit `mpmath`; asserted within one ulp of `norm_inv(0.975)`), but a
+/// `const` so it carries no evaluation cost and reads identically at every interval site.
+pub const NORMAL_Q975: f64 = 1.959_963_984_540_054_3;
+
+/// Standard normal quantile Φ⁻¹(p): Acklam's rational approximation refined by one Halley step.
+///
+/// This is the one high-accuracy quantile owner; `antecedent_stats::normal_ppf` is an alias.
+/// Acklam's approximation alone has relative error ~1.2e-9; one Halley (second-order Newton)
+/// correction against the Cody-rational CDF/survival function brings the result to a few
+/// ulps for every normal-range probability, including the far tails. Subnormal
+/// probabilities keep reduced relative precision. Returns `±∞` at `0` / `1` and `NaN`
+/// outside `[0, 1]` (and for `NaN`).
 #[must_use]
+pub fn norm_inv(p: f64) -> f64 {
+    let x0 = norm_inv_acklam(p);
+    if !x0.is_finite() {
+        return x0;
+    }
+    // Halley step for f(x) = Φ(x) − p with f' = φ and f'' = −xφ: the update
+    // 2 f f' / (2 f'² − f f'') simplifies to 2f / (2φ + f·x).
+    //
+    // For p > 0.5 the residual is taken through the survival function: `norm_cdf` saturates to
+    // exactly 1.0 beyond x ≈ 8, which would erase the sub-ulp information the step needs in
+    // the upper tail, while `Φ(x) − p == −(Sf(x) − (1 − p))` stays accurate there.
+    let f = if p <= 0.5 { norm_cdf(x0) - p } else { -(norm_sf(x0) - (1.0 - p)) };
+    let phi = norm_pdf(x0);
+    let denom = 2.0 * phi + f * x0;
+    if phi > 0.0 && denom.is_finite() && denom != 0.0 {
+        let refined = x0 - 2.0 * f / denom;
+        if refined.is_finite() {
+            return refined;
+        }
+    }
+    x0
+}
+
+/// Acklam's rational approximation of Φ⁻¹(p), relative error ~1.2e-9; the Halley seed of
+/// [`norm_inv`].
 #[allow(
     clippy::excessive_precision,
     clippy::float_cmp,
@@ -193,7 +229,7 @@ pub fn norm_pdf(x: f64) -> f64 {
     clippy::manual_range_contains,
     reason = "the exact comparisons test the endpoints p == 0.0 and p == 1.0, which are special-cased"
 )]
-pub fn norm_inv(p: f64) -> f64 {
+fn norm_inv_acklam(p: f64) -> f64 {
     if !(0.0..=1.0).contains(&p) {
         return f64::NAN;
     }
@@ -280,10 +316,51 @@ mod tests {
     #[test]
     fn norm_inv_known_quantiles() {
         // Reference Φ⁻¹ values (high precision).
-        assert!((norm_inv(0.5) - 0.0).abs() < 1e-12);
-        assert!((norm_inv(0.975) - 1.959_963_984_540_054).abs() < 1e-8);
-        assert!((norm_inv(0.025) + 1.959_963_984_540_054).abs() < 1e-8);
-        assert!((norm_inv(0.841_344_746_068_542_9) - 1.0).abs() < 1e-7);
+        assert!((norm_inv(0.5) - 0.0).abs() < 1e-15);
+        assert!((norm_inv(0.975) - NORMAL_Q975).abs() < 2.3e-16);
+        assert!((norm_inv(0.025) + NORMAL_Q975).abs() < 2.3e-16);
+        assert!((norm_inv(0.841_344_746_068_542_9) - 1.0).abs() < 4e-16);
+    }
+
+    #[test]
+    fn norm_inv_matches_mpmath_across_the_tails() {
+        // Φ⁻¹ of the exact f64 argument, solved by `mpmath.findroot` on `ncdf` at 60 digits.
+        // The Acklam seed alone is off by up to ~1e-9 relative; the Halley step must reach a
+        // few ulps everywhere, including p = 1 − 1e-10 where the argument itself is rounded.
+        let cases: [(f64, f64); 22] = [
+            (1e-300, -37.047_096_299_361_2),
+            (1e-100, -21.273_453_560_965_324),
+            (1e-50, -14.933_337_534_788_49),
+            (1e-15, -7.941_345_326_170_997),
+            (1e-12, -7.034_483_825_301_132),
+            (1e-10, -6.361_340_902_404_056),
+            (1e-8, -5.612_001_244_174_789),
+            (1e-5, -4.264_890_793_922_825),
+            (0.001, -3.090_232_306_167_813_5),
+            (0.01, -2.326_347_874_040_841),
+            (0.025, -1.959_963_984_540_054_2),
+            (0.1, -1.281_551_565_544_600_4),
+            (0.3, -0.524_400_512_708_040_8),
+            (0.7, 0.524_400_512_708_040_66),
+            (0.9, 1.281_551_565_544_600_6),
+            (0.975, 1.959_963_984_540_053_9),
+            (0.99, 2.326_347_874_040_840_8),
+            (0.999, 3.090_232_306_167_813_3),
+            (0.99999, 4.264_890_793_923_840_8),
+            (0.99999999, 5.612_001_243_305_505),
+            (0.9999999999, 6.361_340_889_697_422),
+            (0.999999999999, 7.034_486_910_047_835),
+        ];
+        for (p, expected) in cases {
+            let got = norm_inv(p);
+            let rel = ((got - expected) / expected).abs();
+            assert!(rel < 5e-15, "p={p:e}: got {got:.17e} want {expected:.17e} rel {rel:e}");
+        }
+        assert_eq!(norm_inv(0.5), 0.0);
+        // Symmetry holds to rounding.
+        for p in [1e-10, 1e-4, 0.2, 0.4] {
+            assert!((norm_inv(p) + norm_inv(1.0 - p)).abs() < 1e-8 * norm_inv(1.0 - p).abs().max(1.0));
+        }
     }
 
     #[test]

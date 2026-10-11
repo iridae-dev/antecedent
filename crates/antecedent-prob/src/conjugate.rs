@@ -1002,7 +1002,7 @@ mod tests {
             let beta_n = beta0 + 0.5 * (rss + prior_quad);
             // Marginal Var(β) under NIG: (βn / (αn − 1)) · Vn
             let marg_var = (beta_n / (alpha_n - 1.0)) * vn;
-            let half_width = 1.96 * marg_var.sqrt();
+            let half_width = antecedent_kernels::NORMAL_Q975 * marg_var.sqrt();
 
             let super::NigPosterior {
                 mean: post_mean, alpha_n: post_alpha, beta_n: post_beta, ..
@@ -1061,7 +1061,7 @@ mod tests {
                 "sigma={sigma}: draw mean {} vs {mn}",
                 s.mean[0]
             );
-            let emp_half = 1.96 * s.sd[0];
+            let emp_half = antecedent_kernels::NORMAL_Q975 * s.sd[0];
             assert!(
                 (emp_half - half_width).abs() / half_width < 0.15,
                 "sigma={sigma}: credible half-width {emp_half} vs analytic {half_width}"
