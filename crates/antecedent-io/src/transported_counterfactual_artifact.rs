@@ -34,7 +34,6 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::io::Cursor;
 
 use antecedent_core::{CanonicalWriter};
 use antecedent_counterfactual::transported_gate::{PopulationRole, RegimeFactorKey};
@@ -46,10 +45,7 @@ use antecedent_counterfactual::transported_path_specific::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
@@ -100,7 +96,7 @@ pub struct NonRecoverableWitnessWire {
 /// The refusal a consumer or producer returns, in the shared structured shape.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RefusalWire {
+pub struct TransportedCounterfactualRefusalWire {
     /// Registered reason code.
     pub code: String,
     /// Refusing stage.
@@ -116,6 +112,12 @@ pub struct RefusalWire {
     /// Regime factors (`source:<regime>` / `target:<regime>`) absent from the evidence.
     pub missing_factors: Vec<String>,
 }
+
+/// Historical Rust name for [`TransportedCounterfactualRefusalWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type RefusalWire = TransportedCounterfactualRefusalWire;
+
 
 /// Why a transported counterfactual artifact was refused or could not be produced.
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
@@ -162,7 +164,7 @@ impl TransportedCounterfactualArtifactError {
     pub fn refusal(&self) -> Option<RefusalWire> {
         match self {
             Self::Refused(wire) => Some((**wire).clone()),
-            Self::IdentityMismatch { field } => Some(RefusalWire {
+            Self::IdentityMismatch { field } => Some(TransportedCounterfactualRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
                 detail: "transported_counterfactual.artifact_changed".to_owned(),
@@ -189,7 +191,7 @@ impl From<crate::IoError> for TransportedCounterfactualArtifactError {
 type Failure = TransportedCounterfactualArtifactError;
 
 fn invalid(detail: &str, offending: &str) -> Failure {
-    Failure::Refused(Box::new(RefusalWire {
+    Failure::Refused(Box::new(TransportedCounterfactualRefusalWire {
         code: antecedent_core::reason_code!("invalid_argument").to_owned(),
         stage: "identify".to_owned(),
         detail: detail.to_owned(),
@@ -213,7 +215,7 @@ pub struct AffineWire {
 /// One mediator or outcome mechanism on the wire: `V = intercept(z) + sum coef_p(z) V_p + U`.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MechanismWire {
+pub struct TransportedCounterfactualMechanismWire {
     /// The node it generates.
     pub node: String,
     /// The covariate-dependent intercept.
@@ -221,6 +223,12 @@ pub struct MechanismWire {
     /// Parents with their covariate-dependent coefficients.
     pub parents: Vec<(String, AffineWire)>,
 }
+
+/// Historical Rust name for [`TransportedCounterfactualMechanismWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type MechanismWire = TransportedCounterfactualMechanismWire;
+
 
 /// The additive-noise structural model on the wire.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -424,11 +432,6 @@ pub struct TransportedCounterfactualReportWire {
     pub identity: TransportedCounterfactualIdentity,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
 // ---------------------------------------------------------------------------------------------
 // Canonical form
 // ---------------------------------------------------------------------------------------------
@@ -547,7 +550,7 @@ fn model_wire(model: &AdditiveLinearScm) -> ModelWire {
         mechanisms: model
             .mechanisms
             .iter()
-            .map(|(node, m)| MechanismWire {
+            .map(|(node, m)| TransportedCounterfactualMechanismWire {
                 node: node.clone(),
                 intercept: affine_wire(&m.intercept),
                 parents: m.parents.iter().map(|(p, a)| (p.clone(), affine_wire(a))).collect(),
@@ -589,7 +592,7 @@ fn witness_wire(witness: &NonRecoverableWitness) -> NonRecoverableWitnessWire {
 }
 
 fn from_core(refusal: &TransportedPathSpecificRefusal) -> Failure {
-    Failure::Refused(Box::new(RefusalWire {
+    Failure::Refused(Box::new(TransportedCounterfactualRefusalWire {
         code: refusal.refusal.code.to_owned(),
         stage: refusal.refusal.stage.to_owned(),
         detail: refusal.refusal.detail.clone(),
@@ -920,32 +923,23 @@ pub fn encode_parts(
     meta: &TransportedCounterfactualMeta,
     artifact_id: &str,
 ) -> Result<Vec<u8>, TransportedCounterfactualArtifactError> {
-    let encode = |e: crate::IoError| Failure::Encode(e.to_string());
     if artifact_id.trim().is_empty() {
-        return Err(Failure::Encode("missing artifact id".into()));
+        return Err(TransportedCounterfactualArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![section_descriptor(META_SECTION, "application/cbor", &meta_bytes)],
-            provenance: ProvenanceWire {
-                note: "transported_counterfactual_covariate_selected_point_only".into(),
-            },
+    let meta_bytes = to_cbor(meta).map_err(|error| TransportedCounterfactualArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "transported_counterfactual_covariate_selected_point_only",
+            max_bytes: MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![SectionBytes::new(META_SECTION, meta_bytes)],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES {
-        return Err(Failure::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+        &[
+            crate::OutSection { id: META_SECTION, content_type: crate::CONTENT_CBOR, bytes: &meta_bytes },
+        ],
+    )
+    .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))
 }
 
 /// Decode the metadata section of a container, refusing another version before the metadata
@@ -959,27 +953,18 @@ pub fn encode_parts(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<TransportedCounterfactualMeta, TransportedCounterfactualArtifactError> {
-    if bytes.len() > MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES {
-        return Err(Failure::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 1
-        || manifest.sections[0].id != META_SECTION
-    {
-        return Err(Failure::Malformed("unsupported container layout".into()));
-    }
-    if manifest.sections[0].uncompressed_size > MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES as u64
-    {
-        return Err(Failure::LimitsExceeded("artifact bytes"));
-    }
-    let section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(section.as_bytes())?;
-    if peek.version != TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION {
-        return Err(Failure::UnsupportedVersion { version: peek.version });
-    }
-    from_cbor(section.as_bytes()).map_err(Failure::from)
+    let parts = crate::decode_container(ARTIFACT_KIND, MAX_TRANSPORTED_COUNTERFACTUAL_ARTIFACT_BYTES, &[META_SECTION], bytes)
+        .map_err(|error| crate::map_artifact_check!(error, TransportedCounterfactualArtifactError))?;
+    let Ok([meta_bytes]) = <[Vec<u8>; 1]>::try_from(parts) else {
+        return Err(TransportedCounterfactualArtifactError::Malformed("unsupported container layout".into()));
+    };
+    crate::decode_with_version(&meta_bytes, |version| {
+        if version == TRANSPORTED_COUNTERFACTUAL_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(TransportedCounterfactualArtifactError::UnsupportedVersion { version })
+        }
+    })
 }
 
 /// A produced or consumed transported counterfactual artifact.

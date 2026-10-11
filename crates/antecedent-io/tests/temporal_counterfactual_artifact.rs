@@ -7,8 +7,8 @@
 
 use antecedent_core::ExecutionContext;
 use antecedent_io::temporal_counterfactual_artifact::{
-    ActionHistoryWire, FactualUnitWire, FitWire, MechanismWire, TemporalCounterfactualArtifact,
-    TemporalCounterfactualArtifactError, TemporalCounterfactualRequestWire, TemporalGraphWire,
+    ActionHistoryWire, FactualUnitWire, FitWire, TemporalCounterfactualMechanismWire, TemporalCounterfactualArtifact,
+    TemporalCounterfactualArtifactError, TemporalCounterfactualRequestWire, CounterfactualTemporalGraphWire,
     decode_parts, encode_parts,
 };
 
@@ -43,8 +43,8 @@ fn edges() -> Vec<(String, String)> {
     .collect()
 }
 
-fn mechanism(node: &str, intercept: f64, parents: &[(&str, f64)]) -> MechanismWire {
-    MechanismWire {
+fn mechanism(node: &str, intercept: f64, parents: &[(&str, f64)]) -> TemporalCounterfactualMechanismWire {
+    TemporalCounterfactualMechanismWire {
         node: node.into(),
         intercept,
         parent_coefficients: parents.iter().map(|(p, c)| ((*p).to_owned(), *c)).collect(),
@@ -70,7 +70,7 @@ fn fit() -> FitWire {
 fn request() -> TemporalCounterfactualRequestWire {
     let units: Vec<String> = (0..4).map(|i| format!("unit-{i}")).collect();
     TemporalCounterfactualRequestWire {
-        graph: TemporalGraphWire { horizon: 2, edges: edges(), latent_confounding: false },
+        graph: CounterfactualTemporalGraphWire { horizon: 2, edges: edges(), latent_confounding: false },
         fit: fit(),
         snapshot: "snapshot-1".into(),
         factual: (0..4)

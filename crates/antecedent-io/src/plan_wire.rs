@@ -15,6 +15,7 @@ use crate::error::IoError;
 
 /// Logical plan wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct LogicalAnalysisPlanWire {
     /// Plan id.
     pub plan_id: String,
@@ -36,6 +37,7 @@ pub struct LogicalAnalysisPlanWire {
 
 /// Physical plan wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct PhysicalExecutionPlanWire {
     /// Plan id.
     pub plan_id: String,
@@ -63,6 +65,7 @@ pub struct PhysicalExecutionPlanWire {
 
 /// Performance wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ExecutionPerformanceWire {
     /// Wall ns.
     pub wall_time_ns: Option<u64>,

@@ -26,6 +26,7 @@ pub const PRIOR_SOURCE_META_SECTION: &str = "prior_source.meta";
 /// Estimand fingerprint for catalog matching (query kind + treatment/outcome names,
 /// plus the temporal coordinates of a temporal estimand).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(deny_unknown_fields)]
 pub struct EstimandFingerprint {
     /// Query kind tag (e.g. `"ate"`, `"average_effect"`).
     pub query_kind: String,
@@ -72,6 +73,7 @@ impl EstimandFingerprint {
 /// functional) only when these match; a lag-1 Pulse posterior never binds onto a
 /// lag-2 target without an explicit named mapping.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(deny_unknown_fields)]
 pub struct TemporalCoordinates {
     /// Treatment lags relative to the outcome, ascending (`[1]` for a lag-1 Pulse or
     /// single-step Sustained window, `[1, 2]` for a two-step Sustained window).
@@ -116,6 +118,7 @@ impl TemporalCoordinates {
 /// Role of a design variable in a prior-source summary.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum DesignVariableRole {
     /// Treatment.
     Treatment,
@@ -129,6 +132,7 @@ pub enum DesignVariableRole {
 
 /// One variable in a design schema summary.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(deny_unknown_fields)]
 pub struct DesignVariableSummary {
     /// Variable name.
     pub name: String,
@@ -147,6 +151,7 @@ impl DesignVariableSummary {
 /// Declared bridge from a banked source into a target design (hydrate is P4B).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case", tag = "kind")]
+#[serde(deny_unknown_fields)]
 pub enum PriorMapping {
     /// Identical coefficient subspace (P1-C sequential Bayes).
     IdenticalCoefficientSubspace,
@@ -164,6 +169,7 @@ pub enum PriorMapping {
 
 /// Metadata for one prior-bank source (CBOR section or sidecar).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct PriorSourceMeta {
     /// Artifact id (matches container manifest when attached).
     pub artifact_id: String,
@@ -314,6 +320,7 @@ impl TargetDesign {
 /// Structured rejection reason (stable for conformance JSON).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case", tag = "code")]
+#[serde(deny_unknown_fields)]
 pub enum CompatibilityRejectReason {
     /// Source fit was unidentified and caller did not opt in.
     UnidentifiedSource {
@@ -370,6 +377,7 @@ pub enum CompatibilityRejectReason {
 /// Result of checking one source against a target design.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case", tag = "status")]
+#[serde(deny_unknown_fields)]
 pub enum CompatibilityReport {
     /// Fully compatible for bank use under the declared rules.
     Compatible {

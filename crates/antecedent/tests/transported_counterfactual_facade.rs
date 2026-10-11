@@ -12,11 +12,12 @@
 #![allow(clippy::float_cmp, reason = "exact dyadic hand values")]
 
 use antecedent::CausalError;
+use antecedent_io::transported_counterfactual_artifact::TransportedCounterfactualMechanismWire;
 use antecedent::analysis::temporal_counterfactual::{
     TransportedCounterfactualPrerequisites, transported_path_specific,
 };
 use antecedent::analysis::transported_counterfactual::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, MechanismWire, ModelWire, PremisesWire,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, ModelWire, PremisesWire,
     SelectionWire, SupportPointWire, TransportedCounterfactual,
     TransportedCounterfactualArtifactError, TransportedCounterfactualRequestWire,
 };
@@ -49,7 +50,7 @@ fn request(plus: &[&str], minus: &[&str]) -> TransportedCounterfactualRequestWir
             treatment: "a".into(),
             covariates: vec!["z".into()],
             mechanisms: vec![
-                MechanismWire {
+                TransportedCounterfactualMechanismWire {
                     node: "m".into(),
                     intercept: aff(0.0, &[]),
                     parents: vec![
@@ -57,7 +58,7 @@ fn request(plus: &[&str], minus: &[&str]) -> TransportedCounterfactualRequestWir
                         ("a".into(), aff(2.0, &[("z", -0.5)])),
                     ],
                 },
-                MechanismWire {
+                TransportedCounterfactualMechanismWire {
                     node: "y".into(),
                     intercept: aff(0.0, &[]),
                     parents: vec![

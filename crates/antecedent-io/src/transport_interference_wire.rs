@@ -59,7 +59,7 @@ pub enum TransportFormulaWire {
 
 /// Positive transport certificate wire form.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TransportCertificateWire {
+pub struct InterferenceTransportCertificateWire {
     /// Stable rule id.
     pub rule: String,
     /// Selection targets.
@@ -67,6 +67,12 @@ pub struct TransportCertificateWire {
     /// Checked premises.
     pub premises: Vec<String>,
 }
+
+/// Historical Rust name for [`InterferenceTransportCertificateWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type TransportCertificateWire = InterferenceTransportCertificateWire;
+
 
 /// Inconclusive transport certificate wire form; never an impossibility proof.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -176,7 +182,7 @@ pub fn transport_identification_to_wire(
         TransportIdentification::Transportable { formula, certificate } => {
             TransportIdentificationWire::Transportable {
                 formula: Box::new(formula_to_wire(formula)),
-                certificate: TransportCertificateWire {
+                certificate: InterferenceTransportCertificateWire {
                     rule: certificate.rule.to_string(),
                     selection_targets: certificate
                         .selection_targets

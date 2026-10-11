@@ -13,7 +13,7 @@ use antecedent_graph::{Admg, Cpdag, Dag, DenseNodeId, Endpoint, MarkedEdge, Midd
 
 use crate::error::IoError;
 use crate::wire::{
-    AdmgWire, CpdagWire, DagWire, EndpointWire, MarkedEdgeWire, MeasurementSpecWire, PagWire,
+    AdmgWire, CpdagWire, GraphCpdagWire, DagWire, EndpointWire, MarkedEdgeWire, MeasurementSpecWire, PagWire,
     ScalarTypeWire, SchemaWire, SchemaWireV01, ValueTypeWire, VariableSchemaWire,
 };
 
@@ -301,7 +301,7 @@ pub fn cpdag_to_wire(cpdag: &Cpdag) -> Result<CpdagWire, IoError> {
             )));
         }
     }
-    Ok(CpdagWire { node_count, directed, undirected })
+    Ok(GraphCpdagWire { node_count, directed, undirected })
 }
 
 /// Decode a CPDAG from wire form.

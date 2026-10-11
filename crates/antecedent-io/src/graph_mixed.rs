@@ -15,7 +15,7 @@ use crate::error::IoError;
 use crate::graph_dot::{self, Lexer};
 use crate::graph_gml;
 use crate::graph_networkx::{NetworkXNode, NodeIdKinds};
-use crate::wire::{AdmgWire, CpdagWire, EndpointWire, MarkedEdgeWire, PagWire};
+use crate::wire::{AdmgWire, GraphCpdagWire, EndpointWire, MarkedEdgeWire, PagWire};
 
 // ── JSON ────────────────────────────────────────────────────────────────────
 
@@ -156,7 +156,7 @@ pub fn cpdag_from_json(json: &str) -> Result<Cpdag, IoError> {
 pub fn cpdag_with_names_from_json(json: &str) -> Result<(Cpdag, Vec<String>), IoError> {
     let doc: CpdagJson = json_from_str(json)?;
     let names = names_or_default(doc.variable_names.as_deref(), doc.node_count)?;
-    let g = cpdag_from_wire(&CpdagWire {
+    let g = cpdag_from_wire(&GraphCpdagWire {
         node_count: doc.node_count,
         directed: doc.directed,
         undirected: doc.undirected,
@@ -259,7 +259,7 @@ pub fn cpdag_with_names_from_dot(dot: &str) -> Result<(Cpdag, Vec<String>), IoEr
             }
         }
     }
-    let g = cpdag_from_wire(&CpdagWire { node_count: parsed.node_count, directed, undirected })?;
+    let g = cpdag_from_wire(&GraphCpdagWire { node_count: parsed.node_count, directed, undirected })?;
     Ok((g, parsed.names))
 }
 
@@ -654,7 +654,7 @@ pub fn cpdag_from_gml(gml: &str) -> Result<Cpdag, IoError> {
 /// Malformed GML.
 pub fn cpdag_with_names_from_gml(gml: &str) -> Result<(Cpdag, Vec<String>), IoError> {
     let g = parse_gml(gml)?;
-    let cpdag = cpdag_from_wire(&CpdagWire {
+    let cpdag = cpdag_from_wire(&GraphCpdagWire {
         node_count: g.node_count,
         directed: g.directed,
         undirected: g.undirected,
@@ -894,7 +894,7 @@ pub fn cpdag_with_names_from_networkx_node_link(
         }
     }
     let node_count = u32::try_from(order.len()).map_err(|_| IoError::TooLarge)?;
-    let g = cpdag_from_wire(&CpdagWire { node_count, directed, undirected })?;
+    let g = cpdag_from_wire(&GraphCpdagWire { node_count, directed, undirected })?;
     Ok((g, order))
 }
 

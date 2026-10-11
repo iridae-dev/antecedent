@@ -9,10 +9,12 @@ pub mod admg_conditional_transport_artifact;
 pub mod analysis_result_artifact;
 pub mod analysis_wire;
 pub mod arrow_section;
+pub mod artifact_codec;
 pub mod calibration;
 pub mod causal_artifact;
 pub mod compact_export;
 pub mod container;
+mod contract_reason;
 pub mod contract_section;
 pub mod contrast_wire;
 pub mod convert;
@@ -108,6 +110,10 @@ pub use causal_artifact::{
     CausalPayloadHeader, CausalPayloadKind, CausalPayloadWire, StaticResultWire,
     decode_causal_payload_artifact, encode_causal_payload_artifact,
 };
+pub use artifact_codec::{
+    ArtifactCheckError, ArtifactContainer, CONTENT_BYTES, CONTENT_CBOR, CodecError, OutSection,
+    decode_container, decode_with_version, encode_container, peek_version,
+};
 pub use container::{
     AUTO_COMPRESS_MAX_RATIO, AUTO_COMPRESS_MIN_BYTES, ArtifactManifest, COMPRESSION_ZSTD,
     CONTAINER_VERSION, CompressPolicy, EncodedArtifact, MAGIC, SectionBytes, pack_section,
@@ -118,6 +124,7 @@ pub use contract_section::{
     AnalysisResultConsumption, AnalysisResultContractWire, AssumptionSlotWire,
     AttestedEvidenceWire, CONTRACT_SECTION, CONTRACT_SECTION_FORMAT, CalibrationSlotWire,
     CheckedAipwLoweringWire, CheckedAipwRowsWire, CheckedIvLoweringWire, ClaimDomainsWire,
+    ContractReason,
     ClaimHostProjection, ClaimSectionWire, ContractIdentitiesWire, IdentificationSlotWire,
     ObligationSectionWire, ReasoningSectionWire, SlotSectionWire, SupportSlotWire,
     UncertaintyComponentWire, UncertaintySlotWire, accept_claim, checked_aipw_rows_digest,
@@ -423,3 +430,104 @@ pub mod temporal_counterfactual_artifact;
 pub mod transported_counterfactual_artifact;
 /// Joint vector-treatment artifact (`vector_treatment_v1`) and its recomputing consumer.
 pub mod vector_treatment_artifact;
+
+#[cfg(test)]
+mod closed_wire_fields {
+    use serde::Deserialize;
+
+    fn zeros() -> serde_json::Value {
+        serde_json::Value::Array(vec![serde_json::json!(0); 32])
+    }
+
+    fn accept_then_reject_unknown<T: for<'de> Deserialize<'de>>(historical: &serde_json::Value) {
+        serde_json::from_value::<T>(historical.clone()).expect("historical payload");
+        let mut with_unknown = historical.clone();
+        with_unknown
+            .as_object_mut()
+            .expect("object payload")
+            .insert("not_a_historical_field".to_owned(), serde_json::Value::Null);
+        assert!(
+            serde_json::from_value::<T>(with_unknown).is_err(),
+            "unknown field must be rejected"
+        );
+    }
+
+    #[test]
+    fn historical_payloads_decode_and_unknown_fields_do_not() {
+        let digest = zeros();
+        accept_then_reject_unknown::<crate::ContractIdentitiesWire>(&serde_json::json!({
+            "target": digest.clone(),
+            "identification": digest.clone(),
+            "program": digest.clone(),
+            "inference_binding": digest.clone(),
+            "observation": digest.clone(),
+            "data_snapshot": digest,
+        }));
+        accept_then_reject_unknown::<crate::wire::GraphCpdagWire>(&serde_json::json!({
+            "node_count": 2,
+            "directed": [[0, 1]],
+            "undirected": [],
+        }));
+        accept_then_reject_unknown::<crate::analysis_wire::ScoreColumnWire>(&serde_json::json!({
+            "arm": 1,
+            "threshold": null,
+        }));
+        accept_then_reject_unknown::<crate::plan_wire::LogicalAnalysisPlanWire>(&serde_json::json!({
+            "plan_id": "p",
+            "data_classification": "public",
+            "discovery_algorithm": null,
+            "graph_review_required": false,
+            "identifier": null,
+            "estimator": null,
+            "validation_suite": null,
+            "query_variables": [],
+        }));
+        accept_then_reject_unknown::<crate::trace::DerivationStepWire>(&serde_json::json!({
+            "rule": "backdoor",
+            "detail": "adjust",
+        }));
+        let temporal: crate::prior_bank::TemporalCoordinates = serde_json::from_value(serde_json::json!({
+            "treatment_lags": [1],
+            "horizon": 1,
+        }))
+        .expect("omitted coefficient_names");
+        assert!(temporal.coefficient_names.is_empty());
+        accept_then_reject_unknown::<crate::prior_bank::TemporalCoordinates>(&serde_json::json!({
+            "treatment_lags": [1],
+            "horizon": 1,
+        }));
+        accept_then_reject_unknown::<crate::mechanism_wire::ParentBasisWire>(&serde_json::json!({
+            "n_parents": 0,
+            "centers": [],
+            "scales": [],
+            "knots": [],
+            "terms": [],
+        }));
+        accept_then_reject_unknown::<crate::response_wire::SupportRegionWire>(&serde_json::json!({
+            "minima": [0.0],
+            "maxima": [1.0],
+        }));
+        let diagnostic: crate::response_wire::SupportDiagnosticWire =
+            serde_json::from_value(serde_json::json!({
+                "id": "overlap",
+                "values": [1.0],
+                "detail": "ok",
+            }))
+            .expect("omitted scope");
+        assert!(diagnostic.scope.is_none());
+        accept_then_reject_unknown::<crate::response_wire::SupportDiagnosticWire>(&serde_json::json!({
+            "id": "overlap",
+            "values": [1.0],
+            "detail": "ok",
+        }));
+    }
+
+    #[test]
+    fn artifact_kind_keeps_the_forward_compat_other_tag() {
+        let known: crate::wire::ArtifactKind = serde_json::from_str(r#""schema_graph""#).unwrap();
+        assert_eq!(known, crate::wire::ArtifactKind::SchemaGraph);
+        let future: crate::wire::ArtifactKind =
+            serde_json::from_str(r#"{"other":"future_kind"}"#).unwrap();
+        assert_eq!(future, crate::wire::ArtifactKind::Other("future_kind".into()));
+    }
+}

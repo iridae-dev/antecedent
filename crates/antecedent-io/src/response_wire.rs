@@ -71,6 +71,7 @@ pub enum DerivativeWeightingWire {
 /// Derivative reporting scale on the wire.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum DerivativeScaleWire {
     /// `dm/da`.
     Identity,
@@ -538,6 +539,7 @@ fn observation_assumption_from_wire(a: &ObservationAssumptionWire) -> Observatio
 /// a writer emits it only for a coordinate whose required evidence is absent.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum SupportStatusWire {
     Supported,
     WeakOverlap,
@@ -548,6 +550,7 @@ pub enum SupportStatusWire {
 
 /// Region evaluated by support diagnostics on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SupportRegionWire {
     pub minima: Vec<f64>,
     pub maxima: Vec<f64>,
@@ -555,6 +558,7 @@ pub struct SupportRegionWire {
 
 /// One support diagnostic on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SupportDiagnosticWire {
     pub id: String,
     pub values: Vec<f64>,
@@ -568,6 +572,7 @@ pub struct SupportDiagnosticWire {
 
 /// Complete empirical support report on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SupportReportWire {
     pub status: SupportStatusWire,
     pub query_region: SupportRegionWire,
@@ -580,6 +585,7 @@ pub struct SupportReportWire {
 
 /// Function-valued identified envelope on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ResponseEnvelopeWire {
     pub grid: Vec<f64>,
     pub dimension: u64,
@@ -590,6 +596,7 @@ pub struct ResponseEnvelopeWire {
 /// Numerical response payload on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ResponseValueWire {
     Scalar(f64),
     Surface { grid: Vec<f64>, dimension: u64, mean: Vec<f64> },
@@ -604,6 +611,7 @@ pub enum ResponseValueWire {
 /// payload is refused rather than read as one or the other.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum IntervalInterpretationWire {
     Confidence,
     Credible,
@@ -612,6 +620,7 @@ pub enum IntervalInterpretationWire {
 /// Statistical response uncertainty on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ResponseUncertaintyWire {
     None,
     Scalar {
@@ -648,6 +657,7 @@ pub enum ResponseUncertaintyWire {
 /// Structural identification payload on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ResponseIdentificationWire {
     PointIdentified(ResponseValueWire),
     PartiallyIdentified(ResponseValueWire),
@@ -658,6 +668,7 @@ pub enum ResponseIdentificationWire {
 /// Identification status on the wire.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum IdentificationStatusWire {
     NonparametricallyIdentified,
     IdentifiedUnderParametricRestrictions,
@@ -669,6 +680,7 @@ pub enum IdentificationStatusWire {
 
 /// Per-horizon identification on a temporal response surface.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct HorizonIdentificationWire {
     pub horizon: u32,
     pub identification_status: IdentificationStatusWire,
@@ -678,6 +690,7 @@ pub struct HorizonIdentificationWire {
 
 /// Template-level adjustment node `(variable, offset)`.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct HorizonAdjustmentNodeWire {
     pub variable: u32,
     pub offset: i32,
@@ -685,6 +698,7 @@ pub struct HorizonAdjustmentNodeWire {
 
 /// Complete causal-response artifact payload on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct CausalResponseWire {
     pub estimand: ResponseFunctionalWire,
     pub identification_status: IdentificationStatusWire,

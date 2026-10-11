@@ -12,6 +12,7 @@ use crate::error::IoError;
 /// Model kind tag for bundles.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ModelKindWire {
     /// Probabilistic causal model.
     Pcm,
@@ -24,6 +25,7 @@ pub enum ModelKindWire {
 /// One mechanism slot on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum MechanismSlotWire {
     /// Vacant.
     Vacant,
@@ -150,6 +152,7 @@ pub enum MechanismSlotWire {
 /// a decoded mechanism evaluates at unseen covariate cells without the training
 /// table.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ParentBasisWire {
     /// Parent arity.
     pub n_parents: usize,
@@ -166,6 +169,7 @@ pub struct ParentBasisWire {
 /// One [`BasisTerm`] on the wire.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum BasisTermWire {
     /// `z_parent^degree`.
     Power {
@@ -230,6 +234,7 @@ fn basis_from_wire(w: &ParentBasisWire) -> Result<ParentBasis, IoError> {
 
 /// Mechanism store wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct MechanismStoreWire {
     /// Slots in dense node order.
     pub slots: Vec<MechanismSlotWire>,

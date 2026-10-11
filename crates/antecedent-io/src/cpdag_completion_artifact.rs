@@ -169,7 +169,7 @@ impl Default for CpdagConsumeLimits {
 /// `(low, high)` undirected edges, each sorted.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct CpdagWire {
+pub struct CompletionCpdagWire {
     /// Variable ids, ascending.
     pub variables: Vec<u32>,
     /// Directed `(parent, child)` edges, sorted.
@@ -178,7 +178,13 @@ pub struct CpdagWire {
     pub undirected: Vec<(u32, u32)>,
 }
 
-impl CpdagWire {
+/// Historical Rust name for [`CompletionCpdagWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type CpdagWire = CompletionCpdagWire;
+
+
+impl CompletionCpdagWire {
     /// Encode a static CPDAG over variable ids, independent of node and edge
     /// insertion order.
     ///
@@ -548,10 +554,6 @@ pub struct CpdagCompletionArtifactWire {
     pub data_digest: String,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u32,
-}
 
 fn canonical_laws(data: &ExactTransportData) -> Result<Vec<ExactLawWire>, IoError> {
     let mut laws = data
@@ -707,11 +709,13 @@ impl CpdagCompletionArtifactWire {
     /// # Errors
     /// [`IoError::UnsupportedVersion`], a decoding failure, or a foreign feature.
     pub fn decode(bytes: &[u8]) -> Result<Self, IoError> {
-        let peek: VersionPeek = crate::from_cbor(bytes)?;
-        if peek.version != CPDAG_COMPLETION_ARTIFACT_VERSION {
-            return Err(IoError::UnsupportedVersion { version: peek.version });
-        }
-        let wire: Self = crate::from_cbor(bytes)?;
+        let wire: Self = crate::decode_with_version(bytes, |version| {
+            if version == CPDAG_COMPLETION_ARTIFACT_VERSION {
+                Ok(())
+            } else {
+                Err(IoError::UnsupportedVersion { version: version })
+            }
+        })?;
         if wire.required_features != [CPDAG_COMPLETION_ARTIFACT_FEATURE] {
             return Err(CpdagArtifactError::UnsupportedSemantics("required features").into());
         }

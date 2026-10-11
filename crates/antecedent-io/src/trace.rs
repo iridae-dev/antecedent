@@ -15,6 +15,7 @@ use crate::error::IoError;
 /// Wire form of an assumption tag .
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum AssumptionTagWire {
     /// Causal Markov.
     CausalMarkov,
@@ -69,6 +70,7 @@ pub enum AssumptionTagWire {
 
 /// One assumption record on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct AssumptionRecordWire {
     /// Assumption tag.
     pub assumption: AssumptionTagWire,
@@ -82,6 +84,7 @@ pub struct AssumptionRecordWire {
 
 /// One derivation step on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct DerivationStepWire {
     /// Rule id.
     pub rule: String,
@@ -91,6 +94,7 @@ pub struct DerivationStepWire {
 
 /// Analysis identification/estimation trace embedded in artifacts.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct AnalysisTraceWire {
     /// Required assumptions.
     pub assumptions: Vec<AssumptionRecordWire>,

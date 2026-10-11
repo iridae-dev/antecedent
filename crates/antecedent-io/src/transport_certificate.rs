@@ -35,7 +35,7 @@ pub enum CertificateOutcome {
 /// Portable query, graph, source collection and four-slot structural claim.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct TransportCertificateWire {
+pub struct StructuralTransportCertificateWire {
     /// Independent artifact schema version.
     pub version: u32,
     /// Required semantics; unknown entries prevent scientific acceptance.
@@ -63,6 +63,12 @@ pub struct TransportCertificateWire {
     /// Independently reconstructed four reasoning slots.
     pub reasoning: ReasoningSectionWire,
 }
+
+/// Historical Rust name for [`StructuralTransportCertificateWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type TransportCertificateWire = StructuralTransportCertificateWire;
+
 /// Reconstruct the four structural reasoning slots from the verified outcome kind.
 #[must_use]
 pub fn structural_reasoning(outcome: &CertificateOutcome) -> ReasoningSectionWire {
@@ -102,7 +108,7 @@ pub fn structural_reasoning(outcome: &CertificateOutcome) -> ReasoningSectionWir
         },
     }
 }
-impl TransportCertificateWire {
+impl StructuralTransportCertificateWire {
     /// Encode a native structural result under explicit immutable scientific inputs.
     /// # Errors
     /// Encoding failure or a result that does not verify against its enclosing inputs.

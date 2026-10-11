@@ -27,6 +27,7 @@ use crate::trace::{
 
 /// Effect estimate wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct EffectEstimateWire {
     /// ATE.
     pub ate: f64,
@@ -139,6 +140,7 @@ pub struct EffectEstimateWire {
 
 /// Screen / estimate split recorded on a batch estimate artifact.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CandidateSelectionWire {
     /// Screen run id.
     pub screen_id: String,
@@ -158,6 +160,7 @@ pub struct CandidateSelectionWire {
 
 /// Joint covariance, column-major.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct JointCovarianceWire {
     /// Number of functionals.
     pub dim: usize,
@@ -168,6 +171,7 @@ pub struct JointCovarianceWire {
 /// Simultaneous inference over a declared score family.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[allow(missing_docs)]
+#[serde(deny_unknown_fields)]
 pub struct ScoreInferenceWire {
     pub raw_means: Vec<f64>,
     pub lower: Vec<f64>,
@@ -184,6 +188,7 @@ pub struct ScoreInferenceWire {
 
 /// Artifact form of a cross-fitted AIPW score table.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ScoreTableWire {
     /// Observed cells on retained rows.
     #[serde(default)]
@@ -221,6 +226,7 @@ pub struct ScoreTableWire {
 
 /// Score-table column key.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ScoreColumnWire {
     /// Arm or cell mask.
     pub arm: u32,
@@ -231,6 +237,7 @@ pub struct ScoreColumnWire {
 /// Closed excluded propensity interval.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[allow(missing_docs)]
+#[serde(deny_unknown_fields)]
 pub struct PropensityIntervalWire {
     pub low: f64,
     pub high: f64,
@@ -239,6 +246,7 @@ pub struct PropensityIntervalWire {
 /// Sensitivity of overlap evidence to clipping thresholds.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[allow(missing_docs)]
+#[serde(deny_unknown_fields)]
 pub struct ClipSensitivityWire {
     pub thresholds: Vec<f64>,
     pub ess: Vec<f64>,
@@ -250,6 +258,7 @@ pub struct ClipSensitivityWire {
 /// Propensity overlap evidence retained on an effect estimate.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[allow(missing_docs)]
+#[serde(deny_unknown_fields)]
 pub struct OverlapReportWire {
     pub propensity_min: f64,
     pub propensity_max: f64,
@@ -267,6 +276,7 @@ pub struct OverlapReportWire {
 /// Weak-instrument first-stage evidence.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[allow(missing_docs)]
+#[serde(deny_unknown_fields)]
 pub struct FirstStageDiagnosticsWire {
     pub f_statistic: f64,
     pub df1: u64,
@@ -282,6 +292,7 @@ pub struct FirstStageDiagnosticsWire {
 
 /// Sharp RD design on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct RdDesignWire {
     /// Running variable raw id.
     pub running_variable: u32,
@@ -293,6 +304,7 @@ pub struct RdDesignWire {
 
 /// Identified estimand wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct IdentifiedEstimandWire {
     /// Method.
     pub method: String,
@@ -311,6 +323,7 @@ pub struct IdentifiedEstimandWire {
 
 /// Identification result wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct IdentificationResultWire {
     /// Status.
     pub status: String,
@@ -412,6 +425,7 @@ impl HedgeCertificateWire {
 
 /// Diagnostic wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct DiagnosticWire {
     /// Code.
     pub code: String,
@@ -430,6 +444,7 @@ pub struct DiagnosticWire {
 
 /// Refutation report wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct RefutationReportWire {
     /// Refuter.
     pub refuter: String,

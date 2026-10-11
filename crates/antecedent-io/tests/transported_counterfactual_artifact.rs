@@ -14,8 +14,8 @@
 #![allow(clippy::float_cmp, reason = "bit-identical replay is the property under test")]
 
 use antecedent_io::transported_counterfactual_artifact::{
-    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, MechanismWire, ModelWire,
-    PremisesWire, RefusalWire, SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
+    AffineWire, AssignmentWire, EvidenceWire, LawWire, MAX_COVARIATES, TransportedCounterfactualMechanismWire, ModelWire,
+    PremisesWire, TransportedCounterfactualRefusalWire, SelectionWire, SupportPointWire, TransportedCounterfactualArtifact,
     TransportedCounterfactualArtifactError, TransportedCounterfactualMeta,
     TransportedCounterfactualRequestWire, decode_parts, encode_parts,
 };
@@ -38,12 +38,12 @@ fn model() -> ModelWire {
         treatment: "a".into(),
         covariates: vec!["z".into()],
         mechanisms: vec![
-            MechanismWire {
+            TransportedCounterfactualMechanismWire {
                 node: "m".into(),
                 intercept: aff(0.0, &[]),
                 parents: vec![("z".into(), aff(0.5, &[])), ("a".into(), aff(2.0, &[("z", -0.5)]))],
             },
-            MechanismWire {
+            TransportedCounterfactualMechanismWire {
                 node: "y".into(),
                 intercept: aff(0.0, &[]),
                 parents: vec![

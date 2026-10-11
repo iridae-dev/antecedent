@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Format version pair.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct FormatVersion {
     /// Major.
     pub major: u16,
@@ -15,6 +16,7 @@ pub struct FormatVersion {
 
 /// Semantic library version.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct SemanticVersion {
     /// Major.
     pub major: u32,
@@ -52,6 +54,12 @@ impl SemanticVersion {
 }
 
 /// Artifact kind tag.
+///
+/// Forward-compat policy: a kind this reader does not interpret is
+/// [`ArtifactKind::Other`], not a decode error and not `deny_unknown_fields`.
+/// Callers store and forward `Other` without treating it as a known payload.
+/// Every other wire struct in this module denies unknown fields. A historical
+/// document that only uses a known kind, or an explicit `other` tag, still decodes.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
@@ -69,6 +77,7 @@ pub enum ArtifactKind {
 
 /// Provenance summary on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ProvenanceWire {
     /// Free-form notes / operation id.
     pub note: String,
@@ -76,6 +85,7 @@ pub struct ProvenanceWire {
 
 /// Section table entry.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct SectionDescriptor {
     /// Stable section id.
     pub id: String,
@@ -99,6 +109,7 @@ pub struct SectionDescriptor {
 
 /// Format 0.1 skinny schema wire (names only) — used by migration.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct SchemaWireV01 {
     /// Variable names in dense id order.
     pub variable_names: Vec<String>,
@@ -107,6 +118,7 @@ pub struct SchemaWireV01 {
 /// Scalar element type on the wire.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ScalarTypeWire {
     /// f64.
     Float64,
@@ -121,6 +133,7 @@ pub enum ScalarTypeWire {
 /// Value type on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum ValueTypeWire {
     /// Continuous.
     Continuous,
@@ -145,6 +158,7 @@ pub enum ValueTypeWire {
 
 /// Measurement metadata on the wire.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct MeasurementSpecWire {
     /// Optional description.
     pub description: Option<String>,
@@ -154,6 +168,7 @@ pub struct MeasurementSpecWire {
 
 /// One variable on the wire (format ≥ 0.2).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct VariableSchemaWire {
     /// Dense variable id.
     pub id: u32,
@@ -173,6 +188,7 @@ pub struct VariableSchemaWire {
 
 /// Full schema wire (format ≥ 0.2).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct SchemaWire {
     /// Variables in dense id order.
     pub variables: Vec<VariableSchemaWire>,
@@ -195,6 +211,7 @@ impl SchemaWire {
 
 /// Wire DAG: directed edges by dense variable index.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct DagWire {
     /// Node count (static variables).
     pub node_count: u32,
@@ -205,6 +222,7 @@ pub struct DagWire {
 /// Endpoint mark on the wire (`tail` / `arrow` / `circle` / `conflict`).
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
 pub enum EndpointWire {
     /// Tail.
     Tail,
@@ -218,6 +236,7 @@ pub enum EndpointWire {
 
 /// Marked edge on the wire (PAG / shared marked interchange).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct MarkedEdgeWire {
     /// Endpoint A dense index.
     pub a: u32,
@@ -231,6 +250,7 @@ pub struct MarkedEdgeWire {
 
 /// Wire PAG: marked edges by dense variable index.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct PagWire {
     /// Node count (static variables).
     pub node_count: u32,
@@ -240,7 +260,8 @@ pub struct PagWire {
 
 /// Wire CPDAG: directed + undirected edges.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CpdagWire {
+#[serde(deny_unknown_fields)]
+pub struct GraphCpdagWire {
     /// Node count (static variables).
     pub node_count: u32,
     /// Directed edges `(from, to)`.
@@ -248,6 +269,12 @@ pub struct CpdagWire {
     /// Undirected edges `(a, b)` with `a < b` preferred.
     pub undirected: Vec<(u32, u32)>,
 }
+
+/// Historical Rust name for [`GraphCpdagWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type CpdagWire = GraphCpdagWire;
+
 
 /// Wire ADMG: directed + bidirected edges.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

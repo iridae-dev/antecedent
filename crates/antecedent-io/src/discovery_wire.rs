@@ -26,7 +26,7 @@ pub struct TemporalNodeKeyWire {
 
 /// Temporal DAG edge list.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TemporalGraphWire {
+pub struct DiscoveryTemporalGraphWire {
     /// Graph class.
     pub kind: String,
     /// Nodes.
@@ -34,6 +34,12 @@ pub struct TemporalGraphWire {
     /// Directed edges by node index into `nodes`.
     pub directed: Vec<(u32, u32)>,
 }
+
+/// Historical Rust name for [`DiscoveryTemporalGraphWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type TemporalGraphWire = DiscoveryTemporalGraphWire;
+
 
 /// Discovery header.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -113,7 +119,7 @@ pub fn temporal_dag_to_wire(g: &TemporalDag) -> Result<TemporalGraphWire, IoErro
             directed.push((a.raw(), b.raw()));
         }
     }
-    Ok(TemporalGraphWire { kind: "temporal_dag".into(), nodes, directed })
+    Ok(DiscoveryTemporalGraphWire { kind: "temporal_dag".into(), nodes, directed })
 }
 
 /// Decode temporal DAG.

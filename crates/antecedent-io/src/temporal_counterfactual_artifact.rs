@@ -25,8 +25,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::io::Cursor;
-
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_counterfactual::temporal_cross_world::{
     FactualUnitHistory, HistoryId, MAX_UNITS, MECHANISM_CLASS, NamedActionHistory, NodeMechanism,
@@ -36,10 +34,7 @@ use antecedent_counterfactual::temporal_cross_world::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
-use crate::convert::{from_cbor, to_cbor};
-use crate::reader::ArtifactReader;
-use crate::wire::{ArtifactKind, ProvenanceWire, SemanticVersion};
+use crate::convert::to_cbor;
 
 /// The artifact major version this reader writes and accepts.
 pub const TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION: u16 = 1;
@@ -59,7 +54,7 @@ const REALS_PER_UNIT: usize = 7;
 /// The refusal a consumer or producer returns, in the shared structured shape.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RefusalWire {
+pub struct TemporalCounterfactualRefusalWire {
     /// Registered reason code.
     pub code: String,
     /// Refusing stage.
@@ -73,6 +68,12 @@ pub struct RefusalWire {
     /// The refuting witness, when the core retained one.
     pub witness: Option<WitnessWire>,
 }
+
+/// Historical Rust name for [`TemporalCounterfactualRefusalWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type RefusalWire = TemporalCounterfactualRefusalWire;
+
 
 /// What a refusal retains about the offending unit or history.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -153,7 +154,7 @@ impl TemporalCounterfactualArtifactError {
     pub fn refusal(&self) -> Option<RefusalWire> {
         match self {
             Self::Refused(wire) => Some((**wire).clone()),
-            Self::IdentityMismatch { field } => Some(RefusalWire {
+            Self::IdentityMismatch { field } => Some(TemporalCounterfactualRefusalWire {
                 code: antecedent_core::reason_code!("route_not_supported").to_owned(),
                 stage: "consume".to_owned(),
                 detail: "temporal_counterfactual.artifact_changed".to_owned(),
@@ -180,7 +181,7 @@ fn from_core(error: TemporalCounterfactualError) -> TemporalCounterfactualArtifa
     match error {
         TemporalCounterfactualError::Cancelled => TemporalCounterfactualArtifactError::Cancelled,
         TemporalCounterfactualError::Refused(refused) => {
-            TemporalCounterfactualArtifactError::Refused(Box::new(RefusalWire {
+            TemporalCounterfactualArtifactError::Refused(Box::new(TemporalCounterfactualRefusalWire {
                 code: refused.refusal.code.to_owned(),
                 stage: refused.refusal.stage.to_owned(),
                 detail: refused.refusal.detail.clone(),
@@ -194,7 +195,7 @@ fn from_core(error: TemporalCounterfactualError) -> TemporalCounterfactualArtifa
 }
 
 fn invalid(detail: &str, offending: &str) -> TemporalCounterfactualArtifactError {
-    TemporalCounterfactualArtifactError::Refused(Box::new(RefusalWire {
+    TemporalCounterfactualArtifactError::Refused(Box::new(TemporalCounterfactualRefusalWire {
         code: antecedent_core::reason_code!("invalid_argument").to_owned(),
         stage: "evaluate".to_owned(),
         detail: detail.to_owned(),
@@ -208,7 +209,7 @@ fn invalid(detail: &str, offending: &str) -> TemporalCounterfactualArtifactError
 /// `covariate_1`, `action_1`, `outcome`).
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct TemporalGraphWire {
+pub struct CounterfactualTemporalGraphWire {
     /// Number of slices.
     pub horizon: u32,
     /// Directed edges `(parent, child)` by node name.
@@ -217,10 +218,16 @@ pub struct TemporalGraphWire {
     pub latent_confounding: bool,
 }
 
+/// Historical Rust name for [`CounterfactualTemporalGraphWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type TemporalGraphWire = CounterfactualTemporalGraphWire;
+
+
 /// One node's linear additive-noise mechanism on the wire.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MechanismWire {
+pub struct TemporalCounterfactualMechanismWire {
     /// The node it generates.
     pub node: String,
     /// Intercept.
@@ -230,6 +237,12 @@ pub struct MechanismWire {
     /// Optional half-width of the noise support.
     pub noise_halfwidth: Option<f64>,
 }
+
+/// Historical Rust name for [`TemporalCounterfactualMechanismWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type MechanismWire = TemporalCounterfactualMechanismWire;
+
 
 /// The mechanism fit on the wire.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -481,11 +494,6 @@ pub struct TemporalCounterfactualReportWire {
     pub identity: TemporalCounterfactualIdentity,
 }
 
-#[derive(Deserialize)]
-struct VersionPeek {
-    version: u16,
-}
-
 fn node_of(name: &str) -> Result<TemporalNode, TemporalCounterfactualArtifactError> {
     TemporalNode::ALL
         .iter()
@@ -692,38 +700,24 @@ pub fn encode_parts(
     values: &[u8],
     artifact_id: &str,
 ) -> Result<Vec<u8>, TemporalCounterfactualArtifactError> {
-    let encode = |e: crate::IoError| TemporalCounterfactualArtifactError::Encode(e.to_string());
     if artifact_id.trim().is_empty() {
         return Err(TemporalCounterfactualArtifactError::Encode("missing artifact id".into()));
     }
-    let meta_bytes = to_cbor(meta).map_err(encode)?;
-    let encoded = EncodedArtifact {
-        manifest: ArtifactManifest {
-            format_version: crate::migrate::STABLE_FORMAT,
-            minimum_reader_version: crate::migrate::STABLE_FORMAT,
-            artifact_kind: ArtifactKind::Other(ARTIFACT_KIND.into()),
-            library_version: SemanticVersion::from_crate_version(env!("CARGO_PKG_VERSION"))
-                .map_err(encode)?,
-            artifact_id: artifact_id.into(),
-            sections: vec![
-                section_descriptor(META_SECTION, "application/cbor", &meta_bytes),
-                section_descriptor(VALUES_SECTION, "application/octet-stream", values),
-            ],
-            provenance: ProvenanceWire {
-                note: "temporal_counterfactual_shared_abduction_point_only".into(),
-            },
+    let meta_bytes = to_cbor(meta).map_err(|error| TemporalCounterfactualArtifactError::Encode(error.to_string()))?;
+    crate::encode_container(
+        &crate::ArtifactContainer {
+            kind: ARTIFACT_KIND,
+            note: "temporal_counterfactual_shared_abduction_point_only",
+            max_bytes: MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES,
+            artifact_id,
+            library_version: env!("CARGO_PKG_VERSION"),
         },
-        sections: vec![
-            SectionBytes::new(META_SECTION, meta_bytes),
-            SectionBytes::new(VALUES_SECTION, values.to_vec()),
+        &[
+            crate::OutSection { id: META_SECTION, content_type: crate::CONTENT_CBOR, bytes: &meta_bytes },
+            crate::OutSection { id: VALUES_SECTION, content_type: crate::CONTENT_BYTES, bytes: values },
         ],
-    };
-    let mut bytes = Vec::new();
-    encoded.write_to(&mut bytes).map_err(encode)?;
-    if bytes.len() > MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES {
-        return Err(TemporalCounterfactualArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    Ok(bytes)
+    )
+    .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))
 }
 
 /// Decode the two sections of a container, refusing another version before the metadata is
@@ -737,37 +731,19 @@ pub fn encode_parts(
 pub fn decode_parts(
     bytes: &[u8],
 ) -> Result<(TemporalCounterfactualMeta, Vec<u8>), TemporalCounterfactualArtifactError> {
-    if bytes.len() > MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES {
-        return Err(TemporalCounterfactualArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let mut reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
-    let manifest = reader.manifest();
-    if manifest.artifact_kind != ArtifactKind::Other(ARTIFACT_KIND.into())
-        || manifest.sections.len() != 2
-        || manifest.sections[0].id != META_SECTION
-        || manifest.sections[1].id != VALUES_SECTION
-    {
-        return Err(TemporalCounterfactualArtifactError::Malformed(
-            "unsupported container layout".into(),
-        ));
-    }
-    let declared = manifest
-        .sections
-        .iter()
-        .try_fold(0_u64, |total, section| total.checked_add(section.uncompressed_size));
-    if declared.is_none_or(|total| total > MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES as u64) {
-        return Err(TemporalCounterfactualArtifactError::LimitsExceeded("artifact bytes"));
-    }
-    let meta_section = reader.load_section(META_SECTION)?;
-    let peek: VersionPeek = from_cbor(meta_section.as_bytes())?;
-    if peek.version != TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION {
-        return Err(TemporalCounterfactualArtifactError::UnsupportedVersion {
-            version: peek.version,
-        });
-    }
-    let meta: TemporalCounterfactualMeta = from_cbor(meta_section.as_bytes())?;
-    let values = reader.load_section(VALUES_SECTION)?;
-    Ok((meta, values.as_bytes().to_vec()))
+    let parts = crate::decode_container(ARTIFACT_KIND, MAX_TEMPORAL_COUNTERFACTUAL_ARTIFACT_BYTES, &[META_SECTION, VALUES_SECTION], bytes)
+        .map_err(|error| crate::map_artifact_check!(error, TemporalCounterfactualArtifactError))?;
+    let Ok([meta_bytes, payload]) = <[Vec<u8>; 2]>::try_from(parts) else {
+        return Err(TemporalCounterfactualArtifactError::Malformed("unsupported container layout".into()));
+    };
+    let meta = crate::decode_with_version(&meta_bytes, |version| {
+        if version == TEMPORAL_COUNTERFACTUAL_ARTIFACT_VERSION {
+            Ok(())
+        } else {
+            Err(TemporalCounterfactualArtifactError::UnsupportedVersion { version })
+        }
+    })?;
+    Ok((meta, payload))
 }
 
 fn request_of(

@@ -15,22 +15,25 @@ use antecedent_core::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::contract_reason::publish_reasons;
+pub use crate::contract_reason::ContractReason;
+
 use crate::identity::{
+    claim_digest, data_snapshot_digest, digest_wire, execution_digest, identification_digest,
+    identification_product_digest_wire, inference_binding_digest, payload_digest, program_digest,
     ClaimIdentityWire, DataSnapshotIdentityWire, IdentificationIdentityWire,
     IdentificationProductWire, InferenceBindingWire, ObservationIdentityWire, ProgramIdentityWire,
-    TargetIdentityWire, claim_digest, data_snapshot_digest, digest_wire, execution_digest,
-    identification_digest, identification_product_digest_wire, inference_binding_digest,
-    payload_digest, program_digest,
+    TargetIdentityWire,
 };
 use crate::identity::{
-    PayloadDigestWire, ScoreReuseIdentityWire, TargetWeightsIdentityWire, score_reuse_digest,
-    target_weights_digest,
+    score_reuse_digest, target_weights_digest, PayloadDigestWire, ScoreReuseIdentityWire,
+    TargetWeightsIdentityWire,
 };
 use crate::query_wire::TargetPopulationWire;
 use crate::{
-    AnalysisResultHeader, AnalysisResultWire, CausalQueryWire, EncodedArtifact,
-    ExecutionIdentityWire, IoError, RefutationReportWire, StructuralWeightBasisWire, from_cbor,
-    query_wire::causal_query_from_wire, to_cbor,
+    from_cbor, query_wire::causal_query_from_wire, to_cbor, AnalysisResultHeader,
+    AnalysisResultWire, CausalQueryWire, EncodedArtifact, ExecutionIdentityWire, IoError,
+    RefutationReportWire, StructuralWeightBasisWire,
 };
 
 /// Section id on the composite `analysis_result` artifact.
@@ -44,6 +47,7 @@ pub const CONTRACT_SECTION_FORMAT: u16 = 2;
 
 /// Domain-separated identity bytes stored beside the rehashable target payload.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ContractIdentitiesWire {
     /// Target digest.
     pub target: [u8; 32],
@@ -78,6 +82,7 @@ pub struct ContractIdentitiesWire {
 /// Row weights of a retarget, carried with the identity they bind so a
 /// consumer can re-derive it and confirm the population the answer is about.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct TargetWeightsSectionWire {
     /// Rehashable target-weights identity.
     pub identity: TargetWeightsIdentityWire,
@@ -114,6 +119,7 @@ impl TryFrom<&ContractIdentities> for ContractIdentitiesWire {
 
 /// Semantic choices retained by the checked AIPW lowering.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CheckedAipwLoweringWire {
     /// Lowering payload format.
     pub format: u16,
@@ -148,6 +154,7 @@ pub struct CheckedAipwLoweringWire {
 
 /// Data-dependent complete-case rows bound to a checked AIPW lowering.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CheckedAipwRowsWire {
     /// Row-binding payload format.
     pub format: u16,
@@ -160,6 +167,7 @@ pub struct CheckedAipwRowsWire {
 /// Semantic roles, procedure, weak-instrument policy, and complete-case scope
 /// retained by a checked prepared IV operation.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CheckedIvLoweringWire {
     /// Lowering payload format.
     pub format: u16,
@@ -202,6 +210,7 @@ pub fn checked_aipw_rows_digest(rows: &CheckedAipwRowsWire) -> Result<[u8; 32], 
 
 /// Optional slot: exactly one of `value` or `unavailable` is required.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct SlotSectionWire<T> {
     /// Present value.
     pub value: Option<T>,
@@ -211,6 +220,7 @@ pub struct SlotSectionWire<T> {
 
 /// Compact identification slot.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct IdentificationSlotWire {
     /// Identification status.
     pub status: String,
@@ -235,6 +245,7 @@ pub struct IdentificationSlotWire {
 
 /// Compact support slot.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct SupportSlotWire {
     /// Matrix evidence status.
     pub matrix_status: String,
@@ -247,6 +258,7 @@ pub struct SupportSlotWire {
 
 /// One uncertainty component.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct UncertaintyComponentWire {
     /// Source name.
     pub source: String,
@@ -258,6 +270,7 @@ pub struct UncertaintyComponentWire {
 
 /// Compact uncertainty slot.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct UncertaintySlotWire {
     /// Declared components.
     pub components: Vec<UncertaintyComponentWire>,
@@ -265,6 +278,7 @@ pub struct UncertaintySlotWire {
 
 /// Compact obligation record (full assumption encodings stay on the body).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct ObligationSectionWire {
     /// Stable obligation id.
     pub id: String,
@@ -278,6 +292,7 @@ pub struct ObligationSectionWire {
 
 /// Compact assumption slot.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct AssumptionSlotWire {
     /// Scoped obligations.
     pub obligations: Vec<ObligationSectionWire>,
@@ -285,6 +300,7 @@ pub struct AssumptionSlotWire {
 
 /// Four reasoning slots.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ReasoningSectionWire {
     /// Identification.
     pub identification: SlotSectionWire<IdentificationSlotWire>,
@@ -298,6 +314,7 @@ pub struct ReasoningSectionWire {
 
 /// Portable claim fields stored on the contract section.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ClaimSectionWire {
     /// Claim digest.
     pub claim_id: [u8; 32],
@@ -327,6 +344,7 @@ pub struct ClaimSectionWire {
 /// Computed by [`crate::calibration::calibration_slot`] from [`Self::basis`];
 /// the consumer re-derives it from the same basis.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct CalibrationSlotWire {
     /// `calibrated` | `scope_not_assessed` | `unavailable`.
     pub status: String,
@@ -366,6 +384,7 @@ pub struct CalibrationSlotWire {
 
 /// Caller-attested custom-validator or external-estimate evidence.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct AttestedEvidenceWire {
     /// Validator name, or the caller-supplied learner label.
     pub name: String,
@@ -452,6 +471,7 @@ impl CalibrationSlotWire {
 
 /// Versioned contract companion for an `analysis_result` artifact.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct AnalysisResultContractWire {
     /// Section format.
     pub format: u16,
@@ -561,7 +581,7 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
     if !unresolved.is_empty() {
         return Err(IoError::Convert(format!(
             "contract payloads do not rehash: {}",
-            unresolved.join(",")
+            unresolved.iter().map(|reason| reason.as_str()).collect::<Vec<_>>().join(",")
         )));
     }
     causal_query_from_wire(&contract.target.query)?;
@@ -572,27 +592,53 @@ pub fn validate_contract_section(contract: &AnalysisResultContractWire) -> Resul
 ///
 /// Missing rehashable payloads are unresolved — attested digests are not enough.
 #[must_use]
-#[expect(
-    clippy::too_many_lines,
-    reason = "This is the shared verifier's ordered ledger of independent unresolved reasons."
-)]
 pub fn verify_contract_against_body(
     header: &AnalysisResultHeader,
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
 ) -> Vec<Arc<str>> {
+    publish_reasons(contract_unresolved(header, body, contract))
+}
+
+fn contract_unresolved(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+) -> Vec<ContractReason> {
     let mut unresolved = verify_stored_payloads(contract);
+    note_linear_fit_replay(contract, body, &mut unresolved);
+    note_checked_program_targets(contract, &mut unresolved);
+    if contract.target.query != body.query {
+        unresolved.push(ContractReason::BodyQuery);
+    }
+    note_replay_dependencies(contract, body, &mut unresolved);
+    note_functional_and_nested_replay(contract, body, &mut unresolved);
+    note_published_claim(header, body, contract, &mut unresolved);
+    unresolved
+}
+
+fn note_linear_fit_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     if let Some(lowering) = contract
         .program
         .as_ref()
         .and_then(|program| program.checked_linear_adjustment_lowering.as_ref())
     {
         unresolved
-            .retain(|reason| reason.as_ref() != "dependencies.linear_fit_sufficient_statistics");
+            .retain(|reason| *reason != ContractReason::DependenciesLinearFitSufficientStatistics);
         if let Err(reason) = verify_linear_fit_moments(contract, body, lowering) {
-            unresolved.push(Arc::from(reason));
+            unresolved.push(reason);
         }
     }
+}
+
+fn note_checked_program_targets(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     if contract.program.as_ref().is_some_and(|program| {
         [
             program.functional_program.is_some(),
@@ -608,7 +654,7 @@ pub fn verify_contract_against_body(
         .count()
             > 1
     }) {
-        unresolved.push(Arc::from("program.checked_payload_conflict"));
+        unresolved.push(ContractReason::ProgramCheckedPayloadConflict);
     }
     if let Some(program) = contract.program.as_ref() {
         let estimator_matches = |expected: &[&str]| {
@@ -631,49 +677,57 @@ pub fn verify_contract_against_body(
                 || (estimator_matches(&["functional.distribution"])
                     && matches!(contract.target.query, CausalQueryWire::Distribution(_))))
         {
-            unresolved.push(Arc::from("program.functional_program.target"));
+            unresolved.push(ContractReason::ProgramFunctionalProgramTarget);
         }
         for (present, matches, reason) in [
             (
                 program.checked_aipw_lowering.is_some(),
                 average_effect && estimator_matches(&["aipw"]),
-                "program.checked_aipw_lowering.target",
+                ContractReason::ProgramCheckedAipwLoweringTarget,
             ),
             (
                 program.checked_frontdoor_lowering.is_some(),
                 average_effect && estimator_matches(&["frontdoor.linear_two_stage"]),
-                "program.checked_frontdoor_lowering.target",
+                ContractReason::ProgramCheckedFrontdoorLoweringTarget,
             ),
             (
                 program.checked_iv_lowering.is_some(),
                 average_effect && estimator_matches(&["iv.wald", "iv.2sls"]),
-                "program.checked_iv_lowering.target",
+                ContractReason::ProgramCheckedIvLoweringTarget,
             ),
             (
                 program.checked_linear_adjustment_lowering.is_some(),
                 average_effect && estimator_matches(&["linear.adjustment.ate"]),
-                "program.checked_linear_adjustment_lowering.target",
+                ContractReason::ProgramCheckedLinearAdjustmentLoweringTarget,
             ),
             (
                 program.checked_functional_response_grid.is_some(),
                 is_response_functional_effect_contract(contract),
-                "program.checked_functional_response_grid.target",
+                ContractReason::ProgramCheckedFunctionalResponseGridTarget,
             ),
             (
                 program.checked_nested_counterfactual.is_some(),
                 matches!(contract.target.query, CausalQueryWire::NestedCounterfactual { .. })
                     && estimator_matches(&["mediation.linear"]),
-                "program.checked_nested_counterfactual.target",
+                ContractReason::ProgramCheckedNestedCounterfactualTarget,
             ),
         ] {
             if present && !matches {
-                unresolved.push(Arc::from(reason));
+                unresolved.push(reason);
             }
         }
     }
-    if contract.target.query != body.query {
-        unresolved.push(Arc::from("body.query"));
-    }
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "Replay-dependency gaps stay one ordered match so a route cannot be named twice."
+)]
+fn note_replay_dependencies(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     // These prepared routes execute from retained model or estimator operations,
     // but their current result wires do not carry a portable operation and its
     // fitted data dependencies. Keep the artifact readable and name the missing
@@ -688,24 +742,24 @@ pub fn verify_contract_against_body(
         Some("bayesian.basis.gcomp")
             if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_bayesian_basis_ate_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedBayesianBasisAteOperation);
         }
         Some("bayesian.basis.gcomp")
             if matches!(contract.target.query, CausalQueryWire::ConditionalEffect { .. }) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_bayesian_basis_cate_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedBayesianBasisCateOperation);
         }
         Some("bayesian.robust_ate") => {
-            unresolved.push(Arc::from("dependencies.checked_bayesian_robust_ate_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedBayesianRobustAteOperation);
         }
         Some("glm.adjustment") => {
-            unresolved.push(Arc::from("dependencies.checked_glm_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedGlmOperation);
         }
         Some("rd.sharp") => {
-            unresolved.push(Arc::from("dependencies.checked_rd_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedRdOperation);
         }
         Some("propensity.weighting" | "propensity.matching") => {
-            unresolved.push(Arc::from("dependencies.checked_propensity_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedPropensityOperation);
         }
         Some("response.kennedy_dr" | "response.riesz_ade" | "response.gam_derivative")
             if matches!(&contract.target.query, CausalQueryWire::Response(query)
@@ -715,19 +769,19 @@ pub fn verify_contract_against_body(
                     | crate::ResponseFunctionalWire::DirectionalDerivative { .. }
                     | crate::ResponseFunctionalWire::Jacobian { .. })) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_derivative_response_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedDerivativeResponseOperation);
         }
         Some("response.kennedy_dr")
             if matches!(&contract.target.query, CausalQueryWire::Response(query)
                 if matches!(query.functional, crate::ResponseFunctionalWire::MeanCurve { .. })) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_response_grid_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedResponseGridOperation);
         }
         Some("response.intervention_gcomp" | "cell.aipw")
             if matches!(&contract.target.query, CausalQueryWire::Response(query)
                 if matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedInterventionResponseOperation);
         }
         // A static Bayesian response publishes a posterior over the retained
         // adjustment target; the sealed static response operation is its replay
@@ -737,41 +791,41 @@ pub fn verify_contract_against_body(
                 if query.temporal.is_none()
                     && matches!(query.functional, crate::ResponseFunctionalWire::MeanCurve { .. })) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_response_grid_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedResponseGridOperation);
         }
         Some("response.bayesian")
             if matches!(&contract.target.query, CausalQueryWire::Response(query)
                 if query.temporal.is_none()
                     && matches!(query.functional, crate::ResponseFunctionalWire::InterventionResponse { .. })) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_intervention_response_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedInterventionResponseOperation);
         }
         Some(
             "interference.ht_hajek"
             | "interference.cluster_neyman"
             | "interference.bayesian_gaussian",
         ) if matches!(contract.target.query, CausalQueryWire::Interference { .. }) => {
-            unresolved.push(Arc::from("dependencies.checked_interference_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedInterferenceOperation);
         }
         Some("iv.bayesian_joint_linear")
             if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_bayesian_iv_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedBayesianIvOperation);
         }
         Some("rd.bayesian_local_linear")
             if matches!(contract.target.query, CausalQueryWire::AverageEffect { .. }) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_bayesian_rd_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedBayesianRdOperation);
         }
         Some("transport.trial_ipw" | "transport.trial_bayesian_bootstrap")
             if matches!(contract.target.query, CausalQueryWire::Transport(_)) =>
         {
-            unresolved.push(Arc::from("dependencies.checked_transport_trial_operation"));
+            unresolved.push(ContractReason::DependenciesCheckedTransportTrialOperation);
         }
         Some("gcm.fit" | "gcm.fit.bayesian")
             if matches!(contract.target.query, CausalQueryWire::Counterfactual { .. }) =>
         {
-            unresolved.push(Arc::from("dependencies.fitted_counterfactual_mechanisms"));
+            unresolved.push(ContractReason::DependenciesFittedCounterfactualMechanisms);
         }
         _ => {}
     }
@@ -779,7 +833,7 @@ pub fn verify_contract_against_body(
         && body.identification.status == "graph_dependent"
         && body.structural_response.is_some()
     {
-        unresolved.push(Arc::from("dependencies.checked_unknown_tiered_average_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedUnknownTieredAverageOperation);
     }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
@@ -788,11 +842,11 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from(if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag") {
-            "dependencies.checked_class_graph_posterior_effect_operation"
+        unresolved.push(if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag") {
+            ContractReason::DependenciesCheckedClassGraphPosteriorEffectOperation
         } else {
-            "dependencies.checked_graph_posterior_effect_operation"
-        }));
+            ContractReason::DependenciesCheckedGraphPosteriorEffectOperation
+        });
     }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
@@ -803,11 +857,11 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from(if contract.graph_class == "Dag" {
-            "dependencies.checked_bayesian_graph_posterior_ate_operation"
+        unresolved.push(if contract.graph_class == "Dag" {
+            ContractReason::DependenciesCheckedBayesianGraphPosteriorAteOperation
         } else {
-            "dependencies.checked_class_graph_posterior_effect_operation"
-        }));
+            ContractReason::DependenciesCheckedClassGraphPosteriorEffectOperation
+        });
     }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
@@ -817,11 +871,11 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from(if contract.graph_class == "Dag" {
-            "dependencies.checked_graph_posterior_effect_operation"
+        unresolved.push(if contract.graph_class == "Dag" {
+            ContractReason::DependenciesCheckedGraphPosteriorEffectOperation
         } else {
-            "dependencies.checked_class_graph_posterior_effect_operation"
-        }));
+            ContractReason::DependenciesCheckedClassGraphPosteriorEffectOperation
+        });
     }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
@@ -832,11 +886,11 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from(if contract.graph_class == "Dag" {
-            "dependencies.checked_bayesian_graph_posterior_ate_operation"
+        unresolved.push(if contract.graph_class == "Dag" {
+            ContractReason::DependenciesCheckedBayesianGraphPosteriorAteOperation
         } else {
-            "dependencies.checked_class_graph_posterior_effect_operation"
-        }));
+            ContractReason::DependenciesCheckedClassGraphPosteriorEffectOperation
+        });
     }
     if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -848,7 +902,7 @@ pub fn verify_contract_against_body(
                     && program.commitments.inference.eq_ignore_ascii_case("bayesian"))
         })
     {
-        unresolved.push(Arc::from("dependencies.checked_static_class_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedStaticClassEffectOperation);
     }
     if matches!(contract.graph_class.as_str(), "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -859,21 +913,21 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_class_conditional_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedBayesianClassConditionalOperation);
     }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && matches!(contract.target.query, CausalQueryWire::AverageEffect { .. })
         && resolved_estimator == Some("functional.effect")
     {
-        unresolved.push(Arc::from("dependencies.checked_graph_posterior_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedGraphPosteriorEffectOperation);
     }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Admg" | "TemporalAdmg")
         && matches!(contract.target.query, CausalQueryWire::Response(_))
         && resolved_estimator == Some("functional.effect")
     {
-        unresolved.push(Arc::from("dependencies.checked_admg_graph_posterior_response_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedAdmgGraphPosteriorResponseOperation);
     }
     let static_response_estimator = matches!(
         resolved_estimator,
@@ -892,7 +946,7 @@ pub fn verify_contract_against_body(
     {
         // The completion envelope and per-completion mixing are the replay
         // dependency; one scalar program cannot represent the class family.
-        unresolved.push(Arc::from("dependencies.checked_static_class_response_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedStaticClassResponseOperation);
     }
     if contract.structure_source == "graph_posterior"
         && matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
@@ -907,7 +961,7 @@ pub fn verify_contract_against_body(
     {
         // The atom-wise checked execution and frozen graph mass are the
         // replay dependency; one scalar program cannot represent the family.
-        unresolved.push(Arc::from("dependencies.checked_graph_posterior_response_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedGraphPosteriorResponseOperation);
     }
     if matches!(contract.graph_class.as_str(), "Dag" | "Cpdag" | "Pag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -917,7 +971,7 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from("dependencies.checked_conditional_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedConditionalEffectOperation);
     }
     if contract.graph_class == "Dag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -927,7 +981,7 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from("dependencies.checked_mediation_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedMediationOperation);
     }
     if contract.graph_class == "Dag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -938,7 +992,7 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_mediation_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedBayesianMediationOperation);
     }
     if matches!(contract.graph_class.as_str(), "Dag" | "TemporalDag")
         && contract.structure_source == "explicit"
@@ -961,7 +1015,7 @@ pub fn verify_contract_against_body(
                     program.commitments.inference.eq_ignore_ascii_case("bayesian")
                 })))
     {
-        unresolved.push(Arc::from("dependencies.checked_attribution_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedAttributionOperation);
     }
     if contract.graph_class == "Dag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -972,7 +1026,7 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_conditional_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedBayesianConditionalOperation);
     }
     if contract.graph_class == "Dag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -983,7 +1037,7 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_dag_ate_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedBayesianDagAteOperation);
     }
     let program_inference =
         contract.program.as_ref().map(|program| program.commitments.inference.to_ascii_lowercase());
@@ -1003,22 +1057,21 @@ pub fn verify_contract_against_body(
         && direct_temporal_response
         && temporal_response_procedure
     {
-        unresolved.push(Arc::from("dependencies.checked_temporal_response_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedTemporalResponseOperation);
     }
     if matches!(contract.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
         && direct_temporal_response
         && temporal_response_procedure
     {
-        unresolved.push(Arc::from("dependencies.checked_temporal_class_response_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedTemporalClassResponseOperation);
     }
     if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
         && contract.structure_source == "graph_posterior"
         && direct_temporal_response
         && temporal_response_procedure
     {
-        unresolved
-            .push(Arc::from("dependencies.checked_temporal_graph_posterior_response_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedTemporalGraphPosteriorResponseOperation);
     }
     if contract.graph_class == "TemporalDag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1032,7 +1085,7 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from("dependencies.checked_temporal_dag_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedTemporalDagEffectOperation);
     }
     if contract.graph_class == "TemporalDag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1044,7 +1097,7 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_temporal_dag_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedBayesianTemporalDagEffectOperation);
     }
     if contract.graph_class == "TemporalDag"
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1056,7 +1109,7 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_temporal_dag_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedBayesianTemporalDagEffectOperation);
     }
     if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted" | "graph_posterior")
@@ -1064,7 +1117,7 @@ pub fn verify_contract_against_body(
         && contract.data_snapshot.as_ref().is_some_and(|snapshot| snapshot.modality == "series")
         && matches!(resolved_estimator, Some("temporal.mediation" | "temporal.mediation.bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_temporal_mediation_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedTemporalMediationOperation);
     }
     if matches!(contract.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1078,7 +1131,7 @@ pub fn verify_contract_against_body(
             program.commitments.inference.eq_ignore_ascii_case("frequentist")
         })
     {
-        unresolved.push(Arc::from("dependencies.checked_temporal_class_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedTemporalClassEffectOperation);
     }
     if matches!(contract.graph_class.as_str(), "TemporalCpdag" | "TemporalPag")
         && matches!(contract.structure_source.as_str(), "explicit" | "accepted")
@@ -1093,7 +1146,7 @@ pub fn verify_contract_against_body(
             .as_ref()
             .is_some_and(|program| program.commitments.inference.eq_ignore_ascii_case("bayesian"))
     {
-        unresolved.push(Arc::from("dependencies.checked_bayesian_temporal_class_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedBayesianTemporalClassEffectOperation);
     }
     if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
         && contract.structure_source == "graph_posterior"
@@ -1108,17 +1161,23 @@ pub fn verify_contract_against_body(
             )
         )
     {
-        unresolved
-            .push(Arc::from("dependencies.checked_temporal_graph_posterior_effect_operation"));
+        unresolved.push(ContractReason::DependenciesCheckedTemporalGraphPosteriorEffectOperation);
     }
+}
+
+fn note_functional_and_nested_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     if is_functional_distribution_contract(contract) && body.interventional_distribution.is_none() {
         // Pre-atom artifacts remain decodable, but cannot independently verify
         // the distribution that produced the scalar summary.
-        unresolved.push(Arc::from("body.interventional_distribution"));
+        unresolved.push(ContractReason::BodyInterventionalDistribution);
     } else if crate::analysis_result_artifact::validate_interventional_distribution(body).is_err() {
         // Decoding already refuses such bodies; a caller verifying an
         // in-memory body must see the same refusal.
-        unresolved.push(Arc::from("body.interventional_distribution"));
+        unresolved.push(ContractReason::BodyInterventionalDistribution);
     }
     let factor_laws = contract
         .data_snapshot
@@ -1150,25 +1209,25 @@ pub fn verify_contract_against_body(
     if posterior_distribution {
         // Posterior atoms require joint per-draw factor tables and draw
         // identity. Empirical marginal laws cannot replay their weights.
-        unresolved.push(Arc::from("dependencies.distribution_posterior_factor_draws"));
+        unresolved.push(ContractReason::DependenciesDistributionPosteriorFactorDraws);
     }
     if is_functional_distribution_contract(contract) && factor_laws.is_none() {
         // The checked expression proves what to evaluate, while the data snapshot
         // only carries partition digests. Without portable factor laws a detached
         // consumer cannot recompute the atom probabilities.
-        unresolved.push(Arc::from("dependencies.distribution_factor_laws"));
+        unresolved.push(ContractReason::DependenciesDistributionFactorLaws);
     }
     if functional_effect
         && factor_laws.is_none()
         && !posterior_functional_effect
         && !graph_posterior_functional_effect
     {
-        unresolved.push(Arc::from("dependencies.functional_effect_factor_laws"));
+        unresolved.push(ContractReason::DependenciesFunctionalEffectFactorLaws);
     }
     if posterior_functional_effect && !graph_posterior_functional_effect {
         // The scalar provider law is enough for a frequentist point replay, but Bayesian
         // results require the shared row weights for every posterior draw.
-        unresolved.push(Arc::from("dependencies.functional_effect_posterior_draws"));
+        unresolved.push(ContractReason::DependenciesFunctionalEffectPosteriorDraws);
     }
     if is_response_functional_effect_contract(contract) {
         let graph_posterior = contract.structure_source == "graph_posterior"
@@ -1189,7 +1248,7 @@ pub fn verify_contract_against_body(
             // The atom-wise checked execution and frozen graph mass are the
             // replay dependency; one scalar program cannot represent the family.
         } else if posterior {
-            unresolved.push(Arc::from("dependencies.functional_effect_response_posterior_draws"));
+            unresolved.push(ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws);
         } else {
             match (
                 contract
@@ -1209,20 +1268,21 @@ pub fn verify_contract_against_body(
                         &response.estimate,
                         laws,
                     ) {
-                        unresolved.push(Arc::from(reason));
+                        unresolved.push(reason);
                     }
                 }
                 (None, _, _) => {
-                    unresolved.push(Arc::from("program.functional_effect_response_grid"))
+                    unresolved.push(ContractReason::ProgramFunctionalEffectResponseGrid)
                 }
-                (_, None, _) => unresolved
-                    .push(Arc::from("dependencies.functional_effect_response_factor_laws")),
-                (_, _, None) => unresolved.push(Arc::from("body.response")),
+                (_, None, _) => {
+                    unresolved.push(ContractReason::DependenciesFunctionalEffectResponseFactorLaws)
+                }
+                (_, _, None) => unresolved.push(ContractReason::BodyResponse),
             }
         }
     }
     if body.identification.query != body.query {
-        unresolved.push(Arc::from("body.identification.query"));
+        unresolved.push(ContractReason::BodyIdentificationQuery);
     }
     if is_functional_distribution_contract(contract) && !posterior_distribution {
         match (
@@ -1240,15 +1300,15 @@ pub fn verify_contract_against_body(
                     program,
                     laws,
                 ) {
-                    unresolved.push(Arc::from(reason));
+                    unresolved.push(reason);
                 }
             }
             _ => {
                 if !unresolved
                     .iter()
-                    .any(|reason| reason.as_ref() == "dependencies.distribution_factor_laws")
+                    .any(|reason| *reason == ContractReason::DependenciesDistributionFactorLaws)
                 {
-                    unresolved.push(Arc::from("dependencies.distribution_factor_laws"));
+                    unresolved.push(ContractReason::DependenciesDistributionFactorLaws);
                 }
             }
         }
@@ -1268,38 +1328,44 @@ pub fn verify_contract_against_body(
                     program,
                     laws,
                 ) {
-                    unresolved.push(Arc::from(reason));
+                    unresolved.push(reason);
                 }
             }
             (_, None) => {
                 if !unresolved
                     .iter()
-                    .any(|reason| reason.as_ref() == "dependencies.functional_effect_factor_laws")
+                    .any(|reason| *reason == ContractReason::DependenciesFunctionalEffectFactorLaws)
                 {
-                    unresolved.push(Arc::from("dependencies.functional_effect_factor_laws"));
+                    unresolved.push(ContractReason::DependenciesFunctionalEffectFactorLaws);
                 }
             }
-            (None, Some(_)) => unresolved.push(Arc::from("program.functional_program")),
+            (None, Some(_)) => unresolved.push(ContractReason::ProgramFunctionalProgram),
         }
     }
     if matches!(contract.target.query, crate::CausalQueryWire::NestedCounterfactual { .. }) {
-        if matches!(
-            contract.graph_class.as_str(),
-            "TemporalDag" | "TemporalCpdag" | "TemporalPag"
-        ) {
+        if matches!(contract.graph_class.as_str(), "TemporalDag" | "TemporalCpdag" | "TemporalPag")
+        {
             if let Err(reason) = verify_temporal_nested_point(contract, body) {
-                unresolved.push(Arc::from(reason));
+                unresolved.push(reason);
             }
         } else if let Err(reason) = verify_nested_counterfactual_result(contract, body) {
-            unresolved.push(Arc::from(reason));
+            unresolved.push(reason);
         }
     }
+}
+
+fn note_published_claim(
+    header: &AnalysisResultHeader,
+    body: &AnalysisResultWire,
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     if contract.target.schema.variable_names() != header.variable_names {
-        unresolved.push(Arc::from("header.variable_names"));
+        unresolved.push(ContractReason::HeaderVariableNames);
     }
     if let Some(slot) = contract.reasoning.identification.value.as_ref() {
         if slot.status != body.identification.status {
-            unresolved.push(Arc::from("identification.status"));
+            unresolved.push(ContractReason::IdentificationStatus);
         }
         if validate_mixture_masses(
             slot.identified_mass,
@@ -1309,7 +1375,7 @@ pub fn verify_contract_against_body(
         )
         .is_err()
         {
-            unresolved.push(Arc::from("reasoning.identification.masses"));
+            unresolved.push(ContractReason::ReasoningIdentificationMasses);
         }
         if let Some(structural) = &body.structural_response {
             let masses_match = (slot.identified_mass - structural.identified_mass).abs() <= 1e-12
@@ -1317,19 +1383,19 @@ pub fn verify_contract_against_body(
                 && (slot.unevaluable_mass - structural.unevaluable_mass).abs() <= 1e-12
                 && (slot.incomplete_search_mass - structural.subsampled_out_mass).abs() <= 1e-12;
             if !masses_match {
-                unresolved.push(Arc::from("reasoning.identification.masses"));
+                unresolved.push(ContractReason::ReasoningIdentificationMasses);
             }
             if slot.weight_basis.as_deref() != Some(weight_basis_name(structural.weight_basis)) {
-                unresolved.push(Arc::from("reasoning.identification.weight_basis"));
+                unresolved.push(ContractReason::ReasoningIdentificationWeightBasis);
             }
         }
     }
     if let Some(product) = &contract.identification_product {
         if !identification_product_matches_body(product, body) {
-            unresolved.push(Arc::from("body.identification_product"));
+            unresolved.push(ContractReason::BodyIdentificationProduct);
         }
     } else if contract.identities.identification_product.is_some() {
-        unresolved.push(Arc::from("identities.identification_product"));
+        unresolved.push(ContractReason::IdentitiesIdentificationProduct);
     }
     if contract_uses_estimator(contract, "frontdoor.linear_two_stage")
         && !body.assumptions.iter().any(|assumption| {
@@ -1338,37 +1404,49 @@ pub fn verify_contract_against_body(
                     if id == "frontdoor.linear_path_product")
         })
     {
-        unresolved.push(Arc::from("body.frontdoor_assumption"));
+        unresolved.push(ContractReason::BodyFrontdoorAssumption);
     }
-    require_present(&mut unresolved, "identities.identification", contract.identification.as_ref());
-    require_present(&mut unresolved, "identities.program", contract.program.as_ref());
     require_present(
-        &mut unresolved,
-        "identities.inference_binding",
+        unresolved,
+        ContractReason::IdentitiesIdentification,
+        contract.identification.as_ref(),
+    );
+    require_present(unresolved, ContractReason::IdentitiesProgram, contract.program.as_ref());
+    require_present(
+        unresolved,
+        ContractReason::IdentitiesInferenceBinding,
         contract.inference_binding.as_ref(),
     );
-    require_present(&mut unresolved, "identities.observation", contract.observation.as_ref());
-    require_present(&mut unresolved, "identities.data_snapshot", contract.data_snapshot.as_ref());
+    require_present(
+        unresolved,
+        ContractReason::IdentitiesObservation,
+        contract.observation.as_ref(),
+    );
+    require_present(
+        unresolved,
+        ContractReason::IdentitiesDataSnapshot,
+        contract.data_snapshot.as_ref(),
+    );
     if let Some(claim) = &contract.claim {
         if !claim_id_matches(contract, claim, body) {
-            unresolved.push(Arc::from("claim.id"));
+            unresolved.push(ContractReason::ClaimId);
         }
         if claim.kind == "point" && !claim_value_matches_body(claim, body) {
-            unresolved.push(Arc::from("claim.value"));
+            unresolved.push(ContractReason::ClaimValue);
         }
         if claim.kind != "point" && claim.value_bits.is_some() {
-            unresolved.push(Arc::from("claim.value"));
+            unresolved.push(ContractReason::ClaimValue);
         }
         let identification = contract.reasoning.identification.value.as_ref();
         if claim.kind != claim_kind_name(body, identification) {
-            unresolved.push(Arc::from("claim.kind"));
+            unresolved.push(ContractReason::ClaimKind);
         }
         let support = contract.reasoning.support.value.as_ref();
         if let Some(slot) = support {
             let empirical = support_empirical(&body.refutations)
                 .unwrap_or_else(|| "unavailable:not_evaluated".into());
             if slot.empirical != empirical {
-                unresolved.push(Arc::from("reasoning.support.empirical"));
+                unresolved.push(ContractReason::ReasoningSupportEmpirical);
             }
         }
         let domains = claim_domains(support, identification);
@@ -1376,14 +1454,13 @@ pub fn verify_contract_against_body(
             || claim.support_domain != domains.support
             || claim.evaluated_domain != domains.evaluated
         {
-            unresolved.push(Arc::from("claim.domains"));
+            unresolved.push(ContractReason::ClaimDomains);
         }
         if claim.execution.is_some() && contract.execution.is_none() {
-            unresolved.push(Arc::from("identities.execution"));
+            unresolved.push(ContractReason::IdentitiesExecution);
         }
-        verify_claim_calibration(contract, claim, &mut unresolved);
+        verify_claim_calibration(contract, claim, unresolved);
     }
-    unresolved
 }
 
 /// Producer validation permits readable exports with explicitly unavailable
@@ -1395,72 +1472,34 @@ pub(crate) fn verify_contract_for_encoding(
     body: &AnalysisResultWire,
     contract: &AnalysisResultContractWire,
 ) -> Vec<Arc<str>> {
-    producer_encoding_unresolved(contract, verify_contract_against_body(header, body, contract))
+    publish_reasons(producer_encoding_unresolved(
+        contract,
+        contract_unresolved(header, body, contract),
+    ))
 }
 
 fn producer_encoding_unresolved(
     contract: &AnalysisResultContractWire,
-    mut unresolved: Vec<Arc<str>>,
-) -> Vec<Arc<str>> {
-    unresolved.retain(|key| {
-        !matches!(
-            key.as_ref(),
-            "dependencies.checked_glm_operation"
-                | "dependencies.checked_rd_operation"
-                | "dependencies.checked_propensity_operation"
-                | "dependencies.checked_derivative_response_operation"
-                | "dependencies.checked_response_grid_operation"
-                | "dependencies.checked_intervention_response_operation"
-                | "dependencies.fitted_counterfactual_mechanisms"
-                | "dependencies.checked_graph_posterior_effect_operation"
-                | "dependencies.checked_class_graph_posterior_effect_operation"
-                | "dependencies.checked_static_class_effect_operation"
-                | "dependencies.checked_admg_graph_posterior_response_operation"
-                | "dependencies.checked_conditional_effect_operation"
-                | "dependencies.checked_mediation_operation"
-                | "dependencies.checked_bayesian_mediation_operation"
-                | "dependencies.checked_attribution_operation"
-                | "dependencies.checked_bayesian_dag_ate_operation"
-                | "dependencies.checked_bayesian_basis_ate_operation"
-                | "dependencies.checked_bayesian_basis_cate_operation"
-                | "dependencies.checked_bayesian_robust_ate_operation"
-                | "dependencies.checked_bayesian_conditional_operation"
-                | "dependencies.checked_temporal_dag_effect_operation"
-                | "dependencies.checked_bayesian_temporal_dag_effect_operation"
-                | "dependencies.checked_temporal_class_effect_operation"
-                | "dependencies.checked_temporal_response_operation"
-                | "dependencies.checked_temporal_mediation_operation"
-                | "dependencies.checked_interference_operation"
-                | "dependencies.checked_unknown_tiered_average_operation"
-                | "dependencies.checked_bayesian_graph_posterior_ate_operation"
-                | "dependencies.checked_bayesian_class_conditional_operation"
-                | "dependencies.checked_temporal_class_response_operation"
-                | "dependencies.checked_temporal_graph_posterior_response_operation"
-                | "dependencies.checked_bayesian_temporal_class_effect_operation"
-                | "dependencies.checked_temporal_graph_posterior_effect_operation"
-                | "dependencies.checked_static_class_response_operation"
-                | "dependencies.checked_graph_posterior_response_operation"
-                | "dependencies.checked_bayesian_iv_operation"
-                | "dependencies.checked_bayesian_rd_operation"
-                | "dependencies.checked_transport_trial_operation"
-        )
-    });
+    mut unresolved: Vec<ContractReason>,
+) -> Vec<ContractReason> {
+    unresolved.retain(|key| !key.omitted_when_encoding());
     // Preserve portable structural artifacts while making the missing replay
     // input explicit to independent consumers.
     if is_functional_distribution_contract(contract) {
-        unresolved.retain(|key| key.as_ref() != "dependencies.distribution_factor_laws");
-        unresolved.retain(|key| key.as_ref() != "dependencies.distribution_posterior_factor_draws");
+        unresolved.retain(|key| *key != ContractReason::DependenciesDistributionFactorLaws);
+        unresolved
+            .retain(|key| *key != ContractReason::DependenciesDistributionPosteriorFactorDraws);
     }
     if is_scalar_functional_effect_contract(contract) {
-        unresolved.retain(|key| key.as_ref() != "dependencies.functional_effect_factor_laws");
-        unresolved.retain(|key| key.as_ref() != "dependencies.functional_effect_posterior_draws");
+        unresolved.retain(|key| *key != ContractReason::DependenciesFunctionalEffectFactorLaws);
+        unresolved.retain(|key| *key != ContractReason::DependenciesFunctionalEffectPosteriorDraws);
     }
     if is_response_functional_effect_contract(contract) {
-        unresolved.retain(|key| key.as_ref() != "program.functional_effect_response_grid");
+        unresolved.retain(|key| *key != ContractReason::ProgramFunctionalEffectResponseGrid);
         unresolved
-            .retain(|key| key.as_ref() != "dependencies.functional_effect_response_factor_laws");
+            .retain(|key| *key != ContractReason::DependenciesFunctionalEffectResponseFactorLaws);
         unresolved.retain(|key| {
-            key.as_ref() != "dependencies.functional_effect_response_posterior_draws"
+            *key != ContractReason::DependenciesFunctionalEffectResponsePosteriorDraws
         });
     }
     if contract
@@ -1468,15 +1507,15 @@ fn producer_encoding_unresolved(
         .as_ref()
         .is_some_and(|program| program.checked_linear_adjustment_lowering.is_some())
     {
-        unresolved.retain(|key| key.as_ref() != "dependencies.linear_fit_sufficient_statistics");
+        unresolved.retain(|key| *key != ContractReason::DependenciesLinearFitSufficientStatistics);
     }
     if is_aipw_contract(contract) && contract.program.is_some() {
         if contract.program.as_ref().is_some_and(|program| program.checked_aipw_lowering.is_none())
         {
-            unresolved.retain(|key| key.as_ref() != "program.checked_aipw_lowering");
+            unresolved.retain(|key| *key != ContractReason::ProgramCheckedAipwLowering);
         }
         if contract.checked_aipw_rows.is_none() && contract.identities.checked_aipw_rows.is_none() {
-            unresolved.retain(|key| key.as_ref() != "checked_aipw.row_binding");
+            unresolved.retain(|key| *key != ContractReason::CheckedAipwRowBinding);
         }
     }
     let is_iv = matches!(contract.estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
@@ -1486,7 +1525,7 @@ fn producer_encoding_unresolved(
     if is_iv
         && contract.program.as_ref().is_some_and(|program| program.checked_iv_lowering.is_none())
     {
-        unresolved.retain(|key| key.as_ref() != "program.checked_iv_lowering");
+        unresolved.retain(|key| *key != ContractReason::ProgramCheckedIvLowering);
     }
     unresolved
 }
@@ -1496,14 +1535,14 @@ fn producer_encoding_unresolved(
 fn verify_claim_calibration(
     contract: &AnalysisResultContractWire,
     claim: &ClaimSectionWire,
-    unresolved: &mut Vec<Arc<str>>,
+    unresolved: &mut Vec<ContractReason>,
 ) {
     let slot = &claim.calibration;
     let statuses_ok = std::iter::once(slot).chain(slot.secondary.iter()).all(|slot| {
         matches!(slot.status.as_str(), "calibrated" | "scope_not_assessed" | "unavailable")
     });
     if !statuses_ok || crate::calibration::rederive_calibration(slot) != *slot {
-        unresolved.push(Arc::from("claim.calibration"));
+        unresolved.push(ContractReason::ClaimCalibration);
     }
     if contract
         .reasoning
@@ -1515,14 +1554,14 @@ fn verify_claim_calibration(
             .chain(slot.secondary.iter())
             .any(|entry| entry.status == "calibrated")
     {
-        unresolved.push(Arc::from("claim.calibration.off_axis"));
+        unresolved.push(ContractReason::ClaimCalibrationOffAxis);
     }
     let consistent = std::iter::once(slot)
         .chain(slot.secondary.iter())
         .filter_map(|slot| slot.basis.as_ref())
         .all(|basis| calibration_basis_matches_contract(contract, basis));
     if !consistent {
-        unresolved.push(Arc::from("claim.calibration.basis"));
+        unresolved.push(ContractReason::ClaimCalibrationBasis);
     }
 }
 
@@ -1616,34 +1655,46 @@ fn calibration_basis_matches_contract(
     clippy::too_many_lines,
     reason = "Stored-payload verification must retain the complete cross-layer digest checklist."
 )]
-fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>> {
+fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<ContractReason> {
     let mut unresolved = Vec::new();
-    require_slot(&mut unresolved, "identification", &contract.reasoning.identification);
-    require_slot(&mut unresolved, "support", &contract.reasoning.support);
-    require_slot(&mut unresolved, "uncertainty", &contract.reasoning.uncertainty);
-    require_slot(&mut unresolved, "assumptions", &contract.reasoning.assumptions);
+    require_slot(
+        &mut unresolved,
+        ContractReason::ReasoningIdentification,
+        &contract.reasoning.identification,
+    );
+    require_slot(&mut unresolved, ContractReason::ReasoningSupport, &contract.reasoning.support);
+    require_slot(
+        &mut unresolved,
+        ContractReason::ReasoningUncertainty,
+        &contract.reasoning.uncertainty,
+    );
+    require_slot(
+        &mut unresolved,
+        ContractReason::ReasoningAssumptions,
+        &contract.reasoning.assumptions,
+    );
     match digest_wire(IdentityDomain::Target, &contract.target) {
         Ok(target) if target.as_bytes() == &contract.identities.target => {}
-        Ok(_) => unresolved.push(Arc::from("identities.target")),
-        Err(_) => unresolved.push(Arc::from("target_payload")),
+        Ok(_) => unresolved.push(ContractReason::IdentitiesTarget),
+        Err(_) => unresolved.push(ContractReason::TargetPayload),
     }
     require_payload_digest(
         &mut unresolved,
-        "identities.identification",
+        ContractReason::IdentitiesIdentification,
         contract.identification.as_ref(),
         Some(&contract.identities.identification),
         identification_digest,
     );
     require_payload_digest(
         &mut unresolved,
-        "identities.identification_product",
+        ContractReason::IdentitiesIdentificationProduct,
         contract.identification_product.as_ref(),
         contract.identities.identification_product.as_ref(),
         identification_product_digest_wire,
     );
     require_payload_digest(
         &mut unresolved,
-        "identities.program",
+        ContractReason::IdentitiesProgram,
         contract.program.as_ref(),
         Some(&contract.identities.program),
         program_digest,
@@ -1674,13 +1725,13 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
     {
         // Older artifacts stay readable but cannot advertise a verified
         // executable distribution without the program that was evaluated.
-        unresolved.push(Arc::from("program.functional_program"));
+        unresolved.push(ContractReason::ProgramFunctionalProgram);
     }
     if is_scalar_functional_effect_contract(contract)
         && functional.is_none()
         && !graph_posterior_functional_effect
     {
-        unresolved.push(Arc::from("program.functional_program"));
+        unresolved.push(ContractReason::ProgramFunctionalProgram);
     }
     if let Some(program) = functional.filter(|_| {
         !posterior_distribution
@@ -1690,7 +1741,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
         if crate::functional_program_from_wire(program, antecedent_expr::ProgramLimits::default())
             .is_err()
         {
-            unresolved.push(Arc::from("program.functional_program"));
+            unresolved.push(ContractReason::ProgramFunctionalProgram);
         }
         let expected_variables: Vec<_> = contract
             .target
@@ -1727,17 +1778,17 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
             || program.variables != expected_variables
             || !matches_identification
         {
-            unresolved.push(Arc::from("program.functional_binding"));
+            unresolved.push(ContractReason::ProgramFunctionalBinding);
         }
     }
     let frontdoor =
         contract.program.as_ref().and_then(|item| item.checked_frontdoor_lowering.as_ref());
     if contract_uses_estimator(contract, "frontdoor.linear_two_stage") && frontdoor.is_none() {
-        unresolved.push(Arc::from("program.checked_frontdoor_lowering"));
+        unresolved.push(ContractReason::ProgramCheckedFrontdoorLowering);
     }
     if let Some(frontdoor) = frontdoor {
         if !verify_frontdoor_lowering(contract, frontdoor) {
-            unresolved.push(Arc::from("program.frontdoor_binding"));
+            unresolved.push(ContractReason::ProgramFrontdoorBinding);
         }
     }
     let checked_iv = contract.program.as_ref().and_then(|item| item.checked_iv_lowering.as_ref());
@@ -1746,70 +1797,70 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
             matches!(item.commitments.resolved_estimator.as_deref(), Some("iv.wald" | "iv.2sls"))
         });
     if is_checked_iv && checked_iv.is_none() {
-        unresolved.push(Arc::from("program.checked_iv_lowering"));
+        unresolved.push(ContractReason::ProgramCheckedIvLowering);
     }
     if let Some(iv) = checked_iv {
         if !verify_checked_iv(contract, iv) {
-            unresolved.push(Arc::from("program.checked_iv_binding"));
+            unresolved.push(ContractReason::ProgramCheckedIvBinding);
         }
     }
     verify_checked_linear_adjustment(contract, &mut unresolved);
     verify_checked_aipw(contract, &mut unresolved);
     require_payload_digest(
         &mut unresolved,
-        "identities.inference_binding",
+        ContractReason::IdentitiesInferenceBinding,
         contract.inference_binding.as_ref(),
         Some(&contract.identities.inference_binding),
         inference_binding_digest,
     );
     require_payload_digest(
         &mut unresolved,
-        "identities.observation",
+        ContractReason::IdentitiesObservation,
         contract.observation.as_ref(),
         Some(&contract.identities.observation),
         |observation| digest_wire(IdentityDomain::Observation, observation),
     );
     require_payload_digest(
         &mut unresolved,
-        "identities.data_snapshot",
+        ContractReason::IdentitiesDataSnapshot,
         contract.data_snapshot.as_ref(),
         Some(&contract.identities.data_snapshot),
         data_snapshot_digest,
     );
     require_payload_digest(
         &mut unresolved,
-        "identities.execution",
+        ContractReason::IdentitiesExecution,
         contract.execution.as_ref(),
         contract.identities.execution.as_ref(),
         execution_digest,
     );
     require_nested_digest(
         &mut unresolved,
-        "identities.execution",
+        ContractReason::IdentitiesExecution,
         contract.identities.execution,
         contract.claim.as_ref().and_then(|claim| claim.execution.as_ref()),
     );
     require_nested_digest(
         &mut unresolved,
-        "program.target",
+        ContractReason::ProgramTarget,
         contract.program.as_ref().map(|item| item.target),
         Some(&contract.identities.target),
     );
     require_nested_digest(
         &mut unresolved,
-        "program.identification",
+        ContractReason::ProgramIdentification,
         contract.program.as_ref().map(|item| item.identification),
         Some(&contract.identities.identification),
     );
     require_nested_digest(
         &mut unresolved,
-        "program.identification_product",
+        ContractReason::ProgramIdentificationProduct,
         contract.program.as_ref().and_then(|item| item.identification_product),
         contract.identities.identification_product.as_ref(),
     );
     require_nested_digest(
         &mut unresolved,
-        "data_snapshot.observation",
+        ContractReason::DataSnapshotObservation,
         contract.data_snapshot.as_ref().map(|item| item.observation),
         Some(&contract.identities.observation),
     );
@@ -1817,7 +1868,7 @@ fn verify_stored_payloads(contract: &AnalysisResultContractWire) -> Vec<Arc<str>
     verify_layer_links(contract, &mut unresolved);
     match contract_seal_of(contract) {
         Ok(seal) if seal == contract.seal => {}
-        _ => unresolved.push(Arc::from("contract.seal")),
+        _ => unresolved.push(ContractReason::ContractSeal),
     }
     unresolved
 }
@@ -1845,7 +1896,7 @@ fn is_functional_distribution_contract(contract: &AnalysisResultContractWire) ->
 fn verify_nested_counterfactual_result(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
-) -> Result<(), &'static str> {
+) -> Result<(), ContractReason> {
     let crate::CausalQueryWire::NestedCounterfactual {
         treatment,
         mediator,
@@ -1854,13 +1905,13 @@ fn verify_nested_counterfactual_result(
         active_bits,
     } = contract.target.query
     else {
-        return Err("program.checked_nested_counterfactual.target");
+        return Err(ContractReason::ProgramCheckedNestedCounterfactualTarget);
     };
     let operation = contract
         .program
         .as_ref()
         .and_then(|program| program.checked_nested_counterfactual.as_ref())
-        .ok_or("program.checked_nested_counterfactual")?;
+        .ok_or(ContractReason::ProgramCheckedNestedCounterfactual)?;
     if contract.graph_class != "Dag"
         || contract.structure_source != "explicit"
         || !matches!(contract.identifier.as_deref(), None | Some("path_specific.natural"))
@@ -1875,12 +1926,10 @@ fn verify_nested_counterfactual_result(
             Some("frequentist" | "bayesian")
         )
     {
-        return Err("program.checked_nested_counterfactual.scope");
+        return Err(ContractReason::ProgramCheckedNestedCounterfactualScope);
     }
-    let bayesian_point = contract
-        .inference_binding
-        .as_ref()
-        .is_some_and(|binding| binding.inference == "bayesian");
+    let bayesian_point =
+        contract.inference_binding.as_ref().is_some_and(|binding| binding.inference == "bayesian");
     if operation.format != 1
         || operation.treatment != treatment
         || operation.mediator != mediator
@@ -1892,34 +1941,36 @@ fn verify_nested_counterfactual_result(
         || !f64::from_bits(active_bits).is_finite()
         || !f64::from_bits(control_bits).is_finite()
     {
-        return Err("program.checked_nested_counterfactual.binding");
+        return Err(ContractReason::ProgramCheckedNestedCounterfactualBinding);
     }
     let graph = contract
         .identification
         .as_ref()
         .map(|identity| &identity.graph)
-        .ok_or("identities.identification")?;
+        .ok_or(ContractReason::IdentitiesIdentification)?;
     let crate::GraphIdentityWire::Dag(dag) = graph else {
-        return Err("program.checked_nested_counterfactual.graph");
+        return Err(ContractReason::ProgramCheckedNestedCounterfactualGraph);
     };
     let mut edges = dag.edges.clone();
     edges.sort_unstable();
     let mut expected_edges = vec![(treatment, mediator), (treatment, outcome), (mediator, outcome)];
     expected_edges.sort_unstable();
     if dag.node_count != 3 || edges != expected_edges {
-        return Err("program.checked_nested_counterfactual.graph");
+        return Err(ContractReason::ProgramCheckedNestedCounterfactualGraph);
     }
     if !body.identification.estimands.iter().any(|estimand| {
         estimand.method == "path_specific.natural" && estimand.mediators == [mediator]
     }) {
-        return Err("program.checked_nested_counterfactual.identification");
+        return Err(ContractReason::ProgramCheckedNestedCounterfactualIdentification);
     }
-    let snapshot =
-        contract.data_snapshot.as_ref().ok_or("dependencies.nested_counterfactual_fit_moments")?;
+    let snapshot = contract
+        .data_snapshot
+        .as_ref()
+        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
     let fit = snapshot
         .nested_counterfactual_fit
         .as_ref()
-        .ok_or("dependencies.nested_counterfactual_fit_moments")?;
+        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
     if fit.format != 1
         || fit.complete_case_rows < 4
         || fit.complete_case_rows > snapshot.row_count
@@ -1931,11 +1982,11 @@ fn verify_nested_counterfactual_result(
             })
         })
     {
-        return Err("dependencies.nested_counterfactual_fit_moments");
+        return Err(ContractReason::DependenciesNestedCounterfactualFitMoments);
     }
-    let actual = body.estimate.ok_or("body.nested_counterfactual_estimate")?;
+    let actual = body.estimate.ok_or(ContractReason::BodyNestedCounterfactualEstimate)?;
     if !actual.is_finite() {
-        return Err("body.nested_counterfactual_estimate");
+        return Err(ContractReason::BodyNestedCounterfactualEstimate);
     }
     if bayesian_point
         && (body.standard_error.is_some_and(f64::is_finite)
@@ -1943,11 +1994,11 @@ fn verify_nested_counterfactual_result(
             || body.interval_upper.is_some()
             || body.posterior_artifact.is_some())
     {
-        return Err("body.nested_counterfactual_estimate");
+        return Err(ContractReason::BodyNestedCounterfactualEstimate);
     }
     let expected = natural_direct_from_fit(fit, snapshot.row_count, active_bits, control_bits)?;
     if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
-        return Err("body.nested_counterfactual_estimate");
+        return Err(ContractReason::BodyNestedCounterfactualEstimate);
     }
     Ok(())
 }
@@ -1957,34 +2008,38 @@ fn verify_nested_counterfactual_result(
 fn verify_temporal_nested_point(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
-) -> Result<(), &'static str> {
+) -> Result<(), ContractReason> {
     let shape = body.estimate.is_some_and(f64::is_finite)
         && body.interval_lower.is_none()
         && body.interval_upper.is_none()
         && body.posterior_artifact.is_none()
         && !body.standard_error.is_some_and(f64::is_finite);
     if !shape {
-        return Err("body.temporal_nested_point");
+        return Err(ContractReason::BodyTemporalNestedPoint);
     }
     let crate::CausalQueryWire::NestedCounterfactual { control_bits, active_bits, .. } =
         contract.target.query
     else {
-        return Err("body.temporal_nested_point");
+        return Err(ContractReason::BodyTemporalNestedPoint);
     };
-    let snapshot =
-        contract.data_snapshot.as_ref().ok_or("dependencies.nested_counterfactual_fit_moments")?;
+    let snapshot = contract
+        .data_snapshot
+        .as_ref()
+        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
     let fit = snapshot
         .nested_counterfactual_fit
         .as_ref()
-        .ok_or("dependencies.nested_counterfactual_fit_moments")?;
+        .ok_or(ContractReason::DependenciesNestedCounterfactualFitMoments)?;
     let expected = natural_direct_from_fit(fit, snapshot.row_count, active_bits, control_bits)
         .map_err(|reason| match reason {
-            "body.nested_counterfactual_estimate" => "body.temporal_nested_point",
+            ContractReason::BodyNestedCounterfactualEstimate => {
+                ContractReason::BodyTemporalNestedPoint
+            }
             other => other,
         })?;
-    let actual = body.estimate.ok_or("body.temporal_nested_point")?;
+    let actual = body.estimate.ok_or(ContractReason::BodyTemporalNestedPoint)?;
     if (actual - expected).abs() > 1e-8 * expected.abs().max(1.0) {
-        return Err("body.temporal_nested_point");
+        return Err(ContractReason::BodyTemporalNestedPoint);
     }
     Ok(())
 }
@@ -1994,7 +2049,7 @@ fn natural_direct_from_fit(
     snapshot_rows: u64,
     active_bits: u64,
     control_bits: u64,
-) -> Result<f64, &'static str> {
+) -> Result<f64, ContractReason> {
     if fit.format != 1
         || fit.complete_case_rows < 4
         || fit.complete_case_rows > snapshot_rows
@@ -2006,14 +2061,14 @@ fn natural_direct_from_fit(
             })
         })
     {
-        return Err("dependencies.nested_counterfactual_fit_moments");
+        return Err(ContractReason::DependenciesNestedCounterfactualFitMoments);
     }
     let beta = invert_linear_moments(&fit.gram, 3)
         .and_then(|inverse| apply_moment_inverse(&inverse, &fit.outcome_cross, 3))
-        .ok_or("dependencies.nested_counterfactual_fit_rank")?;
+        .ok_or(ContractReason::DependenciesNestedCounterfactualFitRank)?;
     let expected = beta[1] * (f64::from_bits(active_bits) - f64::from_bits(control_bits));
     if !expected.is_finite() {
-        return Err("body.nested_counterfactual_estimate");
+        return Err(ContractReason::BodyNestedCounterfactualEstimate);
     }
     Ok(expected)
 }
@@ -2036,23 +2091,24 @@ fn replay_functional_response_grid(
     family: &crate::CheckedFunctionalResponseGridWire,
     reported: &crate::ResponseIdentificationWire,
     laws: &crate::DistributionFactorLawsWire,
-) -> Result<(), &'static str> {
+) -> Result<(), ContractReason> {
     use crate::{GridSpecWire, ResponseFunctionalWire, ResponseValueWire};
     let CausalQueryWire::Response(target) = target else {
-        return Err("program.functional_effect_response_grid.target");
+        return Err(ContractReason::ProgramFunctionalEffectResponseGridTarget);
     };
     let ResponseFunctionalWire::MeanCurve { outcome, treatment } = &target.functional else {
-        return Err("program.functional_effect_response_grid.target_kind");
+        return Err(ContractReason::ProgramFunctionalEffectResponseGridTargetKind);
     };
     if family.format != 1 || family.outcome != *outcome || family.treatment != treatment.variable {
-        return Err("program.functional_effect_response_grid.target_binding");
+        return Err(ContractReason::ProgramFunctionalEffectResponseGridTargetBinding);
     }
     let expected_grid = match &treatment.grid {
         GridSpecWire::Values(values) => values.clone(),
         GridSpecWire::Linspace { start, end, points } => {
-            let points = usize::try_from(*points).map_err(|_| "functional_effect.response_grid")?;
+            let points = usize::try_from(*points)
+                .map_err(|_| ContractReason::FunctionalEffectResponseGrid)?;
             if points == 0 || points > 100_000 {
-                return Err("functional_effect.response_grid_resource_limit");
+                return Err(ContractReason::FunctionalEffectResponseGridResourceLimit);
             }
             if points == 1 {
                 vec![*start]
@@ -2064,7 +2120,7 @@ fn replay_functional_response_grid(
         }
     };
     if expected_grid.len() != family.members.len() || expected_grid.is_empty() {
-        return Err("program.functional_effect_response_grid.member_count");
+        return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberCount);
     }
     let crate::ResponseIdentificationWire::PointIdentified(ResponseValueWire::Surface {
         grid: reported_grid,
@@ -2072,7 +2128,7 @@ fn replay_functional_response_grid(
         mean: means,
     }) = reported
     else {
-        return Err("functional_effect.response_result_shape");
+        return Err(ContractReason::FunctionalEffectResponseResultShape);
     };
     if reported_grid.len() != expected_grid.len()
         || means.len() != expected_grid.len()
@@ -2081,7 +2137,7 @@ fn replay_functional_response_grid(
             .zip(&expected_grid)
             .any(|(left, right)| left.to_bits() != right.to_bits())
     {
-        return Err("functional_effect.response_grid_result_mismatch");
+        return Err(ContractReason::FunctionalEffectResponseGridResultMismatch);
     }
     if laws.format != 1
         || laws.provider != "empirical_table"
@@ -2089,32 +2145,32 @@ fn replay_functional_response_grid(
         || laws.complete_case_rows == 0
         || laws.source_rows < laws.complete_case_rows
     {
-        return Err("functional_effect.provider_provenance");
+        return Err(ContractReason::FunctionalEffectProviderProvenance);
     }
     for ((member, expected), reported) in family.members.iter().zip(expected_grid).zip(means) {
         if member.grid_value_bits != expected.to_bits() {
-            return Err("program.functional_effect_response_grid.member_value");
+            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberValue);
         }
         let CausalQueryWire::Response(query) = &member.query else {
-            return Err("program.functional_effect_response_grid.member_query_kind");
+            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberQueryKind);
         };
         let ResponseFunctionalWire::InterventionResponse { outcome: member_outcome, interventions } =
             &query.functional
         else {
-            return Err("program.functional_effect_response_grid.member_functional");
+            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberFunctional);
         };
         if member_outcome != outcome
             || interventions.len() != 1
             || !matches!(interventions.first(), Some(crate::InterventionWire::Set { variable, value })
                 if *variable == treatment.variable && value.to_value() == antecedent_core::Value::Float64(expected))
         {
-            return Err("program.functional_effect_response_grid.member_intervention");
+            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberIntervention);
         }
         if member.identification.estimands.iter().all(|estimand| {
             estimand.method != "general.id" || estimand.functional != member.program.source
         }) || member.program.source != member.program.executable
         {
-            return Err("program.functional_effect_response_grid.member_program");
+            return Err(ContractReason::ProgramFunctionalEffectResponseGridMemberProgram);
         }
         crate::distribution_replay::replay_functional_scalar(
             &member.query,
@@ -2128,7 +2184,7 @@ fn replay_functional_response_grid(
 
 fn verify_checked_linear_adjustment(
     contract: &AnalysisResultContractWire,
-    unresolved: &mut Vec<Arc<str>>,
+    unresolved: &mut Vec<ContractReason>,
 ) {
     let lowering = contract
         .program
@@ -2145,12 +2201,12 @@ fn verify_checked_linear_adjustment(
                 program.commitments.resolved_estimator.as_deref() == Some("linear.adjustment.ate")
             }));
     if is_linear && lowering.is_none() {
-        unresolved.push(Arc::from("program.checked_linear_adjustment_lowering"));
+        unresolved.push(ContractReason::ProgramCheckedLinearAdjustmentLowering);
         return;
     }
     let Some(lowering) = lowering else { return };
     if !verify_linear_adjustment_lowering(contract, lowering) {
-        unresolved.push(Arc::from("program.checked_linear_adjustment_binding"));
+        unresolved.push(ContractReason::ProgramCheckedLinearAdjustmentBinding);
     }
 }
 
@@ -2328,21 +2384,23 @@ fn verify_linear_fit_moments(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
     lowering: &crate::CheckedLinearAdjustmentLoweringWire,
-) -> Result<(), &'static str> {
+) -> Result<(), ContractReason> {
     if lowering.fit_kind != "ols"
         || lowering.se_kind != "homoskedastic"
         || lowering.bootstrap_replicates != 0
         || lowering.interval_method != "analytic_se"
         || !matches!(&lowering.population, crate::TargetPopulationWire::AllObserved)
     {
-        return Err("dependencies.linear_fit_sufficient_statistics");
+        return Err(ContractReason::DependenciesLinearFitSufficientStatistics);
     }
-    let snapshot =
-        contract.data_snapshot.as_ref().ok_or("dependencies.linear_fit_sufficient_statistics")?;
+    let snapshot = contract
+        .data_snapshot
+        .as_ref()
+        .ok_or(ContractReason::DependenciesLinearFitSufficientStatistics)?;
     let moments = snapshot
         .linear_fit_moments
         .as_ref()
-        .ok_or("dependencies.linear_fit_sufficient_statistics")?;
+        .ok_or(ContractReason::DependenciesLinearFitSufficientStatistics)?;
     let p = lowering.design_columns.len();
     if moments.format != 1
         || usize::try_from(moments.columns).ok() != Some(p)
@@ -2355,7 +2413,7 @@ fn verify_linear_fit_moments(
         || !moments.outcome_square.is_finite()
         || moments.gram.iter().chain(&moments.outcome_cross).any(|v| !v.is_finite())
     {
-        return Err("data_snapshot.linear_fit_moments");
+        return Err(ContractReason::DataSnapshotLinearFitMoments);
     }
     let scale = moments.gram.iter().map(|v| v.abs()).fold(0.0_f64, f64::max);
     if scale == 0.0
@@ -2367,28 +2425,28 @@ fn verify_linear_fit_moments(
             })
         })
     {
-        return Err("data_snapshot.linear_fit_moments");
+        return Err(ContractReason::DataSnapshotLinearFitMoments);
     }
-    let inverse =
-        invert_linear_moments(&moments.gram, p).ok_or("data_snapshot.linear_fit_moments_rank")?;
+    let inverse = invert_linear_moments(&moments.gram, p)
+        .ok_or(ContractReason::DataSnapshotLinearFitMomentsRank)?;
     let beta = apply_moment_inverse(&inverse, &moments.outcome_cross, p)
-        .ok_or("data_snapshot.linear_fit_moments_rank")?;
+        .ok_or(ContractReason::DataSnapshotLinearFitMomentsRank)?;
     let residual_square = moments.outcome_square
         - beta.iter().zip(&moments.outcome_cross).map(|(b, xy)| b * xy).sum::<f64>();
     let tolerance = 1e-9 * moments.outcome_square.abs().max(1.0);
     if !residual_square.is_finite() || residual_square < -tolerance {
-        return Err("data_snapshot.linear_fit_moments");
+        return Err(ContractReason::DataSnapshotLinearFitMoments);
     }
     let dof = (moments.complete_case_rows - p as u64) as f64;
     let treatment_column = lowering
         .design_columns
         .iter()
         .position(|column| column == "treatment")
-        .ok_or("program.checked_linear_adjustment_binding")?;
+        .ok_or(ContractReason::ProgramCheckedLinearAdjustmentBinding)?;
     if lowering.design_columns.iter().filter(|column| *column == "treatment").count() != 1
         || lowering.design_columns.first().map(String::as_str) != Some("intercept")
     {
-        return Err("program.checked_linear_adjustment_binding");
+        return Err(ContractReason::ProgramCheckedLinearAdjustmentBinding);
     }
     // The residual sum of squares is a difference of two sums of products of the data, so
     // an exact fit leaves only roundoff of the order of eps * outcome_square. That is a zero
@@ -2401,18 +2459,18 @@ fn verify_linear_fit_moments(
     let variance =
         (residual_square.max(0.0) / dof) * inverse[treatment_column * p + treatment_column];
     if !variance.is_finite() || variance < 0.0 {
-        return Err("data_snapshot.linear_fit_moments");
+        return Err(ContractReason::DataSnapshotLinearFitMoments);
     }
     let delta = f64::from_bits(lowering.active_bits) - f64::from_bits(lowering.control_bits);
     let expected = beta[treatment_column] * delta;
     let expected_se = delta.abs() * variance.sqrt();
-    let actual = body.estimate.ok_or("body.estimate")?;
+    let actual = body.estimate.ok_or(ContractReason::BodyEstimate)?;
     if !close_replay_value(actual, expected) {
-        return Err("body.estimate");
+        return Err(ContractReason::BodyEstimate);
     }
-    let actual_se = body.standard_error.ok_or("body.standard_error")?;
+    let actual_se = body.standard_error.ok_or(ContractReason::BodyStandardError)?;
     if !close_replay_value(actual_se, expected_se) {
-        return Err("body.standard_error");
+        return Err(ContractReason::BodyStandardError);
     }
     Ok(())
 }
@@ -2714,64 +2772,64 @@ fn overlap_policy_tag(policy: &crate::OverlapPolicyWire) -> String {
 
 /// Cross-layer references: every layer must describe the same question,
 /// observation contract, graph class, schema, and inference family.
-fn verify_layer_links(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
+fn verify_layer_links(contract: &AnalysisResultContractWire, unresolved: &mut Vec<ContractReason>) {
     let target = &contract.target;
     if let Some(identification) = &contract.identification {
         match digest_wire(IdentityDomain::Target, &target.question()) {
             Ok(question) if question.as_bytes() == &identification.target_question => {}
-            _ => unresolved.push(Arc::from("identification.target_question")),
+            _ => unresolved.push(ContractReason::IdentificationTargetQuestion),
         }
         if identification.observation != contract.identities.observation {
-            unresolved.push(Arc::from("identification.observation"));
+            unresolved.push(ContractReason::IdentificationObservation);
         }
         if identification.graph_class != contract.graph_class {
-            unresolved.push(Arc::from("identification.graph_class"));
+            unresolved.push(ContractReason::IdentificationGraphClass);
         }
         if identification.structure_source != contract.structure_source {
-            unresolved.push(Arc::from("identification.structure_source"));
+            unresolved.push(ContractReason::IdentificationStructureSource);
         }
         if identification
             .schema_names
             .as_ref()
             .is_some_and(|names| *names != target.schema.variable_names())
         {
-            unresolved.push(Arc::from("identification.schema_names"));
+            unresolved.push(ContractReason::IdentificationSchemaNames);
         }
         let depends_on: &[u32] = match target.query.target_population() {
             Some(TargetPopulationWire::CustomDistribution { depends_on, .. }) => depends_on,
             _ => &[],
         };
         if identification.population_depends_on != depends_on {
-            unresolved.push(Arc::from("identification.population_depends_on"));
+            unresolved.push(ContractReason::IdentificationPopulationDependsOn);
         }
     }
     verify_score_reuse_link(contract, unresolved);
     verify_target_weights_link(contract, unresolved);
     if let Some(observation) = &contract.observation {
         if observation.schema != target.schema {
-            unresolved.push(Arc::from("observation.schema"));
+            unresolved.push(ContractReason::ObservationSchema);
         }
     }
     if let Some(program) = &contract.program {
         let commitments = &program.commitments;
         if commitments.identifier != contract.identifier {
-            unresolved.push(Arc::from("program.commitments.identifier"));
+            unresolved.push(ContractReason::ProgramCommitmentsIdentifier);
         }
         if commitments.estimator != contract.estimator {
-            unresolved.push(Arc::from("program.commitments.estimator"));
+            unresolved.push(ContractReason::ProgramCommitmentsEstimator);
         }
         if let Some(binding) = &contract.inference_binding {
             if commitments.inference != binding.inference {
-                unresolved.push(Arc::from("inference_binding.inference"));
+                unresolved.push(ContractReason::InferenceBindingInference);
             }
             if commitments.validation_suite != binding.validation_suite {
-                unresolved.push(Arc::from("inference_binding.validation_suite"));
+                unresolved.push(ContractReason::InferenceBindingValidationSuite);
             }
             if binding.bayesian.is_some() != (binding.inference == "bayesian") {
-                unresolved.push(Arc::from("inference_binding.bayesian"));
+                unresolved.push(ContractReason::InferenceBindingBayesian);
             }
             if commitments.prior_required != binding.bayesian.is_some() {
-                unresolved.push(Arc::from("program.commitments.prior_required"));
+                unresolved.push(ContractReason::ProgramCommitmentsPriorRequired);
             }
         }
     }
@@ -2804,19 +2862,22 @@ fn checked_aipw_lowering_well_formed(lowering: &CheckedAipwLoweringWire) -> bool
     lowering.format == 1 && valid_method && lag_valid && valid_procedure
 }
 
-fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
+fn verify_checked_aipw(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     let lowering =
         contract.program.as_ref().and_then(|program| program.checked_aipw_lowering.as_ref());
     if is_aipw_contract(contract) && lowering.is_none() {
-        unresolved.push(Arc::from("program.checked_aipw_lowering"));
+        unresolved.push(ContractReason::ProgramCheckedAipwLowering);
         return;
     }
     let Some(lowering) = lowering else { return };
     if !checked_aipw_lowering_well_formed(lowering) {
-        unresolved.push(Arc::from("program.checked_aipw_lowering"));
+        unresolved.push(ContractReason::ProgramCheckedAipwLowering);
     }
     if !is_aipw_contract(contract) {
-        unresolved.push(Arc::from("program.checked_aipw_binding"));
+        unresolved.push(ContractReason::ProgramCheckedAipwBinding);
     }
     let commitments = contract.program.as_ref().map(|program| &program.commitments);
     if commitments.is_none_or(|commitments| {
@@ -2826,7 +2887,7 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
             || commitments.interval_method
                 != if lowering.bootstrap_replicates > 0 { "bootstrap_se" } else { "analytic_se" }
     }) {
-        unresolved.push(Arc::from("program.checked_aipw_uncertainty"));
+        unresolved.push(ContractReason::ProgramCheckedAipwUncertainty);
     }
     if contract.inference_binding.as_ref().is_none_or(|binding| {
         let choices_match = match binding.estimator_spec.as_ref() {
@@ -2852,7 +2913,7 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
         };
         binding.inference != "frequentist" || binding.bayesian.is_some() || !choices_match
     }) {
-        unresolved.push(Arc::from("program.checked_aipw_uncertainty"));
+        unresolved.push(ContractReason::ProgramCheckedAipwUncertainty);
     }
     let query_matches = match &contract.target.query {
         crate::CausalQueryWire::AverageEffect {
@@ -2895,7 +2956,7 @@ fn verify_checked_aipw(contract: &AnalysisResultContractWire, unresolved: &mut V
             "cross_fitted_logistic_ols" | "trimmed_logistic_ols"
         )
     {
-        unresolved.push(Arc::from("program.checked_aipw_binding"));
+        unresolved.push(ContractReason::ProgramCheckedAipwBinding);
     }
 }
 
@@ -2905,10 +2966,13 @@ fn is_set_value(intervention: &crate::InterventionWire, variable: u32, value: f6
             if *actual == variable && actual_value.to_bits() == value.to_bits())
 }
 
-fn verify_checked_aipw_rows(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
+fn verify_checked_aipw_rows(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     let row_binding = contract.checked_aipw_rows.as_ref();
     if row_binding.is_some() != contract.identities.checked_aipw_rows.is_some() {
-        unresolved.push(Arc::from("checked_aipw.row_binding"));
+        unresolved.push(ContractReason::CheckedAipwRowBinding);
         return;
     }
     let Some(row_binding) = row_binding else {
@@ -2918,7 +2982,7 @@ fn verify_checked_aipw_rows(contract: &AnalysisResultContractWire, unresolved: &
                 .as_ref()
                 .is_some_and(|program| program.checked_aipw_lowering.is_some())
         {
-            unresolved.push(Arc::from("checked_aipw.row_binding"));
+            unresolved.push(ContractReason::CheckedAipwRowBinding);
         }
         return;
     };
@@ -2937,7 +3001,7 @@ fn verify_checked_aipw_rows(contract: &AnalysisResultContractWire, unresolved: &
         || !ordered_unique
         || !is_aipw_contract(contract)
     {
-        unresolved.push(Arc::from("checked_aipw.row_binding"));
+        unresolved.push(ContractReason::CheckedAipwRowBinding);
     }
 }
 
@@ -2950,9 +3014,12 @@ fn is_aipw_contract(contract: &AnalysisResultContractWire) -> bool {
 
 /// Score-reuse layer: present with its digest, fitted on this snapshot, and
 /// keyed by this identification.
-fn verify_score_reuse_link(contract: &AnalysisResultContractWire, unresolved: &mut Vec<Arc<str>>) {
+fn verify_score_reuse_link(
+    contract: &AnalysisResultContractWire,
+    unresolved: &mut Vec<ContractReason>,
+) {
     if contract.score_reuse.is_some() != contract.identities.score_reuse.is_some() {
-        unresolved.push(Arc::from("identities.score_reuse"));
+        unresolved.push(ContractReason::IdentitiesScoreReuse);
         return;
     }
     let Some(score) = &contract.score_reuse else {
@@ -2960,20 +3027,20 @@ fn verify_score_reuse_link(contract: &AnalysisResultContractWire, unresolved: &m
     };
     require_payload_digest(
         unresolved,
-        "identities.score_reuse",
+        ContractReason::IdentitiesScoreReuse,
         Some(score),
         contract.identities.score_reuse.as_ref(),
         score_reuse_digest,
     );
     require_nested_digest(
         unresolved,
-        "score_reuse.data_snapshot",
+        ContractReason::ScoreReuseDataSnapshot,
         Some(score.data_snapshot),
         Some(&contract.identities.data_snapshot),
     );
     require_nested_digest(
         unresolved,
-        "score_reuse.identification",
+        ContractReason::ScoreReuseIdentification,
         score.identification,
         Some(&contract.identities.identification),
     );
@@ -2984,7 +3051,7 @@ fn verify_score_reuse_link(contract: &AnalysisResultContractWire, unresolved: &m
 /// score table all name it.
 fn verify_target_weights_link(
     contract: &AnalysisResultContractWire,
-    unresolved: &mut Vec<Arc<str>>,
+    unresolved: &mut Vec<ContractReason>,
 ) {
     let row_weights = match contract.target.query.target_population() {
         Some(TargetPopulationWire::RowWeights { weights, depends_on }) => {
@@ -2993,19 +3060,19 @@ fn verify_target_weights_link(
         _ => None,
     };
     if contract.target_weights.is_some() != contract.identities.target_weights.is_some() {
-        unresolved.push(Arc::from("identities.target_weights"));
+        unresolved.push(ContractReason::IdentitiesTargetWeights);
         return;
     }
     let Some(section) = &contract.target_weights else {
         if row_weights.is_some() {
-            unresolved.push(Arc::from("target.population"));
+            unresolved.push(ContractReason::TargetPopulation);
         }
         return;
     };
     let identity = &section.identity;
     require_payload_digest(
         unresolved,
-        "identities.target_weights",
+        ContractReason::IdentitiesTargetWeights,
         Some(identity),
         contract.identities.target_weights.as_ref(),
         target_weights_digest,
@@ -3015,29 +3082,29 @@ fn verify_target_weights_link(
         && rows.digest == identity.weights
         && section.values.iter().all(|weight| weight.is_finite() && *weight >= 0.0);
     if !values_ok {
-        unresolved.push(Arc::from("target_weights.values"));
+        unresolved.push(ContractReason::TargetWeightsValues);
     }
     require_nested_digest(
         unresolved,
-        "target_weights.data_snapshot",
+        ContractReason::TargetWeightsDataSnapshot,
         Some(identity.data_snapshot),
         Some(&contract.identities.data_snapshot),
     );
     require_nested_digest(
         unresolved,
-        "target_weights.score_reuse",
+        ContractReason::TargetWeightsScoreReuse,
         Some(identity.score_reuse),
         contract.identities.score_reuse.as_ref(),
     );
     if contract.score_reuse.as_ref().is_some_and(|score| score.row_index.len != identity.row_count)
     {
-        unresolved.push(Arc::from("target_weights.row_count"));
+        unresolved.push(ContractReason::TargetWeightsRowCount);
     }
     match row_weights {
         Some((weights, depends_on))
             if Some(weights) == contract.identities.target_weights
                 && depends_on == identity.depends_on => {}
-        _ => unresolved.push(Arc::from("target.population")),
+        _ => unresolved.push(ContractReason::TargetPopulation),
     }
 }
 
@@ -3255,8 +3322,8 @@ pub(crate) fn validate_mixture_masses_within(
 }
 
 fn require_nested_digest(
-    unresolved: &mut Vec<Arc<str>>,
-    label: &'static str,
+    unresolved: &mut Vec<ContractReason>,
+    label: ContractReason,
     nested: Option<[u8; 32]>,
     advertised: Option<&[u8; 32]>,
 ) {
@@ -3266,7 +3333,7 @@ fn require_nested_digest(
         (None, Some(_)) | (Some(_), None) => false,
     };
     if !agrees {
-        unresolved.push(Arc::from(label));
+        unresolved.push(label);
     }
 }
 
@@ -3314,21 +3381,29 @@ fn cbor_eq<T: Serialize>(left: &T, right: &T) -> bool {
     }
 }
 
-fn require_present<T>(unresolved: &mut Vec<Arc<str>>, label: &'static str, payload: Option<&T>) {
+fn require_present<T>(
+    unresolved: &mut Vec<ContractReason>,
+    label: ContractReason,
+    payload: Option<&T>,
+) {
     if payload.is_none() {
-        unresolved.push(Arc::from(label));
+        unresolved.push(label);
     }
 }
 
-fn require_slot<T>(unresolved: &mut Vec<Arc<str>>, name: &'static str, slot: &SlotSectionWire<T>) {
-    if validate_slot(name, slot).is_err() {
-        unresolved.push(Arc::from(format!("reasoning.{name}")));
+fn require_slot<T>(
+    unresolved: &mut Vec<ContractReason>,
+    reason: ContractReason,
+    slot: &SlotSectionWire<T>,
+) {
+    if validate_slot(reason.as_str(), slot).is_err() {
+        unresolved.push(reason);
     }
 }
 
 fn require_payload_digest<T>(
-    unresolved: &mut Vec<Arc<str>>,
-    label: &'static str,
+    unresolved: &mut Vec<ContractReason>,
+    label: ContractReason,
     payload: Option<&T>,
     advertised: Option<&[u8; 32]>,
     digest: impl FnOnce(&T) -> Result<SemanticDigest, IoError>,
@@ -3338,7 +3413,7 @@ fn require_payload_digest<T>(
     };
     match (digest(payload), advertised) {
         (Ok(got), Some(want)) if got.as_bytes() == want => {}
-        _ => unresolved.push(Arc::from(label)),
+        _ => unresolved.push(label),
     }
 }
 
@@ -3541,6 +3616,7 @@ fn receipt_input(consumed: &AnalysisResultConsumption) -> SemanticDigest {
 
 /// JSON-compatible host projection. `null`, `0`, `unknown`, and `unsupported` stay distinct.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ClaimHostProjection {
     /// Claim digest hex, when a claim section exists.
     pub claim_id: Option<String>,
@@ -3626,17 +3702,18 @@ pub fn project_lossy_scalar(
 
 #[cfg(test)]
 mod tests {
+    use super::ContractReason;
     use antecedent_core::{
-        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, IDENTITY_FORMAT, MeasurementSpec,
-        RoleHint, SmallRoleSet, ValueType, VariableId,
+        AverageEffectQuery, CausalQuery, CausalSchemaBuilder, MeasurementSpec, RoleHint,
+        SmallRoleSet, ValueType, VariableId, IDENTITY_FORMAT,
     };
 
     use super::*;
     use crate::expr_wire::ExprArenaWire;
     use crate::query_wire::causal_query_to_wire;
     use crate::{
-        CausalQueryWire, IdentificationResultWire, encode_analysis_result_artifact,
-        encode_analysis_result_artifact_with_contract, schema_to_wire, to_cbor,
+        encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
+        schema_to_wire, to_cbor, CausalQueryWire, IdentificationResultWire,
     };
 
     #[test]
@@ -3719,7 +3796,7 @@ mod tests {
         };
         assert_eq!(
             replay_functional_response_grid(&target, &family, &reported, &laws),
-            Err("program.functional_effect_response_grid.member_value")
+            Err(ContractReason::ProgramFunctionalEffectResponseGridMemberValue)
         );
     }
 
@@ -3829,11 +3906,9 @@ mod tests {
             &body,
             &contract,
         );
-        assert!(
-            unresolved
-                .iter()
-                .any(|reason| { reason.as_ref() == "dependencies.distribution_factor_laws" })
-        );
+        assert!(unresolved
+            .iter()
+            .any(|reason| { reason.as_ref() == "dependencies.distribution_factor_laws" }));
     }
 
     #[allow(clippy::too_many_lines)]
@@ -3844,9 +3919,9 @@ mod tests {
         use antecedent_graph::{Dag, DenseNodeId};
 
         use crate::identity::{
-            InferentialCommitmentsWire, ObservationIdentityWire, ObservationOptionsWire,
             dag_identity, data_snapshot_digest, execution_digest, identification_digest,
             identification_product_digest_wire, inference_binding_digest, program_digest,
+            InferentialCommitmentsWire, ObservationIdentityWire, ObservationOptionsWire,
         };
 
         let target_digest = digest_wire(IdentityDomain::Target, &target).unwrap();
@@ -4228,13 +4303,11 @@ mod tests {
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
         assert!(!consumed.acceptance.accepts_as_verified_program());
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|item| &**item == "identities.identification_product")
-        );
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|item| &**item == "identities.identification_product"));
     }
 
     #[test]
@@ -4302,9 +4375,11 @@ mod tests {
         let consumed = consume_analysis_result(&bytes).unwrap();
         assert!(consumed.acceptance.accepts_as_verified_program());
         assert!(!consumed.acceptance.accepts_as_claim());
-        assert!(
-            !consumed.acceptance.supported_operations.iter().any(|op| &**op == "inspect_claim")
-        );
+        assert!(!consumed
+            .acceptance
+            .supported_operations
+            .iter()
+            .any(|op| &**op == "inspect_claim"));
         let (accepted, receipt) =
             accept_claim(&bytes, &antecedent_core::ConsumerProfile::full()).unwrap();
         assert!(!accepted.acceptance.accepts_as_claim());
@@ -4410,13 +4485,11 @@ mod tests {
 
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|reason| reason.as_ref() == "program.checked_payload_conflict")
-        );
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "program.checked_payload_conflict"));
     }
 
     #[test]
@@ -4440,13 +4513,11 @@ mod tests {
 
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|reason| reason.as_ref() == "program.checked_nested_counterfactual.target")
-        );
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "program.checked_nested_counterfactual.target"));
     }
 
     #[test]
@@ -4467,20 +4538,16 @@ mod tests {
         let bytes = to_bytes(&body, names, Some(&contract));
         let consumed = consume_analysis_result(&bytes).unwrap();
         assert_eq!(consumed.body, body);
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|key| { key.as_ref() == "program.checked_aipw_lowering" })
-        );
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
-        );
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|key| { key.as_ref() == "program.checked_aipw_lowering" }));
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|key| { key.as_ref() == "checked_aipw.row_binding" }));
     }
 
     #[test]
@@ -4526,13 +4593,11 @@ mod tests {
         seal_claim(&mut contract, &body);
 
         let consumed = consume_analysis_result(&to_bytes(&body, names, Some(&contract))).unwrap();
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|key| { key.as_ref() == "program.checked_iv_lowering" })
-        );
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|key| { key.as_ref() == "program.checked_iv_lowering" }));
         assert!(!consumed.acceptance.accepts_as_verified_program());
     }
 
@@ -4562,24 +4627,20 @@ mod tests {
             *program_digest(contract.program.as_ref().unwrap()).unwrap().as_bytes();
         seal_claim(&mut contract, &body);
 
-        assert!(
-            encode_analysis_result_artifact_with_contract(
-                &body,
-                names.clone(),
-                "tampered-aipw-lowering",
-                Some(&contract),
-            )
-            .is_err()
-        );
+        assert!(encode_analysis_result_artifact_with_contract(
+            &body,
+            names.clone(),
+            "tampered-aipw-lowering",
+            Some(&contract),
+        )
+        .is_err());
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|key| { key.as_ref() == "program.checked_aipw_lowering" })
-        );
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|key| { key.as_ref() == "program.checked_aipw_lowering" }));
     }
 
     /// The trim rule selects the procedure: a trimmed lowering must run no
@@ -4668,24 +4729,20 @@ mod tests {
         contract.identities.checked_aipw_rows = Some([0; 32]);
         seal_claim(&mut contract, &body);
 
-        assert!(
-            encode_analysis_result_artifact_with_contract(
-                &body,
-                names.clone(),
-                "tampered-aipw-rows",
-                Some(&contract),
-            )
-            .is_err()
-        );
+        assert!(encode_analysis_result_artifact_with_contract(
+            &body,
+            names.clone(),
+            "tampered-aipw-rows",
+            Some(&contract),
+        )
+        .is_err());
         let consumed =
             consume_analysis_result(&replace_contract_section(&body, names, &contract)).unwrap();
-        assert!(
-            consumed
-                .acceptance
-                .unresolved
-                .iter()
-                .any(|key| { key.as_ref() == "checked_aipw.row_binding" })
-        );
+        assert!(consumed
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|key| { key.as_ref() == "checked_aipw.row_binding" }));
     }
 
     #[test]
@@ -5016,7 +5073,7 @@ mod tests {
         let (wrong, contract) = bind(99.0);
         assert_eq!(
             verify_nested_counterfactual_result(&contract, &wrong),
-            Err("body.nested_counterfactual_estimate")
+            Err(ContractReason::BodyNestedCounterfactualEstimate)
         );
     }
 

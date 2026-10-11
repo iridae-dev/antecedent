@@ -133,7 +133,7 @@ pub struct ResponseWire {
 
 /// A structured refusal on the wire; mirrors `ExternalRefusal`.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub struct RefusalWire {
+pub struct ExternalBindingRefusalWire {
     /// Registered runtime reason code.
     pub code: String,
     /// Refusing stage.
@@ -152,7 +152,13 @@ pub struct RefusalWire {
     pub remedy: Option<String>,
 }
 
-impl From<antecedent_core::ExternalRefusal> for RefusalWire {
+/// Historical Rust name for [`ExternalBindingRefusalWire`].
+///
+/// CBOR and JSON field names are unchanged. The alias keeps existing imports compiling.
+pub type RefusalWire = ExternalBindingRefusalWire;
+
+
+impl From<antecedent_core::ExternalRefusal> for ExternalBindingRefusalWire {
     fn from(value: antecedent_core::ExternalRefusal) -> Self {
         Self {
             code: value.code.to_owned(),
@@ -167,8 +173,8 @@ impl From<antecedent_core::ExternalRefusal> for RefusalWire {
     }
 }
 
-fn malformed(detail: &'static str, message: &str) -> RefusalWire {
-    RefusalWire {
+fn malformed(detail: &'static str, message: &str) -> ExternalBindingRefusalWire {
+    ExternalBindingRefusalWire {
         code: antecedent_core::reason_code!("invalid_argument").to_owned(),
         stage: "declare".into(),
         detail: detail.to_owned(),
