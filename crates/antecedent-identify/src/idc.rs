@@ -269,8 +269,7 @@ fn distribution_query_from_sets(
     x: &BitSet,
     known_values: &std::collections::BTreeMap<VariableId, Value>,
 ) -> Result<CausalQuery, IdentificationError> {
-    let outcomes: Result<Vec<_>, _> =
-        y.iter().map(|d| prepared.dense_to_var(d)).collect();
+    let outcomes: Result<Vec<_>, _> = y.iter().map(|d| prepared.dense_to_var(d)).collect();
     let interventions: Result<Vec<_>, _> = x
         .iter()
         .map(|d| {
@@ -295,8 +294,7 @@ fn intern_bitset_vars(
     nodes: &BitSet,
     arena: &mut CausalExprArena,
 ) -> Result<antecedent_expr::VarSetId, IdentificationError> {
-    let vars: Result<Vec<_>, _> =
-        nodes.iter().map(|d| prepared.dense_to_var(d)).collect();
+    let vars: Result<Vec<_>, _> = nodes.iter().map(|d| prepared.dense_to_var(d)).collect();
     Ok(arena.intern_var_set(vars?))
 }
 

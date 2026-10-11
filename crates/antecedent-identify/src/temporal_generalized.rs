@@ -94,8 +94,9 @@ impl TemporalCompletionGraph {
             })
             .collect();
         edges.sort_unstable();
-        let mut stream =
-            antecedent_core::CanonicalWriter::new("antecedent.identify.temporal_completion_graph.v1");
+        let mut stream = antecedent_core::CanonicalWriter::new(
+            "antecedent.identify.temporal_completion_graph.v1",
+        );
         stream.word(kind);
         stream.word(vertices.len() as u64);
         for (variable, lag) in vertices {

@@ -167,9 +167,8 @@ pub fn admg_from_oracle_dot(dot: &str) -> (Admg, OracleGraph) {
     for (from, to) in &parsed.directed {
         full.insert_directed(dense(&all, from), dense(&all, to)).unwrap();
     }
-    let observed: Vec<DenseNodeId> = (0..parsed.observed.len())
-        .map(DenseNodeId::from_index)
-        .collect();
+    let observed: Vec<DenseNodeId> =
+        (0..parsed.observed.len()).map(DenseNodeId::from_index).collect();
     let g = latent_project(&full, &observed).expect("oracle DOT latent projection");
     (g, OracleGraph { names: parsed.observed })
 }

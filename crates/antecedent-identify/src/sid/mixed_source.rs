@@ -109,14 +109,14 @@ use antecedent_core::{
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode, LeafBinding};
 use antecedent_graph::{Admg, DSeparationWorkspace, DenseNodeId, NodeRef, SelectionDiagram};
 
-use super::meta::{identify_meta_catalog_metered, MetaSource, MetaTransportQuery};
+use super::meta::{MetaSource, MetaTransportQuery, identify_meta_catalog_metered};
 use super::z_transport::{
-    decide_z_transport_reporting, ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery,
-    ZTransportSourceSpec,
+    ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery, ZTransportSourceSpec,
+    decide_z_transport_reporting,
 };
 use super::{
-    identify_catalog_transport_metered, CatalogTransportResult, ClassicalTransportQuery,
-    IdentificationError, MzTransportDecision, MzTransportQuery, SearchCharge, SharedSearch,
+    CatalogTransportResult, ClassicalTransportQuery, IdentificationError, MzTransportDecision,
+    MzTransportQuery, SearchCharge, SharedSearch, identify_catalog_transport_metered,
 };
 
 /// Observed variables in the graph.
@@ -1406,11 +1406,7 @@ impl Checker {
             .iter()
             .map(|v| self.variables.iter().position(|w| w == v).ok_or_else(invalid_derivation))
             .collect::<Result<Set, _>>()?;
-        if set.len() == variables.len() {
-            Ok(set)
-        } else {
-            Err(invalid_derivation())
-        }
+        if set.len() == variables.len() { Ok(set) } else { Err(invalid_derivation()) }
     }
 
     /// Ancestors of `seeds` (inclusive) along directed edges not entering `over`.
@@ -3577,7 +3573,7 @@ mod tests {
     /// Completeness against the complete ID algorithm (single observational study).
     mod reference {
         use super::*;
-        use crate::{result::IdentificationStatus, IdIdentifier, IdentificationWorkspace};
+        use crate::{IdIdentifier, IdentificationWorkspace, result::IdentificationStatus};
         use antecedent_core::{
             CausalQuery, Intervention, InterventionalDistributionQuery, SearchBudget, Value,
         };

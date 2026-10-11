@@ -1259,8 +1259,7 @@ fn intern_nodes(
     nodes: &BitSet,
     arena: &mut CausalExprArena,
 ) -> Result<antecedent_expr::VarSetId, IdentificationError> {
-    let vars: Result<Vec<_>, _> =
-        nodes.iter().map(|d| prepared.dense_to_var(d)).collect();
+    let vars: Result<Vec<_>, _> = nodes.iter().map(|d| prepared.dense_to_var(d)).collect();
     Ok(arena.intern_var_set(vars?))
 }
 

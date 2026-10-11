@@ -290,10 +290,8 @@ impl TransportIdentifier {
         // search and then to `NotCertified`.
         let mut safe_standardizers = !relevant_selection.iter().any(|z| outcomes.contains(z));
         // Reflexive descendants of the treatments, computed once.
-        let treatment_nodes = treatments
-            .iter()
-            .map(|x| prepared.var_to_dense(*x))
-            .collect::<Result<Vec<_>, _>>()?;
+        let treatment_nodes =
+            treatments.iter().map(|x| prepared.var_to_dense(*x)).collect::<Result<Vec<_>, _>>()?;
         let mut treated_downstream = BitSet::with_len(graph.node_count());
         graph.descendants_of(
             &treatment_nodes,

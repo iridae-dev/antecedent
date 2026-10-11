@@ -355,23 +355,36 @@ impl BackdoorIdentifier {
                     if enum_err.is_some() {
                         return true;
                     }
-                    if self.config.minimal_only && valid.iter().any(|prev| is_subset(prev, z)) {
-                        return false;
-                    }
-                    if self.config.maximal_only
-                        && !self.config.minimal_only
-                        && valid.iter().any(|prev| is_subset(z, prev))
-                    {
+                    // A superset of a set already in hand is not d-separated again, but it still
+                    // spends the examination budget. Skipping it for free lets one minimal set
+                    // walk an exponential family (up to the candidate power set) that the cap
+                    // never sees.
+                    let skipped = (self.config.minimal_only
+                        && valid.iter().any(|prev| is_subset(prev, z)))
+                        || (self.config.maximal_only
+                            && !self.config.minimal_only
+                            && valid.iter().any(|prev| is_subset(z, prev)));
+                    if skipped {
+                        if !charge_examination(
+                            &mut examined,
+                            self.config.max_examinations,
+                            &mut budget_exhausted,
+                            &mut early_stop,
+                        ) {
+                            return true;
+                        }
                         return false;
                     }
                     // The ancestral set was tested above; do not spend a second test on it.
                     if z != constructive.as_slice() {
-                        if examined >= self.config.max_examinations {
-                            budget_exhausted = true;
-                            early_stop = true;
+                        if !charge_examination(
+                            &mut examined,
+                            self.config.max_examinations,
+                            &mut budget_exhausted,
+                            &mut early_stop,
+                        ) {
                             return true;
                         }
-                        examined += 1;
                         match is_backdoor_adjustment(&mutilated, t, y, z, &mut workspace.dsep) {
                             Ok(false) => return false,
                             Err(e) => {
@@ -507,6 +520,26 @@ impl BackdoorIdentifier {
 
 fn is_subset(small: &[DenseNodeId], big: &[DenseNodeId]) -> bool {
     small.iter().all(|s| big.contains(s))
+}
+
+/// Charge one candidate against `max_examinations`.
+///
+/// Returns false, and marks the search bounded, when the cap is already spent. The candidate
+/// that hits the cap is refused rather than tested, so a search that lands exactly on the cap
+/// has examined every candidate it accepted.
+fn charge_examination(
+    examined: &mut u64,
+    max_examinations: u64,
+    budget_exhausted: &mut bool,
+    early_stop: &mut bool,
+) -> bool {
+    if *examined >= max_examinations {
+        *budget_exhausted = true;
+        *early_stop = true;
+        return false;
+    }
+    *examined += 1;
+    true
 }
 
 /// `An({T,Y}) \ forbidden`, minus variables past the history-lag limit.
@@ -843,6 +876,46 @@ mod tests {
             .expect("the unfinished enumeration is reported");
         assert_eq!(bounded.kind, antecedent_core::DiagnosticKind::Execution);
         assert!(res.performance.candidates_examined <= 4);
+    }
+
+    #[test]
+    fn superset_skips_stop_at_the_examination_cap() {
+        // One backdoor chain T ← N1 ← … ← N30 → Y. Every singleton blocks it, so with
+        // `minimal_only` every larger subset is a superset. `max_results` stays above 30, so
+        // the search does not stop on the result cap; it used to walk the rest of the power
+        // set without charging those skips, and `max_examinations` never fired.
+        let n = 30u32;
+        let mut g = Dag::with_variables(n + 2);
+        let t = DenseNodeId::from_raw(0);
+        let y = DenseNodeId::from_raw(1);
+        g.insert_directed(t, y).unwrap();
+        g.insert_directed(DenseNodeId::from_raw(2), t).unwrap();
+        for i in 2..n + 1 {
+            g.insert_directed(DenseNodeId::from_raw(i + 1), DenseNodeId::from_raw(i)).unwrap();
+        }
+        g.insert_directed(DenseNodeId::from_raw(n + 1), y).unwrap();
+
+        let mut id = BackdoorIdentifier::new();
+        let cap = 40u64;
+        id.config.max_examinations = cap;
+        let prep = id.prepare(&g).unwrap();
+        let q = CausalQuery::average_effect(AverageEffectQuery::binary_ate(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+        ));
+        let res = id.identify(&prep, &q, &mut IdentificationWorkspace::default()).unwrap();
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
+        assert_eq!(res.performance.candidates_examined, cap);
+        let sets: Vec<Vec<VariableId>> =
+            res.estimands.iter().map(|e| e.adjustment_set.iter().copied().collect()).collect();
+        assert_eq!(sets.len(), 30, "sets={sets:?}");
+        assert!(sets.iter().all(|s| s.len() == 1), "sets={sets:?}");
+        let bounded = res
+            .diagnostics
+            .iter()
+            .find(|d| d.code.as_ref() == BACKDOOR_SEARCH_BOUNDED_DIAGNOSTIC_CODE)
+            .expect("the cap stops the skipped supersets");
+        assert_eq!(bounded.kind, antecedent_core::DiagnosticKind::Execution);
     }
 
     #[test]

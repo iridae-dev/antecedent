@@ -336,10 +336,7 @@ impl Skeleton {
             stream.word(u64::from(parent.raw()));
             stream.word(u64::from(child.raw()));
         }
-        CompletionDag {
-            identity: Arc::from(to_hex(&stream.finish())),
-            edges: edges.into(),
-        }
+        CompletionDag { identity: Arc::from(to_hex(&stream.finish())), edges: edges.into() }
     }
 }
 
@@ -925,8 +922,8 @@ mod tests {
     fn identities_are_pinned_golden_vectors() {
         let ctx = ExecutionContext::for_tests(1);
         let limits = SearchLimits { operations: 1_000_000, depth: 64 };
-        let e = enumerate_cpdag_completions(&input(3, &[(0, 1), (1, 2)], &[]), limits, &ctx)
-            .unwrap();
+        let e =
+            enumerate_cpdag_completions(&input(3, &[(0, 1), (1, 2)], &[]), limits, &ctx).unwrap();
         assert_eq!(
             &*e.cpdag_identity,
             "1aaee032f566bfff617c386fa98e88ac769ed22eb0616656edc25169d4d8bd0a"

@@ -52,9 +52,7 @@ impl PreparedAdmg {
         let mut var_index = HashMap::with_capacity(admg.node_count());
         for i in 0..admg.node_count() {
             if let Some(v) = node_variable_id(admg.nodes(), i) {
-                var_index
-                    .entry(v)
-                    .or_insert_with(|| DenseNodeId::from_index(i));
+                var_index.entry(v).or_insert_with(|| DenseNodeId::from_index(i));
             }
         }
         Ok(Self {

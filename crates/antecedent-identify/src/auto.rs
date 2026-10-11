@@ -1063,8 +1063,9 @@ mod tests {
     }
 
     #[test]
-    fn auto_reports_a_path_budget_exit_as_inconclusive() {
-        // 0=t, four fully connected layers of three, 13=y: 81 paths against a budget of 64.
+    fn auto_identifies_a_path_explosion_by_reachability() {
+        // 0=t, four fully connected layers of three, 13=y: 81 paths. The effect through
+        // node 1 is identified from the first hops; the path budget is not a refusal.
         let mut dag = Dag::with_variables(14);
         let layer = |k: u32| (1 + 3 * k)..(4 + 3 * k);
         for v in layer(0) {
@@ -1092,19 +1093,12 @@ mod tests {
         );
         let mut ws = IdentificationWorkspace::default();
         let res = auto.identify(&prep, &q, &mut ws).unwrap();
-        assert_eq!(res.status, IdentificationStatus::NotIdentified);
+        assert_eq!(res.status, IdentificationStatus::NonparametricallyIdentified);
         assert!(
-            !res.diagnostics.iter().any(|d| d.kind == DiagnosticKind::Scientific),
-            "a budget exit is not a scientific negative: {:?}",
+            res.diagnostics.iter().all(|d| d.code.as_ref() != "auto.path_specific.search_bounded"),
+            "{:?}",
             res.diagnostics
         );
-        let bounded = res
-            .diagnostics
-            .iter()
-            .find(|d| d.code.as_ref() == "auto.path_specific.search_bounded")
-            .expect("auto bounded-search diagnostic");
-        assert_eq!(bounded.kind, DiagnosticKind::Execution);
-        assert_eq!(bounded.severity, DiagnosticSeverity::Warning);
     }
 
     /// R -> T -> Y with R -> Y: a sharp design on R (variables: 0 = T, 1 = Y, 2 = R).
