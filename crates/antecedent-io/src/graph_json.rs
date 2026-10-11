@@ -5,7 +5,7 @@
 use antecedent_graph::Dag;
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{dag_from_wire, dag_to_wire};
+use crate::convert::{check_graph_budget, dag_from_wire, dag_to_wire};
 use crate::error::IoError;
 use crate::wire::{DagWire, SchemaWire};
 
@@ -75,6 +75,7 @@ pub fn dag_from_json(json: &str) -> Result<Dag, IoError> {
 pub fn dag_with_names_from_json(json: &str) -> Result<(Dag, Vec<String>), IoError> {
     let doc: DagJson =
         serde_json::from_str(json).map_err(|e| IoError::Convert(format!("json: {e}")))?;
+    check_graph_budget(doc.node_count, doc.edges.len())?;
     let names = match &doc.variable_names {
         Some(names) => {
             if names.len() != doc.node_count as usize {
@@ -155,5 +156,12 @@ mod tests {
         let s = dag_to_json(&dag, None).unwrap();
         let (_back, names) = dag_with_names_from_json(&s).unwrap();
         assert_eq!(names, vec!["0".to_string(), "1".to_string()]);
+    }
+
+    #[test]
+    fn huge_node_count_is_refused_before_allocation() {
+        let err = dag_from_json(r#"{"node_count":4294967295,"edges":[]}"#).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("node_count"), "{msg}");
     }
 }

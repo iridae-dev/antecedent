@@ -224,6 +224,7 @@ fn check_optional_names(names: Option<&[String]>, node_count: u32) -> Result<(),
 
 /// Validated names, or dense-index strings when the document carries none.
 fn names_or_default(names: Option<&[String]>, node_count: u32) -> Result<Vec<String>, IoError> {
+    crate::convert::check_graph_budget(node_count, 0)?;
     check_optional_names(names, node_count)?;
     Ok(names.map_or_else(|| (0..node_count).map(|i| i.to_string()).collect(), <[String]>::to_vec))
 }
@@ -1176,7 +1177,11 @@ fn node_id(i: u32, names: Option<&[String]>) -> JsonValue {
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 fn canon(a: u32, b: u32) -> (u32, u32) {
-    if a <= b { (a, b) } else { (b, a) }
+    if a <= b {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }
 
 fn parse_endpoint(s: &str) -> Result<EndpointWire, IoError> {
@@ -1423,10 +1428,8 @@ mod tests {
         let marks = pag_marks("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=odot]; }");
         assert_eq!(marks, vec![(0, 1, EndpointWire::Circle, EndpointWire::Circle)]);
         // An o-> edge must not load into an ADMG as <->.
-        assert!(
-            admg_from_dot("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=normal]; }")
-                .is_err()
-        );
+        assert!(admg_from_dot("digraph { a -> b [dir=both, arrowtail=odot, arrowhead=normal]; }")
+            .is_err());
     }
 
     #[test]

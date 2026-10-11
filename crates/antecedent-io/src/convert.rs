@@ -17,6 +17,32 @@ use crate::wire::{
     ScalarTypeWire, SchemaWire, SchemaWireV01, ValueTypeWire, VariableSchemaWire,
 };
 
+/// Largest `node_count` accepted from an untrusted graph document.
+///
+/// A wire or JSON `node_count` is an allocation multiplier: the loader builds
+/// one node (and, when names are omitted, one `String`) per count before it
+/// has seen that many edges. `u32::MAX` would ask for billions of allocations
+/// from a few dozen bytes of input.
+pub const MAX_GRAPH_NODES: u32 = 100_000;
+
+/// Largest edge list accepted from an untrusted graph document.
+pub const MAX_GRAPH_EDGES: usize = 1_000_000;
+
+/// Refuse a graph document whose node or edge count would allocate without bound.
+pub(crate) fn check_graph_budget(node_count: u32, edge_count: usize) -> Result<(), IoError> {
+    if node_count > MAX_GRAPH_NODES {
+        return Err(IoError::Convert(format!(
+            "node_count {node_count} exceeds the maximum of {MAX_GRAPH_NODES}"
+        )));
+    }
+    if edge_count > MAX_GRAPH_EDGES {
+        return Err(IoError::Convert(format!(
+            "edge count {edge_count} exceeds the maximum of {MAX_GRAPH_EDGES}"
+        )));
+    }
+    Ok(())
+}
+
 /// Encode a schema to full wire form (format ≥ 0.2).
 #[must_use]
 pub fn schema_to_wire(schema: &CausalSchema) -> SchemaWire {
@@ -176,6 +202,7 @@ pub fn dag_to_wire(dag: &Dag) -> Result<DagWire, IoError> {
 ///
 /// Invalid edges / cycles.
 pub fn dag_from_wire(wire: &DagWire) -> Result<Dag, IoError> {
+    check_graph_budget(wire.node_count, wire.edges.len())?;
     let mut dag = Dag::with_variables(wire.node_count);
     for &(from, to) in &wire.edges {
         dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
@@ -233,6 +260,7 @@ pub fn pag_to_wire(pag: &Pag) -> Result<PagWire, IoError> {
 ///
 /// Invalid marks / edges.
 pub fn pag_from_wire(wire: &PagWire) -> Result<Pag, IoError> {
+    check_graph_budget(wire.node_count, wire.edges.len())?;
     let mut pag = Pag::with_variables(wire.node_count);
     for e in &wire.edges {
         let edge = MarkedEdge {
@@ -282,6 +310,7 @@ pub fn cpdag_to_wire(cpdag: &Cpdag) -> Result<CpdagWire, IoError> {
 ///
 /// Invalid edges / cycles.
 pub fn cpdag_from_wire(wire: &CpdagWire) -> Result<Cpdag, IoError> {
+    check_graph_budget(wire.node_count, wire.directed.len().saturating_add(wire.undirected.len()))?;
     let mut g = Cpdag::with_variables(wire.node_count);
     for &(from, to) in &wire.directed {
         g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
@@ -323,6 +352,7 @@ pub fn admg_to_wire(admg: &Admg) -> Result<AdmgWire, IoError> {
 ///
 /// Invalid edges / cycles.
 pub fn admg_from_wire(wire: &AdmgWire) -> Result<Admg, IoError> {
+    check_graph_budget(wire.node_count, wire.directed.len().saturating_add(wire.bidirected.len()))?;
     let mut g = Admg::with_variables(wire.node_count);
     for &(from, to) in &wire.directed {
         g.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
