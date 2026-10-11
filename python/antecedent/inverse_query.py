@@ -45,14 +45,15 @@ declarations and raises each refusal as :class:`InverseQueryRefusal`, a
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from ._native import InverseQueryArtifact as _NativeInverseQueryArtifact
 from ._native import inverse_query_baseline as _baseline
 from ._refusal import raise_refusal
+from ._validate import real
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .external import BoundExternalClaim
@@ -167,15 +168,18 @@ class Constraint:
         return f"P(U {side} {self.outcome_threshold:g}) {sign} {self.probability:g}"
 
 
-def _finite(name: str, value: float) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise CausalValueError(f"{name} must be a finite number", reason_code="invalid_argument")
-    return float(value)
+_finite = partial(
+    real,
+    finite=True,
+    type_error=CausalValueError,
+    type_message="{what} must be a finite number",
+    reason_code="invalid_argument",
+)
 
 
 def target_mean(target: float, *, direction: Direction = "at_least") -> Constraint:
     """``E[U_a]`` at least (or at most) ``target``; answerable from means when affine."""
-    return Constraint("target_mean", _direction(direction), target=_finite("target", target))
+    return Constraint("target_mean", _direction(direction), target=_finite(target, "target"))
 
 
 def target_quantile(p: float, target: float, *, direction: Direction = "at_least") -> Constraint:
@@ -186,8 +190,8 @@ def target_quantile(p: float, target: float, *, direction: Direction = "at_least
     return Constraint(
         "target_quantile",
         _direction(direction),
-        target=_finite("target", target),
-        p=_finite("p", p),
+        target=_finite(target, "target"),
+        p=_finite(p, "p"),
     )
 
 
@@ -208,9 +212,9 @@ def probability_threshold(
     return Constraint(
         "probability_threshold",
         _direction(direction),
-        outcome_threshold=_finite("outcome_threshold", outcome_threshold),
+        outcome_threshold=_finite(outcome_threshold, "outcome_threshold"),
         tail=tail,
-        probability=_finite("probability", probability),
+        probability=_finite(probability, "probability"),
     )
 
 
@@ -792,7 +796,7 @@ def finite_enumeration_baseline(
     """
     rows = [{"id": p.id, "value": p.value, "supported": p.supported} for p in points]
     text, refusal = _baseline(
-        json.dumps(rows), _finite("target", target), _direction(direction), float(tolerance)
+        json.dumps(rows), _finite(target, "target"), _direction(direction), float(tolerance)
     )
     _raise(refusal)
     assert text is not None
