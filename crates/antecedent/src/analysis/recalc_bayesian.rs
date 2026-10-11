@@ -879,11 +879,7 @@ fn verify_bound_bayesian_prior(
     );
     meta.provenance.insert(
         "bayesian.verified_source_snapshot.v1".into(),
-        source_snapshot.iter().fold(String::with_capacity(64), |mut text, byte| {
-            use std::fmt::Write;
-            write!(text, "{byte:02x}").expect("writing to a String cannot fail");
-            text
-        }),
+        antecedent_core::to_hex(&source_snapshot),
     );
     let artifact = antecedent_io::attach_prior_source_meta(artifact, &meta)
         .map_err(crate::CausalError::Serialization)?;

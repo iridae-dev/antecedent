@@ -294,13 +294,8 @@ pub struct ClaimSource {
     pub identity: String,
 }
 
-const HEX: &[u8; 16] = b"0123456789abcdef";
-
 fn hex(bytes: &[u8; 32]) -> String {
-    bytes
-        .iter()
-        .flat_map(|b| [HEX[usize::from(b >> 4)] as char, HEX[usize::from(b & 0x0f)] as char])
-        .collect()
+    antecedent_core::to_hex(bytes)
 }
 
 fn put_len(bytes: &mut Vec<u8>, len: usize) {

@@ -42,11 +42,7 @@ fn collapse_single_coordinate_band_to_scalar(
     if n < 2 {
         return uncertainty;
     }
-    #[allow(clippy::cast_precision_loss)]
-    let count = n as f64;
-    let mean = column.iter().sum::<f64>() / count;
-    let standard_error =
-        (column.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (count - 1.0)).sqrt();
+    let standard_error = antecedent_stats::sample_std(column);
     ResponseUncertainty::Scalar {
         standard_error,
         level: *level,

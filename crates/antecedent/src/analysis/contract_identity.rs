@@ -6,7 +6,6 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::fmt::Write;
 
 use antecedent_core::{CausalQuery, ObservationAssumption, ObservationSpec, VariableId};
 use antecedent_data::TableView;
@@ -259,9 +258,9 @@ fn cluster_dml_key(cfg: &antecedent_estimate::AipwAte) -> Option<String> {
     let mut key = cfg.cluster_dml.as_ref()?.canonical_key();
     if let Some(second) = cfg.cluster_ids_second.as_deref() {
         key.push_str(";second_ids=");
-        for byte in PayloadDigestWire::u32s("estimator.cluster_ids_second", second).digest {
-            let _ = write!(key, "{byte:02x}");
-        }
+        key.push_str(&antecedent_core::to_hex(
+            &PayloadDigestWire::u32s("estimator.cluster_ids_second", second).digest,
+        ));
     }
     Some(key)
 }

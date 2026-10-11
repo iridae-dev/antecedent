@@ -1966,8 +1966,10 @@ fn fit_panel_sequential_atom(
     let mut unit_ates = Vec::with_capacity(panel.unit_count());
     let mut last_assumptions = assumptions.clone();
     for (index, unit) in panel.units().iter().enumerate() {
-        let unit_seed =
-            completion_fit_seed(ctx, seed ^ (index as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        let unit_seed = completion_fit_seed(
+            ctx,
+            seed ^ (index as u64 + 1).wrapping_mul(antecedent_core::GOLDEN_GAMMA),
+        );
         let unit_bayes =
             bayes.map(|estimator| BayesianGComputationAte { seed: unit_seed, ..estimator.clone() });
         let mut mechanisms = Vec::new();

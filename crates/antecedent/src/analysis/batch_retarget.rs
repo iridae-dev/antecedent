@@ -268,11 +268,7 @@ impl BatchScores {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut out, b| {
-        let _ = write!(out, "{b:02x}");
-        out
-    })
+    antecedent_core::to_hex(bytes)
 }
 
 /// One declared retargeted claim.

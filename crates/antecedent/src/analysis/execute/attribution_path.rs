@@ -189,9 +189,7 @@ fn execute_checked_counterfactual_plan(
                         stage: super::super::stage::STAGE_ESTIMATE_POINT,
                     });
                 }
-                let weights: Vec<f64> = (0..n)
-                    .map(|_| (-rng.next_f64().max(f64::MIN_POSITIVE).ln()).max(0.0))
-                    .collect();
+                let weights = antecedent_kernels::bayesian_bootstrap_weights(&mut rng, n, false);
                 // The same registry the point fit selected from, so every family a
                 // node can have selected is one `refit_weighted` accepts.
                 let store = crate::gcm::MechanismRegistry::with_heterogeneity_families()
@@ -786,7 +784,7 @@ impl super::Study {
 }
 
 pub(super) fn dirichlet_row_weights(n: usize, rng: &mut antecedent_core::CausalRng) -> Vec<f64> {
-    (0..n).map(|_| -rng.next_f64().max(f64::MIN_POSITIVE).ln()).collect()
+    antecedent_kernels::bayesian_bootstrap_weights(rng, n, false)
 }
 
 /// Bayesian-bootstrap mean of per-row `scores` under the draw's Dirichlet `weights`:

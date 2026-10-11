@@ -229,13 +229,8 @@ impl ZTransportSensitivityArtifactWire {
 /// Hex digest of the baseline artifact bytes.
 #[must_use]
 pub fn digest_baseline(bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-
-    let digest = antecedent_io::identity::payload_digest("z_transport_sensitivity_baseline", bytes);
-    let mut hexadecimal = String::with_capacity(digest.len() * 2);
-    for byte in digest {
-        write!(&mut hexadecimal, "{byte:02x}")
-            .expect("writing hexadecimal bytes to a String cannot fail");
-    }
-    hexadecimal
+    antecedent_core::to_hex(&antecedent_io::identity::payload_digest(
+        "z_transport_sensitivity_baseline",
+        bytes,
+    ))
 }

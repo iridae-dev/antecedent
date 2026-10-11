@@ -250,14 +250,7 @@ struct VersionPeek {
 }
 
 fn hex(domain: &str, bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-    antecedent_io::identity::payload_digest(domain, bytes).iter().fold(
-        String::new(),
-        |mut out, byte| {
-            let _ = write!(out, "{byte:02x}");
-            out
-        },
-    )
+    antecedent_core::to_hex(&antecedent_io::identity::payload_digest(domain, bytes))
 }
 
 fn stop_name(stop: SearchStop) -> String {

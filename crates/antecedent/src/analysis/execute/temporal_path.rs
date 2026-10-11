@@ -5082,19 +5082,12 @@ fn summarize_observation_bootstrap(
     for (cell, &mid) in center.iter().enumerate() {
         values.clear();
         values.extend(draws.iter().map(|draw| draw[cell]));
-        let sd = sample_sd(&values);
+        let sd = antecedent_stats::sample_std(&values);
         band.lower.push(mid - z * sd);
         band.upper.push(mid + z * sd);
     }
     band.draws = draws.to_vec();
     band
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn sample_sd(values: &[f64]) -> f64 {
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
-    (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt()
 }
 
 /// Full-sample point surface of a response, in the mean layout.

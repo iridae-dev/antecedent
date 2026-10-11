@@ -44,10 +44,7 @@ fn n_sim() -> u32 {
 }
 
 fn mix_seed(seed: u64) -> u64 {
-    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
+    antecedent_core::mix64(seed.wrapping_add(antecedent_core::GOLDEN_GAMMA))
 }
 
 fn gaussian(seed: u64) -> impl FnMut() -> f64 {
